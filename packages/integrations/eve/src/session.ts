@@ -10,6 +10,8 @@ import {
   type StagehandBrowser,
 } from "@browserbasehq/stagehand";
 import {
+  BrowserbaseSessionReleaseError,
+  releaseBrowserbaseSession,
   StagehandFacadeTools,
   stagehandFacadeConfigFromEnv,
 } from "@browserbasehq/stagehand-integrations/facade";
@@ -18,6 +20,11 @@ type FacadeResources = {
   browser: StagehandBrowser;
   stagehand: Stagehand;
   tools: StagehandFacadeTools;
+  session?: {
+    apiKey: string;
+    baseUrl: string | undefined;
+    id: string;
+  };
 };
 
 let resources: FacadeResources | undefined;
@@ -44,6 +51,17 @@ export function discardFacadeTools(expected: StagehandFacadeTools): void {
   resources = undefined;
   resourcesPromise = undefined;
   cleanupPromise = cleanupPromise.then(() => closeResources(stale));
+}
+
+async function closeRequestedFacadeTools(expected: StagehandFacadeTools): Promise<void> {
+  if (resources?.tools !== expected) return;
+
+  const stale = resources;
+  resources = undefined;
+  resourcesPromise = undefined;
+  const closeResult = cleanupPromise.then(() => closeResources(stale, true));
+  cleanupPromise = closeResult.catch(() => undefined);
+  await closeResult;
 }
 
 export async function discardFacadeToolsIfUnhealthy(expected: StagehandFacadeTools): Promise<void> {
@@ -95,7 +113,13 @@ async function createResources(): Promise<FacadeResources> {
     // broken, so reattaching would loop forever (the "no brick" invariant).
     if (browserbaseSessionId !== suspectSessionId) {
       const browser = await connectToSession(apiKey, browserbaseSessionId, baseUrl);
-      if (browser) return attach(browser, config.stagehand);
+      if (browser) {
+        return attach(browser, config.stagehand, {
+          apiKey,
+          baseUrl,
+          id: browserbaseSessionId,
+        });
+      }
     }
 
     // Recovery is bounded: release the old keep-alive session best-effort so
@@ -120,7 +144,11 @@ async function createResources(): Promise<FacadeResources> {
     browserbaseSessionId = browser.sessionId;
     persistSessionId(browser.sessionId);
   }
-  return attach(browser, config.stagehand);
+  return attach(
+    browser,
+    config.stagehand,
+    browser.sessionId ? { apiKey, baseUrl, id: browser.sessionId } : undefined,
+  );
 }
 
 async function connectToSession(
@@ -154,21 +182,14 @@ async function releaseSession(
   apiKey: string,
   sessionId: string,
   baseUrl: string | undefined,
-): Promise<void> {
-  // Best-effort raw REST release so the keep-alive session doesn't keep
-  // billing after we abandon it. Failures are swallowed: the session may
-  // already be gone, and release must never block the fresh launch.
+): Promise<boolean> {
   try {
-    await fetch(`${baseUrl ?? "https://api.browserbase.com"}/v1/sessions/${sessionId}`, {
-      method: "POST",
-      headers: {
-        "x-bb-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ status: "REQUEST_RELEASE" }),
-    });
+    await releaseBrowserbaseSession({ apiKey, baseUrl, sessionId });
+    return true;
   } catch {
-    // Swallow — best-effort only.
+    // Recovery paths are best-effort; explicit close turns false into a stable
+    // lifecycle error so the model cannot falsely report successful cleanup.
+    return false;
   }
 }
 
@@ -216,17 +237,64 @@ function sessionFilePath(): string {
 async function attach(
   browser: StagehandBrowser,
   config: StagehandClientCreateConfig,
+  session?: FacadeResources["session"],
 ): Promise<FacadeResources> {
+  const release = session
+    ? () => releaseSession(session.apiKey, session.id, session.baseUrl)
+    : undefined;
   try {
     const stagehand = await Stagehand.create({ browser, ...config });
-    return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+    let tools: StagehandFacadeTools;
+    tools = new StagehandFacadeTools(stagehand, {
+      close: () => closeRequestedFacadeTools(tools),
+    });
+    return { browser, stagehand, tools, ...(session ? { session } : {}) };
   } catch (error) {
-    await browser.close().catch(() => undefined);
+    let browserCloseFailed = false;
+    await browser.close().catch(() => {
+      browserCloseFailed = true;
+    });
+    if (browserCloseFailed && release && session) {
+      const released = await release();
+      if (released) {
+        clearOwnedSessionId(session.id);
+      } else {
+        // Keep the persisted ID as the recovery target. The next resource
+        // creation skips reconnecting to it and retries release first.
+        suspectSessionId = session.id;
+      }
+    }
     throw error;
   }
 }
 
-async function closeResources(stale: FacadeResources): Promise<void> {
-  await stale.stagehand.close().catch(() => undefined);
-  await stale.browser.close().catch(() => undefined);
+async function closeResources(stale: FacadeResources, explicit = false): Promise<void> {
+  const cleanupErrors: unknown[] = [];
+  await stale.stagehand.close().catch((error) => cleanupErrors.push(error));
+  await stale.browser.close().catch((error) => cleanupErrors.push(error));
+
+  if (explicit && stale.session) {
+    const released = await releaseSession(
+      stale.session.apiKey,
+      stale.session.id,
+      stale.session.baseUrl,
+    );
+    if (!released) {
+      suspectSessionId = stale.session.id;
+      cleanupErrors.push(new BrowserbaseSessionReleaseError());
+    } else {
+      clearOwnedSessionId(stale.session.id);
+    }
+  }
+
+  if (!explicit || cleanupErrors.length === 0) return;
+  if (cleanupErrors.length === 1) throw cleanupErrors[0];
+  throw new AggregateError(cleanupErrors, "Failed to close the browser session cleanly.");
+}
+
+function clearOwnedSessionId(sessionId: string): void {
+  if (browserbaseSessionId !== sessionId) return;
+  browserbaseSessionId = undefined;
+  suspectSessionId = undefined;
+  persistSessionId(undefined);
 }
