@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,10 +62,13 @@ describe("Eve facade session lifecycle", () => {
       baseUrl: undefined,
       sessionId: "session-one",
     });
+    expect(existsSync(process.env.STAGEHAND_EVE_SESSION_FILE!)).toBe(false);
 
     const secondTools = await getFacadeTools();
     expect(secondTools).not.toBe(firstTools);
     expect(mocks.launch).toHaveBeenCalledTimes(2);
+    expect(mocks.connect).not.toHaveBeenCalled();
+    expect(existsSync(process.env.STAGEHAND_EVE_SESSION_FILE!)).toBe(true);
   });
 
   it("surfaces a failed release instead of reporting close success", async () => {
@@ -74,10 +77,12 @@ describe("Eve facade session lifecycle", () => {
     mocks.create.mockResolvedValueOnce(resources.stagehand);
     mocks.release.mockRejectedValueOnce(new Error("release failed"));
     const { getFacadeTools } = await import("../src/session.js");
+    const { BrowserbaseSessionReleaseError } =
+      await import("@browserbasehq/stagehand-integrations/facade");
 
     const tools = await getFacadeTools();
-    await expect(tools.run("await browser.close();")).rejects.toThrow(
-      "Failed to release the Browserbase session.",
+    await expect(tools.run("await browser.close();")).rejects.toBeInstanceOf(
+      BrowserbaseSessionReleaseError,
     );
   });
 
@@ -91,6 +96,23 @@ describe("Eve facade session lifecycle", () => {
     const tools = await getFacadeTools();
     await expect(tools.run("await browser.close();")).rejects.toThrow("browser close failed");
     expect(mocks.release).toHaveBeenCalledOnce();
+  });
+
+  it("releases a persisted session when Stagehand initialization cleanup fails", async () => {
+    const resources = createResources("session-init-failed");
+    resources.browser.close.mockRejectedValueOnce(new Error("browser close failed"));
+    mocks.launch.mockResolvedValueOnce(resources.browser);
+    mocks.create.mockRejectedValueOnce(new Error("Stagehand init failed"));
+    const { getFacadeTools } = await import("../src/session.js");
+
+    await expect(getFacadeTools()).rejects.toThrow("Stagehand init failed");
+    expect(resources.browser.close).toHaveBeenCalledOnce();
+    expect(mocks.release).toHaveBeenCalledWith({
+      apiKey: "test-api-key",
+      baseUrl: undefined,
+      sessionId: "session-init-failed",
+    });
+    expect(existsSync(process.env.STAGEHAND_EVE_SESSION_FILE!)).toBe(false);
   });
 });
 

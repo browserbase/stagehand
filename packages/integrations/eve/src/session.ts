@@ -10,6 +10,7 @@ import {
   type StagehandBrowser,
 } from "@browserbasehq/stagehand";
 import {
+  BrowserbaseSessionReleaseError,
   releaseBrowserbaseSession,
   StagehandFacadeTools,
   stagehandFacadeConfigFromEnv,
@@ -238,6 +239,9 @@ async function attach(
   config: StagehandClientCreateConfig,
   session?: FacadeResources["session"],
 ): Promise<FacadeResources> {
+  const release = session
+    ? () => releaseSession(session.apiKey, session.id, session.baseUrl)
+    : undefined;
   try {
     const stagehand = await Stagehand.create({ browser, ...config });
     let tools: StagehandFacadeTools;
@@ -246,7 +250,20 @@ async function attach(
     });
     return { browser, stagehand, tools, ...(session ? { session } : {}) };
   } catch (error) {
-    await browser.close().catch(() => undefined);
+    let browserCloseFailed = false;
+    await browser.close().catch(() => {
+      browserCloseFailed = true;
+    });
+    if (browserCloseFailed && release && session) {
+      const released = await release();
+      if (released) {
+        clearOwnedSessionId(session.id);
+      } else {
+        // Keep the persisted ID as the recovery target. The next resource
+        // creation skips reconnecting to it and retries release first.
+        suspectSessionId = session.id;
+      }
+    }
     throw error;
   }
 }
@@ -264,15 +281,20 @@ async function closeResources(stale: FacadeResources, explicit = false): Promise
     );
     if (!released) {
       suspectSessionId = stale.session.id;
-      cleanupErrors.push(new Error("Failed to release the Browserbase session."));
-    } else if (browserbaseSessionId === stale.session.id) {
-      browserbaseSessionId = undefined;
-      suspectSessionId = undefined;
-      persistSessionId(undefined);
+      cleanupErrors.push(new BrowserbaseSessionReleaseError());
+    } else {
+      clearOwnedSessionId(stale.session.id);
     }
   }
 
   if (!explicit || cleanupErrors.length === 0) return;
   if (cleanupErrors.length === 1) throw cleanupErrors[0];
   throw new AggregateError(cleanupErrors, "Failed to close the browser session cleanly.");
+}
+
+function clearOwnedSessionId(sessionId: string): void {
+  if (browserbaseSessionId !== sessionId) return;
+  browserbaseSessionId = undefined;
+  suspectSessionId = undefined;
+  persistSessionId(undefined);
 }
