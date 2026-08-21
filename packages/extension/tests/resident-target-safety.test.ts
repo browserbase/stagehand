@@ -25,7 +25,7 @@ function bootstrapConnection(
   targets: Protocol.Target.TargetInfo[],
   getSession: (sessionId: string) => unknown = () => undefined,
 ) {
-  const attachToTarget = vi.fn(async () => ({}));
+  const attachToTarget = vi.fn(async (_targetId: string): Promise<unknown> => ({}));
   let targetInfoChanged: ((event: Protocol.Target.TargetInfoChangedEvent) => void) | undefined;
   let targetDestroyed: ((event: Protocol.Target.TargetDestroyedEvent) => void) | undefined;
   const connection = {
