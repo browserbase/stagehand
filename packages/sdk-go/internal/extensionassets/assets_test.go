@@ -12,13 +12,13 @@ import (
 	"testing"
 )
 
-func TestArchiveContainsLoadableStagehandExtension(t *testing.T) {
+func TestEmbeddedArchiveContainsLoadableStagehandExtension(t *testing.T) {
 	t.Parallel()
 
-	archive := Archive()
+	archive := bytes.Clone(stagehandExtensionArchive)
 	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
 	if err != nil {
-		t.Fatalf("open Archive(): %v", err)
+		t.Fatalf("open embedded archive: %v", err)
 	}
 
 	var names []string
@@ -65,16 +65,6 @@ func TestArchiveContainsLoadableStagehandExtension(t *testing.T) {
 	}
 }
 
-func TestArchiveReturnsAnIndependentCopy(t *testing.T) {
-	t.Parallel()
-
-	first := Archive()
-	first[0] ^= 0xff
-	if bytes.Equal(first, Archive()) {
-		t.Fatal("Archive() returned mutable embedded storage")
-	}
-}
-
 func TestMaterializeMatchesArchiveAndCleansUp(t *testing.T) {
 	t.Parallel()
 
@@ -82,7 +72,7 @@ func TestMaterializeMatchesArchiveAndCleansUp(t *testing.T) {
 	if err := os.Mkdir(parentDirectory, 0o755); err != nil {
 		t.Fatalf("create parent directory: %v", err)
 	}
-	directory, cleanup, err := materialize(Archive(), parentDirectory)
+	directory, cleanup, err := materialize(stagehandExtensionArchive, parentDirectory)
 	if err != nil {
 		t.Fatalf("materialize() error = %v", err)
 	}

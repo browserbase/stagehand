@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -22,7 +21,6 @@ const (
 	defaultBrowserbaseMaxRetries   = 2
 	maxBrowserbaseRetryDelay       = defaultBrowserbaseHTTPTimeout
 	maxBrowserbaseAPIResponseBytes = 4 << 20
-	stagehandExtensionUploadName   = "stagehand-extension.zip"
 )
 
 // BrowserbaseAPIError is a non-successful response from the Browserbase API.
@@ -67,8 +65,6 @@ type browserbaseHTTPClient struct {
 }
 
 type browserbaseAPI interface {
-	uploadExtension(context.Context, []byte) (browserbaseExtensionResponse, error)
-	deleteExtension(context.Context, string) error
 	createSession(
 		context.Context,
 		browserbaseCreateSessionRequest,
@@ -125,32 +121,6 @@ func newBrowserbaseHTTPClient(
 	}, nil
 }
 
-func (client *browserbaseHTTPClient) uploadExtension(
-	ctx context.Context,
-	archive []byte,
-) (browserbaseExtensionResponse, error) {
-	return sendBrowserbaseRequest[browserbaseExtensionResponse](
-		ctx,
-		client,
-		browserbaseUploadExtensionRequest{
-			Archive:  archive,
-			FileName: stagehandExtensionUploadName,
-		},
-	)
-}
-
-func (client *browserbaseHTTPClient) deleteExtension(
-	ctx context.Context,
-	extensionID string,
-) error {
-	_, err := sendBrowserbaseRequest[browserbaseNoContentResponse](
-		ctx,
-		client,
-		browserbaseDeleteExtensionRequest{ExtensionID: extensionID},
-	)
-	return err
-}
-
 func (client *browserbaseHTTPClient) createSession(
 	ctx context.Context,
 	request browserbaseCreateSessionRequest,
@@ -188,7 +158,6 @@ type browserbaseEncodedRequest struct {
 	path        string
 	body        []byte
 	contentType string
-	accept      string
 	replaySafe  bool
 }
 
@@ -232,11 +201,7 @@ func sendBrowserbaseRequest[Response browserbaseEndpointResponse](
 		if encoded.contentType != "" {
 			httpRequest.Header.Set("Content-Type", encoded.contentType)
 		}
-		if encoded.accept != "" {
-			httpRequest.Header.Set("Accept", encoded.accept)
-		} else {
-			httpRequest.Header.Set("Accept", "application/json")
-		}
+		httpRequest.Header.Set("Accept", "application/json")
 
 		httpResponse, requestErr := client.httpClient.Do(httpRequest)
 		if requestErr != nil {
@@ -404,57 +369,6 @@ func browserbaseErrorMessage(body []byte) string {
 	return strings.TrimSpace(string(response.Message))
 }
 
-type browserbaseUploadExtensionRequest struct {
-	Archive  []byte
-	FileName string
-}
-
-func (request browserbaseUploadExtensionRequest) encode() (browserbaseEncodedRequest, error) {
-	encoded := browserbaseEncodedRequest{
-		method: http.MethodPost,
-		path:   "/v1/extensions",
-	}
-	if len(request.Archive) == 0 {
-		return encoded, errors.New("extension archive is required")
-	}
-	if strings.TrimSpace(request.FileName) == "" {
-		return encoded, errors.New("extension filename is required")
-	}
-
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	file, err := writer.CreateFormFile("file", request.FileName)
-	if err != nil {
-		return encoded, fmt.Errorf("create extension multipart file: %w", err)
-	}
-	if _, err := file.Write(request.Archive); err != nil {
-		return encoded, fmt.Errorf("write extension multipart file: %w", err)
-	}
-	if err := writer.Close(); err != nil {
-		return encoded, fmt.Errorf("close extension multipart body: %w", err)
-	}
-	encoded.body = body.Bytes()
-	encoded.contentType = writer.FormDataContentType()
-	return encoded, nil
-}
-
-type browserbaseDeleteExtensionRequest struct {
-	ExtensionID string
-}
-
-func (request browserbaseDeleteExtensionRequest) encode() (browserbaseEncodedRequest, error) {
-	encoded := browserbaseEncodedRequest{
-		method:     http.MethodDelete,
-		path:       "/v1/extensions/" + url.PathEscape(request.ExtensionID),
-		accept:     "*/*",
-		replaySafe: true,
-	}
-	if strings.TrimSpace(request.ExtensionID) == "" {
-		return encoded, errors.New("extension ID is required")
-	}
-	return encoded, nil
-}
-
 type browserbaseReleaseSessionRequest struct {
 	SessionID string `json:"-"`
 	Status    string `json:"status"`
@@ -561,6 +475,7 @@ type browserbaseBrowserSettingsRequest struct {
 	CaptchaInputSelector *string                        `json:"captchaInputSelector,omitempty"`
 	Context              *browserbaseContextRequest     `json:"context,omitempty"`
 	ExtensionID          *string                        `json:"extensionId,omitempty"`
+	Extensions           []BrowserbaseExtension         `json:"extensions,omitempty"`
 	Fingerprint          *browserbaseFingerprintRequest `json:"fingerprint,omitempty"`
 	LogSession           *bool                          `json:"logSession,omitempty"`
 	OS                   *BrowserbaseBrowserSettingsOS  `json:"os,omitempty"`
@@ -573,6 +488,11 @@ type browserbaseBrowserSettingsRequest struct {
 func (settings browserbaseBrowserSettingsRequest) validate() error {
 	if settings.ExtensionID != nil && strings.TrimSpace(*settings.ExtensionID) == "" {
 		return errors.New("extensionId cannot be empty")
+	}
+	for _, extension := range settings.Extensions {
+		if !isBrowserbaseExtension(extension) {
+			return fmt.Errorf("invalid extension %q", extension)
+		}
 	}
 	if settings.OS != nil && !isBrowserbaseOS(*settings.OS) {
 		return fmt.Errorf("invalid os %q", *settings.OS)
@@ -721,33 +641,6 @@ func (proxies browserbaseProxiesRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(proxies.list)
 }
 
-type browserbaseExtensionResponse struct {
-	ID        *string `json:"id"`
-	CreatedAt *string `json:"createdAt"`
-	FileName  *string `json:"fileName"`
-	ProjectID *string `json:"projectId"`
-	UpdatedAt *string `json:"updatedAt"`
-}
-
-func (response browserbaseExtensionResponse) validate() error {
-	if err := requireBrowserbaseResponseFields(map[string]bool{
-		"id":        response.ID != nil,
-		"createdAt": response.CreatedAt != nil,
-		"fileName":  response.FileName != nil,
-		"projectId": response.ProjectID != nil,
-		"updatedAt": response.UpdatedAt != nil,
-	}); err != nil {
-		return err
-	}
-	if strings.TrimSpace(*response.FileName) == "" {
-		return errors.New("fileName cannot be empty")
-	}
-	if err := validateBrowserbaseDateTime("createdAt", *response.CreatedAt); err != nil {
-		return err
-	}
-	return validateBrowserbaseDateTime("updatedAt", *response.UpdatedAt)
-}
-
 type browserbaseSessionResponseFields struct {
 	ID           *string                    `json:"id"`
 	CreatedAt    *string                    `json:"createdAt"`
@@ -864,12 +757,6 @@ func (response browserbaseCreateSessionResponse) validate() error {
 	)
 }
 
-type browserbaseNoContentResponse struct{}
-
-func (browserbaseNoContentResponse) validate() error {
-	return nil
-}
-
 type browserbaseSessionStatus string
 
 const (
@@ -918,6 +805,17 @@ func isBrowserbaseOS(value BrowserbaseBrowserSettingsOS) bool {
 	}
 }
 
+func isBrowserbaseExtension(value BrowserbaseExtension) bool {
+	switch value {
+	case BrowserbaseExtensionOnepassword,
+		BrowserbaseExtensionBrowserEvents,
+		BrowserbaseExtensionStagehand:
+		return true
+	default:
+		return false
+	}
+}
+
 func requireBrowserbaseResponseFields(fields map[string]bool) error {
 	for name, present := range fields {
 		if !present {
@@ -949,10 +847,9 @@ func validateBrowserbaseURL(name string, value string, schemes ...string) error 
 
 func newBrowserbaseCreateSessionRequest(
 	params BrowserbaseLaunchOptions,
-	extensionID *string,
 ) (browserbaseCreateSessionRequest, error) {
 	request := browserbaseCreateSessionRequest{
-		ExtensionID:  extensionID,
+		ExtensionID:  params.ExtensionID,
 		KeepAlive:    params.KeepAlive,
 		Region:       params.Region,
 		UserMetadata: cloneRawMessageMap(params.UserMetadata),
@@ -992,6 +889,7 @@ func convertBrowserbaseBrowserSettings(
 		CaptchaImageSelector: settings.CaptchaImageSelector,
 		CaptchaInputSelector: settings.CaptchaInputSelector,
 		ExtensionID:          settings.ExtensionID,
+		Extensions:           append([]BrowserbaseExtension(nil), settings.Extensions...),
 		LogSession:           settings.LogSession,
 		OS:                   settings.OS,
 		RecordSession:        settings.RecordSession,

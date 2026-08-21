@@ -5030,6 +5030,12 @@
         "extension_id": {
           "type": "string"
         },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BrowserbaseExtension"
+          }
+        },
         "fingerprint": {
           "$ref": "#/$defs/BrowserbaseFingerprint"
         },
@@ -5067,6 +5073,10 @@
       },
       "required": ["id"],
       "additionalProperties": false
+    },
+    "BrowserbaseExtension": {
+      "type": "string",
+      "enum": ["onepassword", "browser-events", "stagehand"]
     },
     "BrowserbaseFingerprint": {
       "type": "object",

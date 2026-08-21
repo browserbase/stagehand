@@ -97,6 +97,9 @@ type BrowserbaseBrowserSettings struct {
 	// ExtensionID corresponds to the JSON schema field "extension_id".
 	ExtensionID *string `json:"extension_id,omitempty,omitzero"`
 
+	// Extensions corresponds to the JSON schema field "extensions".
+	Extensions []BrowserbaseExtension `json:"extensions,omitempty,omitzero"`
+
 	// Fingerprint corresponds to the JSON schema field "fingerprint".
 	Fingerprint *BrowserbaseFingerprint `json:"fingerprint,omitempty,omitzero"`
 
@@ -134,6 +137,12 @@ type BrowserbaseContext struct {
 	// Persist corresponds to the JSON schema field "persist".
 	Persist *bool `json:"persist,omitempty,omitzero"`
 }
+
+type BrowserbaseExtension string
+
+const BrowserbaseExtensionBrowserEvents BrowserbaseExtension = "browser-events"
+const BrowserbaseExtensionOnepassword BrowserbaseExtension = "onepassword"
+const BrowserbaseExtensionStagehand BrowserbaseExtension = "stagehand"
 
 type BrowserbaseFingerprint struct {
 	// Browsers corresponds to the JSON schema field "browsers".
@@ -2145,6 +2154,10 @@ type generatedModelCatalog struct {
 
 	// BrowserbaseContext corresponds to the JSON schema field "BrowserbaseContext".
 	BrowserbaseContext *BrowserbaseContext `json:"BrowserbaseContext,omitempty,omitzero"`
+
+	// BrowserbaseExtension corresponds to the JSON schema field
+	// "BrowserbaseExtension".
+	BrowserbaseExtension *BrowserbaseExtension `json:"BrowserbaseExtension,omitempty,omitzero"`
 
 	// BrowserbaseFingerprint corresponds to the JSON schema field
 	// "BrowserbaseFingerprint".

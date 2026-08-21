@@ -442,6 +442,19 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	}
 }
 
+func TestWorkerInitParamsOmitBrowserCDPURLForResidentBrowser(t *testing.T) {
+	t.Parallel()
+
+	params := workerInitParams(workerInitOptions{
+		browserCDPURL:             "ws://browser",
+		residentBrowserConnection: true,
+		logLevel:                  StagehandClientLogLevelInfo,
+	})
+	if params.BrowserCDPURL != nil {
+		t.Fatalf("BrowserCDPURL = %#v, want nil", params.BrowserCDPURL)
+	}
+}
+
 func TestCreateRejectsBrowserNotCreatedByFactoryAndReleasesClaim(t *testing.T) {
 	browser := &Browser{}
 	_, err := Create(context.Background(), CreateOptions{Browser: browser})

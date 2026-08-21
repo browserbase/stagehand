@@ -111,6 +111,28 @@ describe("Stagehand.create", () => {
     expect(cdp.close).toHaveBeenCalledOnce();
   });
 
+  it("omits browserCdpUrl for a resident Browserbase connection", async () => {
+    const cdp = new FakeCDPClient();
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient: () => ({
+        createSession: vi.fn(),
+        connectSession: async () => ({ sessionId: "session_123", cdpUrl: "wss://browser" }),
+      }),
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await browserbase.connect({ apiKey: "bb_key", sessionId: "session_123" });
+
+    const stagehand = await Stagehand.create({ browser });
+
+    const request = cdp.requestsFor("stagehand.init")[0];
+    expect(request).toBeDefined();
+    expect((request as { params: Record<string, unknown> }).params).not.toHaveProperty(
+      "browser_cdp_url",
+    );
+    await stagehand.close();
+    await browser.close();
+  });
+
   it("releases the browser claim after a fully settled initialization error", async () => {
     const cdp = new FakeCDPClient();
     cdp.initError = new Error("worker initialization failed");

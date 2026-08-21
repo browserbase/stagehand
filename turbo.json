@@ -153,7 +153,7 @@
         "CHROME_PATH",
         "BROWSERBASE_API_KEY",
         "BROWSERBASE_PROJECT_ID",
-        "BROWSERBASE_SMOKE"
+        "BROWSERBASE_RESIDENT_SMOKE"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -169,7 +169,7 @@
         "CHROME_PATH",
         "BROWSERBASE_API_KEY",
         "BROWSERBASE_PROJECT_ID",
-        "BROWSERBASE_SMOKE"
+        "BROWSERBASE_RESIDENT_SMOKE"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",

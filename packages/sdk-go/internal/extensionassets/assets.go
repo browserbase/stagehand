@@ -1,6 +1,5 @@
-// Package extensionassets exposes the Stagehand extension bundled into the Go
-// module. It is internal so the SDK can share one artifact between local Chrome
-// and Browserbase without adding a public asset API.
+// Package extensionassets materializes the bundled Stagehand extension only
+// for local Chrome's loadUnpacked flow. The archive is not uploaded to Browserbase.
 package extensionassets
 
 import (
@@ -18,12 +17,6 @@ import (
 
 //go:embed stagehand-extension.zip
 var stagehandExtensionArchive []byte
-
-// Archive returns a copy of the ZIP uploaded when Browserbase needs the
-// Stagehand extension.
-func Archive() []byte {
-	return bytes.Clone(stagehandExtensionArchive)
-}
 
 // Materialize extracts the bundled extension for a local Chrome process. The
 // caller owns cleanup and should invoke it when the browser closes.

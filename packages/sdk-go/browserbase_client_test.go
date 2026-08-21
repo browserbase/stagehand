@@ -1,11 +1,9 @@
 package stagehand
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,8 +14,7 @@ import (
 )
 
 func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
-	archive := []byte("test-stagehand-extension")
-	calls := make([]string, 0, 4)
+	calls := make([]string, 0, 2)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(
 		writer http.ResponseWriter,
@@ -32,35 +29,6 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 		}
 
 		switch {
-		case request.Method == http.MethodPost && request.URL.Path == "/v1/extensions":
-			if err := request.ParseMultipartForm(1 << 20); err != nil {
-				t.Errorf("parse extension multipart body: %v", err)
-				writer.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			file, header, err := request.FormFile("file")
-			if err != nil {
-				t.Errorf("read extension multipart file: %v", err)
-				writer.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			defer file.Close()
-			body, err := io.ReadAll(file)
-			if err != nil {
-				t.Errorf("read extension body: %v", err)
-			}
-			if !bytes.Equal(body, archive) {
-				t.Errorf("extension body = %q, want %q", body, archive)
-			}
-			if header.Filename != stagehandExtensionUploadName {
-				t.Errorf(
-					"extension filename = %q, want %q",
-					header.Filename,
-					stagehandExtensionUploadName,
-				)
-			}
-			writeBrowserbaseTestJSON(writer, browserbaseTestExtensionResponse("ext_stagehand"))
-
 		case request.Method == http.MethodPost && request.URL.Path == "/v1/sessions":
 			var got map[string]any
 			if err := json.NewDecoder(request.Body).Decode(&got); err != nil {
@@ -91,16 +59,6 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 				browserbaseTestSessionResponse("session_123", "COMPLETED"),
 			)
 
-		case request.Method == http.MethodDelete &&
-			request.URL.Path == "/v1/extensions/ext_stagehand":
-			if request.Header.Get("Content-Type") != "" {
-				t.Errorf("extension DELETE Content-Type = %q", request.Header.Get("Content-Type"))
-			}
-			if request.Header.Get("Accept") != "*/*" {
-				t.Errorf("extension DELETE Accept = %q", request.Header.Get("Accept"))
-			}
-			writer.WriteHeader(http.StatusNoContent)
-
 		default:
 			http.Error(writer, "unexpected endpoint", http.StatusNotFound)
 		}
@@ -115,8 +73,7 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 		t.Fatalf("newBrowserbaseHTTPClient() error = %v", err)
 	}
 	client, err := newBrowserbaseSessionClient("bb_test", browserbaseSessionClientOptions{
-		api:     api,
-		archive: func() []byte { return bytes.Clone(archive) },
+		api: api,
 	})
 	if err != nil {
 		t.Fatalf("newBrowserbaseSessionClient() error = %v", err)
@@ -141,10 +98,8 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 	}
 
 	wantCalls := []string{
-		"POST /v1/extensions",
 		"POST /v1/sessions",
 		"POST /v1/sessions/session_123",
-		"DELETE /v1/extensions/ext_stagehand",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
@@ -572,6 +527,18 @@ func TestBrowserbaseHTTPClientValidatesBeforeSending(t *testing.T) {
 	if requests != 0 {
 		t.Fatalf("requests = %d, want 0", requests)
 	}
+
+	_, err = client.createSession(context.Background(), browserbaseCreateSessionRequest{
+		BrowserSettings: &browserbaseBrowserSettingsRequest{
+			Extensions: []BrowserbaseExtension{"unsupported"},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid extension") {
+		t.Fatalf("createSession() error = %v, want invalid extension", err)
+	}
+	if requests != 0 {
+		t.Fatalf("requests = %d, want 0", requests)
+	}
 }
 
 func TestNewBrowserbaseHTTPClientValidatesConfiguration(t *testing.T) {
@@ -619,10 +586,19 @@ func browserbaseTestSessionParams() BrowserbaseLaunchOptions {
 	username := "proxy-user"
 	password := "proxy-password"
 	domainPattern := "*.example.com"
+	topLevelExtensionID := "top-level-caller"
+	nestedExtensionID := "nested-caller"
 	return BrowserbaseLaunchOptions{
+		ExtensionID: &topLevelExtensionID,
 		BrowserSettings: &BrowserbaseBrowserSettings{
 			AdvancedStealth: &advancedStealth,
 			BlockAds:        &blockAds,
+			ExtensionID:     &nestedExtensionID,
+			Extensions: []BrowserbaseExtension{
+				BrowserbaseExtensionOnepassword,
+				BrowserbaseExtensionBrowserEvents,
+				BrowserbaseExtensionOnepassword,
+			},
 			Context: &BrowserbaseContext{
 				ID:      "context_123",
 				Persist: &persist,
@@ -676,6 +652,8 @@ func browserbaseExpectedSessionRequest() map[string]any {
 		"browserSettings": map[string]any{
 			"advancedStealth": true,
 			"blockAds":        false,
+			"extensionId":     "nested-caller",
+			"extensions":      []any{"onepassword", "browser-events", "stagehand"},
 			"context": map[string]any{
 				"id":      "context_123",
 				"persist": true,
@@ -698,7 +676,7 @@ func browserbaseExpectedSessionRequest() map[string]any {
 				"screen":           map[string]any{"minWidth": 1024.0},
 			},
 		},
-		"extensionId": "ext_stagehand",
+		"extensionId": "top-level-caller",
 		"keepAlive":   true,
 		"proxies": []any{
 			map[string]any{
@@ -725,16 +703,6 @@ func browserbaseExpectedSessionRequest() map[string]any {
 			"stagehand_sdk_language": "go",
 			"stagehand_sdk_version":  stagehandSDKVersion,
 		},
-	}
-}
-
-func browserbaseTestExtensionResponse(extensionID string) map[string]any {
-	return map[string]any{
-		"id":        extensionID,
-		"createdAt": "2026-07-23T10:00:00.000Z",
-		"fileName":  stagehandExtensionUploadName,
-		"projectId": "project_123",
-		"updatedAt": "2026-07-23T10:00:00.000Z",
 	}
 }
 

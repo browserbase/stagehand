@@ -1,11 +1,4 @@
 import Browserbase from "@browserbasehq/sdk";
-import {
-  createBrowserbaseExtensionClient,
-  provisionBrowserbaseExtension,
-  type BrowserbaseExtensionClient,
-  type BrowserbaseExtensionSdk,
-  type ProvisionedBrowserbaseExtension,
-} from "../browserbaseExtension.js";
 import { STAGEHAND_SESSION_METADATA } from "../sdkIdentity.js";
 import {
   BrowserbaseSessionConnectionSchema,
@@ -13,6 +6,7 @@ import {
   BrowserbaseSessionRetrieveResultSchema,
   type BrowserbaseSessionConnection,
   type BrowserbaseSessionCreateResult,
+  type BrowserbaseSessionCreateParams,
   type BrowserbaseSessionRetrieveResult,
 } from "../clientSchemas.js";
 
@@ -21,7 +15,7 @@ type OwnedBrowserbaseSession = BrowserbaseSessionConnection & {
 };
 
 export type BrowserbaseSessionClient = {
-  createSession(params: Browserbase.SessionCreateParams): Promise<OwnedBrowserbaseSession>;
+  createSession(params: BrowserbaseSessionCreateParams): Promise<OwnedBrowserbaseSession>;
   connectSession?(sessionId: string): Promise<BrowserbaseSessionConnection>;
 };
 
@@ -30,20 +24,17 @@ export type BrowserbaseSessionClientFactory = (
   baseUrl: string,
 ) => BrowserbaseSessionClient;
 
-export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
-  createSession(params: Browserbase.SessionCreateParams): Promise<BrowserbaseSessionCreateResult>;
+export type BrowserbaseApiClient = {
+  createSession(params: BrowserbaseSessionCreateParams): Promise<BrowserbaseSessionCreateResult>;
   retrieveSession(sessionId: string): Promise<BrowserbaseSessionRetrieveResult>;
   releaseSession(sessionId: string): Promise<void>;
 };
 
 type BrowserbaseSessionClientDependencies = {
   browserbase?: BrowserbaseApiClient;
-  provisionExtension?: (
-    client: BrowserbaseExtensionClient,
-  ) => Promise<ProvisionedBrowserbaseExtension>;
 };
 
-type BrowserbaseSdk = BrowserbaseExtensionSdk & {
+type BrowserbaseSdk = {
   sessions: {
     create(params: Browserbase.SessionCreateParams): Promise<unknown>;
     retrieve(sessionId: string): Promise<unknown>;
@@ -66,33 +57,27 @@ export function createBrowserbaseSessionClient(
   dependencies: BrowserbaseSessionClientDependencies = {},
 ): BrowserbaseSessionClient {
   const browserbase = dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl);
-  const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
 
   return {
     async createSession(params) {
-      const callerExtensionId = params.extensionId ?? params.browserSettings?.extensionId;
-      const extension =
-        callerExtensionId === undefined ? await provisionExtension(browserbase) : undefined;
       let session: BrowserbaseSessionCreateResult;
 
       try {
         session = await browserbase.createSession({
-          ...params,
-          ...(extension === undefined ? {} : { extensionId: extension.extensionId }),
+          ...withStagehandExtension(params),
           userMetadata: {
             ...params.userMetadata,
             ...STAGEHAND_SESSION_METADATA,
           },
         });
       } catch {
-        await extension?.cleanup().catch(() => undefined);
         throw new BrowserbaseSessionError("Failed to create a Browserbase session");
       }
 
       const sessionId = session.id.trim();
       const cdpUrl = session.connectUrl.trim();
       if (sessionId.length === 0 || cdpUrl.length === 0) {
-        await cleanupInvalidSession(browserbase, sessionId, extension);
+        await cleanupInvalidSession(browserbase, sessionId);
         throw new Error(
           sessionId.length === 0
             ? "Browserbase session creation returned an empty session ID"
@@ -101,7 +86,6 @@ export function createBrowserbaseSessionClient(
       }
 
       let sessionReleased = false;
-      let extensionCleaned = extension === undefined;
       const connection = BrowserbaseSessionConnectionSchema.parse({ sessionId, cdpUrl });
       return {
         ...connection,
@@ -116,18 +100,7 @@ export function createBrowserbaseSessionClient(
             }
           }
 
-          let extensionCleanupError: unknown;
-          if (!extensionCleaned && extension) {
-            try {
-              await extension.cleanup();
-              extensionCleaned = true;
-            } catch (error) {
-              extensionCleanupError = error;
-            }
-          }
-
           if (releaseError) throw releaseError;
-          if (extensionCleanupError) throw extensionCleanupError;
         },
       };
     },
@@ -162,10 +135,8 @@ export function createBrowserbaseApiClient(
   createSdk: BrowserbaseSdkFactory = (key, baseURL) => new Browserbase({ apiKey: key, baseURL }),
 ): BrowserbaseApiClient {
   const sdk = createSdk(apiKey, baseUrl);
-  const extensionClient = createBrowserbaseExtensionClient(apiKey, () => sdk);
 
   return {
-    ...extensionClient,
     async createSession(params) {
       const session = await sdk.sessions.create(params as Browserbase.SessionCreateParams);
       return BrowserbaseSessionCreateResultSchema.parse(session);
@@ -183,10 +154,22 @@ export function createBrowserbaseApiClient(
 async function cleanupInvalidSession(
   browserbase: BrowserbaseApiClient,
   sessionId: string,
-  extension: ProvisionedBrowserbaseExtension | undefined,
 ): Promise<void> {
   if (sessionId.length > 0) {
     await browserbase.releaseSession(sessionId).catch(() => undefined);
   }
-  await extension?.cleanup().catch(() => undefined);
+}
+
+function withStagehandExtension(
+  params: BrowserbaseSessionCreateParams,
+): BrowserbaseSessionCreateParams {
+  const extensions = [...new Set(params.browserSettings?.extensions ?? [])];
+  if (!extensions.includes("stagehand")) extensions.push("stagehand");
+  return {
+    ...params,
+    browserSettings: {
+      ...params.browserSettings,
+      extensions,
+    },
+  };
 }

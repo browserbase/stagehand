@@ -88,6 +88,7 @@ def _browser_handle(
     api_key: str | None = None,
     browser_metadata: BrowserSessionMetadata | None = None,
     web_socket_debugger_url: str | None = "ws://browser",
+    resident_browser_connection: bool = False,
 ) -> tuple[StagehandBrowser, _Transport]:
     transport = _Transport(web_socket_debugger_url)
     return (
@@ -96,6 +97,7 @@ def _browser_handle(
             "connected",
             _ClaimedBrowser(
                 cdp_client=cast(CDPClient, transport),
+                resident_browser_connection=resident_browser_connection,
                 worker_init_metadata=_WorkerInitMetadata(
                     api_key=api_key,
                     browser=browser_metadata,
@@ -352,6 +354,25 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     assert str(params.api_url) == "https://api.stagehand.dev.browserbase.com"
     assert params.browser == metadata
     assert "llm.generate" in recording.requests
+
+
+@pytest.mark.asyncio
+async def test_create_omits_browser_cdp_url_for_resident_browser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle(
+        resident_browser_connection=True,
+        web_socket_debugger_url=None,
+    )
+
+    await Stagehand.create(browser=browser)
+
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    assert params.browser_cdp_url is None
+    wire = params.model_dump(exclude_unset=True)
+    assert "browser_cdp_url" not in wire
 
 
 @pytest.mark.asyncio

@@ -28,20 +28,21 @@ const (
 
 // Browser is a factory-created browser whose Stagehand extension is ready.
 type Browser struct {
-	mu             browserMutex
-	provider       BrowserProvider
-	origin         BrowserOrigin
-	claimed        bool
-	browserContext *BrowserContext
-	closeRequested bool
-	closeResult    error
-	cdp            *cdpClient
-	workerAPIKey   *string
-	workerBrowser  *BrowserSessionMetadata
-	extensionDir   string
-	ownsSource     bool
-	closeSource    func(context.Context) error
-	cleanup        func() error
+	mu                        browserMutex
+	provider                  BrowserProvider
+	origin                    BrowserOrigin
+	claimed                   bool
+	browserContext            *BrowserContext
+	closeRequested            bool
+	closeResult               error
+	cdp                       *cdpClient
+	workerAPIKey              *string
+	workerBrowser             *BrowserSessionMetadata
+	residentBrowserConnection bool
+	extensionDir              string
+	ownsSource                bool
+	closeSource               func(context.Context) error
+	cleanup                   func() error
 }
 
 type browserMutex struct {
@@ -151,9 +152,10 @@ func (browser *Browser) Close(ctx context.Context) error {
 }
 
 type claimedBrowser struct {
-	cdp           *cdpClient
-	workerAPIKey  *string
-	workerBrowser *BrowserSessionMetadata
+	cdp                       *cdpClient
+	workerAPIKey              *string
+	workerBrowser             *BrowserSessionMetadata
+	residentBrowserConnection bool
 }
 
 func claimBrowser(browser *Browser) (claimedBrowser, error) {
@@ -170,9 +172,10 @@ func claimBrowser(browser *Browser) (claimedBrowser, error) {
 	}
 	browser.claimed = true
 	return claimedBrowser{
-		cdp:           browser.cdp,
-		workerAPIKey:  browser.workerAPIKey,
-		workerBrowser: browser.workerBrowser,
+		cdp:                       browser.cdp,
+		workerAPIKey:              browser.workerAPIKey,
+		workerBrowser:             browser.workerBrowser,
+		residentBrowserConnection: browser.residentBrowserConnection,
 	}, nil
 }
 

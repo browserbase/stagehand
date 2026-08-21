@@ -33,6 +33,7 @@ export type StagehandWorkerInitMetadata = Pick<StagehandInitParams, "apiKey" | "
 
 export type ClaimedStagehandBrowser = {
   cdpClient: CDPClient;
+  residentBrowserConnection: boolean;
   workerInitMetadata: StagehandWorkerInitMetadata;
 };
 
@@ -87,6 +88,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             source,
             connectCdp,
             extension: { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
+            residentBrowserConnection: false,
             signal,
             afterConnect:
               options.acceptDownloads === undefined && options.downloadsPath === undefined
@@ -126,6 +128,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
                 ? { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }
                 : { extensionId: parsed.extensionId },
             signal,
+            residentBrowserConnection: false,
             workerInitMetadata: {},
           }),
         );
@@ -160,6 +163,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             source,
             connectCdp,
             extension: { preloadedExtension: true },
+            residentBrowserConnection: true,
             signal,
             workerInitMetadata: {
               apiKey,
@@ -194,6 +198,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
                 ? { preloadedExtension: true }
                 : { extensionId: options.extensionId },
             signal,
+            residentBrowserConnection: options.extensionId === undefined,
             workerInitMetadata: {
               apiKey: options.apiKey,
               browser: {
@@ -236,6 +241,7 @@ async function connectBrowser(options: {
   connectCdp: (options: CDPClientOptions) => Promise<CDPClient>;
   extension: { extensionDir: string } | { extensionId: string } | { preloadedExtension: true };
   signal: AbortSignal;
+  residentBrowserConnection: boolean;
   afterConnect?: (cdpClient: CDPClient, signal: AbortSignal) => Promise<void>;
   workerInitMetadata: StagehandWorkerInitMetadata;
 }): Promise<StagehandBrowser> {
@@ -265,6 +271,7 @@ async function connectBrowser(options: {
       sessionId: options.workerInitMetadata.browser?.sessionId,
       attachment: {
         cdpClient: connectedClient,
+        residentBrowserConnection: options.residentBrowserConnection,
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
       close: async () => {
