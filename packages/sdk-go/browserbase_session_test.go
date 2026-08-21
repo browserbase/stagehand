@@ -626,6 +626,50 @@ func TestBrowserbaseSessionClientRejectsInvalidUploadResponse(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "empty extension ID") {
 		t.Fatalf("createSession() error = %v, want empty extension ID", err)
 	}
+	if api.deleteExtensionCalls != 0 || api.createSessionCalls != 0 {
+		t.Fatalf(
+			"calls = delete %d, create %d; want zero",
+			api.deleteExtensionCalls,
+			api.createSessionCalls,
+		)
+	}
+}
+
+func TestBrowserbaseSessionClientCleansInvalidUploadResponse(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	deleteErr := errors.New("extension deletion failed")
+	deletedExtensionID := ""
+	api := &fakeBrowserbaseAPI{
+		uploadExtensionFunc: func(
+			context.Context,
+			[]byte,
+		) (browserbaseExtensionResponse, error) {
+			cancel()
+			response := validBrowserbaseExtensionResponse("ext_orphaned")
+			response.CreatedAt = nil
+			return response, nil
+		},
+		deleteExtensionFunc: func(ctx context.Context, extensionID string) error {
+			if err := ctx.Err(); err != nil {
+				t.Fatalf("deleteExtension() context error = %v", err)
+			}
+			deletedExtensionID = extensionID
+			return deleteErr
+		},
+	}
+	client := newBrowserbaseTestSessionClient(t, api)
+
+	_, err := client.createSession(ctx, BrowserbaseLaunchOptions{})
+	if err == nil || !strings.Contains(err.Error(), "required field createdAt is missing") ||
+		!strings.Contains(
+			err.Error(),
+			"failed to delete the Browserbase extension after upload validation failed",
+		) {
+		t.Fatalf("createSession() error = %v", err)
+	}
+	if deletedExtensionID != "ext_orphaned" {
+		t.Fatalf("deleted extension = %q, want ext_orphaned", deletedExtensionID)
+	}
 }
 
 func TestBrowserbaseSessionClientValidatesBeforeUploadingExtension(t *testing.T) {
