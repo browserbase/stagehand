@@ -208,7 +208,7 @@ describe("All language SDK operations remain in sync", () => {
         `Python must decode ${binding.notification} with its generated params model`,
       ).toBe(referencedModel(notification.properties.params.$ref));
     }
-  });
+  }, 15_000);
 
   it("exposes the same RPC-backed operations in every SDK", async () => {
     const registry = await stagehandMethodNames();

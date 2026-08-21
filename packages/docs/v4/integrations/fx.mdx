@@ -1,0 +1,162 @@
+---
+title: "fx"
+description: "Give the fx coding agent persistent Stagehand browser tools over MCP/stdio."
+---
+
+The fx integration connects the [fx coding agent](https://fx.sh) to the Stagehand facade MCP server over MCP/stdio. One MCP server process owns the browser, so navigation, authentication, and page state survive across tool calls.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter. The example is verified against fx v0.0.3.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- fx v0.0.3
+- A Vercel AI Gateway login or API key for fx
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Install and authenticate fx">
+Pin the tested version because fx is experimental:
+
+```bash
+curl -fsSL https://fx.sh/setup.sh | bash -s -- v0.0.3
+fx login
+```
+
+You can export `AI_GATEWAY_API_KEY` instead of using `fx login`. See the [fx authentication guide](https://fx.sh/docs/getting-started/authentication).
+  </Step>
+  <Step title="Configure the Stagehand MCP server">
+fx reads MCP servers from `~/.fx/mcp.json`, not from the repository. Merge this entry into that file and replace the placeholder with the absolute path to your checkout:
+
+```json
+{
+  "mcp": {
+    "stagehand": {
+      "type": "stdio",
+      "command": [
+        "node",
+        "/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs",
+        "--max-screenshot-base64-bytes=60000"
+      ],
+      "required": true
+    }
+  }
+}
+```
+
+Start a new fx session after saving the file, or run `/mcp reload` in an open session.
+  </Step>
+  <Step title="Choose the browser">
+The facade uses local Chrome by default. To use a disposable Browserbase browser instead:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+Start fx from the integration directory so it loads the included limits, project instructions, and Stagehand skill:
+
+```bash
+cd packages/integrations/fx
+fx
+```
+
+At the prompt, enter:
+
+```text
+Use the Stagehand browser tools to open https://example.com, take a snapshot,
+and report the heading with its snapshot ID.
+```
+  </Step>
+</Steps>
+
+## Tool discovery
+
+fx prefixes MCP tool names with the server name. The Stagehand tools appear as:
+
+- `mcp_stagehand_run`
+- `mcp_stagehand_snapshot`
+- `mcp_stagehand_screenshot`
+
+fx v0.0.3 may return no matches for this server from `mcp_search_tools`. The integration's `AGENTS.md` and Stagehand skill tell fx to select these exact names directly. Run fx from `packages/integrations/fx` so it loads that guidance.
+
+There is no separate navigate or start tool. Navigate with `mcp_stagehand_run` and `page.goto`:
+
+```json
+{
+  "code": "await page.goto('https://example.com'); return { url: await page.url(), title: await page.title() };"
+}
+```
+
+The first browser tool call launches the browser lazily. Later calls reuse the same session.
+
+## Keep screenshots within fx's frame limit
+
+MCP screenshots contain inline base64 image data. fx enforces its raw response-frame limit before it can parse or truncate a tool result, so a full-page PNG can close the MCP connection.
+
+The configured `--max-screenshot-base64-bytes=60000` mode defaults screenshots to a viewport JPEG at quality 40. If a requested image is still too large, the facade retries progressively smaller viewport JPEGs. When no image fits, it returns a small tool error and keeps the MCP session alive.
+
+Use an explicit viewport JPEG when you do not need full-page detail:
+
+```json
+{
+  "type": "jpeg",
+  "quality": 40,
+  "fullPage": false
+}
+```
+
+## Permissions
+
+Interactive fx sessions can approve tool calls when prompted. For non-interactive browser tasks, pre-allow the three Stagehand tools in `~/.fx/settings.json`:
+
+```json
+{
+  "permission": {
+    "mcp_stagehand_run": "allow",
+    "mcp_stagehand_snapshot": "allow",
+    "mcp_stagehand_screenshot": "allow",
+    "run_command": "deny"
+  }
+}
+```
+
+Denying `run_command` prevents a browser-only task from falling back to shell exploration if tool discovery fails.
+
+## Configuration
+
+| Variable or file | Purpose |
+| --- | --- |
+| `~/.fx/mcp.json` | User-global MCP server configuration. Repository-local MCP configuration is not loaded. |
+| `packages/integrations/fx/.fx.json` | Raises fx's tool-result and agent-step limits for browser work. |
+| `AI_GATEWAY_API_KEY` | Alternative to an interactive `fx login`. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. |
+
+Leave the MCP entry's `environment` field unset to inherit exported variables. If you add an `environment` object, fx replaces the child environment rather than merging it, so include `PATH` and every variable the facade needs.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="fx integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/fx">
+  Read the MCP config template, project limits, and Stagehand tool guidance.
+</Card>
