@@ -23,17 +23,22 @@ import {
   captureScreenshotWithinBase64Budget,
   screenshotBase64BudgetFromArgs,
 } from "./screenshot-transport.js";
+import { releaseBrowserbaseSession } from "./session-release.js";
 import { StagehandFacadeTools } from "./tools.js";
 
 type FacadeResources = {
   browser: StagehandBrowser;
   stagehand: Stagehand;
   tools: StagehandFacadeTools;
+  releaseSession?: () => Promise<void>;
 };
 
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
+let resources: FacadeResources | undefined;
 let resourcesPromise: Promise<FacadeResources> | undefined;
+let cleanupPromise: Promise<void> = Promise.resolve();
+const cleanupTargets = new Set<() => Promise<void>>();
 let closing = false;
 
 server.registerTool(
@@ -109,11 +114,17 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function ensureResources(): Promise<FacadeResources> {
-  resourcesPromise ??= createResources().catch((error) => {
-    resourcesPromise = undefined;
-    throw error;
-  });
-  return await resourcesPromise;
+  if (resources && !resources.browser.closed) return resources;
+
+  resourcesPromise ??= cleanupPromise.then(retryCleanupTargets).then(createResources);
+  const pending = resourcesPromise;
+  try {
+    const created = await pending;
+    if (resourcesPromise === pending) resources = created;
+    return created;
+  } finally {
+    if (resourcesPromise === pending) resourcesPromise = undefined;
+  }
 }
 
 async function createResources(): Promise<FacadeResources> {
@@ -122,12 +133,88 @@ async function createResources(): Promise<FacadeResources> {
     config.browser.type === "browserbase"
       ? await browserbase.launch(config.browser.launchOptions)
       : await localBrowser.launch(config.browser.launchOptions);
+  const sessionId = browser.sessionId;
+  let releaseSession: (() => Promise<void>) | undefined;
+  if (config.browser.type === "browserbase" && sessionId) {
+    const { apiKey, baseUrl } = config.browser.launchOptions;
+    releaseSession = () => releaseBrowserbaseSession({ apiKey, baseUrl, sessionId });
+  }
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
-    return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+    let tools: StagehandFacadeTools;
+    tools = new StagehandFacadeTools(stagehand, {
+      close: () => closeRequestedResources(tools),
+    });
+    return { browser, stagehand, tools, ...(releaseSession ? { releaseSession } : {}) };
   } catch (error) {
-    await browser.close().catch(() => undefined);
-    throw error;
+    const cleanupErrors: unknown[] = [error];
+    let browserCloseFailed = false;
+    await browser.close().catch((cleanupError) => {
+      browserCloseFailed = true;
+      cleanupErrors.push(cleanupError);
+    });
+    if (browserCloseFailed && releaseSession) {
+      await releaseSession().catch((releaseError) => {
+        cleanupTargets.add(releaseSession);
+        cleanupErrors.push(releaseError);
+      });
+    }
+    if (cleanupErrors.length === 1) throw error;
+    throw new AggregateError(
+      cleanupErrors,
+      "Stagehand initialization failed and browser cleanup also failed.",
+      { cause: error },
+    );
+  }
+}
+
+async function closeRequestedResources(expected: StagehandFacadeTools): Promise<void> {
+  const current = resources;
+  if (!current || current.tools !== expected) return;
+
+  resources = undefined;
+  const closeResult = cleanupPromise.then(() => closeResources(current));
+  cleanupPromise = closeResult.then(
+    () => undefined,
+    () => undefined,
+  );
+  await closeResult;
+}
+
+async function closeResources(current: FacadeResources): Promise<void> {
+  const cleanupErrors: unknown[] = [];
+  let browserCloseFailed = false;
+  await current.stagehand.close().catch((error) => cleanupErrors.push(error));
+  await current.browser.close().catch((error) => {
+    browserCloseFailed = true;
+    cleanupErrors.push(error);
+  });
+  if (browserCloseFailed && current.releaseSession) {
+    cleanupTargets.add(current.releaseSession);
+  } else if (current.releaseSession) {
+    cleanupTargets.delete(current.releaseSession);
+  }
+  if (cleanupErrors.length === 1) throw cleanupErrors[0];
+  if (cleanupErrors.length > 1) {
+    throw new AggregateError(cleanupErrors, "Failed to close the browser session cleanly.");
+  }
+}
+
+async function retryCleanupTargets(): Promise<void> {
+  for (const releaseSession of cleanupTargets) {
+    await releaseSession();
+    cleanupTargets.delete(releaseSession);
+  }
+}
+
+async function closeResourcesForShutdown(current: FacadeResources): Promise<void> {
+  try {
+    await closeResources(current);
+  } finally {
+    if (current.releaseSession && cleanupTargets.has(current.releaseSession)) {
+      await current.releaseSession();
+      cleanupTargets.delete(current.releaseSession);
+    }
   }
 }
 
@@ -161,22 +248,25 @@ export function sanitizeErrorMessage(message: string): string {
 async function shutdown(code: number): Promise<void> {
   if (closing) return;
   closing = true;
-  // A launch still in flight must not stall shutdown past the grace window.
-  const resources = await Promise.race([
-    resourcesPromise?.catch(() => undefined),
+  // Wait for a launch and any explicit close already in flight. Failed close
+  // targets remain tracked so shutdown can make one final best-effort attempt.
+  const launched = await Promise.race([
+    (async () => {
+      const pending = await resourcesPromise?.catch(() => undefined);
+      await cleanupPromise;
+      return pending;
+    })(),
     new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),
   ]);
+  const retryTargets = new Set(cleanupTargets);
+  const activeTargets = new Set<FacadeResources>();
+  if (resources) activeTargets.add(resources);
+  if (launched) activeTargets.add(launched);
   const clean = await closeCodeModeStdio([
-    ...(resources
-      ? [
-          {
-            close: async () => {
-              await resources.stagehand.close().catch(() => undefined);
-              await resources.browser.close();
-            },
-          },
-        ]
-      : []),
+    ...[...retryTargets].map((releaseSession) => ({ close: releaseSession })),
+    ...[...activeTargets].map((target) => ({
+      close: () => closeResourcesForShutdown(target),
+    })),
     server,
   ]);
   if (!clean) process.stderr.write("Failed to close Stagehand facade cleanly.\n");

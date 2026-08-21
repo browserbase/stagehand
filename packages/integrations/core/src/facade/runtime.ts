@@ -1938,6 +1938,11 @@ export async function createPlaywrightCompatRuntime(
       record("calls", "context.newPage");
       return await createPage(await rawContext.newPage());
     },
+    browser: () => browser,
+    close: async () => {
+      record("calls", "context.close");
+      closeRequested = true;
+    },
     cookies: (urls?: string | string[]) => {
       record("calls", "context.cookies");
       return rawContext.cookies(urls);

@@ -14,8 +14,21 @@ type ActionResult = { completed: number };
 type RunEnvelope = {
   __stagehandPlaywrightCompat: true;
   value: unknown;
+  closeRequested: boolean;
   executionError?: { name: string; message: string; stack?: string };
 };
+
+export type StagehandFacadeLifecycle = {
+  close(): Promise<void>;
+};
+
+export class StagehandFacadeLifecycleError extends Error {
+  override readonly name = "StagehandFacadeLifecycleError";
+
+  constructor() {
+    super("Browser close was requested, but this facade host does not provide lifecycle cleanup.");
+  }
+}
 
 export type StagehandFacadeScreenshot = {
   data: string;
@@ -74,9 +87,25 @@ const FACADE_EPILOGUE = `
     ...(typeof error?.stack === "string" ? { stack: error.stack } : {}),
   };
 }
+if (!executionError) {
+  try {
+    // Preflight the user value before returning the envelope. experimentalBatch
+    // JSON-serializes its complete result; if that serialization throws, the
+    // host would otherwise lose closeRequested along with the value.
+    value = JSON.parse(JSON.stringify({ value })).value;
+  } catch (error) {
+    value = undefined;
+    executionError = {
+      name: "TypeError",
+      message: "Stagehand facade run result must be JSON-serializable",
+      ...(typeof error?.stack === "string" ? { stack: error.stack } : {}),
+    };
+  }
+}
 return {
   __stagehandPlaywrightCompat: true,
   value,
+  closeRequested: runtime.closeRequested(),
   executionError,
 };`;
 
@@ -84,7 +113,10 @@ export class StagehandFacadeTools {
   private readonly snapshotsByPage = new Map<string, SnapshotState>();
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly stagehand: Stagehand) {}
+  constructor(
+    private readonly stagehand: Stagehand,
+    private readonly lifecycle?: StagehandFacadeLifecycle,
+  ) {}
 
   snapshot(options: { includeIframes?: boolean } = {}): Promise<string> {
     return this.enqueue(() => this.snapshotNow(options));
@@ -171,12 +203,32 @@ export class StagehandFacadeTools {
       {},
       { page, timeout: 60_000 },
     );
+    let closeError: unknown;
+    if (envelope.closeRequested) {
+      this.snapshotsByPage.clear();
+      if (!this.lifecycle) {
+        closeError = new StagehandFacadeLifecycleError();
+      } else {
+        try {
+          await this.lifecycle.close();
+        } catch (error) {
+          closeError = error;
+        }
+      }
+    }
     if (envelope.executionError) {
       const error = new Error(envelope.executionError.message);
       error.name = envelope.executionError.name;
       if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
+      if (closeError !== undefined) {
+        throw new AggregateError(
+          [error, closeError],
+          "Browser code failed and the browser session could not be closed.",
+        );
+      }
       throw error;
     }
+    if (closeError !== undefined) throw closeError;
     return envelope.value;
   }
 

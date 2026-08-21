@@ -1285,26 +1285,37 @@ describe("Mintlify customization boundary", () => {
     ).toEqual([]);
   });
 
-  it("includes every MDX content page in docs.json navigation", async () => {
+  it("includes every indexable MDX content page in docs.json navigation", async () => {
     const docsConfig = JSON.parse(
       await readFile(resolve(DOCS_ROOT, "docs.json"), "utf8"),
     ) as unknown;
     const navigatedPages = [...collectNavigationPages(docsConfig)]
       .filter((page) => page.startsWith("v4/"))
       .sort();
-    const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory))
-      .filter((filePath) => extname(filePath) === ".mdx")
-      .map((filePath) =>
-        relative(DOCS_ROOT, filePath)
-          .split(sep)
-          .join("/")
-          .replace(/\.mdx$/u, ""),
+    const contentPages = (
+      await Promise.all(
+        (
+          await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)
+        )
+          .filter((filePath) => extname(filePath) === ".mdx")
+          .map(async (filePath) => {
+            const source = await readFile(filePath, "utf8");
+            const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/u.exec(source)?.[1] ?? "";
+            if (/^noindex:\s*true\s*$/mu.test(frontmatter)) return undefined;
+            return relative(DOCS_ROOT, filePath)
+              .split(sep)
+              .join("/")
+              .replace(/\.mdx$/u, "");
+          }),
       )
+    )
+      .filter((page): page is string => page !== undefined)
       .sort();
 
-    expect(navigatedPages, "Every MDX content page must be reachable from docs.json").toStrictEqual(
-      contentPages,
-    );
+    expect(
+      navigatedPages,
+      "Every indexable MDX content page must be reachable from docs.json",
+    ).toStrictEqual(contentPages);
   });
 
   it("gives every language tab group the same complete language set", async () => {

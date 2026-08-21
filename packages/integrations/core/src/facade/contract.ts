@@ -127,7 +127,7 @@ export const FACADE_AGENT_INSTRUCTIONS = `You control one persistent browser thr
 - run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
 - screenshot: inspect the rendered page visually.
 
-Use snapshot actions for simple interactions and run code for multi-step workflows. Pass run exactly one of code or actions; every action uses "op" and "id", never "kind" or "ref". Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation or stale IDs. Do not launch another browser.`;
+Use snapshot actions for simple interactions and run code for multi-step workflows. Pass run exactly one of code or actions; every action uses "op" and "id", never "kind" or "ref". Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation or stale IDs. Do not launch another browser. Before finishing, close the owned browser session with \`await browser.close()\`. \`page.close()\` only closes the active page.`;
 
 export const NO_HYDRATED_SNAPSHOT_ERROR =
   "No hydrated snapshot exists for the active page; call snapshot first.";

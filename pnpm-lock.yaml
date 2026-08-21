@@ -628,6 +628,9 @@ importers:
 
   packages/integrations/core:
     dependencies:
+      '@browserbasehq/sdk':
+        specifier: 'catalog:'
+        version: 2.16.0
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../../sdk-ts
