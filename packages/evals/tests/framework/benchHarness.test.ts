@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { claudeCodeHarness, codexHarness, getBenchHarness } from "../../framework/benchHarness.js";
+import {
+  claudeCodeHarness,
+  codexHarness,
+  getBenchHarness,
+  hermesHarness,
+} from "../../framework/benchHarness.js";
 
 describe("bench harness registry", () => {
   it("registers claude_code as a concrete executable harness", () => {
@@ -15,6 +20,15 @@ describe("bench harness registry", () => {
     const harness = getBenchHarness("codex");
 
     expect(harness).toBe(codexHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+  });
+
+  it("registers hermes as a concrete executable harness", () => {
+    const harness = getBenchHarness("hermes");
+
+    expect(harness).toBe(hermesHarness);
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();

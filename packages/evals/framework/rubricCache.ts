@@ -18,10 +18,12 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 import type { Rubric, TaskSpec } from "stagehand-v3";
+import { getPackageRootDir } from "../runtimePaths.js";
 
 export interface RubricCacheOptions {
   /**
    * Root directory for cached rubrics. Defaults to
+   * `EVAL_RUBRIC_CACHE_ROOT` when set, otherwise
    * `<packages/evals>/.rubric-cache`.
    */
   cacheRoot?: string;
@@ -47,7 +49,9 @@ export class RubricCache {
   private readonly cacheDir: string;
 
   constructor(opts: RubricCacheOptions) {
-    const root = opts.cacheRoot ?? path.join(process.cwd(), "packages/evals/.rubric-cache");
+    const configuredRoot = process.env.EVAL_RUBRIC_CACHE_ROOT?.trim();
+    const root =
+      opts.cacheRoot ?? configuredRoot ?? path.join(getPackageRootDir(), ".rubric-cache");
     this.cacheDir = path.join(root, opts.dataset);
   }
 

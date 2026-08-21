@@ -11,6 +11,7 @@ import {
 import { runCodexAgent } from "./codexRunner.js";
 import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { resolveHermesToolSurface, runHermesAgent } from "./hermesRunner.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 
@@ -236,10 +237,48 @@ export const codexHarness: BenchHarness = {
   },
 };
 
+export const hermesHarness: BenchHarness = {
+  harness: "hermes",
+  supportedTaskKinds: ["agent", "suite"],
+  supportsApi: false,
+  async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
+    const plan = buildExternalHarnessTaskPlan(input);
+    if (row.config.harness !== "hermes") {
+      throw new EvalsError(`Expected hermes harness config, received "${row.config.harness}".`);
+    }
+    const carrierV3 = buildVerifierCarrierV3(logger);
+    try {
+      const taskSpec = buildExternalHarnessTaskSpec(plan, input);
+      return await runHermesAgent({
+        plan,
+        taskSpec,
+        model: input.modelName,
+        surface: resolveHermesToolSurface(row.config.toolSurface),
+        environment: row.config.environment,
+        logger,
+        signal,
+        verifier: {
+          v3: carrierV3,
+          taskSpec,
+          dataset: plan.dataset,
+        },
+      });
+    } finally {
+      await carrierV3.close().catch(() => {});
+    }
+  },
+  async start(): Promise<StartedBenchHarness> {
+    throw new EvalsError(
+      "Hermes harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness hermes.",
+    );
+  },
+};
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
   ["codex", codexHarness],
+  ["hermes", hermesHarness],
 ]);
 
 export function getBenchHarness(harness: Harness): BenchHarness {

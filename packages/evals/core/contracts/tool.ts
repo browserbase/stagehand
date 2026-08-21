@@ -11,7 +11,12 @@ export type ToolSurface =
   | "cdp_code"
   | "playwright_mcp"
   | "chrome_devtools_mcp"
-  | "browse_cli";
+  | "browse_cli"
+  /** Hermes-owned browser surfaces. These are bench-harness surfaces, not CoreTools. */
+  | "hermes_browser_legacy"
+  | "hermes_browser_exec"
+  | "hermes_stagehand_batch"
+  | "hermes_stagehand_facade";
 
 export type StartupProfile =
   | "runner_provided_local_cdp"
