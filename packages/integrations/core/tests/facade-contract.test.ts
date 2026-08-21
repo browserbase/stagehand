@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CodeModeRunInputSchema,
+  FACADE_AGENT_INSTRUCTIONS,
   FACADE_TOOLS,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
@@ -31,6 +32,11 @@ describe("Stagehand facade contract", () => {
       '{"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}',
     );
     expect(FACADE_TOOLS[2].description).toContain('{"type":"jpeg","quality":40,"fullPage":false}');
+  });
+
+  it("documents host-owned browser cleanup", () => {
+    expect(FACADE_AGENT_INSTRUCTIONS).toContain("await browser.close()");
+    expect(FACADE_AGENT_INSTRUCTIONS).toContain("`page.close()` only closes the active page");
   });
 
   it("pins snapshot error punctuation", () => {
