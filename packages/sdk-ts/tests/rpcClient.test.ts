@@ -7,7 +7,12 @@ import {
   MAX_CALLBACK_BATCH_TIMEOUT_MS,
   STAGEHAND_PROTOCOL_VERSION,
 } from "../../protocol/schemas.js";
-import { RPCClient, rpcResponseTimeoutMs, type CDPTransport } from "../src/rpcClient.js";
+import {
+  RPCClient,
+  RPCClientOptionsSchema,
+  rpcResponseTimeoutMs,
+  type CDPTransport,
+} from "../src/rpcClient.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -64,6 +69,34 @@ class ManualCDPTransport implements CDPTransport {
     this.closeCalls += 1;
   }
 }
+
+describe("RPCClientOptionsSchema", () => {
+  it("accepts the preloaded-extension option", () => {
+    const signal = new AbortController().signal;
+
+    expect(
+      RPCClientOptionsSchema.parse({
+        cdpUrl: "ws://browser.example",
+        preloadedExtension: true,
+        signal,
+      }),
+    ).toStrictEqual({
+      cdpUrl: "ws://browser.example",
+      preloadedExtension: true,
+      signal,
+    });
+  });
+
+  it("rejects an installed-extension discovery policy", () => {
+    expect(() =>
+      RPCClientOptionsSchema.parse({
+        cdpUrl: "ws://browser.example",
+        discoverExtension: "require",
+        signal: new AbortController().signal,
+      }),
+    ).toThrow();
+  });
+});
 
 describe("RPCClient", () => {
   it("keeps callback batches in the ordinary pending RPC path", async () => {

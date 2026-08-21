@@ -95,10 +95,11 @@ describe("Stagehand browser factories", () => {
       close: closeSource,
     }));
     const cdp = fakeCdpClient();
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => cdp);
     const createBrowserbaseSessionClient = vi.fn(() => ({ createSession }));
     const { browserbase } = createBrowserFactoriesForTest({
       createBrowserbaseSessionClient,
-      connectCdp: async () => cdp,
+      connectCdp,
     });
 
     const browser = await browserbase.launch({
@@ -117,6 +118,7 @@ describe("Stagehand browser factories", () => {
       "bb_key",
       "https://api.dev.browserbase.com",
     );
+    expect(connectCdp).toHaveBeenCalledWith(expect.objectContaining({ preloadedExtension: true }));
     expect(claimed.workerInitMetadata).toStrictEqual({
       apiKey: "bb_key",
       browser: {
@@ -167,6 +169,28 @@ describe("Stagehand browser factories", () => {
         region: "eu-central-1",
       },
     });
+  });
+
+  it("discovers Stagehand when connecting without a Chrome extension ID", async () => {
+    const connectSession = vi.fn(async () => ({
+      sessionId: "session_123",
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+    }));
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient: () => ({
+        createSession: vi.fn(),
+        connectSession,
+      }),
+      connectCdp,
+    });
+
+    await browserbase.connect({
+      apiKey: "bb_key",
+      sessionId: "session_123",
+    });
+
+    expect(connectCdp).toHaveBeenCalledWith(expect.objectContaining({ preloadedExtension: true }));
   });
 
   it("rejects a second Stagehand claim", async () => {
