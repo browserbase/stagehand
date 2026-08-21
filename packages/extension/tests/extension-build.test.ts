@@ -1,15 +1,23 @@
 import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { unzipSync, zipSync, type Zippable } from "fflate";
+import { build, loadEnv } from "vite";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import extensionPackageJson from "../package.json" with { type: "json" };
+import { stagehandExtensionBuildConfig, validateBrowserProxyOrigin } from "../vite.config.ts";
 
 const stagehandExtensionDistDir = fileURLToPath(new URL("../dist", import.meta.url));
+const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
 const stagehandExtensionArchive = fileURLToPath(
   new URL("../artifacts/stagehand-extension.zip", import.meta.url),
+);
+const stagehandExtensionMetadata = fileURLToPath(
+  new URL("../artifacts/stagehand-extension.metadata.json", import.meta.url),
 );
 const stagehandExtensionSourceManifest = fileURLToPath(
   new URL("../manifest.json", import.meta.url),
@@ -19,6 +27,7 @@ const expectedManifestVersion = extensionPackageJson.version.replace(/[+-].*$/u,
 const ManifestSchema = z.looseObject({
   manifest_version: z.literal(3),
   name: z.string(),
+  key: z.string().min(1),
   version: z.string(),
   minimum_chrome_version: z.literal("116"),
   permissions: z.array(z.string()),
@@ -106,7 +115,7 @@ describe("extension build", () => {
       ],
       options_page: "wake-service-worker.html",
     });
-    expect(manifest.permissions).toEqual(["debugger", "offscreen", "scripting", "tabs"]);
+    expect(manifest.permissions).toEqual(["debugger", "offscreen"]);
     expect(manifest.host_permissions).toEqual(["<all_urls>"]);
     expect(serviceWorker).toContain("__stagehandReceiveFromHost");
     expect(serviceWorker).toContain("offscreen/service-worker-heartbeat.html");
@@ -125,7 +134,7 @@ describe("extension build", () => {
     expect(offscreenScript).toContain("StagehandExtensionServiceWorkerHeartbeat");
     expect(serviceWorker).not.toContain("src/shims");
     expect(serviceWorker).toContain("new WebSocket");
-    expect(serviceWorker).toContain('binaryType = "arraybuffer"');
+    expect(serviceWorker).toMatch(/binaryType\s*=\s*[`"']arraybuffer[`"']/u);
     expect(serviceWorker).not.toContain("__vite-browser-external");
     expect(serviceWorker).not.toContain("__vite_browser_external");
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");
@@ -145,6 +154,29 @@ describe("extension build", () => {
       manifest_version: 3,
       version: expectedManifestVersion,
     });
+    const archivedManifest = ManifestSchema.parse(
+      JSON.parse(new TextDecoder().decode(archive["manifest.json"])),
+    );
+    const MetadataSchema = z.strictObject({
+      chromeExtensionId: z.literal("hgibfbbnmoigailpmgihnbaokiinpmij"),
+      extensionVersion: z.literal(expectedManifestVersion),
+      stagehandProtocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
+      residentGatewayConfigured: z.boolean(),
+      sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+      unpackedSha256: z.string().regex(/^[0-9a-f]{64}$/u),
+      serviceWorkerPath: z.literal("service-worker.js"),
+      sourceCommit: z.string().regex(/^[0-9a-f]{40}$/u),
+    });
+    const metadata = MetadataSchema.parse(
+      JSON.parse(await readFile(stagehandExtensionMetadata, "utf8")),
+    );
+    const configuredBrowserProxyUrl =
+      process.env.VITE_STAGEHAND_BROWSER_PROXY_URL ??
+      loadEnv("production", extensionRoot, "VITE_STAGEHAND_").VITE_STAGEHAND_BROWSER_PROXY_URL;
+    expect(metadata.chromeExtensionId).toBe(chromeExtensionId(archivedManifest.key));
+    expect(metadata.residentGatewayConfigured).toBe(Boolean(configuredBrowserProxyUrl?.trim()));
+    expect(metadata.sha256).toBe(sha256(archiveBytes));
+    expect(metadata.unpackedSha256).toBe(unpackedFilesSha256(builtFiles));
 
     const deterministicEntries: Zippable = {};
     for (const relativePath of Object.keys(builtFiles).toSorted()) {
@@ -155,10 +187,91 @@ describe("extension build", () => {
     }
     expect(sha256(archiveBytes)).toBe(sha256(zipSync(deterministicEntries, { level: 9 })));
   }, 30_000);
+
+  it("produces byte-identical artifacts from identical inputs", async () => {
+    const firstRoot = await mkdtemp(path.join(tmpdir(), "stagehand-extension-build-first-"));
+    const secondRoot = await mkdtemp(path.join(tmpdir(), "stagehand-extension-build-second-"));
+    // Vite bakes process.env.NODE_ENV into the bundle; vitest sets it to "test", while the
+    // canonical `vite build` runs with "production".
+    const previousNodeEnv = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      for (const temporaryRoot of [firstRoot, secondRoot]) {
+        await build({
+          configFile: false,
+          logLevel: "silent",
+          ...stagehandExtensionBuildConfig({
+            mode: "production",
+            outDir: path.join(temporaryRoot, "dist"),
+            artifactsDir: path.join(temporaryRoot, "artifacts"),
+          }),
+        });
+      }
+      const firstArchive = await readFile(
+        path.join(firstRoot, "artifacts/stagehand-extension.zip"),
+      );
+      const secondArchive = await readFile(
+        path.join(secondRoot, "artifacts/stagehand-extension.zip"),
+      );
+      const firstMetadata = await readFile(
+        path.join(firstRoot, "artifacts/stagehand-extension.metadata.json"),
+      );
+      const secondMetadata = await readFile(
+        path.join(secondRoot, "artifacts/stagehand-extension.metadata.json"),
+      );
+      expect(firstArchive).toEqual(secondArchive);
+      expect(firstMetadata).toEqual(secondMetadata);
+      expect(sha256(firstArchive)).toBe(sha256(await readFile(stagehandExtensionArchive)));
+    } finally {
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+      await Promise.all([
+        rm(firstRoot, { force: true, recursive: true }),
+        rm(secondRoot, { force: true, recursive: true }),
+      ]);
+    }
+  }, 120_000);
+
+  it.each(["http://127.0.0.1:9224", "https://localhost", "http://[::1]:9224"])(
+    "accepts a loopback browser proxy origin: %s",
+    (origin) => {
+      expect(() => validateBrowserProxyOrigin(origin)).not.toThrow();
+    },
+  );
+
+  it.each([
+    "ws://127.0.0.1:9224",
+    "http://browser.example:9224",
+    "http://127.0.0.1:9224/path",
+    "http://user:secret@127.0.0.1:9224",
+    "http://127.0.0.1:9224/?x=1",
+    "http://127.0.0.1:9224/#frag",
+    "127.0.0.1:9224",
+  ])("rejects an invalid browser proxy origin: %s", (origin) => {
+    expect(() => validateBrowserProxyOrigin(origin)).toThrow();
+  });
 });
 
 function sha256(value: Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function chromeExtensionId(publicKey: string): string {
+  return createHash("sha256")
+    .update(Buffer.from(publicKey, "base64"))
+    .digest("hex")
+    .slice(0, 32)
+    .replace(/[0-9a-f]/gu, (digit) =>
+      String.fromCharCode("a".charCodeAt(0) + Number.parseInt(digit, 16)),
+    );
+}
+
+function unpackedFilesSha256(files: Record<string, Uint8Array>): string {
+  const digest = createHash("sha256");
+  for (const relativePath of Object.keys(files).sort(compareCodePoints)) {
+    digest.update(`${relativePath}\n${sha256(files[relativePath]!)}\n`);
+  }
+  return digest.digest("hex");
 }
 
 async function readBuiltExtensionFiles(
@@ -180,4 +293,9 @@ async function readBuiltExtensionFiles(
   }
 
   return files;
+}
+
+// UTF-8 byte order equals Unicode code point order, matching Python's `sorted()` in build.py.
+function compareCodePoints(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
 }

@@ -18,8 +18,10 @@
     },
     "@browserbasehq/stagehand-extension#build": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
-      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+      "env": ["VITE_STAGEHAND_BROWSER_PROXY_URL"],
+      "passThroughEnv": ["GITHUB_SHA"],
+      "inputs": ["$TURBO_DEFAULT$", ".env", ".env.*", "!dist/**", "!artifacts/**"],
+      "outputs": ["dist/**", "artifacts/**"]
     },
     "@browserbasehq/stagehand#build": {
       "dependsOn": ["@browserbasehq/stagehand-extension#build"],

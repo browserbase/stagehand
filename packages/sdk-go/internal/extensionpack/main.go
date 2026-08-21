@@ -5,6 +5,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -42,6 +43,13 @@ func run(check bool) error {
 		),
 		filepath.Join(
 			sdkRoot,
+			"..",
+			"extension",
+			"artifacts",
+			"stagehand-extension.metadata.json",
+		),
+		filepath.Join(
+			sdkRoot,
 			"internal",
 			"extensionassets",
 			"stagehand-extension.zip",
@@ -51,7 +59,7 @@ func run(check bool) error {
 	)
 }
 
-func syncArchive(sourcePath, targetPath, packagePath string, check bool) error {
+func syncArchive(sourcePath, metadataPath, targetPath, packagePath string, check bool) error {
 	source, err := os.ReadFile(sourcePath)
 	if err != nil {
 		return fmt.Errorf(
@@ -60,6 +68,9 @@ func syncArchive(sourcePath, targetPath, packagePath string, check bool) error {
 		)
 	}
 	if err := validateArchiveVersion(source, packagePath); err != nil {
+		return err
+	}
+	if err := validateArchiveMetadata(source, metadataPath); err != nil {
 		return err
 	}
 
@@ -103,6 +114,31 @@ func syncArchive(sourcePath, targetPath, packagePath string, check bool) error {
 	}
 	if err := os.Rename(temporaryPath, targetPath); err != nil {
 		return fmt.Errorf("replace Go extension asset: %w", err)
+	}
+	return nil
+}
+
+func validateArchiveMetadata(archive []byte, metadataPath string) error {
+	var metadata struct {
+		ResidentGatewayConfigured *bool  `json:"residentGatewayConfigured"`
+		SHA256                    string `json:"sha256"`
+	}
+	metadataData, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return fmt.Errorf(
+			"read built Stagehand extension metadata (run the root `just build` command): %w",
+			err,
+		)
+	}
+	if err := json.Unmarshal(metadataData, &metadata); err != nil {
+		return fmt.Errorf("decode built Stagehand extension metadata: %w", err)
+	}
+	if metadata.ResidentGatewayConfigured == nil || *metadata.ResidentGatewayConfigured {
+		return errors.New("refusing to embed a privately configured resident Stagehand extension")
+	}
+	archiveDigest := fmt.Sprintf("%x", sha256.Sum256(archive))
+	if archiveDigest != metadata.SHA256 {
+		return errors.New("built Stagehand extension does not match its metadata; rebuild the extension")
 	}
 	return nil
 }

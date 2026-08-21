@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 import shutil
 import subprocess
 import tarfile
@@ -9,6 +12,42 @@ from pathlib import Path
 
 SDK_ROOT = Path(__file__).resolve().parents[1]
 EXTENSION_ROOT = SDK_ROOT.parent / "extension" / "dist"
+METADATA_PATH = SDK_ROOT.parent / "extension" / "artifacts" / "stagehand-extension.metadata.json"
+
+
+def unpacked_content_sha256(directory: Path) -> str:
+    files: list[tuple[str, Path]] = []
+    for entry in directory.rglob("*"):
+        relative_path = entry.relative_to(directory).as_posix()
+        if entry.is_symlink():
+            raise SystemExit(f"Stagehand extension cannot contain symbolic links: {relative_path}")
+        if entry.is_dir():
+            continue
+        if not entry.is_file():
+            raise SystemExit(f"Stagehand extension contains an unsupported entry: {relative_path}")
+        files.append((relative_path, entry))
+
+    digest = hashlib.sha256()
+    for relative_path, entry in sorted(files):
+        file_digest = hashlib.sha256(entry.read_bytes()).hexdigest()
+        digest.update(f"{relative_path}\n{file_digest}\n".encode())
+    return digest.hexdigest()
+
+
+def assert_public_extension_artifact(metadata: object, unpacked_directory: Path) -> None:
+    if not isinstance(metadata, dict) or metadata.get("residentGatewayConfigured") is not False:
+        raise SystemExit("Refusing to package a privately configured resident extension in the SDK")
+    unpacked_sha256 = metadata.get("unpackedSha256")
+    if (
+        not isinstance(unpacked_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", unpacked_sha256) is None
+    ):
+        raise SystemExit("Refusing to package a privately configured resident extension in the SDK")
+    if unpacked_content_sha256(unpacked_directory) != unpacked_sha256:
+        raise SystemExit(
+            "Stagehand extension is stale or does not match its metadata; "
+            "run the root `just build` command."
+        )
 
 
 def clean_distribution_directory(output_directory: Path) -> None:
@@ -25,6 +64,11 @@ def clean_distribution_directory(output_directory: Path) -> None:
 def main() -> None:
     if not (EXTENSION_ROOT / "manifest.json").is_file():
         raise SystemExit("Stagehand extension is not built; run the root `just build` command.")
+    if not METADATA_PATH.is_file():
+        raise SystemExit(
+            "Stagehand extension metadata is missing; run the root `just build` command."
+        )
+    assert_public_extension_artifact(json.loads(METADATA_PATH.read_text()), EXTENSION_ROOT)
 
     with tempfile.TemporaryDirectory(prefix="stagehand-python-build-") as temporary_directory:
         temporary_root = Path(temporary_directory)
