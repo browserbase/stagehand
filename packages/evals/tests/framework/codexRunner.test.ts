@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildCodexPrompt,
-  normalizeCodexModel,
   parseCodexResult,
   runCodexAgent,
   type CodexSdk,
@@ -18,12 +17,6 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("codex runner helpers", () => {
-  it("normalizes provider-prefixed models for Codex", () => {
-    expect(normalizeCodexModel("openai/gpt-5.4-mini" as AvailableModel)).toBe("gpt-5.4-mini");
-    expect(normalizeCodexModel("gpt-5.4" as AvailableModel)).toBe("gpt-5.4");
-    expect(normalizeCodexModel("codex/default" as AvailableModel)).toBe("gpt-5.4-mini");
-  });
-
   it("builds a browser task prompt with structured result instructions", () => {
     const prompt = buildCodexPrompt(plan, "Use browse only. Discover usage with browse -h.");
 

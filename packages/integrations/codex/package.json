@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@browserbasehq/stagehand-integrations": "workspace:*",
-    "@openai/codex-sdk": "catalog:"
+    "@browserbasehq/stagehand-integrations-codex-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",
