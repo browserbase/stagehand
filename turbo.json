@@ -42,6 +42,7 @@
       "outputs": ["dist/**"]
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#build": {
+    "@browserbasehq/stagehand-integrations-pi-sdk#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
@@ -96,6 +97,7 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#typecheck": {
+    "@browserbasehq/stagehand-integrations-pi-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations#test:unit": {
@@ -130,6 +132,8 @@
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastra-sdk#build"],
+    "@browserbasehq/stagehand-integrations-pi-sdk#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-pi-sdk#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
