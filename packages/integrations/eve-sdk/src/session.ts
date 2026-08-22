@@ -254,19 +254,20 @@ export async function runEveSession(input: {
         for (const action of data.actions) {
           if (!isRecord(action) || action.kind !== "tool-call") continue;
           const toolName = typeof action.toolName === "string" ? action.toolName : "tool";
-          toolStepCount += 1;
           await input.onToolStep?.(toolName);
-          if (toolStepCount >= maxToolSteps && !maxTurns) {
-            maxTurns = true;
-            stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
-            await cancelSession();
-            controller.abort(new Error(stopReason));
-          }
         }
       } else if (event.type === "action.result") {
         const result = isRecord(data?.result) ? data.result : undefined;
         if (result?.kind === "tool-result" && typeof result.toolName === "string") {
           await input.onToolResult?.(result.toolName);
+          toolStepCount += 1;
+          if (toolStepCount >= maxToolSteps && !maxTurns) {
+            maxTurns = true;
+            stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
+            await cancelSession();
+            controller.abort(new Error(stopReason));
+            break;
+          }
         }
       } else if (event.type === "input.requested") {
         const requests = Array.isArray(data?.requests) ? data.requests : [];

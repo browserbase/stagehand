@@ -73,6 +73,7 @@ describe("Eve tool adapter helpers", () => {
     for (const name of EVE_DISABLED_FRAMEWORK_TOOLS) {
       expect(files[`agent/tools/${name}.ts`]).toContain("disableTool");
     }
+    expect(files["agent/tools/load_skill.ts"]).toContain("disableTool");
     expect(files["agent/instructions.md"]).toContain("Use the mounted browser.");
     expect(files["agent/instructions.md"]).toContain("Never ask the user questions");
     expect(files["agent/instructions.md"]).toContain("requested compact JSON");

@@ -216,13 +216,26 @@ describe("Eve SDK session", () => {
     expect(result.stopReason).not.toContain("SUPERSECRET");
   });
 
-  it("cancels when the tool-step budget is exhausted", async () => {
+  it("executes and records one tool result before exhausting a one-step budget", async () => {
     const setup = clientFor([
       {
         type: "actions.requested",
         data: { actions: [{ kind: "tool-call", callId: "1", toolName: "stagehand__run" }] },
       },
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", callId: "1", toolName: "stagehand__run" },
+        },
+      },
+      {
+        type: "actions.requested",
+        data: { actions: [{ kind: "tool-call", callId: "2", toolName: "stagehand__run" }] },
+      },
     ]);
+    const onToolStep = vi.fn(() => expect(setup.cancel).not.toHaveBeenCalled());
+    const onToolResult = vi.fn(() => expect(setup.cancel).not.toHaveBeenCalled());
     const result = await runEveSession({
       prompt: "task",
       model: "gpt",
@@ -230,7 +243,57 @@ describe("Eve SDK session", () => {
       server: { url: "http://eve" },
       client: setup.client,
       maxToolSteps: 1,
+      onToolStep,
+      onToolResult,
     });
+    expect(onToolStep).toHaveBeenCalledOnce();
+    expect(onToolResult).toHaveBeenCalledOnce();
+    expect(result.events.filter((event) => event.type === "action.result")).toHaveLength(1);
+    expect(setup.cancel).toHaveBeenCalledOnce();
+    expect(result.status).toBe("max_turns");
+    expect(result.stopReason).toContain("budget exhausted");
+  });
+
+  it("records two tool results before exhausting a two-step budget", async () => {
+    const setup = clientFor([
+      {
+        type: "actions.requested",
+        data: { actions: [{ kind: "tool-call", callId: "1", toolName: "stagehand__run" }] },
+      },
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", callId: "1", toolName: "stagehand__run" },
+        },
+      },
+      {
+        type: "actions.requested",
+        data: { actions: [{ kind: "tool-call", callId: "2", toolName: "stagehand__run" }] },
+      },
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", callId: "2", toolName: "stagehand__run" },
+        },
+      },
+      { type: "message.completed", data: { message: "should not be read" } },
+    ]);
+    const onToolResult = vi.fn(() => expect(setup.cancel).not.toHaveBeenCalled());
+    const result = await runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      server: { url: "http://eve" },
+      client: setup.client,
+      maxToolSteps: 2,
+      onToolResult,
+    });
+
+    expect(onToolResult).toHaveBeenCalledTimes(2);
+    expect(result.events.filter((event) => event.type === "action.result")).toHaveLength(2);
+    expect(result.events.at(-1)?.type).toBe("action.result");
     expect(setup.cancel).toHaveBeenCalledOnce();
     expect(result.status).toBe("max_turns");
     expect(result.stopReason).toContain("budget exhausted");
