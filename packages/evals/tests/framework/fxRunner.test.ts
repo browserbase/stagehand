@@ -89,7 +89,46 @@ describe("fx runner helpers", () => {
     expect(result._success).toBe(true);
     expect(result.error).toBeUndefined();
     expect(result.fxStatus).toBe("completed");
+    expect(result.harnessStatus).toBe("completed");
     expect(result.finalAnswer).toBe("Example Domain");
     expect(metrics.fx_input_tokens.value).toBe(42);
+    expect(metrics.harness_input_tokens.value).toBe(42);
+    expect(metrics.harness_output_tokens.value).toBe(8);
+    expect(metrics.harness_cached_input_tokens.value).toBe(5);
+    expect(metrics.harness_reasoning_output_tokens.value).toBe(2);
+    expect(metrics.fx_total_tokens.value).toBe(57);
+    expect(metrics.harness_total_tokens.value).toBe(57);
+    expect(metrics.harness_cost_usd).toBeUndefined();
+  });
+
+  it("returns a failed task result with sdk_error status when fx cannot start", async () => {
+    const result = await runFxAgent({
+      plan,
+      model: "openai/gpt-5.6-sol" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: {
+        toolSurface: "stagehand_facade",
+        startupProfile: "tool_launch_local",
+        cwd: "/fake/workspace",
+        home: "/fake/home",
+        env: { PATH: "/bin" },
+        promptInstructions: "Use mcp_stagehand_snapshot.",
+        mcpServerNames: ["stagehand"],
+        cleanup: async () => {},
+      },
+      runProcess: async () => {
+        throw new Error("MissingCredentials");
+      },
+      store: {
+        waitForSessionDir: async () => undefined,
+        readEventsJsonl: async () => "",
+      },
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.fxStatus).toBe("sdk_error");
+    expect(result.harnessStatus).toBe("sdk_error");
+    expect(result.harnessStopReason).toBeDefined();
+    expect(String(result.error)).not.toBe("");
   });
 });

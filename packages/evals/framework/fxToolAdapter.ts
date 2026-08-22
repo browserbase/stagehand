@@ -7,6 +7,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export interface FxToolAdapterInput {
@@ -38,38 +39,11 @@ type FxMcpServerSpec = {
   env?: Record<string, string>;
 };
 
-const FX_MCP_SURFACES = new Set<ToolSurface>([
+export const FX_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
   "playwright_mcp",
   "chrome_devtools_mcp",
-]);
-
-export function resolveFxToolSurface(requested?: ToolSurface): ToolSurface {
-  if (!requested) return "stagehand_facade";
-  if (FX_MCP_SURFACES.has(requested)) return requested;
-  throw new EvalsError(
-    `fx harness supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "${requested}".`,
-  );
-}
-
-export function resolveFxStartupProfile(
-  toolSurface: ToolSurface,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile {
-  if (requested) return requested;
-  if (toolSurface === "stagehand_facade") {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-  }
-  if (toolSurface === "playwright_mcp" || toolSurface === "chrome_devtools_mcp") {
-    return environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
-  }
-  throw new EvalsError(
-    `No fx startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
-}
+];
 
 export function buildFxMcpConfig(
   mcpServers: Record<string, unknown>,
@@ -139,8 +113,14 @@ export function buildFxAgentsMarkdown(promptInstructions: string, serverNames: s
 export async function prepareFxToolAdapter(
   input: FxToolAdapterInput,
 ): Promise<PreparedFxToolAdapter> {
-  const toolSurface = resolveFxToolSurface(input.toolSurface);
-  const startupProfile = resolveFxStartupProfile(
+  const toolSurface = resolveToolSurface(
+    { harness: "fx", supportedToolSurfaces: FX_TOOL_SURFACES },
+    input.toolSurface,
+  );
+  if (toolSurface === undefined) {
+    throw new EvalsError("fx harness requires a tool surface.");
+  }
+  const startupProfile = resolveStartupProfile(
     toolSurface,
     input.environment,
     input.startupProfile,
