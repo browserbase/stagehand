@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildFxTranscript,
   normalizeFxModel,
   runFxSession,
   type FxProcessRunner,
@@ -119,6 +120,7 @@ describe("fx CLI session", () => {
     });
     expect(result.status).toBe("completed");
     expect(result.finalMessage).toContain('"success":true');
+    expect(result.observedToolCallKeys).toEqual([]);
   });
 
   it("reports missing credentials as an SDK error", async () => {
@@ -170,8 +172,9 @@ describe("fx CLI session", () => {
     expect(result.stopReason).toContain("fx produced no JSON output");
   });
 
-  it("deduplicates observed MCP tool calls and ignores built-in tools", async () => {
+  it("records only MCP tool calls observed from a live recovery checkpoint", async () => {
     const onToolStep = vi.fn();
+    let processExited = false;
     const recovery = {
       kind: "recovery_checkpoint_set",
       payload: {
@@ -191,6 +194,13 @@ describe("fx CLI session", () => {
         },
       },
     };
+    const committed = committedEvent();
+    committed.payload.turn.execution.tool_steps[0]?.tool_calls.push({
+      id: "call-2",
+      name: "mcp_stagehand_run",
+      arguments_json: "{}",
+      provider_result: null,
+    });
     const result = await runFxSession({
       prompt: "task",
       cwd: "/fake/workspace",
@@ -201,13 +211,54 @@ describe("fx CLI session", () => {
       onToolStep,
       runProcess: async () => {
         await new Promise((resolve) => setTimeout(resolve, 5));
+        processExited = true;
         return { stdout: JSON.stringify({ output: "done" }), stderr: "", exitCode: 0 };
       },
-      store: fakeStore(jsonl(recovery, committedEvent())),
+      store: {
+        waitForSessionDir: async () => "/fake/session",
+        readEventsJsonl: async () => jsonl(recovery, ...(processExited ? [committed] : [])),
+      },
     });
     expect(result.status).toBe("completed");
     expect(onToolStep).toHaveBeenCalledTimes(1);
     expect(onToolStep.mock.calls[0]?.[0]).toMatchObject({ id: "call-1" });
+    expect(result.observedToolCallKeys).toEqual(["call-1"]);
+  });
+
+  it("does not synthesize observations from a committed turn after exit", async () => {
+    const onToolStep = vi.fn();
+    let processExited = false;
+    const committed = committedEvent();
+    const toolCalls = committed.payload.turn.execution.tool_steps[0]?.tool_calls;
+    toolCalls?.push(
+      { id: "call-2", name: "mcp_stagehand_run", arguments_json: "{}", provider_result: null },
+      {
+        id: "call-3",
+        name: "mcp_stagehand_screenshot",
+        arguments_json: "{}",
+        provider_result: null,
+      },
+    );
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger,
+      pollIntervalMs: 1,
+      onToolStep,
+      runProcess: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        processExited = true;
+        return { stdout: JSON.stringify({ output: "done" }), stderr: "", exitCode: 0 };
+      },
+      store: {
+        waitForSessionDir: async () => "/fake/session",
+        readEventsJsonl: async () => (processExited ? jsonl(committed) : ""),
+      },
+    });
+    expect(onToolStep).not.toHaveBeenCalled();
+    expect(result.observedToolCallKeys).toEqual([]);
   });
 
   it("forwards aborts to the process and reports aborted", async () => {
@@ -257,5 +308,85 @@ describe("fx CLI session", () => {
     });
     expect(result.stopReason).not.toContain("1234567890");
     expect(result.stopReason).toContain("[redacted]");
+  });
+
+  it("treats successful exits without JSON output as SDK errors", async () => {
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger,
+      runProcess: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+      store: fakeStore(""),
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("no JSON output");
+  });
+
+  it("honors fx ask exit codes even when the process exits zero", async () => {
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger,
+      runProcess: async () => ({
+        stdout: JSON.stringify({ output: "x", exit_code: 2 }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: fakeStore(""),
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("exit_code 2");
+  });
+
+  it("honors failed committed turn reasons even when the process exits zero", async () => {
+    const committed = committedEvent("cancelled");
+    committed.payload.turn.kind = "interrupted";
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger,
+      runProcess: async () => ({
+        stdout: JSON.stringify({ output: "x", exit_code: 0 }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: fakeStore(jsonl(committed)),
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("cancelled");
+  });
+
+  it("redacts sensitive event details in logs and transcripts", async () => {
+    const log = vi.fn();
+    const secretEvent = committedEvent();
+    const resultRecord = secretEvent.payload.turn.execution.tool_steps[0]?.tool_results[0];
+    if (resultRecord) resultRecord.output = "token bb_live_abcd1234567890";
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger: { log, warn: () => {}, error: () => {} },
+      runProcess: async () => ({
+        stdout: JSON.stringify({ output: "done", exit_code: 0 }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: fakeStore(jsonl(secretEvent)),
+    });
+    const details = log.mock.calls
+      .map((call) => call[0]?.auxiliary?.detail?.value)
+      .filter((value): value is string => typeof value === "string")
+      .join("\n");
+    expect(details).toContain("[redacted]");
+    expect(details).not.toContain("1234567890");
+    expect(buildFxTranscript(result.events)).toContain("[redacted]");
+    expect(buildFxTranscript(result.events)).not.toContain("1234567890");
   });
 });

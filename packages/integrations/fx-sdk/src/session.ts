@@ -77,6 +77,7 @@ export type FxSessionResult = {
   sessionId?: string;
   exitCode?: number;
   iterationError?: unknown;
+  observedToolCallKeys: string[];
 };
 
 export type FxProcessRunner = (input: {
@@ -129,8 +130,8 @@ const defaultProcessRunner: FxProcessRunner = async (input) =>
     };
     const abort = (): void => {
       if (!child || settled) return;
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => child.kill("SIGKILL"), 2_000);
+      signalFxProcess(child, "SIGTERM");
+      killTimer = setTimeout(() => signalFxProcess(child, "SIGKILL"), 2_000);
       killTimer.unref();
     };
 
@@ -139,6 +140,7 @@ const defaultProcessRunner: FxProcessRunner = async (input) =>
         cwd: input.cwd,
         env: input.env,
         stdio: ["pipe", "pipe", "pipe"],
+        detached: process.platform !== "win32",
       });
       child.stdout.on("data", (chunk: Buffer | string) => {
         stdout += String(chunk);
@@ -163,6 +165,22 @@ const defaultProcessRunner: FxProcessRunner = async (input) =>
       finish(null);
     }
   });
+
+function signalFxProcess(child: ReturnType<typeof spawn>, signal: NodeJS.Signals): void {
+  if (process.platform !== "win32" && typeof child.pid === "number") {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // Fall back to the direct child if the process group is already gone.
+    }
+  }
+  try {
+    child.kill(signal);
+  } catch {
+    // The child may have exited between the abort check and the signal.
+  }
+}
 
 const defaultSessionStore: FxSessionStore = {
   async waitForSessionDir(home, signal) {
@@ -250,6 +268,7 @@ export async function runFxSession(input: {
 
   const store = input.store ?? defaultSessionStore;
   const seenToolCalls = new Set<string>();
+  const observedToolCallKeys: string[] = [];
   const observedTool = input.observedTool ?? ((name: string) => name.startsWith("mcp_"));
   let sessionDir: string | undefined;
   let processSettled = false;
@@ -262,8 +281,9 @@ export async function runFxSession(input: {
         const id = typeof call.id === "string" ? call.id : undefined;
         const name = typeof call.name === "string" ? call.name : "";
         const key = id ?? `${name}:${call.arguments_json ?? ""}`;
-        if (!observedTool(name) || seenToolCalls.has(key)) continue;
+        if (processSettled || !observedTool(name) || seenToolCalls.has(key)) continue;
         seenToolCalls.add(key);
+        observedToolCallKeys.push(key);
         try {
           await input.onToolStep(call);
         } catch {
@@ -286,8 +306,8 @@ export async function runFxSession(input: {
     });
 
     if (input.onToolStep) {
-      // fx does not stream tool events. Tail its recovery checkpoints while
-      // the process is alive, then reconcile against the committed turn.
+      // fx does not stream tool events. Tail its recovery checkpoints only
+      // while the process is alive.
       while (!processSettled && !controller.signal.aborted) {
         sessionDir ??= await store
           .waitForSessionDir(input.home, controller.signal)
@@ -324,7 +344,6 @@ export async function runFxSession(input: {
     ? parseFxEventsJsonl(await store.readEventsJsonl(sessionDir).catch(() => ""))
     : [];
   const toolSteps = extractFxToolSteps(logEvents);
-  await notifyCalls(toolSteps);
   for (const step of toolSteps) {
     const event: FxEvent = { type: "tool_step", ...step };
     events.push(event);
@@ -372,6 +391,7 @@ export async function runFxSession(input: {
     signal: processResult.signal,
     ask,
     terminalReason,
+    turnKind: typeof turn?.kind === "string" ? turn.kind : undefined,
     aborted,
     stderr: processResult.stderr,
   });
@@ -400,6 +420,7 @@ export async function runFxSession(input: {
     ...(typeof ask?.session_id === "string" && { sessionId: ask.session_id }),
     ...(processResult.exitCode !== null && { exitCode: processResult.exitCode }),
     ...(iterationError !== undefined && { iterationError }),
+    observedToolCallKeys,
   };
 }
 
@@ -475,6 +496,7 @@ export function resolveFxStatus(input: {
   signal?: string | null;
   ask?: FxAskOutput;
   terminalReason?: string;
+  turnKind?: string;
   aborted?: boolean;
   stderr?: string;
 }): { status: "completed" | "max_turns" | "sdk_error"; stopReason?: string } {
@@ -490,7 +512,6 @@ export function resolveFxStatus(input: {
   ) {
     return { status: "max_turns", stopReason: error ?? input.terminalReason };
   }
-  if (input.exitCode === 0 && !error) return { status: "completed" };
   if (!input.ask) {
     const stderr = input.stderr?.trim();
     return {
@@ -498,9 +519,25 @@ export function resolveFxStatus(input: {
       stopReason: `fx produced no JSON output${stderr ? `: ${clip(stderr, 500)}` : ""}`,
     };
   }
+  if (error) return { status: "sdk_error", stopReason: error };
+  if (typeof input.ask.exit_code === "number" && input.ask.exit_code !== 0) {
+    return {
+      status: "sdk_error",
+      stopReason: `fx reported exit_code ${input.ask.exit_code}`,
+    };
+  }
+  const failurePattern =
+    /^(cancel|interrupt|error|fail|abort|timeout|deadline|terminat|unreadable)/iu;
+  const failedTurn = [input.terminalReason, input.turnKind].find(
+    (value): value is string => typeof value === "string" && failurePattern.test(value),
+  );
+  if (failedTurn) {
+    return { status: "sdk_error", stopReason: `fx turn ended: ${failedTurn}` };
+  }
+  if (input.exitCode === 0) return { status: "completed" };
   return {
     status: "sdk_error",
-    stopReason: error ?? `fx exited with code ${input.exitCode ?? "unknown"}`,
+    stopReason: `fx exited with code ${input.exitCode ?? "unknown"}`,
   };
 }
 
@@ -525,23 +562,26 @@ export function logFxEvent(logger: HarnessLogger, event: FxEvent): void {
 }
 
 export function summarizeFxEvent(event: FxEvent): { message: string; detail?: string } {
+  let summary: { message: string; detail?: string };
   if (event.type === "assistant") {
-    return { message: `assistant: ${clip(event.text, 500)}`, detail: event.text };
-  }
-  if (event.type === "tool_step") {
+    summary = { message: `assistant: ${clip(event.text, 500)}`, detail: event.text };
+  } else if (event.type === "tool_step") {
     const names = event.tool_calls.map((call) => String(call.name ?? "tool")).join(", ");
-    return { message: `tools: ${names}`, detail: safeJson(event) };
-  }
-  if (event.type === "stderr") {
-    return { message: `stderr: ${clip(event.line, 500)}`, detail: event.line };
-  }
-  if (event.type === "turn_committed") {
-    return {
+    summary = { message: `tools: ${names}`, detail: safeJson(event) };
+  } else if (event.type === "stderr") {
+    summary = { message: `stderr: ${clip(event.line, 500)}`, detail: event.line };
+  } else if (event.type === "turn_committed") {
+    summary = {
       message: `turn committed: ${event.terminal_reason ?? event.turn_kind ?? "unknown"}`,
       detail: safeJson(event),
     };
+  } else {
+    summary = { message: "ask result", detail: safeJson(event.ask) };
   }
-  return { message: "ask result", detail: safeJson(event.ask) };
+  return {
+    message: sanitizeErrorMessage(summary.message),
+    ...(summary.detail && { detail: sanitizeErrorMessage(summary.detail) }),
+  };
 }
 
 function readToolSteps(value: unknown): FxToolStep[] {

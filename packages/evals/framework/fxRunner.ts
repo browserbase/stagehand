@@ -128,6 +128,7 @@ export async function runFxAgent({
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
+          observedToolCallKeys: raw.observedToolCallKeys,
           finalAnswer: parsed.finalAnswer ?? raw.finalMessage,
           status,
           usage: {

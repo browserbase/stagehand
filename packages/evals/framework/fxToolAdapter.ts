@@ -1,7 +1,8 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { ProbeEvidence } from "stagehand-v3";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+import { connectToMCPServer, type ProbeEvidence } from "stagehand-v3";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
@@ -16,6 +17,10 @@ export interface FxToolAdapterInput {
   environment: "LOCAL" | "BROWSERBASE";
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
+  listMcpToolNames?: (
+    serverName: string,
+    spec: { command: string; args: string[]; env: Record<string, string> },
+  ) => Promise<string[]>;
 }
 
 export interface PreparedFxToolAdapter {
@@ -45,9 +50,73 @@ export const FX_TOOL_SURFACES: ToolSurface[] = [
   "chrome_devtools_mcp",
 ];
 
+export const FX_DENIED_TOOLS = [
+  "run_command",
+  "terminal",
+  "write_file",
+  "edit_file",
+  "read_file",
+  "list_files",
+  "glob",
+  "grep",
+  "copy_file",
+  "delete_file",
+  "rename_file",
+  "background_command",
+  "web_search",
+  "web_fetch",
+  "skill",
+  "subagent",
+  "memory",
+] as const;
+
+const MCP_CHILD_ENV_KEYS = [
+  "PNPM_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_STATE_HOME",
+  "npm_config_cache",
+  "npm_config_store_dir",
+  "npm_config_prefix",
+  "NPM_CONFIG_CACHE",
+  "NPM_CONFIG_STORE_DIR",
+  "COREPACK_HOME",
+  "TMPDIR",
+  "NODE_EXTRA_CA_CERTS",
+  "SSL_CERT_FILE",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "http_proxy",
+  "https_proxy",
+  "no_proxy",
+] as const;
+
+type FxMcpOptions = {
+  home: string;
+  pathEnv: string;
+  parentEnv: Record<string, string | undefined>;
+};
+
+export function buildFxMcpChildEnv(
+  specEnv: Record<string, string>,
+  options: FxMcpOptions,
+): Record<string, string> {
+  const env: Record<string, string> = {
+    PATH: options.pathEnv,
+    HOME: options.parentEnv.HOME ?? options.home,
+  };
+  for (const key of MCP_CHILD_ENV_KEYS) {
+    const value = options.parentEnv[key];
+    if (typeof value === "string") env[key] = value;
+  }
+  return { ...env, ...specEnv };
+}
+
 export function buildFxMcpConfig(
   mcpServers: Record<string, unknown>,
-  options: { home: string; pathEnv: string },
+  options: FxMcpOptions & { startupTimeoutMs: number },
 ): { mcp: Record<string, unknown> } {
   const mcp: Record<string, unknown> = {};
   for (const [serverName, rawSpec] of Object.entries(mcpServers)) {
@@ -65,29 +134,30 @@ export function buildFxMcpConfig(
     mcp[serverName] = {
       type: "stdio",
       command: [spec.command, ...args],
-      environment: { PATH: options.pathEnv, HOME: options.home, ...extraEnv },
+      environment: buildFxMcpChildEnv(extraEnv, options),
       required: true,
+      startup_timeout_ms: options.startupTimeoutMs,
     };
   }
   return { mcp };
 }
 
 export function buildFxSettings(
-  _serverNames: string[],
-  toolSurface: ToolSurface,
+  mcpToolNames: Record<string, string[]>,
 ): { permission: Record<string, "allow" | "deny"> } {
+  const permission: Record<string, "allow" | "deny"> = Object.fromEntries(
+    FX_DENIED_TOOLS.map((name) => [name, "deny" as const]),
+  );
+  for (const [serverName, toolNames] of Object.entries(mcpToolNames)) {
+    for (const toolName of toolNames) {
+      permission[`mcp_${serverName}_${toolName}`] = "allow";
+      if (serverName.includes("-")) {
+        permission[`mcp_${serverName.replace(/-/gu, "_")}_${toolName}`] = "allow";
+      }
+    }
+  }
   return {
-    permission: {
-      run_command: "deny",
-      terminal: "deny",
-      write_file: "deny",
-      edit_file: "deny",
-      ...(toolSurface === "stagehand_facade" && {
-        mcp_stagehand_run: "allow",
-        mcp_stagehand_snapshot: "allow",
-        mcp_stagehand_screenshot: "allow",
-      }),
-    },
+    permission,
   };
 }
 
@@ -101,7 +171,7 @@ export function buildFxAgentsMarkdown(promptInstructions: string, serverNames: s
     "",
     `MCP tools use the fx name mcp_<server>_<tool> (configured servers: ${serverNames.join(", ")}; patterns: ${prefixes}).`,
     "Select tools with mcp_select_tool using their exact name. mcp_search_tools may return nothing.",
-    "Never invent tool names. Do not use the shell and do not edit files.",
+    "Never invent tool names. Do not use the shell, web search/fetch, or file tools.",
     stagehandGuidance,
     "",
     promptInstructions,
@@ -157,13 +227,53 @@ export async function prepareFxToolAdapter(
 
     const serverNames = Object.keys(mount.mcpServers);
     const pathEnv = process.env.PATH ?? "";
+    const mcpOptions: FxMcpOptions = { home, pathEnv, parentEnv: process.env };
+    const mcpToolNames: Record<string, string[]> = {};
+    if (toolSurface === "stagehand_facade") {
+      mcpToolNames.stagehand = ["run", "snapshot", "screenshot"];
+    } else {
+      const listMcpToolNames = input.listMcpToolNames ?? defaultListMcpToolNames;
+      for (const [serverName, rawSpec] of Object.entries(mount.mcpServers)) {
+        const spec = normalizeFxMcpServerSpec(serverName, rawSpec);
+        const childSpec = {
+          command: spec.command,
+          args: spec.args,
+          env: buildFxMcpChildEnv(spec.env, mcpOptions),
+        };
+        try {
+          const toolNames = await withTimeout(
+            listMcpToolNames(serverName, childSpec),
+            readPositiveIntEnv("EVAL_FX_MCP_PROBE_TIMEOUT_MS", 60_000),
+            "fx MCP tool discovery",
+          );
+          mcpToolNames[serverName] = toolNames;
+          input.logger.log({
+            category: "fx",
+            message: `Discovered ${toolNames.length} MCP tools for fx server ${serverName}.`,
+            level: 1,
+          });
+        } catch (error) {
+          const message = sanitizeErrorMessage(stringifyUnknown(error));
+          mcpToolNames[serverName] = [];
+          input.logger.warn({
+            category: "fx",
+            message: `fx MCP tool discovery failed for ${serverName}: ${message}`,
+            level: 0,
+            auxiliary: { error: { value: message, type: "string" } },
+          });
+        }
+      }
+    }
     const agentsMarkdown = buildFxAgentsMarkdown(mount.promptInstructions, serverNames);
     await Promise.all([
       writeJson(
         path.join(fxHome, "mcp.json"),
-        buildFxMcpConfig(mount.mcpServers, { home, pathEnv }),
+        buildFxMcpConfig(mount.mcpServers, {
+          ...mcpOptions,
+          startupTimeoutMs: readPositiveIntEnv("EVAL_FX_MCP_STARTUP_TIMEOUT_MS", 120_000),
+        }),
       ),
-      writeJson(path.join(fxHome, "settings.json"), buildFxSettings(serverNames, toolSurface)),
+      writeJson(path.join(fxHome, "settings.json"), buildFxSettings(mcpToolNames)),
       writeJson(path.join(workspace, ".fx.json"), {
         max_agent_steps: readFxMaxAgentSteps(),
         max_tool_result_bytes: 262_144,
@@ -212,25 +322,74 @@ export async function prepareFxToolAdapter(
         ),
       cleanup: async () => {
         cleanupPromise ??= (async () => {
-          await withTimeout(
-            runtime.cleanup(),
-            readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
-            "fx adapter cleanup",
-          ).catch((): undefined => undefined);
-          await fsp.rm(capturedRoot, { recursive: true, force: true });
+          try {
+            await cleanupFxRuntime(() => runtime.cleanup(), input.logger);
+          } finally {
+            await fsp.rm(capturedRoot, { recursive: true, force: true });
+          }
         })();
         await cleanupPromise;
       },
     };
   } catch (error) {
-    await withTimeout(
-      runtime.cleanup(),
-      readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
-      "fx adapter cleanup",
-    ).catch((): undefined => undefined);
-    if (root) await fsp.rm(root, { recursive: true, force: true });
+    try {
+      await cleanupFxRuntime(() => runtime.cleanup(), input.logger);
+    } finally {
+      if (root) await fsp.rm(root, { recursive: true, force: true });
+    }
     throw error;
   }
+}
+
+async function defaultListMcpToolNames(
+  _serverName: string,
+  spec: { command: string; args: string[]; env: Record<string, string> },
+): Promise<string[]> {
+  const client = await connectToMCPServer(spec);
+  try {
+    const listed = await client.listTools();
+    return listed.tools.map((tool) => tool.name);
+  } finally {
+    await client.close();
+  }
+}
+
+function normalizeFxMcpServerSpec(
+  serverName: string,
+  rawSpec: unknown,
+): { command: string; args: string[]; env: Record<string, string> } {
+  if (!isRecord(rawSpec) || typeof rawSpec.command !== "string") {
+    throw new EvalsError(`Invalid fx MCP launch spec for server "${serverName}".`);
+  }
+  return {
+    command: rawSpec.command,
+    args: Array.isArray(rawSpec.args)
+      ? rawSpec.args.filter((arg): arg is string => typeof arg === "string")
+      : [],
+    env: isStringRecord(rawSpec.env) ? rawSpec.env : {},
+  };
+}
+
+async function cleanupFxRuntime(cleanup: () => Promise<void>, logger: EvalLogger): Promise<void> {
+  try {
+    await withTimeout(
+      cleanup(),
+      readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
+      "fx adapter cleanup",
+    );
+  } catch (error) {
+    const message = stringifyUnknown(error);
+    logger.warn({
+      category: "fx",
+      message: `fx adapter cleanup failed: ${message}`,
+      level: 0,
+      auxiliary: { error: { value: message, type: "string" } },
+    });
+  }
+}
+
+function stringifyUnknown(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function readFxMaxAgentSteps(): number {
