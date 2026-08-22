@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from deepagents import create_deep_agent
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import tool
 from langgraph.errors import GraphRecursionError
 
@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from run_eval import (  # noqa: E402
     RunnerConfig,
+    _default_build_agent,
     aggregate_usage,
     extract_images,
     flatten_text,
@@ -24,12 +25,17 @@ from run_eval import (  # noqa: E402
 
 
 class ToolFakeChatModel(GenericFakeChatModel):
+    model_name: str = "eval-model"
+
     @property
     def _llm_type(self) -> str:
         return "tool-fake-chat-model"
 
     def bind_tools(self, tools: object, **kwargs: object) -> ToolFakeChatModel:
         return self
+
+    def _get_ls_params(self, **kwargs: object) -> dict[str, str]:
+        return {"ls_provider": "fake", "ls_model_name": self.model_name}
 
 
 @tool
@@ -119,6 +125,74 @@ class RecursingAgent:
         if False:
             yield None
         raise GraphRecursionError("recursion exhausted")
+
+
+class ReEmittingAgent:
+    def __init__(self, first: AIMessage, tool_result: ToolMessage, final: AIMessage) -> None:
+        self.first = first
+        self.tool_result = tool_result
+        self.final = final
+
+    async def astream(self, *_args: object, **_kwargs: object) -> AsyncIterator[object]:
+        yield {"model": {"messages": [self.first, self.tool_result]}}
+        yield {"summarization": {"messages": [self.first, self.tool_result, self.final]}}
+
+
+@pytest.mark.asyncio
+async def test_deduplicates_messages_reemitted_after_summarization() -> None:
+    first = AIMessage(
+        id="assistant-1",
+        content="checking",
+        tool_calls=[
+            {
+                "name": "snapshot",
+                "args": {"url": "https://example.com"},
+                "id": "call-1",
+                "type": "tool_call",
+            }
+        ],
+        usage_metadata=usage(10, 2, 3, 1),
+    )
+    tool_result = ToolMessage(
+        id="tool-1",
+        content="snapshot result",
+        name="snapshot",
+        tool_call_id="call-1",
+    )
+    final = AIMessage(
+        id="assistant-2",
+        content="done",
+        usage_metadata=usage(5, 4, 2, 2),
+    )
+    events: list[dict[str, Any]] = []
+
+    await run(
+        config(),
+        build_agent=lambda _config, _tools: ReEmittingAgent(first, tool_result, final),
+        emit=events.append,
+    )
+
+    assert [event["type"] for event in events] == [
+        "assistant",
+        "tool_call",
+        "tool_result",
+        "assistant",
+        "final",
+        "usage",
+    ]
+    assert events[-1]["input_tokens"] == 15
+    assert events[-1]["output_tokens"] == 6
+
+
+def test_default_build_disables_summarization_and_general_purpose_subagent() -> None:
+    model = ToolFakeChatModel(messages=iter([AIMessage(content="done")]))
+    agent = _default_build_agent(config(), [snapshot], model=model)
+
+    assert not any("SummarizationMiddleware" in name for name in agent.nodes)
+    tools_node = agent.nodes["tools"]
+    tool_names = set(tools_node.bound.tools_by_name)
+    assert "snapshot" in tool_names
+    assert "task" not in tool_names
 
 
 @pytest.mark.asyncio

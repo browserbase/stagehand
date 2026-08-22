@@ -4,11 +4,13 @@ import type { AvailableModel } from "stagehand-v3";
 import {
   DEEPAGENTS_SYSTEM_PROMPT,
   buildDeepagentsPrompt,
+  buildDeepagentsSystemPrompt,
   parseDeepagentsResult,
   runDeepagentsAgent,
   type DeepagentsProcessSpawner,
 } from "../../framework/deepagentsRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import type { PreparedDeepagentsToolAdapter } from "../../framework/deepagentsToolAdapter.js";
 import { EvalLogger } from "../../logger.js";
 
 const plan: ExternalHarnessTaskPlan = {
@@ -49,6 +51,67 @@ describe("Deep Agents runner", () => {
     expect(prompt).toContain("EVAL_RESULT:");
     expect(prompt).not.toContain("Do not use file or todo tools");
     expect(DEEPAGENTS_SYSTEM_PROMPT).toContain("Do not use file or todo tools");
+  });
+
+  it("builds tool-surface-specific system prompts", () => {
+    const facade = buildDeepagentsSystemPrompt("stagehand_facade");
+    const playwright = buildDeepagentsSystemPrompt("playwright_mcp");
+    expect(facade).toContain("snapshot");
+    expect(facade).toContain("screenshot");
+    expect(playwright).not.toContain("exactly three tools");
+    expect(playwright).not.toContain("snapshot");
+    expect(playwright).toContain("MCP browser tools");
+  });
+
+  it("sends the selected tool surface system prompt to the runner", async () => {
+    const payloads: Array<Record<string, unknown>> = [];
+    const spawn: DeepagentsProcessSpawner = () => {
+      const stdin = new PassThrough();
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      let raw = "";
+      stdin.on("data", (chunk) => (raw += chunk.toString()));
+      stdin.on("finish", () => payloads.push(JSON.parse(raw)));
+      queueMicrotask(() => {
+        stdout.write(
+          `${JSON.stringify({ type: "final", text: 'EVAL_RESULT: {"success":true}' })}\n`,
+        );
+        stdout.write(`${JSON.stringify({ type: "usage" })}\n`);
+        stdout.end();
+        stderr.end();
+      });
+      return {
+        stdin,
+        stdout,
+        stderr,
+        exited: Promise.resolve({ code: 0, signal: null }),
+        kill: () => {},
+      };
+    };
+    const adapter = (toolSurface: "playwright_mcp" | "stagehand_facade") =>
+      ({
+        toolSurface,
+        startupProfile: "tool_launch_local",
+        cwd: "/tmp/deepagents-test",
+        env: {},
+        promptInstructions: "Use mounted tools.",
+        mcpServers: {},
+        observedToolMatcher: () => false,
+        cleanup: async () => {},
+      }) satisfies PreparedDeepagentsToolAdapter;
+
+    for (const toolSurface of ["playwright_mcp", "stagehand_facade"] as const) {
+      await runDeepagentsAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        toolAdapter: adapter(toolSurface),
+        spawn,
+      });
+    }
+
+    expect(payloads[0]?.system_prompt).not.toContain("snapshot");
+    expect(payloads[1]?.system_prompt).toContain("snapshot");
   });
 
   it("parses direct and marker JSON results", () => {

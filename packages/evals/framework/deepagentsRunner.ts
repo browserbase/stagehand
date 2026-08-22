@@ -9,6 +9,7 @@ import {
 } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
+import type { ToolSurface } from "../core/contracts/tool.js";
 import type { PreparedDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { deepagentsAdapter } from "./harnesses/deepagentsAdapter.js";
@@ -41,16 +42,33 @@ export interface DeepagentsRunnerInput {
 
 export interface ParsedDeepagentsResult extends ParsedEvalResult {}
 
-export const DEEPAGENTS_SYSTEM_PROMPT = `You control one persistent browser through exactly three tools:
+const DEEPAGENTS_SHARED_SYSTEM_PROMPT = `You are controlling one persistent browser that is already attached.
+Do not launch another browser.
+Do not use file or todo tools, and do not use task tools; only the browser tools matter.
+Finish with the EVAL_RESULT line requested by the task prompt.
+`;
+
+const DEEPAGENTS_FACADE_SYSTEM_PROMPT = `You control the browser through exactly three tools:
 - snapshot: inspect the active page and hydrate bracketed element IDs.
 - run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
 - screenshot: inspect the rendered page visually.
 
 Use snapshot actions for simple interactions and run code for multi-step workflows. Snapshot IDs are
 valid only for the latest snapshot of the active page. Snapshot again after navigation or stale IDs.
-Do not launch another browser.
-Do not use file or todo tools for the browser task; only the browser tools matter.
 `;
+
+export function buildDeepagentsSystemPrompt(toolSurface?: ToolSurface): string {
+  if (toolSurface === "stagehand_facade") {
+    return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${DEEPAGENTS_FACADE_SYSTEM_PROMPT}`;
+  }
+  const toolGuidance =
+    toolSurface === "playwright_mcp" || toolSurface === "chrome_devtools_mcp"
+      ? "Use the MCP browser tools described in the task prompt."
+      : "Use the browser tools described in the task prompt.";
+  return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${toolGuidance}`;
+}
+
+export const DEEPAGENTS_SYSTEM_PROMPT = buildDeepagentsSystemPrompt("stagehand_facade");
 
 export function buildDeepagentsPrompt(
   plan: ExternalHarnessTaskPlan,
@@ -91,7 +109,7 @@ export async function runDeepagentsAgent({
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
           ...(toolAdapter?.env && { env: toolAdapter.env }),
           ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
-          systemPrompt: DEEPAGENTS_SYSTEM_PROMPT,
+          systemPrompt: buildDeepagentsSystemPrompt(toolAdapter?.toolSurface),
           recursionLimit: readDeepagentsRecursionLimit(),
           maxToolSteps: readDeepagentsMaxToolSteps(),
         },
