@@ -12,6 +12,7 @@ import {
   listBenchHarnessesForToolSurface,
   mastraHarness,
   piHarness,
+  eveHarness,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
 import { MASTRA_TOOL_SURFACES } from "../../framework/mastraToolAdapter.js";
@@ -23,14 +24,14 @@ import { EvalLogger } from "../../logger.js";
 
 describe("bench harness registry", () => {
   it("lists registered harnesses in registration order", () => {
-    expect(listBenchHarnesses()).toEqual(["stagehand", "claude_code", "codex", "mastra", "pi"]);
+    expect(listBenchHarnesses()).toEqual(["stagehand", "claude_code", "codex", "mastra", "pi", "eve"]);
   });
 
   it("parses registered harnesses and defaults to stagehand", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve\./,
     );
   });
 
@@ -91,6 +92,25 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces[0]).toBe("stagehand_facade");
     expect(harness.supportedToolSurfaces).not.toContain("browse_cli");
     expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+  });
+
+  it("registers eve as a concrete executable harness", () => {
+    const harness = getBenchHarness("eve");
+
+    expect(harness).toBe(eveHarness);
+    expect(parseBenchHarness("eve")).toBe("eve");
+    expect(isExecutableBenchHarness("eve")).toBe(true);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    expect(harness.start).toBeUndefined();
+    expect(harness.supportedToolSurfaces).toEqual([
+      "stagehand_facade",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+    ]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(defaultModelsEnvKey("eve")).toBe("EVAL_EVE_MODELS");
   });
 
   it("registers a new harness and rejects duplicate ids", () => {

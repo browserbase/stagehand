@@ -27,6 +27,7 @@
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-codex-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-eve-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
     "@opentelemetry/api": "catalog:",
