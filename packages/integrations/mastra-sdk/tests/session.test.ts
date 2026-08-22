@@ -1,6 +1,7 @@
 /* eslint-disable require-yield */
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildMastraTranscript,
   normalizeMastraModel,
   runMastraSession,
   type MastraEvent,
@@ -23,7 +24,11 @@ function fakeSdk(
     agentConfig?: (config: Record<string, unknown>) => void;
     streamOptions?: (options: Record<string, unknown> | undefined) => void;
     servers?: (servers: Record<string, unknown>) => void;
-    disconnect?: () => void;
+    listToolsWithErrors?: () => Promise<{
+      tools: Record<string, unknown>;
+      errors: Record<string, string>;
+    }>;
+    disconnect?: () => void | Promise<void>;
     createAgent?: () => void;
   } = {},
 ): MastraSdk {
@@ -45,10 +50,12 @@ function fakeSdk(
     createMcpClient: (options) => {
       input.servers?.(options.servers);
       return {
-        listToolsWithErrors: async () => ({
-          tools: { stagehand_run: { id: "run" } },
-          errors: input.discoveryErrors ?? {},
-        }),
+        listToolsWithErrors:
+          input.listToolsWithErrors ??
+          (async () => ({
+            tools: { stagehand_run: { id: "run" } },
+            errors: input.discoveryErrors ?? {},
+          })),
         disconnect: async () => input.disconnect?.(),
       };
     },
@@ -215,19 +222,83 @@ describe("Mastra SDK session", () => {
     expect(result.stopReason).toContain("step budget exhausted");
   });
 
-  it("sanitizes error chunks", async () => {
-    const secret = "sk-abcdefghijklmnopqrstuvwxyz123456";
+  it("sanitizes event transcripts and logs", async () => {
+    const secrets = [
+      "sk-abcdefghijklmnopqrstuvwxyz123456",
+      "bb_live_ABCDEFGHIJKLMNOP",
+      "secret123",
+    ];
+    const log = vi.fn();
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger: { ...logger, log },
+      sdk: fakeSdk({
+        events: [
+          {
+            type: "tool-call",
+            payload: { toolName: "fill", args: { value: secrets[0] } },
+          },
+          {
+            type: "tool-result",
+            payload: {
+              toolName: "fill",
+              result: { content: [{ type: "text", text: secrets[1] }] },
+            },
+          },
+          {
+            type: "tool-error",
+            payload: { toolName: "fill", error: `failed?apiKey=${secrets[2]}` },
+          },
+        ],
+      }),
+      session: {},
+    });
+    const logged = JSON.stringify(log.mock.calls);
+    const sanitizedTranscript = buildMastraTranscript(result.events);
+    for (const secret of secrets) {
+      expect(sanitizedTranscript).not.toContain(secret);
+      expect(logged).not.toContain(secret);
+    }
+  });
+
+  it("aborts MCP discovery and disconnects without creating an agent", async () => {
+    const caller = new AbortController();
+    caller.abort("cancelled");
+    const disconnect = vi.fn();
+    const createAgent = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
       model: "gpt-5.4-mini",
       logger,
+      signal: caller.signal,
       sdk: fakeSdk({
-        events: [{ type: "error", payload: { error: `bad key ${secret}` } }],
+        listToolsWithErrors: () => new Promise(() => {}),
+        disconnect,
+        createAgent,
       }),
-      session: {},
+      session: { mcpServers: { stagehand: { command: "node" } } },
     });
     expect(result.status).toBe("sdk_error");
-    expect(result.stopReason).not.toContain(secret);
+    expect(result.stopReason).toContain("cancelled");
+    expect(createAgent).not.toHaveBeenCalled();
+    expect(disconnect).toHaveBeenCalledOnce();
+  });
+
+  it("bounds MCP disconnect and returns after a timeout", async () => {
+    const warn = vi.fn();
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger: { ...logger, warn },
+      sdk: fakeSdk({ disconnect: () => new Promise(() => {}) }),
+      session: {
+        mcpServers: { stagehand: { command: "node" } },
+        disconnectTimeoutMs: 20,
+      },
+    });
+    expect(result.status).toBe("completed");
+    expect(JSON.stringify(warn.mock.calls)).toContain("disconnect timed out after 20ms");
   });
 
   it("forwards external aborts", async () => {

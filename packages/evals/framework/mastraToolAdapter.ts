@@ -46,7 +46,6 @@ export interface PreparedMastraToolAdapter {
   toolSurface: ToolSurface;
   startupProfile: StartupProfile;
   cwd: string;
-  env: Record<string, string>;
   promptInstructions: string;
   mcpServers?: Record<string, MastraStdioServerDefinition>;
   tools?: Record<string, unknown>;
@@ -114,7 +113,6 @@ export async function prepareMastraToolAdapter(
         toolSurface,
         startupProfile,
         cwd,
-        env: copyProcessEnv(),
         promptInstructions: mount.promptInstructions,
         mcpServers,
         ...evidenceFields,
@@ -159,7 +157,6 @@ export async function prepareMastraToolAdapter(
         toolSurface,
         startupProfile,
         cwd,
-        env: copyProcessEnv(),
         promptInstructions,
         tools: { [MASTRA_RUN_TOOL_NAME]: tool },
         ...evidenceFields,
@@ -282,7 +279,10 @@ function boundedCaptureEvidence(
 
 async function cleanupRuntime(cleanup: () => Promise<void>, cwd: string): Promise<void> {
   try {
-    await cleanup();
+    await withCaptureTimeout(
+      cleanup(),
+      readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
+    );
   } catch {
     // The temporary workspace is still removed when runtime cleanup fails.
   }
@@ -311,14 +311,6 @@ function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
       },
     );
   });
-}
-
-function copyProcessEnv(): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
-  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

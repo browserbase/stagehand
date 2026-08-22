@@ -92,6 +92,22 @@ describe("Mastra trajectory adapter", () => {
     ]);
   });
 
+  it("sanitizes string results and tool errors", () => {
+    const trajectory = mastraAdapter.fromHarnessResult(
+      {
+        events: [
+          toolCall("1", "one", {}),
+          toolResult("1", "one", "bb_live_ABCDEFGHIJKLMNOP"),
+          toolCall("2", "two", {}),
+          toolError("2", "two", "failed?apiKey=secret123"),
+        ],
+      },
+      TASK_SPEC,
+    );
+    expect(JSON.stringify(trajectory.steps)).not.toContain("bb_live_ABCDEFGHIJKLMNOP");
+    expect(JSON.stringify(trajectory.steps)).not.toContain("secret123");
+  });
+
   it("folds pre-call reasoning and text while keeping trailing text as the answer", () => {
     const trajectory = mastraAdapter.fromHarnessResult(
       {
