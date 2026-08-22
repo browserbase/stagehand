@@ -1,34 +1,27 @@
 import { describe, expect, it } from "vitest";
-import type { ToolSurface } from "../../core/contracts/tool.js";
+import { fxHarness } from "../../framework/benchHarness.js";
 import {
   buildFxAgentsMarkdown,
   buildFxMcpConfig,
   buildFxSettings,
-  resolveFxStartupProfile,
-  resolveFxToolSurface,
+  FX_TOOL_SURFACES,
 } from "../../framework/fxToolAdapter.js";
+import {
+  resolveStartupProfile,
+  resolveToolSurface,
+} from "../../framework/harnesses/toolSurfaceResolution.js";
 
 describe("fx tool adapter helpers", () => {
-  it("defaults to the Stagehand facade and rejects unsupported surfaces", () => {
-    expect(resolveFxToolSurface()).toBe("stagehand_facade");
-    expect(resolveFxToolSurface("playwright_mcp")).toBe("playwright_mcp");
-    expect(resolveFxToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
-    expect(() => resolveFxToolSurface("browse_cli")).toThrow(
-      'fx harness supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "browse_cli".',
+  it("resolves surfaces and startup profiles through the shared registry helpers", () => {
+    expect(FX_TOOL_SURFACES).toEqual(["stagehand_facade", "playwright_mcp", "chrome_devtools_mcp"]);
+    expect(resolveToolSurface(fxHarness)).toBe("stagehand_facade");
+    expect(resolveToolSurface(fxHarness, "playwright_mcp")).toBe("playwright_mcp");
+    expect(() => resolveToolSurface(fxHarness, "browse_cli")).toThrow(
+      'Harness "fx" supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "browse_cli".',
     );
-  });
-
-  it("chooses surface-specific startup profiles", () => {
-    expect(resolveFxStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveFxStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
-      "tool_create_browserbase",
-    );
-    expect(resolveFxStartupProfile("playwright_mcp", "LOCAL")).toBe("runner_provided_local_cdp");
-    expect(resolveFxStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
+    expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
-    );
-    expect(resolveFxStartupProfile("playwright_mcp", "LOCAL", "tool_attach_local_cdp")).toBe(
-      "tool_attach_local_cdp",
     );
   });
 
@@ -91,11 +84,5 @@ describe("fx tool adapter helpers", () => {
     expect(markdown).toContain("mcp_stagehand_snapshot");
     expect(markdown).toContain("mcp_stagehand_screenshot");
     expect(markdown).toContain("Use snapshots first.");
-  });
-
-  it("rejects a startup default for an unrelated surface", () => {
-    expect(() => resolveFxStartupProfile("browse_cli" as ToolSurface, "LOCAL")).toThrow(
-      /No fx startup profile default/u,
-    );
   });
 });
