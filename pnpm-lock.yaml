@@ -265,6 +265,9 @@ catalogs:
     '@openai/codex-sdk':
       specifier: 0.147.0
       version: 0.147.0
+    '@opencode-ai/sdk':
+      specifier: 1.18.18
+      version: 1.18.18
     '@opentelemetry/api':
       specifier: 1.9.1
       version: 1.9.1
@@ -319,6 +322,9 @@ catalogs:
     openai:
       specifier: ^6.48.0
       version: 6.48.0
+    opencode-ai:
+      specifier: 1.18.18
+      version: 1.18.18
     oxfmt:
       specifier: 0.57.0
       version: 0.57.0
@@ -693,6 +699,28 @@ importers:
       '@mastra/mcp':
         specifier: 'catalog:'
         version: 1.15.1(@mastra/core@1.57.0(ai@7.0.16(zod@4.4.3))(bufferutil@4.1.0)(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(react-dom@18.3.1(react@19.2.3))(react@19.2.3)(zod@4.4.3)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(vite@8.1.3(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+
+  packages/integrations/opencode:
+    dependencies:
+      '@browserbasehq/stagehand-integrations':
+        specifier: workspace:*
+        version: link:../core
+      '@opencode-ai/sdk':
+        specifier: 'catalog:'
+        version: 1.18.18
+      opencode-ai:
+        specifier: 'catalog:'
+        version: 1.18.18
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -2637,6 +2665,9 @@ packages:
 
   '@openapi-contrib/openapi-schema-to-json-schema@3.2.0':
     resolution: {integrity: sha512-Gj6C0JwCr8arj0sYuslWXUBSP/KnUlEGnPW4qxlXvAl543oaNQgMgIgkQUA6vs5BCCvwTEiL8m/wdWzfl4UvSw==}
+
+  '@opencode-ai/sdk@1.18.18':
+    resolution: {integrity: sha512-zJlwXskIR47V1dkPJqeKBgq7nejG1uU8lJaGIGqbX3MWRCT8vKn0fEotbxuPCKnTdmWsDyNGNg9q1qIliDSMDA==}
 
   '@opentelemetry/api-logs@0.220.0':
     resolution: {integrity: sha512-CmVa4ImJ+ynfrPMNaAXHET6Bhb44SwzmfyVJFq9ni2jgXJR/l7C6gfVFddNmHP+ZOkP9cf4f9DBe68qVLTHc9w==}
@@ -6473,6 +6504,75 @@ packages:
 
   openapi-types@12.1.3:
     resolution: {integrity: sha512-N4YtSYJqghVu4iek2ZUvcN/0aqH1kRDuNqzcycDxhOUpg7GdvLa2F3DgS6yBNhInhv2r/6I0Flkn7CqL8+nIcw==}
+
+  opencode-ai@1.18.18:
+    resolution: {integrity: sha512-J+5HFq8tf+wPBBpBpMPSNjSytF2/EkNWYfFZh4si1d9auFbQriqDyqZv+vFUsLWERfdMU32Eajwuiq3rKBvZLQ==}
+    cpu: [arm64, x64]
+    os: [darwin, linux, win32]
+    hasBin: true
+
+  opencode-darwin-arm64@1.18.18:
+    resolution: {integrity: sha512-VkG+bz8u8Xqg9NzPK+2/71nEd4DKKlo2NLZurQ1eLAzDnmb1CMYZif/o6Shl8YFuTuYU/30k6yufl4Zr0Ij64g==}
+    cpu: [arm64]
+    os: [darwin]
+
+  opencode-darwin-x64-baseline@1.18.18:
+    resolution: {integrity: sha512-NYlIeOOxKPrqY6rdVIjQV4h+eE1AFCHzEcoxXhc8zSvqnCVIO0hMtdNm3l3HhrDucWmdh1BsQBUoZlrBOvAl4w==}
+    cpu: [x64]
+    os: [darwin]
+
+  opencode-darwin-x64@1.18.18:
+    resolution: {integrity: sha512-xox5XJJ1bI5qDEbxWWR9pWY2Gak5IuSfDcObyWunRUiN7J8OiwyazsJs1HGsTSkVhisk8SNbFIr0/0xQGhxSZg==}
+    cpu: [x64]
+    os: [darwin]
+
+  opencode-linux-arm64-musl@1.18.18:
+    resolution: {integrity: sha512-Dp3XByFRRZngPAQotNbOwr22HgZej4r9Ck0Iv/rOVU+oO5fLD9YSpHEwx80FTZOZmFmd/vriCdrR/dGdzabICw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  opencode-linux-arm64@1.18.18:
+    resolution: {integrity: sha512-e8D3g0qJEIzawEg2+ygW3vkZjAYL2ssyAx4GbihjwXwZFvlZZy5zRWWzdz5KLBoHSTl0FB73vNtnNeXONyHpVQ==}
+    cpu: [arm64]
+    os: [linux]
+
+  opencode-linux-x64-baseline-musl@1.18.18:
+    resolution: {integrity: sha512-cXD1gAZ+TTmdE3tnWy5qPstZjrnbPg0rPUwtcHeLaeB+KYxQWEoie1c88oYmZfQ+RWI6+/+LLF0FU29Uyd1Nrw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  opencode-linux-x64-baseline@1.18.18:
+    resolution: {integrity: sha512-6GvFarhP0pDiXcE9Au8PWoqb9+ZLBIGKrhZxeVAmOJp/gJ8lLL1Eno8O1qpqRb1KjOfOaOD71jHu9xNaqmjEtw==}
+    cpu: [x64]
+    os: [linux]
+
+  opencode-linux-x64-musl@1.18.18:
+    resolution: {integrity: sha512-lWiWxotqyVTJYiu2dN90KDNDSrwmyhZk8ajzyfAFjwms2TBVx4L0Ly6gkdhz8nxsxwPRv751W8+yUpzetB8AMA==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  opencode-linux-x64@1.18.18:
+    resolution: {integrity: sha512-WmeUnhljYJ252wywKTiW4bNDzsas2njpjPUEh0jM6HKNI4vFxJtREtzaWViY4AKEAcOkLWT8Ll17ixvcHz3AnA==}
+    cpu: [x64]
+    os: [linux]
+
+  opencode-windows-arm64@1.18.18:
+    resolution: {integrity: sha512-Fj1LfP3kXUeD34N0FOw6vebS1oK2YmxA2nviAKOAPo8jLFjEgq5djAJ/WroPmS71VOP1EHlKhRshnK3Sx8pI2w==}
+    cpu: [arm64]
+    os: [win32]
+
+  opencode-windows-x64-baseline@1.18.18:
+    resolution: {integrity: sha512-IeTrXqbIDbXD5VXpeupRa8aD+l4lSNeq02/K0jnaEPvR5adv42tiN1rOENiTaO2uX+d9cQ/csCaJPBFiQvwoRg==}
+    cpu: [x64]
+    os: [win32]
+
+  opencode-windows-x64@1.18.18:
+    resolution: {integrity: sha512-wbsBZsHDgfHaw9zJogFrrSfWpObtXMFjiA6xl6IFyeVGXsdKi6E8AWIMRZUxKVkf9X0P48mYUuaP1EHgmJCbpA==}
+    cpu: [x64]
+    os: [win32]
 
   openid-client@6.8.2:
     resolution: {integrity: sha512-uOvTCndr4udZsKihJ68H9bUICrriHdUVJ6Az+4Ns6cW55rwM5h0bjVIzDz2SxgOI84LKjFyjOFvERLzdTUROGA==}
@@ -10430,6 +10530,10 @@ snapshots:
   '@openapi-contrib/openapi-schema-to-json-schema@3.2.0':
     dependencies:
       fast-deep-equal: 3.1.3
+
+  '@opencode-ai/sdk@1.18.18':
+    dependencies:
+      cross-spawn: 7.0.6
 
   '@opentelemetry/api-logs@0.220.0':
     dependencies:
@@ -14658,6 +14762,57 @@ snapshots:
       zod: 4.4.3
 
   openapi-types@12.1.3: {}
+
+  opencode-ai@1.18.18:
+    optionalDependencies:
+      opencode-darwin-arm64: 1.18.18
+      opencode-darwin-x64: 1.18.18
+      opencode-darwin-x64-baseline: 1.18.18
+      opencode-linux-arm64: 1.18.18
+      opencode-linux-arm64-musl: 1.18.18
+      opencode-linux-x64: 1.18.18
+      opencode-linux-x64-baseline: 1.18.18
+      opencode-linux-x64-baseline-musl: 1.18.18
+      opencode-linux-x64-musl: 1.18.18
+      opencode-windows-arm64: 1.18.18
+      opencode-windows-x64: 1.18.18
+      opencode-windows-x64-baseline: 1.18.18
+
+  opencode-darwin-arm64@1.18.18:
+    optional: true
+
+  opencode-darwin-x64-baseline@1.18.18:
+    optional: true
+
+  opencode-darwin-x64@1.18.18:
+    optional: true
+
+  opencode-linux-arm64-musl@1.18.18:
+    optional: true
+
+  opencode-linux-arm64@1.18.18:
+    optional: true
+
+  opencode-linux-x64-baseline-musl@1.18.18:
+    optional: true
+
+  opencode-linux-x64-baseline@1.18.18:
+    optional: true
+
+  opencode-linux-x64-musl@1.18.18:
+    optional: true
+
+  opencode-linux-x64@1.18.18:
+    optional: true
+
+  opencode-windows-arm64@1.18.18:
+    optional: true
+
+  opencode-windows-x64-baseline@1.18.18:
+    optional: true
+
+  opencode-windows-x64@1.18.18:
+    optional: true
 
   openid-client@6.8.2:
     dependencies:

@@ -1,0 +1,98 @@
+---
+title: "OpenCode"
+description: "Give an OpenCode SDK session persistent Stagehand browser tools over MCP/stdio."
+---
+
+The OpenCode integration starts a local OpenCode server through its TypeScript SDK and mounts the Stagehand facade as one MCP/stdio server. One OpenCode session and one facade process own the browser across `run`, `snapshot`, and `screenshot` calls.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- An OpenCode provider login or supported provider API key
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Authenticate OpenCode">
+Use OpenCode's provider login:
+
+```bash
+opencode auth login
+```
+
+You can instead export a provider credential supported by OpenCode, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. Set `OPENCODE_MODEL` to a `provider/model` value only when you want to override OpenCode's default.
+  </Step>
+  <Step title="Choose the browser">
+The example defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise it uses local Chrome:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+pnpm --dir packages/integrations/opencode start -- \
+  "Open https://example.com, snapshot it, request a screenshot, and report the page title."
+```
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `OPENCODE_MODEL` | Optional OpenCode model in `provider/model` form. |
+| Provider variables | Credentials supported by OpenCode, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. The SDK example does not forward them to the MCP child. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. Defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise local. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`. |
+
+## SDK and session lifecycle
+
+The example uses the official `@opencode-ai/sdk/v2` API to start the server, create one session, send one prompt, collect ordered text parts, delete the session, and close the server. The Stagehand facade MCP server stays alive for the full prompt, preserving page state and snapshot IDs. Native MCP image blocks remain in OpenCode's tool loop, so `screenshot` stays multimodal.
+
+OpenCode config discovery runs against temporary empty config and workspace directories. The inline config supplies exactly one `stagehand` MCP server, disables all tools except `stagehand_run`, `stagehand_snapshot`, and `stagehand_screenshot`, and denies permission to other tools. Existing OpenCode provider authentication remains available.
+
+The MCP child receives only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables. Provider credentials and unrelated host secrets remain available only to OpenCode.
+
+## Connect a running OpenCode CLI
+
+The package ships a project-scoped `opencode.json` that mounts the Stagehand facade MCP server in the OpenCode CLI and enables only the three Stagehand tools. Its command path is relative to the package, so start the CLI from that directory:
+
+```bash
+cd packages/integrations/opencode
+opencode mcp list
+opencode
+```
+
+OpenCode passes the CLI's shell environment to local MCP servers, so the facade process also receives provider credentials that you export in that shell. This differs from the SDK example's explicit environment allowlist. If JavaScript passed to `run` uses `act`, `extract`, or `observe`, export `STAGEHAND_MODEL_NAME` and the separate `STAGEHAND_MODEL_API_KEY`; OpenCode's provider credential is not reused as the Stagehand credential. The exports above are otherwise the only configuration. For a headless one-shot run:
+
+```bash
+opencode run "your instruction"
+```
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="OpenCode integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/opencode">
+  Read the SDK lifecycle, isolated configuration, MCP mount, and unit tests.
+</Card>
