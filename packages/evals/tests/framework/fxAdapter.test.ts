@@ -126,6 +126,35 @@ describe("fx trajectory adapter", () => {
     expect(trajectory.steps[2]?.probeEvidence).toEqual({ url: "https://example.com/two" });
   });
 
+  it("pairs observations by live call key when counts do not align", () => {
+    const events: FxEvent[] = [
+      {
+        type: "tool_step",
+        assistant: "",
+        tool_calls: [
+          { id: "one", name: "mcp_stagehand_run", arguments_json: "{}" },
+          { id: "two", name: "mcp_stagehand_snapshot", arguments_json: "{}" },
+          { id: "three", name: "mcp_stagehand_screenshot", arguments_json: "{}" },
+        ],
+        tool_results: [],
+      },
+    ];
+    const trajectory = fxAdapter.fromHarnessResult(
+      {
+        events,
+        observedToolCallKeys: ["two"],
+        stepObservations: [
+          { runIndex: 0, evidence: { url: "https://example.com/live" } },
+          { runIndex: 1, evidence: { url: "https://example.com/unmatched" } },
+        ],
+      },
+      taskSpec,
+    );
+    expect(trajectory.steps[0]?.probeEvidence).toEqual({});
+    expect(trajectory.steps[1]?.probeEvidence).toEqual({ url: "https://example.com/live" });
+    expect(trajectory.steps[2]?.probeEvidence).toEqual({});
+  });
+
   it("includes a final observation only when it has a screenshot", () => {
     const withoutScreenshot = fxAdapter.fromHarnessResult(
       { events: [], finalObservation: { url: "https://example.com" } },

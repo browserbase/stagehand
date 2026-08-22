@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { fxHarness } from "../../framework/benchHarness.js";
 import {
   buildFxAgentsMarkdown,
+  buildFxMcpChildEnv,
   buildFxMcpConfig,
   buildFxSettings,
+  FX_DENIED_TOOLS,
   FX_TOOL_SURFACES,
 } from "../../framework/fxToolAdapter.js";
 import {
@@ -35,7 +37,16 @@ describe("fx tool adapter helpers", () => {
             env: { BROWSERBASE_API_KEY: "test" },
           },
         },
-        { home: "/isolated/home", pathEnv: "/usr/bin:/bin" },
+        {
+          home: "/isolated/home",
+          pathEnv: "/usr/bin:/bin",
+          parentEnv: {
+            HOME: "/runner/home",
+            PNPM_HOME: "/runner/pnpm",
+            OPENAI_API_KEY: "must-not-leak",
+          },
+          startupTimeoutMs: 123_000,
+        },
       ),
     ).toEqual({
       mcp: {
@@ -44,36 +55,54 @@ describe("fx tool adapter helpers", () => {
           command: ["/usr/bin/node", "server.mjs", "--flag"],
           environment: {
             PATH: "/usr/bin:/bin",
-            HOME: "/isolated/home",
+            HOME: "/runner/home",
+            PNPM_HOME: "/runner/pnpm",
             BROWSERBASE_API_KEY: "test",
           },
           required: true,
+          startup_timeout_ms: 123_000,
         },
       },
     });
     expect(() =>
-      buildFxMcpConfig({ "bad server": { command: "node" } }, { home: "/home", pathEnv: "/bin" }),
+      buildFxMcpConfig(
+        { "bad server": { command: "node" } },
+        {
+          home: "/home",
+          pathEnv: "/bin",
+          parentEnv: {},
+          startupTimeoutMs: 120_000,
+        },
+      ),
     ).toThrow(/Invalid fx MCP server name/u);
+    expect(
+      buildFxMcpChildEnv(
+        { HOME: "/spec/home", PNPM_HOME: "/spec/pnpm" },
+        {
+          home: "/fallback/home",
+          pathEnv: "/bin",
+          parentEnv: { HOME: "/runner/home", PNPM_HOME: "/runner/pnpm" },
+        },
+      ),
+    ).toMatchObject({ HOME: "/spec/home", PNPM_HOME: "/spec/pnpm" });
   });
 
-  it("denies shell and editing tools and narrowly allows the facade", () => {
-    expect(buildFxSettings(["stagehand"], "stagehand_facade")).toEqual({
+  it("denies unsafe built-ins and allows exact discovered MCP tools", () => {
+    expect(buildFxSettings({ stagehand: ["run", "snapshot", "screenshot"] })).toEqual({
       permission: {
-        run_command: "deny",
-        terminal: "deny",
-        write_file: "deny",
-        edit_file: "deny",
+        ...Object.fromEntries(FX_DENIED_TOOLS.map((name) => [name, "deny"])),
         mcp_stagehand_run: "allow",
         mcp_stagehand_snapshot: "allow",
         mcp_stagehand_screenshot: "allow",
       },
     });
-    expect(buildFxSettings(["playwright"], "playwright_mcp").permission).toEqual({
-      run_command: "deny",
-      terminal: "deny",
-      write_file: "deny",
-      edit_file: "deny",
+    expect(buildFxSettings({ "chrome-devtools": ["click"] }).permission).toMatchObject({
+      "mcp_chrome-devtools_click": "allow",
+      mcp_chrome_devtools_click: "allow",
     });
+    expect(buildFxSettings({}).permission).toEqual(
+      Object.fromEntries(FX_DENIED_TOOLS.map((name) => [name, "deny"])),
+    );
   });
 
   it("teaches exact fx MCP selection and Stagehand names", () => {
@@ -83,6 +112,8 @@ describe("fx tool adapter helpers", () => {
     expect(markdown).toContain("mcp_stagehand_run");
     expect(markdown).toContain("mcp_stagehand_snapshot");
     expect(markdown).toContain("mcp_stagehand_screenshot");
+    expect(markdown).toContain("web search/fetch");
+    expect(markdown).toContain("file tools");
     expect(markdown).toContain("Use snapshots first.");
   });
 });

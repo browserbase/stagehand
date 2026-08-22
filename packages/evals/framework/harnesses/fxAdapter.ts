@@ -19,11 +19,13 @@ export interface FxRunResult {
   finalObservation?: ProbeEvidence;
   stepObservations?: StepObservation[];
   observedToolName?: (name: string) => boolean;
+  observedToolCallKeys?: string[];
 }
 
 export class FxTrajectoryAdapter implements TrajectoryAdapter<FxRunResult> {
   fromHarnessResult(result: FxRunResult, taskSpec: TaskSpec): Trajectory {
     const toolCalls: NormalizedToolCall[] = [];
+    const toolCallKeys: string[] = [];
     let latestAgentMessage: string | undefined;
 
     for (const event of result.events) {
@@ -42,10 +44,11 @@ export class FxTrajectoryAdapter implements TrajectoryAdapter<FxRunResult> {
       event.tool_calls.forEach((call, index) => {
         const toolResult = typeof call.id === "string" ? resultsById.get(call.id) : undefined;
         toolCalls.push(normalizeFxToolCall(call, toolResult, index === 0 ? event.assistant : ""));
+        toolCallKeys.push(fxToolCallKey(call));
       });
     }
 
-    pairStepObservations(toolCalls, result);
+    pairStepObservations(toolCalls, toolCallKeys, result);
 
     return buildTrajectory({
       taskSpec,
@@ -109,9 +112,28 @@ function replaceImageBlocks(
   );
 }
 
-function pairStepObservations(toolCalls: NormalizedToolCall[], result: FxRunResult): void {
+function fxToolCallKey(call: FxToolCallRecord): string {
+  const name = typeof call.name === "string" ? call.name : "";
+  return typeof call.id === "string" ? call.id : `${name}:${call.arguments_json ?? ""}`;
+}
+
+function pairStepObservations(
+  toolCalls: NormalizedToolCall[],
+  toolCallKeys: string[],
+  result: FxRunResult,
+): void {
   const observations = result.stepObservations ?? [];
   if (observations.length === 0) return;
+  if (result.observedToolCallKeys !== undefined) {
+    for (const observation of observations) {
+      const key = result.observedToolCallKeys[observation.runIndex];
+      if (key === undefined) continue;
+      const callIndex = toolCallKeys.indexOf(key);
+      const call = callIndex >= 0 ? toolCalls[callIndex] : undefined;
+      if (call) call.probeEvidence = observation.evidence;
+    }
+    return;
+  }
   const observedCalls = toolCalls.filter((call) =>
     result.observedToolName ? result.observedToolName(call.name) : call.name.startsWith("mcp_"),
   );
