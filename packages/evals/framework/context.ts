@@ -42,7 +42,12 @@ export function resolveDefaultCoreStartupProfile(
   return resolveStartupProfile(toolSurface, environment);
 }
 
-function rejectAgentMountOnlyCoreTool(toolSurface: ToolSurface): void {
+/**
+ * Agent-mount-only surfaces (stagehand_facade) have no runner-driven session, so
+ * `evals core` rejects them up front with guidance instead of failing later on
+ * activePage(). Shared by the core context builder and the run planner.
+ */
+export function rejectAgentMountOnlyCoreTool(toolSurface: ToolSurface): void {
   if (!isAgentMountOnlyToolSurface(toolSurface)) return;
   throw new EvalsError(
     `Tool surface "${toolSurface}" is available only as an agent harness mount and cannot run under evals core. Use --harness claude_code or --harness codex with --tool ${toolSurface}, or choose one of: ${listCoreRunnableTools().join(", ")}.`,
