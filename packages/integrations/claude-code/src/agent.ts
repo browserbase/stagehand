@@ -3,9 +3,8 @@ import {
   FACADE_AGENT_INSTRUCTIONS,
   FACADE_TOOLS,
 } from "@browserbasehq/stagehand-integrations/facade";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
-
-import { buildAllowlistedEnv } from "./env.ts";
 
 export const STAGEHAND_TOOL_NAMES = FACADE_TOOLS.map((tool) => `mcp__stagehand__${tool.name}`);
 

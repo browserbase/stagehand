@@ -23,6 +23,7 @@
     "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@browserbasehq/sdk": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
+    "@browserbasehq/stagehand-integrations": "workspace:*",
     "@openai/codex-sdk": "catalog:",
     "ai": "^5.0.133",
     "browse": "0.9.5",
