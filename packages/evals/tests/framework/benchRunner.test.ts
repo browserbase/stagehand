@@ -172,7 +172,9 @@ describe("bench runner", () => {
     );
 
     expect(result._success).toBe(false);
-    expect(String(result.error)).toMatch(/--harness claude_code or --harness codex/);
+    expect(String(result.error)).toMatch(
+      /--harness claude_code, --harness codex, or --harness mastra/,
+    );
     expect(closeMock).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,8 @@ import {
 } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
 import { CODEX_TOOL_SURFACES, prepareCodexToolAdapter } from "./codexToolAdapter.js";
+import { runMastraAgent } from "./mastraRunner.js";
+import { MASTRA_TOOL_SURFACES, prepareMastraToolAdapter } from "./mastraToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
@@ -286,10 +288,19 @@ export const codexHarness = defineExternalHarness({
   runAgent: runCodexAgent,
 });
 
+export const mastraHarness = defineExternalHarness({
+  harness: "mastra",
+  supportedToolSurfaces: MASTRA_TOOL_SURFACES,
+  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  prepareToolAdapter: prepareMastraToolAdapter,
+  runAgent: runMastraAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
   ["codex", codexHarness],
+  ["mastra", mastraHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): void {
