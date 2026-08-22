@@ -37,6 +37,7 @@ export interface EveMcpToolDescriptor {
 export interface PreparedEveToolAdapter {
   toolSurface: ToolSurface;
   startupProfile: StartupProfile;
+  /** The runner writes the agent definition via writeEveAgentDefinition before boot. */
   appRoot: string;
   env: Record<string, string>;
   promptInstructions: string;
@@ -162,13 +163,18 @@ export async function writeEveAgentApp(options: {
   prefix: string;
 }): Promise<string> {
   const appRoot = await fsp.mkdtemp(path.join(options.tmpRoot ?? os.tmpdir(), options.prefix));
-  for (const [relativePath, contents] of Object.entries(options.files)) {
-    const destination = path.join(appRoot, relativePath);
-    await fsp.mkdir(path.dirname(destination), { recursive: true });
-    await fsp.writeFile(destination, contents, "utf8");
+  try {
+    for (const [relativePath, contents] of Object.entries(options.files)) {
+      const destination = path.join(appRoot, relativePath);
+      await fsp.mkdir(path.dirname(destination), { recursive: true });
+      await fsp.writeFile(destination, contents, "utf8");
+    }
+    await fsp.symlink(options.nodeModulesDir, path.join(appRoot, "node_modules"), "dir");
+    return appRoot;
+  } catch (error) {
+    await fsp.rm(appRoot, { recursive: true, force: true });
+    throw error;
   }
-  await fsp.symlink(options.nodeModulesDir, path.join(appRoot, "node_modules"), "dir");
-  return appRoot;
 }
 
 export async function writeEveAgentDefinition(appRoot: string, model: string): Promise<void> {
@@ -177,21 +183,51 @@ export async function writeEveAgentDefinition(appRoot: string, model: string): P
   await fsp.writeFile(destination, buildEveAgentDefinitionSource(model), "utf8");
 }
 
-export async function listMcpServerTools(spec: EveMcpServerSpec): Promise<EveMcpToolDescriptor[]> {
-  const client = await connectToMCPServer({
+export async function listMcpServerTools(
+  spec: EveMcpServerSpec,
+  options?: { connect?: typeof connectToMCPServer; timeoutMs?: number },
+): Promise<EveMcpToolDescriptor[]> {
+  const timeoutMs =
+    options?.timeoutMs ?? readPositiveIntEnv("EVAL_EVE_MCP_LIST_TOOLS_TIMEOUT_MS", 60_000);
+  const connect = options?.connect ?? connectToMCPServer;
+  const connectPromise = connect({
     command: spec.command,
     args: spec.args ?? [],
     env: stringOnly({ ...process.env, ...spec.env }),
   });
+  let connectTimedOut = false;
+  let client: Awaited<ReturnType<typeof connectToMCPServer>>;
   try {
-    const response = await client.listTools();
+    client = await withCaptureTimeout(connectPromise, timeoutMs, () => {
+      connectTimedOut = true;
+      return new EvalsError(
+        `Eve MCP server command "${spec.command}" timed out after ${timeoutMs}ms while connecting.`,
+      );
+    });
+  } catch (error) {
+    if (connectTimedOut) {
+      void connectPromise
+        .then((lateClient) => lateClient.close())
+        .catch((): undefined => undefined);
+    }
+    throw error;
+  }
+  try {
+    const response = await withCaptureTimeout(
+      client.listTools(),
+      timeoutMs,
+      () =>
+        new EvalsError(
+          `Eve MCP server command "${spec.command}" timed out after ${timeoutMs}ms while listing tools.`,
+        ),
+    );
     return response.tools.map((tool) => ({
       name: tool.name,
       ...(tool.description && { description: tool.description }),
       inputSchema: tool.inputSchema as Record<string, unknown>,
     }));
   } finally {
-    await client.close();
+    await withCaptureTimeout(client.close(), timeoutMs).catch((): undefined => undefined);
   }
 }
 
@@ -287,8 +323,16 @@ export async function prepareEveToolAdapter(
         serverNames.some((server) => name.startsWith(eveToolSlug(server, ""))),
       cleanup: async () => {
         cleanupPromise ??= (async () => {
-          await runtime.cleanup().catch((): undefined => undefined);
-          await fsp.rm(capturedAppRoot, { recursive: true, force: true });
+          try {
+            await withCaptureTimeout(
+              runtime.cleanup(),
+              readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
+            );
+          } catch {
+            // Cleanup is best-effort, but temp-dir cleanup must run.
+          } finally {
+            await fsp.rm(capturedAppRoot, { recursive: true, force: true });
+          }
         })();
         await cleanupPromise;
       },
@@ -421,12 +465,14 @@ function readPositiveIntEnv(key: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function withCaptureTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  timeoutError: () => Error = () =>
+    new Error(`eve adapter operation timed out after ${timeoutMs}ms`),
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`eve adapter operation timed out after ${timeoutMs}ms`)),
-      timeoutMs,
-    );
+    const timer = setTimeout(() => reject(timeoutError()), timeoutMs);
     promise.then(
       (value) => {
         clearTimeout(timer);

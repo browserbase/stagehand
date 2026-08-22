@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
+  logEveEvent,
   parseEveDevServerUrl,
   runEveSession,
   startEveDevServer,
@@ -263,6 +264,163 @@ describe("Eve SDK session", () => {
       client: setup.client,
     });
     expect(setup.send.mock.calls[0]?.[0].signal).toMatchObject({ aborted: true });
+  });
+
+  it("cancels exactly once when the caller aborts mid-stream", async () => {
+    const controller = new AbortController();
+    let releaseStream: (() => void) | undefined;
+    const blocked = new Promise<void>((resolve) => {
+      releaseStream = resolve;
+    });
+    let firstEventSeen: (() => void) | undefined;
+    const sawFirstEvent = new Promise<void>((resolve) => {
+      firstEventSeen = resolve;
+    });
+    const cancel = vi.fn(async () => ({}));
+    const client: EveClientLike = {
+      health: vi.fn(async () => ({})),
+      session: () => ({
+        cancel,
+        send: vi.fn(async () =>
+          Object.assign(
+            {
+              async *[Symbol.asyncIterator]() {
+                yield {
+                  type: "actions.requested",
+                  data: { actions: [{ kind: "tool-call", toolName: "stagehand__act" }] },
+                };
+                await blocked;
+              },
+            },
+            { sessionId: "session-1" },
+          ),
+        ),
+      }),
+    };
+    const pending = runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      signal: controller.signal,
+      server: { url: "http://eve" },
+      client,
+      onToolStep: () => firstEventSeen?.(),
+    });
+    await sawFirstEvent;
+    controller.abort(new Error("bench timeout"));
+    releaseStream?.();
+
+    const result = await pending;
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(result.status).toBe("sdk_error");
+  });
+
+  it("kills the generated dev server and cancels Eve on a mid-stream abort", async () => {
+    const child = fakeChild();
+    let childKilled: (() => void) | undefined;
+    const killed = new Promise<void>((resolve) => {
+      childKilled = resolve;
+    });
+    child.kill.mockImplementation(() => {
+      childKilled?.();
+      return true;
+    });
+    const controller = new AbortController();
+    let releaseStream: (() => void) | undefined;
+    const blocked = new Promise<void>((resolve) => {
+      releaseStream = resolve;
+    });
+    let streamStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      streamStarted = resolve;
+    });
+    const cancel = vi.fn(async () => ({}));
+    const client: EveClientLike = {
+      health: vi.fn(async () => ({})),
+      session: () => ({
+        cancel,
+        send: vi.fn(async () =>
+          Object.assign(
+            {
+              async *[Symbol.asyncIterator]() {
+                streamStarted?.();
+                await blocked;
+                if (controller.signal.aborted) throw controller.signal.reason;
+              },
+            },
+            { sessionId: "session-1" },
+          ),
+        ),
+      }),
+    };
+    const pending = runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      signal: controller.signal,
+      server: {
+        appRoot: "/tmp/eve-app",
+        env: {},
+        eveBinPath: "/tmp/eve.js",
+        spawn: (() => child) as unknown as NonNullable<
+          Extract<Parameters<typeof runEveSession>[0]["server"], { appRoot: string }>["spawn"]
+        >,
+      },
+      client,
+    });
+    child.stdout.write("[DEV] server listening at http://127.0.0.1:61439/\n");
+    await started;
+    controller.abort(new Error("bench timeout"));
+    releaseStream?.();
+    await killed;
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+    expect(cancel).toHaveBeenCalledOnce();
+    child.exitCode = 0;
+    child.emit("exit", 0, null);
+
+    const result = await pending;
+    expect(result.status).toBe("sdk_error");
+  });
+
+  it("redacts event messages and persisted event details", () => {
+    const eventLogger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    logEveEvent(eventLogger, {
+      type: "action.result",
+      data: {
+        status: "completed",
+        result: { kind: "tool-result", toolName: "act", output: "sk-abc123SUPERSECRET" },
+      },
+    });
+    logEveEvent(eventLogger, {
+      type: "authorization.requested",
+      data: { challenge: "Bearer aaaaaaaaaaaaaaaaaaaa" },
+    });
+    logEveEvent(eventLogger, {
+      type: "message.completed",
+      data: { message: "answer sk-abc123SUPERSECRET" },
+    });
+
+    const serialized = JSON.stringify(eventLogger.log.mock.calls);
+    expect(serialized).toContain("sk-abc123[redacted]");
+    expect(serialized).toContain("Bearer [redacted]");
+    expect(serialized).not.toContain("SUPERSECRET");
+    expect(serialized).not.toContain("aaaaaaaaaaaaaaaaaaaa");
+    expect(eventLogger.log.mock.calls[0]?.[0]).toMatchObject({
+      auxiliary: { detail: { value: expect.stringContaining("sk-abc123[redacted]") } },
+    });
+    expect(eventLogger.log.mock.calls[1]?.[0]).toMatchObject({
+      auxiliary: { detail: { value: expect.stringContaining("Bearer [redacted]") } },
+    });
+    expect(eventLogger.log).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("sk-abc123[redacted]"),
+        auxiliary: expect.objectContaining({
+          detail: expect.objectContaining({
+            value: expect.stringContaining("sk-abc123[redacted]"),
+          }),
+        }),
+      }),
+    );
   });
 
   it("errors when the stream ends without a turn boundary", async () => {

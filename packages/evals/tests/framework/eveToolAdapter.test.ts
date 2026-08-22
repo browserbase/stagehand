@@ -123,6 +123,27 @@ describe("Eve tool adapter helpers", () => {
     }
   });
 
+  it("removes the temp app when generation fails after mkdtemp", async () => {
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "eve-adapter-failure-test-"));
+    const nodeModulesDir = path.join(root, "modules");
+    const tmpRoot = path.join(root, "tmp");
+    await fsp.mkdir(nodeModulesDir);
+    await fsp.mkdir(tmpRoot);
+    try {
+      await expect(
+        writeEveAgentApp({
+          files: { node_modules: "not a dir" },
+          nodeModulesDir,
+          tmpRoot,
+          prefix: "app-",
+        }),
+      ).rejects.toThrow();
+      expect(await fsp.readdir(tmpRoot)).toEqual([]);
+    } finally {
+      await fsp.rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("defaults to the facade and lists all supported surfaces in errors", () => {
     expect(EVE_TOOL_SURFACES[0]).toBe("stagehand_facade");
     expect(resolveToolSurface({ harness: "eve", supportedToolSurfaces: EVE_TOOL_SURFACES })).toBe(
