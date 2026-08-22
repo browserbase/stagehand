@@ -8,6 +8,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export interface DeepagentsToolAdapterInput {
@@ -33,38 +34,11 @@ export interface PreparedDeepagentsToolAdapter {
   cleanup: () => Promise<void>;
 }
 
-export const DEEPAGENTS_MCP_SURFACES = new Set<ToolSurface>([
+export const DEEPAGENTS_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
   "playwright_mcp",
   "chrome_devtools_mcp",
-]);
-
-export function resolveDeepagentsToolSurface(requested?: ToolSurface): ToolSurface {
-  if (!requested) return "stagehand_facade";
-  if (DEEPAGENTS_MCP_SURFACES.has(requested)) return requested;
-  throw new EvalsError(
-    `Deep Agents harness supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "${requested}".`,
-  );
-}
-
-export function resolveDeepagentsStartupProfile(
-  toolSurface: ToolSurface,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile {
-  if (requested) return requested;
-  if (toolSurface === "stagehand_facade") {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-  }
-  if (toolSurface === "playwright_mcp" || toolSurface === "chrome_devtools_mcp") {
-    return environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
-  }
-  throw new EvalsError(
-    `No Deep Agents startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
-}
+];
 
 export function normalizeDeepagentsMcpServers(
   mcpServers: Record<string, unknown>,
@@ -108,8 +82,14 @@ export async function writeDeepagentsMcpConfig(
 export async function prepareDeepagentsToolAdapter(
   input: DeepagentsToolAdapterInput,
 ): Promise<PreparedDeepagentsToolAdapter> {
-  const toolSurface = resolveDeepagentsToolSurface(input.toolSurface);
-  const startupProfile = resolveDeepagentsStartupProfile(
+  const toolSurface = resolveToolSurface(
+    { harness: "deepagents", supportedToolSurfaces: DEEPAGENTS_TOOL_SURFACES },
+    input.toolSurface,
+  );
+  if (toolSurface === undefined) {
+    throw new EvalsError("Deep Agents harness requires a tool surface.");
+  }
+  const startupProfile = resolveStartupProfile(
     toolSurface,
     input.environment,
     input.startupProfile,
