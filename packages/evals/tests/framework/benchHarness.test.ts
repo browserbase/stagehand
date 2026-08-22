@@ -12,6 +12,7 @@ import {
   listBenchHarnessesForToolSurface,
   mastraHarness,
   piHarness,
+  deepagentsHarness,
   eveHarness,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
@@ -39,7 +40,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents\./,
     );
   });
 
@@ -119,6 +120,24 @@ describe("bench harness registry", () => {
     ]);
     expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
     expect(defaultModelsEnvKey("eve")).toBe("EVAL_EVE_MODELS");
+  });
+
+  it("registers deepagents as a concrete executable harness", () => {
+    const harness = getBenchHarness("deepagents");
+
+    expect(parseBenchHarness("deepagents")).toBe("deepagents");
+    expect(harness).toBe(deepagentsHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    expect(harness.start).toBeUndefined();
+    expect(harness.supportedToolSurfaces).toEqual([
+      "stagehand_facade",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+    ]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(isExecutableBenchHarness("deepagents")).toBe(true);
   });
 
   it("registers a new harness and rejects duplicate ids", () => {

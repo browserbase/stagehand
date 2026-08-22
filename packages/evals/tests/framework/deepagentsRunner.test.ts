@@ -2,6 +2,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import {
+  DEEPAGENTS_SYSTEM_PROMPT,
   buildDeepagentsPrompt,
   parseDeepagentsResult,
   runDeepagentsAgent,
@@ -46,6 +47,8 @@ describe("Deep Agents runner", () => {
     expect(prompt).toContain("Find the checkout button");
     expect(prompt).toContain("Use snapshot and run.");
     expect(prompt).toContain("EVAL_RESULT:");
+    expect(prompt).not.toContain("Do not use file or todo tools");
+    expect(DEEPAGENTS_SYSTEM_PROMPT).toContain("Do not use file or todo tools");
   });
 
   it("parses direct and marker JSON results", () => {
@@ -81,12 +84,15 @@ describe("Deep Agents runner", () => {
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(result._success).toBe(true);
     expect(result.finalAnswer).toBe("ok");
+    expect(result.harnessStatus).toBe("completed");
     expect(result.deepagentsStatus).toBe("completed");
-    expect(metrics.deepagents_input_tokens?.value).toBe(100);
-    expect(metrics.deepagents_cached_input_tokens?.value).toBe(10);
-    expect(metrics.deepagents_output_tokens?.value).toBe(25);
-    expect(metrics.deepagents_reasoning_output_tokens?.value).toBe(5);
-    expect(metrics.deepagents_total_tokens?.value).toBe(125);
+    expect(metrics.harness_input_tokens?.value).toBe(100);
+    expect(metrics.harness_cached_input_tokens?.value).toBe(10);
+    expect(metrics.harness_output_tokens?.value).toBe(25);
+    expect(metrics.harness_reasoning_output_tokens?.value).toBe(5);
+    expect(metrics.harness_total_tokens?.value).toBe(125);
+    expect(metrics.harness_cost_usd).toBeUndefined();
+    expect(metrics.deepagents_input_tokens).toBeUndefined();
   });
 
   it("returns a failed task result for recursion limits", async () => {
@@ -101,6 +107,7 @@ describe("Deep Agents runner", () => {
       ]),
     });
     expect(result._success).toBe(false);
+    expect(result.harnessStatus).toBe("max_turns");
     expect(result.deepagentsStatus).toBe("max_turns");
     expect(result.error).toContain("recursion");
   });

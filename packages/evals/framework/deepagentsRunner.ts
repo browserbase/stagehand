@@ -1,4 +1,3 @@
-// TODO(Phase 2): buildDeepagentsPrompt/parseDeepagentsResult duplicate codexRunner.ts on purpose; switch to the shared externalRunner skeleton once harness/wave-core lands.
 import {
   buildDeepagentsTranscript,
   normalizeDeepagentsModel,
@@ -11,10 +10,17 @@ import {
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
 import type { PreparedDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
-import { datasetPromptGuidance, type ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { deepagentsAdapter } from "./harnesses/deepagentsAdapter.js";
+import {
+  buildExternalHarnessPrompt,
+  parseEvalResult,
+  runExternalHarnessTask,
+  type ExternalHarnessUsage,
+  type ParsedEvalResult,
+} from "./harnesses/externalRunner.js";
 import type { TaskResult } from "./types.js";
-import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
+import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 export type { DeepagentsProcessSpawner } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
 export {
@@ -22,8 +28,6 @@ export {
   normalizeDeepagentsModel,
   runDeepagentsSession,
 } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
-
-type MetricValue = { count: number; value: number };
 
 export interface DeepagentsRunnerInput {
   plan: ExternalHarnessTaskPlan;
@@ -35,12 +39,7 @@ export interface DeepagentsRunnerInput {
   verifier?: ExternalHarnessVerifierConfig;
 }
 
-export interface ParsedDeepagentsResult {
-  success: boolean;
-  summary?: string;
-  finalAnswer?: string;
-  raw: string;
-}
+export interface ParsedDeepagentsResult extends ParsedEvalResult {}
 
 export const DEEPAGENTS_SYSTEM_PROMPT = `You control one persistent browser through exactly three tools:
 - snapshot: inspect the active page and hydrate bracketed element IDs.
@@ -50,53 +49,18 @@ export const DEEPAGENTS_SYSTEM_PROMPT = `You control one persistent browser thro
 Use snapshot actions for simple interactions and run code for multi-step workflows. Snapshot IDs are
 valid only for the latest snapshot of the active page. Snapshot again after navigation or stale IDs.
 Do not launch another browser.
+Do not use file or todo tools for the browser task; only the browser tools matter.
 `;
 
 export function buildDeepagentsPrompt(
   plan: ExternalHarnessTaskPlan,
   toolInstructions?: string,
 ): string {
-  return [
-    "You are running a browser benchmark task.",
-    "",
-    `Dataset: ${plan.dataset}`,
-    plan.taskId ? `Task ID: ${plan.taskId}` : undefined,
-    `Start URL: ${plan.startUrl}`,
-    "",
-    "Instruction:",
-    plan.instruction,
-    "",
-    datasetPromptGuidance(plan.dataset),
-    toolInstructions ?? "Use the available browser/web tools to complete the task.",
-    "Do not use file or todo tools for the browser task; only the browser tools matter.",
-    "End with this compact JSON marker on the last line:",
-    'EVAL_RESULT: {"success": boolean, "summary": string, "finalAnswer": string}',
-  ]
-    .filter(Boolean)
-    .join("\n");
+  return buildExternalHarnessPrompt({ plan, toolInstructions, resultContract: "marker" });
 }
 
 export function parseDeepagentsResult(raw: string): ParsedDeepagentsResult {
-  const marker = "EVAL_RESULT:";
-  const markerIndex = raw.lastIndexOf(marker);
-  const candidates =
-    markerIndex >= 0
-      ? [
-          raw.slice(markerIndex + marker.length).trim(),
-          raw
-            .slice(markerIndex + marker.length)
-            .trim()
-            .split(/\r?\n/, 1)[0]
-            ?.trim(),
-        ]
-      : [raw.trim(), raw.trim().split(/\r?\n/, 1)[0]?.trim()];
-
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const parsed = tryParseDeepagentsJson(candidate);
-    if (parsed) return { ...parsed, raw };
-  }
-  return { success: false, raw };
+  return parseEvalResult(raw);
 }
 
 export async function runDeepagentsAgent({
@@ -108,80 +72,69 @@ export async function runDeepagentsAgent({
   spawn,
   verifier,
 }: DeepagentsRunnerInput): Promise<TaskResult> {
-  const prompt = buildDeepagentsPrompt(plan, toolAdapter?.promptInstructions);
-  const sessionResult = await runDeepagentsSession({
-    prompt,
-    model,
+  return runExternalHarnessTask({
+    harness: "deepagents",
+    plan,
     logger,
-    signal,
-    spawn,
-    session: {
-      ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
-      ...(toolAdapter?.env && { env: toolAdapter.env }),
-      ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
-      systemPrompt: DEEPAGENTS_SYSTEM_PROMPT,
-      recursionLimit: readDeepagentsRecursionLimit(),
-      maxToolSteps: readDeepagentsMaxToolSteps(),
+    toolAdapter,
+    verifier,
+    resultContract: "marker",
+    fallbackErrorMessage: "Deep Agents did not report success",
+    runSession: async (prompt) => {
+      const sessionResult = await runDeepagentsSession({
+        prompt,
+        model,
+        logger,
+        signal,
+        spawn,
+        session: {
+          ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
+          ...(toolAdapter?.env && { env: toolAdapter.env }),
+          ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
+          systemPrompt: DEEPAGENTS_SYSTEM_PROMPT,
+          recursionLimit: readDeepagentsRecursionLimit(),
+          maxToolSteps: readDeepagentsMaxToolSteps(),
+        },
+        onToolResult: (_name: string, server?: string) => {
+          if (server && toolAdapter?.recordObservation) toolAdapter.recordObservation();
+        },
+      });
+      return {
+        raw: sessionResult,
+        resultText: sessionResult.finalMessage,
+        transcriptText: buildDeepagentsTranscript(sessionResult.events),
+        iterationError: sessionResult.iterationError,
+        status: sessionResult.status,
+        stopReason:
+          sessionResult.stopReason ||
+          (sessionResult.status === "sdk_error"
+            ? stringifyError(sessionResult.iterationError) || undefined
+            : undefined),
+        usage: normalizeDeepagentsUsage(sessionResult.tokenUsage),
+        metrics: {},
+      };
     },
-    onToolResult: (_name: string, server?: string) => {
-      if (server && toolAdapter?.recordObservation) toolAdapter.recordObservation();
-    },
-  });
-  const { events, finalMessage, iterationError, status, stopReason, tokenUsage } = sessionResult;
-  const transcriptText = buildDeepagentsTranscript(events);
-  const iterationErrorMessage = stringifyError(iterationError);
-  const rawResult = [finalMessage, transcriptText, iterationErrorMessage]
-    .filter(Boolean)
-    .join("\n\n");
-  const parsed = parseDeepagentsResult(rawResult);
-  const errorMessage =
-    parsed.summary ??
-    stopReason ??
-    (iterationErrorMessage ||
-      finalMessage ||
-      transcriptText ||
-      "Deep Agents did not report success");
-  const baseResult: TaskResult = {
-    _success: parsed.success,
-    error: !parsed.success ? errorMessage : undefined,
-    reasoning: parsed.summary,
-    finalAnswer: parsed.finalAnswer,
-    rawResult: parsed.raw,
-    deepagentsStatus: status,
-    ...(stopReason && { deepagentsStopReason: stopReason }),
-    logs: logger.getLogs(),
-    metrics: buildDeepagentsMetrics(tokenUsage),
-  };
-  if (!verifier) return baseResult;
-
-  const finalObservation = await toolAdapter?.captureEvidence?.().catch((): undefined => undefined);
-  const stepObservations = await toolAdapter?.drainStepObservations?.();
-  return gradeExternalTrajectory({
-    buildTrajectory: () =>
+    toTrajectory: (
+      { raw, parsed, finalObservation, stepObservations, observedToolName, status },
+      taskSpec,
+    ) =>
       deepagentsAdapter.fromHarnessResult(
         {
-          events,
+          events: raw.events,
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
-          ...(toolAdapter?.observedToolMatcher && {
-            observedToolName: toolAdapter.observedToolMatcher,
-          }),
-          finalAnswer: parsed.finalAnswer ?? finalMessage,
-          status: status === "completed" ? "complete" : "error",
+          ...(observedToolName && { observedToolName }),
+          finalAnswer: parsed.finalAnswer ?? raw.finalMessage,
+          status,
           usage: {
-            input_tokens: tokenUsage.inputTokens,
-            output_tokens: tokenUsage.outputTokens,
-            reasoning_tokens: tokenUsage.reasoningOutputTokens,
-            cached_input_tokens: tokenUsage.cacheReadInputTokens,
+            input_tokens: raw.tokenUsage.inputTokens,
+            output_tokens: raw.tokenUsage.outputTokens,
+            reasoning_tokens: raw.tokenUsage.reasoningOutputTokens,
+            cached_input_tokens: raw.tokenUsage.cacheReadInputTokens,
           },
         },
-        verifier.taskSpec,
+        taskSpec,
       ),
-    verifier,
-    baseResult,
-    errorMessage,
-    category: "deepagents",
-    logger,
   });
 }
 
@@ -199,35 +152,12 @@ function readDeepagentsRecursionLimit(): number {
   return Math.max(100, readDeepagentsMaxToolSteps() * 4);
 }
 
-function tryParseDeepagentsJson(
-  candidate: string,
-): Omit<ParsedDeepagentsResult, "raw"> | undefined {
-  try {
-    const parsed = JSON.parse(candidate) as {
-      success?: unknown;
-      summary?: unknown;
-      finalAnswer?: unknown;
-    };
-    return {
-      success: parsed.success === true,
-      summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
-      finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-function buildDeepagentsMetrics(usage: DeepagentsTokenUsage): Record<string, MetricValue> {
+function normalizeDeepagentsUsage(usage: DeepagentsTokenUsage): ExternalHarnessUsage {
   return {
-    deepagents_input_tokens: metricValue(usage.inputTokens),
-    deepagents_cached_input_tokens: metricValue(usage.cacheReadInputTokens),
-    deepagents_output_tokens: metricValue(usage.outputTokens),
-    deepagents_reasoning_output_tokens: metricValue(usage.reasoningOutputTokens),
-    deepagents_total_tokens: metricValue(usage.totalTokens),
+    inputTokens: toFiniteNumber(usage.inputTokens),
+    outputTokens: toFiniteNumber(usage.outputTokens),
+    cachedInputTokens: toFiniteNumber(usage.cacheReadInputTokens),
+    reasoningOutputTokens: toFiniteNumber(usage.reasoningOutputTokens),
+    totalTokens: toFiniteNumber(usage.totalTokens),
   };
-}
-
-function metricValue(value: unknown): MetricValue {
-  return { count: 1, value: toFiniteNumber(value) };
 }
