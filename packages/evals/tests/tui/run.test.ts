@@ -169,7 +169,9 @@ describe("deriveCategoryFilter", () => {
 
     const payload = JSON.parse(String(log.mock.calls[0][0]));
     expect(payload.matrix).toEqual([]);
-    expect(String(payload.error)).toMatch(/--harness claude_code or --harness codex/);
+    expect(String(payload.error)).toMatch(
+      /--harness claude_code, --harness codex, or --harness mastra/,
+    );
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
   });
@@ -203,7 +205,7 @@ describe("deriveCategoryFilter", () => {
         },
         registry,
       ),
-    ).rejects.toThrow(/--harness claude_code or --harness codex/);
+    ).rejects.toThrow(/--harness claude_code, --harness codex, or --harness mastra/);
   });
 
   it("prints claude_code dry-run matrices without stagehand agent modes", async () => {

@@ -18,14 +18,13 @@ const plan: ExternalHarnessTaskPlan = {
 
 describe("Mastra runner", () => {
   it("builds the benchmark prompt and result schema", () => {
-    const prompt = buildMastraPrompt(plan);
+    const prompt = buildMastraPrompt(plan, "Use Stagehand via MCP.");
     expect(prompt).toContain("Dataset: webvoyager");
     expect(prompt).toContain("Task ID: wv-1");
     expect(prompt).toContain("Start URL: https://example.com");
     expect(prompt).toContain("Find the checkout button");
-    expect(prompt).toContain("When finished");
+    expect(prompt).toContain("Use Stagehand via MCP.");
     expect(prompt).toContain('"success": boolean');
-    expect(prompt).not.toContain("Do not edit repository files.");
   });
 
   it("parses direct JSON results", () => {
@@ -102,19 +101,20 @@ describe("Mastra runner", () => {
     });
     const metrics = result.metrics as Record<string, { value: number }>;
     expect(result._success).toBe(true);
+    expect(result.harnessStatus).toBe("completed");
     expect(result.mastraStatus).toBe("completed");
     expect(result.finalAnswer).toBe("ok");
-    expect(agentConfig).toMatchObject({
-      model: "openai/gpt-5.4-mini",
-      instructions: "Use Stagehand.",
-    });
+    expect(agentConfig).toMatchObject({ model: "openai/gpt-5.4-mini" });
+    expect(agentConfig?.instructions).not.toBe("Use Stagehand.");
     expect(streamOptions).toMatchObject({ maxSteps: 50 });
     expect(mcpServers?.stagehand).toMatchObject({ command: "node", onToolError: "return" });
-    expect(metrics.mastra_input_tokens.value).toBe(100);
-    expect(metrics.mastra_cached_input_tokens.value).toBe(10);
-    expect(metrics.mastra_output_tokens.value).toBe(25);
-    expect(metrics.mastra_reasoning_output_tokens.value).toBe(5);
-    expect(metrics.mastra_total_tokens.value).toBe(125);
+    expect(metrics.harness_input_tokens.value).toBe(100);
+    expect(metrics.harness_cached_input_tokens.value).toBe(10);
+    expect(metrics.harness_output_tokens.value).toBe(25);
+    expect(metrics.harness_reasoning_output_tokens.value).toBe(5);
+    expect(metrics.harness_total_tokens.value).toBe(125);
+    expect(metrics.harness_cost_usd).toBeUndefined();
+    expect(Object.keys(metrics).some((key) => key.startsWith("mastra_"))).toBe(false);
   });
 
   it("returns a failed task result for SDK errors", async () => {
@@ -126,7 +126,9 @@ describe("Mastra runner", () => {
       sdk,
     });
     expect(result._success).toBe(false);
+    expect(result.harnessStatus).toBe("sdk_error");
     expect(result.mastraStatus).toBe("sdk_error");
+    expect(result.harnessStopReason).toBeDefined();
     expect(String(result.error)).toContain("mastra failed");
   });
 });

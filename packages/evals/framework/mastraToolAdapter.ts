@@ -18,9 +18,18 @@ import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import { startCodeBridge } from "./codexCodeBridge.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export const MASTRA_RUN_TOOL_NAME = "stagehand_browser_run";
+export const MASTRA_TOOL_SURFACES: ToolSurface[] = [
+  "stagehand_facade",
+  "playwright_mcp",
+  "chrome_devtools_mcp",
+  "stagehand_code",
+  "playwright_code",
+  "cdp_code",
+];
 
 export interface MastraToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -48,18 +57,17 @@ export interface PreparedMastraToolAdapter {
   cleanup: () => Promise<void>;
 }
 
-const CODE_SURFACES = new Set<ToolSurface>(["stagehand_code", "playwright_code", "cdp_code"]);
-const MCP_SURFACES = new Set<ToolSurface>([
-  "stagehand_facade",
-  "playwright_mcp",
-  "chrome_devtools_mcp",
-]);
-
 export async function prepareMastraToolAdapter(
   input: MastraToolAdapterInput,
 ): Promise<PreparedMastraToolAdapter> {
-  const toolSurface = resolveMastraToolSurface(input.toolSurface);
-  const startupProfile = resolveMastraStartupProfile(
+  const toolSurface = resolveToolSurface(
+    { harness: "mastra", supportedToolSurfaces: MASTRA_TOOL_SURFACES },
+    input.toolSurface,
+  );
+  if (toolSurface === undefined) {
+    throw new EvalsError("Mastra harness requires a tool surface.");
+  }
+  const startupProfile = resolveStartupProfile(
     toolSurface,
     input.environment,
     input.startupProfile,
@@ -180,33 +188,6 @@ export async function prepareMastraToolAdapter(
     if (cwd) await fsp.rm(cwd, { recursive: true, force: true });
     throw error;
   }
-}
-
-export function resolveMastraToolSurface(requested?: ToolSurface): ToolSurface {
-  if (!requested) return "stagehand_facade";
-  if (CODE_SURFACES.has(requested) || MCP_SURFACES.has(requested)) return requested;
-  throw new EvalsError(
-    `Mastra harness supports --tool stagehand_facade, playwright_mcp, chrome_devtools_mcp, stagehand_code, playwright_code, or cdp_code; received "${requested}".`,
-  );
-}
-
-export function resolveMastraStartupProfile(
-  toolSurface: ToolSurface,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile {
-  if (requested) return requested;
-  if (toolSurface === "stagehand_code" || toolSurface === "stagehand_facade") {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-  }
-  if (CODE_SURFACES.has(toolSurface) || MCP_SURFACES.has(toolSurface)) {
-    return environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
-  }
-  throw new EvalsError(
-    `No Mastra startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
 }
 
 export function buildMastraMcpServers(

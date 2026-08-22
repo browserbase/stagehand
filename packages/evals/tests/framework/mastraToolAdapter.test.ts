@@ -9,11 +9,14 @@ import {
   buildMastraMcpServers,
   executeViaCodeBridge,
   MASTRA_RUN_TOOL_NAME,
+  MASTRA_TOOL_SURFACES,
   mastraToolNameMatcher,
   prepareMastraToolAdapter,
-  resolveMastraStartupProfile,
-  resolveMastraToolSurface,
 } from "../../framework/mastraToolAdapter.js";
+import {
+  resolveStartupProfile,
+  resolveToolSurface,
+} from "../../framework/harnesses/toolSurfaceResolution.js";
 import { EvalLogger } from "../../logger.js";
 
 const plan = {
@@ -24,26 +27,35 @@ const plan = {
 };
 
 describe("Mastra tool adapter", () => {
-  it("resolves supported surfaces and rejects unsupported ones", () => {
-    expect(resolveMastraToolSurface()).toBe("stagehand_facade");
-    for (const surface of [
+  it("lists supported surfaces with stagehand_facade first", () => {
+    expect(MASTRA_TOOL_SURFACES).toEqual([
       "stagehand_facade",
       "playwright_mcp",
       "chrome_devtools_mcp",
       "stagehand_code",
       "playwright_code",
       "cdp_code",
-    ] as const) {
-      expect(resolveMastraToolSurface(surface)).toBe(surface);
+    ]);
+  });
+
+  it("resolves supported surfaces and rejects unsupported ones", () => {
+    const harness = { harness: "mastra", supportedToolSurfaces: MASTRA_TOOL_SURFACES };
+    expect(resolveToolSurface(harness)).toBe("stagehand_facade");
+    for (const surface of MASTRA_TOOL_SURFACES) {
+      expect(resolveToolSurface(harness, surface)).toBe(surface);
     }
-    expect(() => resolveMastraToolSurface("browse_cli")).toThrow(/Mastra harness supports/);
-    expect(() => resolveMastraToolSurface("understudy_code")).toThrow(/received/);
+    expect(() => resolveToolSurface(harness, "browse_cli")).toThrow(
+      /Harness "mastra" supports --tool/,
+    );
+    expect(() => resolveToolSurface(harness, "understudy_code")).toThrow(
+      /Harness "mastra" supports --tool/,
+    );
   });
 
   it("resolves startup profiles for each surface and environment", () => {
     for (const surface of ["stagehand_facade", "stagehand_code"] as const) {
-      expect(resolveMastraStartupProfile(surface, "LOCAL")).toBe("tool_launch_local");
-      expect(resolveMastraStartupProfile(surface, "BROWSERBASE")).toBe("tool_create_browserbase");
+      expect(resolveStartupProfile(surface, "LOCAL")).toBe("tool_launch_local");
+      expect(resolveStartupProfile(surface, "BROWSERBASE")).toBe("tool_create_browserbase");
     }
     for (const surface of [
       "playwright_mcp",
@@ -51,10 +63,8 @@ describe("Mastra tool adapter", () => {
       "playwright_code",
       "cdp_code",
     ] as const) {
-      expect(resolveMastraStartupProfile(surface, "LOCAL")).toBe("runner_provided_local_cdp");
-      expect(resolveMastraStartupProfile(surface, "BROWSERBASE")).toBe(
-        "runner_provided_browserbase_cdp",
-      );
+      expect(resolveStartupProfile(surface, "LOCAL")).toBe("runner_provided_local_cdp");
+      expect(resolveStartupProfile(surface, "BROWSERBASE")).toBe("runner_provided_browserbase_cdp");
     }
   });
 
