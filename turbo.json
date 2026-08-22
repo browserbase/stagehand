@@ -99,6 +99,9 @@
     "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
       "dependsOn": ["^build"]
     },
+    "@browserbasehq/stagehand-integrations-example-flue-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {
       "dependsOn": ["^build"],
