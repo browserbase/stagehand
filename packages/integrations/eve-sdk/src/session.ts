@@ -183,6 +183,7 @@ export async function runEveSession(input: {
         port?: number;
         readyTimeoutMs?: number;
         eveBinPath?: string;
+        spawn?: typeof nodeSpawn;
       }
     | { url: string };
   client?: EveClientLike;
@@ -199,9 +200,19 @@ export async function runEveSession(input: {
   let turnCompleted = false;
   let maxTurns = false;
   let serverHandle: EveDevServerHandle | undefined;
+  let session: EveClientSessionLike | undefined;
+  let cancelled = false;
   const maxToolSteps = positiveInteger(input.maxToolSteps, 50);
   const controller = new AbortController();
-  const forwardAbort = (): void => controller.abort(input.signal?.reason);
+  const cancelSession = (): Promise<unknown> | undefined => {
+    if (!session || cancelled) return undefined;
+    cancelled = true;
+    return session.cancel().catch((): undefined => undefined);
+  };
+  const forwardAbort = (): void => {
+    controller.abort(input.signal?.reason);
+    void cancelSession();
+  };
   if (input.signal?.aborted) controller.abort(input.signal.reason);
   else input.signal?.addEventListener("abort", forwardAbort, { once: true });
 
@@ -224,7 +235,8 @@ export async function runEveSession(input: {
     }
     const client = input.client ?? (await loadEveClient(serverUrl));
     await client.health();
-    const session = client.session();
+    session = client.session();
+    if (input.signal?.aborted) void cancelSession();
     const response = await session.send({ message: input.prompt, signal: controller.signal });
     sessionId = response.sessionId;
     let toolStepCount = 0;
@@ -247,7 +259,7 @@ export async function runEveSession(input: {
           if (toolStepCount >= maxToolSteps && !maxTurns) {
             maxTurns = true;
             stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
-            await session.cancel().catch((): undefined => undefined);
+            await cancelSession();
             controller.abort(new Error(stopReason));
           }
         }
@@ -262,7 +274,7 @@ export async function runEveSession(input: {
           .map((request) => (isRecord(request) ? String(request.kind ?? "unknown") : "unknown"))
           .join(", ");
         stopReason = `eve parked for human input (${kinds})`;
-        await session.cancel().catch((): undefined => undefined);
+        await cancelSession();
         controller.abort(new Error(stopReason));
       } else if (
         event.type === "step.failed" ||
@@ -355,13 +367,15 @@ export function buildEveTranscript(events: EveEvent[]): string {
 
 export function logEveEvent(logger: HarnessLogger, event: EveEvent): void {
   const summary = summarizeEveEvent(event);
+  const message = sanitizeErrorMessage(summary.message);
+  const detail = summary.detail ? sanitizeErrorMessage(summary.detail) : undefined;
   logger.log({
     category: "eve",
-    message: summary.message,
+    message,
     level: 1,
     auxiliary: {
       type: { value: event.type, type: "string" },
-      ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
+      ...(detail && { detail: { value: detail, type: "string" } }),
     },
   });
 }
