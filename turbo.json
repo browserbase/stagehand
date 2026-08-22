@@ -61,6 +61,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "@browserbasehq/stagehand-integrations-fx-sdk#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -186,6 +191,16 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
+    "@browserbasehq/stagehand-integrations-fx-sdk#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-fx-sdk#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
     "@browserbasehq/stagehand-integrations-example-mastra-facade#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -205,6 +220,9 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-deepagents-sdk#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-fx-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
