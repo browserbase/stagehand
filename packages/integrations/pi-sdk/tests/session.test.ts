@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildPiMcpToolName,
+  buildPiTranscript,
   definePiCodeRunTool,
   isPiMcpToolName,
   mcpCallResultToPiToolResult,
@@ -174,6 +175,75 @@ describe("pi SDK session", () => {
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("bad sk-abcdef[redacted]");
     expect(fake.disposeCount).toBe(1);
+  });
+
+  it("treats provider length limits as SDK errors", async () => {
+    const result = await runPiSession({
+      prompt: "task",
+      model: "model",
+      sdk: scriptedSdk([assistant("cut off", {}, "length")]).sdk,
+      logger,
+      session: {},
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toMatch(/length limit/);
+  });
+
+  it("treats internal pi aborts as SDK errors", async () => {
+    const result = await runPiSession({
+      prompt: "task",
+      model: "model",
+      sdk: scriptedSdk([assistant("", {}, "aborted")]).sdk,
+      logger,
+      session: {},
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("pi aborted the run");
+  });
+
+  it("redacts internal pi abort errors", async () => {
+    const event = assistant("", {}, "aborted");
+    (event.message as Record<string, unknown>).errorMessage = "boom sk-abcdef1234567890";
+    const result = await runPiSession({
+      prompt: "task",
+      model: "model",
+      sdk: scriptedSdk([event]).sdk,
+      logger,
+      session: {},
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("boom sk-abcdef[redacted]");
+  });
+
+  it("redacts tool and unknown event summaries without mutating events", async () => {
+    const toolEvent: PiEvent = {
+      type: "tool_execution_end",
+      toolName: "browser",
+      args: { token: "sk-abcdef1234567890" },
+      result: { token: "sk-abcdef1234567890" },
+    };
+    const unknownEvent: PiEvent = {
+      type: "provider_notice",
+      errorMessage: "bb_live_abcd1234567890",
+    };
+    const recordingLogger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const result = await runPiSession({
+      prompt: "task",
+      model: "model",
+      sdk: scriptedSdk([toolEvent, unknownEvent]).sdk,
+      logger: recordingLogger,
+      session: {},
+    });
+
+    const logged = JSON.stringify(recordingLogger.log.mock.calls);
+    expect(logged).not.toContain("sk-abcdef1234567890");
+    expect(logged).not.toContain("bb_live_abcd1234567890");
+    const transcript = buildPiTranscript(result.events);
+    expect(transcript).toContain("sk-abcdef[redacted]");
+    expect(transcript).toContain("bb_live_abcd[redacted]");
+    expect(transcript).not.toContain("sk-abcdef1234567890");
+    expect(transcript).not.toContain("bb_live_abcd1234567890");
+    expect(toolEvent.result).toEqual({ token: "sk-abcdef1234567890" });
   });
 
   it("captures createSession failures without throwing", async () => {

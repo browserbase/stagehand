@@ -90,17 +90,31 @@ export function buildPiMountConfig(input: {
       label: "Browser run",
       description: mount.runTool.description,
       codeParamDescription: mount.runTool.codeParamDescription,
-      execute: async (code) => {
+      execute: async (code, signal) => {
+        if (signal?.aborted) {
+          throw new Error(`run tool aborted before start: ${abortReason(signal)}`);
+        }
+        const snippet = executeCodeExposureSnippet({
+          code,
+          handles: mount.handles,
+          runToolSpec: mount.runTool,
+          plan: input.plan,
+          logger: input.logger,
+        });
         try {
           const result = await withTimeout(
-            executeCodeExposureSnippet({
-              code,
-              handles: mount.handles,
-              runToolSpec: mount.runTool,
-              plan: input.plan,
-              logger: input.logger,
-            }),
+            snippet,
             readPositiveIntEnv("EVAL_PI_RUN_TOOL_TIMEOUT_MS", 60_000),
+            signal,
+            (reason) => {
+              snippet.catch(() => {
+                input.logger.log({
+                  category: "pi",
+                  message: `orphaned run tool snippet rejected after ${reason}`,
+                  level: 1,
+                });
+              });
+            },
           );
           const text = stringifyToolResult(result);
           input.logger.log({
@@ -291,21 +305,44 @@ function readPositiveIntEnv(key: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  signal?: AbortSignal,
+  onAbandoned?: (reason: "abort" | "timeout") => void,
+): Promise<T> {
   let timeout: NodeJS.Timeout | undefined;
+  let onAbort: (() => void) | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(new Error(`pi adapter operation timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        );
+        timeout = setTimeout(() => {
+          onAbandoned?.("timeout");
+          reject(new Error(`pi adapter operation timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
       }),
+      ...(signal
+        ? [
+            new Promise<never>((_, reject) => {
+              onAbort = () => {
+                onAbandoned?.("abort");
+                reject(new Error(`run tool aborted: ${abortReason(signal)}`));
+              };
+              signal.addEventListener("abort", onAbort, { once: true });
+            }),
+          ]
+        : []),
     ]);
   } finally {
     if (timeout) clearTimeout(timeout);
+    if (signal && onAbort) signal.removeEventListener("abort", onAbort);
   }
+}
+
+function abortReason(signal: AbortSignal): string {
+  if (signal.reason instanceof Error) return signal.reason.message;
+  return signal.reason === undefined ? "aborted" : String(signal.reason);
 }
 
 function stringifyToolResult(value: unknown): string {

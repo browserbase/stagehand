@@ -218,6 +218,14 @@ export async function runPiSession(input: {
           piSession.agent.state.errorMessage ||
           "pi reported an error",
       );
+    } else if (lastAssistant?.stopReason === "aborted") {
+      stopReason = sanitizeErrorMessage(
+        (typeof lastAssistant.errorMessage === "string" && lastAssistant.errorMessage) ||
+          piSession.agent.state.errorMessage ||
+          "pi aborted the run",
+      );
+    } else if (lastAssistant?.stopReason === "length") {
+      stopReason = "pi stopped: provider output length limit reached";
     } else if (turns >= maxTurns && lastAssistant?.stopReason === "toolUse") {
       stopReason = `turn budget exhausted (${maxTurns} turns)`;
     }
@@ -310,15 +318,24 @@ export function summarizePiEvent(event: PiEvent): { message: string; detail?: st
   const type = String(event.type ?? "unknown");
   if (type === "message_end" && isRecord(event.message)) {
     const text = assistantText(event.message);
-    return { message: `assistant: ${clip(text, 500)}`, detail: text || safeJson(event.message) };
-  }
-  if (type.startsWith("tool_execution_")) {
+    const detail = text || safeJson(event.message);
     return {
-      message: `${type}: ${String(event.toolName ?? "tool")}`,
-      detail: safeJson(event),
+      message: sanitizeErrorMessage(`assistant: ${clip(text, 500)}`),
+      ...(detail && { detail: sanitizeErrorMessage(detail) }),
     };
   }
-  return { message: `${type} event`, detail: safeJson(event) };
+  if (type.startsWith("tool_execution_")) {
+    const detail = safeJson(event);
+    return {
+      message: sanitizeErrorMessage(`${type}: ${String(event.toolName ?? "tool")}`),
+      ...(detail && { detail: sanitizeErrorMessage(detail) }),
+    };
+  }
+  const detail = safeJson(event);
+  return {
+    message: sanitizeErrorMessage(`${type} event`),
+    ...(detail && { detail: sanitizeErrorMessage(detail) }),
+  };
 }
 
 export function resolvePiStatus(input: {

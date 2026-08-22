@@ -59,6 +59,38 @@ export function piToolResultText(result: { content: unknown }): string {
     .join("\n");
 }
 
+export function attachPiMcpStderrLogger(
+  stderr: NodeJS.ReadableStream,
+  logger: HarnessLogger,
+): void {
+  let buffer = "";
+  let flushed = false;
+  const encoded = stderr as NodeJS.ReadableStream & {
+    setEncoding?: (encoding: BufferEncoding) => unknown;
+  };
+  encoded.setEncoding?.("utf8");
+
+  const logLine = (line: string): void => {
+    const message = sanitizeErrorMessage(line.replace(/\r$/, "").trim());
+    if (message) logger.log({ category: "pi_mcp", message, level: 1 });
+  };
+  const flush = (): void => {
+    if (flushed) return;
+    flushed = true;
+    logLine(buffer);
+    buffer = "";
+  };
+
+  stderr.on("data", (chunk) => {
+    buffer += String(chunk);
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) logLine(line);
+  });
+  stderr.on("end", flush);
+  stderr.on("close", flush);
+}
+
 export async function connectPiMcpServers(
   servers: Record<string, PiMcpServerSpec>,
   opts: { logger: HarnessLogger; signal?: AbortSignal; callTimeoutMs?: number },
@@ -77,10 +109,9 @@ export async function connectPiMcpServers(
     for (const [serverName, spec] of Object.entries(servers)) {
       const client = new Client({ name: `stagehand-evals-pi-${serverName}`, version: "1.0.0" });
       const transport = new StdioClientTransport({ ...spec, stderr: "pipe" });
-      transport.stderr?.on("data", (chunk) => {
-        const message = sanitizeErrorMessage(String(chunk).trim());
-        if (message) opts.logger.log({ category: "pi_mcp", message, level: 1 });
-      });
+      if (transport.stderr) {
+        attachPiMcpStderrLogger(transport.stderr as unknown as NodeJS.ReadableStream, opts.logger);
+      }
       await client.connect(transport, opts.signal ? { signal: opts.signal } : undefined);
       clients.push(client);
       const listed = await client.listTools(
