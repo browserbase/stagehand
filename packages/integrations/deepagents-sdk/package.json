@@ -1,0 +1,34 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-deepagents-sdk",
+  "version": "4.0.1",
+  "private": true,
+  "description": "Deep Agents (LangChain) harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/deepagents-sdk/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/deepagents-sdk/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-integrations": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
