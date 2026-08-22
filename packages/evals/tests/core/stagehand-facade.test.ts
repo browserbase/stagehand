@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCoreTool, listCoreRunnableTools, listCoreTools } from "../../core/tools/registry.js";
 import {
   buildStagehandFacadeEnv,
+  buildStagehandFacadeServerSpec,
   StagehandFacadeTool,
   StagehandFacadeToolError,
 } from "../../core/tools/stagehand_facade.js";
@@ -15,6 +16,27 @@ import {
 import type { EvalLogger } from "../../logger.js";
 
 const ORIGINAL_ENV = { ...process.env };
+const MINIMAL_FACADE_SOURCE = String.raw`
+let carry = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  carry += chunk;
+  const lines = carry.split("\n");
+  carry = lines.pop() || "";
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const request = JSON.parse(line);
+    if (request.method === "initialize") {
+      process.stdout.write(JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.id,
+        result: { protocolVersion: request.params.protocolVersion, capabilities: {}, serverInfo: { name: "fake" } },
+      }) + "\n");
+    }
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+`;
 
 beforeEach(() => {
   for (const key of Object.keys(process.env)) {
@@ -84,30 +106,61 @@ describe("stagehand facade tool surface", () => {
     process.env.BROWSERBASE_API_KEY = "browserbase-secret";
     process.env.OPENAI_API_KEY = "must-not-cross-the-mount";
 
-    const running = await new StagehandFacadeTool().start({
+    const running = await new StagehandFacadeTool({
+      serverSpec: (environment) => ({
+        command: process.execPath,
+        args: ["-e", MINIMAL_FACADE_SOURCE],
+        env: buildStagehandFacadeEnv(environment),
+      }),
+    }).start({
       logger: {} as EvalLogger,
       environment: "LOCAL",
       startupProfile: "tool_launch_local",
     });
 
-    expect(running.agentMount?.via).toBe("mcp");
-    if (running.agentMount?.via !== "mcp") throw new Error("expected MCP mount");
-    expect(running.agentMount.promptInstructions).toBe(FACADE_AGENT_INSTRUCTIONS);
-    expect(Object.keys(running.agentMount.mcpServers)).toEqual(["stagehand"]);
-    expect(running.agentMount.mcpServers.stagehand).toMatchObject({
+    try {
+      expect(running.agentMount?.via).toBe("mcp");
+      if (running.agentMount?.via !== "mcp") throw new Error("expected MCP mount");
+      expect(running.agentMount.promptInstructions).toBe(FACADE_AGENT_INSTRUCTIONS);
+      expect(Object.keys(running.agentMount.mcpServers)).toEqual(["stagehand"]);
+      expect(running.agentMount.mcpServers.stagehand).toMatchObject({
+        command: process.execPath,
+        args: ["-e", expect.stringContaining("STAGEHAND_EVALS_FACADE_BRIDGE_PORT")],
+        env: {
+          STAGEHAND_EVALS_FACADE_BRIDGE_PORT: expect.stringMatching(/^\d+$/u),
+        },
+      });
+      const relayEnv = (running.agentMount.mcpServers.stagehand as {
+        env: Record<string, string>;
+      }).env;
+      expect(relayEnv).not.toHaveProperty("BROWSERBASE_API_KEY");
+      expect(relayEnv).not.toHaveProperty("STAGEHAND_MODEL_NAME");
+      expect(relayEnv).not.toHaveProperty("OPENAI_API_KEY");
+      expect(running.captureEvidence).toBeTypeOf("function");
+      await expect(running.captureEvidence?.()).resolves.toEqual({});
+      expect(running.metadata.facadeBridgePort).toEqual(expect.any(Number));
+    } finally {
+      await running.cleanup();
+    }
+  });
+
+  it("builds the default facade server spec with the shipped entrypoint", () => {
+    process.env.STAGEHAND_MODEL_NAME = "openai/gpt-5-mini";
+    process.env.BROWSERBASE_API_KEY = "browserbase-secret";
+    process.env.OPENAI_API_KEY = "must-not-cross-the-facade";
+
+    expect(buildStagehandFacadeServerSpec("BROWSERBASE")).toMatchObject({
       command: process.execPath,
       args: [expect.stringMatching(/facade[/\\]stdio-server\.mjs$/u)],
       env: {
-        STAGEHAND_BROWSER: "local",
+        STAGEHAND_BROWSER: "browserbase",
         STAGEHAND_MODEL_NAME: "openai/gpt-5-mini",
         BROWSERBASE_API_KEY: "browserbase-secret",
       },
     });
-    expect(
-      (running.agentMount.mcpServers.stagehand as { env: Record<string, string> }).env,
-    ).not.toHaveProperty("OPENAI_API_KEY");
-    expect(running.captureEvidence).toBeUndefined();
-    await running.cleanup();
+    expect(buildStagehandFacadeServerSpec("BROWSERBASE").env).not.toHaveProperty(
+      "OPENAI_API_KEY",
+    );
   });
 
   it("filters host env and overrides browser selection for each eval environment", () => {
