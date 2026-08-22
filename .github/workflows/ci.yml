@@ -266,6 +266,7 @@ jobs:
             packages/integrations/eve-sdk/dist/**
             packages/integrations/deepagents-sdk/dist/**
             packages/integrations/fx-sdk/dist/**
+            packages/integrations/cursor-sdk/dist/**
             packages/evals/dist/**
           retention-days: 1
 
