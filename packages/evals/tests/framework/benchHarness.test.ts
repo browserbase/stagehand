@@ -7,6 +7,7 @@ import {
   getBenchHarness,
   isExecutableBenchHarness,
   listBenchHarnesses,
+  listExecutableBenchHarnesses,
   parseBenchHarness,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
@@ -40,6 +41,7 @@ describe("bench harness registry", () => {
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
+    expect(harness.start).toBeUndefined();
     expect(harness.supportedToolSurfaces[0]).toBe("browse_cli");
     expect(harness.defaultModels).toEqual(["anthropic/claude-sonnet-4-6"]);
   });
@@ -70,6 +72,19 @@ describe("bench harness registry", () => {
     registerBenchHarness(fakeHarness);
     expect(parseBenchHarness("fake_harness")).toBe("fake_harness");
     expect(() => registerBenchHarness(fakeHarness)).toThrow(/already registered/);
+  });
+
+  it("keeps planning-only harnesses registered but non-executable", () => {
+    registerBenchHarness({
+      harness: "planning_only_harness",
+      supportedTaskKinds: ["suite"],
+      supportsApi: false,
+      supportedToolSurfaces: ["browse_cli"],
+    });
+
+    expect(listBenchHarnesses()).toContain("planning_only_harness");
+    expect(listExecutableBenchHarnesses()).not.toContain("planning_only_harness");
+    expect(isExecutableBenchHarness("planning_only_harness")).toBe(false);
   });
 
   it("defines the shared external lifecycle and cleans up when the agent throws", async () => {
@@ -145,5 +160,56 @@ describe("bench harness registry", () => {
     });
     expect(receivedAdapter).toBe(adapter);
     expect(cleanupCalled).toBe(true);
+  });
+
+  it("rejects mismatched external harness config before preparing an adapter", async () => {
+    let prepareCalled = false;
+    const harness = defineExternalHarness({
+      harness: "mismatch_external_harness",
+      supportedToolSurfaces: ["browse_cli"],
+      defaultModels: ["openai/x" as AvailableModel],
+      prepareToolAdapter: async () => {
+        prepareCalled = true;
+        return { cleanup: async () => {} };
+      },
+      runAgent: async () => ({ _success: true }),
+    });
+    const input: EvalInput = {
+      name: "agent/webvoyager",
+      modelName: "openai/x" as AvailableModel,
+      params: { id: "wv-1", web: "https://example.com", ques: "Find it" },
+    };
+    const task: DiscoveredTask = {
+      name: input.name,
+      tier: "bench",
+      primaryCategory: "agent",
+      categories: ["agent"],
+      tags: [],
+      filePath: "/tmp/fake.ts",
+      isLegacy: false,
+    };
+    const row: BenchMatrixRow = {
+      harness: "mismatch_external_harness",
+      task: input.name,
+      category: "agent",
+      taskKind: "agent",
+      model: input.modelName,
+      environment: "LOCAL",
+      useApi: false,
+      trial: 1,
+      config: {
+        harness: "different_harness",
+        model: input.modelName,
+        environment: "LOCAL",
+        useApi: false,
+      },
+    };
+
+    await expect(
+      harness.execute?.({ task, input, row, logger: new EvalLogger(false) }),
+    ).rejects.toThrow(
+      'Expected mismatch_external_harness harness config, received "different_harness".',
+    );
+    expect(prepareCalled).toBe(false);
   });
 });

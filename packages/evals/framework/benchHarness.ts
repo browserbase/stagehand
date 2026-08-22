@@ -72,7 +72,11 @@ export interface BenchHarness {
    */
   defaultModels?: AvailableModel[];
   execute?(input: BenchHarnessExecuteInput): Promise<TaskResult>;
-  start(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
+  /**
+   * A harness with neither execute nor start is registered for planning/dry-run
+   * only and is rejected by the CLI before execution.
+   */
+  start?(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
 }
 
 export interface ExternalHarnessPrepareInput {
@@ -124,6 +128,11 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
     supportedToolSurfaces,
     defaultModels,
     async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
+      if (row.config.harness !== harness) {
+        throw new EvalsError(
+          `Expected ${harness} harness config, received "${row.config.harness}".`,
+        );
+      }
       const plan = buildExternalHarnessTaskPlan(input);
       // Everything past carrier construction runs inside one try/finally so a
       // failure at any point — adapter preparation included — cleans up both
@@ -167,11 +176,6 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
         // V3 object graph per task.
         await carrierV3.close().catch(() => {});
       }
-    },
-    async start(): Promise<StartedBenchHarness> {
-      throw new EvalsError(
-        `Harness "${harness}" runs through the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness ${harness}.`,
-      );
     },
   };
 }
@@ -226,8 +230,12 @@ export const stagehandHarness: BenchHarness = {
     }
     const config = row.config;
     if (!["act", "extract", "observe"].includes(task.primaryCategory)) {
+      const suiteHarnesses = listBenchHarnessesForTaskKind("suite");
+      const suiteGuidance = suiteHarnesses.length
+        ? `Run agent suites with ${formatBenchHarnessFlags(suiteHarnesses)}`
+        : "No registered harness runs agent suites";
       throw new EvalsError(
-        `The stagehand harness runs act/extract/observe tasks only. Run agent suites with --harness claude_code or --harness codex; received "${task.name}".`,
+        `The stagehand harness runs act/extract/observe tasks only. ${suiteGuidance}; received "${task.name}".`,
       );
     }
     if (input.agentMode) {
@@ -294,11 +302,25 @@ export function listBenchHarnesses(): Harness[] {
   return [...harnessRegistry.keys()];
 }
 
+export function listBenchHarnessesForToolSurface(toolSurface: ToolSurface): Harness[] {
+  return listBenchHarnesses().filter((harness) =>
+    harnessRegistry.get(harness)?.supportedToolSurfaces.includes(toolSurface),
+  );
+}
+
+export function listBenchHarnessesForTaskKind(taskKind: BenchTaskKind): Harness[] {
+  return listBenchHarnesses().filter((harness) =>
+    harnessRegistry.get(harness)?.supportedTaskKinds.includes(taskKind),
+  );
+}
+
+function hasExecutableImplementation(harness: Harness): boolean {
+  const implementation = harnessRegistry.get(harness);
+  return implementation?.execute !== undefined || implementation?.start !== undefined;
+}
+
 export function listExecutableBenchHarnesses(): Harness[] {
-  return listBenchHarnesses().filter((harness) => {
-    const implementation = harnessRegistry.get(harness);
-    return implementation?.execute !== undefined || implementation?.start !== undefined;
-  });
+  return listBenchHarnesses().filter(hasExecutableImplementation);
 }
 
 export function getBenchHarness(harness: Harness): BenchHarness {
@@ -316,9 +338,7 @@ export function isBenchHarness(value: string): value is Harness {
 }
 
 export function isExecutableBenchHarness(value: Harness): boolean {
-  if (!isBenchHarness(value)) return false;
-  const implementation = harnessRegistry.get(value);
-  return implementation?.execute !== undefined || implementation?.start !== undefined;
+  return isBenchHarness(value) && hasExecutableImplementation(value);
 }
 
 export function parseBenchHarness(value: string | undefined): Harness {

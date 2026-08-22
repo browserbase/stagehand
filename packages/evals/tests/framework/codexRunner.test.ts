@@ -121,13 +121,49 @@ describe("codex runner helpers", () => {
     expect(metrics.codex_cached_input_tokens.value).toBe(10);
     expect(metrics.codex_output_tokens.value).toBe(25);
     expect(metrics.codex_reasoning_output_tokens.value).toBe(5);
-    expect(metrics.codex_total_tokens.value).toBe(140);
+    expect(metrics.codex_total_tokens.value).toBe(125);
     expect(metrics.harness_input_tokens.value).toBe(100);
     expect(metrics.harness_cached_input_tokens.value).toBe(10);
     expect(metrics.harness_output_tokens.value).toBe(25);
-    expect(metrics.harness_total_tokens.value).toBe(140);
+    expect(metrics.harness_reasoning_output_tokens.value).toBe(5);
+    expect(metrics.harness_total_tokens.value).toBe(125);
     expect(metrics.harness_cost_usd).toBeUndefined();
     expect(result.harnessStatus).toBe("completed");
+  });
+
+  it("does not double-count cached input or reasoning output token subsets", async () => {
+    const sdk: CodexSdk = {
+      startThread: () => ({
+        runStreamed: async () => ({
+          events: (async function* () {
+            yield {
+              type: "item.completed",
+              item: { id: "msg-1", type: "agent_message", text: '{"success":true}' },
+            };
+            yield {
+              type: "turn.completed",
+              usage: {
+                input_tokens: 10_000,
+                cached_input_tokens: 8_000,
+                output_tokens: 500,
+                reasoning_output_tokens: 300,
+              },
+            };
+          })(),
+        }),
+      }),
+    };
+
+    const result = await runCodexAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+
+    expect(metrics.codex_total_tokens.value).toBe(10_500);
+    expect(metrics.harness_total_tokens.value).toBe(10_500);
   });
 
   it("returns a failed task result instead of throwing on SDK errors", async () => {

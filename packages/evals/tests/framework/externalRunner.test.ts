@@ -31,7 +31,7 @@ describe("external harness runner", () => {
     ).toMatchObject({ success: true, summary: "done" });
   });
 
-  it("parses the first balanced object after a marker", () => {
+  it("lets structured-output harnesses parse the first balanced object after a marker", () => {
     expect(
       parseEvalResult(
         '**EVAL_RESULT: {"success":true,"summary":"found {it}","finalAnswer":"done"}**',
@@ -46,7 +46,7 @@ describe("external harness runner", () => {
     });
   });
 
-  it("parses no-marker JSON from the first line", () => {
+  it("lets marker harnesses parse first-line no-marker JSON", () => {
     expect(parseEvalResult('{"success":true,"summary":"done"}\ntranscript')).toMatchObject({
       success: true,
       summary: "done",
@@ -86,7 +86,14 @@ describe("external harness runner", () => {
       metrics: { native_turns: { count: 1, value: 2 } },
     });
     const complete = buildNormalizedHarnessMetrics({
-      usage: { inputTokens: 10, outputTokens: 5, cachedInputTokens: 3, totalTokens: 18 },
+      usage: {
+        inputTokens: 10,
+        outputTokens: 5,
+        cachedInputTokens: 3,
+        cacheCreationInputTokens: 2,
+        reasoningOutputTokens: 1,
+        totalTokens: 18,
+      },
       costUsd: 0.25,
       metrics: {},
     });
@@ -94,7 +101,11 @@ describe("external harness runner", () => {
     expect(metrics.harness_total_tokens.value).toBe(15);
     expect(metrics.harness_cost_usd).toBeUndefined();
     expect(metrics.harness_cached_input_tokens).toBeUndefined();
+    expect(metrics.harness_cache_creation_input_tokens).toBeUndefined();
+    expect(metrics.harness_reasoning_output_tokens).toBeUndefined();
     expect(complete.harness_cached_input_tokens.value).toBe(3);
+    expect(complete.harness_cache_creation_input_tokens.value).toBe(2);
+    expect(complete.harness_reasoning_output_tokens.value).toBe(1);
     expect(complete.harness_cost_usd.value).toBe(0.25);
   });
 
@@ -165,6 +176,57 @@ describe("external harness runner", () => {
 
       expect(result._success).toBe(true);
       expect(result.verifierError).toBeDefined();
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS;
+      else process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS = previous;
+    }
+  });
+
+  it.each([
+    ["never resolves", () => new Promise<never>(() => {})],
+    ["rejects", () => Promise.reject(new Error("drain failed"))],
+  ])("treats drainStepObservations that %s as bounded best-effort evidence", async (_, drain) => {
+    const previous = process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS;
+    process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS = "25";
+    const finalObservation = { url: "https://example.com" } as never;
+    let trajectoryInput: Record<string, unknown> | undefined;
+    try {
+      const result = await runExternalHarnessTask({
+        harness: "codex",
+        plan,
+        logger: new EvalLogger(false),
+        toolAdapter: {
+          captureEvidence: async () => finalObservation,
+          drainStepObservations: drain,
+        },
+        verifier: {
+          v3: {} as never,
+          taskSpec: {
+            id: "wv-1",
+            instruction: plan.instruction,
+            precomputedRubric: {} as never,
+          },
+          dataset: "webvoyager",
+        },
+        resultContract: "structured_output",
+        fallbackErrorMessage: "missing result",
+        runSession: async () => ({
+          raw: { events: [] },
+          resultText: '{"success":true,"summary":"done","finalAnswer":"ok"}',
+          transcriptText: "",
+          status: "completed",
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          metrics: {},
+        }),
+        toTrajectory: (input) => {
+          trajectoryInput = input as unknown as Record<string, unknown>;
+          return {} as never;
+        },
+      });
+
+      expect(result._success).toBe(true);
+      expect(trajectoryInput?.finalObservation).toBe(finalObservation);
+      expect(trajectoryInput?.stepObservations).toBeUndefined();
     } finally {
       if (previous === undefined) delete process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS;
       else process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS = previous;

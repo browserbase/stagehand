@@ -19,7 +19,7 @@ import { getBrowseCliToolMetadata } from "./claudeCodeToolAdapter.js";
 import {
   formatBenchHarnessFlags,
   getBenchHarness,
-  listBenchHarnesses,
+  listBenchHarnessesForTaskKind,
 } from "./benchHarness.js";
 import {
   resolveOptionalStartupProfile,
@@ -214,12 +214,12 @@ export function generateBenchTestcases(
   if (!harnessImpl.supportedTaskKinds.includes("suite")) {
     plannedTasks = benchTasks.filter((task) => inferBenchTaskKind(task) !== "suite");
     if (plannedTasks.length === 0 && benchTasks.length > 0) {
+      const suiteHarnesses = listBenchHarnessesForTaskKind("suite");
+      const guidance = suiteHarnesses.length
+        ? `Re-run with ${formatBenchHarnessFlags(suiteHarnesses)}.`
+        : "No registered harness runs agent benchmark suites.";
       throw new EvalsError(
-        `Agent benchmark suites require an external harness. Re-run with ${formatBenchHarnessFlags(
-          listBenchHarnesses().filter((registeredHarness) =>
-            getBenchHarness(registeredHarness).supportedTaskKinds.includes("suite"),
-          ),
-        )}.`,
+        `Agent benchmark suites require an external harness. ${guidance}`,
       );
     }
   }

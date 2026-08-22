@@ -196,12 +196,15 @@ function normalizeCodexUsage(usage: CodexTokenUsage) {
   const cachedInputTokens = toFiniteNumber(usage.cached_input_tokens);
   const outputTokens = toFiniteNumber(usage.output_tokens);
   const reasoningOutputTokens = toFiniteNumber(usage.reasoning_output_tokens);
+  // OpenAI reports cached_input as a subset of input and reasoning_output as a
+  // subset of output. Anthropic reports cache creation/read outside input_tokens,
+  // which is why extractClaudeCodeTokenUsage adds those cache fields instead.
   return {
     inputTokens,
     cachedInputTokens,
     outputTokens,
     reasoningOutputTokens,
-    totalTokens: inputTokens + cachedInputTokens + outputTokens + reasoningOutputTokens,
+    totalTokens: inputTokens + outputTokens,
   };
 }
 

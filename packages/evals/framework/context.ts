@@ -21,6 +21,10 @@ import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
 import type { AgentBenchTaskContext, CoreTaskContext } from "./types.js";
 import { resolveStartupProfile } from "./harnesses/toolSurfaceResolution.js";
+import {
+  formatBenchHarnessFlags,
+  listBenchHarnessesForToolSurface,
+} from "./benchHarness.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -39,6 +43,8 @@ export function resolveDefaultCoreStartupProfile(
   environment: "LOCAL" | "BROWSERBASE",
 ): StartupProfile {
   rejectAgentMountOnlyCoreTool(toolSurface);
+  // Intentionally use the shared resolver for every core-runnable surface,
+  // including stagehand_code, so harnesses agree on startup defaults.
   return resolveStartupProfile(toolSurface, environment);
 }
 
@@ -49,8 +55,12 @@ export function resolveDefaultCoreStartupProfile(
  */
 export function rejectAgentMountOnlyCoreTool(toolSurface: ToolSurface): void {
   if (!isAgentMountOnlyToolSurface(toolSurface)) return;
+  const harnesses = listBenchHarnessesForToolSurface(toolSurface);
+  const guidance = harnesses.length
+    ? `Use ${formatBenchHarnessFlags(harnesses)} with --tool ${toolSurface}`
+    : "No registered harness mounts this surface";
   throw new EvalsError(
-    `Tool surface "${toolSurface}" is available only as an agent harness mount and cannot run under evals core. Use --harness claude_code or --harness codex with --tool ${toolSurface}, or choose one of: ${listCoreRunnableTools().join(", ")}.`,
+    `Tool surface "${toolSurface}" is available only as an agent harness mount and cannot run under evals core. ${guidance}, or choose one of: ${listCoreRunnableTools().join(", ")}.`,
   );
 }
 

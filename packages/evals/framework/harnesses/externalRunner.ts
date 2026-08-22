@@ -39,6 +39,8 @@ export interface ParsedEvalResult {
 
 /** Parse either supported external-harness self-report format. */
 export function parseEvalResult(raw: string): ParsedEvalResult {
+  // Intentionally accept both report shapes for every external harness so
+  // marker and structured-output runners share the same resilient parser.
   const marker = "EVAL_RESULT:";
   const markerIndex = raw.lastIndexOf(marker);
   const resultText = markerIndex >= 0 ? raw.slice(markerIndex + marker.length).trim() : raw.trim();
@@ -177,6 +179,7 @@ export async function runExternalHarnessTask<TRaw>({
   const errorMessage =
     parsed.summary ??
     outcome.stopReason ??
+    // Intentionally prefer SDK iteration failures across all harnesses.
     (iterationErrorMessage ||
       outcome.resultText ||
       outcome.transcriptText ||
@@ -199,13 +202,13 @@ export async function runExternalHarnessTask<TRaw>({
   };
   if (!verifier) return baseResult;
 
+  const evidenceTimeoutMs = readPositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000);
   const finalObservation = toolAdapter?.captureEvidence
-    ? await withTimeout(
-        toolAdapter.captureEvidence(),
-        readPositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000),
-      ).catch((): undefined => undefined)
+    ? await bestEffort(toolAdapter.captureEvidence(), evidenceTimeoutMs)
     : undefined;
-  const stepObservations = await toolAdapter?.drainStepObservations?.();
+  const stepObservations = toolAdapter?.drainStepObservations
+    ? await bestEffort(toolAdapter.drainStepObservations(), evidenceTimeoutMs)
+    : undefined;
   return gradeExternalTrajectory({
     buildTrajectory: () =>
       toTrajectory(
@@ -246,6 +249,12 @@ export function buildNormalizedHarnessMetrics(
     harness_total_tokens: metricValue(outcome.usage.totalTokens),
     ...(outcome.usage.cachedInputTokens !== undefined && {
       harness_cached_input_tokens: metricValue(outcome.usage.cachedInputTokens),
+    }),
+    ...(outcome.usage.cacheCreationInputTokens !== undefined && {
+      harness_cache_creation_input_tokens: metricValue(outcome.usage.cacheCreationInputTokens),
+    }),
+    ...(outcome.usage.reasoningOutputTokens !== undefined && {
+      harness_reasoning_output_tokens: metricValue(outcome.usage.reasoningOutputTokens),
     }),
     ...(outcome.costUsd !== undefined && {
       harness_cost_usd: metricValue(outcome.costUsd),
@@ -340,4 +349,8 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
       },
     );
   });
+}
+
+function bestEffort<T>(promise: Promise<T>, timeoutMs: number): Promise<T | undefined> {
+  return withTimeout(promise, timeoutMs).catch((): undefined => undefined);
 }

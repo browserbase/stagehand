@@ -1,5 +1,8 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
-import { listBenchHarnesses } from "../../framework/benchHarness.js";
+import {
+  listBenchHarnesses,
+  listBenchHarnessesForTaskKind,
+} from "../../framework/benchHarness.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -36,6 +39,7 @@ export function printHelp(): void {
 }
 
 export function printRunHelp(): void {
+  const suiteHarness = listBenchHarnessesForTaskKind("suite")[0];
   print([
     "",
     `  ${dustyCyanHeader("evals run")} ${dim("[target] [options]")}`,
@@ -104,7 +108,11 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run b:webvoyager -l 10`,
     `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
     `    ${dim("$")} evals run b:webtailbench -l 10`,
-    `    ${dim("$")} evals run b:webvoyager --harness claude_code --tool stagehand_code -l 3`,
+    ...(suiteHarness
+      ? [
+          `    ${dim("$")} evals run b:webvoyager --harness ${suiteHarness} --tool stagehand_code -l 3`,
+        ]
+      : []),
     "",
   ]);
 }

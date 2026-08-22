@@ -175,6 +175,14 @@ export async function runCommand(
     throw new Error(message);
   }
 
+  const hasCoreOnly = tasks.every((task) => task.tier === "core");
+  if (hasCoreOnly) {
+    const { rejectAgentMountOnlyCoreTool } = await import("../../framework/context.js");
+    rejectAgentMountOnlyCoreTool(
+      (options.coreToolSurface ?? "understudy_code") as ToolSurface,
+    );
+  }
+
   if (options.useApi && options.harness !== "stagehand" && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
       `Harness "${options.harness}" does not support --api. Use --harness stagehand for API-backed bench runs.`,
