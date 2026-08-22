@@ -93,7 +93,6 @@ describe("Mastra runner", () => {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
         cwd: "/tmp/mastra-test",
-        env: {},
         promptInstructions: "Use Stagehand.",
         mcpServers: { stagehand: { command: "node", args: ["server.mjs"] } },
         cleanup: async () => {},
@@ -130,6 +129,25 @@ describe("Mastra runner", () => {
     expect(result.mastraStatus).toBe("sdk_error");
     expect(result.harnessStopReason).toBeDefined();
     expect(String(result.error)).toContain("mastra failed");
+  });
+
+  it("does not accept success JSON emitted before an SDK error", async () => {
+    const sdk = fakeSdk([
+      {
+        type: "text-delta",
+        payload: { text: '{"success":true,"summary":"done","finalAnswer":"x"}' },
+      },
+      { type: "error", payload: { error: "boom" } },
+    ]);
+    const result = await runMastraAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+    expect(result._success).toBe(false);
+    expect(result.harnessStatus).toBe("sdk_error");
+    expect(String(result.error)).toContain("boom");
   });
 });
 

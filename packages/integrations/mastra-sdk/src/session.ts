@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   HarnessAdapterError,
   sanitizeErrorMessage,
@@ -58,6 +59,7 @@ export type MastraSessionConfig = {
   agentName?: string;
   modelSettings?: Record<string, unknown>;
   mcpTimeoutMs?: number;
+  disconnectTimeoutMs?: number;
 };
 
 export type MastraTokenUsage = {
@@ -134,6 +136,7 @@ export async function runMastraSession(input: {
   const sdk = input.sdk ?? (await loadMastraSdk());
   const events: MastraEvent[] = [];
   const maxSteps = positiveInteger(input.session.maxSteps, 50);
+  const disconnectTimeoutMs = positiveInteger(input.session.disconnectTimeoutMs, 30_000);
   const controller = new AbortController();
   const forwardAbort = (): void => controller.abort(input.signal?.reason);
   if (input.signal) {
@@ -161,21 +164,27 @@ export async function runMastraSession(input: {
         ]),
       );
       client = sdk.createMcpClient({
-        id: "stagehand-evals-mastra",
+        id: `stagehand-evals-mastra-${randomUUID()}`,
         servers,
         ...(positiveIntegerOrUndefined(input.session.mcpTimeoutMs) && {
           timeout: positiveIntegerOrUndefined(input.session.mcpTimeoutMs),
         }),
       });
-      const discovery = await client.listToolsWithErrors();
-      if (Object.keys(discovery.errors).length > 0) {
+      let discovery: { tools: Record<string, unknown>; errors: Record<string, string> } | undefined;
+      try {
+        discovery = await raceAbort(client.listToolsWithErrors(), controller.signal);
+      } catch (error) {
+        if (!controller.signal.aborted) throw error;
+        stopReason = sanitizeErrorMessage(stringifyError(controller.signal.reason) || "aborted");
+      }
+      if (discovery && Object.keys(discovery.errors).length > 0) {
         stopReason = sanitizeErrorMessage(
           `MCP server discovery failed: ${Object.entries(discovery.errors)
             .map(([server, error]) => `${server}: ${error}`)
             .join("; ")}`,
         );
         input.logger.warn({ category: "mastra", message: stopReason, level: 0 });
-      } else {
+      } else if (discovery) {
         mcpTools = discovery.tools;
       }
     }
@@ -251,11 +260,18 @@ export async function runMastraSession(input: {
     input.signal?.removeEventListener("abort", forwardAbort);
     if (client) {
       try {
-        await client.disconnect();
+        await withTimeout(
+          client.disconnect(),
+          disconnectTimeoutMs,
+          `Mastra MCP disconnect timed out after ${disconnectTimeoutMs}ms`,
+        );
       } catch (error) {
+        const detail = sanitizeErrorMessage(stringifyError(error));
         input.logger.warn({
           category: "mastra",
-          message: `Mastra MCP disconnect failed: ${sanitizeErrorMessage(stringifyError(error))}`,
+          message: detail.startsWith("Mastra MCP disconnect timed out")
+            ? detail
+            : `Mastra MCP disconnect failed: ${detail}`,
           level: 1,
         });
       }
@@ -348,33 +364,33 @@ export function summarizeMastraEvent(event: MastraEvent): {
   const toolName = typeof payload.toolName === "string" ? payload.toolName : "tool";
   if (type === "tool-call") {
     const args = safeJson(payload.args) ?? "{}";
-    return { message: `tool: ${toolName} ${clip(args, 500)}`, detail: args };
+    return sanitizeMastraSummary(`tool: ${toolName} ${clip(args, 500)}`, args);
   }
   if (type === "tool-result") {
     const text = flattenMcpResult(payload.result);
-    return { message: `tool result: ${toolName} ${clip(text, 500)}`, detail: text };
+    return sanitizeMastraSummary(`tool result: ${toolName} ${clip(text, 500)}`, text);
   }
   if (type === "tool-error") {
     const message = stringifyError(payload.error) || "tool error";
-    return { message: `tool error: ${toolName} ${clip(message, 500)}`, detail: message };
+    return sanitizeMastraSummary(`tool error: ${toolName} ${clip(message, 500)}`, message);
   }
   if (type === "text-delta" && typeof payload.text === "string") {
-    return { message: `assistant: ${clip(payload.text, 500)}`, detail: payload.text };
+    return sanitizeMastraSummary(`assistant: ${clip(payload.text, 500)}`, payload.text);
   }
   if (type === "reasoning-delta" && typeof payload.text === "string") {
-    return { message: `reasoning: ${clip(payload.text, 500)}`, detail: payload.text };
+    return sanitizeMastraSummary(`reasoning: ${clip(payload.text, 500)}`, payload.text);
   }
   if (type === "finish") {
     const stepResult = isRecord(payload.stepResult) ? payload.stepResult : undefined;
     const reason = String(stepResult?.reason ?? "unknown");
     const output = isRecord(payload.output) ? payload.output : undefined;
-    return { message: `finish: ${reason}`, detail: safeJson(output?.usage) };
+    return sanitizeMastraSummary(`finish: ${reason}`, safeJson(output?.usage));
   }
   if (type === "error") {
     const message = stringifyError(payload.error) || "error";
-    return { message: `error: ${clip(message, 500)}`, detail: message };
+    return sanitizeMastraSummary(`error: ${clip(message, 500)}`, message);
   }
-  return { message: `${type} event`, detail: safeJson(event) };
+  return sanitizeMastraSummary(`${type} event`, safeJson(event));
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -419,6 +435,54 @@ function positiveIntegerOrUndefined(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? Math.max(1, Math.floor(value))
     : undefined;
+}
+
+function sanitizeMastraSummary(
+  message: string,
+  detail?: string,
+): { message: string; detail?: string } {
+  return {
+    message: sanitizeErrorMessage(message),
+    ...(detail !== undefined && { detail: sanitizeErrorMessage(detail) }),
+  };
+}
+
+function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  void promise.catch((): undefined => undefined);
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = (): void => reject(signal.reason ?? new Error("aborted"));
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 function flattenMcpResult(value: unknown): string {

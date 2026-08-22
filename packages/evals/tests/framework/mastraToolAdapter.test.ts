@@ -115,6 +115,7 @@ describe("Mastra tool adapter", () => {
       startRuntime,
     });
     expect(adapter.cwd.startsWith(os.tmpdir())).toBe(true);
+    expect(adapter).not.toHaveProperty("env");
     await expect(fsp.access(adapter.cwd)).resolves.toBeUndefined();
     expect(adapter.mcpServers?.stagehand).toMatchObject({
       command: "node",
@@ -174,6 +175,31 @@ describe("Mastra tool adapter", () => {
     await adapter.cleanup();
     expect(cleanup).toHaveBeenCalledOnce();
     await expect(fsp.access(adapter.cwd)).rejects.toThrow();
+  });
+
+  it("removes the temporary workspace when runtime cleanup times out", async () => {
+    const previous = process.env.EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS;
+    process.env.EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS = "20";
+    try {
+      const adapter = await prepareMastraToolAdapter({
+        environment: "LOCAL",
+        plan,
+        logger: new EvalLogger(false),
+        startRuntime: fakeStartRuntime(
+          {
+            via: "mcp",
+            promptInstructions: "p",
+            mcpServers: { stagehand: { command: "node" } },
+          },
+          () => new Promise<void>(() => {}),
+        ),
+      });
+      await expect(adapter.cleanup()).resolves.toBeUndefined();
+      await expect(fsp.access(adapter.cwd)).rejects.toThrow();
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS;
+      else process.env.EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS = previous;
+    }
   });
 
   it("returns a structured error when the bridge port is closed", async () => {

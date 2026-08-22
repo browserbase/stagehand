@@ -76,7 +76,7 @@ export async function runMastraAgent({
     drainStepObservations: toolAdapter.drainStepObservations,
     observedToolMatcher: toolAdapter.observedToolMatcher,
   };
-  return runExternalHarnessTask({
+  const result = await runExternalHarnessTask({
     harness: "mastra",
     plan,
     logger,
@@ -101,7 +101,7 @@ export async function runMastraAgent({
       });
       return {
         raw: sessionResult,
-        resultText: sessionResult.finalText,
+        resultText: sessionResult.status === "sdk_error" ? "" : sessionResult.finalText,
         transcriptText: buildMastraTranscript(sessionResult.events),
         iterationError: sessionResult.iterationError,
         status: sessionResult.status,
@@ -136,6 +136,14 @@ export async function runMastraAgent({
         taskSpec,
       ),
   });
+  if (!verifier && result.harnessStatus === "sdk_error" && result._success === true) {
+    return {
+      ...result,
+      _success: false,
+      error: result.harnessStopReason ?? "Mastra did not report success",
+    };
+  }
+  return result;
 }
 
 function readMastraMaxSteps(): number {

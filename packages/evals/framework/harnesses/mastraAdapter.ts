@@ -4,6 +4,7 @@
  * call belongs to that step, while text after the last call is the final answer.
  */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { StepObservation } from "../observationRecorder.js";
 import {
   buildTrajectory,
@@ -78,14 +79,18 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
           payload.isError !== true &&
           rawRecord?.isError !== true &&
           !(rawRecord && rawRecord.ok === false);
-        pending.call.result = normalized.result;
+        pending.call.result =
+          typeof normalized.result === "string"
+            ? sanitizeErrorMessage(normalized.result)
+            : normalized.result;
         pending.call.ok = ok;
         pending.images = normalized.images;
         if (normalized.images.length > 0) pending.call.images = normalized.images;
         if (!ok) {
-          pending.call.error =
+          pending.call.error = sanitizeErrorMessage(
             normalized.text ||
-            (typeof rawRecord?.error === "string" ? rawRecord.error : stringifyError(rawResult));
+              (typeof rawRecord?.error === "string" ? rawRecord.error : stringifyError(rawResult)),
+          );
         }
         continue;
       }
@@ -93,7 +98,7 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
         const id = typeof payload.toolCallId === "string" ? payload.toolCallId : "";
         const pending = callsById.get(id);
         if (!pending) continue;
-        const message = stringifyError(payload.error) || "tool error";
+        const message = sanitizeErrorMessage(stringifyError(payload.error) || "tool error");
         pending.call.result = message;
         pending.call.ok = false;
         pending.call.error = message;
