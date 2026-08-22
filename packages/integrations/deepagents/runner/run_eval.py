@@ -12,6 +12,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from deepagents import create_deep_agent
+from deepagents._models import get_model_identifier, get_model_provider
+from deepagents.profiles import (
+    GeneralPurposeSubagentProfile,
+    HarnessProfile,
+    register_harness_profile,
+)
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
@@ -244,9 +251,56 @@ def print_line(event: Event) -> None:
     sys.stdout.flush()
 
 
-def _default_build_agent(config: RunnerConfig, tools: list[object]) -> object:
+_EXCLUDED_AGENT_TOOLS = frozenset(
+    {
+        "delete",
+        "edit_file",
+        "execute",
+        "glob",
+        "grep",
+        "ls",
+        "read_file",
+        "write_file",
+        "write_todos",
+    }
+)
+_REGISTERED_PROFILE_KEYS: set[str] = set()
+
+
+def _register_eval_harness_profile(model: str | BaseChatModel) -> None:
+    if isinstance(model, str):
+        profile_key = model
+    else:
+        identifier = get_model_identifier(model)
+        provider = get_model_provider(model)
+        if provider is None or identifier is None or ":" in identifier:
+            raise ValueError(
+                "pre-built test model must expose a provider and unqualified identifier"
+            )
+        profile_key = f"{provider}:{identifier}"
+    if profile_key in _REGISTERED_PROFILE_KEYS:
+        return
+    register_harness_profile(
+        profile_key,
+        HarnessProfile(
+            excluded_tools=_EXCLUDED_AGENT_TOOLS,
+            excluded_middleware=frozenset({"SummarizationMiddleware"}),
+            general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+        ),
+    )
+    _REGISTERED_PROFILE_KEYS.add(profile_key)
+
+
+def _default_build_agent(
+    config: RunnerConfig,
+    tools: list[object],
+    *,
+    model: BaseChatModel | None = None,
+) -> object:
+    resolved_model: str | BaseChatModel = model or config.model
+    _register_eval_harness_profile(resolved_model)
     return create_deep_agent(
-        model=config.model,
+        model=resolved_model,
         tools=tools,
         system_prompt=config.system_prompt,
     )
@@ -261,6 +315,7 @@ async def run(
     last_text = ""
     usages: list[Mapping[str, object] | None] = []
     tool_result_count = 0
+    emitted_message_ids: set[tuple[str, str]] = set()
 
     def emit_event(event: Event) -> None:
         emit({**event, "ts": time.time()})
@@ -301,6 +356,17 @@ async def run(
                     if not isinstance(update, dict) or not isinstance(update.get("messages"), list):
                         continue
                     for message in update["messages"]:
+                        message_key: tuple[str, str] | None = None
+                        if isinstance(message, AIMessage) and message.id:
+                            message_key = ("assistant", message.id)
+                        elif isinstance(message, ToolMessage):
+                            identifier = message.id or message.tool_call_id
+                            if identifier:
+                                message_key = ("tool", identifier)
+                        if message_key is not None:
+                            if message_key in emitted_message_ids:
+                                continue
+                            emitted_message_ids.add(message_key)
                         if isinstance(message, AIMessage):
                             last_text = flatten_text(message.content)
                             usages.append(message.usage_metadata)

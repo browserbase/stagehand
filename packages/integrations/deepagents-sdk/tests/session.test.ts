@@ -2,6 +2,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildDeepagentsRunnerArgs,
+  buildDeepagentsTranscript,
   normalizeDeepagentsModel,
   runDeepagentsSession,
   type DeepagentsProcessSpawner,
@@ -11,7 +12,9 @@ const logger = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
 function fakeSpawner(options: {
   lines?: string[];
-  code?: number;
+  stderrLines?: string[];
+  code?: number | null;
+  signal?: NodeJS.Signals | null;
   onKill?: (signal?: NodeJS.Signals) => void;
 }) {
   let capturedSpec: Parameters<DeepagentsProcessSpawner>[0] | undefined;
@@ -31,8 +34,12 @@ function fakeSpawner(options: {
     queueMicrotask(() => {
       for (const line of options.lines ?? []) stdout.write(`${line}\n`);
       stdout.end();
+      for (const line of options.stderrLines ?? []) stderr.write(`${line}\n`);
       stderr.end();
-      resolveExit({ code: options.code ?? 0, signal: null });
+      resolveExit({
+        code: options.code === undefined ? 0 : options.code,
+        signal: options.signal ?? null,
+      });
     });
     return {
       stdin: input,
@@ -103,7 +110,11 @@ describe("Deep Agents session", () => {
 
   it("maps recursion errors to max_turns", async () => {
     const fake = fakeSpawner({
-      lines: [JSON.stringify({ type: "error", kind: "recursion_limit", message: "limit hit" })],
+      lines: [
+        JSON.stringify({ type: "error", kind: "recursion_limit", message: "limit hit" }),
+        JSON.stringify({ type: "final", text: "" }),
+        JSON.stringify({ type: "usage" }),
+      ],
     });
     const result = await runDeepagentsSession({
       prompt: "task",
@@ -114,6 +125,24 @@ describe("Deep Agents session", () => {
     });
     expect(result.status).toBe("max_turns");
     expect(result.stopReason).toBe("limit hit");
+  });
+
+  it("maps tool-step budget errors to max_turns", async () => {
+    const fake = fakeSpawner({
+      lines: [
+        JSON.stringify({ type: "error", kind: "tool_step_budget", message: "budget hit" }),
+        JSON.stringify({ type: "final", text: "" }),
+        JSON.stringify({ type: "usage" }),
+      ],
+    });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: {},
+    });
+    expect(result.status).toBe("max_turns");
   });
 
   it("reports a non-zero exit without an error event", async () => {
@@ -127,6 +156,19 @@ describe("Deep Agents session", () => {
     });
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toContain("exited with code 1");
+  });
+
+  it("reports signal termination as an SDK error", async () => {
+    const fake = fakeSpawner({ code: null, signal: "SIGTERM" });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: {},
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("SIGTERM");
   });
 
   it("redacts secrets in event errors", async () => {
@@ -176,7 +218,11 @@ describe("Deep Agents session", () => {
 
   it("ignores non-JSON stdout lines", async () => {
     const fake = fakeSpawner({
-      lines: ["debug output", JSON.stringify({ type: "final", text: "ok" })],
+      lines: [
+        "debug output",
+        JSON.stringify({ type: "final", text: "ok" }),
+        JSON.stringify({ type: "usage" }),
+      ],
     });
     const result = await runDeepagentsSession({
       prompt: "task",
@@ -185,7 +231,89 @@ describe("Deep Agents session", () => {
       spawn: fake.spawn,
       session: {},
     });
-    expect(result.events).toHaveLength(1);
+    expect(result.events).toHaveLength(2);
     expect(result.finalMessage).toBe("ok");
+  });
+
+  it("redacts stderr, non-JSON stdout, and assistant event logs", async () => {
+    logger.log.mockClear();
+    const secret = "sk-abcdef1234567890";
+    const fake = fakeSpawner({
+      lines: [
+        `debug ${secret}`,
+        JSON.stringify({ type: "assistant", text: `assistant ${secret}` }),
+        JSON.stringify({ type: "final", text: "ok" }),
+        JSON.stringify({ type: "usage" }),
+      ],
+      stderrLines: [`stderr ${secret}`],
+    });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: {},
+    });
+    const logged = JSON.stringify(logger.log.mock.calls);
+    expect(logged).toContain("[redacted]");
+    expect(logged).not.toContain(secret);
+    expect(buildDeepagentsTranscript(result.events)).not.toContain(secret);
+    expect(result.status).toBe("completed");
+  });
+
+  it("rejects truncated terminal output even when the runner exits zero", async () => {
+    const fake = fakeSpawner({ lines: ['{"type":"final","te'] });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: {},
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toMatch(/terminal|truncated/);
+  });
+
+  it("escalates an ignored abort and bounds stream draining", async () => {
+    const controller = new AbortController();
+    const kills: NodeJS.Signals[] = [];
+    const spawn: DeepagentsProcessSpawner = () => {
+      const stdin = new PassThrough();
+      const stdout = new PassThrough();
+      const stderr = new PassThrough();
+      stdout.end();
+      let resolveExit!: (value: {
+        code: number | null;
+        signal: NodeJS.Signals | null;
+      }) => void;
+      const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+        (resolve) => {
+          resolveExit = resolve;
+        },
+      );
+      return {
+        stdin,
+        stdout,
+        stderr,
+        exited,
+        kill: (signal = "SIGTERM") => {
+          kills.push(signal);
+          if (signal === "SIGKILL") resolveExit({ code: null, signal });
+        },
+      };
+    };
+    const resultPromise = runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      signal: controller.signal,
+      spawn,
+      session: { killGraceMs: 10, streamDrainMs: 10 },
+    });
+    controller.abort();
+    const result = await resultPromise;
+    expect(kills).toEqual(["SIGTERM", "SIGKILL"]);
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("SIGKILL");
   });
 });

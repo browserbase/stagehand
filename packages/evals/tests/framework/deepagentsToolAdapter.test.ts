@@ -1,24 +1,12 @@
-import fsp from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   DEEPAGENTS_TOOL_SURFACES,
   normalizeDeepagentsMcpServers,
-  writeDeepagentsMcpConfig,
 } from "../../framework/deepagentsToolAdapter.js";
 import {
   resolveStartupProfile,
   resolveToolSurface,
 } from "../../framework/harnesses/toolSurfaceResolution.js";
-
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories.splice(0).map((dir) => fsp.rm(dir, { recursive: true, force: true })),
-  );
-});
 
 describe("Deep Agents tool adapter helpers", () => {
   it("resolves supported surfaces and startup profiles", () => {
@@ -58,14 +46,5 @@ describe("Deep Agents tool adapter helpers", () => {
     expect(() => normalizeDeepagentsMcpServers({ broken: { args: [] } })).toThrow(
       /server "broken".*command/,
     );
-  });
-
-  it("writes a Deep Agents MCP config", async () => {
-    const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "deepagents-config-test-"));
-    temporaryDirectories.push(dir);
-    const servers = { stagehand: { command: "node", args: ["server.js"] } };
-    const configPath = await writeDeepagentsMcpConfig(dir, servers);
-    expect(configPath).toBe(path.join(dir, "deepagents.mcp.json"));
-    expect(JSON.parse(await fsp.readFile(configPath, "utf8"))).toEqual({ mcpServers: servers });
   });
 });

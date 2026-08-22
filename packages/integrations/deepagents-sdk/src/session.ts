@@ -25,6 +25,8 @@ export type DeepagentsSessionConfig = {
   systemPrompt?: string;
   recursionLimit?: number;
   maxToolSteps?: number;
+  killGraceMs?: number;
+  streamDrainMs?: number;
 };
 
 export type DeepagentsTokenUsage = {
@@ -61,14 +63,16 @@ export type DeepagentsProcessSpawner = (spec: {
 }) => DeepagentsProcessHandle;
 
 export const spawnDeepagentsProcess: DeepagentsProcessSpawner = (spec) => {
+  const detached = process.platform !== "win32";
   const child = spawn(spec.command, spec.args, {
     cwd: spec.cwd,
     env: spec.env,
     stdio: ["pipe", "pipe", "pipe"],
+    detached,
   });
   const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
     (resolve, reject) => {
-      child.once("close", (code, signal) => resolve({ code, signal }));
+      child.once("exit", (code, signal) => resolve({ code, signal }));
       child.once("error", (error) => {
         const message =
           (error as NodeJS.ErrnoException).code === "ENOENT"
@@ -83,7 +87,17 @@ export const spawnDeepagentsProcess: DeepagentsProcessSpawner = (spec) => {
     stdout: child.stdout,
     stderr: child.stderr,
     exited,
-    kill: (signalName) => void child.kill(signalName),
+    kill: (signalName) => {
+      if (detached && child.pid !== undefined) {
+        try {
+          process.kill(-child.pid, signalName);
+          return;
+        } catch {
+          // Fall back to the direct child if process-group signaling fails.
+        }
+      }
+      void child.kill(signalName);
+    },
   };
 };
 
@@ -123,8 +137,33 @@ export async function runDeepagentsSession(input: {
   let tokenUsage = extractDeepagentsTokenUsage(undefined);
   let iterationError: unknown;
   let exitCode: number | null = null;
+  let exitSignal: NodeJS.Signals | null = null;
+  let sawFinal = false;
+  let sawUsage = false;
   let handle: DeepagentsProcessHandle | undefined;
-  const forwardAbort = (): void => handle?.kill("SIGTERM");
+  let processExited = false;
+  let killTimer: ReturnType<typeof setTimeout> | undefined;
+  let stdoutTask: Promise<void> | undefined;
+  let stderrTask: Promise<void> | undefined;
+  const killGraceMs = positiveInteger(input.session.killGraceMs, 5_000);
+  const streamDrainMs = positiveInteger(input.session.streamDrainMs, killGraceMs);
+  const sendSignal = (signal: NodeJS.Signals): void => {
+    try {
+      handle?.kill(signal);
+    } catch {
+      // best-effort only
+    }
+  };
+  const beginTermination = (): void => {
+    if (!handle || processExited) return;
+    sendSignal("SIGTERM");
+    if (killTimer === undefined) {
+      killTimer = setTimeout(() => {
+        if (!processExited) sendSignal("SIGKILL");
+      }, killGraceMs);
+    }
+  };
+  const forwardAbort = (): void => beginTermination();
 
   try {
     const runnerDir = resolveDeepagentsRunnerDir(input.session.runnerDir);
@@ -156,8 +195,18 @@ export async function runDeepagentsSession(input: {
       }),
     );
 
-    const stderrTask = readStderr(handle.stderr, input.logger);
-    const stdoutTask = (async () => {
+    const exitedTask = handle.exited.then(
+      (result) => {
+        processExited = true;
+        return result;
+      },
+      (error: unknown) => {
+        processExited = true;
+        throw error;
+      },
+    );
+    stderrTask = readStderr(handle.stderr, input.logger);
+    stdoutTask = (async () => {
       const lines = createInterface({ input: handle!.stdout, crlfDelay: Infinity });
       for await (const line of lines) {
         let event: DeepagentsEvent;
@@ -168,15 +217,21 @@ export async function runDeepagentsSession(input: {
         } catch {
           input.logger.log({
             category: "deepagents",
-            message: `non-JSON stdout: ${clip(line, 500)}`,
+            message: sanitizeErrorMessage(`non-JSON stdout: ${clip(line, 500)}`),
             level: 1,
           });
           continue;
         }
         events.push(event);
         logDeepagentsEvent(input.logger, event);
-        if (event.type === "final" && typeof event.text === "string") finalMessage = event.text;
-        if (event.type === "usage") tokenUsage = extractDeepagentsTokenUsage(event);
+        if (event.type === "final") {
+          sawFinal = true;
+          if (typeof event.text === "string") finalMessage = event.text;
+        }
+        if (event.type === "usage") {
+          sawUsage = true;
+          tokenUsage = extractDeepagentsTokenUsage(event);
+        }
         if (event.type === "error") {
           errorKind = typeof event.kind === "string" ? event.kind : "exception";
           stopReason = typeof event.message === "string" ? event.message : "deepagents error";
@@ -189,19 +244,34 @@ export async function runDeepagentsSession(input: {
         }
       }
     })();
-    const [exited] = await Promise.all([handle.exited, stdoutTask, stderrTask]);
+    const exited = await Promise.race([
+      exitedTask,
+      rejectOnFailure(stdoutTask),
+      rejectOnFailure(stderrTask),
+    ]);
     exitCode = exited.code;
-    if (exitCode !== 0 && !stopReason) {
-      stopReason = `deepagents runner exited with code ${exitCode ?? "null"}`;
+    exitSignal = exited.signal;
+    await drainStreams(handle, [stdoutTask, stderrTask], streamDrainMs);
+    if (exitCode === null && !stopReason) {
+      stopReason = exitSignal
+        ? `deepagents runner terminated by ${exitSignal}`
+        : "deepagents runner exited without an exit code";
+    } else if (exitCode !== 0 && !stopReason) {
+      stopReason = `deepagents runner exited with code ${exitCode}`;
+    }
+    if (exitCode === 0 && (!sawFinal || !sawUsage) && !stopReason) {
+      stopReason =
+        "deepagents runner exited without a terminal final/usage event (output truncated?)";
     }
   } catch (error) {
     iterationError = error;
     stopReason = sanitizeErrorMessage(stringifyError(error));
-    try {
-      handle?.kill("SIGTERM");
-    } catch {
-      // best-effort only
+    beginTermination();
+    if (handle && !processExited) {
+      await waitForExit(handle.exited, killGraceMs);
+      if (!processExited) sendSignal("SIGKILL");
     }
+    if (handle) await drainStreams(handle, [stdoutTask, stderrTask], streamDrainMs);
     input.logger.warn({
       category: "deepagents",
       message: `Deep Agents stopped before a normal result: ${stopReason}`,
@@ -209,6 +279,7 @@ export async function runDeepagentsSession(input: {
       auxiliary: { error: { value: stopReason, type: "string" } },
     });
   } finally {
+    if (killTimer !== undefined) clearTimeout(killTimer);
     input.signal?.removeEventListener("abort", forwardAbort);
   }
 
@@ -216,7 +287,13 @@ export async function runDeepagentsSession(input: {
   return {
     events,
     finalMessage,
-    status: resolveDeepagentsStatus(errorKind, exitCode, iterationError),
+    status: resolveDeepagentsStatus({
+      errorKind,
+      exitCode,
+      signal: exitSignal,
+      iterationError,
+      sawTerminalEvents: sawFinal && sawUsage,
+    }),
     ...(sanitizedReason && { stopReason: sanitizedReason }),
     tokenUsage,
     exitCode,
@@ -235,17 +312,29 @@ function inheritedEnv(): Record<string, string> {
 async function readStderr(stream: NodeJS.ReadableStream, logger: HarnessLogger): Promise<void> {
   const lines = createInterface({ input: stream, crlfDelay: Infinity });
   for await (const line of lines) {
-    logger.log({ category: "deepagents", message: line, level: 1 });
+    logger.log({ category: "deepagents", message: sanitizeErrorMessage(line), level: 1 });
   }
 }
 
-export function resolveDeepagentsStatus(
-  errorKind: string | undefined,
-  exitCode: number | null,
-  iterationError?: unknown,
-): "completed" | "max_turns" | "sdk_error" {
-  if (errorKind === "recursion_limit") return "max_turns";
-  if (errorKind || iterationError || (exitCode !== null && exitCode !== 0)) return "sdk_error";
+export function resolveDeepagentsStatus(options: {
+  errorKind?: string;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  iterationError?: unknown;
+  sawTerminalEvents: boolean;
+}): "completed" | "max_turns" | "sdk_error" {
+  if (
+    options.iterationError ||
+    options.exitCode !== 0 ||
+    options.signal !== null ||
+    !options.sawTerminalEvents
+  ) {
+    return "sdk_error";
+  }
+  if (options.errorKind === "recursion_limit" || options.errorKind === "tool_step_budget") {
+    return "max_turns";
+  }
+  if (options.errorKind) return "sdk_error";
   return "completed";
 }
 
@@ -265,6 +354,7 @@ export function buildDeepagentsTranscript(events: DeepagentsEvent[]): string {
   return events
     .map((event) => summarizeDeepagentsEvent(event).detail)
     .filter((detail): detail is string => Boolean(detail))
+    .map((detail) => sanitizeErrorMessage(detail))
     .join("\n");
 }
 
@@ -272,13 +362,64 @@ export function logDeepagentsEvent(logger: HarnessLogger, event: DeepagentsEvent
   const summary = summarizeDeepagentsEvent(event);
   logger.log({
     category: "deepagents",
-    message: summary.message,
+    message: sanitizeErrorMessage(summary.message),
     level: 1,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
-      ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
+      ...(summary.detail && {
+        detail: { value: sanitizeErrorMessage(summary.detail), type: "string" },
+      }),
     },
   });
+}
+
+function rejectOnFailure(task: Promise<void>): Promise<never> {
+  return task.then(
+    () => new Promise<never>(() => undefined),
+    (error: unknown) => Promise.reject(error),
+  );
+}
+
+async function drainStreams(
+  handle: DeepagentsProcessHandle,
+  tasks: Array<Promise<void> | undefined>,
+  timeoutMs: number,
+): Promise<void> {
+  const active = tasks.filter((task): task is Promise<void> => task !== undefined);
+  if (active.length === 0) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const drained = Promise.allSettled(active);
+  const timedOut = await Promise.race([
+    drained.then(() => false),
+    new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(true), timeoutMs);
+    }),
+  ]);
+  if (timer !== undefined) clearTimeout(timer);
+  if (!timedOut) return;
+  destroyStream(handle.stdout);
+  destroyStream(handle.stderr);
+}
+
+function destroyStream(stream: NodeJS.ReadableStream): void {
+  (stream as NodeJS.ReadableStream & { destroy?: () => void }).destroy?.();
+}
+
+async function waitForExit(
+  exited: Promise<{ code: number | null; signal: NodeJS.Signals | null }>,
+  timeoutMs: number,
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    exited.then(
+      () => undefined,
+      () => undefined,
+    ),
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, timeoutMs);
+    }),
+  ]);
+  if (timer !== undefined) clearTimeout(timer);
 }
 
 export function summarizeDeepagentsEvent(event: DeepagentsEvent): {

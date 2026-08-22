@@ -26,7 +26,6 @@ export interface PreparedDeepagentsToolAdapter {
   env: Record<string, string>;
   promptInstructions: string;
   mcpServers: Record<string, DeepagentsMcpServerConfig>;
-  configPath: string;
   captureEvidence?: () => Promise<ProbeEvidence>;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
@@ -70,15 +69,6 @@ export function normalizeDeepagentsMcpServers(
   return normalized;
 }
 
-export async function writeDeepagentsMcpConfig(
-  dir: string,
-  servers: Record<string, DeepagentsMcpServerConfig>,
-): Promise<string> {
-  const configPath = path.join(dir, "deepagents.mcp.json");
-  await fsp.writeFile(configPath, `${JSON.stringify({ mcpServers: servers }, null, 2)}\n`);
-  return configPath;
-}
-
 export async function prepareDeepagentsToolAdapter(
   input: DeepagentsToolAdapterInput,
 ): Promise<PreparedDeepagentsToolAdapter> {
@@ -119,7 +109,6 @@ export async function prepareDeepagentsToolAdapter(
       path.join(os.tmpdir(), `stagehand-evals-deepagents-${toolSurface.replace(/_/g, "-")}-`),
     );
     const capturedCwd = cwd;
-    const configPath = await writeDeepagentsMcpConfig(cwd, mcpServers);
     const serverNames = Object.keys(mcpServers);
     let cleanupPromise: Promise<void> | undefined;
 
@@ -140,7 +129,6 @@ export async function prepareDeepagentsToolAdapter(
       env: { ...process.env } as Record<string, string>,
       promptInstructions: mount.promptInstructions,
       mcpServers,
-      configPath,
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),
@@ -155,11 +143,15 @@ export async function prepareDeepagentsToolAdapter(
       cleanup: async () => {
         cleanupPromise ??= (async () => {
           try {
-            await runtime.cleanup();
+            await withCaptureTimeout(
+              runtime.cleanup(),
+              readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
+            );
           } catch {
             // best-effort only
+          } finally {
+            await fsp.rm(capturedCwd, { recursive: true, force: true });
           }
-          await fsp.rm(capturedCwd, { recursive: true, force: true });
         })();
         await cleanupPromise;
       },
