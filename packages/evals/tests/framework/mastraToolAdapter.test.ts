@@ -1,0 +1,210 @@
+import fsp from "node:fs/promises";
+import os from "node:os";
+import { describe, expect, it, vi } from "vitest";
+import type { MastraSdk } from "@browserbasehq/stagehand-integrations-mastra-sdk";
+import type { AgentMount, ToolStartResult } from "../../core/contracts/tool.js";
+import { AGENT_RUN_TOOL_NAME } from "../../core/contracts/tool.js";
+import type { startAgentToolRuntime } from "../../framework/agentToolRuntime.js";
+import {
+  buildMastraMcpServers,
+  executeViaCodeBridge,
+  MASTRA_RUN_TOOL_NAME,
+  mastraToolNameMatcher,
+  prepareMastraToolAdapter,
+  resolveMastraStartupProfile,
+  resolveMastraToolSurface,
+} from "../../framework/mastraToolAdapter.js";
+import { EvalLogger } from "../../logger.js";
+
+const plan = {
+  dataset: "webvoyager" as const,
+  taskId: "wv-1",
+  startUrl: "https://example.com",
+  instruction: "Do it",
+};
+
+describe("Mastra tool adapter", () => {
+  it("resolves supported surfaces and rejects unsupported ones", () => {
+    expect(resolveMastraToolSurface()).toBe("stagehand_facade");
+    for (const surface of [
+      "stagehand_facade",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+      "stagehand_code",
+      "playwright_code",
+      "cdp_code",
+    ] as const) {
+      expect(resolveMastraToolSurface(surface)).toBe(surface);
+    }
+    expect(() => resolveMastraToolSurface("browse_cli")).toThrow(/Mastra harness supports/);
+    expect(() => resolveMastraToolSurface("understudy_code")).toThrow(/received/);
+  });
+
+  it("resolves startup profiles for each surface and environment", () => {
+    for (const surface of ["stagehand_facade", "stagehand_code"] as const) {
+      expect(resolveMastraStartupProfile(surface, "LOCAL")).toBe("tool_launch_local");
+      expect(resolveMastraStartupProfile(surface, "BROWSERBASE")).toBe("tool_create_browserbase");
+    }
+    for (const surface of [
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+      "playwright_code",
+      "cdp_code",
+    ] as const) {
+      expect(resolveMastraStartupProfile(surface, "LOCAL")).toBe("runner_provided_local_cdp");
+      expect(resolveMastraStartupProfile(surface, "BROWSERBASE")).toBe(
+        "runner_provided_browserbase_cdp",
+      );
+    }
+  });
+
+  it("maps stdio MCP definitions and rejects non-stdio definitions", () => {
+    expect(
+      buildMastraMcpServers(
+        { stagehand: { command: "node", args: ["server.mjs"], env: { A: "1" } } },
+        "/tmp/work",
+      ),
+    ).toEqual({
+      stagehand: {
+        command: "node",
+        args: ["server.mjs"],
+        env: { A: "1" },
+        cwd: "/tmp/work",
+      },
+    });
+    expect(() =>
+      buildMastraMcpServers({ remote: { url: "https://example.com/mcp" } }, "/tmp/work"),
+    ).toThrow(/remote.*stdio/);
+    expect(() => buildMastraMcpServers({ broken: {} }, "/tmp/work")).toThrow(/broken.*command/);
+  });
+
+  it("matches Mastra's server-prefixed tool names", () => {
+    const matcher = mastraToolNameMatcher(["stagehand", "playwright"]);
+    expect(matcher("stagehand_run")).toBe(true);
+    expect(matcher("playwright_click")).toBe(true);
+    expect(matcher("other_tool")).toBe(false);
+  });
+
+  it("prepares an MCP mount, records observations, and cleans up idempotently", async () => {
+    const cleanup = vi.fn(async () => {});
+    const startRuntime = fakeStartRuntime(
+      {
+        via: "mcp",
+        promptInstructions: "p",
+        mcpServers: {
+          stagehand: { command: "node", args: ["s.mjs"], env: { A: "1" } },
+        },
+      },
+      cleanup,
+      async () => ({ url: "https://x" }),
+    );
+    const adapter = await prepareMastraToolAdapter({
+      environment: "LOCAL",
+      plan,
+      logger: new EvalLogger(false),
+      startRuntime,
+    });
+    expect(adapter.cwd.startsWith(os.tmpdir())).toBe(true);
+    await expect(fsp.access(adapter.cwd)).resolves.toBeUndefined();
+    expect(adapter.mcpServers?.stagehand).toMatchObject({
+      command: "node",
+      args: ["s.mjs"],
+      env: { A: "1" },
+      cwd: adapter.cwd,
+    });
+    adapter.onToolResult?.("other_tool");
+    adapter.onToolResult?.("stagehand_run");
+    expect(await adapter.drainStepObservations?.()).toHaveLength(1);
+    await adapter.cleanup();
+    await adapter.cleanup();
+    expect(cleanup).toHaveBeenCalledOnce();
+    await expect(fsp.access(adapter.cwd)).rejects.toThrow();
+  });
+
+  it("creates an in-process code tool backed by the real bridge", async () => {
+    const cleanup = vi.fn(async () => {});
+    const sdk: MastraSdk = {
+      createAgent: () => {
+        throw new Error("unused");
+      },
+      createMcpClient: () => {
+        throw new Error("unused");
+      },
+      createTool: (options: Parameters<MastraSdk["createTool"]>[0]) => options,
+    };
+    const adapter = await prepareMastraToolAdapter({
+      toolSurface: "stagehand_code",
+      environment: "LOCAL",
+      plan,
+      logger: new EvalLogger(false),
+      sdk,
+      startRuntime: fakeStartRuntime(
+        {
+          via: "handles",
+          promptInstructions: `Call ${AGENT_RUN_TOOL_NAME}.`,
+          handles: { marker: 42 },
+          runTool: {
+            description: "Run browser code",
+            codeParamDescription: "JavaScript",
+            denyMessage: "denied",
+          },
+        },
+        cleanup,
+      ),
+    });
+    const tool = adapter.tools?.[MASTRA_RUN_TOOL_NAME];
+    expect(tool).toBeDefined();
+    expect(adapter.promptInstructions).not.toContain(AGENT_RUN_TOOL_NAME);
+    expect(adapter.promptInstructions).toContain(MASTRA_RUN_TOOL_NAME);
+    const execute = readExecute(tool);
+    await expect(execute({ code: "return marker" }, {})).resolves.toEqual({
+      ok: true,
+      result: "42",
+    });
+    await adapter.cleanup();
+    expect(cleanup).toHaveBeenCalledOnce();
+    await expect(fsp.access(adapter.cwd)).rejects.toThrow();
+  });
+
+  it("returns a structured error when the bridge port is closed", async () => {
+    await expect(executeViaCodeBridge(1, "return 1")).resolves.toMatchObject({
+      ok: false,
+      error: expect.any(String),
+    });
+  });
+});
+
+function fakeStartRuntime(
+  agentMount: AgentMount,
+  cleanup: () => Promise<void>,
+  captureEvidence?: ToolStartResult["captureEvidence"],
+): typeof startAgentToolRuntime {
+  return (async () => ({
+    running: {
+      session: {},
+      agentMount,
+      captureEvidence,
+      cleanup: async () => {},
+      metadata: {
+        environment: "LOCAL",
+        browserOwnership: "tool",
+        connectionMode: "launch",
+      },
+    },
+    cleanup,
+  })) as unknown as typeof startAgentToolRuntime;
+}
+
+function readExecute(
+  value: unknown,
+): (input: Record<string, unknown>, context: Record<string, unknown>) => Promise<unknown> {
+  if (!value || typeof value !== "object" || !("execute" in value)) {
+    throw new Error("tool execute missing");
+  }
+  const execute = value.execute;
+  if (typeof execute !== "function") throw new Error("tool execute invalid");
+  return execute as (
+    input: Record<string, unknown>,
+    context: Record<string, unknown>,
+  ) => Promise<unknown>;
+}
