@@ -1,0 +1,114 @@
+---
+title: "Build a Browser Agent with Eve"
+sidebarTitle: "Browser Agent with Eve"
+description: "Multi-step Stagehand browser task on stagehand.dev using Eve with native in-process tools."
+---
+
+**Goal:** Drive [stagehand.dev](https://stagehand.dev) with an [Eve](https://vercel.com/eve) agent that binds Stagehand's `run`, `snapshot`, and `screenshot` tools in-process — no MCP bridge.
+
+**Outcome:** At Eve's prompt, a multi-step instruction opens the site, extracts the value proposition, clicks Evals, and reports what it found, all on one durable browser session.
+
+## Agent brief
+
+Give this section to your coding agent as the implementation brief. It should adapt the agent definition and task rather than scaffold a separate app.
+
+```text
+Build an Eve + Stagehand browser agent.
+
+Stack: Node.js 24+, pnpm, eve with TypeScript tools,
+Stagehand Eve integration (packages/integrations/eve).
+Browser: local Chrome by default; STAGEHAND_BROWSER=browserbase plus
+BROWSERBASE_API_KEY switches to cloud with keep-alive sessions.
+
+Architecture rules:
+- Define the agent with defineAgent({ model }) only — Stagehand tools
+  are bound in-process by the integration. Do NOT wire an MCP bridge.
+- One Eve world process owns ONE shared browser; page state, auth, and
+  tabs persist across prompts within that session.
+- On Browserbase, persist the keep-alive session id so Eve can reattach
+  after restarts. Tool errors must not reset a healthy browser.
+- Task must chain tools (navigate → extract → click → summarize).
+
+Task: open stagehand.dev, extract the value proposition, click Evals,
+summarize the Evals page.
+
+Verify: run uses snapshot/run across multiple steps on one session;
+restarting Eve reattaches instead of launching a new browser.
+```
+
+<Note>
+  This is a cookbook-shaped recipe. For clone-and-run wiring, see the [Eve integration](/v4/integrations/eve). Stagehand ships this experimental adapter from the monorepo.
+</Note>
+
+## Stack
+
+- Node.js 24+ and pnpm
+- Eve (`eve`) with TypeScript tools and Markdown instructions
+- Stagehand Eve integration (`packages/integrations/eve`)
+- `OPENAI_API_KEY` (or another Eve-supported provider key)
+- Local Chrome or `BROWSERBASE_API_KEY` for the browser
+
+## Full recipe
+
+Agent definition (model only — Stagehand tools are bound by the integration):
+
+```typescript
+import { openai } from "@ai-sdk/openai";
+import { defineAgent } from "eve";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+export default defineAgent({
+  model: openai(process.env.EVE_STAGEHAND_MODEL ?? "gpt-5.6-luna"),
+});
+```
+
+Start Eve from the Stagehand monorepo after building integrations:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+# Optional: cloud browser with keep-alive session
+# export STAGEHAND_BROWSER="browserbase"
+# export BROWSERBASE_API_KEY="your-browserbase-api-key"
+
+pnpm --dir packages/integrations/eve dev
+```
+
+At the `>` prompt, run a multi-step stagehand.dev task:
+
+```text
+Open https://stagehand.dev. Extract the value proposition from the homepage.
+Click the Evals button. Summarize what a visitor can do on the Evals page.
+```
+
+Eve should use `run` / `snapshot` across steps and keep the same browser for the whole turn.
+
+## Walkthrough
+
+1. **Native tools** — Unlike the AI SDK MCP path, Eve binds Stagehand tools in-process. Same contract (`run`, `snapshot`, `screenshot`), no stdio child for the facade.
+2. **One browser per world** — One Eve world process owns one shared browser. Page state, auth, and tabs persist across prompts in that session.
+3. **Multi-step instruction** — Ask for extract → click → summarize so the agent chains tools on stagehand.dev instead of answering from memory.
+4. **Browserbase keep-alive** — On Browserbase, the example can persist a session ID and reattach after restart. Tool errors do not reset a healthy browser.
+
+<Warning>
+  A Browserbase keep-alive session can continue billing until Eve reattaches it, you release it, or the project timeout ends it. `run` executes model-authored JavaScript — review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+## Check your work
+
+- No MCP client appears in the setup — tools bind in-process.
+- One browser serves the whole multi-prompt session; state persists between prompts.
+- Restarting Eve with Browserbase reattaches the persisted session instead of launching a new one.
+- A failing tool call does not reset the browser.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Eve integration" href="/v4/integrations/eve">
+    Prerequisites, env vars, and session lifecycle.
+  </Card>
+  <Card title="Browser Agent with AI SDK" href="/v4/examples/vercel-ai-sdk/browser-agent">
+    Same task over the MCP / AI SDK tool loop.
+  </Card>
+</CardGroup>

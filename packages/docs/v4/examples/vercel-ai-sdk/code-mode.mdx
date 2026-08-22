@@ -1,0 +1,190 @@
+---
+title: "Run Browser Tools through AI SDK Code Mode"
+sidebarTitle: "Code Mode with AI SDK"
+description: "Let an AI SDK 7 agent write TypeScript that calls Stagehand browser tools inside a sandboxed code-mode program."
+---
+
+## Agent brief
+
+Give this section to your coding agent as the implementation brief. It should adapt the task, storage, and model names rather than scaffold a separate app.
+
+```text
+Build a Stagehand v4 + Vercel AI SDK 7 code-mode agent.
+
+Stack: Node.js 24+, pnpm, ai@^7, @ai-sdk/code-mode, @ai-sdk/openai,
+@browserbasehq/stagehand, zod.
+
+Architecture rules:
+- Create ONE Stagehand instance up front and share it across every tool
+  implementation. Never re-init per tool call.
+- Wrap Stagehand primitives as plain AI SDK tools: goto, act, extract,
+  observe. Each returns JSON-serializable data only — no Playwright
+  handles across the boundary.
+- Register a `code_mode` tool from @ai-sdk/code-mode with an execution
+  policy timeout of 30s, and mark the read-only tools reachable only via
+  code mode using experimental_toolCallers.
+- Keep destructive tools (checkout, submit) direct-callable so they can
+  use AI SDK 7 toolApproval. Never expose approval-gated tools to code
+  mode — generated programs cannot pause for approval.
+- Use ToolLoopAgent with instructions, not generateText with system.
+
+Task: visit the product URLs passed on argv, extract price and title from
+each in parallel inside one generated program, return only items under a
+threshold, print the final JSON.
+
+Verify: run against three stagehand.dev URLs and confirm the program made
+parallel calls (one code-mode invocation, N tool executions).
+```
+
+**Goal:** Cut token round-trips by letting the model write one TypeScript program that loops, branches, and fans out over Stagehand browser tools instead of emitting one JSON tool call per action.
+
+**Outcome:** A `ToolLoopAgent` whose read-heavy browser tools run inside a QuickJS sandbox via `@ai-sdk/code-mode`, while approval-gated actions stay direct-callable under AI SDK 7 `toolApproval`.
+
+<Note>
+  This is a cookbook-shaped recipe for the Examples catalog. For wiring and prerequisites, see the [Vercel AI SDK integration](/v4/integrations/vercel-ai-sdk). Code mode APIs are experimental and may change between minor releases.
+</Note>
+
+## Stack
+
+- Node.js 24+ and pnpm
+- AI SDK 7 (`ai`), `@ai-sdk/code-mode`, `@ai-sdk/openai`
+- Stagehand (`@browserbasehq/stagehand`)
+- `OPENAI_API_KEY` for the agent model
+- Local Chrome or `BROWSERBASE_API_KEY` for the browser
+
+## How code mode changes the loop
+
+| | Direct tool calls | Code mode |
+| --- | --- | --- |
+| **Who writes control flow** | Model emits one JSON call per step | Model writes one TS program |
+| **Intermediate results** | Re-enter the model context each step | Stay inside the sandbox |
+| **Parallel fan-out** | Sequential unless you orchestrate | Native `Promise.all` |
+| **Human approval mid-run** | Supported (`toolApproval`) | Not supported — keep gated tools direct |
+
+The economics: with direct calls, extracting from 20 pages costs ~20 model round-trips carrying full page schemas. With code mode, the model pays for one program plus a single final result.
+
+## Define the tool set
+
+```typescript
+import { openai } from "@ai-sdk/openai";
+import { DIRECT_TOOL_CALL, experimental_codeModeTool as codeModeTool } from "@ai-sdk/code-mode";
+import { ToolLoopAgent, stepCountIs, tool } from "ai";
+import { z } from "zod/v4";
+
+import { getStagehandPage } from "./stagehand.ts";
+
+const page = await getStagehandPage(); // one instance, shared by every tool
+
+const browseTo = tool({
+  description: "Navigate the browser to a URL.",
+  inputSchema: z.object({ url: z.string().url() }),
+  outputSchema: z.object({ ok: z.boolean(), title: z.string() }),
+  execute: async ({ url }) => {
+    await page.goto(url);
+    return { ok: true, title: await page.title() };
+  },
+});
+
+const extractProducts = tool({
+  description: "Extract products matching a schema from the current page.",
+  inputSchema: z.object({
+    maxPrice: z.number().describe("Only include products at or below this price"),
+  }),
+  outputSchema: z.array(
+    z.object({
+      name: z.string(),
+      price: z.number(),
+    }),
+  ),
+  execute: async ({ maxPrice }) => {
+    const { data } = await page.extract(
+      "Extract every product with its name and price.",
+      z.object({
+        products: z.array(z.object({ name: z.string(), price: z.number() })),
+      }),
+    );
+    // Filter in the host so the model never sees oversized payloads.
+    return data.products.filter((p) => p.price <= maxPrice);
+  },
+});
+```
+
+Mark the read path as code-mode-only and register the executor:
+
+```typescript
+const tools = {
+  code_mode: codeModeTool({
+    executionPolicy: { timeoutMs: 30_000 },
+  }),
+  browseTo,
+  extractProducts,
+} as const;
+
+const agent = new ToolLoopAgent({
+  model: openai(process.env.CODE_MODE_MODEL ?? "gpt-5-mini"),
+  instructions:
+    "You automate a browser through tools. For multi-page extraction tasks, " +
+    "prefer writing one code_mode program that loops and uses Promise.all.",
+  tools,
+  experimental_toolCallers: {
+    extractProducts: ["code_mode"],
+    browseTo: ["code_mode", DIRECT_TOOL_CALL],
+  },
+  stopWhen: stepCountIs(15),
+});
+```
+
+The generated program looks like:
+
+```javascript
+const results = await Promise.all(
+  urls.map(async (url) => {
+    await tools.browseTo({ url });
+    return tools.extractProducts({ maxPrice: 50 });
+  }),
+);
+return results.flat();
+```
+
+## Gate destructive actions separately
+
+Approval-gated tools must stay direct. In AI SDK 7, approvals live on the call or agent — not on the tool definition:
+
+```typescript
+const checkout = tool({
+  description: "Purchase an item in the current cart.",
+  inputSchema: z.object({ itemId: z.string() }),
+  execute: async ({ itemId }) => completeCheckout(itemId),
+});
+
+const result = await agent.generate({
+  prompt: "Find running shoes under $120, then buy the best pair.",
+  toolApproval: {
+    checkout: () => "user-approval",
+  },
+});
+// Run pauses; your UI surfaces the pending approval, then resumes.
+```
+
+## Check your work
+
+- One Stagehand instance serves the whole run; no reconnection between tool calls.
+- Read-only tools are reachable through `code_mode` per `experimental_toolCallers`; `checkout` is not listed there.
+- Tool outputs are plain JSON — no locators, elements, or functions cross into the sandbox.
+- A fan-out prompt produces exactly one code-mode invocation, not N model turns.
+- `toolApproval` pauses on `checkout` before any purchase executes.
+
+<Warning>
+  Generated programs run in a QuickJS sandbox without network, filesystem, or process access — every capability must flow through a provided tool. Treat each tool as a trust boundary and validate inputs inside `execute`.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Browser Agent with AI SDK" href="/v4/examples/vercel-ai-sdk/browser-agent">
+    Same stack without code mode — direct tool calls over MCP.
+  </Card>
+  <Card title="TanStack AI Code Mode" href="/v4/examples/tanstack-ai/browser-agent">
+    Provider-neutral alternative with edge-deployable sandboxes.
+  </Card>
+</CardGroup>
