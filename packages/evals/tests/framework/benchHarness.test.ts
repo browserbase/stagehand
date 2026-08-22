@@ -3,12 +3,17 @@ import type { AvailableModel } from "stagehand-v3";
 import {
   claudeCodeHarness,
   codexHarness,
+  defineExternalHarness,
   getBenchHarness,
   isExecutableBenchHarness,
   listBenchHarnesses,
   parseBenchHarness,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
+import type { BenchMatrixRow } from "../../framework/benchTypes.js";
+import type { DiscoveredTask } from "../../framework/types.js";
+import type { EvalInput } from "../../types/evals.js";
+import { EvalLogger } from "../../logger.js";
 
 describe("bench harness registry", () => {
   it("lists registered harnesses in registration order", () => {
@@ -65,5 +70,80 @@ describe("bench harness registry", () => {
     registerBenchHarness(fakeHarness);
     expect(parseBenchHarness("fake_harness")).toBe("fake_harness");
     expect(() => registerBenchHarness(fakeHarness)).toThrow(/already registered/);
+  });
+
+  it("defines the shared external lifecycle and cleans up when the agent throws", async () => {
+    let cleanupCalled = false;
+    const adapter = {
+      cleanup: async (): Promise<void> => {
+        cleanupCalled = true;
+      },
+    };
+    let preparedInput: Record<string, unknown> | undefined;
+    let receivedAdapter: unknown;
+    const harness = defineExternalHarness({
+      harness: "fake_external",
+      supportedToolSurfaces: ["browse_cli"],
+      defaultModels: ["openai/x" as AvailableModel],
+      prepareToolAdapter: async (input) => {
+        preparedInput = input as unknown as Record<string, unknown>;
+        return adapter;
+      },
+      runAgent: async (input) => {
+        receivedAdapter = input.toolAdapter;
+        throw new Error("agent failed");
+      },
+    });
+    const input: EvalInput = {
+      name: "agent/webvoyager",
+      modelName: "openai/x" as AvailableModel,
+      params: {
+        id: "wv-1",
+        web: "https://example.com",
+        ques: "Find the checkout button",
+      },
+    };
+    const row: BenchMatrixRow = {
+      harness: "fake_external",
+      task: input.name,
+      category: "agent",
+      taskKind: "agent",
+      model: input.modelName,
+      environment: "BROWSERBASE",
+      useApi: false,
+      toolSurface: "browse_cli",
+      startupProfile: "tool_create_browserbase",
+      trial: 1,
+      config: {
+        harness: "fake_external",
+        model: input.modelName,
+        environment: "BROWSERBASE",
+        useApi: false,
+        toolSurface: "browse_cli",
+        startupProfile: "tool_create_browserbase",
+      },
+    };
+    const task: DiscoveredTask = {
+      name: input.name,
+      tier: "bench",
+      primaryCategory: "agent",
+      categories: ["agent"],
+      tags: [],
+      filePath: "/tmp/fake.ts",
+      isLegacy: false,
+    };
+
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    await expect(
+      harness.execute?.({ task, input, row, logger: new EvalLogger(false) }),
+    ).rejects.toThrow("agent failed");
+    expect(preparedInput).toMatchObject({
+      toolSurface: "browse_cli",
+      startupProfile: "tool_create_browserbase",
+      environment: "BROWSERBASE",
+    });
+    expect(receivedAdapter).toBe(adapter);
+    expect(cleanupCalled).toBe(true);
   });
 });

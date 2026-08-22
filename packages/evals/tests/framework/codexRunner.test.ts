@@ -122,6 +122,12 @@ describe("codex runner helpers", () => {
     expect(metrics.codex_output_tokens.value).toBe(25);
     expect(metrics.codex_reasoning_output_tokens.value).toBe(5);
     expect(metrics.codex_total_tokens.value).toBe(140);
+    expect(metrics.harness_input_tokens.value).toBe(100);
+    expect(metrics.harness_cached_input_tokens.value).toBe(10);
+    expect(metrics.harness_output_tokens.value).toBe(25);
+    expect(metrics.harness_total_tokens.value).toBe(140);
+    expect(metrics.harness_cost_usd).toBeUndefined();
+    expect(result.harnessStatus).toBe("completed");
   });
 
   it("returns a failed task result instead of throwing on SDK errors", async () => {
@@ -142,6 +148,8 @@ describe("codex runner helpers", () => {
 
     expect(result._success).toBe(false);
     expect(result.codexStatus).toBe("sdk_error");
+    expect(result.harnessStatus).toBe("sdk_error");
+    expect(result.harnessStopReason).toBeDefined();
     expect(String(result.error)).toContain("codex failed");
   });
 });

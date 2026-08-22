@@ -7,20 +7,22 @@ import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
   CLAUDE_CODE_TOOL_SURFACES,
   prepareClaudeCodeToolAdapter,
-  type PreparedClaudeCodeToolAdapter,
 } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
 import {
   CODEX_TOOL_SURFACES,
   prepareCodexToolAdapter,
-  type PreparedCodexToolAdapter,
 } from "./codexToolAdapter.js";
-import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import {
+  buildExternalHarnessTaskPlan,
+  type ExternalHarnessTaskPlan,
+} from "./externalHarnessPlan.js";
 import { withHarnessAgentSpan } from "./otel.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
-import type { ToolSurface } from "../core/contracts/tool.js";
+import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 export interface BenchHarnessStartInput {
   task: DiscoveredTask;
@@ -71,6 +73,107 @@ export interface BenchHarness {
   defaultModels?: AvailableModel[];
   execute?(input: BenchHarnessExecuteInput): Promise<TaskResult>;
   start(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
+}
+
+export interface ExternalHarnessPrepareInput {
+  toolSurface?: ToolSurface;
+  startupProfile?: StartupProfile;
+  environment: "LOCAL" | "BROWSERBASE";
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}
+
+export interface ExternalHarnessRunInput<TAdapter> {
+  plan: ExternalHarnessTaskPlan;
+  model: AvailableModel;
+  logger: EvalLogger;
+  toolAdapter: TAdapter;
+  signal?: AbortSignal;
+  verifier: ExternalHarnessVerifierConfig;
+}
+
+export interface ExternalHarnessDefinition<TAdapter extends { cleanup: () => Promise<void> }> {
+  harness: string;
+  supportedToolSurfaces: ToolSurface[];
+  defaultModels: AvailableModel[];
+  /** Defaults to ["agent", "suite"]. */
+  supportedTaskKinds?: BenchTaskKind[];
+  prepareToolAdapter: (input: ExternalHarnessPrepareInput) => Promise<TAdapter>;
+  runAgent: (input: ExternalHarnessRunInput<TAdapter>) => Promise<TaskResult>;
+}
+
+/**
+ * Define the lifecycle common to external agent harnesses without registering
+ * it; registry ownership stays explicit so list order remains deterministic.
+ */
+export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<void> }>(
+  definition: ExternalHarnessDefinition<TAdapter>,
+): BenchHarness {
+  const {
+    harness,
+    supportedToolSurfaces,
+    defaultModels,
+    supportedTaskKinds = ["agent", "suite"],
+    prepareToolAdapter,
+    runAgent,
+  } = definition;
+  return {
+    harness,
+    supportedTaskKinds,
+    supportsApi: false,
+    supportedToolSurfaces,
+    defaultModels,
+    async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
+      const plan = buildExternalHarnessTaskPlan(input);
+      // Everything past carrier construction runs inside one try/finally so a
+      // failure at any point — adapter preparation included — cleans up both
+      // the adapter and the carrier.
+      const carrierV3 = buildVerifierCarrierV3(logger);
+      let toolAdapter: TAdapter | undefined;
+      try {
+        toolAdapter = await prepareToolAdapter({
+          toolSurface: row.config.toolSurface,
+          startupProfile: row.config.startupProfile,
+          environment: row.config.environment,
+          plan,
+          logger,
+        });
+        const preparedAdapter = toolAdapter;
+        return await withHarnessAgentSpan(
+          {
+            harness,
+            model: input.modelName,
+            task: input.name,
+            instruction: plan.instruction,
+          },
+          () =>
+            runAgent({
+              plan,
+              model: input.modelName,
+              logger,
+              toolAdapter: preparedAdapter,
+              signal,
+              verifier: {
+                v3: carrierV3,
+                taskSpec: buildExternalHarnessTaskSpec(plan, input),
+                dataset: plan.dataset,
+              },
+            }),
+        );
+      } finally {
+        await toolAdapter?.cleanup();
+        // Deregister the never-init()-ed carrier (instance registry, event
+        // store, logger binding) so long matrix runs don't accumulate one
+        // V3 object graph per task.
+        await carrierV3.close().catch(() => {});
+      }
+    },
+    async start(): Promise<StartedBenchHarness> {
+      throw new EvalsError(
+        `Harness "${harness}" runs through the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness ${harness}.`,
+      );
+    },
+  };
 }
 
 /**
@@ -158,119 +261,21 @@ export const stagehandHarness: BenchHarness = {
   },
 };
 
-export const claudeCodeHarness: BenchHarness = {
+export const claudeCodeHarness = defineExternalHarness({
   harness: "claude_code",
-  supportedTaskKinds: ["agent", "suite"],
-  supportsApi: false,
   supportedToolSurfaces: CLAUDE_CODE_TOOL_SURFACES,
   defaultModels: ["anthropic/claude-sonnet-4-6" as AvailableModel],
-  async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
-    const plan = buildExternalHarnessTaskPlan(input);
-    // Everything past carrier construction runs inside one try/finally so a
-    // failure at any point — adapter preparation included — cleans up both
-    // the adapter and the carrier.
-    const carrierV3 = buildVerifierCarrierV3(logger);
-    let toolAdapter: PreparedClaudeCodeToolAdapter | undefined;
-    try {
-      toolAdapter = await prepareClaudeCodeToolAdapter({
-        toolSurface: row.config.toolSurface,
-        startupProfile: row.config.startupProfile,
-        environment: row.config.environment,
-        plan,
-        logger,
-      });
-      return await withHarnessAgentSpan(
-        {
-          harness: "claude_code",
-          model: input.modelName,
-          task: input.name,
-          instruction: plan.instruction,
-        },
-        () =>
-          runClaudeCodeAgent({
-            plan,
-            model: input.modelName,
-            logger,
-            toolAdapter,
-            signal,
-            verifier: {
-              v3: carrierV3,
-              taskSpec: buildExternalHarnessTaskSpec(plan, input),
-              dataset: plan.dataset,
-            },
-          }),
-      );
-    } finally {
-      await toolAdapter?.cleanup();
-      // Deregister the never-init()-ed carrier (instance registry, event
-      // store, logger binding) so long matrix runs don't accumulate one
-      // V3 object graph per task.
-      await carrierV3.close().catch(() => {});
-    }
-  },
-  async start(): Promise<StartedBenchHarness> {
-    throw new EvalsError(
-      "Claude Code harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness claude_code.",
-    );
-  },
-};
+  prepareToolAdapter: prepareClaudeCodeToolAdapter,
+  runAgent: runClaudeCodeAgent,
+});
 
-export const codexHarness: BenchHarness = {
+export const codexHarness = defineExternalHarness({
   harness: "codex",
-  supportedTaskKinds: ["agent", "suite"],
-  supportsApi: false,
   supportedToolSurfaces: CODEX_TOOL_SURFACES,
   defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
-  async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
-    const plan = buildExternalHarnessTaskPlan(input);
-    // Everything past carrier construction runs inside one try/finally so a
-    // failure at any point — adapter preparation included — cleans up both
-    // the adapter and the carrier.
-    const carrierV3 = buildVerifierCarrierV3(logger);
-    let toolAdapter: PreparedCodexToolAdapter | undefined;
-    try {
-      toolAdapter = await prepareCodexToolAdapter({
-        toolSurface: row.config.toolSurface,
-        startupProfile: row.config.startupProfile,
-        environment: row.config.environment,
-        plan,
-        logger,
-      });
-      return await withHarnessAgentSpan(
-        {
-          harness: "codex",
-          model: input.modelName,
-          task: input.name,
-          instruction: plan.instruction,
-        },
-        () =>
-          runCodexAgent({
-            plan,
-            model: input.modelName,
-            logger,
-            toolAdapter,
-            signal,
-            verifier: {
-              v3: carrierV3,
-              taskSpec: buildExternalHarnessTaskSpec(plan, input),
-              dataset: plan.dataset,
-            },
-          }),
-      );
-    } finally {
-      await toolAdapter?.cleanup();
-      // Deregister the never-init()-ed carrier (instance registry, event
-      // store, logger binding) so long matrix runs don't accumulate one
-      // V3 object graph per task.
-      await carrierV3.close().catch(() => {});
-    }
-  },
-  async start(): Promise<StartedBenchHarness> {
-    throw new EvalsError(
-      "Codex harness execution uses the external harness execute path. Use --dry-run to inspect its bench matrix, or run with --harness codex.",
-    );
-  },
-};
+  prepareToolAdapter: prepareCodexToolAdapter,
+  runAgent: runCodexAgent,
+});
 
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],

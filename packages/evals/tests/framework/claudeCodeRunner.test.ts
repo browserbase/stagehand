@@ -149,5 +149,11 @@ describe("claude code runner helpers", () => {
     expect(metrics.claude_code_cache_creation_input_tokens.value).toBe(10);
     expect(metrics.claude_code_cache_read_input_tokens.value).toBe(5);
     expect(metrics.claude_code_total_tokens.value).toBe(140);
+    expect(metrics.harness_input_tokens.value).toBe(100);
+    expect(metrics.harness_output_tokens.value).toBe(25);
+    expect(metrics.harness_total_tokens.value).toBe(140);
+    expect(metrics.harness_cost_usd.value).toBe(0.045);
+    expect(result.harnessStatus).toBe("completed");
+    expect(result.claudeCodeStatus).toBe("completed");
   });
 });
