@@ -1,6 +1,10 @@
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import type { ChildProcess } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildFxTranscript,
+  createFxProcessRunner,
   normalizeFxModel,
   runFxSession,
   type FxProcessRunner,
@@ -142,6 +146,7 @@ describe("fx CLI session", () => {
   });
 
   it("maps a committed step limit to max_turns", async () => {
+    const notice = "Agent step limit reached; continue with a follow-up prompt if needed.";
     const result = await runFxSession({
       prompt: "task",
       cwd: "/fake/workspace",
@@ -149,13 +154,90 @@ describe("fx CLI session", () => {
       env: {},
       logger,
       runProcess: async () => ({
-        stdout: JSON.stringify({ output: "stopped", exit_code: 0 }),
+        stdout: JSON.stringify({ output: notice, exit_code: 1 }),
         stderr: "",
-        exitCode: 0,
+        exitCode: 1,
       }),
-      store: fakeStore(jsonl(committedEvent("step_limit_reached"))),
+      store: fakeStore(
+        jsonl({
+          kind: "history_turn_committed",
+          payload: { turn: { kind: "assistant", assistant: notice } },
+        }),
+      ),
     });
     expect(result.status).toBe("max_turns");
+    expect(result.stopReason).toBe(notice);
+  });
+
+  it("maps the configured observed step count to max_turns", async () => {
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      maxAgentSteps: 1,
+      logger,
+      runProcess: async () => ({
+        stdout: JSON.stringify({ output: "stopped", exit_code: 1 }),
+        stderr: "",
+        exitCode: 1,
+      }),
+      store: fakeStore(jsonl(committedEvent())),
+    });
+    expect(result.status).toBe("max_turns");
+    expect(result.stopReason).toContain("1 steps");
+  });
+
+  it("tracks spawned process groups for abort and process shutdown", async () => {
+    const hooks = new EventEmitter();
+    const killProcess = vi.fn(() => true);
+    const children: ChildProcess[] = [];
+    const spawnProcess = vi.fn(() => {
+      const child = new EventEmitter() as unknown as ChildProcess;
+      Object.assign(child, {
+        pid: 4321 + children.length,
+        stdout: new PassThrough(),
+        stderr: new PassThrough(),
+        stdin: new PassThrough(),
+        kill: vi.fn(() => true),
+      });
+      children.push(child);
+      return child;
+    });
+    const runner = createFxProcessRunner({
+      spawnProcess: spawnProcess as unknown as typeof import("node:child_process").spawn,
+      killProcess: killProcess as unknown as typeof process.kill,
+      processHooks: hooks as unknown as Pick<NodeJS.Process, "on">,
+      killGraceMs: 1,
+    });
+    const run = (signal: AbortSignal) =>
+      runner({
+        bin: "fx",
+        args: ["ask"],
+        cwd: "/fake",
+        env: {},
+        stdin: "task",
+        signal,
+      });
+
+    const first = run(new AbortController().signal);
+    expect(hooks.listenerCount("exit")).toBe(1);
+    hooks.emit("exit", 0);
+    expect(killProcess).toHaveBeenCalledWith(-4321, "SIGTERM");
+    expect(killProcess).toHaveBeenCalledWith(-4321, "SIGKILL");
+    children[0]?.emit("close", 0, null);
+    await first;
+    killProcess.mockClear();
+    hooks.emit("exit", 0);
+    expect(killProcess).not.toHaveBeenCalled();
+
+    const controller = new AbortController();
+    const second = run(controller.signal);
+    expect(hooks.listenerCount("exit")).toBe(1);
+    controller.abort();
+    expect(killProcess).toHaveBeenCalledWith(-4322, "SIGTERM");
+    children[1]?.emit("close", null, "SIGTERM");
+    await second;
   });
 
   it("reports output that is not JSON", async () => {
