@@ -1,4 +1,5 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
+import { listBenchHarnesses } from "../../framework/benchHarness.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -76,7 +77,7 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
+      `Bench harness ${gray(`(${listBenchHarnesses().join(" | ")})`)}`,
     ),
     row(
       `${cyan("--success")} ${dim("<mode>")}`,

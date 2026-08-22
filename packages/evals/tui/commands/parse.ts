@@ -15,10 +15,10 @@
  */
 import {
   DEFAULT_BENCH_HARNESS,
-  parseBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
 import { TRACING_ENV_VARS } from "./config.js";
+import { parseBenchHarness } from "../../framework/benchHarness.js";
 
 export interface RunFlags {
   target?: string;

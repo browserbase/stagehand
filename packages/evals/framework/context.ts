@@ -9,12 +9,18 @@ import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { coreFixtureRoutes } from "../core/fixtures/index.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
-import { getCoreTool } from "../core/tools/registry.js";
+import {
+  getCoreTool,
+  isAgentMountOnlyToolSurface,
+  listCoreRunnableTools,
+} from "../core/tools/registry.js";
 import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
+import { EvalsError } from "../errors.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
 import type { AgentBenchTaskContext, CoreTaskContext } from "./types.js";
+import { resolveStartupProfile } from "./harnesses/toolSurfaceResolution.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -32,24 +38,14 @@ export function resolveDefaultCoreStartupProfile(
   toolSurface: ToolSurface,
   environment: "LOCAL" | "BROWSERBASE",
 ): StartupProfile {
-  switch (toolSurface) {
-    case "browse_cli":
-    case "stagehand_facade":
-      return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-    case "understudy_code":
-    case "playwright_code":
-    case "cdp_code":
-    case "playwright_mcp":
-    case "chrome_devtools_mcp":
-      return environment === "BROWSERBASE"
-        ? "runner_provided_browserbase_cdp"
-        : "runner_provided_local_cdp";
-    default:
-      break;
-  }
+  rejectAgentMountOnlyCoreTool(toolSurface);
+  return resolveStartupProfile(toolSurface, environment);
+}
 
-  throw new Error(
-    `No default startup profile for tool "${toolSurface}" in environment "${environment}"`,
+function rejectAgentMountOnlyCoreTool(toolSurface: ToolSurface): void {
+  if (!isAgentMountOnlyToolSurface(toolSurface)) return;
+  throw new EvalsError(
+    `Tool surface "${toolSurface}" is available only as an agent harness mount and cannot run under evals core. Use --harness claude_code or --harness codex with --tool ${toolSurface}, or choose one of: ${listCoreRunnableTools().join(", ")}.`,
   );
 }
 
@@ -65,6 +61,7 @@ export async function buildCoreContext(
   const logger = options.logger ?? new EvalLogger();
   const environment = options.environment ?? "LOCAL";
   const toolSurface = options.toolSurface ?? "understudy_code";
+  rejectAgentMountOnlyCoreTool(toolSurface);
   const tool = getCoreTool(toolSurface);
   const startupProfile =
     options.startupProfile ?? resolveDefaultCoreStartupProfile(toolSurface, environment);

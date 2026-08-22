@@ -3,6 +3,12 @@ import { resolveDefaultCoreStartupProfile } from "../../framework/context.js";
 import { prepareCoreBrowserTarget } from "../../core/targets/index.js";
 
 describe("resolveDefaultCoreStartupProfile", () => {
+  it("rejects agent-mount-only surfaces", () => {
+    expect(() => resolveDefaultCoreStartupProfile("stagehand_facade", "LOCAL")).toThrow(
+      /available only as an agent harness mount/,
+    );
+  });
+
   it("uses runner-provided local CDP for code surfaces in LOCAL", () => {
     expect(resolveDefaultCoreStartupProfile("understudy_code", "LOCAL")).toBe(
       "runner_provided_local_cdp",

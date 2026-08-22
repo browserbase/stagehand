@@ -1,19 +1,26 @@
-import { V3, normalizeRubric, type TaskSpec } from "stagehand-v3";
+import { V3, normalizeRubric, type AvailableModel, type TaskSpec } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
+  CLAUDE_CODE_TOOL_SURFACES,
   prepareClaudeCodeToolAdapter,
   type PreparedClaudeCodeToolAdapter,
 } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
-import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexToolAdapter.js";
+import {
+  CODEX_TOOL_SURFACES,
+  prepareCodexToolAdapter,
+  type PreparedCodexToolAdapter,
+} from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { withHarnessAgentSpan } from "./otel.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
+import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
+import type { ToolSurface } from "../core/contracts/tool.js";
 
 export interface BenchHarnessStartInput {
   task: DiscoveredTask;
@@ -49,6 +56,19 @@ export interface BenchHarness {
   harness: Harness;
   supportedTaskKinds: BenchTaskKind[];
   supportsApi: boolean;
+  /**
+   * Tool surfaces this harness can mount for the agent, in display order; the
+   * first entry is the default when --tool is omitted. An empty list means the
+   * harness does not mount tool surfaces and the planner passes the requested
+   * surface/profile through unchanged as row metadata (stagehand harness).
+   */
+  supportedToolSurfaces: ToolSurface[];
+  /**
+   * Default model ids for rows planned on this harness when --model is omitted.
+   * Overridable at runtime with EVAL_<HARNESS_UPPER>_MODELS (comma separated).
+   * Harnesses without a list fall back to the category model list (getModelList).
+   */
+  defaultModels?: AvailableModel[];
   execute?(input: BenchHarnessExecuteInput): Promise<TaskResult>;
   start(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
 }
@@ -94,6 +114,7 @@ export const stagehandHarness: BenchHarness = {
   harness: "stagehand",
   supportedTaskKinds: ["act", "extract", "observe"],
   supportsApi: false,
+  supportedToolSurfaces: [],
   async start({ task, input, row, logger }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
     if (row.config.harness !== "stagehand") {
       throw new EvalsError(
@@ -141,13 +162,10 @@ export const claudeCodeHarness: BenchHarness = {
   harness: "claude_code",
   supportedTaskKinds: ["agent", "suite"],
   supportsApi: false,
+  supportedToolSurfaces: CLAUDE_CODE_TOOL_SURFACES,
+  defaultModels: ["anthropic/claude-sonnet-4-6" as AvailableModel],
   async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
-    if (row.config.harness !== "claude_code") {
-      throw new EvalsError(
-        `Expected claude_code harness config, received "${row.config.harness}".`,
-      );
-    }
     // Everything past carrier construction runs inside one try/finally so a
     // failure at any point — adapter preparation included — cleans up both
     // the adapter and the carrier.
@@ -201,11 +219,10 @@ export const codexHarness: BenchHarness = {
   harness: "codex",
   supportedTaskKinds: ["agent", "suite"],
   supportsApi: false,
+  supportedToolSurfaces: CODEX_TOOL_SURFACES,
+  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
   async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
-    if (row.config.harness !== "codex") {
-      throw new EvalsError(`Expected codex harness config, received "${row.config.harness}".`);
-    }
     // Everything past carrier construction runs inside one try/finally so a
     // failure at any point — adapter preparation included — cleans up both
     // the adapter and the carrier.
@@ -261,6 +278,24 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["codex", codexHarness],
 ]);
 
+export function registerBenchHarness(harness: BenchHarness): void {
+  if (harnessRegistry.has(harness.harness)) {
+    throw new EvalsError(`Harness "${harness.harness}" is already registered.`);
+  }
+  harnessRegistry.set(harness.harness, harness);
+}
+
+export function listBenchHarnesses(): Harness[] {
+  return [...harnessRegistry.keys()];
+}
+
+export function listExecutableBenchHarnesses(): Harness[] {
+  return listBenchHarnesses().filter((harness) => {
+    const implementation = harnessRegistry.get(harness);
+    return implementation?.execute !== undefined || implementation?.start !== undefined;
+  });
+}
+
 export function getBenchHarness(harness: Harness): BenchHarness {
   const implementation = harnessRegistry.get(harness);
   if (!implementation) {
@@ -269,4 +304,31 @@ export function getBenchHarness(harness: Harness): BenchHarness {
     );
   }
   return implementation;
+}
+
+export function isBenchHarness(value: string): value is Harness {
+  return harnessRegistry.has(value);
+}
+
+export function isExecutableBenchHarness(value: Harness): boolean {
+  if (!isBenchHarness(value)) return false;
+  const implementation = harnessRegistry.get(value);
+  return implementation?.execute !== undefined || implementation?.start !== undefined;
+}
+
+export function parseBenchHarness(value: string | undefined): Harness {
+  if (!value) return DEFAULT_BENCH_HARNESS;
+  if (isBenchHarness(value)) return value;
+  throw new EvalsError(
+    `Unknown harness "${value}". Supported: ${listBenchHarnesses().join(", ")}.`,
+  );
+}
+
+export function formatBenchHarnessFlags(
+  harnesses: Harness[] = listExecutableBenchHarnesses(),
+): string {
+  const flags = harnesses.map((harness) => `--harness ${harness}`);
+  if (flags.length <= 1) return flags[0] ?? "";
+  if (flags.length === 2) return flags.join(" or ");
+  return `${flags.slice(0, -1).join(", ")}, or ${flags.at(-1)}`;
 }

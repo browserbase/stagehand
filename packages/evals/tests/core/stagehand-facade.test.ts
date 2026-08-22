@@ -1,20 +1,17 @@
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getCoreTool, listCoreTools } from "../../core/tools/registry.js";
+import { getCoreTool, listCoreRunnableTools, listCoreTools } from "../../core/tools/registry.js";
 import {
   buildStagehandFacadeEnv,
   StagehandFacadeTool,
   StagehandFacadeToolError,
 } from "../../core/tools/stagehand_facade.js";
+import { buildCodexMcpServers } from "../../framework/codexToolAdapter.js";
+import { claudeCodeHarness, codexHarness } from "../../framework/benchHarness.js";
 import {
-  resolveClaudeCodeStartupProfile,
-  resolveClaudeCodeToolSurface,
-} from "../../framework/claudeCodeToolAdapter.js";
-import {
-  buildCodexMcpServers,
-  resolveCodexStartupProfile,
-  resolveCodexToolSurface,
-} from "../../framework/codexToolAdapter.js";
+  resolveStartupProfile,
+  resolveToolSurface,
+} from "../../framework/harnesses/toolSurfaceResolution.js";
 import type { EvalLogger } from "../../logger.js";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -33,42 +30,12 @@ afterEach(() => {
 });
 
 describe("stagehand facade tool surface", () => {
-  it("is registered", () => {
-    // Mount-only: resolvable for agent harness mounts, never selectable as a
-    // core-tier tool (its CoreSession throws on every page operation).
-    expect(listCoreTools()).not.toContain("stagehand_facade");
+  it("is registered as agent-mount-only", () => {
+    expect(listCoreTools()).toContain("stagehand_facade");
+    // Never selectable for core-tier runs: its CoreSession throws on every
+    // page operation.
+    expect(listCoreRunnableTools()).not.toContain("stagehand_facade");
     expect(getCoreTool("stagehand_facade")).toBeInstanceOf(StagehandFacadeTool);
-  });
-
-  it("builds the shipped facade MCP mount", async () => {
-    process.env.STAGEHAND_MODEL_NAME = "openai/gpt-5-mini";
-    process.env.BROWSERBASE_API_KEY = "browserbase-secret";
-    process.env.OPENAI_API_KEY = "must-not-cross-the-mount";
-
-    const running = await new StagehandFacadeTool().start({
-      logger: {} as EvalLogger,
-      environment: "LOCAL",
-      startupProfile: "tool_launch_local",
-    });
-
-    expect(running.agentMount?.via).toBe("mcp");
-    if (running.agentMount?.via !== "mcp") throw new Error("expected MCP mount");
-    expect(running.agentMount.promptInstructions).toBe(FACADE_AGENT_INSTRUCTIONS);
-    expect(Object.keys(running.agentMount.mcpServers)).toEqual(["stagehand"]);
-    expect(running.agentMount.mcpServers.stagehand).toMatchObject({
-      command: process.execPath,
-      args: [expect.stringMatching(/facade[/\\]stdio-server\.mjs$/u)],
-      env: {
-        STAGEHAND_BROWSER: "local",
-        STAGEHAND_MODEL_NAME: "openai/gpt-5-mini",
-        BROWSERBASE_API_KEY: "browserbase-secret",
-      },
-    });
-    expect(
-      (running.agentMount.mcpServers.stagehand as { env: Record<string, string> }).env,
-    ).not.toHaveProperty("OPENAI_API_KEY");
-    expect(running.captureEvidence).toBeUndefined();
-    await running.cleanup();
   });
 
   it("uses typed, sanitized errors for invalid lifecycle operations", async () => {
@@ -112,6 +79,37 @@ describe("stagehand facade tool surface", () => {
     });
   });
 
+  it("builds the shipped facade MCP mount", async () => {
+    process.env.STAGEHAND_MODEL_NAME = "openai/gpt-5-mini";
+    process.env.BROWSERBASE_API_KEY = "browserbase-secret";
+    process.env.OPENAI_API_KEY = "must-not-cross-the-mount";
+
+    const running = await new StagehandFacadeTool().start({
+      logger: {} as EvalLogger,
+      environment: "LOCAL",
+      startupProfile: "tool_launch_local",
+    });
+
+    expect(running.agentMount?.via).toBe("mcp");
+    if (running.agentMount?.via !== "mcp") throw new Error("expected MCP mount");
+    expect(running.agentMount.promptInstructions).toBe(FACADE_AGENT_INSTRUCTIONS);
+    expect(Object.keys(running.agentMount.mcpServers)).toEqual(["stagehand"]);
+    expect(running.agentMount.mcpServers.stagehand).toMatchObject({
+      command: process.execPath,
+      args: [expect.stringMatching(/facade[/\\]stdio-server\.mjs$/u)],
+      env: {
+        STAGEHAND_BROWSER: "local",
+        STAGEHAND_MODEL_NAME: "openai/gpt-5-mini",
+        BROWSERBASE_API_KEY: "browserbase-secret",
+      },
+    });
+    expect(
+      (running.agentMount.mcpServers.stagehand as { env: Record<string, string> }).env,
+    ).not.toHaveProperty("OPENAI_API_KEY");
+    expect(running.captureEvidence).toBeUndefined();
+    await running.cleanup();
+  });
+
   it("filters host env and overrides browser selection for each eval environment", () => {
     process.env.STAGEHAND_BROWSER = "browserbase";
     process.env.STAGEHAND_MODEL_API_KEY = "model-secret";
@@ -131,14 +129,14 @@ describe("stagehand facade tool surface", () => {
   });
 
   it("is supported by both agent harnesses with tool-owned startup profiles", () => {
-    expect(resolveClaudeCodeToolSurface("stagehand_facade")).toBe("stagehand_facade");
-    expect(resolveClaudeCodeStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveClaudeCodeStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(claudeCodeHarness, "stagehand_facade")).toBe("stagehand_facade");
+    expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
       "tool_create_browserbase",
     );
-    expect(resolveCodexToolSurface("stagehand_facade")).toBe("stagehand_facade");
-    expect(resolveCodexStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveCodexStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(codexHarness, "stagehand_facade")).toBe("stagehand_facade");
+    expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
       "tool_create_browserbase",
     );
   });

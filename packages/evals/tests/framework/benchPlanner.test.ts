@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import type { DiscoveredTask } from "../../framework/types.js";
-import { buildBenchMatrixRow, generateBenchTestcases } from "../../framework/benchPlanner.js";
+import {
+  buildBenchMatrixRow,
+  defaultModelsEnvKey,
+  generateBenchTestcases,
+  resolveBenchModelEntries,
+} from "../../framework/benchPlanner.js";
+import { registerBenchHarness } from "../../framework/benchHarness.js";
 import { withEnvOverrides } from "../../tui/commands/parse.js";
 
 function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
@@ -26,6 +32,41 @@ function makeSuiteTask(name: string): DiscoveredTask {
 }
 
 describe("benchPlanner", () => {
+  it("uses the registry-derived Codex model override environment key", async () => {
+    expect(defaultModelsEnvKey("codex")).toBe("EVAL_CODEX_MODELS");
+    await withEnvOverrides({ EVAL_CODEX_MODELS: "openai/custom-codex" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "codex" }).modelEntries).toEqual([
+        { modelName: "openai/custom-codex", mode: "hybrid", cua: false },
+      ]);
+    });
+  });
+
+  it("plans registered pass-through harness rows generically", () => {
+    registerBenchHarness({
+      harness: "fake_planner_harness",
+      supportedTaskKinds: ["act", "extract", "observe"],
+      supportsApi: false,
+      supportedToolSurfaces: [],
+      execute: async () => ({ _success: true }),
+      start: async () => {
+        throw new Error("n/a");
+      },
+    });
+
+    const row = buildBenchMatrixRow(makeTask(), "openai/test" as AvailableModel, {
+      harness: "fake_planner_harness",
+      coreToolSurface: "understudy_code",
+      coreStartupProfile: "tool_attach_local_cdp",
+    });
+
+    expect(row).toMatchObject({
+      harness: "fake_planner_harness",
+      toolSurface: "understudy_code",
+      startupProfile: "tool_attach_local_cdp",
+      config: { harness: "fake_planner_harness" },
+    });
+  });
+
   it("builds stagehand matrix rows by default", () => {
     const task = makeTask();
     const row = buildBenchMatrixRow(task, "openai/gpt-4.1-mini" as AvailableModel, {

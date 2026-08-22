@@ -19,7 +19,11 @@ import type { AvailableModel } from "stagehand-v3";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
-import { isExecutableBenchHarness, type Harness } from "../../framework/benchTypes.js";
+import type { Harness } from "../../framework/benchTypes.js";
+import {
+  formatBenchHarnessFlags,
+  isExecutableBenchHarness,
+} from "../../framework/benchHarness.js";
 import {
   armsOverLimit,
   armsWithUngradedRuns,
@@ -184,7 +188,7 @@ export async function runCommand(
 
   if (!canExecuteBenchHarness(options.harness) && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
-      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand, --harness claude_code, or --harness codex for executable bench runs.`,
+      `Harness "${options.harness}" is dry-run only for now. Use ${formatBenchHarnessFlags()} for executable bench runs.`,
     );
   }
   const matrix = await buildDryRunMatrix(options, tasks, registry);
