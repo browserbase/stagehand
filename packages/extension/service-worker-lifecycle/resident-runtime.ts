@@ -81,6 +81,7 @@ export class ResidentRuntimeLifecycle {
       connected: false,
       timings: {},
     };
+    runtime.setBrowserSessionRecoveryProvider(() => this.pendingBrowserSessionRecovery());
   }
 
   bootstrap(logger?: StagehandLogger): Promise<void> {
@@ -114,6 +115,17 @@ export class ResidentRuntimeLifecycle {
     });
     this.bootstrapPromise = tracked;
     return tracked;
+  }
+
+  /**
+   * The promise a client RPC should wait on while the resident connection is being re-established:
+   * the running bootstrap, or the supersession of a scheduled reconnect that has not started yet.
+   */
+  pendingBrowserSessionRecovery(): Promise<void> | undefined {
+    if (this.closed || !this.residentBootstrapEnabled) return undefined;
+    if (this.bootstrapPromise) return this.bootstrapPromise;
+    if (this.reconnectTimer !== undefined) return this.supersession.promise;
+    return undefined;
   }
 
   initialize(params: StagehandInitParams, logger?: StagehandLogger): Promise<StagehandInitResult> {

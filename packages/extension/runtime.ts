@@ -126,7 +126,7 @@ import { Page } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
-import { DuplicatePageEventSubscriptionError } from "./errors.js";
+import { BrowserSessionUnavailableError, DuplicatePageEventSubscriptionError } from "./errors.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -287,6 +287,12 @@ const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
 
+/**
+ * Covers the resident reconnect delay budget (100+250+500+1000+2000ms) plus one loopback proxy
+ * discovery timeout (5s), so a client RPC rides out a normal reconnect instead of racing it.
+ */
+export const DEFAULT_BROWSER_SESSION_WAIT_MS = 10_000;
+
 export function createStagehandRuntime(
   adapters: StagehandRuntimeAdapters = {},
   tracing: StagehandTracing = createStagehandTracing(),
@@ -320,6 +326,8 @@ export class StagehandRuntime {
     Pick<PageOnParams, "pageId" | "event">
   >();
   private browserSessionGeneration = 0;
+  private browserSessionPending?: Promise<void>;
+  private browserSessionRecovery?: () => Promise<void> | undefined;
   private initializationInProgress = false;
   private readonly contextInitScripts: string[] = [];
   private contextExtraHTTPHeaders?: ContextSetExtraHTTPHeadersParams["headers"];
@@ -341,6 +349,14 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
+  /**
+   * Lets a lifecycle owner (the resident runtime) expose an in-flight or scheduled reconnect so
+   * client RPCs can wait for it instead of observing the gap between two browser sessions.
+   */
+  setBrowserSessionRecoveryProvider(provider?: () => Promise<void> | undefined): void {
+    this.browserSessionRecovery = provider;
+  }
+
   browserConnectionStatus(): { configured: boolean; connected: boolean } {
     return {
       configured: this.browserSession !== undefined,
@@ -349,6 +365,46 @@ export class StagehandRuntime {
   }
 
   async replaceBrowserConnection(
+    params: { cdpUrl: string },
+    options?: StagehandBrowserSessionOptions,
+  ): Promise<void> {
+    const replacement = this.runBrowserConnectionReplacement(params, options);
+    // Waiters only need to know when the window closes; the outcome belongs to the caller.
+    const pending = replacement.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.browserSessionPending = pending;
+    try {
+      return await replacement;
+    } finally {
+      if (this.browserSessionPending === pending) this.browserSessionPending = undefined;
+    }
+  }
+
+  /**
+   * Resolves once no browser session replacement is in flight. Returns immediately when a connected
+   * session is already available, so the ordinary RPC path pays nothing. A session that is merely
+   * disconnected also waits, because the resident lifecycle schedules its reconnect before the
+   * replacement that clears the field begins.
+   */
+  async waitForBrowserSession(timeoutMs = DEFAULT_BROWSER_SESSION_WAIT_MS): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let lastAwaited: Promise<void> | undefined;
+    while (!this.browserSession?.connected) {
+      const pending = this.browserSessionPending ?? this.browserSessionRecovery?.();
+      // Nothing left to wait for: let requireBrowserSession report the real failure.
+      if (!pending || pending === lastAwaited) return;
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw new BrowserSessionUnavailableError(timeoutMs);
+      if (!(await settledWithin(pending, remainingMs))) {
+        throw new BrowserSessionUnavailableError(timeoutMs);
+      }
+      lastAwaited = pending;
+    }
+  }
+
+  private async runBrowserConnectionReplacement(
     params: { cdpUrl: string },
     options?: StagehandBrowserSessionOptions,
   ): Promise<void> {
@@ -1131,4 +1187,23 @@ function hydrateClearCookieOptions(
 function hydrateCookieFilter(filter: CookieFilter): string | RegExp {
   if (typeof filter === "string") return filter;
   return new RegExp(filter.source, filter.flags);
+}
+
+/** Resolves true when the promise settles first, false when the timeout wins. */
+async function settledWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      promise.then(
+        () => true,
+        () => true,
+      ),
+      timeout,
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }

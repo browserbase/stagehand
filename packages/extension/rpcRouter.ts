@@ -49,6 +49,18 @@ export type RPCRouterOptions = {
   closeContext?: () => Promise<void>;
 };
 
+/**
+ * Methods that must work while the browser connection is absent or being replaced: initialization
+ * establishes the session, the close paths tear the runtime down, and metrics only read local
+ * accumulators.
+ */
+const SESSION_INDEPENDENT_METHODS: ReadonlySet<string> = new Set([
+  "stagehand.init",
+  "stagehand.close",
+  "stagehand.metrics",
+  "context.close",
+]);
+
 export class RPCRouter {
   readonly stagehandController;
   readonly contextController;
@@ -147,6 +159,9 @@ export class RPCRouter {
     context: HandlerContext,
     parsedInitParams?: StagehandInitParams,
   ): Promise<unknown> {
+    if (!SESSION_INDEPENDENT_METHODS.has(request.method)) {
+      await this.runtime.waitForBrowserSession();
+    }
     switch (request.method) {
       case "stagehand.init":
         return this.stagehandController.init(
