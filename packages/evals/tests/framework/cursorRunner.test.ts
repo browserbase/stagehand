@@ -25,6 +25,8 @@ describe("cursor runner", () => {
     expect(prompt).toContain("Report the heading");
     expect(prompt).toContain("Use stagehand.run.");
     expect(prompt).toContain("Your only browser access is the MCP server");
+    expect(prompt).toContain("Do not edit repository files.");
+    expect(prompt).toContain("EVAL_RESULT:");
     expect(prompt).toContain('"success": boolean');
   });
 
@@ -70,6 +72,7 @@ describe("cursor runner", () => {
     });
     const metrics = result.metrics as Record<string, { value: number; count: number }>;
     expect(result._success).toBe(true);
+    expect(result.harnessStatus).toBe("completed");
     expect(result.cursorStatus).toBe("completed");
     expect(result.finalAnswer).toBe("ok");
     expect(metrics.cursor_tool_steps.value).toBe(2);
@@ -77,6 +80,10 @@ describe("cursor runner", () => {
     expect(metrics.cursor_input_tokens).toEqual({ count: 1, value: 0 });
     expect(metrics.cursor_output_tokens).toEqual({ count: 1, value: 0 });
     expect(metrics.cursor_total_tokens).toEqual({ count: 1, value: 0 });
+    expect(metrics.harness_input_tokens).toEqual({ count: 1, value: 0 });
+    expect(metrics.harness_output_tokens).toEqual({ count: 1, value: 0 });
+    expect(metrics.harness_total_tokens).toEqual({ count: 1, value: 0 });
+    expect(metrics.harness_cost_usd).toBeUndefined();
   });
 
   it("returns a failed task result for a non-zero exit without a result", async () => {
@@ -87,6 +94,7 @@ describe("cursor runner", () => {
       runProcess: scriptedRunner([], 1),
     });
     expect(result._success).toBe(false);
+    expect(result.harnessStatus).toBe("sdk_error");
     expect(result.cursorStatus).toBe("sdk_error");
     expect(String(result.error)).toContain("exited with code 1");
   });

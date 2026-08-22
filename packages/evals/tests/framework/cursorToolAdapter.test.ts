@@ -4,11 +4,11 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildCursorMcpConfig,
+  CURSOR_TOOL_SURFACES,
   isCursorMountToolName,
-  resolveCursorStartupProfile,
-  resolveCursorToolSurface,
   writeCursorWorkspace,
 } from "../../framework/cursorToolAdapter.js";
+import { resolveToolSurface } from "../../framework/harnesses/toolSurfaceResolution.js";
 
 const tempDirs: string[] = [];
 
@@ -17,25 +17,22 @@ afterEach(async () => {
 });
 
 describe("cursor tool adapter helpers", () => {
-  it("resolves supported surfaces and startup profiles", () => {
-    expect(resolveCursorToolSurface()).toBe("stagehand_facade");
-    expect(resolveCursorToolSurface("playwright_mcp")).toBe("playwright_mcp");
-    expect(resolveCursorToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
-    expect(() => resolveCursorToolSurface("browse_cli")).toThrow(
+  it("declares supported surfaces and resolves them through the shared helper", () => {
+    const harness = { harness: "cursor", supportedToolSurfaces: CURSOR_TOOL_SURFACES };
+    expect(CURSOR_TOOL_SURFACES).toEqual([
+      "stagehand_facade",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+    ]);
+    expect(resolveToolSurface(harness, undefined)).toBe("stagehand_facade");
+    expect(resolveToolSurface(harness, "stagehand_facade")).toBe("stagehand_facade");
+    expect(resolveToolSurface(harness, "playwright_mcp")).toBe("playwright_mcp");
+    expect(resolveToolSurface(harness, "chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
+    expect(() => resolveToolSurface(harness, "browse_cli")).toThrow(
       /stagehand_facade, playwright_mcp, or chrome_devtools_mcp.*browse_cli/,
     );
-    expect(() => resolveCursorToolSurface("stagehand_code")).toThrow(
+    expect(() => resolveToolSurface(harness, "stagehand_code")).toThrow(
       /stagehand_facade, playwright_mcp, or chrome_devtools_mcp.*stagehand_code/,
-    );
-    expect(resolveCursorStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveCursorStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
-      "tool_create_browserbase",
-    );
-    expect(resolveCursorStartupProfile("playwright_mcp", "LOCAL")).toBe(
-      "runner_provided_local_cdp",
-    );
-    expect(resolveCursorStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
-      "runner_provided_browserbase_cdp",
     );
   });
 

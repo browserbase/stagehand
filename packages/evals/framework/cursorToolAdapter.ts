@@ -7,6 +7,10 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import {
+  resolveStartupProfile,
+  resolveToolSurface,
+} from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export interface CursorToolAdapterInput {
@@ -32,11 +36,11 @@ export interface PreparedCursorToolAdapter {
   cleanup: () => Promise<void>;
 }
 
-export const CURSOR_MCP_SURFACES: ReadonlySet<ToolSurface> = new Set([
+export const CURSOR_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
   "playwright_mcp",
   "chrome_devtools_mcp",
-]);
+];
 
 export function buildCursorMcpConfig(mcpServers: Record<string, unknown>): {
   mcpServers: Record<string, unknown>;
@@ -70,38 +74,15 @@ export function isCursorMountToolName(serverNames: string[], toolName: string): 
   );
 }
 
-export function resolveCursorToolSurface(requested?: ToolSurface): ToolSurface {
-  if (!requested) return "stagehand_facade";
-  if (CURSOR_MCP_SURFACES.has(requested)) return requested;
-  throw new EvalsError(
-    `Cursor harness supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "${requested}".`,
-  );
-}
-
-export function resolveCursorStartupProfile(
-  toolSurface: ToolSurface,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile {
-  if (requested) return requested;
-  if (toolSurface === "stagehand_facade") {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-  }
-  if (CURSOR_MCP_SURFACES.has(toolSurface)) {
-    return environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
-  }
-  throw new EvalsError(
-    `No Cursor startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
-}
-
 export async function prepareCursorToolAdapter(
   input: CursorToolAdapterInput,
 ): Promise<PreparedCursorToolAdapter> {
-  const toolSurface = resolveCursorToolSurface(input.toolSurface);
-  const startupProfile = resolveCursorStartupProfile(
+  const toolSurface = resolveToolSurface(
+    { harness: "cursor", supportedToolSurfaces: CURSOR_TOOL_SURFACES },
+    input.toolSurface,
+  );
+  if (toolSurface === undefined) throw new EvalsError("cursor harness requires a tool surface.");
+  const startupProfile = resolveStartupProfile(
     toolSurface,
     input.environment,
     input.startupProfile,
