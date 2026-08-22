@@ -69,6 +69,7 @@ export const EVE_DISABLED_FRAMEWORK_TOOLS = [
   "agent",
   "ask_question",
   "todo",
+  "load_skill",
 ] as const;
 
 export type EveModelProvider = {
