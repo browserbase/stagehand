@@ -51,14 +51,23 @@ export const FX_TOOL_SURFACES: ToolSurface[] = [
 ];
 
 export const FX_DENIED_TOOLS = [
+  "*",
   "run_command",
   "terminal",
   "write_file",
   "edit_file",
   "read_file",
   "list_files",
-  "glob",
-  "grep",
+  "glob_files",
+  "grep_files",
+  "open_file",
+  "file_info",
+  "semantic_search",
+  "create_folder",
+  "install_skill",
+  "vision",
+  "ask_user_question",
+  "read_tool_result",
   "copy_file",
   "delete_file",
   "rename_file",
@@ -142,13 +151,17 @@ export function buildFxMcpConfig(
   return { mcp };
 }
 
-export function buildFxSettings(
-  mcpToolNames: Record<string, string[]>,
-): { permission: Record<string, "allow" | "deny"> } {
+export function buildFxSettings(mcpToolNames: Record<string, string[]>): {
+  permission: Record<string, "allow" | "deny">;
+} {
   const permission: Record<string, "allow" | "deny"> = Object.fromEntries(
     FX_DENIED_TOOLS.map((name) => [name, "deny" as const]),
   );
   for (const [serverName, toolNames] of Object.entries(mcpToolNames)) {
+    permission[`mcp_${serverName}_*`] = "allow";
+    if (serverName.includes("-")) {
+      permission[`mcp_${serverName.replace(/-/gu, "_")}_*`] = "allow";
+    }
     for (const toolName of toolNames) {
       permission[`mcp_${serverName}_${toolName}`] = "allow";
       if (serverName.includes("-")) {
@@ -370,7 +383,10 @@ function normalizeFxMcpServerSpec(
   };
 }
 
-async function cleanupFxRuntime(cleanup: () => Promise<void>, logger: EvalLogger): Promise<void> {
+export async function cleanupFxRuntime(
+  cleanup: () => Promise<void>,
+  logger: EvalLogger,
+): Promise<void> {
   try {
     await withTimeout(
       cleanup(),
@@ -378,7 +394,10 @@ async function cleanupFxRuntime(cleanup: () => Promise<void>, logger: EvalLogger
       "fx adapter cleanup",
     );
   } catch (error) {
-    const message = stringifyUnknown(error);
+    const message = sanitizeErrorMessage(stringifyUnknown(error)).replace(
+      /\b((?:apiKey|api_key|token|key)=)[^&\s"']+/giu,
+      "$1[redacted]",
+    );
     logger.warn({
       category: "fx",
       message: `fx adapter cleanup failed: ${message}`,

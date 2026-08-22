@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fxHarness } from "../../framework/benchHarness.js";
+import { EvalLogger } from "../../logger.js";
 import {
   buildFxAgentsMarkdown,
   buildFxMcpChildEnv,
   buildFxMcpConfig,
   buildFxSettings,
+  cleanupFxRuntime,
   FX_DENIED_TOOLS,
   FX_TOOL_SURFACES,
 } from "../../framework/fxToolAdapter.js";
@@ -91,18 +93,45 @@ describe("fx tool adapter helpers", () => {
     expect(buildFxSettings({ stagehand: ["run", "snapshot", "screenshot"] })).toEqual({
       permission: {
         ...Object.fromEntries(FX_DENIED_TOOLS.map((name) => [name, "deny"])),
+        "mcp_stagehand_*": "allow",
         mcp_stagehand_run: "allow",
         mcp_stagehand_snapshot: "allow",
         mcp_stagehand_screenshot: "allow",
       },
     });
     expect(buildFxSettings({ "chrome-devtools": ["click"] }).permission).toMatchObject({
+      "mcp_chrome-devtools_*": "allow",
+      "mcp_chrome_devtools_*": "allow",
       "mcp_chrome-devtools_click": "allow",
       mcp_chrome_devtools_click: "allow",
     });
     expect(buildFxSettings({}).permission).toEqual(
       Object.fromEntries(FX_DENIED_TOOLS.map((name) => [name, "deny"])),
     );
+    const permission = buildFxSettings({ stagehand: ["run"] }).permission;
+    expect(permission).toMatchObject({
+      "*": "deny",
+      grep_files: "deny",
+      open_file: "deny",
+      file_info: "deny",
+      semantic_search: "deny",
+      vision: "deny",
+      "mcp_stagehand_*": "allow",
+      mcp_stagehand_run: "allow",
+    });
+    expect(FX_DENIED_TOOLS).not.toContain("glob" as never);
+    expect(FX_DENIED_TOOLS).not.toContain("grep" as never);
+  });
+
+  it("redacts cleanup failures before logging", async () => {
+    const logger = new EvalLogger(false);
+    const warn = vi.spyOn(logger, "warn");
+    await cleanupFxRuntime(async () => {
+      throw new Error("cleanup failed apiKey=secret123");
+    }, logger);
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).toContain("apiKey=[redacted]");
+    expect(logged).not.toContain("secret123");
   });
 
   it("teaches exact fx MCP selection and Stagehand names", () => {

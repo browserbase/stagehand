@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import {
@@ -95,6 +96,13 @@ export type FxProcessRunner = (input: {
   signal?: string | null;
 }>;
 
+export type FxProcessRunnerOptions = {
+  spawnProcess?: typeof spawn;
+  killProcess?: typeof process.kill;
+  processHooks?: Pick<NodeJS.Process, "on">;
+  killGraceMs?: number;
+};
+
 export type FxSessionStore = {
   waitForSessionDir(home: string, signal: AbortSignal): Promise<string | undefined>;
   readEventsJsonl(sessionDir: string): Promise<string>;
@@ -111,76 +119,139 @@ export function normalizeFxModel(model: string): string | undefined {
   return model === "fx/default" ? undefined : model;
 }
 
-const defaultProcessRunner: FxProcessRunner = async (input) =>
-  new Promise((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    let stderrRemainder = "";
-    let killTimer: NodeJS.Timeout | undefined;
-    let child: ReturnType<typeof spawn>;
+const liveFxChildren = new Set<ChildProcess>();
 
-    const finish = (exitCode: number | null, signal?: string | null): void => {
-      if (settled) return;
-      settled = true;
-      if (killTimer) clearTimeout(killTimer);
-      input.signal.removeEventListener("abort", abort);
-      if (stderrRemainder) input.onStderrLine?.(stderrRemainder);
-      resolve({ stdout, stderr, exitCode, signal });
-    };
-    const abort = (): void => {
-      if (!child || settled) return;
-      signalFxProcess(child, "SIGTERM");
-      killTimer = setTimeout(() => signalFxProcess(child, "SIGKILL"), 2_000);
-      killTimer.unref();
-    };
+export function createFxProcessRunner(
+  options: FxProcessRunnerOptions = {},
+  trackedChildren: Set<ChildProcess> = liveFxChildren,
+): FxProcessRunner {
+  const spawnProcess = options.spawnProcess ?? spawn;
+  const killProcess = options.killProcess ?? process.kill.bind(process);
+  const processHooks = options.processHooks ?? process;
+  const killGraceMs = options.killGraceMs ?? 2_000;
+  const terminationTimers = new Map<ChildProcess, NodeJS.Timeout>();
+  let hooksRegistered = false;
 
-    try {
-      child = spawn(input.bin, input.args, {
-        cwd: input.cwd,
-        env: input.env,
-        stdio: ["pipe", "pipe", "pipe"],
-        detached: process.platform !== "win32",
-      });
-      child.stdout.on("data", (chunk: Buffer | string) => {
-        stdout += String(chunk);
-      });
-      child.stderr.on("data", (chunk: Buffer | string) => {
-        const text = String(chunk);
-        stderr += text;
-        const lines = `${stderrRemainder}${text}`.split(/\r?\n/u);
-        stderrRemainder = lines.pop() ?? "";
-        for (const line of lines) input.onStderrLine?.(line);
-      });
-      child.once("error", (error) => {
-        stderr += `${stderr ? "\n" : ""}${stringifyError(error)}`;
-        finish(null);
-      });
-      child.once("close", (exitCode, signal) => finish(exitCode, signal));
-      input.signal.addEventListener("abort", abort, { once: true });
-      if (input.signal.aborted) abort();
-      child.stdin.end(input.stdin);
-    } catch (error) {
-      stderr += stringifyError(error);
-      finish(null);
+  const signalChild = (child: ChildProcess, signal: NodeJS.Signals): void => {
+    if (process.platform !== "win32" && typeof child.pid === "number") {
+      try {
+        killProcess(-child.pid, signal);
+        return;
+      } catch {
+        // Fall back to the direct child if the process group is already gone.
+      }
     }
-  });
-
-function signalFxProcess(child: ReturnType<typeof spawn>, signal: NodeJS.Signals): void {
-  if (process.platform !== "win32" && typeof child.pid === "number") {
     try {
-      process.kill(-child.pid, signal);
-      return;
+      child.kill(signal);
     } catch {
-      // Fall back to the direct child if the process group is already gone.
+      // The child may have exited between the abort check and the signal.
     }
-  }
-  try {
-    child.kill(signal);
-  } catch {
-    // The child may have exited between the abort check and the signal.
-  }
+  };
+
+  const terminateChild = (
+    child: ChildProcess,
+    immediateKill = false,
+  ): NodeJS.Timeout | undefined => {
+    const existingTimer = terminationTimers.get(child);
+    if (existingTimer) {
+      if (!immediateKill) return existingTimer;
+      clearTimeout(existingTimer);
+      terminationTimers.delete(child);
+    }
+    signalChild(child, "SIGTERM");
+    if (immediateKill) {
+      signalChild(child, "SIGKILL");
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      terminationTimers.delete(child);
+      signalChild(child, "SIGKILL");
+    }, killGraceMs);
+    terminationTimers.set(child, timer);
+    timer.unref();
+    return timer;
+  };
+
+  const untrackChild = (child: ChildProcess): void => {
+    trackedChildren.delete(child);
+    const timer = terminationTimers.get(child);
+    if (timer) clearTimeout(timer);
+    terminationTimers.delete(child);
+  };
+
+  const registerHooks = (): void => {
+    if (hooksRegistered) return;
+    hooksRegistered = true;
+    const terminateAll = (immediateKill: boolean): void => {
+      for (const child of trackedChildren) terminateChild(child, immediateKill);
+    };
+    // The exit event only permits synchronous work, so send both signals there.
+    processHooks.on("exit", () => terminateAll(true));
+    processHooks.on("SIGINT", () => terminateAll(false));
+    processHooks.on("SIGTERM", () => terminateAll(false));
+  };
+
+  return async (input) =>
+    new Promise((resolve) => {
+      let stdout = "";
+      let stderr = "";
+      let settled = false;
+      let stderrRemainder = "";
+      let killTimer: NodeJS.Timeout | undefined;
+      let child: ReturnType<typeof spawn>;
+
+      const finish = (exitCode: number | null, signal?: string | null): void => {
+        if (settled) return;
+        settled = true;
+        if (killTimer) clearTimeout(killTimer);
+        input.signal.removeEventListener("abort", abort);
+        if (stderrRemainder) input.onStderrLine?.(stderrRemainder);
+        resolve({ stdout, stderr, exitCode, signal });
+      };
+      const abort = (): void => {
+        if (!child || settled) return;
+        killTimer = terminateChild(child);
+      };
+
+      try {
+        registerHooks();
+        child = spawnProcess(input.bin, input.args, {
+          cwd: input.cwd,
+          env: input.env,
+          stdio: ["pipe", "pipe", "pipe"],
+          detached: process.platform !== "win32",
+        });
+        trackedChildren.add(child);
+        child.stdout.on("data", (chunk: Buffer | string) => {
+          stdout += String(chunk);
+        });
+        child.stderr.on("data", (chunk: Buffer | string) => {
+          const text = String(chunk);
+          stderr += text;
+          const lines = `${stderrRemainder}${text}`.split(/\r?\n/u);
+          stderrRemainder = lines.pop() ?? "";
+          for (const line of lines) input.onStderrLine?.(line);
+        });
+        child.once("error", (error) => {
+          untrackChild(child);
+          stderr += `${stderr ? "\n" : ""}${stringifyError(error)}`;
+          finish(null);
+        });
+        child.once("close", (exitCode, signal) => {
+          untrackChild(child);
+          finish(exitCode, signal);
+        });
+        input.signal.addEventListener("abort", abort, { once: true });
+        if (input.signal.aborted) abort();
+        child.stdin.end(input.stdin);
+      } catch (error) {
+        stderr += stringifyError(error);
+        finish(null);
+      }
+    });
 }
+
+const defaultProcessRunner = createFxProcessRunner();
 
 const defaultSessionStore: FxSessionStore = {
   async waitForSessionDir(home, signal) {
@@ -386,12 +457,17 @@ export async function runFxSession(input: {
       : undefined;
   const tokenUsage = extractFxTokenUsage(logEvents, usageSnapshot);
   const aborted = input.signal?.aborted === true;
+  const configuredMaxAgentSteps = toPositiveInteger(env.FX_MAX_AGENT_STEPS);
+  const observedToolSteps = Math.max(toolSteps.length, toPositiveInteger(ask?.steps) ?? 0);
   const resolution = resolveFxStatus({
     exitCode: processResult.exitCode,
     signal: processResult.signal,
     ask,
     terminalReason,
     turnKind: typeof turn?.kind === "string" ? turn.kind : undefined,
+    assistantText: turnAssistant,
+    observedToolSteps,
+    maxAgentSteps: configuredMaxAgentSteps,
     aborted,
     stderr: processResult.stderr,
   });
@@ -497,6 +573,9 @@ export function resolveFxStatus(input: {
   ask?: FxAskOutput;
   terminalReason?: string;
   turnKind?: string;
+  assistantText?: string;
+  observedToolSteps?: number;
+  maxAgentSteps?: number;
   aborted?: boolean;
   stderr?: string;
 }): { status: "completed" | "max_turns" | "sdk_error"; stopReason?: string } {
@@ -505,12 +584,30 @@ export function resolveFxStatus(input: {
     return { status: "sdk_error", stopReason: "interrupted" };
   }
   const error = typeof input.ask?.error === "string" ? input.ask.error : undefined;
+  const stepLimitNotice = [input.assistantText, input.ask?.output].find(
+    (value): value is string =>
+      typeof value === "string" && /agent step limit reached/iu.test(value),
+  );
+  const reachedConfiguredStepLimit =
+    positiveInteger(input.maxAgentSteps) &&
+    typeof input.observedToolSteps === "number" &&
+    input.observedToolSteps >= input.maxAgentSteps;
   if (
+    stepLimitNotice ||
+    reachedConfiguredStepLimit ||
     input.terminalReason === "step_limit" ||
     input.terminalReason === "step_limit_reached" ||
     (error && /step.?limit/iu.test(error))
   ) {
-    return { status: "max_turns", stopReason: error ?? input.terminalReason };
+    return {
+      status: "max_turns",
+      stopReason:
+        stepLimitNotice ??
+        error ??
+        (reachedConfiguredStepLimit
+          ? `fx reached the configured agent step limit (${input.maxAgentSteps} steps)`
+          : input.terminalReason),
+    };
   }
   if (!input.ask) {
     const stderr = input.stderr?.trim();
@@ -636,6 +733,11 @@ function usageFromRecord(record?: Record<string, unknown>): FxTokenUsage {
 
 function positiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function toPositiveInteger(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number.parseInt(String(value ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {
