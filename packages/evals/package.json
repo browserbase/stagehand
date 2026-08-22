@@ -24,6 +24,7 @@
     "@browserbasehq/sdk": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
     "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
     "@openai/codex-sdk": "catalog:",
     "ai": "^5.0.133",
     "browse": "0.9.5",
