@@ -1,30 +1,21 @@
 import "dotenv/config";
-import { localBrowser, Stagehand } from "../src/index.js";
+import { browserbase, Stagehand } from "../src/index.js";
 
-const { OPENAI_API_KEY } = process.env;
-if (!OPENAI_API_KEY) throw new Error();
-
-const browser = await localBrowser.launch({ headless: true });
-const stagehand = await Stagehand.create({
-  browser,
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: OPENAI_API_KEY,
-  },
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+  region: "ap-southeast-1",
+  timeout: 120,
+  keepAlive: true,
 });
 
-const [page] = await browser.context.pages();
-await page.goto("https://example.com");
-
-const result = await stagehand.act(
-  "Click the link that provides more information about Example Domain",
-);
-
-console.log(JSON.stringify(result.data, null, 2));
-
-if (!result.data.success) {
-  throw new Error(`act() failed: ${result.data.message}`);
+try {
+  const stagehand = await Stagehand.create({ browser });
+  // Never reached.
+  const [page] = await browser.context.pages();
+  const ctx = browser.context;
+  await ctx.close();
+  await page.goto("https://example.com/");
+  await stagehand.close();
+} finally {
+  await browser.close();
 }
-
-await stagehand.close();
-await browser.close();
