@@ -149,6 +149,52 @@ jobs:
     uses: ./.github/workflows/publish-python.yml
     secrets: inherit
 
+  python-alpha-status:
+    name: Check Python alpha status
+    needs: release-typescript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      should-publish: ${{ steps.status.outputs.should-publish }}
+      version: ${{ steps.status.outputs.version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Only packages with pending changesets receive a snapshot version, so this
+      # tells us whether the Python SDK has anything unreleased to publish.
+      - run: pnpm exec changeset version --snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check alpha version
+        id: status
+        run: pnpm exec tsx scripts/release/python-alpha-version.ts --check >> "$GITHUB_OUTPUT"
+
+  publish-python-alpha:
+    name: Release Python SDK alpha
+    needs: python-alpha-status
+    if: needs.python-alpha-status.outputs.should-publish == 'true'
+    uses: ./.github/workflows/publish-python.yml
+    with:
+      alpha: true
+    secrets: inherit
+
   publish-go:
     name: Release Go SDK
     needs: release-typescript
