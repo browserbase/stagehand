@@ -184,7 +184,9 @@ jobs:
         working-directory: packages/sdk-python
       - run: uv run --locked python scripts/generate.py --check
         working-directory: packages/sdk-python
+      - run: uv run --locked ruff format --check .
         working-directory: packages/sdk-python
+      - run: uv run --locked ruff check .
         working-directory: packages/sdk-python
       - run: uv run --locked ty check
         working-directory: packages/sdk-python
