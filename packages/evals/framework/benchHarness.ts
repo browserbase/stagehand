@@ -11,6 +11,7 @@ import {
 import { runCodexAgent } from "./codexRunner.js";
 import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { withHarnessAgentSpan } from "./otel.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 
@@ -160,18 +161,27 @@ export const claudeCodeHarness: BenchHarness = {
         plan,
         logger,
       });
-      return await runClaudeCodeAgent({
-        plan,
-        model: input.modelName,
-        logger,
-        toolAdapter,
-        signal,
-        verifier: {
-          v3: carrierV3,
-          taskSpec: buildExternalHarnessTaskSpec(plan, input),
-          dataset: plan.dataset,
+      return await withHarnessAgentSpan(
+        {
+          harness: "claude_code",
+          model: input.modelName,
+          task: input.name,
+          instruction: plan.instruction,
         },
-      });
+        () =>
+          runClaudeCodeAgent({
+            plan,
+            model: input.modelName,
+            logger,
+            toolAdapter,
+            signal,
+            verifier: {
+              v3: carrierV3,
+              taskSpec: buildExternalHarnessTaskSpec(plan, input),
+              dataset: plan.dataset,
+            },
+          }),
+      );
     } finally {
       await toolAdapter?.cleanup();
       // Deregister the never-init()-ed carrier (instance registry, event
@@ -209,18 +219,27 @@ export const codexHarness: BenchHarness = {
         plan,
         logger,
       });
-      return await runCodexAgent({
-        plan,
-        model: input.modelName,
-        logger,
-        toolAdapter,
-        signal,
-        verifier: {
-          v3: carrierV3,
-          taskSpec: buildExternalHarnessTaskSpec(plan, input),
-          dataset: plan.dataset,
+      return await withHarnessAgentSpan(
+        {
+          harness: "codex",
+          model: input.modelName,
+          task: input.name,
+          instruction: plan.instruction,
         },
-      });
+        () =>
+          runCodexAgent({
+            plan,
+            model: input.modelName,
+            logger,
+            toolAdapter,
+            signal,
+            verifier: {
+              v3: carrierV3,
+              taskSpec: buildExternalHarnessTaskSpec(plan, input),
+              dataset: plan.dataset,
+            },
+          }),
+      );
     } finally {
       await toolAdapter?.cleanup();
       // Deregister the never-init()-ed carrier (instance registry, event
