@@ -308,6 +308,10 @@ function renderHuman(report: DoctorReport): void {
     }`,
   );
   console.log(keyRow("BRAINTRUST_API_KEY", r.keys.braintrust, "(needed for `experiments`)"));
+  const langsmithLabel = r.keys.langsmith.var ?? "LANGSMITH_API_KEY";
+  console.log(
+    keyRow(langsmithLabel, r.keys.langsmith, "(optional; LANGCHAIN_API_KEY also supported)"),
+  );
   console.log("");
 
   console.log(`  ${bold("Status")}`);
