@@ -184,7 +184,7 @@ jobs:
 
       - name: Check alpha version
         id: status
-        run: pnpm exec tsx scripts/release/python-alpha-version.ts --check >> "$GITHUB_OUTPUT"
+        run: node scripts/release/python-alpha-version.ts --check >> "$GITHUB_OUTPUT"
 
   publish-python-alpha:
     name: Release Python SDK alpha
