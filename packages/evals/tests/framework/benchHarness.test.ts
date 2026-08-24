@@ -9,6 +9,7 @@ import {
   listBenchHarnesses,
   listExecutableBenchHarnesses,
   parseBenchHarness,
+  listBenchHarnessesForToolSurface,
   mastraHarness,
   piHarness,
   registerBenchHarness,
