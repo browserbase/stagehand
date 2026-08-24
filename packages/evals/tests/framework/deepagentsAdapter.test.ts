@@ -40,7 +40,13 @@ describe("Deep Agents trajectory adapter", () => {
       toolOutput: { ok: true, result: { page: "ok" } },
     });
     expect(trajectory.steps[0]?.agentEvidence.modalities).toEqual(
-      expect.arrayContaining([expect.objectContaining({ type: "image", mediaType: "image/png" })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "image",
+          mediaType: "image/png",
+          bytes: Buffer.from("abc"),
+        }),
+      ]),
     );
     expect(trajectory.finalAnswer).toBe("final answer");
   });

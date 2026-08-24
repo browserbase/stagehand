@@ -243,7 +243,35 @@ def sanitize_error(message: str) -> str:
         message,
         flags=re.IGNORECASE,
     )
-    return re.sub(r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", r"\1[redacted]", message)
+    message = re.sub(
+        r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", r"\1[redacted]", message
+    )
+    message = re.sub(
+        r"\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+",
+        r"\1[redacted]",
+        message,
+    )
+    message = re.sub(r"\bAIza[0-9A-Za-z_-]{30,}", "AIza[redacted]", message)
+    return re.sub(
+        r"\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}",
+        r"\1[redacted]",
+        message,
+        flags=re.IGNORECASE,
+    )
+
+
+def _sanitize_strings(value: object) -> object:
+    if isinstance(value, str):
+        return sanitize_error(value)
+    if isinstance(value, list):
+        return [_sanitize_strings(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _sanitize_strings(item) for key, item in value.items()}
+    return value
+
+
+def _sanitize_event(event: Event) -> Event:
+    return {key: _sanitize_strings(value) for key, value in event.items()}
 
 
 def print_line(event: Event) -> None:
@@ -316,8 +344,16 @@ async def run(
     usages: list[Mapping[str, object] | None] = []
     tool_result_count = 0
     emitted_message_ids: set[tuple[str, str]] = set()
+    had_failure = False
 
     def emit_event(event: Event) -> None:
+        nonlocal had_failure
+        is_error = event.get("type") == "error"
+        is_failed_tool = event.get("type") == "tool_result" and event.get("ok") is False
+        if is_error or is_failed_tool:
+            had_failure = True
+        if is_error or is_failed_tool or (event.get("type") == "final" and had_failure):
+            event = _sanitize_event(event)
         emit({**event, "ts": time.time()})
 
     try:
@@ -395,7 +431,13 @@ async def run(
                     await stream.aclose()
                     break
     except GraphRecursionError as error:
-        emit_event({"type": "error", "kind": "recursion_limit", "message": str(error)})
+        emit_event(
+            {
+                "type": "error",
+                "kind": "recursion_limit",
+                "message": sanitize_error(str(error)),
+            }
+        )
     except (KeyboardInterrupt, asyncio.CancelledError):
         emit_event({"type": "error", "kind": "exception", "message": "terminated"})
         emit_event({"type": "final", "text": last_text})
