@@ -309,7 +309,7 @@ describe("Stagehand RPC router", () => {
     });
     expect(logs).not.toContain("stagehand.init");
     expect(initializeStagehand).toHaveBeenCalledOnce();
-    expect(initializeStagehand).toHaveBeenCalledWith(initRequest.params);
+    expect(initializeStagehand).toHaveBeenCalledWith(initRequest.params, expect.anything());
 
     await expect(
       router.handle(request({ id: 16, method: "stagehand.close", params: {} })),

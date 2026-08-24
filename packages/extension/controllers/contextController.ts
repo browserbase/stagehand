@@ -18,7 +18,10 @@ import type {
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
 
-export function createContextController(runtime: StagehandRuntime) {
+export function createContextController(
+  runtime: StagehandRuntime,
+  options: { close?: () => Promise<void> } = {},
+) {
   async function pages(_params: EmptyParams, { logger }: HandlerContext) {
     logger.debug("context.pages", {});
     return runtime.contextPages();
@@ -41,7 +44,11 @@ export function createContextController(runtime: StagehandRuntime) {
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
     logger.debug("context.close", {});
-    return runtime.contextClose();
+    if (options.close) {
+      await options.close();
+      return { closed: true };
+    }
+    return await runtime.contextClose();
   }
 
   async function addInitScript(params: ContextAddInitScriptParams, { logger }: HandlerContext) {

@@ -126,7 +126,7 @@ import { Page } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
-import { DuplicatePageEventSubscriptionError } from "./errors.js";
+import { BrowserSessionUnavailableError, DuplicatePageEventSubscriptionError } from "./errors.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -252,10 +252,21 @@ export type StagehandBrowserSession = {
   close(): Promise<void> | void;
 };
 
+export type StagehandBrowserSessionLifecycle = {
+  bootstrapMode?: "resident";
+  onConnected?(): void;
+  onDisconnected?(): void;
+};
+
+export type StagehandBrowserSessionOptions = {
+  bootstrapLogger?: StagehandLogger;
+  lifecycle?: StagehandBrowserSessionLifecycle;
+};
+
 export type StagehandBrowserSessionFactory = (
   cdpUrl: string,
   logger: StagehandLogger,
-  bootstrapLogger?: StagehandLogger,
+  options?: StagehandBrowserSessionOptions,
 ) => Promise<StagehandBrowserSession>;
 
 export type StagehandRuntimeAdapters = {
@@ -275,6 +286,12 @@ const discardPageCDPEvent = (): void => {};
 const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
+
+/**
+ * Covers the resident reconnect delay budget (100+250+500+1000+2000ms) plus one loopback proxy
+ * discovery timeout (5s), so a client RPC rides out a normal reconnect instead of racing it.
+ */
+export const DEFAULT_BROWSER_SESSION_WAIT_MS = 10_000;
 
 export function createStagehandRuntime(
   adapters: StagehandRuntimeAdapters = {},
@@ -302,9 +319,28 @@ export class StagehandRuntime {
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private readonly pageEventSubscriptions = new Map<
     string,
-    { pageId: string; dispose: () => void }
+    { pageId: string; event: PageOnParams["event"]; dispose: () => void }
   >();
+  private readonly pendingPageEventResubscriptions = new Map<
+    string,
+    Pick<PageOnParams, "pageId" | "event">
+  >();
+  private browserSessionGeneration = 0;
+  private browserSessionPending?: Promise<void>;
+  private browserSessionRecovery?: () => Promise<void> | undefined;
   private initializationInProgress = false;
+  private readonly contextInitScripts: string[] = [];
+  private contextExtraHTTPHeaders?: ContextSetExtraHTTPHeadersParams["headers"];
+  private contextDomainPolicy?: DomainPolicy | null;
+  private readonly pageInitScriptsById = new Map<string, string[]>();
+  private readonly pageExtraHTTPHeadersById = new Map<
+    string,
+    PageSetExtraHTTPHeadersParams["headers"]
+  >();
+  private readonly pageViewportById = new Map<
+    string,
+    Pick<PageSetViewportSizeParams, "width" | "height" | "options">
+  >();
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -313,27 +349,92 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
+  /**
+   * Lets a lifecycle owner (the resident runtime) expose an in-flight or scheduled reconnect so
+   * client RPCs can wait for it instead of observing the gap between two browser sessions.
+   */
+  setBrowserSessionRecoveryProvider(provider?: () => Promise<void> | undefined): void {
+    this.browserSessionRecovery = provider;
+  }
+
+  browserConnectionStatus(): { configured: boolean; connected: boolean } {
+    return {
+      configured: this.browserSession !== undefined,
+      connected: this.browserSession?.connected ?? false,
+    };
+  }
+
   async replaceBrowserConnection(
     params: { cdpUrl: string },
-    bootstrapLogger?: StagehandLogger,
+    options?: StagehandBrowserSessionOptions,
+  ): Promise<void> {
+    const replacement = this.runBrowserConnectionReplacement(params, options);
+    // Waiters only need to know when the window closes; the outcome belongs to the caller.
+    const pending = replacement.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.browserSessionPending = pending;
+    try {
+      return await replacement;
+    } finally {
+      if (this.browserSessionPending === pending) this.browserSessionPending = undefined;
+    }
+  }
+
+  /**
+   * Resolves once no browser session replacement is in flight. Returns immediately when a connected
+   * session is already available, so the ordinary RPC path pays nothing. A session that is merely
+   * disconnected also waits, because the resident lifecycle schedules its reconnect before the
+   * replacement that clears the field begins.
+   */
+  async waitForBrowserSession(timeoutMs = DEFAULT_BROWSER_SESSION_WAIT_MS): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    let lastAwaited: Promise<void> | undefined;
+    while (!this.browserSession?.connected) {
+      const pending = this.browserSessionPending ?? this.browserSessionRecovery?.();
+      // Nothing left to wait for: let requireBrowserSession report the real failure.
+      if (!pending || pending === lastAwaited) return;
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) throw new BrowserSessionUnavailableError(timeoutMs);
+      if (!(await settledWithin(pending, remainingMs))) {
+        throw new BrowserSessionUnavailableError(timeoutMs);
+      }
+      lastAwaited = pending;
+    }
+  }
+
+  private async runBrowserConnectionReplacement(
+    params: { cdpUrl: string },
+    options?: StagehandBrowserSessionOptions,
   ): Promise<void> {
     const { cdpUrl } = params;
+    const generation = ++this.browserSessionGeneration;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
+    // Merge rather than replace: a reconnect superseded before it restored leaves the
+    // active map empty, and the original subscriptions must survive until one succeeds.
+    for (const [subscriptionId, { pageId, event }] of this.pageEventSubscriptions) {
+      this.pendingPageEventResubscriptions.set(subscriptionId, { pageId, event });
+    }
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
     await previousSession?.close();
 
+    let browserSession: StagehandBrowserSession | undefined;
     try {
-      this.browserSession = await this.adapters.browserSessionFactory(
-        cdpUrl,
-        this.logger,
-        bootstrapLogger,
-      );
+      if (generation !== this.browserSessionGeneration) {
+        throw new Error("Stagehand browser session bootstrap was superseded");
+      }
+      browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger, options);
+      if (generation !== this.browserSessionGeneration) {
+        throw new Error("Stagehand browser session bootstrap was superseded");
+      }
+      this.browserSession = browserSession;
     } catch (error) {
-      await this.browserSession?.close();
-      this.browserSession = undefined;
+      await browserSession?.close();
+      if (generation === this.browserSessionGeneration) this.browserSession = undefined;
       throw error;
     }
   }
@@ -357,7 +458,10 @@ export class StagehandRuntime {
         if (!params.browserCdpUrl) {
           throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
         }
-        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
+        await this.replaceBrowserConnection(
+          { cdpUrl: params.browserCdpUrl },
+          { bootstrapLogger: logger },
+        );
       }
       const pages = await this.runWithTelemetryContext(
         Symbol("stagehand.init"),
@@ -384,6 +488,74 @@ export class StagehandRuntime {
       };
     } finally {
       this.initializationInProgress = false;
+    }
+  }
+
+  /** Restores initialization-dependent browser instrumentation after replacing a CDP session. */
+  async restoreInitializedBrowserSession(): Promise<void> {
+    if (this.state.getState().status !== "initialized") return;
+    const session = this.requireBrowserSession();
+    await session.prepareForInitialization?.();
+    this.assertBrowserSessionCurrent(session);
+    for (const source of this.contextInitScripts) {
+      await session.addInitScript(source);
+      this.assertBrowserSessionCurrent(session);
+    }
+    if (this.contextExtraHTTPHeaders) {
+      await session.setExtraHTTPHeaders(this.contextExtraHTTPHeaders);
+      this.assertBrowserSessionCurrent(session);
+    }
+    if (this.contextDomainPolicy !== undefined) {
+      await session.setDomainPolicy(this.contextDomainPolicy);
+      this.assertBrowserSessionCurrent(session);
+    }
+    await this.contextPages();
+    this.assertBrowserSessionCurrent(session);
+    // Pages that vanished while the connection was down never flowed through
+    // refreshPageRegistry's prune, so drop their restore bookkeeping here.
+    for (const pageId of new Set([
+      ...this.pageInitScriptsById.keys(),
+      ...this.pageExtraHTTPHeadersById.keys(),
+      ...this.pageViewportById.keys(),
+    ])) {
+      if (!this.pagesById.has(pageId)) this.forgetPage(pageId);
+    }
+    for (const [pageId, page] of this.pagesById) {
+      for (const source of this.pageInitScriptsById.get(pageId) ?? []) {
+        await page.addInitScript(source);
+        this.assertBrowserSessionCurrent(session);
+      }
+      const headers = this.pageExtraHTTPHeadersById.get(pageId);
+      if (headers) {
+        await page.setExtraHTTPHeaders(headers);
+        this.assertBrowserSessionCurrent(session);
+      }
+      const viewport = this.pageViewportById.get(pageId);
+      if (viewport) {
+        await page.setViewportSize(viewport.width, viewport.height, viewport.options);
+        this.assertBrowserSessionCurrent(session);
+      }
+    }
+    for (const [subscriptionId, { pageId, event }] of this.pendingPageEventResubscriptions) {
+      if (!this.pagesById.has(pageId)) {
+        this.logger.warn(
+          "Dropped page CDP event subscription for a page that did not survive the reconnect",
+          { category: "resident", pageId, subscriptionId },
+        );
+        // There is intentionally no wire-level invalidation event: the page is gone,
+        // so its next SDK use fails with the normal page-not-found error.
+        continue;
+      }
+      if (this.pageEventSubscriptions.has(subscriptionId)) continue;
+      this.pageOn({ pageId, subscriptionId, event });
+    }
+    this.assertBrowserSessionCurrent(session);
+    this.pendingPageEventResubscriptions.clear();
+  }
+
+  private assertBrowserSessionCurrent(session: StagehandBrowserSession): void {
+    if (this.browserSession !== session) {
+      throw new Error("Stagehand browser session bootstrap was superseded");
     }
   }
 
@@ -440,6 +612,9 @@ export class StagehandRuntime {
 
   async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {
     await this.requireBrowserSession().addInitScript(params.source);
+    if (!this.contextInitScripts.includes(params.source)) {
+      this.contextInitScripts.push(params.source);
+    }
     return { ok: true };
   }
 
@@ -447,6 +622,7 @@ export class StagehandRuntime {
     params: ContextSetExtraHTTPHeadersParams,
   ): Promise<ContextVoidResult> {
     await this.requireBrowserSession().setExtraHTTPHeaders(params.headers);
+    this.contextExtraHTTPHeaders = { ...params.headers };
     return { ok: true };
   }
 
@@ -456,6 +632,7 @@ export class StagehandRuntime {
 
   async contextSetDomainPolicy(params: ContextSetDomainPolicyParams): Promise<ContextVoidResult> {
     await this.requireBrowserSession().setDomainPolicy(params.policy);
+    this.contextDomainPolicy = params.policy;
     return { ok: true };
   }
 
@@ -625,11 +802,15 @@ export class StagehandRuntime {
 
   async pageAddInitScript(params: PageAddInitScriptParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).addInitScript(params.source);
+    const sources = this.pageInitScriptsById.get(params.pageId) ?? [];
+    if (!sources.includes(params.source)) sources.push(params.source);
+    this.pageInitScriptsById.set(params.pageId, sources);
     return { ok: true };
   }
 
   async pageSetExtraHTTPHeaders(params: PageSetExtraHTTPHeadersParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).setExtraHTTPHeaders(params.headers);
+    this.pageExtraHTTPHeadersById.set(params.pageId, { ...params.headers });
     return { ok: true };
   }
 
@@ -639,6 +820,11 @@ export class StagehandRuntime {
       params.height,
       params.options,
     );
+    this.pageViewportById.set(params.pageId, {
+      width: params.width,
+      height: params.height,
+      ...(params.options === undefined ? {} : { options: { ...params.options } }),
+    });
     return { ok: true };
   }
 
@@ -730,9 +916,7 @@ export class StagehandRuntime {
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
     const page = this.resolvePage(params.pageId);
     await page.close();
-    this.disposePageEventSubscriptions(params.pageId);
-    this.pagesById.delete(params.pageId);
-    this.responseHandles.deleteForPage(params.pageId);
+    this.forgetPage(params.pageId);
     return { closed: true };
   }
 
@@ -743,11 +927,16 @@ export class StagehandRuntime {
     const dispose = this.resolvePage(params.pageId).subscribeCDPEvent((event) => {
       this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
     });
-    this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });
+    this.pageEventSubscriptions.set(params.subscriptionId, {
+      pageId: params.pageId,
+      event: params.event,
+      dispose,
+    });
     return { ok: true };
   }
 
   pageOff(params: PageOffParams): PageVoidResult {
+    this.pendingPageEventResubscriptions.delete(params.subscriptionId);
     const subscription = this.pageEventSubscriptions.get(params.subscriptionId);
     if (!subscription) return { ok: true };
     subscription.dispose();
@@ -850,11 +1039,16 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
+    ++this.browserSessionGeneration;
     const session = this.browserSession;
     this.browserSession = undefined;
     this.disposeAllPageEventSubscriptions();
+    this.pendingPageEventResubscriptions.clear();
     this.pagesById.clear();
     this.responseHandles.clear();
+    this.pageInitScriptsById.clear();
+    this.pageExtraHTTPHeadersById.clear();
+    this.pageViewportById.clear();
     try {
       await session?.close();
     } finally {
@@ -904,11 +1098,18 @@ export class StagehandRuntime {
 
     for (const pageId of this.pagesById.keys()) {
       if (!currentPageIds.has(pageId)) {
-        this.disposePageEventSubscriptions(pageId);
-        this.pagesById.delete(pageId);
-        this.responseHandles.deleteForPage(pageId);
+        this.forgetPage(pageId);
       }
     }
+  }
+
+  private forgetPage(pageId: string): void {
+    this.disposePageEventSubscriptions(pageId);
+    this.pagesById.delete(pageId);
+    this.responseHandles.deleteForPage(pageId);
+    this.pageInitScriptsById.delete(pageId);
+    this.pageExtraHTTPHeadersById.delete(pageId);
+    this.pageViewportById.delete(pageId);
   }
 
   private disposePageEventSubscriptions(pageId: string): void {
@@ -986,4 +1187,23 @@ function hydrateClearCookieOptions(
 function hydrateCookieFilter(filter: CookieFilter): string | RegExp {
   if (typeof filter === "string") return filter;
   return new RegExp(filter.source, filter.flags);
+}
+
+/** Resolves true when the promise settles first, false when the timeout wins. */
+async function settledWithin(promise: Promise<unknown>, timeoutMs: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      promise.then(
+        () => true,
+        () => true,
+      ),
+      timeout,
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }

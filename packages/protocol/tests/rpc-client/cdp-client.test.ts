@@ -553,13 +553,17 @@ describe("waitForRuntimeReady", () => {
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
   });
 
-  it("does not accept markers with unknown descriptor fields", async () => {
-    const controller = new AbortController();
-    const reason = new Error("initialization cancelled");
+  it("accepts an idle operational marker around the strict descriptor", async () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
-          marker: { ...runtimeMarker(STAGEHAND_PROTOCOL_VERSION), status: "ready" },
+          marker: {
+            ...runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
+            name: "stagehand",
+            state: "idle",
+            connected: false,
+            timings: {},
+          },
           hasReceiver: true,
         },
       },
@@ -567,13 +571,10 @@ describe("waitForRuntimeReady", () => {
 
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
-        pollIntervalMs: 1,
-        signal: controller.signal,
-        delayFn: async () => {
-          controller.abort(reason);
-        },
+        signal: lifecycleSignal,
+        delayFn: async () => {},
       }),
-    ).rejects.toBe(reason);
+    ).resolves.toBeUndefined();
   });
 });
 

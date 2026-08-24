@@ -6,6 +6,25 @@ const BrowserVersionSchema = z.object({
 
 const DEFAULT_RESOLVE_TIMEOUT_MS = 5_000;
 
+export type ResidentBrowserProxyErrorCode =
+  | "RESIDENT_PROXY_UNAVAILABLE"
+  | "RESIDENT_PROXY_NOT_READY"
+  | "RESIDENT_PROXY_FORBIDDEN";
+
+export class ResidentBrowserProxyError extends Error {
+  readonly status?: number;
+
+  constructor(
+    readonly code: ResidentBrowserProxyErrorCode,
+    message: string,
+    options?: { status?: number; cause?: unknown },
+  ) {
+    super(message.includes(code) ? message : `${code}: ${message}`, { cause: options?.cause });
+    this.name = "ResidentBrowserProxyError";
+    this.status = options?.status;
+  }
+}
+
 export type ResidentBrowserProxyResolverOptions = {
   fetch?: typeof globalThis.fetch;
   timeoutMs?: number;
@@ -28,11 +47,48 @@ export async function resolveResidentBrowserWebSocketUrl(
 
   try {
     const versionUrl = new URL("/json/version", proxyUrl);
-    const response = await (options.fetch ?? globalThis.fetch)(versionUrl, {
-      redirect: "error",
-      signal: abortController.signal,
-    });
+    let response: Response;
+    try {
+      response = await (options.fetch ?? globalThis.fetch)(versionUrl, {
+        redirect: "error",
+        signal: abortController.signal,
+      });
+    } catch (error) {
+      const underlying = error instanceof Error ? error.message : String(error);
+      throw new ResidentBrowserProxyError(
+        "RESIDENT_PROXY_UNAVAILABLE",
+        `RESIDENT_PROXY_UNAVAILABLE: Resident browser proxy at ${proxyUrl.origin} is unavailable; the Browserbase session may not have enabled the Stagehand runtime or the proxy is not listening. Ensure browserSettings.extensions includes "stagehand". (${underlying})`,
+        { cause: error },
+      );
+    }
     if (!response.ok) {
+      const body = await response.json().catch(() => undefined);
+      const proxyError =
+        typeof body === "object" &&
+        body !== null &&
+        "error" in body &&
+        typeof body.error === "string"
+          ? body.error
+          : undefined;
+      if (response.status === 403) {
+        throw new ResidentBrowserProxyError(
+          "RESIDENT_PROXY_FORBIDDEN",
+          "RESIDENT_PROXY_FORBIDDEN: Resident browser proxy rejected the extension origin; extension ID mismatch",
+          { status: response.status },
+        );
+      }
+      if (
+        response.status === 503 ||
+        proxyError === "stagehand_not_enabled" ||
+        proxyError === "browser_unavailable"
+      ) {
+        const detail = proxyError ? ` (${proxyError})` : "";
+        throw new ResidentBrowserProxyError(
+          "RESIDENT_PROXY_NOT_READY",
+          `RESIDENT_PROXY_NOT_READY: Resident browser proxy is not ready${detail}`,
+          { status: response.status },
+        );
+      }
       throw new Error(`Browser proxy version request failed with HTTP ${response.status}`);
     }
 

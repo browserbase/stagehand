@@ -216,6 +216,9 @@ export class CdpConnection implements CDPSessionLike {
       targetId: null,
       params: JSON.stringify(params ?? {}),
     });
+    if (!this.transport.connected) {
+      return Promise.reject(new Error(`CDP connection is closed (method=${method})`));
+    }
     const p = new Promise<unknown>((resolve, reject) => {
       this.inflight.set(id, {
         resolve: resolve as (v: unknown) => void,
@@ -230,7 +233,14 @@ export class CdpConnection implements CDPSessionLike {
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
     void p.catch(() => {});
-    this.transport.send(JSON.stringify(payload));
+    try {
+      this.transport.send(JSON.stringify(payload));
+    } catch (error) {
+      const reason = error instanceof Error ? error : new Error(String(error));
+      const entry = this.inflight.get(id);
+      this.inflight.delete(id);
+      entry?.reject(reason);
+    }
     return p as Promise<R>;
   }
 
@@ -448,6 +458,14 @@ export class CdpConnection implements CDPSessionLike {
       targetId: this.targetIdForSession(sessionId),
       params: JSON.stringify(params ?? {}),
     });
+    // A pre-resume waiter for this exact dispatch must settle with the send: a command that
+    // never reaches the wire was not dispatched, or its awaiting Promise.all hangs forever.
+    const dispatchWaiter = this.findSessionDispatchWaiter(sessionId, method, params);
+    if (!this.transport.connected) {
+      const reason = new Error(`CDP connection is closed (method=${method})`);
+      dispatchWaiter?.reject(reason);
+      return Promise.reject(reason);
+    }
 
     const p = new Promise<unknown>((resolve, reject) => {
       this.inflight.set(id, {
@@ -463,15 +481,31 @@ export class CdpConnection implements CDPSessionLike {
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
     void p.catch(() => {});
-    for (const waiter of Array.from(this.sessionDispatchWaiters)) {
+    try {
+      this.transport.send(JSON.stringify(payload));
+      dispatchWaiter?.resolve();
+    } catch (error) {
+      const reason = error instanceof Error ? error : new Error(String(error));
+      const entry = this.inflight.get(id);
+      this.inflight.delete(id);
+      entry?.reject(reason);
+      dispatchWaiter?.reject(reason);
+    }
+    return p as Promise<R>;
+  }
+
+  private findSessionDispatchWaiter(
+    sessionId: string,
+    method: string,
+    params?: object,
+  ): SessionDispatchWaiter | undefined {
+    for (const waiter of this.sessionDispatchWaiters) {
       if (waiter.sessionId !== sessionId) continue;
       if (waiter.method !== method) continue;
       if (waiter.match && !waiter.match(params)) continue;
-      waiter.resolve();
-      break;
+      return waiter;
     }
-    this.transport.send(JSON.stringify(payload));
-    return p as Promise<R>;
+    return undefined;
   }
 
   _onSessionEvent(sessionId: string, event: string, handler: EventHandler): void {
