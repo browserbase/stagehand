@@ -1,11 +1,5 @@
-import {
-  buildEveTranscript,
-  runEveSession,
-  stringifyError,
-  toFiniteNumber,
-  type EveClientLike,
-  type EveTokenUsage,
-} from "@browserbasehq/stagehand-integrations-eve-sdk";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+import type { EveClientLike, EveTokenUsage } from "@browserbasehq/stagehand-integrations-eve-sdk";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
@@ -75,6 +69,8 @@ export async function runEveAgent({
     resultContract: "structured_output",
     fallbackErrorMessage: "Eve did not report success",
     runSession: async (prompt) => {
+      const { buildEveTranscript, runEveSession, stringifyError } =
+        await import("@browserbasehq/stagehand-integrations-eve-sdk");
       const server = serverUrl
         ? { url: serverUrl }
         : toolAdapter
@@ -98,17 +94,16 @@ export async function runEveAgent({
         },
       });
       const usage = normalizeEveUsage(sessionResult.tokenUsage);
+      const iterationError = sanitizeErrorMessage(stringifyError(sessionResult.iterationError));
       return {
         raw: sessionResult,
         resultText: sessionResult.finalMessage,
-        transcriptText: buildEveTranscript(sessionResult.events),
-        iterationError: sessionResult.iterationError,
+        transcriptText: sanitizeErrorMessage(buildEveTranscript(sessionResult.events)),
+        ...(iterationError && { iterationError }),
         status: sessionResult.status,
         stopReason:
           sessionResult.stopReason ||
-          (sessionResult.status === "sdk_error"
-            ? stringifyError(sessionResult.iterationError) || undefined
-            : undefined),
+          (sessionResult.status === "sdk_error" ? iterationError || undefined : undefined),
         usage,
         ...(sessionResult.tokenUsage.costUsd !== undefined && {
           costUsd: sessionResult.tokenUsage.costUsd,
@@ -180,6 +175,16 @@ function normalizeEveUsage(usage: EveTokenUsage) {
     cacheCreationInputTokens: toFiniteNumber(usage.cacheWriteTokens),
     totalTokens: toFiniteNumber(usage.totalTokens),
   };
+}
+
+function toFiniteNumber(value: unknown): number {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : 0;
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function buildEveMetrics(usage: EveTokenUsage): Record<string, MetricValue> {

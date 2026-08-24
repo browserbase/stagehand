@@ -123,6 +123,31 @@ describe("Eve SDK session", () => {
     await closing;
   });
 
+  it("clears the graceful shutdown timer after the child exits", async () => {
+    vi.useFakeTimers();
+    try {
+      const child = fakeChild();
+      const pending = startEveDevServer({
+        appRoot: "/tmp/eve-app",
+        env: {},
+        logger,
+        eveBinPath: "/tmp/eve.js",
+        spawn: (() => child) as unknown as Parameters<typeof startEveDevServer>[0]["spawn"],
+      });
+      child.stdout.write("[DEV] server listening at http://127.0.0.1:61439\n");
+      const handle = await pending;
+      const closing = handle.close();
+      child.exitCode = 0;
+      child.emit("exit", 0, null);
+
+      await closing;
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
+
   it("collects a completed turn, tool callbacks, usage, cost, and session id", async () => {
     const onToolStep = vi.fn();
     const onToolResult = vi.fn();
@@ -314,11 +339,11 @@ describe("Eve SDK session", () => {
     expect(result.status).toBe("sdk_error");
   });
 
-  it("forwards caller aborts to send", async () => {
+  it("reports a pre-aborted caller signal as a sanitized SDK error", async () => {
     const setup = clientFor([{ type: "turn.completed" }]);
     const controller = new AbortController();
-    controller.abort(new Error("stop"));
-    await runEveSession({
+    controller.abort(new Error("stop sk-abc123SUPERSECRET"));
+    const result = await runEveSession({
       prompt: "task",
       model: "gpt",
       logger,
@@ -327,6 +352,9 @@ describe("Eve SDK session", () => {
       client: setup.client,
     });
     expect(setup.send.mock.calls[0]?.[0].signal).toMatchObject({ aborted: true });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("stop sk-abc123[redacted]");
+    expect(result.stopReason).not.toContain("SUPERSECRET");
   });
 
   it("cancels exactly once when the caller aborts mid-stream", async () => {
@@ -353,6 +381,7 @@ describe("Eve SDK session", () => {
                   data: { actions: [{ kind: "tool-call", toolName: "stagehand__act" }] },
                 };
                 await blocked;
+                yield { type: "turn.completed" };
               },
             },
             { sessionId: "session-1" },
@@ -370,12 +399,14 @@ describe("Eve SDK session", () => {
       onToolStep: () => firstEventSeen?.(),
     });
     await sawFirstEvent;
-    controller.abort(new Error("bench timeout"));
+    controller.abort(new Error("bench timeout sk-abc123SUPERSECRET"));
     releaseStream?.();
 
     const result = await pending;
     expect(cancel).toHaveBeenCalledOnce();
     expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("bench timeout sk-abc123[redacted]");
+    expect(result.stopReason).not.toContain("SUPERSECRET");
   });
 
   it("kills the generated dev server and cancels Eve on a mid-stream abort", async () => {
