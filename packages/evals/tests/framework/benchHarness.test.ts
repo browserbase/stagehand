@@ -25,7 +25,14 @@ import { EvalLogger } from "../../logger.js";
 
 describe("bench harness registry", () => {
   it("lists registered harnesses in registration order", () => {
-    expect(listBenchHarnesses()).toEqual(["stagehand", "claude_code", "codex", "mastra", "pi", "eve"]);
+    expect(listBenchHarnesses()).toEqual([
+      "stagehand",
+      "claude_code",
+      "codex",
+      "mastra",
+      "pi",
+      "eve",
+    ]);
   });
 
   it("parses registered harnesses and defaults to stagehand", () => {
