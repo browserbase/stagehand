@@ -33,6 +33,7 @@ describe("bench harness registry", () => {
       "mastra",
       "pi",
       "eve",
+      "deepagents",
     ]);
   });
 
