@@ -1,7 +1,6 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { resolveEveAppNodeModulesDir } from "@browserbasehq/stagehand-integrations-eve-sdk";
 import { connectToMCPServer, type ProbeEvidence } from "stagehand-v3";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
@@ -276,9 +275,12 @@ export async function prepareEveToolAdapter(
       servers[name] = tools;
     }
     const files = buildEveAgentAppFiles({ instructions: mount.promptInstructions, servers });
+    const nodeModulesDir =
+      input.nodeModulesDir ??
+      (await import("@browserbasehq/stagehand-integrations-eve-sdk")).resolveEveAppNodeModulesDir();
     appRoot = await writeEveAgentApp({
       files,
-      nodeModulesDir: input.nodeModulesDir ?? resolveEveAppNodeModulesDir(),
+      nodeModulesDir,
       tmpRoot: input.tmpRoot,
       prefix: `stagehand-evals-eve-${toolSurface.replace(/_/g, "-")}-`,
     });

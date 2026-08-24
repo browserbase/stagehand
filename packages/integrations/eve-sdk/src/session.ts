@@ -210,10 +210,11 @@ export async function runEveSession(input: {
     return session.cancel().catch((): undefined => undefined);
   };
   const forwardAbort = (): void => {
+    stopReason = sanitizeErrorMessage(stringifyError(input.signal?.reason) || "aborted");
     controller.abort(input.signal?.reason);
     void cancelSession();
   };
-  if (input.signal?.aborted) controller.abort(input.signal.reason);
+  if (input.signal?.aborted) forwardAbort();
   else input.signal?.addEventListener("abort", forwardAbort, { once: true });
 
   input.logger.log({
@@ -426,10 +427,13 @@ async function closeChild(child: ChildProcess, timeoutMs: number): Promise<void>
   if (child.exitCode !== null || child.signalCode !== null) return;
   const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
   child.kill("SIGTERM");
+  let shutdownTimer: ReturnType<typeof setTimeout> | undefined;
   const graceful = await Promise.race([
     exited.then(() => true),
-    new Promise<false>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-  ]);
+    new Promise<false>((resolve) => {
+      shutdownTimer = setTimeout(() => resolve(false), timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(shutdownTimer));
   if (!graceful && child.exitCode === null && child.signalCode === null) {
     child.kill("SIGKILL");
     await exited;

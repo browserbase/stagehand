@@ -286,6 +286,26 @@ describe("listMcpServerTools", () => {
     ).rejects.toThrow(/stuck-server.*timed out/);
   });
 
+  it("closes a client that finishes connecting after the timeout", async () => {
+    const close = vi.fn(async () => undefined);
+    const client = { listTools: vi.fn(), close };
+    let finishConnect: ((value: typeof client) => void) | undefined;
+    const connect = vi.fn(
+      () =>
+        new Promise<typeof client>((resolve) => {
+          finishConnect = resolve;
+        }),
+    ) as unknown as Connect;
+
+    await expect(
+      listMcpServerTools({ command: "slow-server" }, { connect, timeoutMs: 20 }),
+    ).rejects.toThrow(/slow-server.*timed out/);
+    finishConnect?.(client);
+
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(client.listTools).not.toHaveBeenCalled();
+  });
+
   it("times out tool listing and still closes the client", async () => {
     const close = vi.fn(async () => undefined);
     const client = { listTools: () => new Promise<never>(() => undefined), close };

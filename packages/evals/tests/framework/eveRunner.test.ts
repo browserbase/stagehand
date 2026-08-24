@@ -102,13 +102,45 @@ describe("Eve runner helpers", () => {
     expect(metrics.harness_cost_usd.value).toBe(0.12);
   });
 
+  it("redacts secrets from tool results before copying the transcript into rawResult", async () => {
+    const client = fakeClient([
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: {
+            kind: "tool-result",
+            toolName: "stagehand__run",
+            output: "key sk-abc123SUPERSECRET",
+          },
+        },
+      },
+      {
+        type: "message.completed",
+        data: { message: '{"success":true,"summary":"done"}' },
+      },
+      { type: "turn.completed" },
+    ]);
+
+    const result = await runEveAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      client,
+      serverUrl: "http://eve",
+    });
+
+    expect(result.rawResult).toContain("sk-abc123[redacted]");
+    expect(result.rawResult).not.toContain("SUPERSECRET");
+  });
+
   it("returns a failed task result when Eve send throws", async () => {
     const client: EveClientLike = {
       health: async () => ({}),
       session: () => ({
         cancel: async () => ({}),
         send: async () => {
-          throw new Error("eve send failed");
+          throw new Error("eve send failed with sk-abc123SUPERSECRET");
         },
       }),
     };
@@ -124,6 +156,8 @@ describe("Eve runner helpers", () => {
     expect(result.harnessStatus).toBe("sdk_error");
     expect(result.harnessStopReason).toBeDefined();
     expect(result.error).toEqual(expect.stringContaining("eve send failed"));
+    expect(JSON.stringify(result)).toContain("sk-abc123[redacted]");
+    expect(JSON.stringify(result)).not.toContain("SUPERSECRET");
   });
 
   it("rejects when no generated app or server URL is available", async () => {
