@@ -130,7 +130,7 @@ export class RPCRouter {
     } finally {
       span.end();
       if (request.method === StagehandMethods.stagehandClose.name) {
-        await this.runtime.tracing.shutdown();
+        await this.runtime.tracing.forceFlush();
       }
     }
   }

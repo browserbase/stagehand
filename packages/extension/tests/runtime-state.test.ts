@@ -142,16 +142,20 @@ describe("Stagehand runtime state", () => {
     });
   });
 
-  it("does not initialize a closed runtime", async () => {
+  it("returns to a neutral state and creates a fresh session after close", async () => {
+    const sessions: StagehandBrowserSession[] = [];
+    const close = vi.fn();
     const runtime = createStagehandRuntime({
-      browserSessionFactory: async () => createBrowserSession(),
+      browserSessionFactory: async () => {
+        const session = createBrowserSession({ close });
+        sessions.push(session);
+        return session;
+      },
     });
 
-    await runtime.replaceBrowserConnection({
-      cdpUrl: "ws://browser.example",
-    });
     const params = {
       ...runtimeIdentity,
+      browserCdpUrl: "ws://browser.example",
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },
@@ -159,9 +163,15 @@ describe("Stagehand runtime state", () => {
     await runtime.initialize(params);
     await runtime.close();
 
-    await expect(runtime.initialize(params)).rejects.toThrow(
-      "Stagehand has been closed and cannot be initialized again",
-    );
+    expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
+    expect(close).toHaveBeenCalledOnce();
+
+    await expect(runtime.initialize(params)).resolves.toStrictEqual({
+      initialized: true,
+      pages: [],
+    });
+    expect(sessions).toHaveLength(2);
+    expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
   });
 
   it("leaves server state unchanged when initialization fails", async () => {
@@ -186,7 +196,7 @@ describe("Stagehand runtime state", () => {
         },
       }),
     ).rejects.toThrow("Could not read pages");
-    expect(runtime.state.getState()).toStrictEqual({ status: "created" });
+    expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
   });
 
   it("rejects concurrent initialization before creating another browser session", async () => {
@@ -235,7 +245,7 @@ describe("Stagehand runtime state", () => {
 
     await runtime.close();
 
-    expect(runtime.state.getState()).toStrictEqual({ status: "closed" });
+    expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
     expect(close).toHaveBeenCalledOnce();
   });
 });

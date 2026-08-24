@@ -296,7 +296,7 @@ export class StagehandRuntime {
   readonly metrics = new StagehandMetricsAccumulator();
   readonly responseHandles = new ResponseHandleTable();
   readonly state = createStore<StagehandRuntimeState>()(() =>
-    StagehandRuntimeStateSchema.parse({ status: "created" }),
+    StagehandRuntimeStateSchema.parse({ status: "idle" }),
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
@@ -343,9 +343,6 @@ export class StagehandRuntime {
     logger: StagehandLogger = this.logger,
   ): Promise<StagehandInitResult> {
     const state = this.state.getState();
-    if (state.status === "closed") {
-      throw new Error("Stagehand has been closed and cannot be initialized again");
-    }
     if (this.initializationInProgress) {
       throw new Error("Stagehand initialization is already in progress");
     }
@@ -363,7 +360,7 @@ export class StagehandRuntime {
         Symbol("stagehand.init"),
         logger,
         async () => {
-          if (state.status === "created") {
+          if (state.status === "idle") {
             await this.browserSession?.prepareForInitialization?.();
           }
           return await this.contextPages();
@@ -854,10 +851,11 @@ export class StagehandRuntime {
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
+    this.metrics.reset();
     try {
       await session?.close();
     } finally {
-      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
+      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "idle" }), true);
     }
   }
 

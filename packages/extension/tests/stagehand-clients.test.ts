@@ -978,10 +978,14 @@ describe("Stagehand worker clients", () => {
     expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
-  it("closes the browser session on stagehand.close", async () => {
-    const session = new FakeBrowserSession();
+  it("closes the active browser session and initializes a fresh one after stagehand.close", async () => {
+    const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
-      browserSessionFactory: async () => session,
+      browserSessionFactory: async () => {
+        const session = new FakeBrowserSession();
+        sessions.push(session);
+        return session;
+      },
     });
 
     await handle({
@@ -1006,7 +1010,25 @@ describe("Stagehand worker clients", () => {
       },
     });
 
-    expect(session.closed).toBe(true);
+    expect(sessions[0]?.closed).toBe(true);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 6,
+        method: "stagehand.init",
+        params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 6,
+      result: {
+        initialized: true,
+        pages: [],
+      },
+    });
+    expect(sessions).toHaveLength(2);
+    expect(sessions[1]?.closed).toBe(false);
   });
 
   it("returns a clear error for context.pages before runtime is configured", async () => {

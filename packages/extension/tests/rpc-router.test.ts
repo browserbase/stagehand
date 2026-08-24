@@ -109,10 +109,12 @@ describe("Stagehand RPC router", () => {
     await tracing.shutdown();
   });
 
-  it("ends the final Stagehand span before tracing shuts down", async () => {
+  it("ends the Stagehand close span before flushing reusable tracing", async () => {
     const lifecycle: string[] = [];
     const processor: SpanProcessor = {
-      forceFlush: async () => {},
+      forceFlush: async () => {
+        lifecycle.push("flush");
+      },
       onEnd: (span) => lifecycle.push(`ended:${span.name}`),
       onStart: () => {},
       shutdown: async () => {
@@ -128,7 +130,8 @@ describe("Stagehand RPC router", () => {
       router.handle(request({ id: 13, method: "stagehand.close", params: {} })),
     ).resolves.toStrictEqual({ closed: true });
 
-    expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "shutdown"]);
+    expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "flush"]);
+    await tracing.shutdown();
   });
 
   it("keeps filtered log spans under the JSON-RPC request span", async () => {
