@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { MastraSdk } from "@browserbasehq/stagehand-integrations-mastra-sdk";
 import type { AgentMount, ToolStartResult } from "../../core/contracts/tool.js";
 import { AGENT_RUN_TOOL_NAME } from "../../core/contracts/tool.js";
+import { EvalsError } from "../../errors.js";
 import type { startAgentToolRuntime } from "../../framework/agentToolRuntime.js";
 import {
   buildMastraMcpServers,
@@ -200,6 +201,43 @@ describe("Mastra tool adapter", () => {
       if (previous === undefined) delete process.env.EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS;
       else process.env.EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS = previous;
     }
+  });
+
+  it("wraps setup failures in a sanitized EvalsError after cleanup", async () => {
+    const cleanup = vi.fn(async () => {});
+    const cause = new Error("invalid?apiKey=secret123");
+
+    let thrown: unknown;
+    try {
+      await prepareMastraToolAdapter({
+        environment: "LOCAL",
+        plan,
+        logger: new EvalLogger(false),
+        startRuntime: fakeStartRuntime(
+          {
+            via: "mcp",
+            promptInstructions: "p",
+            mcpServers: {
+              stagehand: {
+                get command() {
+                  throw cause;
+                },
+              },
+            },
+          },
+          cleanup,
+        ),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(EvalsError);
+    expect((thrown as Error).message).toBe(
+      "mastra tool adapter setup failed: invalid?apiKey=[redacted]",
+    );
+    expect((thrown as Error).cause).toBe(cause);
+    expect(cleanup).toHaveBeenCalledOnce();
   });
 
   it("returns a structured error when the bridge port is closed", async () => {

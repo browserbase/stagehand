@@ -171,19 +171,45 @@ describe("Mastra SDK session", () => {
   it("returns discovery errors and disconnects without creating an agent", async () => {
     const disconnect = vi.fn();
     const createAgent = vi.fn();
+    const warn = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
       model: "gpt-5.4-mini",
-      logger,
+      logger: { ...logger, warn },
       sdk: fakeSdk({
-        discoveryErrors: { stagehand: "not found" },
+        discoveryErrors: {
+          stagehand: "not found?apiKey=secret123",
+          playwright: "connection refused",
+        },
         disconnect,
         createAgent,
       }),
-      session: { mcpServers: { stagehand: { command: "node" } } },
+      session: {
+        mcpServers: {
+          stagehand: { command: "node" },
+          playwright: { command: "node" },
+        },
+      },
     });
     expect(result.status).toBe("sdk_error");
-    expect(result.stopReason).toContain("stagehand");
+    expect(result.stopReason).toBe("MCP server discovery failed for: stagehand, playwright");
+    expect(result.stopReason).not.toContain("secret123");
+    expect(warn.mock.calls).toEqual([
+      [
+        {
+          category: "mastra",
+          message: "MCP server discovery error for stagehand: not found?apiKey=[redacted]",
+          level: 1,
+        },
+      ],
+      [
+        {
+          category: "mastra",
+          message: "MCP server discovery error for playwright: connection refused",
+          level: 1,
+        },
+      ],
+    ]);
     expect(result.events).toEqual([]);
     expect(disconnect).toHaveBeenCalledOnce();
     expect(createAgent).not.toHaveBeenCalled();
