@@ -63,7 +63,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: just build
+      # Build only the extension bundled into the Python package and the Python
+      # distributions. Alpha versioning temporarily changes other workspace
+      # packages, so the repository-wide build would validate unrelated SDK
+      # artifacts against those ephemeral versions.
+      - run: pnpm --filter ./packages/extension build
+      - run: uv --directory packages/sdk-python run --locked python scripts/build.py
 
       - name: Read package version
         id: package-version
