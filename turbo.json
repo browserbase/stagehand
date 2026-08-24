@@ -42,6 +42,10 @@
       "outputs": ["dist/**"]
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-integrations-pi-sdk#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -97,6 +101,8 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-integrations-pi-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -132,6 +138,14 @@
     },
     "@browserbasehq/stagehand-integrations-mastra-sdk#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastra-sdk#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
     "@browserbasehq/stagehand-integrations-pi-sdk#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-pi-sdk#build"],
       "inputs": [

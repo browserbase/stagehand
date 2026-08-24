@@ -12,10 +12,6 @@ import { runCodexAgent } from "./codexRunner.js";
 import { CODEX_TOOL_SURFACES, prepareCodexToolAdapter } from "./codexToolAdapter.js";
 import { runMastraAgent } from "./mastraRunner.js";
 import { MASTRA_TOOL_SURFACES, prepareMastraToolAdapter } from "./mastraToolAdapter.js";
-import {
-  CODEX_TOOL_SURFACES,
-  prepareCodexToolAdapter,
-} from "./codexToolAdapter.js";
 import { runPiAgent } from "./piRunner.js";
 import { PI_TOOL_SURFACES, preparePiToolAdapter } from "./piToolAdapter.js";
 import {
@@ -300,6 +296,8 @@ export const mastraHarness = defineExternalHarness({
   defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
   prepareToolAdapter: prepareMastraToolAdapter,
   runAgent: runMastraAgent,
+});
+
 export const piHarness = defineExternalHarness({
   harness: "pi",
   supportedToolSurfaces: PI_TOOL_SURFACES,
