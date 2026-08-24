@@ -634,6 +634,14 @@ async def test_close_is_memoized_and_never_closes_browser_or_transport(
     with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
         await stagehand.metrics()
 
+    next_recording = _recording()
+    _install_rpc_client(monkeypatch, next_recording)
+    next_stagehand = await Stagehand.create(browser=browser)
+    assert next_stagehand.initialized is True
+    assert next_stagehand.browser is browser
+
+    await next_stagehand.close()
+
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(

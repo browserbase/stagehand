@@ -131,6 +131,26 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
+  it("releases the browser claim after close so another Stagehand can attach", async () => {
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const firstStagehand = await Stagehand.create({ browser });
+
+    await firstStagehand.close();
+
+    const secondStagehand = await Stagehand.create({ browser });
+    expect(secondStagehand.initialized).toBe(true);
+    expect(secondStagehand.browser).toBe(browser);
+    expect(cdp.requestsFor("stagehand.init")).toHaveLength(2);
+    expect(cdp.close).not.toHaveBeenCalled();
+
+    await secondStagehand.close();
+    await browser.close();
+  });
+
   it("invalidates the browser after an ambiguous invalid initialization result", async () => {
     const cdp = new FakeCDPClient();
     cdp.responses.set("stagehand.init", { initialized: "not-a-boolean" });

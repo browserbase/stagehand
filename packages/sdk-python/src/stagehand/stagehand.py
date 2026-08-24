@@ -461,7 +461,10 @@ class Stagehand:
                     except CDPConnectionClosedError:
                         pass
             finally:
-                await asyncio.shield(self._release_resources())
+                try:
+                    await asyncio.shield(self._release_resources())
+                finally:
+                    _release_browser(self._browser_handle)
 
         if self._close_task is None:
             self._close_task = asyncio.create_task(

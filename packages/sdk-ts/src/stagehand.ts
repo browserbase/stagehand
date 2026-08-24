@@ -298,6 +298,7 @@ export class Stagehand {
         this.rpcClient?.close(new Error("Stagehand closed"), { closeTransport: false });
         this.rpcClient = undefined;
         detachStagehandBrowserContext(this.browserHandle);
+        releaseStagehandBrowser(this.browserHandle);
         this.isInitialized = false;
       }
     })();

@@ -321,6 +321,7 @@ func (s *Stagehand) Close(ctx context.Context) error {
 		s.rpc = nil
 	}
 	detachBrowserContext(s.browser)
+	releaseBrowserClaim(s.browser)
 	s.initialized = false
 	s.closed = true
 	s.closeResult = errors.Join(closeErr, rpcErr)
