@@ -132,11 +132,7 @@ export async function runCursorAgent({
           outputTokens: usage.outputTokens,
           totalTokens: usage.totalTokens,
         },
-        metrics: buildCursorMetrics(
-          usage,
-          sessionResult.resultEvent,
-          sessionResult.events,
-        ),
+        metrics: buildCursorMetrics(usage, sessionResult.resultEvent, sessionResult.events),
       };
     },
     toTrajectory: (

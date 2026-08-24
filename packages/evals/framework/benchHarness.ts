@@ -21,10 +21,7 @@ import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepag
 import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
-import {
-  CURSOR_TOOL_SURFACES,
-  prepareCursorToolAdapter,
-} from "./cursorToolAdapter.js";
+import { CURSOR_TOOL_SURFACES, prepareCursorToolAdapter } from "./cursorToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,

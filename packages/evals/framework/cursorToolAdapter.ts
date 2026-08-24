@@ -7,10 +7,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import {
-  resolveStartupProfile,
-  resolveToolSurface,
-} from "./harnesses/toolSurfaceResolution.js";
+import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export interface CursorToolAdapterInput {
