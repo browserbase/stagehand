@@ -314,7 +314,9 @@ export async function startStagehandFacadeBridge(
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(new Error(`Stagehand facade request "${method}" timed out after ${requestTimeoutMs}ms`));
+        reject(
+          new Error(`Stagehand facade request "${method}" timed out after ${requestTimeoutMs}ms`),
+        );
       }, requestTimeoutMs);
       pending.set(id, { resolve, reject, timer });
       const request = {

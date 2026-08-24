@@ -130,9 +130,11 @@ describe("stagehand facade tool surface", () => {
           STAGEHAND_EVALS_FACADE_BRIDGE_PORT: expect.stringMatching(/^\d+$/u),
         },
       });
-      const relayEnv = (running.agentMount.mcpServers.stagehand as {
-        env: Record<string, string>;
-      }).env;
+      const relayEnv = (
+        running.agentMount.mcpServers.stagehand as {
+          env: Record<string, string>;
+        }
+      ).env;
       expect(relayEnv).not.toHaveProperty("BROWSERBASE_API_KEY");
       expect(relayEnv).not.toHaveProperty("STAGEHAND_MODEL_NAME");
       expect(relayEnv).not.toHaveProperty("OPENAI_API_KEY");
@@ -158,9 +160,7 @@ describe("stagehand facade tool surface", () => {
         BROWSERBASE_API_KEY: "browserbase-secret",
       },
     });
-    expect(buildStagehandFacadeServerSpec("BROWSERBASE").env).not.toHaveProperty(
-      "OPENAI_API_KEY",
-    );
+    expect(buildStagehandFacadeServerSpec("BROWSERBASE").env).not.toHaveProperty("OPENAI_API_KEY");
   });
 
   it("filters host env and overrides browser selection for each eval environment", () => {

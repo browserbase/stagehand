@@ -218,9 +218,7 @@ export function generateBenchTestcases(
       const guidance = suiteHarnesses.length
         ? `Re-run with ${formatBenchHarnessFlags(suiteHarnesses)}.`
         : "No registered harness runs agent benchmark suites.";
-      throw new EvalsError(
-        `Agent benchmark suites require an external harness. ${guidance}`,
-      );
+      throw new EvalsError(`Agent benchmark suites require an external harness. ${guidance}`);
     }
   }
 

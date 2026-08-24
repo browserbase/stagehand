@@ -9,10 +9,7 @@ import {
   prepareClaudeCodeToolAdapter,
 } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
-import {
-  CODEX_TOOL_SURFACES,
-  prepareCodexToolAdapter,
-} from "./codexToolAdapter.js";
+import { CODEX_TOOL_SURFACES, prepareCodexToolAdapter } from "./codexToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,

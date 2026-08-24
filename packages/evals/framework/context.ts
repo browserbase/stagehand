@@ -21,10 +21,7 @@ import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
 import type { AgentBenchTaskContext, CoreTaskContext } from "./types.js";
 import { resolveStartupProfile } from "./harnesses/toolSurfaceResolution.js";
-import {
-  formatBenchHarnessFlags,
-  listBenchHarnessesForToolSurface,
-} from "./benchHarness.js";
+import { formatBenchHarnessFlags, listBenchHarnessesForToolSurface } from "./benchHarness.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;

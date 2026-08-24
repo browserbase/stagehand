@@ -1,8 +1,5 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
-import {
-  listBenchHarnesses,
-  listBenchHarnessesForTaskKind,
-} from "../../framework/benchHarness.js";
+import { listBenchHarnesses, listBenchHarnessesForTaskKind } from "../../framework/benchHarness.js";
 
 const HELP_COL_WIDTH = 34;
 

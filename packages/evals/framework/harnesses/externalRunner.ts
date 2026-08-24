@@ -4,10 +4,7 @@ import { datasetPromptGuidance } from "../externalHarnessPlan.js";
 import type { ExternalHarnessTaskPlan } from "../externalHarnessPlan.js";
 import type { StepObservation } from "../observationRecorder.js";
 import type { TaskResult } from "../types.js";
-import {
-  gradeExternalTrajectory,
-  type ExternalHarnessVerifierConfig,
-} from "../verifierAdapter.js";
+import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "../verifierAdapter.js";
 
 export type MetricValue = { count: number; value: number };
 
@@ -180,10 +177,7 @@ export async function runExternalHarnessTask<TRaw>({
     parsed.summary ??
     outcome.stopReason ??
     // Intentionally prefer SDK iteration failures across all harnesses.
-    (iterationErrorMessage ||
-      outcome.resultText ||
-      outcome.transcriptText ||
-      fallbackErrorMessage);
+    (iterationErrorMessage || outcome.resultText || outcome.transcriptText || fallbackErrorMessage);
   const prefix = legacyHarnessFieldPrefix(harness);
   const baseResult: TaskResult = {
     _success: parsed.success,

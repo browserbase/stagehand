@@ -35,18 +35,13 @@ export function resolveStartupProfile(
 
   const supported = getCoreTool(toolSurface).supportedStartupProfiles;
   const runnerProvided =
-    environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
+    environment === "BROWSERBASE" ? "runner_provided_browserbase_cdp" : "runner_provided_local_cdp";
   if (supported.includes(runnerProvided)) return runnerProvided;
 
-  const toolOwned =
-    environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
+  const toolOwned = environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
   if (supported.includes(toolOwned)) return toolOwned;
 
-  throw new EvalsError(
-    `No startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
+  throw new EvalsError(`No startup profile default for tool "${toolSurface}" in ${environment}.`);
 }
 
 /** Same as resolveStartupProfile but returns undefined when toolSurface is undefined. */

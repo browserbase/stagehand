@@ -20,10 +20,7 @@ import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
 import type { Harness } from "../../framework/benchTypes.js";
-import {
-  formatBenchHarnessFlags,
-  isExecutableBenchHarness,
-} from "../../framework/benchHarness.js";
+import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
 import {
   armsOverLimit,
   armsWithUngradedRuns,
@@ -178,9 +175,7 @@ export async function runCommand(
   const hasCoreOnly = tasks.every((task) => task.tier === "core");
   if (hasCoreOnly) {
     const { rejectAgentMountOnlyCoreTool } = await import("../../framework/context.js");
-    rejectAgentMountOnlyCoreTool(
-      (options.coreToolSurface ?? "understudy_code") as ToolSurface,
-    );
+    rejectAgentMountOnlyCoreTool((options.coreToolSurface ?? "understudy_code") as ToolSurface);
   }
 
   if (options.useApi && options.harness !== "stagehand" && tasks.some((t) => t.tier === "bench")) {

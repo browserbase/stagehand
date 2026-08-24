@@ -72,8 +72,7 @@ export async function runCodexAgent({
 }: CodexRunnerInput): Promise<TaskResult> {
   const adapterLike: ExternalHarnessToolAdapterLike | undefined = toolAdapter && {
     promptInstructions: toolAdapter.promptInstructions,
-    captureEvidence:
-      "captureEvidence" in toolAdapter ? toolAdapter.captureEvidence : undefined,
+    captureEvidence: "captureEvidence" in toolAdapter ? toolAdapter.captureEvidence : undefined,
     drainStepObservations:
       "drainStepObservations" in toolAdapter ? toolAdapter.drainStepObservations : undefined,
     observedToolMatcher:
