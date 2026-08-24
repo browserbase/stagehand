@@ -1,4 +1,5 @@
-import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
+import * as childProcess from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -102,9 +103,9 @@ export async function startEveDevServer(input: {
   readyTimeoutMs?: number;
   shutdownTimeoutMs?: number;
   eveBinPath?: string;
-  spawn?: typeof nodeSpawn;
+  spawn?: typeof childProcess.spawn;
 }): Promise<EveDevServerHandle> {
-  const spawn = input.spawn ?? nodeSpawn;
+  const spawn = input.spawn ?? childProcess.spawn;
   const readyTimeoutMs = positiveInteger(input.readyTimeoutMs, 120_000);
   const shutdownTimeoutMs = positiveInteger(input.shutdownTimeoutMs, 10_000);
   const outputLines: string[] = [];
@@ -183,7 +184,7 @@ export async function runEveSession(input: {
         port?: number;
         readyTimeoutMs?: number;
         eveBinPath?: string;
-        spawn?: typeof nodeSpawn;
+        spawn?: typeof childProcess.spawn;
       }
     | { url: string };
   client?: EveClientLike;
