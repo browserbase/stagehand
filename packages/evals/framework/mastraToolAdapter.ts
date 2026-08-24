@@ -6,6 +6,7 @@ import {
   type MastraSdk,
   type MastraStdioServerDefinition,
 } from "@browserbasehq/stagehand-integrations-mastra-sdk";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { z } from "zod";
 import type { ProbeEvidence } from "stagehand-v3";
 import {
@@ -183,7 +184,10 @@ export async function prepareMastraToolAdapter(
       readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
     ).catch((): undefined => undefined);
     if (cwd) await fsp.rm(cwd, { recursive: true, force: true });
-    throw error;
+    throw new EvalsError(
+      `mastra tool adapter setup failed: ${sanitizeErrorMessage(stringifyError(error))}`,
+      { cause: error },
+    );
   }
 }
 

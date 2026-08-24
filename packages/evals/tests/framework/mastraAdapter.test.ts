@@ -48,6 +48,7 @@ describe("Mastra trajectory adapter", () => {
   });
 
   it("extracts MCP content images and uses the last image as final observation", () => {
+    const earlierBytes = Buffer.from("earlier screen");
     const bytes = Buffer.from("screen");
     const trajectory = mastraAdapter.fromHarnessResult(
       {
@@ -56,6 +57,11 @@ describe("Mastra trajectory adapter", () => {
           toolResult("1", "stagehand_screenshot", {
             content: [
               { type: "text", text: "captured" },
+              {
+                type: "image",
+                data: earlierBytes.toString("base64"),
+                mimeType: "image/png",
+              },
               { type: "image", data: bytes.toString("base64"), mimeType: "image/png" },
             ],
           }),
@@ -63,10 +69,10 @@ describe("Mastra trajectory adapter", () => {
       },
       TASK_SPEC,
     );
-    expect(trajectory.steps[0]?.toolOutput.result).toBe("captured\n[image]");
+    expect(trajectory.steps[0]?.toolOutput.result).toBe("captured\n[image]\n[image]");
     expect(
       trajectory.steps[0]?.agentEvidence.modalities.filter((item) => item.type === "image"),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     expect(trajectory.finalObservation?.screenshot).toEqual(bytes);
   });
 
@@ -106,6 +112,33 @@ describe("Mastra trajectory adapter", () => {
     );
     expect(JSON.stringify(trajectory.steps)).not.toContain("bb_live_ABCDEFGHIJKLMNOP");
     expect(JSON.stringify(trajectory.steps)).not.toContain("secret123");
+  });
+
+  it("deeply sanitizes tool arguments and structured results", () => {
+    const trajectory = mastraAdapter.fromHarnessResult(
+      {
+        events: [
+          toolCall("1", "one", {
+            nested: { url: "https://x?apiKey=secret123" },
+          }),
+          toolResult("1", "one", {
+            nested: [{ url: "https://x?apiKey=secret123" }],
+            count: 1,
+            enabled: true,
+          }),
+        ],
+      },
+      TASK_SPEC,
+    );
+
+    expect(trajectory.steps[0]?.actionArgs).toEqual({
+      nested: { url: "https://x?apiKey=[redacted]" },
+    });
+    expect(trajectory.steps[0]?.toolOutput.result).toEqual({
+      nested: [{ url: "https://x?apiKey=[redacted]" }],
+      count: 1,
+      enabled: true,
+    });
   });
 
   it("folds pre-call reasoning and text while keeping trailing text as the answer", () => {

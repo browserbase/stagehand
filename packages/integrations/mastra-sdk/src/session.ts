@@ -178,12 +178,15 @@ export async function runMastraSession(input: {
         stopReason = sanitizeErrorMessage(stringifyError(controller.signal.reason) || "aborted");
       }
       if (discovery && Object.keys(discovery.errors).length > 0) {
-        stopReason = sanitizeErrorMessage(
-          `MCP server discovery failed: ${Object.entries(discovery.errors)
-            .map(([server, error]) => `${server}: ${error}`)
-            .join("; ")}`,
-        );
-        input.logger.warn({ category: "mastra", message: stopReason, level: 0 });
+        const failedServers = Object.keys(discovery.errors);
+        stopReason = `MCP server discovery failed for: ${failedServers.join(", ")}`;
+        for (const [server, error] of Object.entries(discovery.errors)) {
+          input.logger.warn({
+            category: "mastra",
+            message: `MCP server discovery error for ${server}: ${sanitizeErrorMessage(error)}`,
+            level: 1,
+          });
+        }
       } else if (discovery) {
         mcpTools = discovery.tools;
       }

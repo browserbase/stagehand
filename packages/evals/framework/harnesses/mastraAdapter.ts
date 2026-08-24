@@ -55,7 +55,7 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
           id,
           call: {
             name: typeof payload.toolName === "string" ? payload.toolName : "tool",
-            args,
+            args: deepSanitize(args) as Record<string, unknown>,
             result: "",
             ok: true,
             reasoning: pendingReasoning.trim() || undefined,
@@ -79,10 +79,7 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
           payload.isError !== true &&
           rawRecord?.isError !== true &&
           !(rawRecord && rawRecord.ok === false);
-        pending.call.result =
-          typeof normalized.result === "string"
-            ? sanitizeErrorMessage(normalized.result)
-            : normalized.result;
+        pending.call.result = deepSanitize(normalized.result);
         pending.call.ok = ok;
         pending.images = normalized.images;
         if (normalized.images.length > 0) pending.call.images = normalized.images;
@@ -183,6 +180,17 @@ function appendText(buffer: string, addition: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function deepSanitize(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeErrorMessage(value);
+  if (Array.isArray(value)) return value.map(deepSanitize);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, deepSanitize(nestedValue)]),
+    );
+  }
+  return value;
 }
 
 function stringifyError(value: unknown): string {
