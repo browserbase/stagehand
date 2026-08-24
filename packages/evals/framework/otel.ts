@@ -7,6 +7,7 @@ import {
 // verify after install: @opentelemetry/sdk-trace-node exports NodeTracerProvider.
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
+import { resolveBraintrustProjectName } from "./braintrust.js";
 import { langSmithTracingEnabled, resolveTraceTransport } from "./langsmith.js";
 
 const TRACER_NAME = "stagehand-evals";
@@ -43,14 +44,14 @@ async function initializeTracerProvider(braintrustParent?: string): Promise<void
   if (braintrustApiKey) {
     // verify after install: @braintrust/otel exports BraintrustSpanProcessor.
     const { BraintrustSpanProcessor } = await import("@braintrust/otel");
-    // Precedence: explicit user override (env) > caller-computed default >
-    // module fallback. The runner always passes `braintrustParent`, so the env
-    // var must win over it or it would never take effect for eval runs.
-    const braintrustProjectName = process.env.CI === "true" ? "stagehand" : "stagehand-dev";
+    // Precedence: raw parent override (env) > caller-computed default >
+    // project-name fallback (which itself honors BRAINTRUST_PROJECT_NAME). The
+    // runner always passes `braintrustParent`, so the env var must win over it
+    // or it would never take effect for eval runs.
     const parent =
       process.env.BRAINTRUST_OTEL_PARENT?.trim() ||
       braintrustParent ||
-      `project_name:${braintrustProjectName}`;
+      `project_name:${resolveBraintrustProjectName()}`;
     const braintrustOtelUrl = process.env.BRAINTRUST_OTEL_URL;
 
     spanProcessors.push(

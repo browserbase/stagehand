@@ -23,7 +23,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { bold, cyan, dim, gray, green, red, yellow, padRight } from "../format.js";
-import { readConfig, resolveConfigPath } from "./config.js";
+import { readConfig, resolveConfigPath, type TracingConfigSection } from "./config.js";
+import { resolveTracingValue } from "./tracing.js";
+import { langSmithTracingEnabled } from "../../framework/langsmith.js";
 import { resolveKey, snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
 import { getPackageRootDir, getRuntimeTasksRoot } from "../../runtimePaths.js";
 import { discoverTasks } from "../../framework/discovery.js";
@@ -45,6 +47,16 @@ type ConfigSummary = {
   core: { tool: string | null; startup: string | null };
 };
 
+type TracingValue = { value: string | null; source: "env" | "config" | "none" };
+
+/** Effective trace-sink settings (env > evals.config.json `tracing` > none). */
+type TracingSummary = {
+  transport: TracingValue;
+  braintrustProject: TracingValue;
+  langsmithProject: TracingValue;
+  langsmithEnabled: boolean;
+};
+
 type DiscoverySummary = {
   ok: boolean;
   total: number;
@@ -59,6 +71,7 @@ type DoctorReport = {
   runtime: RuntimeInfo;
   config: ConfigSummary;
   discovery: DiscoverySummary;
+  tracing: TracingSummary;
   keys: EnvSnapshot;
   reasons: string[];
 };
@@ -137,6 +150,25 @@ function summarizeConfig(entryDir: string): ConfigSummary {
     trials,
     concurrency,
     core: { tool: coreTool, startup: coreStartup },
+  };
+}
+
+function summarizeTracing(entryDir: string): TracingSummary {
+  let tracing: TracingConfigSection | undefined;
+  try {
+    tracing = readConfig(entryDir).tracing;
+  } catch {
+    // Missing/invalid config is reported under Config; fall through to env-only.
+  }
+  const pick = (key: keyof TracingConfigSection): TracingValue => {
+    const r = resolveTracingValue(key, tracing);
+    return { value: r.value ?? null, source: r.source };
+  };
+  return {
+    transport: pick("transport"),
+    braintrustProject: pick("braintrustProject"),
+    langsmithProject: pick("langsmithProject"),
+    langsmithEnabled: langSmithTracingEnabled(),
   };
 }
 
@@ -223,10 +255,23 @@ async function buildReport(entryDir: string): Promise<DoctorReport> {
     mode: detectMode(entryDir),
   };
   const config = summarizeConfig(entryDir);
+  const tracing = summarizeTracing(entryDir);
   const discovery = await summarizeDiscovery();
   const keys = snapshotEnv();
-  const { verdict, reasons } = computeVerdict(keys, config, discovery);
-  return { verdict, runtime, config, discovery, keys, reasons };
+  const computed = computeVerdict(keys, config, discovery);
+  let verdict = computed.verdict;
+  const reasons = [...computed.reasons];
+  if (
+    tracing.transport.value === "otel" &&
+    keys.braintrust.state === "missing" &&
+    !tracing.langsmithEnabled
+  ) {
+    if (verdict === "ok") verdict = "warn";
+    reasons.push(
+      "EVAL_TRACE_TRANSPORT=otel but no sink is configured — set BRAINTRUST_API_KEY and/or LANGSMITH_API_KEY + LANGSMITH_TRACING=true.",
+    );
+  }
+  return { verdict, runtime, config, tracing, discovery, keys, reasons };
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +289,11 @@ function keyRow(
       : red("✗ missing");
   const suffix = note ? `        ${dim(note)}` : "";
   return `    ${padRight(label, 30)} ${value}${suffix}`;
+}
+
+function tracingCell(v: TracingValue, fallback: string): string {
+  if (v.value === null) return gray(`(default: ${fallback})`);
+  return `${cyan(v.value)}  ${dim(`(${v.source})`)}`;
 }
 
 function renderHuman(report: DoctorReport): void {
@@ -273,6 +323,16 @@ function renderHuman(report: DoctorReport): void {
   if (r.config.core.startup) {
     console.log(`    ${padRight("core.startup", 22)} ${cyan(r.config.core.startup)}`);
   }
+  console.log("");
+
+  console.log(`  ${bold("Tracing")}`);
+  console.log(`    ${padRight("transport", 22)} ${tracingCell(r.tracing.transport, "native")}`);
+  console.log(
+    `    ${padRight("braintrust project", 22)} ${tracingCell(r.tracing.braintrustProject, "stagehand[-core][-dev]")}`,
+  );
+  console.log(
+    `    ${padRight("langsmith project", 22)} ${tracingCell(r.tracing.langsmithProject, "workspace default")}  ${dim(r.tracing.langsmithEnabled ? "(export on)" : "(export off)")}`,
+  );
   console.log("");
 
   console.log(`  ${bold("Discovery")}`);
@@ -341,6 +401,7 @@ function renderJson(report: DoctorReport): void {
     verdict: report.verdict,
     runtime: report.runtime,
     config: report.config,
+    tracing: report.tracing,
     discovery: {
       ok: report.discovery.ok,
       total: report.discovery.total,

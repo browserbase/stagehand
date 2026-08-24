@@ -22,6 +22,23 @@ export function loadBraintrust(): Promise<typeof import("braintrust")> {
   return braintrustPromise;
 }
 
+export type BraintrustProjectTier = "core" | "bench";
+
+/**
+ * Braintrust project a run logs to. `BRAINTRUST_PROJECT_NAME` overrides the
+ * default so users can route runs to their own project; otherwise the
+ * tier × CI matrix picks stagehand[-core][-dev]. Single source for both the
+ * native `Eval()` path and the OTEL `project_name:` parent so the two
+ * transports never disagree about where a run lands.
+ */
+export function resolveBraintrustProjectName(tier: BraintrustProjectTier = "bench"): string {
+  const override = process.env.BRAINTRUST_PROJECT_NAME?.trim();
+  if (override) return override;
+  const isCI = process.env.CI === "true";
+  if (tier === "core") return isCI ? "stagehand-core" : "stagehand-core-dev";
+  return isCI ? "stagehand" : "stagehand-dev";
+}
+
 /**
  * The only Span surface traced callbacks may use. Deliberately narrower than
  * Braintrust's `Span` so the no-key fallback below can satisfy it without

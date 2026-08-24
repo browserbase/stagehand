@@ -30,7 +30,12 @@ import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
 import { executeBenchTask } from "./benchRunner.js";
-import { hasBraintrustApiKey, loadBraintrust, tracedSpan } from "./braintrust.js";
+import {
+  hasBraintrustApiKey,
+  loadBraintrust,
+  resolveBraintrustProjectName,
+  tracedSpan,
+} from "./braintrust.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
 import { resolveTraceTransport } from "./langsmith.js";
@@ -330,13 +335,7 @@ export function capForSpan(value: Record<string, unknown>): Record<string, unkno
 export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult> {
   const traceTransport = resolveTraceTransport();
   const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
-  const braintrustProjectName = hasCoreOnly
-    ? process.env.CI === "true"
-      ? "stagehand-core"
-      : "stagehand-core-dev"
-    : process.env.CI === "true"
-      ? "stagehand"
-      : "stagehand-dev";
+  const braintrustProjectName = resolveBraintrustProjectName(hasCoreOnly ? "core" : "bench");
 
   try {
     const concurrency = options.concurrency ?? 3;
