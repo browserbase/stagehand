@@ -169,6 +169,10 @@ export class Page {
   /** Document-start scripts installed across every session this page owns. */
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
+  private readonly instrumentationDeferred: boolean;
+  private instrumentationReady: boolean;
+  private instrumentationTask?: Promise<void>;
+  private readonly instrumentedSessions = new WeakSet<CDPSessionLike>();
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private webMCPResponseListenerInstalled = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
@@ -195,9 +199,12 @@ export class Page {
     mainFrameId: string,
     public readonly logger: StagehandLogger,
     browserIsRemote = false,
+    deferInstrumentation = false,
   ) {
     this.pageId = _targetId;
     this.browserIsRemote = browserIsRemote;
+    this.instrumentationDeferred = deferInstrumentation;
+    this.instrumentationReady = !deferInstrumentation;
 
     // own the main session
     if (mainSession.id) this.sessions.set(mainSession.id, mainSession);
@@ -214,8 +221,56 @@ export class Page {
       this.logger,
     );
 
-    this.networkManager = new NetworkManager();
+    this.networkManager = new NetworkManager(!deferInstrumentation);
     this.networkManager.trackSession(this.mainSession);
+  }
+
+  /** Enable domains intentionally deferred during resident bootstrap. */
+  public async prepareForInitialization(): Promise<void> {
+    if (!this.instrumentationDeferred) return;
+    if (this.instrumentationReady && this.allSessionsInstrumented()) return;
+    if (this.instrumentationTask) return await this.instrumentationTask;
+
+    const task = (async () => {
+      await this.networkManager.enable();
+      while (true) {
+        const pending = [...this.sessions.values()].filter(
+          (session) => !this.instrumentedSessions.has(session),
+        );
+        if (pending.length === 0) break;
+        await Promise.all(
+          pending.map(async (session) => {
+            try {
+              await session.send("Page.enable");
+              await session.send("Runtime.enable");
+              await session.send("Page.setLifecycleEventsEnabled", { enabled: true });
+              this.instrumentedSessions.add(session);
+            } catch (error) {
+              if (session.id && !this.sessions.has(session.id)) return;
+              throw error;
+            }
+          }),
+        );
+      }
+      this.instrumentationReady = true;
+    })();
+    this.instrumentationTask = task;
+    try {
+      await task;
+    } finally {
+      if (this.instrumentationTask === task) this.instrumentationTask = undefined;
+    }
+  }
+
+  public isInstrumentationReady(): boolean {
+    return this.instrumentationReady;
+  }
+
+  private allSessionsInstrumented(): boolean {
+    for (const session of this.sessions.values()) {
+      if (!this.instrumentedSessions.has(session)) return false;
+    }
+    return true;
   }
 
   // Send a single init script to a specific CDP session.
@@ -293,19 +348,30 @@ export class Page {
     logger: StagehandLogger,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
     browserIsRemote = false,
+    deferInstrumentation = false,
   ): Promise<Page> {
     // Context already issues Page.enable + lifecycle enable before resume.
     // Re-issue here only as best-effort and do not block page registration on
     // their acknowledgements; some remote CDP backends can delay these replies
     // long after the target is otherwise ready.
-    void session.send("Page.enable").catch(() => {});
-    void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+    if (!deferInstrumentation) {
+      void session.send("Page.enable").catch(() => {});
+      void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+    }
     const { frameTree } = await session.send<{
       frameTree: Protocol.Page.FrameTree;
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId, logger, browserIsRemote);
+    const page = new Page(
+      conn,
+      session,
+      targetId,
+      mainFrameId,
+      logger,
+      browserIsRemote,
+      deferInstrumentation,
+    );
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
@@ -431,7 +497,21 @@ export class Page {
     // One-shot seed the child's subtree ownership from its current tree
     void (async () => {
       try {
-        await childSession.send("Page.enable").catch(() => {});
+        if (!this.instrumentationDeferred) {
+          await childSession.send("Page.enable").catch(() => {});
+        } else if (this.instrumentationReady) {
+          // The context skipped this child's pre-resume enables while deferral
+          // was active, so the page supplies all three. Only a fully enabled
+          // session is recorded; a later prepareForInitialization() retries the rest.
+          try {
+            await childSession.send("Page.enable");
+            await childSession.send("Runtime.enable");
+            await childSession.send("Page.setLifecycleEventsEnabled", { enabled: true });
+            this.instrumentedSessions.add(childSession);
+          } catch {
+            // Best-effort, like the default flow's Page.enable above.
+          }
+        }
         let { frameTree } =
           await childSession.send<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
 

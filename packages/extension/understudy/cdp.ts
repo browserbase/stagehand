@@ -3,6 +3,13 @@ import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
 import type { StagehandLogger } from "../logger.js";
 
+/** CDP uses the first matching entry, so allowed web types must precede the catch-all exclusion. */
+export const STAGEHAND_WEB_TARGET_FILTER: Protocol.Target.TargetFilter = [
+  { type: "page" },
+  { type: "iframe" },
+  { exclude: true },
+];
+
 /**
  * CDP transport & session multiplexer
  *
@@ -192,6 +199,7 @@ export class CdpConnection implements CDPSessionLike {
       autoAttach: true,
       flatten: true,
       waitForDebuggerOnStart: true,
+      filter: STAGEHAND_WEB_TARGET_FILTER,
     });
     await this.send("Target.setDiscoverTargets", { discover: true });
   }
