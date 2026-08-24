@@ -104,3 +104,4 @@ _version-python-alpha:
     pnpm exec changeset version --snapshot
     pnpm exec tsx scripts/release/python-alpha-version.ts
     uv --directory "{{python_dir}}" lock
+    uv --directory "{{python_dir}}" run --locked python scripts/generate.py
