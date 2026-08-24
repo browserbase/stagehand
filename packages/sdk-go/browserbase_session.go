@@ -7,19 +7,15 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-
-	"github.com/browserbase/stagehand/packages/sdk-go/v4/internal/extensionassets"
 )
 
 type browserbaseSessionClientOptions struct {
-	api     browserbaseAPI
-	archive func() []byte
-	http    browserbaseHTTPClientOptions
+	api  browserbaseAPI
+	http browserbaseHTTPClientOptions
 }
 
 type browserbaseSessionClient struct {
-	api     browserbaseAPI
-	archive func() []byte
+	api browserbaseAPI
 }
 
 type browserbaseSessionConnection struct {
@@ -40,11 +36,7 @@ func newBrowserbaseSessionClient(
 		}
 		api = httpClient
 	}
-	archive := options.archive
-	if archive == nil {
-		archive = extensionassets.Archive
-	}
-	return &browserbaseSessionClient{api: api, archive: archive}, nil
+	return &browserbaseSessionClient{api: api}, nil
 }
 
 func (client *browserbaseSessionClient) createSession(
@@ -57,13 +49,9 @@ func (client *browserbaseSessionClient) createSession(
 		)
 	}
 
-	callerExtensionID, callerHasExtension := browserbaseCallerExtensionID(params)
-	requestExtensionID := callerExtensionID
-	if !callerHasExtension {
-		pendingExtensionID := "pending-stagehand-extension"
-		requestExtensionID = &pendingExtensionID
-	}
-	request, err := newBrowserbaseCreateSessionRequest(params, requestExtensionID)
+	request, err := newBrowserbaseCreateSessionRequest(
+		withStagehandBrowserbaseExtension(params),
+	)
 	if err != nil {
 		return resolvedBrowserSource{}, fmt.Errorf("build Browserbase session request: %w", err)
 	}
@@ -73,46 +61,9 @@ func (client *browserbaseSessionClient) createSession(
 	request.UserMetadata["stagehand"] = json.RawMessage(`"true"`)
 	request.UserMetadata["stagehand_sdk_language"] = json.RawMessage(`"go"`)
 	request.UserMetadata["stagehand_sdk_version"] = json.RawMessage(`"` + stagehandSDKVersion + `"`)
-	extensionID := ""
-	ownsExtension := !callerHasExtension
-	if ownsExtension {
-		archive := client.archive()
-		if len(archive) == 0 {
-			return resolvedBrowserSource{}, errors.New(
-				"bundled Stagehand extension archive is empty",
-			)
-		}
-		extension, err := client.api.uploadExtension(ctx, archive)
-		if err != nil {
-			return resolvedBrowserSource{}, fmt.Errorf(
-				"upload Stagehand extension to Browserbase: %w",
-				err,
-			)
-		}
-		if err := extension.validate(); err != nil {
-			return resolvedBrowserSource{}, fmt.Errorf(
-				"validate Browserbase extension upload: %w",
-				err,
-			)
-		}
-		extensionID = strings.TrimSpace(*extension.ID)
-		if extensionID == "" {
-			return resolvedBrowserSource{}, errors.New(
-				"Browserbase extension upload returned an empty extension ID",
-			)
-		}
-		request.ExtensionID = &extensionID
-	}
 	session, err := client.api.createSession(ctx, request)
 	if err != nil {
-		return resolvedBrowserSource{}, errors.Join(
-			errors.New("failed to create a Browserbase session"),
-			client.deleteExtensionBestEffort(
-				context.WithoutCancel(ctx),
-				extensionID,
-				ownsExtension,
-			),
-		)
+		return resolvedBrowserSource{}, errors.New("failed to create a Browserbase session")
 	}
 	if err := session.validate(); err != nil {
 		sessionID := ""
@@ -121,12 +72,7 @@ func (client *browserbaseSessionClient) createSession(
 		}
 		return resolvedBrowserSource{}, errors.Join(
 			errors.New("failed to create a Browserbase session"),
-			client.cleanupInvalidSession(
-				context.WithoutCancel(ctx),
-				sessionID,
-				extensionID,
-				ownsExtension,
-			),
+			client.cleanupInvalidSession(context.WithoutCancel(ctx), sessionID),
 		)
 	}
 
@@ -136,8 +82,6 @@ func (client *browserbaseSessionClient) createSession(
 		cleanupErr := client.cleanupInvalidSession(
 			context.WithoutCancel(ctx),
 			sessionID,
-			extensionID,
-			ownsExtension,
 		)
 		if sessionID == "" {
 			return resolvedBrowserSource{}, errors.Join(
@@ -150,17 +94,15 @@ func (client *browserbaseSessionClient) createSession(
 			cleanupErr,
 		)
 	}
-
 	resources := &browserbaseSessionResources{
-		api:           client.api,
-		sessionID:     sessionID,
-		extensionID:   extensionID,
-		ownsExtension: ownsExtension,
+		api:       client.api,
+		sessionID: sessionID,
 	}
 	return resolvedBrowserSource{
-		cdpURL:               cdpURL,
-		browserbaseSessionID: sessionID,
-		close:                resources.close,
+		cdpURL:                    cdpURL,
+		browserbaseSessionID:      sessionID,
+		residentBrowserConnection: true,
+		close:                     resources.close,
 	}, nil
 }
 
@@ -206,22 +148,9 @@ func (client *browserbaseSessionClient) connectSession(
 	}, nil
 }
 
-func browserbaseCallerExtensionID(params BrowserbaseLaunchOptions) (*string, bool) {
-	if params.ExtensionID != nil {
-		return params.ExtensionID, true
-	}
-	if params.BrowserSettings != nil &&
-		params.BrowserSettings.ExtensionID != nil {
-		return nil, true
-	}
-	return nil, false
-}
-
 func (client *browserbaseSessionClient) cleanupInvalidSession(
 	ctx context.Context,
 	sessionID string,
-	extensionID string,
-	ownsExtension bool,
 ) error {
 	var releaseErr error
 	if sessionID != "" {
@@ -231,42 +160,15 @@ func (client *browserbaseSessionClient) cleanupInvalidSession(
 			)
 		}
 	}
-	var deleteErr error
-	if ownsExtension {
-		if err := client.api.deleteExtension(ctx, extensionID); err != nil {
-			deleteErr = errors.New(
-				"failed to delete the Browserbase extension after a session failure",
-			)
-		}
-	}
-	return errors.Join(releaseErr, deleteErr)
-}
-
-func (client *browserbaseSessionClient) deleteExtensionBestEffort(
-	ctx context.Context,
-	extensionID string,
-	ownsExtension bool,
-) error {
-	if !ownsExtension {
-		return nil
-	}
-	if err := client.api.deleteExtension(ctx, extensionID); err != nil {
-		return errors.New(
-			"failed to delete the Browserbase extension after a session failure",
-		)
-	}
-	return nil
+	return releaseErr
 }
 
 type browserbaseSessionResources struct {
-	api           browserbaseAPI
-	sessionID     string
-	extensionID   string
-	ownsExtension bool
+	api       browserbaseAPI
+	sessionID string
 
-	mu               sync.Mutex
-	sessionReleased  bool
-	extensionDeleted bool
+	mu              sync.Mutex
+	sessionReleased bool
 }
 
 func (resources *browserbaseSessionResources) close(ctx context.Context) error {
@@ -286,13 +188,27 @@ func (resources *browserbaseSessionResources) close(ctx context.Context) error {
 		}
 	}
 
-	var extensionErr error
-	if resources.ownsExtension && !resources.extensionDeleted {
-		if err := resources.api.deleteExtension(ctx, resources.extensionID); err != nil {
-			extensionErr = err
-		} else {
-			resources.extensionDeleted = true
-		}
+	return releaseErr
+}
+
+func withStagehandBrowserbaseExtension(params BrowserbaseLaunchOptions) BrowserbaseLaunchOptions {
+	settings := BrowserbaseBrowserSettings{}
+	if params.BrowserSettings != nil {
+		settings = *params.BrowserSettings
 	}
-	return errors.Join(releaseErr, extensionErr)
+	seen := make(map[BrowserbaseExtension]struct{}, len(settings.Extensions)+1)
+	extensions := make([]BrowserbaseExtension, 0, len(settings.Extensions)+1)
+	for _, extension := range settings.Extensions {
+		if _, exists := seen[extension]; exists {
+			continue
+		}
+		seen[extension] = struct{}{}
+		extensions = append(extensions, extension)
+	}
+	if _, exists := seen[BrowserbaseExtensionStagehand]; !exists {
+		extensions = append(extensions, BrowserbaseExtensionStagehand)
+	}
+	settings.Extensions = extensions
+	params.BrowserSettings = &settings
+	return params
 }

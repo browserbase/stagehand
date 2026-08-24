@@ -420,12 +420,12 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 
 <Note>
-When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session without `keepAlive` enabled.
+When `browserbase.launch()` creates a session without an `extensionId`, it requests the Stagehand extension that ships with Browserbase browsers by adding `"stagehand"` to `browserSettings.extensions`. Any built-in extensions you list are kept in order. Nothing is uploaded or deleted. If you pass your own `extensionId`, it is forwarded untouched and Stagehand attaches to that build over the session's public CDP endpoint instead.
 </Note>
 
 ### Alternative: Browserbase SDK
 
-If you prefer to manage sessions directly, create the session with the Browserbase SDK and hand Stagehand the resulting session through `browserbase.connect()`:
+If you prefer to manage sessions directly, create the session with the Browserbase SDK and hand Stagehand the resulting session through `browserbase.connect()`. The session you create must include `"stagehand"` in `browserSettings.extensions`: `browserbase.connect()` assumes the session opted into the built-in extension unless you pass an `extensionId` for an extension you uploaded yourself.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -439,7 +439,10 @@ const bb = new Browserbase({
 
 const session = await bb.sessions.create({
   projectId: process.env.BROWSERBASE_PROJECT_ID!,
-  // Add configuration options here
+  browserSettings: {
+    extensions: ["stagehand"],
+    // Add other browser settings here
+  },
 });
 
 // Attach by session ID so the browser keeps its Browserbase identity
@@ -464,7 +467,10 @@ bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 session = bb.sessions.create(
     project_id=os.environ["BROWSERBASE_PROJECT_ID"],
-    # Add configuration options here
+    browser_settings={
+        "extensions": ["stagehand"],
+        # Add other browser settings here
+    },
 )
 
 # Attach by session ID so the browser keeps its Browserbase identity
@@ -478,7 +484,8 @@ stagehand = await Stagehand.create(browser=browser)
 
 <Tab title="Go">
 ```go
-// Create the session with your Browserbase client of choice, then attach by
+// Create the session with your Browserbase client of choice. The create request
+// must set browserSettings.extensions to include "stagehand". Then attach by
 // session ID so the browser keeps its Browserbase identity.
 session, err := createBrowserbaseSession(ctx)
 if err != nil {
@@ -503,6 +510,10 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
 </Tabs>
+
+<Note>
+If you created the session with your own uploaded extension instead, pass its ID as `extensionId` (TypeScript), `extension_id` (Python), or `ExtensionID` (Go) to `connect()` so Stagehand attaches to that build over the session's public CDP endpoint. There is no automatic fallback: if the session neither opted into the built-in extension nor was given an `extensionId`, `Stagehand.create()` fails.
+</Note>
 
 #### Connecting to an existing session
 

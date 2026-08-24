@@ -477,9 +477,6 @@ class Stagehand:
         return self._rpc_client
 
     def _worker_init_params(self, claimed: _ClaimedBrowser) -> StagehandInitParams:
-        browser_cdp_url = claimed.cdp_client.web_socket_debugger_url
-        if browser_cdp_url is None:
-            raise RuntimeError("The browser CDP WebSocket URL is unavailable")
         values = self._create_config.model_dump(
             exclude={"logging", "model"},
             exclude_unset=True,
@@ -490,7 +487,11 @@ class Stagehand:
             values["model"] = self._create_config.model
         values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
         values["client_info"] = STAGEHAND_SDK_CLIENT_INFO
-        values["browser_cdp_url"] = browser_cdp_url
+        if not claimed.resident_browser_connection:
+            browser_cdp_url = claimed.cdp_client.web_socket_debugger_url
+            if browser_cdp_url is None:
+                raise RuntimeError("The browser CDP WebSocket URL is unavailable")
+            values["browser_cdp_url"] = browser_cdp_url
         values["log_level"] = self._create_config.logging.level
         metadata = claimed.worker_init_metadata
         if metadata.api_key is not None:

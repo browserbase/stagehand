@@ -31,9 +31,10 @@ type protocolClient interface {
 }
 
 type resolvedBrowserSource struct {
-	cdpURL               string
-	browserbaseSessionID string
-	close                func(context.Context) error
+	cdpURL                    string
+	browserbaseSessionID      string
+	residentBrowserConnection bool
+	close                     func(context.Context) error
 }
 
 type clientAdapters struct {

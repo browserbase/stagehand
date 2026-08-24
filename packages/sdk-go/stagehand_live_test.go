@@ -310,12 +310,12 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 }
 
 func TestStagehandBrowserbaseIntegration(t *testing.T) {
-	if os.Getenv("BROWSERBASE_SMOKE") != "1" {
-		t.Skip("set BROWSERBASE_SMOKE=1 to run the Browserbase integration test")
+	if os.Getenv("BROWSERBASE_RESIDENT_SMOKE") != "1" {
+		t.Skip("set BROWSERBASE_RESIDENT_SMOKE=1 to run the Browserbase integration test")
 	}
 	apiKey := os.Getenv("BROWSERBASE_API_KEY")
 	if apiKey == "" {
-		t.Fatal("BROWSERBASE_API_KEY is required when BROWSERBASE_SMOKE=1")
+		t.Fatal("BROWSERBASE_API_KEY is required when BROWSERBASE_RESIDENT_SMOKE=1")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)

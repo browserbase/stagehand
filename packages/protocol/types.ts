@@ -19,6 +19,7 @@ import type {
   BrowserbaseBrowserSettingsSchema,
   BrowserSessionMetadataSchema,
   BrowserbaseContextSchema,
+  BrowserbaseExtensionSchema,
   BrowserbaseFingerprintSchema,
   BrowserbaseFingerprintScreenSchema,
   BrowserbaseProxyConfigSchema,
@@ -465,6 +466,7 @@ export type ThinkingEffort = z.infer<typeof ThinkingEffortSchema>;
 
 export type BrowserbaseBrowserSettings = z.infer<typeof BrowserbaseBrowserSettingsSchema>;
 export type BrowserbaseContext = z.infer<typeof BrowserbaseContextSchema>;
+export type BrowserbaseExtension = z.infer<typeof BrowserbaseExtensionSchema>;
 export type BrowserbaseFingerprint = z.infer<typeof BrowserbaseFingerprintSchema>;
 export type BrowserbaseFingerprintScreen = z.infer<typeof BrowserbaseFingerprintScreenSchema>;
 export type BrowserbaseProxyConfig = z.infer<typeof BrowserbaseProxyConfigSchema>;

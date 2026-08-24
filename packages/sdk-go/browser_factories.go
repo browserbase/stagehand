@@ -95,15 +95,16 @@ type browserConnectionSource struct {
 }
 
 type connectBrowserOptions struct {
-	provider           BrowserProvider
-	origin             BrowserOrigin
-	source             browserConnectionSource
-	extensionDir       string
-	extensionID        string
-	preloadedExtension bool
-	afterConnect       func(context.Context, browserCommandSender) error
-	workerAPIKey       *string
-	workerBrowser      *BrowserSessionMetadata
+	provider                  BrowserProvider
+	origin                    BrowserOrigin
+	source                    browserConnectionSource
+	extensionDir              string
+	extensionID               string
+	preloadedExtension        bool
+	afterConnect              func(context.Context, browserCommandSender) error
+	workerAPIKey              *string
+	workerBrowser             *BrowserSessionMetadata
+	residentBrowserConnection bool
 }
 
 // LaunchLocalBrowser launches a local browser and connects its Stagehand extension.
@@ -217,7 +218,8 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 		provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched,
 		source:             browserConnectionSource{cdpURL: source.cdpURL, keepAlive: keepAlive, close: source.close},
 		preloadedExtension: true, workerAPIKey: &options.APIKey,
-		workerBrowser: &BrowserSessionMetadata{SessionID: source.browserbaseSessionID, Region: workerRegion},
+		residentBrowserConnection: source.residentBrowserConnection,
+		workerBrowser:             &BrowserSessionMetadata{SessionID: source.browserbaseSessionID, Region: workerRegion},
 	}, dependencies)
 }
 
@@ -245,8 +247,9 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 		provider: BrowserProviderBrowserbase, origin: BrowserOriginConnected,
 		source:      browserConnectionSource{cdpURL: session.cdpURL, keepAlive: true},
 		extensionID: options.ExtensionID, preloadedExtension: options.ExtensionID == "",
-		workerAPIKey:  &options.APIKey,
-		workerBrowser: &BrowserSessionMetadata{SessionID: session.sessionID, Region: session.region},
+		residentBrowserConnection: options.ExtensionID == "",
+		workerAPIKey:              &options.APIKey,
+		workerBrowser:             &BrowserSessionMetadata{SessionID: session.sessionID, Region: session.region},
 	}, dependencies)
 }
 
@@ -338,7 +341,8 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 		provider: options.provider, origin: options.origin, cdp: cdp,
 		workerAPIKey:  options.workerAPIKey,
 		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
-		closeSource: options.source.close, cleanup: options.source.cleanup,
+		residentBrowserConnection: options.residentBrowserConnection,
+		closeSource:               options.source.close, cleanup: options.source.cleanup,
 	}, nil
 }
 

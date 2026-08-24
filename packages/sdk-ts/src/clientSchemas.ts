@@ -8,7 +8,7 @@
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "../../protocol/schemas.js";
-import type { StagehandLog } from "../../protocol/types.js";
+import type { BrowserbaseExtension, StagehandLog } from "../../protocol/types.js";
 import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
@@ -63,12 +63,25 @@ export const LocalBrowserConnectOptionsSchema = z
 
 export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
 
-type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
+/**
+ * Browserbase session creation params plus the built-in `browserSettings.extensions` opt-in,
+ * which the installed Browserbase SDK does not type yet.
+ */
+export interface BrowserbaseSessionCreateParams extends Omit<
+  Browserbase.SessionCreateParams,
+  "browserSettings"
+> {
+  browserSettings?: Browserbase.SessionCreateParams.BrowserSettings & {
+    extensions?: BrowserbaseExtension[];
+  };
+}
+
+type BrowserbaseLaunchOptionsInput = BrowserbaseSessionCreateParams & {
   apiKey: string;
   baseUrl?: string;
 };
 
-type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
+type BrowserbaseLaunchOptionsOutput = BrowserbaseSessionCreateParams & {
   apiKey: string;
   baseUrl: string;
 };

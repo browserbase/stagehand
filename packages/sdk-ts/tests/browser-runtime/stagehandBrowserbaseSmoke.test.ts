@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { browserbase, Stagehand, type StagehandBrowser } from "../../src/index.js";
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
-const shouldRun = process.env.BROWSERBASE_SMOKE === "1" || Boolean(browserbaseApiKey);
+// Enable after Browserbase Core accepts the resident Stagehand extension in production.
+const shouldRun = process.env.BROWSERBASE_RESIDENT_SMOKE === "1";
 const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/";
 
 describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {

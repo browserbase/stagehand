@@ -26,6 +26,9 @@ class BrowserbaseContext(TypedDict):
     persist: NotRequired[bool]
 
 
+BrowserbaseExtension: TypeAlias = Literal["onepassword", "browser-events", "stagehand"]
+
+
 class BrowserbaseFingerprintScreen(TypedDict):
     max_height: NotRequired[float]
     max_width: NotRequired[float]
@@ -74,6 +77,7 @@ class BrowserbaseBrowserSettings(TypedDict):
     captcha_input_selector: NotRequired[str]
     context: NotRequired[BrowserbaseContext]
     extension_id: NotRequired[str]
+    extensions: NotRequired[list[BrowserbaseExtension]]
     fingerprint: NotRequired[BrowserbaseFingerprint]
     log_session: NotRequired[bool]
     os: NotRequired[Literal["windows", "mac", "linux", "mobile", "tablet"]]

@@ -5,9 +5,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ._generated.models import BrowserbaseRegion, BrowserbaseSessionCreateParams
+from ._generated.models import (
+    BrowserbaseBrowserSettings,
+    BrowserbaseExtension,
+    BrowserbaseRegion,
+    BrowserbaseSessionCreateParams,
+)
 from ._sdk_identity import STAGEHAND_SESSION_METADATA
-from .extension_assets import build_extension_archive
 
 DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com"
 
@@ -29,6 +33,12 @@ def _session_create_kwargs(
     )
     browser_settings = values.get("browser_settings")
     if isinstance(browser_settings, dict):
+        extensions = browser_settings.get("extensions")
+        if isinstance(extensions, list):
+            browser_settings["extensions"] = [
+                extension.value if isinstance(extension, BrowserbaseExtension) else extension
+                for extension in extensions
+            ]
         fingerprint = browser_settings.get("fingerprint")
         if isinstance(fingerprint, dict):
             fingerprint_key_mapping = {
@@ -60,10 +70,6 @@ def _session_create_kwargs(
 
 
 class _BrowserbaseAPI(Protocol):
-    async def upload_extension(self, archive: bytes) -> str: ...
-
-    async def delete_extension(self, extension_id: str) -> None: ...
-
     async def create_session(
         self,
         options: BrowserbaseSessionCreateParams,
@@ -84,19 +90,6 @@ class _OfficialBrowserbaseAPI:
     def __init__(self, api_key: str, base_url: str) -> None:
         self._api_key = api_key
         self._base_url = base_url
-
-    async def upload_extension(self, archive: bytes) -> str:
-        from browserbase import AsyncBrowserbase
-
-        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
-            extension = await client.extensions.create(file=("stagehand-extension.zip", archive))
-        return extension.id
-
-    async def delete_extension(self, extension_id: str) -> None:
-        from browserbase import AsyncBrowserbase, omit
-
-        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
-            await client.extensions.delete(extension_id, extra_headers={"Content-Type": omit})
 
     async def create_session(
         self,
@@ -149,9 +142,7 @@ class _OwnedBrowserbaseSession:
     session_id: str
     cdp_url: str
     _api: _BrowserbaseAPI = field(repr=False)
-    _extension_id: str | None = field(repr=False)
     _session_released: bool = field(default=False, init=False, repr=False)
-    _extension_deleted: bool = field(default=False, init=False, repr=False)
     _close_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False, repr=False)
 
     async def close(self) -> None:
@@ -165,19 +156,8 @@ class _OwnedBrowserbaseSession:
                 else:
                     self._session_released = True
 
-            extension_error: Exception | None = None
-            if self._extension_id is not None and not self._extension_deleted:
-                try:
-                    await self._api.delete_extension(self._extension_id)
-                except Exception as error:
-                    extension_error = error
-                else:
-                    self._extension_deleted = True
-
             if release_error is not None:
                 raise release_error
-            if extension_error is not None:
-                raise extension_error
 
 
 class _BrowserbaseSessionClient:
@@ -188,24 +168,7 @@ class _BrowserbaseSessionClient:
         self,
         options: BrowserbaseSessionCreateParams,
     ) -> _OwnedBrowserbaseSession:
-        caller_extension_id = options.extension_id
-        if caller_extension_id is None and options.browser_settings is not None:
-            caller_extension_id = options.browser_settings.extension_id
-
-        owned_extension_id: str | None = None
-        if caller_extension_id is None:
-            archive = await asyncio.to_thread(build_extension_archive)
-            try:
-                uploaded_extension_id = await self._api.upload_extension(archive)
-            except Exception as error:
-                raise RuntimeError(
-                    "Failed to upload the Stagehand extension to Browserbase"
-                ) from error
-            owned_extension_id = uploaded_extension_id.strip()
-            if not owned_extension_id:
-                raise RuntimeError("Browserbase extension upload returned an empty extension ID")
-
-        extension_id = owned_extension_id or options.extension_id
+        options = _with_stagehand_extension(options)
         user_metadata = {
             **(options.user_metadata or {}),
             **STAGEHAND_SESSION_METADATA,
@@ -214,10 +177,9 @@ class _BrowserbaseSessionClient:
             raw_session_id, raw_cdp_url = await self._api.create_session(
                 options,
                 user_metadata=user_metadata,
-                extension_id=extension_id,
+                extension_id=options.extension_id,
             )
         except BaseException as error:
-            await self._delete_extension_best_effort(owned_extension_id)
             if isinstance(error, Exception):
                 raise BrowserbaseSessionError("Failed to create a Browserbase session") from None
             raise
@@ -225,7 +187,7 @@ class _BrowserbaseSessionClient:
         session_id = raw_session_id.strip()
         cdp_url = raw_cdp_url.strip()
         if not session_id or not cdp_url:
-            await self._cleanup_invalid_session(session_id, owned_extension_id)
+            await self._cleanup_invalid_session(session_id)
             if not session_id:
                 raise BrowserbaseSessionError(
                     "Browserbase session creation returned an empty session ID"
@@ -238,7 +200,6 @@ class _BrowserbaseSessionClient:
             session_id=session_id,
             cdp_url=cdp_url,
             _api=self._api,
-            _extension_id=owned_extension_id,
         )
 
     async def connect_session(self, session_id: str) -> _BrowserbaseSessionConnection:
@@ -260,25 +221,29 @@ class _BrowserbaseSessionClient:
             region=region,
         )
 
-    async def _delete_extension_best_effort(self, extension_id: str | None) -> None:
-        if extension_id is None:
-            return
-        try:
-            await self._api.delete_extension(extension_id)
-        except Exception:
-            pass
-
     async def _cleanup_invalid_session(
         self,
         session_id: str,
-        extension_id: str | None,
     ) -> None:
         if session_id:
             try:
                 await self._api.release_session(session_id)
             except Exception:
                 pass
-        await self._delete_extension_best_effort(extension_id)
+
+
+def _with_stagehand_extension(
+    options: BrowserbaseSessionCreateParams,
+) -> BrowserbaseSessionCreateParams:
+    settings = options.browser_settings or BrowserbaseBrowserSettings()
+    extensions = list(dict.fromkeys(settings.extensions or []))
+    if BrowserbaseExtension.stagehand not in extensions:
+        extensions.append(BrowserbaseExtension.stagehand)
+    return options.model_copy(
+        update={
+            "browser_settings": settings.model_copy(update={"extensions": extensions}),
+        }
+    )
 
 
 def _create_browserbase_session_client(api_key: str, base_url: str) -> _BrowserbaseSessionClient:

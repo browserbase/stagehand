@@ -75,6 +75,7 @@ class _WorkerInitMetadata:
 @dataclass(frozen=True)
 class _ClaimedBrowser:
     cdp_client: CDPClient
+    resident_browser_connection: bool
     worker_init_metadata: _WorkerInitMetadata
 
 
@@ -248,6 +249,7 @@ async def _connect_browser(
     extension_dir: str | None = None,
     extension_id: str | None = None,
     preloaded_extension: bool = False,
+    resident_browser_connection: bool = False,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
     worker_init_metadata: _WorkerInitMetadata,
 ) -> StagehandBrowser:
@@ -301,6 +303,7 @@ async def _connect_browser(
         origin,
         _ClaimedBrowser(
             cdp_client=connected_client,
+            resident_browser_connection=resident_browser_connection,
             worker_init_metadata=worker_init_metadata,
         ),
         close,
@@ -532,6 +535,7 @@ class BrowserbaseBrowser:
             origin="launched",
             source=source,
             preloaded_extension=True,
+            resident_browser_connection=True,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=api_key,
                 browser=_browser_session_metadata(session.session_id, options.region),
@@ -566,6 +570,7 @@ class BrowserbaseBrowser:
             source=_ConnectedBrowserSource(connection.cdp_url),
             extension_id=options.extension_id,
             preloaded_extension=options.extension_id is None,
+            resident_browser_connection=options.extension_id is None,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=options.api_key,
                 browser=_browser_session_metadata(connection.session_id, connection.region),

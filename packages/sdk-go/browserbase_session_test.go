@@ -10,17 +10,10 @@ import (
 )
 
 type fakeBrowserbaseAPI struct {
-	uploadExtensionCalls int
-	deleteExtensionCalls int
 	createSessionCalls   int
 	retrieveSessionCalls int
 	releaseSessionCalls  int
-	uploadExtensionFunc  func(
-		context.Context,
-		[]byte,
-	) (browserbaseExtensionResponse, error)
-	deleteExtensionFunc func(context.Context, string) error
-	createSessionFunc   func(
+	createSessionFunc    func(
 		context.Context,
 		browserbaseCreateSessionRequest,
 	) (browserbaseCreateSessionResponse, error)
@@ -29,28 +22,6 @@ type fakeBrowserbaseAPI struct {
 		string,
 	) (browserbaseRetrieveSessionResponse, error)
 	releaseSessionFunc func(context.Context, string) (browserbaseSessionResponse, error)
-}
-
-func (api *fakeBrowserbaseAPI) uploadExtension(
-	ctx context.Context,
-	archive []byte,
-) (browserbaseExtensionResponse, error) {
-	api.uploadExtensionCalls++
-	if api.uploadExtensionFunc != nil {
-		return api.uploadExtensionFunc(ctx, archive)
-	}
-	return validBrowserbaseExtensionResponse("ext_stagehand"), nil
-}
-
-func (api *fakeBrowserbaseAPI) deleteExtension(
-	ctx context.Context,
-	extensionID string,
-) error {
-	api.deleteExtensionCalls++
-	if api.deleteExtensionFunc != nil {
-		return api.deleteExtensionFunc(ctx, extensionID)
-	}
-	return nil
 }
 
 func (api *fakeBrowserbaseAPI) createSession(
@@ -86,7 +57,7 @@ func (api *fakeBrowserbaseAPI) releaseSession(
 	return validBrowserbaseSessionResponse(sessionID), nil
 }
 
-func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
+func TestBrowserbaseSessionClientPassesCallerExtensionIDsThrough(t *testing.T) {
 	createErr := errors.New("session creation failed")
 	tests := []struct {
 		name           string
@@ -203,13 +174,6 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 					t.Fatalf("close() error = %v", err)
 				}
 			}
-			if api.uploadExtensionCalls != 0 || api.deleteExtensionCalls != 0 {
-				t.Fatalf(
-					"extension calls = upload %d, delete %d; want zero",
-					api.uploadExtensionCalls,
-					api.deleteExtensionCalls,
-				)
-			}
 			if api.releaseSessionCalls != test.wantRelease {
 				t.Fatalf("release calls = %d, want %d", api.releaseSessionCalls, test.wantRelease)
 			}
@@ -251,13 +215,10 @@ func TestBrowserbaseSessionClientRejectsBlankCallerExtensionID(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), "extensionId cannot be empty") {
 				t.Fatalf("createSession() error = %v, want extensionId cannot be empty", err)
 			}
-			if api.uploadExtensionCalls != 0 || api.createSessionCalls != 0 ||
-				api.deleteExtensionCalls != 0 || api.releaseSessionCalls != 0 {
+			if api.createSessionCalls != 0 || api.releaseSessionCalls != 0 {
 				t.Fatalf(
-					"calls = upload %d, create %d, delete %d, release %d; want zero",
-					api.uploadExtensionCalls,
+					"calls = create %d, release %d; want zero",
 					api.createSessionCalls,
-					api.deleteExtensionCalls,
 					api.releaseSessionCalls,
 				)
 			}
@@ -265,27 +226,104 @@ func TestBrowserbaseSessionClientRejectsBlankCallerExtensionID(t *testing.T) {
 	}
 }
 
-func TestBrowserbaseSessionClientOwnsProvisionedExtension(t *testing.T) {
-	api := &fakeBrowserbaseAPI{}
-	client := newBrowserbaseTestSessionClient(t, api)
-	browser, err := client.createSession(
-		context.Background(),
-		BrowserbaseLaunchOptions{},
-	)
-	if err != nil {
-		t.Fatalf("createSession() error = %v", err)
+func TestBrowserbaseSessionClientOptsIntoBuiltInStagehandExtension(t *testing.T) {
+	tests := []struct {
+		name     string
+		settings *BrowserbaseBrowserSettings
+		want     []BrowserbaseExtension
+	}{
+		{
+			name:     "no browser settings",
+			settings: nil,
+			want:     []BrowserbaseExtension{BrowserbaseExtensionStagehand},
+		},
+		{
+			name:     "no extensions",
+			settings: &BrowserbaseBrowserSettings{ExtensionID: testPointer("ext_settings")},
+			want:     []BrowserbaseExtension{BrowserbaseExtensionStagehand},
+		},
+		{
+			name: "dedupes and preserves caller order",
+			settings: &BrowserbaseBrowserSettings{Extensions: []BrowserbaseExtension{
+				BrowserbaseExtensionOnepassword,
+				BrowserbaseExtensionBrowserEvents,
+				BrowserbaseExtensionOnepassword,
+			}},
+			want: []BrowserbaseExtension{
+				BrowserbaseExtensionOnepassword,
+				BrowserbaseExtensionBrowserEvents,
+				BrowserbaseExtensionStagehand,
+			},
+		},
+		{
+			name: "keeps an explicit stagehand position",
+			settings: &BrowserbaseBrowserSettings{Extensions: []BrowserbaseExtension{
+				BrowserbaseExtensionStagehand,
+				BrowserbaseExtensionOnepassword,
+				BrowserbaseExtensionStagehand,
+			}},
+			want: []BrowserbaseExtension{
+				BrowserbaseExtensionStagehand,
+				BrowserbaseExtensionOnepassword,
+			},
+		},
 	}
-	if err := browser.close(context.Background()); err != nil {
-		t.Fatalf("close() error = %v", err)
-	}
-	if api.uploadExtensionCalls != 1 || api.deleteExtensionCalls != 1 ||
-		api.releaseSessionCalls != 1 {
-		t.Fatalf(
-			"calls = upload %d, delete %d, release %d; want 1, 1, 1",
-			api.uploadExtensionCalls,
-			api.deleteExtensionCalls,
-			api.releaseSessionCalls,
-		)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var gotRequest browserbaseCreateSessionRequest
+			api := &fakeBrowserbaseAPI{
+				createSessionFunc: func(
+					_ context.Context,
+					request browserbaseCreateSessionRequest,
+				) (browserbaseCreateSessionResponse, error) {
+					gotRequest = request
+					return validBrowserbaseCreateSessionResponse("session_123"), nil
+				},
+			}
+			client := newBrowserbaseTestSessionClient(t, api)
+			var callerExtensions []BrowserbaseExtension
+			if test.settings != nil {
+				callerExtensions = append([]BrowserbaseExtension(nil), test.settings.Extensions...)
+			}
+			params := BrowserbaseLaunchOptions{BrowserSettings: test.settings}
+
+			browser, err := client.createSession(context.Background(), params)
+			if err != nil {
+				t.Fatalf("createSession() error = %v", err)
+			}
+			if !browser.residentBrowserConnection {
+				t.Fatal("residentBrowserConnection = false, want true")
+			}
+			if gotRequest.BrowserSettings == nil ||
+				!reflect.DeepEqual(gotRequest.BrowserSettings.Extensions, test.want) {
+				t.Fatalf("browserSettings = %#v, want extensions %#v", gotRequest.BrowserSettings, test.want)
+			}
+			if test.settings != nil {
+				if params.BrowserSettings != test.settings ||
+					!reflect.DeepEqual(test.settings.Extensions, callerExtensions) {
+					t.Fatalf("caller browser settings were mutated: %#v", test.settings)
+				}
+				if gotRequest.BrowserSettings.ExtensionID != test.settings.ExtensionID {
+					t.Fatalf(
+						"browserSettings extensionId = %#v, want %#v",
+						gotRequest.BrowserSettings.ExtensionID,
+						test.settings.ExtensionID,
+					)
+				}
+			} else if params.BrowserSettings != nil {
+				t.Fatalf("caller params were mutated: %#v", params)
+			}
+			if err := browser.close(context.Background()); err != nil {
+				t.Fatalf("close() error = %v", err)
+			}
+			if api.createSessionCalls != 1 || api.releaseSessionCalls != 1 {
+				t.Fatalf(
+					"calls = create %d, release %d; want 1, 1",
+					api.createSessionCalls,
+					api.releaseSessionCalls,
+				)
+			}
+		})
 	}
 }
 
@@ -376,7 +414,7 @@ func TestBrowserbaseSessionClientConnectSessionSanitizesRetrieveFailure(t *testi
 	}
 }
 
-func TestBrowserbaseSessionClientSanitizesCreateFailureAndCleansExtension(t *testing.T) {
+func TestBrowserbaseSessionClientSanitizesCreateFailure(t *testing.T) {
 	upstreamBody := `{"message":"recognizable create failure"}`
 	createErr := &BrowserbaseAPIError{
 		Method:     "POST",
@@ -384,17 +422,12 @@ func TestBrowserbaseSessionClientSanitizesCreateFailureAndCleansExtension(t *tes
 		StatusCode: 429,
 		Body:       upstreamBody,
 	}
-	deletedExtensionID := ""
 	api := &fakeBrowserbaseAPI{
 		createSessionFunc: func(
 			context.Context,
 			browserbaseCreateSessionRequest,
 		) (browserbaseCreateSessionResponse, error) {
 			return browserbaseCreateSessionResponse{}, createErr
-		},
-		deleteExtensionFunc: func(_ context.Context, extensionID string) error {
-			deletedExtensionID = extensionID
-			return nil
 		},
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
@@ -407,14 +440,13 @@ func TestBrowserbaseSessionClientSanitizesCreateFailureAndCleansExtension(t *tes
 		strings.Contains(err.Error(), "recognizable create failure") {
 		t.Fatalf("createSession() error = %v", err)
 	}
-	if deletedExtensionID != "ext_stagehand" {
-		t.Fatalf("deleted extension = %q, want ext_stagehand", deletedExtensionID)
+	if api.releaseSessionCalls != 0 {
+		t.Fatalf("release calls = %d, want 0", api.releaseSessionCalls)
 	}
 }
 
 func TestBrowserbaseSessionClientCleansInvalidSession(t *testing.T) {
 	releasedSessionID := ""
-	deletedExtensionID := ""
 	response := validBrowserbaseCreateSessionResponse("session_123")
 	emptyConnectionURL := " "
 	response.ConnectURL = &emptyConnectionURL
@@ -432,10 +464,6 @@ func TestBrowserbaseSessionClientCleansInvalidSession(t *testing.T) {
 			releasedSessionID = sessionID
 			return validBrowserbaseSessionResponse(sessionID), nil
 		},
-		deleteExtensionFunc: func(_ context.Context, extensionID string) error {
-			deletedExtensionID = extensionID
-			return nil
-		},
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
 
@@ -446,8 +474,8 @@ func TestBrowserbaseSessionClientCleansInvalidSession(t *testing.T) {
 	if releasedSessionID != "session_123" {
 		t.Fatalf("released session = %q, want session_123", releasedSessionID)
 	}
-	if deletedExtensionID != "ext_stagehand" {
-		t.Fatalf("deleted extension = %q, want ext_stagehand", deletedExtensionID)
+	if api.releaseSessionCalls != 1 {
+		t.Fatalf("release calls = %d, want 1", api.releaseSessionCalls)
 	}
 }
 
@@ -486,12 +514,6 @@ func TestBrowserbaseSessionClientCleanupIgnoresCreateContextCancellation(t *test
 					}
 					return test.response, nil
 				},
-				deleteExtensionFunc: func(ctx context.Context, _ string) error {
-					if err := ctx.Err(); err != nil {
-						t.Fatalf("deleteExtension() context error = %v", err)
-					}
-					return nil
-				},
 				releaseSessionFunc: func(
 					ctx context.Context,
 					sessionID string,
@@ -508,10 +530,9 @@ func TestBrowserbaseSessionClientCleanupIgnoresCreateContextCancellation(t *test
 			if err == nil {
 				t.Fatal("createSession() error = nil")
 			}
-			if api.deleteExtensionCalls != 1 || api.releaseSessionCalls != test.wantRelease {
+			if api.releaseSessionCalls != test.wantRelease {
 				t.Fatalf(
-					"cleanup calls = delete %d, release %d; want 1, %d",
-					api.deleteExtensionCalls,
+					"release calls = %d, want %d",
 					api.releaseSessionCalls,
 					test.wantRelease,
 				)
@@ -520,125 +541,46 @@ func TestBrowserbaseSessionClientCleanupIgnoresCreateContextCancellation(t *test
 	}
 }
 
-func TestBrowserbaseSessionCloseRetriesOnlyFailedSteps(t *testing.T) {
-	t.Run("release", func(t *testing.T) {
-		releaseErr := errors.New("release failed")
-		releaseCalls := 0
-		deleteCalls := 0
-		api := &fakeBrowserbaseAPI{
-			releaseSessionFunc: func(
-				_ context.Context,
-				sessionID string,
-			) (browserbaseSessionResponse, error) {
-				releaseCalls++
-				if releaseCalls == 1 {
-					return browserbaseSessionResponse{}, releaseErr
-				}
-				return validBrowserbaseSessionResponse(sessionID), nil
-			},
-			deleteExtensionFunc: func(context.Context, string) error {
-				deleteCalls++
-				return nil
-			},
-		}
-		client := newBrowserbaseTestSessionClient(t, api)
-		browser, err := client.createSession(
-			context.Background(),
-			BrowserbaseLaunchOptions{},
-		)
-		if err != nil {
-			t.Fatalf("createSession() error = %v", err)
-		}
-
-		if err := browser.close(context.Background()); !errors.Is(err, releaseErr) {
-			t.Fatalf("first close() error = %v, want release error", err)
-		}
-		if err := browser.close(context.Background()); err != nil {
-			t.Fatalf("second close() error = %v", err)
-		}
-		if releaseCalls != 2 || deleteCalls != 1 {
-			t.Fatalf(
-				"release calls = %d, delete calls = %d; want 2 and 1",
-				releaseCalls,
-				deleteCalls,
-			)
-		}
-	})
-
-	t.Run("extension deletion", func(t *testing.T) {
-		deleteErr := errors.New("extension deletion failed")
-		releaseCalls := 0
-		deleteCalls := 0
-		api := &fakeBrowserbaseAPI{
-			releaseSessionFunc: func(
-				_ context.Context,
-				sessionID string,
-			) (browserbaseSessionResponse, error) {
-				releaseCalls++
-				return validBrowserbaseSessionResponse(sessionID), nil
-			},
-			deleteExtensionFunc: func(context.Context, string) error {
-				deleteCalls++
-				if deleteCalls == 1 {
-					return deleteErr
-				}
-				return nil
-			},
-		}
-		client := newBrowserbaseTestSessionClient(t, api)
-		browser, err := client.createSession(
-			context.Background(),
-			BrowserbaseLaunchOptions{},
-		)
-		if err != nil {
-			t.Fatalf("createSession() error = %v", err)
-		}
-
-		if err := browser.close(context.Background()); !errors.Is(err, deleteErr) {
-			t.Fatalf("first close() error = %v, want delete error", err)
-		}
-		if err := browser.close(context.Background()); err != nil {
-			t.Fatalf("second close() error = %v", err)
-		}
-		if releaseCalls != 1 || deleteCalls != 2 {
-			t.Fatalf(
-				"release calls = %d, delete calls = %d; want 1 and 2",
-				releaseCalls,
-				deleteCalls,
-			)
-		}
-	})
-}
-
-func TestBrowserbaseSessionClientRejectsInvalidUploadResponse(t *testing.T) {
+func TestBrowserbaseSessionCloseRetriesFailedRelease(t *testing.T) {
+	releaseErr := errors.New("release failed")
+	releaseCalls := 0
 	api := &fakeBrowserbaseAPI{
-		uploadExtensionFunc: func(
-			context.Context,
-			[]byte,
-		) (browserbaseExtensionResponse, error) {
-			response := validBrowserbaseExtensionResponse("")
-			return response, nil
+		releaseSessionFunc: func(
+			_ context.Context,
+			sessionID string,
+		) (browserbaseSessionResponse, error) {
+			releaseCalls++
+			if releaseCalls == 1 {
+				return browserbaseSessionResponse{}, releaseErr
+			}
+			return validBrowserbaseSessionResponse(sessionID), nil
 		},
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
+	browser, err := client.createSession(
+		context.Background(),
+		BrowserbaseLaunchOptions{},
+	)
+	if err != nil {
+		t.Fatalf("createSession() error = %v", err)
+	}
 
-	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{})
-	if err == nil || !strings.Contains(err.Error(), "empty extension ID") {
-		t.Fatalf("createSession() error = %v, want empty extension ID", err)
+	if err := browser.close(context.Background()); !errors.Is(err, releaseErr) {
+		t.Fatalf("first close() error = %v, want release error", err)
+	}
+	if err := browser.close(context.Background()); err != nil {
+		t.Fatalf("second close() error = %v", err)
+	}
+	if err := browser.close(context.Background()); err != nil {
+		t.Fatalf("third close() error = %v", err)
+	}
+	if releaseCalls != 2 {
+		t.Fatalf("release calls = %d, want 2", releaseCalls)
 	}
 }
 
-func TestBrowserbaseSessionClientValidatesBeforeUploadingExtension(t *testing.T) {
-	uploads := 0
-	api := &fakeBrowserbaseAPI{
-		uploadExtensionFunc: func(
-			context.Context,
-			[]byte,
-		) (browserbaseExtensionResponse, error) {
-			uploads++
-			return validBrowserbaseExtensionResponse("ext_stagehand"), nil
-		},
-	}
+func TestBrowserbaseSessionClientValidatesBeforeCreatingSession(t *testing.T) {
+	api := &fakeBrowserbaseAPI{}
 	client := newBrowserbaseTestSessionClient(t, api)
 
 	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{
@@ -647,8 +589,8 @@ func TestBrowserbaseSessionClientValidatesBeforeUploadingExtension(t *testing.T)
 	if err == nil || !strings.Contains(err.Error(), "whole number") {
 		t.Fatalf("createSession() error = %v, want whole-number timeout error", err)
 	}
-	if uploads != 0 {
-		t.Fatalf("extension uploads = %d, want 0", uploads)
+	if api.createSessionCalls != 0 {
+		t.Fatalf("session creates = %d, want 0", api.createSessionCalls)
 	}
 }
 
@@ -709,23 +651,12 @@ func newBrowserbaseTestSessionClient(
 ) *browserbaseSessionClient {
 	t.Helper()
 	client, err := newBrowserbaseSessionClient("", browserbaseSessionClientOptions{
-		api:     api,
-		archive: func() []byte { return []byte("test-extension") },
+		api: api,
 	})
 	if err != nil {
 		t.Fatalf("newBrowserbaseSessionClient() error = %v", err)
 	}
 	return client
-}
-
-func validBrowserbaseExtensionResponse(extensionID string) browserbaseExtensionResponse {
-	return browserbaseExtensionResponse{
-		ID:        testPointer(extensionID),
-		CreatedAt: testPointer("2026-07-23T10:00:00.000Z"),
-		FileName:  testPointer(stagehandExtensionUploadName),
-		ProjectID: testPointer("project_123"),
-		UpdatedAt: testPointer("2026-07-23T10:00:00.000Z"),
-	}
 }
 
 func validBrowserbaseSessionResponse(sessionID string) browserbaseSessionResponse {

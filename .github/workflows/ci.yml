@@ -227,7 +227,8 @@ jobs:
           packages/sdk-ts/tests/browser-runtime/stagehandBrowserbaseSmoke.test.ts
         env:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
-          BROWSERBASE_SMOKE: "1"
+          # Set to "1" once Browserbase production accepts browserSettings.extensions: ["stagehand"].
+          BROWSERBASE_RESIDENT_SMOKE: ${{ vars.BROWSERBASE_RESIDENT_SMOKE }}
 
   python-checks:
     name: Python checks

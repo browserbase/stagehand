@@ -34,6 +34,7 @@ describe("Stagehand browser factories", () => {
 
     const browser = await localBrowser.launch({ headless: true });
 
+    expect(claimStagehandBrowser(browser).residentBrowserConnection).toBe(false);
     expect(browser).toMatchObject({ provider: "local", origin: "launched", closed: false });
     expect(launchLocalBrowser).toHaveBeenCalledWith({
       headless: true,
@@ -67,6 +68,7 @@ describe("Stagehand browser factories", () => {
       }),
     );
     expect(browser).toMatchObject({ provider: "local", origin: "connected" });
+    expect(claimStagehandBrowser(browser).residentBrowserConnection).toBe(false);
   });
 
   it("disconnects without closing a launched source configured to stay alive", async () => {
@@ -124,6 +126,7 @@ describe("Stagehand browser factories", () => {
         region: "us-west-2",
       },
     });
+    expect(claimed.residentBrowserConnection).toBe(true);
     expect(browser).toMatchObject({ provider: "browserbase", origin: "launched" });
   });
 
@@ -160,13 +163,30 @@ describe("Stagehand browser factories", () => {
       expect.objectContaining({ extensionId: "extension-id" }),
     );
     expect(browser).toMatchObject({ provider: "browserbase", origin: "connected" });
-    expect(claimStagehandBrowser(browser).workerInitMetadata).toStrictEqual({
+    const claimed = claimStagehandBrowser(browser);
+    expect(claimed.residentBrowserConnection).toBe(false);
+    expect(claimed.workerInitMetadata).toStrictEqual({
       apiKey: "bb_key",
       browser: {
         sessionId: "session_123",
         region: "eu-central-1",
       },
     });
+  });
+
+  it("uses the resident connection when Browserbase connect has no extension ID", async () => {
+    const createBrowserbaseSessionClient = vi.fn(() => ({
+      createSession: vi.fn(),
+      connectSession: vi.fn(async () => ({ sessionId: "session_123", cdpUrl: "wss://browser" })),
+    }));
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient,
+      connectCdp: async () => fakeCdpClient(),
+    });
+
+    const browser = await browserbase.connect({ apiKey: "bb_key", sessionId: "session_123" });
+
+    expect(claimStagehandBrowser(browser).residentBrowserConnection).toBe(true);
   });
 
   it("rejects a second Stagehand claim", async () => {

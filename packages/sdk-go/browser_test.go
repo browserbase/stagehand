@@ -286,6 +286,10 @@ func TestLaunchLocalBrowserDownloadBehaviorAndExtension(t *testing.T) {
 		t.Fatalf("LaunchLocalBrowser() error = %v", err)
 	}
 	defer browser.Close(context.Background())
+	claimed, err := claimBrowser(browser)
+	if err != nil || claimed.residentBrowserConnection {
+		t.Fatalf("local launch claim = %#v, %v", claimed, err)
+	}
 	if materializeCalls != 1 || connected.extensionDir != "/tmp/extension" || connected.serviceWorkerURLIncludes != "service-worker.js" {
 		t.Fatalf("extension connect options = %#v", connected)
 	}
@@ -323,6 +327,10 @@ func TestConnectLocalBrowserExtensionIDSkipsMaterialization(t *testing.T) {
 		t.Fatalf("ConnectLocalBrowser() error = %v", err)
 	}
 	defer browser.Close(context.Background())
+	claimed, err := claimBrowser(browser)
+	if err != nil || claimed.residentBrowserConnection {
+		t.Fatalf("local connect claim = %#v, %v", claimed, err)
+	}
 	if materializeCalls != 0 || connected.extensionID != "extension-id" || connected.extensionDir != "" {
 		t.Fatalf("extension routing = calls %d, options %#v", materializeCalls, connected)
 	}
@@ -518,8 +526,10 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 		extensionID     string
 		wantPreloaded   bool
 		wantExtensionID string
+		wantResident    bool
 	}{
-		{name: "launch", wantPreloaded: true},
+		{name: "launch", wantPreloaded: true, wantResident: true},
+		{name: "connect resident", connect: true, wantPreloaded: true, wantResident: true},
 		{name: "connect extension ID", connect: true, extensionID: "ext", wantExtensionID: "ext"},
 	}
 	for _, test := range tests {
@@ -529,7 +539,10 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			keepAlive := true
 			userMetadata := map[string]json.RawMessage{"team": json.RawMessage(`"qa"`)}
 			client := &fakeBrowserbaseFactoryClient{
-				created:   resolvedBrowserSource{cdpURL: "ws://browser.test", browserbaseSessionID: "created"},
+				created: resolvedBrowserSource{
+					cdpURL: "ws://browser.test", browserbaseSessionID: "created",
+					residentBrowserConnection: true,
+				},
 				connected: browserbaseSessionConnection{cdpURL: "ws://browser.test", sessionID: "retrieved", region: &region},
 			}
 			var connected cdpClientOptions
@@ -577,6 +590,9 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			}
 			if claimed.workerAPIKey == nil || *claimed.workerAPIKey != "key" || claimed.workerBrowser == nil || claimed.workerBrowser.Region == nil {
 				t.Fatalf("worker metadata = %#v %#v", claimed.workerAPIKey, claimed.workerBrowser)
+			}
+			if claimed.residentBrowserConnection != test.wantResident {
+				t.Fatalf("residentBrowserConnection = %t, want %t", claimed.residentBrowserConnection, test.wantResident)
 			}
 			if !test.connect && *claimed.workerBrowser.Region != BrowserbaseRegion("us-west-2") {
 				t.Fatalf("worker region = %q, want copied us-west-2", *claimed.workerBrowser.Region)
