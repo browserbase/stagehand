@@ -21,6 +21,7 @@ from run_eval import (  # noqa: E402
     extract_images,
     flatten_text,
     run,
+    sanitize_error,
 )
 
 
@@ -138,6 +139,32 @@ class ReEmittingAgent:
         yield {"summarization": {"messages": [self.first, self.tool_result, self.final]}}
 
 
+class FailedToolAgent:
+    async def astream(self, *_args: object, **_kwargs: object) -> AsyncIterator[object]:
+        yield {
+            "tools": {
+                "messages": [
+                    ToolMessage(
+                        content="failed with bb_test_abcd1234567890",
+                        name="snapshot",
+                        tool_call_id="call-1",
+                        status="error",
+                    )
+                ]
+            }
+        }
+
+
+class FailingAfterAssistantAgent:
+    async def astream(self, *_args: object, **_kwargs: object) -> AsyncIterator[object]:
+        yield {
+            "model": {
+                "messages": [AIMessage(content="answer with Bearer abcdefghijklmnop")]
+            }
+        }
+        raise RuntimeError("failed with sk-abcdef1234567890")
+
+
 @pytest.mark.asyncio
 async def test_deduplicates_messages_reemitted_after_summarization() -> None:
     first = AIMessage(
@@ -243,6 +270,51 @@ async def test_tool_step_budget_stops_after_result() -> None:
         "usage",
     ]
     assert events[3]["kind"] == "tool_step_budget"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("https://example.com?apiKey=supersecret&ok=1", "?apiKey=[redacted]&ok=1"),
+        ("sk-abcdef1234567890", "sk-abcdef[redacted]"),
+        ("bb_live_abcd1234567890", "bb_live_abcd[redacted]"),
+        (f"AIza{'A' * 30}", "AIza[redacted]"),
+        ("Bearer abcdefghijklmnop", "Bearer [redacted]"),
+    ],
+)
+def test_sanitize_error_ports_all_harness_patterns(message: str, expected: str) -> None:
+    sanitized = sanitize_error(message)
+
+    assert expected in sanitized
+    assert message not in sanitized
+
+
+@pytest.mark.asyncio
+async def test_redacts_failed_tool_payloads_and_final_with_error() -> None:
+    events: list[dict[str, Any]] = []
+
+    await run(
+        config(),
+        build_agent=lambda _config, _tools: FailedToolAgent(),
+        emit=events.append,
+    )
+
+    failed_tool = next(event for event in events if event["type"] == "tool_result")
+    assert failed_tool["text"] == "failed with bb_test_abcd[redacted]"
+    assert "bb_test_abcd1234567890" not in str(events)
+
+    events.clear()
+    exit_code = await run(
+        config(),
+        build_agent=lambda _config, _tools: FailingAfterAssistantAgent(),
+        emit=events.append,
+    )
+
+    assert exit_code == 1
+    error = next(event for event in events if event["type"] == "error")
+    final = next(event for event in events if event["type"] == "final")
+    assert error["message"] == "failed with sk-abcdef[redacted]"
+    assert final["text"] == "answer with Bearer [redacted]"
 
 
 def test_content_blocks_and_usage_helpers() -> None:

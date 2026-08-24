@@ -172,12 +172,14 @@ describe("Deep Agents session", () => {
   });
 
   it("redacts secrets in event errors", async () => {
+    const secret = "sk-abcdef1234567890";
     const fake = fakeSpawner({
       lines: [
         JSON.stringify({
           type: "error",
           kind: "exception",
-          message: "failed with sk-abcdef1234567890",
+          message: `failed with ${secret}`,
+          detail: { nested: [`payload ${secret}`] },
         }),
       ],
     });
@@ -190,6 +192,41 @@ describe("Deep Agents session", () => {
     });
     expect(result.stopReason).not.toContain("1234567890");
     expect(result.stopReason).toContain("[redacted]");
+    expect(JSON.stringify(result.events)).not.toContain(secret);
+    expect(result.events[0]).toMatchObject({
+      message: "failed with sk-abcdef[redacted]",
+      detail: { nested: ["payload sk-abcdef[redacted]"] },
+    });
+  });
+
+  it("deep-redacts events carrying error text even when their type is not error", async () => {
+    const secret = "bb_live_abcd1234567890";
+    const fake = fakeSpawner({
+      lines: [
+        JSON.stringify({
+          type: "diagnostic",
+          detail: "request failed",
+          payload: { error: `nested ${secret}`, context: [`trace ${secret}`] },
+        }),
+        JSON.stringify({ type: "final", text: "done" }),
+        JSON.stringify({ type: "usage" }),
+      ],
+    });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: {},
+    });
+
+    expect(JSON.stringify(result.events)).not.toContain(secret);
+    expect(result.events[0]).toMatchObject({
+      payload: {
+        error: "nested bb_live_abcd[redacted]",
+        context: ["trace bb_live_abcd[redacted]"],
+      },
+    });
   });
 
   it("forwards abort as SIGTERM", async () => {
@@ -261,6 +298,49 @@ describe("Deep Agents session", () => {
     expect(result.status).toBe("completed");
   });
 
+  it("sanitizes a full non-JSON line before clipping it", async () => {
+    logger.log.mockClear();
+    const secret = `AIza${"A".repeat(30)}`;
+    const fake = fakeSpawner({
+      lines: [
+        `${"x".repeat(479)} ${secret}`,
+        JSON.stringify({ type: "final", text: "ok" }),
+        JSON.stringify({ type: "usage" }),
+      ],
+    });
+
+    await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: {},
+    });
+
+    const logged = JSON.stringify(logger.log.mock.calls);
+    expect(logged).toContain("AIza[redacted]");
+    expect(logged).not.toContain(secret);
+  });
+
+  it("returns a sanitized string for iterationError", async () => {
+    const secret = "Bearer abcdefghijklmnop";
+    const spawn: DeepagentsProcessSpawner = () => {
+      throw new Error(`startup failed with ${secret}`);
+    };
+
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn,
+      session: {},
+    });
+
+    expect(result.iterationError).toBe("startup failed with Bearer [redacted]");
+    expect(typeof result.iterationError).toBe("string");
+    expect(JSON.stringify(result)).not.toContain(secret);
+  });
+
   it("rejects truncated terminal output even when the runner exits zero", async () => {
     const fake = fakeSpawner({ lines: ['{"type":"final","te'] });
     const result = await runDeepagentsSession({
@@ -282,10 +362,7 @@ describe("Deep Agents session", () => {
       const stdout = new PassThrough();
       const stderr = new PassThrough();
       stdout.end();
-      let resolveExit!: (value: {
-        code: number | null;
-        signal: NodeJS.Signals | null;
-      }) => void;
+      let resolveExit!: (value: { code: number | null; signal: NodeJS.Signals | null }) => void;
       const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
         (resolve) => {
           resolveExit = resolve;

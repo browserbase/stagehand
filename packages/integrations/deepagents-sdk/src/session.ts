@@ -44,7 +44,7 @@ export type DeepagentsSessionResult = {
   stopReason?: string;
   tokenUsage: DeepagentsTokenUsage;
   exitCode: number | null;
-  iterationError?: unknown;
+  iterationError?: string;
 };
 
 export type DeepagentsProcessHandle = {
@@ -135,7 +135,7 @@ export async function runDeepagentsSession(input: {
   let stopReason: string | undefined;
   let errorKind: string | undefined;
   let tokenUsage = extractDeepagentsTokenUsage(undefined);
-  let iterationError: unknown;
+  let iterationError: string | undefined;
   let exitCode: number | null = null;
   let exitSignal: NodeJS.Signals | null = null;
   let sawFinal = false;
@@ -217,11 +217,12 @@ export async function runDeepagentsSession(input: {
         } catch {
           input.logger.log({
             category: "deepagents",
-            message: sanitizeErrorMessage(`non-JSON stdout: ${clip(line, 500)}`),
+            message: `non-JSON stdout: ${clip(sanitizeErrorMessage(line), 500)}`,
             level: 1,
           });
           continue;
         }
+        if (shouldSanitizeEvent(event)) event = deepSanitizeEvent(event);
         events.push(event);
         logDeepagentsEvent(input.logger, event);
         if (event.type === "final") {
@@ -264,8 +265,8 @@ export async function runDeepagentsSession(input: {
         "deepagents runner exited without a terminal final/usage event (output truncated?)";
     }
   } catch (error) {
-    iterationError = error;
-    stopReason = sanitizeErrorMessage(stringifyError(error));
+    iterationError = sanitizeErrorMessage(stringifyError(error));
+    stopReason = iterationError;
     beginTermination();
     if (handle && !processExited) {
       await waitForExit(handle.exited, killGraceMs);
@@ -320,7 +321,7 @@ export function resolveDeepagentsStatus(options: {
   errorKind?: string;
   exitCode: number | null;
   signal: NodeJS.Signals | null;
-  iterationError?: unknown;
+  iterationError?: string;
   sawTerminalEvents: boolean;
 }): "completed" | "max_turns" | "sdk_error" {
   if (
@@ -428,7 +429,10 @@ export function summarizeDeepagentsEvent(event: DeepagentsEvent): {
 } {
   const type = String(event.type ?? "unknown");
   if (type === "assistant" && typeof event.text === "string") {
-    return { message: `assistant: ${clip(event.text, 500)}`, detail: event.text };
+    return {
+      message: `assistant: ${clip(sanitizeErrorMessage(event.text), 500)}`,
+      detail: event.text,
+    };
   }
   if (type === "tool_result") {
     const prefix = typeof event.server === "string" ? `${event.server}.` : "";
@@ -441,7 +445,10 @@ export function summarizeDeepagentsEvent(event: DeepagentsEvent): {
   if (type === "usage") return { message: "usage", detail: safeJson(event) };
   if (type === "error") {
     const message = typeof event.message === "string" ? event.message : "error";
-    return { message: `error: ${clip(message, 500)}`, detail: message };
+    return {
+      message: `error: ${clip(sanitizeErrorMessage(message), 500)}`,
+      detail: message,
+    };
   }
   return { message: `${type} event`, detail: safeJson(event) };
 }
@@ -469,6 +476,34 @@ export function stringifyError(value: unknown): string {
   if (value instanceof Error) return value.message;
   if (typeof value === "string") return value;
   return safeJson(value) ?? String(value);
+}
+
+function shouldSanitizeEvent(event: DeepagentsEvent): boolean {
+  if (event.type === "error") return true;
+  return containsSensitiveTextField(event);
+}
+
+function containsSensitiveTextField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsSensitiveTextField);
+  if (!isRecord(value)) return false;
+  return Object.entries(value).some(
+    ([key, child]) =>
+      ((key === "error" || key === "message" || key === "detail") && typeof child === "string") ||
+      containsSensitiveTextField(child),
+  );
+}
+
+function deepSanitizeEvent(event: DeepagentsEvent): DeepagentsEvent {
+  return deepSanitizeValue(event) as DeepagentsEvent;
+}
+
+function deepSanitizeValue(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeErrorMessage(value);
+  if (Array.isArray(value)) return value.map(deepSanitizeValue);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [key, deepSanitizeValue(child)]),
+  );
 }
 
 export function clip(value: string, maxLength: number): string {
