@@ -17,6 +17,7 @@ import {
 } from "../../framework/benchHarness.js";
 import { MASTRA_TOOL_SURFACES } from "../../framework/mastraToolAdapter.js";
 import { PI_TOOL_SURFACES } from "../../framework/piToolAdapter.js";
+import { defaultModelsEnvKey } from "../../framework/benchPlanner.js";
 import type { BenchMatrixRow } from "../../framework/benchTypes.js";
 import type { DiscoveredTask } from "../../framework/types.js";
 import type { EvalInput } from "../../types/evals.js";
