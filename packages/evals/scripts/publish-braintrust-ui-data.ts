@@ -151,7 +151,6 @@ const TESTED_RUN_INFERENCE_MS_KEYS = [
   "total_inference_time_ms",
   "codex_inference_time_ms",
   "claude_code_inference_time_ms",
-  "harness_inference_time_ms",
 ];
 
 type ModelPricing = {

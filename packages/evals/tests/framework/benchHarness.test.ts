@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import type { AvailableModel } from "stagehand-v3";
+import { describe, expect, it, vi } from "vitest";
+import { V3, type AvailableModel } from "stagehand-v3";
 import {
   claudeCodeHarness,
   codexHarness,
@@ -160,6 +160,64 @@ describe("bench harness registry", () => {
     });
     expect(receivedAdapter).toBe(adapter);
     expect(cleanupCalled).toBe(true);
+  });
+
+  it("closes the verifier carrier when adapter cleanup rejects", async () => {
+    const close = vi.spyOn(V3.prototype, "close").mockResolvedValue(undefined);
+    const harness = defineExternalHarness({
+      harness: "cleanup_rejects_external",
+      supportedToolSurfaces: ["browse_cli"],
+      defaultModels: ["openai/x" as AvailableModel],
+      prepareToolAdapter: async () => ({
+        cleanup: async () => {
+          throw new Error("cleanup failed");
+        },
+      }),
+      runAgent: async () => ({ _success: true }),
+    });
+    const input: EvalInput = {
+      name: "agent/webvoyager",
+      modelName: "openai/x" as AvailableModel,
+      params: { id: "wv-1", web: "https://example.com", ques: "Find it" },
+    };
+    const task: DiscoveredTask = {
+      name: input.name,
+      tier: "bench",
+      primaryCategory: "agent",
+      categories: ["agent"],
+      tags: [],
+      filePath: "/tmp/fake.ts",
+      isLegacy: false,
+    };
+    const row: BenchMatrixRow = {
+      harness: "cleanup_rejects_external",
+      task: input.name,
+      category: "agent",
+      taskKind: "agent",
+      model: input.modelName,
+      environment: "LOCAL",
+      useApi: false,
+      toolSurface: "browse_cli",
+      startupProfile: "tool_launch_local",
+      trial: 1,
+      config: {
+        harness: "cleanup_rejects_external",
+        model: input.modelName,
+        environment: "LOCAL",
+        useApi: false,
+        toolSurface: "browse_cli",
+        startupProfile: "tool_launch_local",
+      },
+    };
+
+    try {
+      await expect(
+        harness.execute?.({ task, input, row, logger: new EvalLogger(false) }),
+      ).rejects.toThrow("cleanup failed");
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      close.mockRestore();
+    }
   });
 
   it("rejects mismatched external harness config before preparing an adapter", async () => {

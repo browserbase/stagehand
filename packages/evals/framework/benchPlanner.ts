@@ -19,6 +19,7 @@ import { getBrowseCliToolMetadata } from "./claudeCodeToolAdapter.js";
 import {
   formatBenchHarnessFlags,
   getBenchHarness,
+  isExecutableBenchHarness,
   listBenchHarnessesForTaskKind,
 } from "./benchHarness.js";
 import {
@@ -214,7 +215,8 @@ export function generateBenchTestcases(
   if (!harnessImpl.supportedTaskKinds.includes("suite")) {
     plannedTasks = benchTasks.filter((task) => inferBenchTaskKind(task) !== "suite");
     if (plannedTasks.length === 0 && benchTasks.length > 0) {
-      const suiteHarnesses = listBenchHarnessesForTaskKind("suite");
+      const suiteHarnesses =
+        listBenchHarnessesForTaskKind("suite").filter(isExecutableBenchHarness);
       const guidance = suiteHarnesses.length
         ? `Re-run with ${formatBenchHarnessFlags(suiteHarnesses)}.`
         : "No registered harness runs agent benchmark suites.";

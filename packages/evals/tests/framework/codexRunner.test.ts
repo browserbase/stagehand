@@ -188,4 +188,25 @@ describe("codex runner helpers", () => {
     expect(result.harnessStopReason).toBeDefined();
     expect(String(result.error)).toContain("codex failed");
   });
+
+  it("redacts SDK iteration errors used as stop reasons", async () => {
+    const sdk: CodexSdk = {
+      startThread: () => ({
+        runStreamed: async () => {
+          throw new Error("failed https://x.test?apiKey=secret123");
+        },
+      }),
+    };
+
+    const result = await runCodexAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+
+    expect(result.harnessStopReason).toContain("apiKey=[redacted]");
+    expect(result.codexStopReason).toContain("apiKey=[redacted]");
+    expect(result.error).toContain("apiKey=[redacted]");
+  });
 });

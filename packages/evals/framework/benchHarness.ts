@@ -167,11 +167,14 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
             }),
         );
       } finally {
-        await toolAdapter?.cleanup();
-        // Deregister the never-init()-ed carrier (instance registry, event
-        // store, logger binding) so long matrix runs don't accumulate one
-        // V3 object graph per task.
-        await carrierV3.close().catch(() => {});
+        try {
+          await toolAdapter?.cleanup();
+        } finally {
+          // Deregister the never-init()-ed carrier (instance registry, event
+          // store, logger binding) so long matrix runs don't accumulate one
+          // V3 object graph per task.
+          await carrierV3.close().catch(() => {});
+        }
       }
     },
   };
@@ -227,7 +230,8 @@ export const stagehandHarness: BenchHarness = {
     }
     const config = row.config;
     if (!["act", "extract", "observe"].includes(task.primaryCategory)) {
-      const suiteHarnesses = listBenchHarnessesForTaskKind("suite");
+      const suiteHarnesses =
+        listBenchHarnessesForTaskKind("suite").filter(isExecutableBenchHarness);
       const suiteGuidance = suiteHarnesses.length
         ? `Run agent suites with ${formatBenchHarnessFlags(suiteHarnesses)}`
         : "No registered harness runs agent suites";

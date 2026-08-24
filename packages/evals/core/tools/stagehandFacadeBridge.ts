@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import net, { type AddressInfo, type Socket } from "node:net";
 import type { ProbeEvidence } from "stagehand-v3";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../../logger.js";
 
 export const STAGEHAND_FACADE_BRIDGE_PORT_ENV = "STAGEHAND_EVALS_FACADE_BRIDGE_PORT";
@@ -88,12 +89,12 @@ function hasOwnId(message: JsonRpcMessage): boolean {
 
 function rpcError(error: unknown): Error {
   if (error && typeof error === "object" && "message" in error) {
-    return new Error(String((error as { message: unknown }).message));
+    return new Error(sanitizeErrorMessage(String((error as { message: unknown }).message)));
   }
   try {
-    return new Error(JSON.stringify(error));
+    return new Error(sanitizeErrorMessage(JSON.stringify(error) ?? String(error)));
   } catch {
-    return new Error(String(error));
+    return new Error(sanitizeErrorMessage(String(error)));
   }
 }
 
@@ -141,6 +142,7 @@ export async function startStagehandFacadeBridge(
   let closed = false;
   let exited = false;
   let exitDescription = "";
+  let initializeResult: unknown;
   let closePromise: Promise<void> | undefined;
 
   const rejectPending = (error: Error) => {
@@ -169,10 +171,9 @@ export async function startStagehandFacadeBridge(
   const writeChild = (line: string): boolean => {
     if (closed || exited || child.stdin.destroyed) return false;
     try {
-      return child.stdin.write(line);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "EPIPE" && code !== "ERR_STREAM_DESTROYED") throw error;
+      child.stdin.write(line);
+      return true;
+    } catch {
       return false;
     }
   };
@@ -230,7 +231,7 @@ export async function startStagehandFacadeBridge(
   const exitPromise = new Promise<void>((resolve) => {
     child.once("error", (error) => {
       exited = true;
-      exitDescription = `spawn error: ${error.message}`;
+      exitDescription = sanitizeErrorMessage(`spawn error: ${error.message}`);
       rejectPending(new Error(`Stagehand facade ${exitDescription}`));
       resolve();
     });
@@ -238,7 +239,9 @@ export async function startStagehandFacadeBridge(
       exited = true;
       exitDescription = code === null ? `signal ${signal ?? "unknown"}` : `exit code ${code}`;
       const detail = stderrLines.length > 0 ? `: ${stderrLines.join("\n")}` : "";
-      rejectPending(new Error(`Stagehand facade exited with ${exitDescription}${detail}`));
+      rejectPending(
+        new Error(sanitizeErrorMessage(`Stagehand facade exited with ${exitDescription}${detail}`)),
+      );
       resolve();
     });
   });
@@ -270,11 +273,22 @@ export async function startStagehandFacadeBridge(
           log(`Dropped non-JSON agent relay line: ${line}`);
           continue;
         }
+        if (message.method === "initialize" && hasOwnId(message)) {
+          if (socket.writable) {
+            socket.write(
+              `${JSON.stringify({ jsonrpc: "2.0", id: message.id, result: initializeResult })}\n`,
+            );
+          }
+          continue;
+        }
+        if (message.method === "notifications/initialized") continue;
         if (hasOwnId(message) && typeof message.method === "string") {
           agentRequests.set(idKey(message.id), socket);
           if (message.method === "tools/call") toolCallSeen = true;
         }
-        writeChild(`${line}\n`);
+        if (!writeChild(`${line}\n`) && (closed || exited || child.stdin.destroyed)) {
+          socket.destroy(new Error("Stagehand facade bridge is closed"));
+        }
       }
     });
     socket.on("error", () => undefined);
@@ -308,7 +322,9 @@ export async function startStagehandFacadeBridge(
   const call = (method: string, params?: Record<string, unknown>): Promise<unknown> => {
     if (closed) return Promise.reject(new Error("Stagehand facade bridge is closed"));
     if (exited) {
-      return Promise.reject(new Error(`Stagehand facade exited with ${exitDescription}`));
+      return Promise.reject(
+        new Error(sanitizeErrorMessage(`Stagehand facade exited with ${exitDescription}`)),
+      );
     }
     const id = `evals-facade-${counter++}`;
     return new Promise<unknown>((resolve, reject) => {
@@ -421,7 +437,7 @@ export async function startStagehandFacadeBridge(
   };
 
   try {
-    await call("initialize", {
+    initializeResult = await call("initialize", {
       protocolVersion: "2025-06-18",
       capabilities: {},
       clientInfo: { name: "stagehand-evals-facade-bridge", version: "1.0.0" },

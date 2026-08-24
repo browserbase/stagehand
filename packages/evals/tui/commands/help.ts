@@ -1,5 +1,6 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
 import { listBenchHarnesses, listBenchHarnessesForTaskKind } from "../../framework/benchHarness.js";
+import { listCoreRunnableTools } from "../../core/tools/registry.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -179,7 +180,7 @@ export function printConfigHelp(): void {
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, stagehand_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",
@@ -210,7 +211,7 @@ export function printConfigCoreHelp(): void {
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, stagehand_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",

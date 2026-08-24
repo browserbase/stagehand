@@ -124,6 +124,25 @@ describe("benchPlanner", () => {
     await expect(generate()).rejects.toThrow("Agent benchmark suites require an external harness");
   });
 
+  it("omits planning-only harnesses from executable suite guidance", async () => {
+    registerBenchHarness({
+      harness: "planning_only_suite_guidance",
+      supportedTaskKinds: ["suite"],
+      supportsApi: false,
+      supportedToolSurfaces: ["browse_cli"],
+    });
+    const generate = () =>
+      withEnvOverrides({ EVAL_MAX_K: "1", EVAL_WEBVOYAGER_LIMIT: "1" }, async () =>
+        generateBenchTestcases([makeSuiteTask("agent/webvoyager")], {
+          modelOverride: "openai/gpt-4.1-mini",
+          datasetFilter: "webvoyager",
+          harness: "stagehand",
+        }),
+      );
+
+    await expect(generate()).rejects.not.toThrow("planning_only_suite_guidance");
+  });
+
   it("keeps claude_code as a harness-level matrix", async () => {
     const testcases = await withEnvOverrides(
       {

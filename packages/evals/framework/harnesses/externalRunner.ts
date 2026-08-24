@@ -1,4 +1,5 @@
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../../logger.js";
 import { datasetPromptGuidance } from "../externalHarnessPlan.js";
 import type { ExternalHarnessTaskPlan } from "../externalHarnessPlan.js";
@@ -38,9 +39,12 @@ export interface ParsedEvalResult {
 export function parseEvalResult(raw: string): ParsedEvalResult {
   // Intentionally accept both report shapes for every external harness so
   // marker and structured-output runners share the same resilient parser.
-  const marker = "EVAL_RESULT:";
-  const markerIndex = raw.lastIndexOf(marker);
-  const resultText = markerIndex >= 0 ? raw.slice(markerIndex + marker.length).trim() : raw.trim();
+  const markerPattern = /^\s*(?:\*\*)?EVAL_RESULT:/gmu;
+  const markerMatches = [...raw.matchAll(markerPattern)];
+  const markerMatch = markerMatches.at(-1);
+  const markerIndex = markerMatch?.index ?? -1;
+  const resultText =
+    markerIndex >= 0 ? raw.slice(markerIndex + (markerMatch?.[0].length ?? 0)).trim() : raw.trim();
   const candidates =
     markerIndex >= 0
       ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
@@ -172,25 +176,40 @@ export async function runExternalHarnessTask<TRaw>({
   const rawResult = [outcome.resultText, outcome.transcriptText, iterationErrorMessage]
     .filter(Boolean)
     .join("\n\n");
-  const parsed = parseEvalResult(rawResult);
-  const errorMessage =
-    parsed.summary ??
-    outcome.stopReason ??
-    // Intentionally prefer SDK iteration failures across all harnesses.
-    (iterationErrorMessage || outcome.resultText || outcome.transcriptText || fallbackErrorMessage);
+  const trustedResultText = outcome.resultText.trim()
+    ? outcome.resultText
+    : stripToolResultBlocks(outcome.transcriptText);
+  const parsed = { ...parseEvalResult(trustedResultText), raw: rawResult };
+  const sanitizedStopReason = outcome.stopReason
+    ? sanitizeErrorMessage(outcome.stopReason)
+    : undefined;
+  const sanitizedIterationError = iterationErrorMessage
+    ? sanitizeErrorMessage(iterationErrorMessage)
+    : undefined;
+  const sdkErrorMessage = sanitizedStopReason ?? sanitizedIterationError;
+  const errorMessage = sanitizeErrorMessage(
+    outcome.status === "sdk_error"
+      ? (sdkErrorMessage ?? fallbackErrorMessage)
+      : parsed.summary ||
+          sanitizedStopReason ||
+          sanitizedIterationError ||
+          outcome.resultText ||
+          outcome.transcriptText ||
+          fallbackErrorMessage,
+  );
   const prefix = legacyHarnessFieldPrefix(harness);
   const baseResult: TaskResult = {
-    _success: parsed.success,
-    error: !parsed.success ? errorMessage : undefined,
+    _success: outcome.status === "sdk_error" ? false : parsed.success,
+    error: outcome.status === "sdk_error" || !parsed.success ? errorMessage : undefined,
     reasoning: parsed.summary,
     finalAnswer: parsed.finalAnswer,
     rawResult: parsed.raw,
     harnessStatus: outcome.status,
-    ...(outcome.stopReason && { harnessStopReason: outcome.stopReason }),
+    ...(sanitizedStopReason && { harnessStopReason: sanitizedStopReason }),
     // Deprecated compatibility aliases; consumers should use the normalized
     // harnessStatus / harnessStopReason fields for newly registered harnesses.
     [`${prefix}Status`]: outcome.status,
-    ...(outcome.stopReason && { [`${prefix}StopReason`]: outcome.stopReason }),
+    ...(sanitizedStopReason && { [`${prefix}StopReason`]: sanitizedStopReason }),
     logs: logger.getLogs(),
     metrics: buildNormalizedHarnessMetrics(outcome),
   };
@@ -203,7 +222,7 @@ export async function runExternalHarnessTask<TRaw>({
   const stepObservations = toolAdapter?.drainStepObservations
     ? await bestEffort(toolAdapter.drainStepObservations(), evidenceTimeoutMs)
     : undefined;
-  return gradeExternalTrajectory({
+  const gradedResult = await gradeExternalTrajectory({
     buildTrajectory: () =>
       toTrajectory(
         {
@@ -225,6 +244,9 @@ export async function runExternalHarnessTask<TRaw>({
     category: harness,
     logger,
   });
+  return outcome.status === "sdk_error"
+    ? { ...gradedResult, _success: false, error: errorMessage }
+    : gradedResult;
 }
 
 /** Convert a registered harness id to its deprecated TaskResult field prefix. */
@@ -305,6 +327,13 @@ function tryParseEvalJson(candidate: string): Omit<ParsedEvalResult, "raw"> | un
   } catch {
     return undefined;
   }
+}
+
+function stripToolResultBlocks(transcript: string): string {
+  return transcript.replace(
+    /<tool(?:_use|_result)?\b[^>]*>[\s\S]*?<\/tool(?:_use|_result)\s*>/giu,
+    "",
+  );
 }
 
 /** Matches the integration packages while avoiding a runner-specific dependency. */

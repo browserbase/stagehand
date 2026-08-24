@@ -11,6 +11,7 @@ import {
   type CodexTokenUsage,
 } from "@browserbasehq/stagehand-integrations-codex-sdk";
 import type { AvailableModel } from "stagehand-v3";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../logger.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
@@ -123,7 +124,7 @@ export async function runCodexAgent({
         stopReason:
           sessionResult.stopReason ||
           (sessionResult.status === "sdk_error"
-            ? stringifyError(sessionResult.iterationError) || undefined
+            ? sanitizeErrorMessage(stringifyError(sessionResult.iterationError)) || undefined
             : undefined),
         usage,
         metrics: buildCodexMetrics(sessionResult.tokenUsage),

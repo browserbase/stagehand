@@ -37,7 +37,9 @@ process.stdin.on("data", (chunk) => {
     } else if (request.method === "tools/call") {
       toolCalls += 1;
       const name = request.params.name;
-      if (name === "__stats") {
+      if (name === "__exit") {
+        process.exit(5);
+      } else if (name === "__stats") {
         result(request.id, text(JSON.stringify({ initializeCount, toolCalls, lastRequestIdType: typeof request.id })));
       } else if (name === "screenshot") {
         result(request.id, {
@@ -99,9 +101,17 @@ function collectResponses(child: ChildProcessWithoutNullStreams): {
   response(id: string | number): Promise<Record<string, unknown>>;
 } {
   const responses = new Map<string, Record<string, unknown>>();
-  const waiters = new Map<string, (message: Record<string, unknown>) => void>();
+  const waiters = new Map<
+    string,
+    {
+      resolve: (message: Record<string, unknown>) => void;
+      reject: (error: Error) => void;
+      timer: NodeJS.Timeout;
+    }
+  >();
   let carry = "";
-  child.stdout.on("data", (chunk: Buffer | string) => {
+  let endedError: Error | undefined;
+  const onData = (chunk: Buffer | string) => {
     carry += chunk.toString();
     const lines = carry.split("\n");
     carry = lines.pop() ?? "";
@@ -112,12 +122,26 @@ function collectResponses(child: ChildProcessWithoutNullStreams): {
       const waiter = waiters.get(key);
       if (waiter) {
         waiters.delete(key);
-        waiter(message);
+        clearTimeout(waiter.timer);
+        waiter.resolve(message);
       } else {
         responses.set(key, message);
       }
     }
-  });
+  };
+  const onEnd = () => {
+    if (endedError) return;
+    endedError = new Error("Relay stdout ended before the expected response");
+    child.stdout.off("data", onData);
+    for (const waiter of waiters.values()) {
+      clearTimeout(waiter.timer);
+      waiter.reject(endedError);
+    }
+    waiters.clear();
+  };
+  child.stdout.on("data", onData);
+  child.stdout.once("end", onEnd);
+  child.stdout.once("close", onEnd);
   return {
     response: (id) => {
       const key = `${typeof id}:${String(id)}`;
@@ -126,15 +150,13 @@ function collectResponses(child: ChildProcessWithoutNullStreams): {
         responses.delete(key);
         return Promise.resolve(existing);
       }
+      if (endedError) return Promise.reject(endedError);
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           waiters.delete(key);
           reject(new Error(`Timed out waiting for relay response ${String(id)}`));
         }, 2_000);
-        waiters.set(key, (message) => {
-          clearTimeout(timer);
-          resolve(message);
-        });
+        waiters.set(key, { resolve, reject, timer });
       });
     },
   };
@@ -173,8 +195,10 @@ describe("stagehand facade bridge", () => {
   it("relays agent MCP traffic and captures step then terminal evidence", async () => {
     const bridge = await startBridge();
     const relay = startRelay(bridge);
+    const secondRelay = startRelay(bridge);
     const output = collectResponses(relay);
-    await waitFor(() => bridge.agentConnections() === 1);
+    const secondOutput = collectResponses(secondRelay);
+    await waitFor(() => bridge.agentConnections() === 2);
 
     relay.stdin.write(
       `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "agent", version: "1" } } })}\n`,
@@ -182,22 +206,40 @@ describe("stagehand facade bridge", () => {
     relay.stdin.write(
       `${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "screenshot", arguments: {} } })}\n`,
     );
+    secondRelay.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", id: "second-init", method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "second-agent", version: "1" } } })}\n`,
+    );
+    relay.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`,
+    );
+    secondRelay.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`,
+    );
 
-    expect((await output.response(1)).id).toBe(1);
+    await expect(output.response(1)).resolves.toMatchObject({
+      id: 1,
+      result: { serverInfo: { name: "fake-facade" } },
+    });
+    await expect(secondOutput.response("second-init")).resolves.toMatchObject({
+      id: "second-init",
+      result: { serverInfo: { name: "fake-facade" } },
+    });
     const screenshotResponse = await output.response(2);
     expect(screenshotResponse.id).toBe(2);
     expect(screenshotResponse).toMatchObject({
       result: { content: expect.arrayContaining([expect.objectContaining({ type: "image" })]) },
     });
     expect(bridge.sawAgentToolCall()).toBe(true);
-    expect(bridge.agentConnections()).toBe(1);
+    expect(bridge.agentConnections()).toBe(2);
     await expect(bridge.captureEvidence()).resolves.toEqual({
       screenshot: Buffer.from("png-bytes"),
       url: "https://example.com/final",
     });
 
     relay.stdin.end();
+    secondRelay.stdin.end();
     await waitForExit(relay);
+    await waitForExit(secondRelay);
     await waitFor(() => bridge.agentConnections() === 0);
     await expect(bridge.captureEvidence()).resolves.toEqual({
       screenshot: Buffer.from("png-bytes"),
@@ -210,9 +252,22 @@ describe("stagehand facade bridge", () => {
       arguments: {},
     })) as { content: Array<{ text: string }> };
     expect(JSON.parse(statsResult.content[0].text)).toMatchObject({
-      initializeCount: 2,
+      initializeCount: 1,
       lastRequestIdType: "string",
     });
+  });
+
+  it("rejects response waiters when relay stdout closes", async () => {
+    const bridge = await startBridge();
+    const relay = startRelay(bridge);
+    const output = collectResponses(relay);
+    await waitFor(() => bridge.agentConnections() === 1);
+
+    const response = output.response("missing");
+    relay.stdin.end();
+
+    await expect(response).rejects.toThrow(/stdout ended/iu);
+    await waitForExit(relay);
   });
 
   it("keeps concurrent runner and agent responses on their originating clients", async () => {
@@ -238,6 +293,52 @@ describe("stagehand facade bridge", () => {
     await waitForExit(relay);
   });
 
+  it("treats child stdin backpressure as a successful write", async () => {
+    const bridge = await startBridge();
+
+    await expect(
+      bridge.call("tools/list", { padding: "x".repeat(2 * 1024 * 1024) }),
+    ).resolves.toMatchObject({ tools: expect.any(Array) });
+  });
+
+  it("redacts remote JSON-RPC error messages", async () => {
+    const bridge = await startBridge();
+
+    await expect(
+      bridge.call("tools/call", {
+        name: "https://x.test?apiKey=secret123",
+        arguments: {},
+      }),
+    ).rejects.toThrow("apiKey=[redacted]");
+  });
+
+  it("closes an agent relay when the facade has exited", async () => {
+    const bridge = await startBridge();
+    const relay = startRelay(bridge);
+    const output = collectResponses(relay);
+    await waitFor(() => bridge.agentConnections() === 1);
+
+    relay.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "__exit", arguments: {} } })}\n`,
+    );
+    const firstResponse = output.response(1);
+    const deadline = Date.now() + 2_000;
+    while (true) {
+      try {
+        await bridge.call("tools/list");
+      } catch (error) {
+        expect(error).toMatchObject({ message: expect.stringMatching(/exit code 5/iu) });
+        break;
+      }
+      if (Date.now() >= deadline) throw new Error("Timed out waiting for facade exit");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    relay.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`);
+
+    await expect(firstResponse).rejects.toThrow(/stdout ended/iu);
+    await waitForExit(relay);
+  });
+
   it("closes the facade child and is idempotent", async () => {
     const bridge = await startBridge();
 
@@ -253,5 +354,21 @@ describe("stagehand facade bridge", () => {
         requestTimeoutMs: 1_000,
       }),
     ).rejects.toThrow(/(?:exit )?code 3/iu);
+  });
+
+  it("redacts child stderr from exit errors", async () => {
+    await expect(
+      startStagehandFacadeBridge({
+        server: {
+          command: process.execPath,
+          args: [
+            "-e",
+            'process.stderr.write("failed https://x.test?apiKey=secret123\\n"); process.exit(4)',
+          ],
+          env: {},
+        },
+        requestTimeoutMs: 1_000,
+      }),
+    ).rejects.toThrow("apiKey=[redacted]");
   });
 });
