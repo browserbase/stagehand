@@ -14,7 +14,12 @@ type ActionResult = { completed: number };
 type RunEnvelope = {
   __stagehandPlaywrightCompat: true;
   value: unknown;
+  closeRequested: boolean;
   executionError?: { name: string; message: string; stack?: string };
+};
+
+export type StagehandFacadeToolsOptions = {
+  onCloseRequested?: () => Promise<void>;
 };
 
 export type StagehandFacadeScreenshot = {
@@ -77,6 +82,7 @@ const FACADE_EPILOGUE = `
 return {
   __stagehandPlaywrightCompat: true,
   value,
+  closeRequested: runtime.closeRequested(),
   executionError,
 };`;
 
@@ -84,7 +90,10 @@ export class StagehandFacadeTools {
   private readonly snapshotsByPage = new Map<string, SnapshotState>();
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly stagehand: Stagehand) {}
+  constructor(
+    private readonly stagehand: Stagehand,
+    private readonly options: StagehandFacadeToolsOptions = {},
+  ) {}
 
   snapshot(options: { includeIframes?: boolean } = {}): Promise<string> {
     return this.enqueue(() => this.snapshotNow(options));
@@ -171,12 +180,26 @@ export class StagehandFacadeTools {
       {},
       { page, timeout: 60_000 },
     );
+    let closeError: unknown;
+    if (envelope.closeRequested && this.options.onCloseRequested) {
+      try {
+        await this.options.onCloseRequested();
+      } catch (error) {
+        closeError = error;
+      }
+    }
     if (envelope.executionError) {
       const error = new Error(envelope.executionError.message);
       error.name = envelope.executionError.name;
       if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
+      if (closeError) {
+        throw new AggregateError([error, closeError], "Run failed and cleanup also failed.", {
+          cause: error,
+        });
+      }
       throw error;
     }
+    if (closeError) throw closeError;
     return envelope.value;
   }
 

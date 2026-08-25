@@ -18,7 +18,7 @@ export {
   type RefAction,
   type CodeModeRunInput,
 } from "./contract.js";
-export { StagehandFacadeTools } from "./tools.js";
+export { StagehandFacadeTools, type StagehandFacadeToolsOptions } from "./tools.js";
 export {
   StagehandFacadeConfigError,
   stagehandFacadeConfigFromEnv,

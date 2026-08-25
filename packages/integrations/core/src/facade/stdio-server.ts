@@ -124,11 +124,24 @@ async function createResources(): Promise<FacadeResources> {
       : await localBrowser.launch(config.browser.launchOptions);
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
-    return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+    let resources!: FacadeResources;
+    const tools = new StagehandFacadeTools(stagehand, {
+      onCloseRequested: () => closeResources(resources),
+    });
+    resources = { browser, stagehand, tools };
+    return resources;
   } catch (error) {
     await browser.close().catch(() => undefined);
     throw error;
   }
+}
+
+async function closeResources(expected: FacadeResources): Promise<void> {
+  const current = await resourcesPromise?.catch(() => undefined);
+  if (current !== expected) return;
+  resourcesPromise = undefined;
+  await expected.stagehand.close().catch(() => undefined);
+  await expected.browser.close();
 }
 
 function textResult(text: string) {
