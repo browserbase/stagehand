@@ -12,17 +12,22 @@
 
 require_relative "../lib/stagehand"
 
+def env(name)
+  value = ENV.fetch(name, nil)
+  value unless value.nil? || value.empty?
+end
+
 def resolve_model
-  return [ENV["MODEL_NAME"], ENV.fetch("MODEL_API_KEY", nil)] if ENV["MODEL_NAME"]
-  return ["openai/gpt-5-mini", ENV["OPENAI_API_KEY"]] if ENV["OPENAI_API_KEY"]
-  return ["anthropic/claude-haiku-4-5", ENV["ANTHROPIC_API_KEY"]] if ENV["ANTHROPIC_API_KEY"]
-  return ["google/gemini-2.5-flash", ENV["GOOGLE_API_KEY"]] if ENV["GOOGLE_API_KEY"]
+  return [env("MODEL_NAME"), env("MODEL_API_KEY")] if env("MODEL_NAME")
+  return ["openai/gpt-5-mini", env("OPENAI_API_KEY")] if env("OPENAI_API_KEY")
+  return ["anthropic/claude-haiku-4-5", env("ANTHROPIC_API_KEY")] if env("ANTHROPIC_API_KEY")
+  return ["google/gemini-2.5-flash", env("GOOGLE_API_KEY")] if env("GOOGLE_API_KEY")
   [nil, nil]
 end
 
 use_browserbase = ARGV.include?("--browserbase")
 model, model_api_key = resolve_model
-browserbase_api_key = ENV.fetch("BROWSERBASE_API_KEY", nil)
+browserbase_api_key = env("BROWSERBASE_API_KEY")
 if model.nil? && browserbase_api_key.nil?
   abort "Set OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY (or MODEL_NAME + MODEL_API_KEY), " \
         "or BROWSERBASE_API_KEY to use the Model Gateway."
