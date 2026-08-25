@@ -1,14 +1,16 @@
 {
-  "extends": "../../../tsconfig.json",
   "compilerOptions": {
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
     "target": "ES2022",
-    "types": ["node"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "outDir": "dist",
     "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["agent/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": ["extension/**/*.ts", "tests/**/*.ts"]
 }

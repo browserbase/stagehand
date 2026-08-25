@@ -25,6 +25,10 @@ const packageChangelogs = [
     label: "Protocol",
     path: path.join(repositoryRoot, "packages/protocol/CHANGELOG.md"),
   },
+  {
+    label: "Eve Extension",
+    path: path.join(repositoryRoot, "packages/integrations/eve/CHANGELOG.md"),
+  },
 ];
 
 function isFileNotFound(error: unknown): boolean {
