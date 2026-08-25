@@ -134,11 +134,7 @@ export class RPCRouter {
 
   async afterResponse(request: StagehandRpcRequest): Promise<void> {
     if (request.method !== StagehandMethods.stagehandClose.name) return;
-    try {
-      await this.stagehandController.afterCloseResponse();
-    } finally {
-      await this.runtime.tracing.forceFlush();
-    }
+    await this.runtime.tracing.forceFlush();
   }
 
   async route(

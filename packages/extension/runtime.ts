@@ -852,18 +852,18 @@ export class StagehandRuntime {
     await this.enqueueLifecycle(async () => {
       const session = this.browserSession;
       this.browserSession = undefined;
-      this.clearStagehandGeneration();
+      this.clearStagehandInstance();
       await session?.close();
     });
   }
 
-  async disposeStagehandGeneration(): Promise<void> {
+  async disposeStagehandInstance(): Promise<void> {
     await this.enqueueLifecycle(async () => {
-      this.clearStagehandGeneration();
+      this.clearStagehandInstance();
     });
   }
 
-  private clearStagehandGeneration(): void {
+  private clearStagehandInstance(): void {
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();

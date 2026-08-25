@@ -162,7 +162,7 @@ describe("Stagehand runtime state", () => {
       },
     };
     await runtime.initialize(params);
-    await runtime.disposeStagehandGeneration();
+    await runtime.disposeStagehandInstance();
 
     expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
     expect(close).not.toHaveBeenCalled();
@@ -176,7 +176,7 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
   });
 
-  it("waits for runtime disposal before initializing the next generation", async () => {
+  it("waits for runtime disposal before initializing the next Stagehand instance", async () => {
     let markCloseStarted!: () => void;
     const closeStarted = new Promise<void>((resolve) => {
       markCloseStarted = resolve;
@@ -293,7 +293,7 @@ describe("Stagehand runtime state", () => {
       },
     });
 
-    await runtime.disposeStagehandGeneration();
+    await runtime.disposeStagehandInstance();
 
     expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
     expect(close).not.toHaveBeenCalled();

@@ -318,7 +318,7 @@ describe("Stagehand RPC router", () => {
 
     const closeRequest = request({ id: 16, method: "stagehand.close", params: {} });
     await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
-    expect(closeStagehand).not.toHaveBeenCalled();
+    expect(closeStagehand).toHaveBeenCalledOnce();
 
     await router.afterResponse(closeRequest);
     expect(closeStagehand).toHaveBeenCalledOnce();

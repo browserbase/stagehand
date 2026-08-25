@@ -126,7 +126,7 @@ describe("worker RPCClient", () => {
     }
   });
 
-  it("sends the stagehand.close response before disposing the runtime", async () => {
+  it("disposes the Stagehand instance before sending the stagehand.close response", async () => {
     const lifecycle: string[] = [];
     const runtimeClient = new ChromeRuntimeClient(
       {
@@ -151,14 +151,14 @@ describe("worker RPCClient", () => {
         }),
       );
 
-      expect(lifecycle).toStrictEqual(["response", "dispose"]);
+      expect(lifecycle).toStrictEqual(["dispose", "response"]);
       expect(closeStagehand).toHaveBeenCalledOnce();
     } finally {
       client.close();
     }
   });
 
-  it("still disposes the runtime when the stagehand.close response cannot be delivered", async () => {
+  it("disposes the Stagehand instance when the stagehand.close response cannot be delivered", async () => {
     const runtimeClient = new ChromeRuntimeClient(
       {
         sendToHost(): void {

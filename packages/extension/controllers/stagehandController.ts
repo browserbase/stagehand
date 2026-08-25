@@ -28,7 +28,7 @@ export function createStagehandController(
   runtime: StagehandRuntime,
   options: StagehandControllerOptions = {},
 ) {
-  const closeRuntime = options.close ?? (() => runtime.disposeStagehandGeneration());
+  const closeRuntime = options.close ?? (() => runtime.disposeStagehandInstance());
 
   async function runOperation<Result>(
     name: string,
@@ -57,11 +57,8 @@ export function createStagehandController(
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
     logger.info("stagehand.close", {});
-    return { closed: true as const };
-  }
-
-  async function afterCloseResponse() {
     await closeRuntime();
+    return { closed: true as const };
   }
 
   async function act(params: StagehandActParams, context: HandlerContext) {
@@ -161,7 +158,6 @@ export function createStagehandController(
   return {
     init,
     close,
-    afterCloseResponse,
     act,
     observe,
     extract,
