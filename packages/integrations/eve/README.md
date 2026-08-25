@@ -29,14 +29,14 @@ No extra `build.externalDependencies` configuration is required in the consuming
 
 ## Tools
 
-| Tool                      | Purpose                                                      |
-| ------------------------- | ------------------------------------------------------------ |
-| `browserbase__run`        | Run multi-step Stagehand JavaScript against the active page. |
-| `browserbase__snapshot`   | Inspect the active page's accessibility tree.                |
-| `browserbase__screenshot` | Capture visual evidence from the active page.                |
+| Tool                      | Purpose                                                               |
+| ------------------------- | --------------------------------------------------------------------- |
+| `browserbase__run`        | Run Playwright-shaped JavaScript or actions from the latest snapshot. |
+| `browserbase__snapshot`   | Inspect the page and hydrate IDs for subsequent actions.              |
+| `browserbase__screenshot` | Capture visual evidence from the active page.                         |
 
-The `run` callback receives Stagehand V4's `page`, `context`, `act`, `observe`, and `extract`
-surfaces. It can call `close()` after collecting the result to release the owned browser.
+JavaScript passed to `run` receives Playwright-shaped `page`, `context`, and `browser` objects. It
+can call `await browser.close()` after collecting the result to release the owned browser.
 
 Version 0.2 replaces the previous focused `search`, `fetch`, session, navigation, action, and
 extraction tools with this Code Mode surface. Eve's built-in `web_search` and `web_fetch` remain
@@ -58,15 +58,15 @@ required.
 
 The tools share one browser for the Eve process. Operations are serialized, initialization retries
 after transient failures, and unhealthy resources are replaced. Browserbase sessions use
-`keepAlive: false`; `close()` closes both Stagehand and the browser, and the next tool call starts a
-fresh session.
+`keepAlive: false`; `browser.close()` closes both Stagehand and the browser, and the next tool call
+starts a fresh session.
 
 Model-authored JavaScript executes in Stagehand's browser extension, not Eve's Node.js process. It
 is still powerful browser-side code and must not be treated as a hostile-code sandbox. Concurrent
 Eve sessions in one process share pages, cookies, and authentication state.
 
-Snapshot IDs are descriptive rather than selectors. Use CSS or XPath locators in `run`, or use
-Stagehand's `act`, `observe`, and `extract` helpers.
+Every `snapshot` hydrates its displayed IDs for `run` actions. Snapshot IDs expire after navigation
+or a newer snapshot, so inspect the page again before retrying a stale action.
 
 ## Development
 

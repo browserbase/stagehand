@@ -1,26 +1,18 @@
 import { defineTool } from "eve/tools";
-import { z } from "zod";
 
+import {
+  SCREENSHOT_INPUT_SCHEMA,
+  SCREENSHOT_TOOL_DESCRIPTION,
+  ScreenshotInputSchema,
+} from "../lib/core-facade/contract.js";
 import { stagehandSession } from "../lib/session.js";
 
 export default defineTool({
-  description: "Capture a screenshot of the active Stagehand page.",
-  inputSchema: z.object({
-    fullPage: z.boolean().default(false),
-    type: z.enum(["png", "jpeg"]).default("png"),
-    quality: z.number().int().min(0).max(100).optional(),
-  }),
-  async execute({ fullPage, type, quality }) {
-    return stagehandSession.run(async ({ browser }) => {
-      const page = (await browser.context.activePage()) ?? (await browser.context.newPage());
-      const options: Parameters<typeof page.screenshot>[0] = { fullPage, type };
-      if (type === "jpeg" && quality !== undefined) options.quality = quality;
-      const bytes = await page.screenshot(options);
-      return {
-        data: Buffer.from(bytes).toString("base64"),
-        mimeType: type === "jpeg" ? "image/jpeg" : "image/png",
-      };
-    });
+  description: SCREENSHOT_TOOL_DESCRIPTION,
+  inputSchema: SCREENSHOT_INPUT_SCHEMA,
+  async execute(rawInput) {
+    const input = ScreenshotInputSchema.parse(rawInput);
+    return stagehandSession.run(({ tools }) => tools.screenshot(input));
   },
   toModelOutput({ data, mimeType }) {
     return {

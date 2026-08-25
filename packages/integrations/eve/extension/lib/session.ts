@@ -7,6 +7,7 @@ import {
 } from "@browserbasehq/stagehand";
 
 import extension from "../extension.js";
+import { StagehandFacadeTools } from "./core-facade/tools.js";
 import { BrowserbaseSessionReleaseError, releaseBrowserbaseSession } from "./session-release.js";
 
 type StagehandSessionRelease = () => Promise<void>;
@@ -22,10 +23,14 @@ export type StagehandCreator = (browser: StagehandBrowser) => Promise<Stagehand>
 export interface StagehandResources {
   browser: StagehandBrowser;
   stagehand: Stagehand;
+  tools: StagehandFacadeTools;
   releaseSession?: StagehandSessionRelease;
 }
 
-export type StagehandResourceFactory = () => Promise<StagehandResources>;
+export type StagehandCloseRequest = (resources: StagehandResources) => Promise<void>;
+export type StagehandResourceFactory = (
+  onCloseRequested?: StagehandCloseRequest,
+) => Promise<StagehandResources>;
 export type StagehandResourceCleanup = (resources: StagehandResources) => Promise<void>;
 
 export interface StagehandSessionOptions {
@@ -116,7 +121,9 @@ export class StagehandSession {
     if (this.resources && !this.resources.browser.closed) return this.resources;
     if (this.resources) await this.invalidate(this.resources);
 
-    const pending = (this.resourcesPromise ??= this.createResources());
+    const pending = (this.resourcesPromise ??= this.createResources((resources) =>
+      this.close(resources),
+    ));
     try {
       const created = await pending;
       if (this.resourcesPromise === pending) this.resources = created;
@@ -152,7 +159,7 @@ export function createStagehandResourceFactory(
 ): StagehandResourceFactory {
   const pendingReleases = new Set<StagehandSessionRelease>();
 
-  return async () => {
+  return async (onCloseRequested) => {
     await retryPendingReleases(pendingReleases);
     const launched = await launchBrowser();
     const releaseSession = launched.releaseSession
@@ -160,7 +167,11 @@ export function createStagehandResourceFactory(
       : undefined;
     try {
       const stagehand = await createStagehand(launched.browser);
-      const resources: StagehandResources = { browser: launched.browser, stagehand };
+      let resources!: StagehandResources;
+      const tools = new StagehandFacadeTools(stagehand, {
+        onCloseRequested: () => onCloseRequested?.(resources) ?? Promise.resolve(),
+      });
+      resources = { browser: launched.browser, stagehand, tools };
       if (releaseSession) resources.releaseSession = releaseSession;
       return resources;
     } catch (error) {
