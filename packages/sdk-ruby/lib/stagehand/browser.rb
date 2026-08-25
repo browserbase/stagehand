@@ -297,6 +297,14 @@ module Stagehand
       end
     end
 
+    # Fetches the raw CDP event log for a session, e.g. to verify what actually
+    # happened in the browser. Log ingestion is asynchronous: immediately after
+    # a session closes this can return [] for a short while (poll if needed).
+    def session_logs(api_key:, session_id:, base_url: BrowserbaseSession::DEFAULT_BROWSERBASE_URL)
+      raise ArgumentError, "api_key must not be empty" if api_key.to_s.empty?
+      BrowserbaseClient.new(api_key: api_key, base_url: base_url).session_logs(session_id)
+    end
+
     def connect(api_key:, session_id:, base_url: BrowserbaseSession::DEFAULT_BROWSERBASE_URL, extension_id: nil)
       connection = BrowserbaseSession.connect(api_key: api_key, base_url: base_url, session_id: session_id)
       LocalBrowser.connect_browser(

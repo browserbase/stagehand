@@ -22,7 +22,9 @@ end to end but deliberately implements only a sliver of the API surface.
   discovery, temp profile, the Stagehand flag set, `Extensions.loadUnpacked`.
 - **Browserbase** (`browserbase_client.rb`, `browserbase_session.rb`,
   `extension_assets.rb`) — deterministic extension zip (byte-identical to the Python
-  SDK's archive), upload, session create/release with SDK-identity `userMetadata`.
+  SDK's archive), upload, session create/release with SDK-identity `userMetadata`,
+  and `Stagehand::Browserbase.session_logs(api_key:, session_id:)` to fetch a
+  session's raw CDP event log for post-run verification.
 - **Client surface** — `Stagehand.create` / `close`, `act`, `extract` (plain JSON
   Schema hashes), `observe`, `metrics`, `context.pages/new_page/active_page`,
   `page.goto/url/title`.

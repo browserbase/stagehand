@@ -57,6 +57,12 @@ module Stagehand
       [response["id"].to_s, response["connectUrl"], response["region"]]
     end
 
+    # Returns the session's raw CDP event log as a parsed JSON array
+    # (available during and after the session's lifetime).
+    def session_logs(session_id)
+      request(Net::HTTP::Get, "/v1/sessions/#{encode_path(session_id)}/logs")
+    end
+
     def release_session(session_id)
       request(
         Net::HTTP::Post,
