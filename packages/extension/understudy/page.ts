@@ -21,6 +21,7 @@ import type {
   LoadState,
   LocalBrowserLaunchOptions,
   PageCDPEvent,
+  PagePdfOptions,
   PageSnapshotOptions,
   SnapshotResult,
   WebMCPAnnotation,
@@ -172,6 +173,8 @@ export class Page {
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private webMCPResponseListenerInstalled = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
+  /** Cached Browser.getVersion probe; headless status never flips mid-session. */
+  private headlessDetection?: Promise<boolean>;
 
   private readonly onWebMCPToolResponded = (event: Protocol.WebMCP.ToolRespondedEvent): void => {
     const record = this.webMCPInvocations.get(event.invocationId);
@@ -223,6 +226,23 @@ export class Page {
     await session.send("Page.addScriptToEvaluateOnNewDocument", {
       source: source,
     });
+  }
+
+  /**
+   * Detect headless Chrome via the Browser.getVersion identity strings.
+   * New headless mode reports product as plain "Chrome/..." while its
+   * userAgent keeps the HeadlessChrome marker, so check both. If the probe
+   * itself fails, assume headless so the real CDP error surfaces from the
+   * pdf command instead of a false negative.
+   */
+  private detectHeadless(): Promise<boolean> {
+    this.headlessDetection ??= this.mainSession
+      .send<{ product: string; userAgent: string }>("Browser.getVersion")
+      .then(
+        ({ product, userAgent }) => /headless/i.test(product) || /HeadlessChrome/i.test(userAgent),
+      )
+      .catch(() => true);
+    return this.headlessDetection;
   }
 
   // Replay every previously registered init script onto a newly adopted session.
@@ -1196,6 +1216,57 @@ export class Page {
     };
 
     return await withTimeout(exec(), opts.timeout, "screenshot");
+  }
+
+  /**
+   * Render the current page as a PDF with Playwright-style options.
+   *
+   * Thin passthrough to CDP Page.printToPDF, so it only works when Chrome
+   * runs headless; headed browsers reject the underlying command.
+   *
+   * @param options Optional PDF configuration mirroring Playwright's
+   * page.pdf() contract.
+   * @param options.displayHeaderFooter Render headerTemplate/footerTemplate.
+   * @param options.headerTemplate HTML template for the print header.
+   * @param options.footerTemplate HTML template for the print footer.
+   * @param options.format Paper format ("letter" by default); explicit
+   * width/height take precedence over the format.
+   * @param options.landscape Use landscape paper orientation.
+   * @param options.margin Paper margins; numbers are CSS pixels and strings
+   * may carry px/in/cm/mm units.
+   * @param options.omitBackground Make the default page background transparent.
+   * @param options.outline Embed the document outline (bookmarks).
+   * @param options.pageRanges Comma-separated page ranges to render,
+   * e.g. "1-5, 8, 11-13".
+   * @param options.preferCssPageSize Give any CSS @page size priority over
+   * width/height/format.
+   * @param options.printBackground Print background colors and images.
+   * @param options.scale Render scale between 0.1 and 2.
+   * @param options.tagged Generate tagged (accessible) PDF.
+   * @param options.timeout Maximum render duration in milliseconds before a
+   * timeout error is thrown.
+   */
+  async pdf(options?: PagePdfOptions): Promise<Uint8Array> {
+    const opts = options ?? {};
+
+    if (!(await this.detectHeadless())) {
+      throw new TypeError("pdf: PDF generation is only supported in headless Chrome");
+    }
+
+    const cleanupTasks: ScreenshotCleanup[] = [];
+
+    const exec = async (): Promise<Uint8Array> => {
+      try {
+        if (opts.omitBackground) {
+          cleanupTasks.push(await setTransparentBackground(this.mainSession));
+        }
+        return await this.mainFrameWrapper.pdf(opts);
+      } finally {
+        await runScreenshotCleanups(cleanupTasks);
+      }
+    };
+
+    return await withTimeout(exec(), opts.timeout, "pdf");
   }
 
   /**

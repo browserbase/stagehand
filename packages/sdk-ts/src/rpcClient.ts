@@ -90,6 +90,7 @@ const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
   StagehandMethods.pageClose.name,
   StagehandMethods.pageEvaluate.name,
   StagehandMethods.pageScreenshot.name,
+  StagehandMethods.pagePdf.name,
   StagehandMethods.pageSnapshot.name,
   StagehandMethods.pageWebMCPInvocationResult.name,
 ]);
@@ -519,6 +520,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.pageGoBack.name:
     case StagehandMethods.pageGoForward.name:
     case StagehandMethods.pageScreenshot.name:
+    case StagehandMethods.pagePdf.name:
     case StagehandMethods.pageWaitForSelector.name:
     case StagehandMethods.pageWebMCPTools.name:
     case StagehandMethods.pageWebMCPInvocationResult.name:

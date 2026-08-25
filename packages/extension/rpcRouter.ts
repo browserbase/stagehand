@@ -366,6 +366,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageScreenshot, request.params),
           context,
         );
+      case "page.pdf":
+        return this.pageController.pdf(
+          parseParams(StagehandMethods.pagePdf, request.params),
+          context,
+        );
       case "page.snapshot":
         return this.pageController.snapshot(
           parseParams(StagehandMethods.pageSnapshot, request.params),

@@ -791,6 +791,44 @@ class PageOnParams(TypedDict):
     event: PageEventName
 
 
+PagePdfFormat: TypeAlias = Literal["a0", "a1", "a2", "a3", "a4", "a5", "a6", "letter", "legal", "tabloid", "ledger"]
+
+
+class PagePdfMargin(TypedDict):
+    top: NotRequired[float | str]
+    right: NotRequired[float | str]
+    bottom: NotRequired[float | str]
+    left: NotRequired[float | str]
+
+
+class PagePdfOptions(TypedDict):
+    display_header_footer: NotRequired[bool]
+    footer_template: NotRequired[str]
+    format: NotRequired[PagePdfFormat]
+    header_template: NotRequired[str]
+    height: NotRequired[float | str]
+    landscape: NotRequired[bool]
+    margin: NotRequired[PagePdfMargin]
+    omit_background: NotRequired[bool]
+    outline: NotRequired[bool]
+    page_ranges: NotRequired[str]
+    prefer_css_page_size: NotRequired[bool]
+    print_background: NotRequired[bool]
+    scale: NotRequired[float]
+    tagged: NotRequired[bool]
+    timeout: NotRequired[float]
+    width: NotRequired[float | str]
+
+
+class PagePdfParams(TypedDict):
+    page_id: str
+    options: NotRequired[PagePdfOptions]
+
+
+class PagePdfResult(TypedDict):
+    data: str
+
+
 class PageRef(TypedDict):
     page_id: str
     url: NotRequired[str]

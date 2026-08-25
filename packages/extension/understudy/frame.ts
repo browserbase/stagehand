@@ -4,6 +4,8 @@ import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandLogger } from "../logger.js";
+import type { PagePdfOptions } from "../../protocol/types.js";
+import { buildPrintToPDFParams } from "./pdfUtils.js";
 
 function base64ToBytes(base64: string): Uint8Array {
   const binary = globalThis.atob(base64);
@@ -257,6 +259,17 @@ export class Frame implements FrameManager {
 
     const { data } = await this.session.send<Protocol.Page.CaptureScreenshotResponse>(
       "Page.captureScreenshot",
+      params,
+    );
+    return base64ToBytes(data);
+  }
+
+  /** Page.printToPDF (main-frame session; headless Chrome only) */
+  async pdf(options?: PagePdfOptions): Promise<Uint8Array> {
+    await this.session.send("Page.enable");
+    const params = buildPrintToPDFParams(options ?? {});
+    const { data } = await this.session.send<Protocol.Page.PrintToPDFResponse>(
+      "Page.printToPDF",
       params,
     );
     return base64ToBytes(data);

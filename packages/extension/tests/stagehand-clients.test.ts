@@ -44,6 +44,7 @@ import type {
   PageEvaluateParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PagePdfOptions,
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
@@ -232,6 +233,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     options?: PageWaitForSelectorParams["options"];
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
+  readonly pdfCalls: Array<PagePdfOptions | undefined> = [];
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
   readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
   readonly invokeWebMCPToolCalls: Array<{
@@ -258,6 +260,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   evaluationResult: unknown = null;
   waitForSelectorResult = true;
   screenshotBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
   snapshotResult: SnapshotResult = {
     formattedTree: "root",
     xpathMap: { frameOne: "/html/body" },
@@ -380,6 +383,11 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   async screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array> {
     this.screenshotCalls.push(options);
     return this.screenshotBytes;
+  }
+
+  async pdf(options?: PagePdfOptions): Promise<Uint8Array> {
+    this.pdfCalls.push(options);
+    return this.pdfBytes;
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -1958,6 +1966,57 @@ describe("Stagehand worker clients", () => {
       },
     ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+  });
+
+  it("routes page.pdf through the owning page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 32,
+        method: "page.pdf",
+        params: {
+          page_id: "page-a",
+          options: {
+            landscape: true,
+            format: "a4",
+            print_background: true,
+            margin: { top: "1cm" },
+            page_ranges: "1-3",
+          },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 32,
+      result: { data: "JVBERi0xLjQ=" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 33,
+        method: "page.pdf",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 33,
+      result: { data: "JVBERi0xLjQ=" },
+    });
+
+    expect(page.pdfCalls).toStrictEqual([
+      {
+        landscape: true,
+        format: "a4",
+        printBackground: true,
+        margin: { top: "1cm" },
+        pageRanges: "1-3",
+      },
+      undefined,
+    ]);
   });
 
   it("routes WebMCP discovery and invocation operations through the owning page", async () => {
