@@ -981,7 +981,7 @@ describe("Stagehand worker clients", () => {
     expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
-  it("closes the active browser session and initializes a fresh one after stagehand.close", async () => {
+  it("keeps the active browser session and reuses it after stagehand.close", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -1013,7 +1013,7 @@ describe("Stagehand worker clients", () => {
       },
     });
 
-    expect(sessions[0]?.closed).toBe(true);
+    expect(sessions[0]?.closed).toBe(false);
 
     await expect(
       handle({
@@ -1030,8 +1030,8 @@ describe("Stagehand worker clients", () => {
         pages: [],
       },
     });
-    expect(sessions).toHaveLength(2);
-    expect(sessions[1]?.closed).toBe(false);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.prepareForInitializationCalls).toBe(2);
   });
 
   it("returns a clear error for context.pages before runtime is configured", async () => {

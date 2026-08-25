@@ -142,12 +142,13 @@ describe("Stagehand runtime state", () => {
     });
   });
 
-  it("returns to a neutral state and creates a fresh session after close", async () => {
+  it("returns to a neutral state and reuses the browser session after Stagehand disposal", async () => {
     const sessions: StagehandBrowserSession[] = [];
     const close = vi.fn();
+    const prepareForInitialization = vi.fn();
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => {
-        const session = createBrowserSession({ close });
+        const session = createBrowserSession({ close, prepareForInitialization });
         sessions.push(session);
         return session;
       },
@@ -161,16 +162,17 @@ describe("Stagehand runtime state", () => {
       },
     };
     await runtime.initialize(params);
-    await runtime.close();
+    await runtime.disposeStagehandGeneration();
 
     expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
-    expect(close).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
 
     await expect(runtime.initialize(params)).resolves.toStrictEqual({
       initialized: true,
       pages: [],
     });
-    expect(sessions).toHaveLength(2);
+    expect(sessions).toHaveLength(1);
+    expect(prepareForInitialization).toHaveBeenCalledTimes(2);
     expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
   });
 
@@ -274,7 +276,7 @@ describe("Stagehand runtime state", () => {
     await expect(firstInitialization).resolves.toMatchObject({ initialized: true });
   });
 
-  it("clears initialized configuration when Stagehand closes", async () => {
+  it("clears initialized configuration without closing the browser session", async () => {
     const close = vi.fn();
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession({ close }),
@@ -291,9 +293,9 @@ describe("Stagehand runtime state", () => {
       },
     });
 
-    await runtime.close();
+    await runtime.disposeStagehandGeneration();
 
     expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
-    expect(close).toHaveBeenCalledOnce();
+    expect(close).not.toHaveBeenCalled();
   });
 });

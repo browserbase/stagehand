@@ -852,16 +852,23 @@ export class StagehandRuntime {
     await this.enqueueLifecycle(async () => {
       const session = this.browserSession;
       this.browserSession = undefined;
-      this.disposeAllPageEventSubscriptions();
-      this.pagesById.clear();
-      this.responseHandles.clear();
-      this.metrics.reset();
-      try {
-        await session?.close();
-      } finally {
-        this.state.setState(StagehandRuntimeStateSchema.parse({ status: "idle" }), true);
-      }
+      this.clearStagehandGeneration();
+      await session?.close();
     });
+  }
+
+  async disposeStagehandGeneration(): Promise<void> {
+    await this.enqueueLifecycle(async () => {
+      this.clearStagehandGeneration();
+    });
+  }
+
+  private clearStagehandGeneration(): void {
+    this.disposeAllPageEventSubscriptions();
+    this.pagesById.clear();
+    this.responseHandles.clear();
+    this.metrics.reset();
+    this.state.setState(StagehandRuntimeStateSchema.parse({ status: "idle" }), true);
   }
 
   private enqueueLifecycle<Result>(run: () => Promise<Result>): Promise<Result> {

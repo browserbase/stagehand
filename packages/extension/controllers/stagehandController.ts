@@ -28,7 +28,7 @@ export function createStagehandController(
   runtime: StagehandRuntime,
   options: StagehandControllerOptions = {},
 ) {
-  const closeRuntime = options.close ?? (() => runtime.close());
+  const closeRuntime = options.close ?? (() => runtime.disposeStagehandGeneration());
 
   async function runOperation<Result>(
     name: string,
