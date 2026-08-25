@@ -1,19 +1,17 @@
 import { defineTool } from "eve/tools";
-import { z } from "zod";
 
+import {
+  SNAPSHOT_INPUT_SCHEMA,
+  SNAPSHOT_TOOL_DESCRIPTION,
+  SnapshotInputSchema,
+} from "../lib/core-facade/contract.js";
 import { stagehandSession } from "../lib/session.js";
 
 export default defineTool({
-  description:
-    "Return the accessibility snapshot for the active Stagehand page. Snapshot IDs describe elements but are not selectors for run code.",
-  inputSchema: z.object({
-    includeIframes: z.boolean().default(true),
-  }),
-  async execute({ includeIframes }) {
-    return stagehandSession.run(async ({ browser }) => {
-      const page = (await browser.context.activePage()) ?? (await browser.context.newPage());
-      const snapshot = await page.snapshot({ includeIframes });
-      return snapshot.formattedTree;
-    });
+  description: SNAPSHOT_TOOL_DESCRIPTION,
+  inputSchema: SNAPSHOT_INPUT_SCHEMA,
+  async execute(rawInput) {
+    const input = SnapshotInputSchema.parse(rawInput);
+    return stagehandSession.run(({ tools }) => tools.snapshot(input));
   },
 });

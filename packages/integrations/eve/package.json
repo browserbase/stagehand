@@ -39,11 +39,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "eve extension build",
-    "prepack": "eve extension build",
-    "test": "vitest run",
-    "test:unit": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "build": "pnpm run stage:facade && eve extension build",
+    "prepack": "pnpm run build",
+    "stage:facade": "node scripts/stage-facade.mjs",
+    "test": "pnpm run stage:facade && vitest run",
+    "test:unit": "pnpm run stage:facade && vitest run",
+    "typecheck": "pnpm run stage:facade && tsc --noEmit"
   },
   "dependencies": {
     "@browserbasehq/sdk": "catalog:",
