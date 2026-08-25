@@ -173,6 +173,11 @@ import type {
   PageScreenshotParamsSchema,
   PageScreenshotClipSchema,
   PageScreenshotResultSchema,
+  PagePdfMarginSchema,
+  PagePdfFormatSchema,
+  PagePdfOptionsSchema,
+  PagePdfParamsSchema,
+  PagePdfResultSchema,
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
   PageSetViewportSizeParamsSchema,
@@ -376,6 +381,10 @@ export type PageAddInitScriptParams = z.infer<typeof PageAddInitScriptParamsSche
 export type PageSetExtraHTTPHeadersParams = z.infer<typeof PageSetExtraHTTPHeadersParamsSchema>;
 export type PageScreenshotOptions = z.infer<typeof PageScreenshotOptionsSchema>;
 export type PageScreenshotParams = z.infer<typeof PageScreenshotParamsSchema>;
+export type PagePdfMargin = z.infer<typeof PagePdfMarginSchema>;
+export type PagePdfFormat = z.infer<typeof PagePdfFormatSchema>;
+export type PagePdfOptions = z.infer<typeof PagePdfOptionsSchema>;
+export type PagePdfParams = z.infer<typeof PagePdfParamsSchema>;
 export type PageSnapshotParams = z.infer<typeof PageSnapshotParamsSchema>;
 export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParamsSchema>;
 export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
@@ -417,6 +426,7 @@ export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
 export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;
+export type PagePdfResult = z.infer<typeof PagePdfResultSchema>;
 export type PageWaitForSelectorResult = z.infer<typeof PageWaitForSelectorResultSchema>;
 export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
 export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;

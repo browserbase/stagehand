@@ -321,3 +321,73 @@ func firstJSONByte(data []byte) byte {
 	}
 	return trimmed[0]
 }
+
+type pdfLengthKind uint8
+
+const (
+	pdfLengthUnset pdfLengthKind = iota
+	pdfLengthNumber
+	pdfLengthString
+)
+
+// PdfLength is a CSS length for page.pdf(): either a number of CSS pixels or
+// a string carrying px, in, cm, or mm units (for example "8.5in" or "1cm").
+type PdfLength struct {
+	kind        pdfLengthKind
+	numberValue float64
+	stringValue string
+}
+
+// NumericPdfLength constructs a CSS-pixel length.
+func NumericPdfLength(value float64) PdfLength {
+	return PdfLength{kind: pdfLengthNumber, numberValue: value}
+}
+
+// StringPdfLength constructs a length from a unit-carrying string.
+func StringPdfLength(value string) PdfLength {
+	return PdfLength{kind: pdfLengthString, stringValue: value}
+}
+
+// AsNumber returns the numeric variant, if present.
+func (value PdfLength) AsNumber() (float64, bool) {
+	return value.numberValue, value.kind == pdfLengthNumber
+}
+
+// AsString returns the string variant, if present.
+func (value PdfLength) AsString() (string, bool) {
+	return value.stringValue, value.kind == pdfLengthString
+}
+
+func (value PdfLength) MarshalJSON() ([]byte, error) {
+	switch value.kind {
+	case pdfLengthNumber:
+		return json.Marshal(value.numberValue)
+	case pdfLengthString:
+		return json.Marshal(value.stringValue)
+	default:
+		return nil, errors.New("stagehand.PdfLength is unset")
+	}
+}
+
+func (value *PdfLength) UnmarshalJSON(data []byte) error {
+	if value == nil {
+		return errors.New("stagehand.PdfLength: UnmarshalJSON on nil pointer")
+	}
+	switch firstJSONByte(data) {
+	case '"':
+		var decoded string
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			return fmt.Errorf("decode pdf length: %w", err)
+		}
+		*value = StringPdfLength(decoded)
+		return nil
+	case 'n', 0:
+		return errors.New("decode pdf length: expected string or number")
+	}
+	var decoded float64
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("decode pdf length: %w", err)
+	}
+	*value = NumericPdfLength(decoded)
+	return nil
+}

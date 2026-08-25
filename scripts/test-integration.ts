@@ -51,6 +51,7 @@ export const integrationTestGroups = {
     "clickCount",
     "pageDragAndDrop",
     "pageHover",
+    "pagePdf",
     "pageScreenshot",
     "pageScroll",
   ],

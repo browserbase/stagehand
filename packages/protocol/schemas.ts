@@ -1908,6 +1908,53 @@ export const PageScreenshotParamsSchema = PageIdParamsSchema.extend({
   options: PageScreenshotOptionsSchema.optional(),
 }).meta({ id: "PageScreenshotParams" });
 
+/**
+ * Lengths follow the CSS convention used by Playwright: a bare number is
+ * pixels, strings may carry px/in/cm/mm units (e.g. "8.5in", "1cm", "10mm").
+ */
+const PagePdfLengthSchema = z.union([z.number(), z.string()]);
+
+export const PagePdfMarginSchema = z
+  .strictObject({
+    top: PagePdfLengthSchema.optional(),
+    right: PagePdfLengthSchema.optional(),
+    bottom: PagePdfLengthSchema.optional(),
+    left: PagePdfLengthSchema.optional(),
+  })
+  .meta({ id: "PagePdfMargin" });
+
+export const PagePdfFormatSchema = z
+  .enum(["a0", "a1", "a2", "a3", "a4", "a5", "a6", "letter", "legal", "tabloid", "ledger"])
+  .meta({ id: "PagePdfFormat" });
+
+export const PagePdfOptionsSchema = z
+  .strictObject({
+    displayHeaderFooter: z.boolean().optional(),
+    footerTemplate: z.string().optional(),
+    format: PagePdfFormatSchema.optional(),
+    headerTemplate: z.string().optional(),
+    height: PagePdfLengthSchema.optional(),
+    landscape: z.boolean().optional(),
+    margin: PagePdfMarginSchema.optional(),
+    omitBackground: z.boolean().optional(),
+    outline: z.boolean().optional(),
+    pageRanges: z.string().optional(),
+    // Playwright calls this preferCSSPageSize; the protocol spells it with a
+    // single capitalization because acronym-heavy names cannot round-trip
+    // through the automatic camelCase <-> snake_case wire conversion.
+    preferCssPageSize: z.boolean().optional(),
+    printBackground: z.boolean().optional(),
+    scale: z.number().min(0.1).max(2).optional(),
+    tagged: z.boolean().optional(),
+    timeout: z.number().nonnegative().optional(),
+    width: PagePdfLengthSchema.optional(),
+  })
+  .meta({ id: "PagePdfOptions" });
+
+export const PagePdfParamsSchema = PageIdParamsSchema.extend({
+  options: PagePdfOptionsSchema.optional(),
+}).meta({ id: "PagePdfParams" });
+
 export const PageSnapshotParamsSchema = PageIdParamsSchema.extend({
   options: PageSnapshotOptionsSchema.optional(),
 }).meta({ id: "PageSnapshotParams" });
@@ -2087,6 +2134,12 @@ export const PageScreenshotResultSchema = z
     data: z.base64().meta({ format: "byte" }),
   })
   .meta({ id: "PageScreenshotResult" });
+
+export const PagePdfResultSchema = z
+  .strictObject({
+    data: z.base64().meta({ format: "byte" }),
+  })
+  .meta({ id: "PagePdfResult" });
 
 export const PageWaitForSelectorResultSchema = z
   .strictObject({

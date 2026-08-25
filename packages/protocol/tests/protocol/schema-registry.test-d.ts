@@ -93,6 +93,10 @@ expectTypeOf(StagehandMethods.pageScreenshot.name).toEqualTypeOf<"page.screensho
 expectTypeOf<z.output<typeof StagehandMethods.pageScreenshot.result>>().toEqualTypeOf<{
   data: string;
 }>();
+expectTypeOf(StagehandMethods.pagePdf.name).toEqualTypeOf<"page.pdf">();
+expectTypeOf<z.output<typeof StagehandMethods.pagePdf.result>>().toEqualTypeOf<{
+  data: string;
+}>();
 expectTypeOf(StagehandMethods.pageWaitForSelector.name).toEqualTypeOf<"page.wait_for_selector">();
 expectTypeOf<z.output<typeof StagehandMethods.pageWaitForSelector.result>>().toEqualTypeOf<{
   matched: boolean;

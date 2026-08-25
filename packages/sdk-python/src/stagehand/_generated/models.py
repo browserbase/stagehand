@@ -1685,6 +1685,77 @@ class PageOnParams(WireModel):
     event: PageEventName
 
 
+class PagePdfFormat(StrEnum):
+    a0 = "a0"
+    a1 = "a1"
+    a2 = "a2"
+    a3 = "a3"
+    a4 = "a4"
+    a5 = "a5"
+    a6 = "a6"
+    letter = "letter"
+    legal = "legal"
+    tabloid = "tabloid"
+    ledger = "ledger"
+
+
+class PagePdfMargin(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    top: Optional[Union[StrictFloat, StrictStr]] = None
+    right: Optional[Union[StrictFloat, StrictStr]] = None
+    bottom: Optional[Union[StrictFloat, StrictStr]] = None
+    left: Optional[Union[StrictFloat, StrictStr]] = None
+
+
+class PagePdfOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    display_header_footer: Optional[StrictBool] = None
+    footer_template: Optional[StrictStr] = None
+    format: Optional[PagePdfFormat] = None
+    header_template: Optional[StrictStr] = None
+    height: Optional[Union[StrictFloat, StrictStr]] = None
+    landscape: Optional[StrictBool] = None
+    margin: Optional[PagePdfMargin] = None
+    omit_background: Optional[StrictBool] = None
+    outline: Optional[StrictBool] = None
+    page_ranges: Optional[StrictStr] = None
+    prefer_css_page_size: Optional[StrictBool] = None
+    print_background: Optional[StrictBool] = None
+    scale: Annotated[Optional[StrictFloat], Field(ge=0.1, le=2.0)] = None
+    tagged: Optional[StrictBool] = None
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    width: Optional[Union[StrictFloat, StrictStr]] = None
+
+
+class PagePdfParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[PagePdfOptions] = None
+
+
+class PagePdfResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    data: Annotated[
+        StrictStr,
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ]
+
+
 class PageRef(WireModel):
     model_config = ConfigDict(
         extra="forbid",

@@ -1408,6 +1408,98 @@ type PageOnParams struct {
 	SubscriptionID string `json:"subscription_id"`
 }
 
+type PagePdfFormat string
+
+const PagePdfFormatA0 PagePdfFormat = "a0"
+const PagePdfFormatA1 PagePdfFormat = "a1"
+const PagePdfFormatA2 PagePdfFormat = "a2"
+const PagePdfFormatA3 PagePdfFormat = "a3"
+const PagePdfFormatA4 PagePdfFormat = "a4"
+const PagePdfFormatA5 PagePdfFormat = "a5"
+const PagePdfFormatA6 PagePdfFormat = "a6"
+const PagePdfFormatLedger PagePdfFormat = "ledger"
+const PagePdfFormatLegal PagePdfFormat = "legal"
+const PagePdfFormatLetter PagePdfFormat = "letter"
+const PagePdfFormatTabloid PagePdfFormat = "tabloid"
+
+type PagePdfMargin struct {
+	// Bottom corresponds to the JSON schema field "bottom".
+	Bottom *PdfLength `json:"bottom,omitempty,omitzero"`
+
+	// Left corresponds to the JSON schema field "left".
+	Left *PdfLength `json:"left,omitempty,omitzero"`
+
+	// Right corresponds to the JSON schema field "right".
+	Right *PdfLength `json:"right,omitempty,omitzero"`
+
+	// Top corresponds to the JSON schema field "top".
+	Top *PdfLength `json:"top,omitempty,omitzero"`
+}
+
+type PagePdfOptions struct {
+	// DisplayHeaderFooter corresponds to the JSON schema field
+	// "display_header_footer".
+	DisplayHeaderFooter *bool `json:"display_header_footer,omitempty,omitzero"`
+
+	// FooterTemplate corresponds to the JSON schema field "footer_template".
+	FooterTemplate *string `json:"footer_template,omitempty,omitzero"`
+
+	// Format corresponds to the JSON schema field "format".
+	Format *PagePdfFormat `json:"format,omitempty,omitzero"`
+
+	// HeaderTemplate corresponds to the JSON schema field "header_template".
+	HeaderTemplate *string `json:"header_template,omitempty,omitzero"`
+
+	// Height corresponds to the JSON schema field "height".
+	Height *PdfLength `json:"height,omitempty,omitzero"`
+
+	// Landscape corresponds to the JSON schema field "landscape".
+	Landscape *bool `json:"landscape,omitempty,omitzero"`
+
+	// Margin corresponds to the JSON schema field "margin".
+	Margin *PagePdfMargin `json:"margin,omitempty,omitzero"`
+
+	// OmitBackground corresponds to the JSON schema field "omit_background".
+	OmitBackground *bool `json:"omit_background,omitempty,omitzero"`
+
+	// Outline corresponds to the JSON schema field "outline".
+	Outline *bool `json:"outline,omitempty,omitzero"`
+
+	// PageRanges corresponds to the JSON schema field "page_ranges".
+	PageRanges *string `json:"page_ranges,omitempty,omitzero"`
+
+	// PreferCSSPageSize corresponds to the JSON schema field "prefer_css_page_size".
+	PreferCSSPageSize *bool `json:"prefer_css_page_size,omitempty,omitzero"`
+
+	// PrintBackground corresponds to the JSON schema field "print_background".
+	PrintBackground *bool `json:"print_background,omitempty,omitzero"`
+
+	// Scale corresponds to the JSON schema field "scale".
+	Scale *float64 `json:"scale,omitempty,omitzero"`
+
+	// Tagged corresponds to the JSON schema field "tagged".
+	Tagged *bool `json:"tagged,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// Width corresponds to the JSON schema field "width".
+	Width *PdfLength `json:"width,omitempty,omitzero"`
+}
+
+type PagePdfParams struct {
+	// Options corresponds to the JSON schema field "options".
+	Options *PagePdfOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
+type PagePdfResult struct {
+	// Data corresponds to the JSON schema field "data".
+	Data string `json:"data"`
+}
+
 type PageRef struct {
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -2619,6 +2711,21 @@ type generatedModelCatalog struct {
 
 	// PageOnParams corresponds to the JSON schema field "PageOnParams".
 	PageOnParams *PageOnParams `json:"PageOnParams,omitempty,omitzero"`
+
+	// PagePdfFormat corresponds to the JSON schema field "PagePdfFormat".
+	PagePdfFormat *PagePdfFormat `json:"PagePdfFormat,omitempty,omitzero"`
+
+	// PagePdfMargin corresponds to the JSON schema field "PagePdfMargin".
+	PagePdfMargin *PagePdfMargin `json:"PagePdfMargin,omitempty,omitzero"`
+
+	// PagePdfOptions corresponds to the JSON schema field "PagePdfOptions".
+	PagePdfOptions *PagePdfOptions `json:"PagePdfOptions,omitempty,omitzero"`
+
+	// PagePdfParams corresponds to the JSON schema field "PagePdfParams".
+	PagePdfParams *PagePdfParams `json:"PagePdfParams,omitempty,omitzero"`
+
+	// PagePdfResult corresponds to the JSON schema field "PagePdfResult".
+	PagePdfResult *PagePdfResult `json:"PagePdfResult,omitempty,omitzero"`
 
 	// PageRef corresponds to the JSON schema field "PageRef".
 	PageRef *PageRef `json:"PageRef,omitempty,omitzero"`

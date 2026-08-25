@@ -29,6 +29,7 @@ export {
   type PageSetViewportSizeOptions,
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
+  type PdfOptions,
   type ScreenshotOptions,
 } from "./page.js";
 export {

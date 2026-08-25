@@ -82,6 +82,8 @@ import {
   PageReloadParamsSchema,
   PageScreenshotParamsSchema,
   PageScreenshotResultSchema,
+  PagePdfParamsSchema,
+  PagePdfResultSchema,
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
   PageSetViewportSizeParamsSchema,
@@ -350,6 +352,11 @@ export const StagehandMethods = {
     name: "page.screenshot",
     params: PageScreenshotParamsSchema,
     result: PageScreenshotResultSchema,
+  },
+  pagePdf: {
+    name: "page.pdf",
+    params: PagePdfParamsSchema,
+    result: PagePdfResultSchema,
   },
   pageSnapshot: {
     name: "page.snapshot",

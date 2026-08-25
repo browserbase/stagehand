@@ -591,6 +591,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.pdf": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PagePdfParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PagePdfResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.snapshot": {
           "type": "object",
           "properties": {
@@ -1054,6 +1067,7 @@
         "page.off",
         "page.set_extra_http_headers",
         "page.screenshot",
+        "page.pdf",
         "page.snapshot",
         "page.set_viewport_size",
         "page.wait_for_load_state",
@@ -3809,6 +3823,153 @@
       "required": ["data"],
       "additionalProperties": false
     },
+    "PagePdfParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PagePdfOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "PagePdfOptions": {
+      "type": "object",
+      "properties": {
+        "display_header_footer": {
+          "type": "boolean"
+        },
+        "footer_template": {
+          "type": "string"
+        },
+        "format": {
+          "$ref": "#/$defs/PagePdfFormat"
+        },
+        "header_template": {
+          "type": "string"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "landscape": {
+          "type": "boolean"
+        },
+        "margin": {
+          "$ref": "#/$defs/PagePdfMargin"
+        },
+        "omit_background": {
+          "type": "boolean"
+        },
+        "outline": {
+          "type": "boolean"
+        },
+        "page_ranges": {
+          "type": "string"
+        },
+        "prefer_css_page_size": {
+          "type": "boolean"
+        },
+        "print_background": {
+          "type": "boolean"
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 2
+        },
+        "tagged": {
+          "type": "boolean"
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 0
+        },
+        "width": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePdfFormat": {
+      "type": "string",
+      "enum": ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "letter", "legal", "tabloid", "ledger"]
+    },
+    "PagePdfMargin": {
+      "type": "object",
+      "properties": {
+        "top": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "right": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "bottom": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "left": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePdfResult": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string",
+          "format": "byte",
+          "contentEncoding": "base64",
+          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+        }
+      },
+      "required": ["data"],
+      "additionalProperties": false
+    },
     "PageSnapshotParams": {
       "type": "object",
       "properties": {
@@ -6406,6 +6567,33 @@
             },
             "params": {
               "$ref": "#/$defs/PageScreenshotParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.pdf"
+            },
+            "params": {
+              "$ref": "#/$defs/PagePdfParams"
             },
             "traceparent": {
               "type": "string"

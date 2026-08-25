@@ -71,6 +71,12 @@ var customProperties = map[string]string{
 	"$defs/LLMMessage/properties/content":                           "LLMMessageContent",
 	"$defs/LocatorScrollToParams/properties/percent":                "ScrollPercent",
 	"$defs/LocatorSelectOptionParams/properties/values":             "StringList",
+	"$defs/PagePdfMargin/properties/top":                            "PdfLength",
+	"$defs/PagePdfMargin/properties/right":                          "PdfLength",
+	"$defs/PagePdfMargin/properties/bottom":                         "PdfLength",
+	"$defs/PagePdfMargin/properties/left":                           "PdfLength",
+	"$defs/PagePdfOptions/properties/width":                         "PdfLength",
+	"$defs/PagePdfOptions/properties/height":                        "PdfLength",
 	"$defs/StagehandActParams/properties/instruction":               "ActInstructionValue",
 	"$defs/StagehandInitParams/properties/model":                    "StagehandInitModel",
 }

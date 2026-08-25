@@ -398,6 +398,7 @@ describe("Stagehand object-model protocol", () => {
       "page.off",
       "page.set_extra_http_headers",
       "page.screenshot",
+      "page.pdf",
       "page.snapshot",
       "page.set_viewport_size",
       "page.wait_for_load_state",

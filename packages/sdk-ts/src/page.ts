@@ -6,6 +6,7 @@ import type {
   PageDragAndDropParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PagePdfOptions,
   PageRef,
   PageReloadParams,
   PageScreenshotOptions,
@@ -32,6 +33,10 @@ import type { WebMCPToolsOptions } from "./clientSchemas.js";
 
 export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   mask?: Locator[];
+  path?: string;
+};
+
+export type PdfOptions = PagePdfOptions & {
   path?: string;
 };
 
@@ -310,6 +315,36 @@ export class Page {
       const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
         throw new TypeError(
           "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
+        );
+      })) as typeof import("node:fs/promises");
+      await writeFile(path, bytes);
+    }
+    return bytes;
+  }
+
+  /**
+   * Render the page as a PDF (headless Chrome only).
+   *
+   * Options mirror Playwright's page.pdf(): a bare number for width/height/
+   * margin is CSS pixels and strings may carry px/in/cm/mm units. Format
+   * wins over explicit width/height, matching Playwright.
+   */
+  async pdf(options?: PdfOptions): Promise<Uint8Array> {
+    const { path, format, ...restOptions } = options ?? {};
+    const pdfOptions = {
+      ...restOptions,
+      ...(format ? { format: format.toLowerCase() as PdfOptions["format"] } : {}),
+    };
+    const result = await this.rpcClient.send(StagehandMethods.pagePdf, {
+      pageId: this.pageId,
+      ...(Object.keys(pdfOptions).length > 0 ? { options: pdfOptions } : {}),
+    });
+    const bytes = decodeBase64(result.data, "page.pdf");
+    if (path) {
+      const moduleName = "node:" + "fs/promises";
+      const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
+        throw new TypeError(
+          "page.pdf(): path is only supported in Node.js; omit path to receive PDF bytes",
         );
       })) as typeof import("node:fs/promises");
       await writeFile(path, bytes);
