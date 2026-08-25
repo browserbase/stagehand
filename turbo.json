@@ -36,11 +36,6 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
-    "@browserbasehq/stagehand-integrations-example-eve#build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "!.eve/**", "!.output/**"],
-      "outputs": [".eve/**", ".output/**"]
-    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -100,9 +95,6 @@
     "@browserbasehq/eve#test:unit": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "tests/**", "extension/**", "$TURBO_ROOT$/vitest.config.ts"]
-    },
-    "@browserbasehq/stagehand-integrations-example-eve#typecheck": {
-      "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-mastra-facade#typecheck": {
       "dependsOn": ["^build"]
