@@ -1,28 +1,75 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-example-eve-facade",
-  "version": "4.0.2",
-  "private": true,
+  "name": "@browserbasehq/eve",
+  "version": "0.1.0",
+  "description": "Browserbase for Eve, powered by Stagehand V4 Code Mode.",
+  "keywords": [
+    "ai-agents",
+    "browser-automation",
+    "browserbase",
+    "eve",
+    "stagehand"
+  ],
+  "homepage": "https://stagehand.dev",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "license": "MIT",
+  "author": "Browserbase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/integrations/eve"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "default": "./dist/tools/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "eve build",
-    "dev": "node scripts/eve-with-stagehand-env.mjs dev",
+    "build": "eve extension build",
+    "prepack": "eve extension build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "start": "node scripts/eve-with-stagehand-env.mjs start"
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/sdk": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
-    "@browserbasehq/stagehand-integrations": "workspace:*",
-    "dotenv": "catalog:",
-    "eve": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "eve": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
+  "peerDependencies": {
+    "eve": ">=0.39.3 <1"
+  },
   "engines": {
     "node": ">=24"
+  },
+  "eve": {
+    "extension": {
+      "source": "./extension",
+      "dist": "./dist/extension",
+      "externalDependencies": [
+        "@browserbasehq/sdk",
+        "@browserbasehq/stagehand"
+      ]
+    }
   }
 }

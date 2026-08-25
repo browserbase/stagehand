@@ -37,7 +37,7 @@ catalog:
   "@mastra/core": ^1.55.0
   "@mastra/mcp": ^1.15.0
   "@ai-sdk/mcp": 2.0.22
-  eve: 0.29.4
+  eve: 0.44.4
   "@ai-sdk/provider": ^4.0.2
   "@ai-sdk/openai": ^4.0.8
   "@ai-sdk/anthropic": ^4.0.8
