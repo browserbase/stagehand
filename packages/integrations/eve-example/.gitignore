@@ -1,7 +1,0 @@
-node_modules
-.env*
-.eve
-.output
-.vercel
-dist
-*.tsbuildinfo

@@ -21,6 +21,9 @@ export default browserbase({
 });
 ```
 
+Add that file to any existing Eve agent. The mounted tools are discovered automatically; no
+dedicated example project or additional agent configuration is required.
+
 Eve automatically preserves Stagehand and the Browserbase SDK as external runtime dependencies.
 No extra `build.externalDependencies` configuration is required in the consuming agent.
 
@@ -73,5 +76,3 @@ pnpm --filter @browserbasehq/eve test:unit
 pnpm --filter @browserbasehq/eve build
 pnpm --filter @browserbasehq/eve pack
 ```
-
-The private [`eve-example`](../eve-example/) workspace mounts the package as a real Eve agent.
