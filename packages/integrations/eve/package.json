@@ -39,7 +39,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "pnpm run stage:facade && eve extension build",
+    "build": "pnpm run stage:facade && eve extension build && tsdown --config tsdown.tools.config.ts",
     "prepack": "pnpm run build",
     "stage:facade": "node scripts/stage-facade.mjs",
     "test": "pnpm run stage:facade && vitest run",
@@ -54,6 +54,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "eve": "catalog:",
+    "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
