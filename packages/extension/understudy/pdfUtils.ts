@@ -18,15 +18,13 @@ const PAPER_FORMATS: Record<string, { width: number; height: number }> = {
 
 const CSS_PIXELS_PER_INCH = 96;
 
-// Multipliers converting a CSS length unit to inches.
-const LENGTH_TO_INCHES: Record<string, number> = {
+// Multipliers converting a known CSS length suffix to inches.
+const LENGTH_UNITS: Record<string, number> = {
   px: 1 / CSS_PIXELS_PER_INCH,
   in: 1,
   cm: 1 / 2.54,
   mm: 1 / 25.4,
 };
-
-const LENGTH_PATTERN = /^(-?\d+(?:\.\d+)?)\s*(px|in|cm|mm)?$/i;
 
 export function pdfLengthToInches(value: number | string): number {
   if (typeof value === "number") {
@@ -36,13 +34,21 @@ export function pdfLengthToInches(value: number | string): number {
     return value / CSS_PIXELS_PER_INCH;
   }
 
-  const match = LENGTH_PATTERN.exec(value.trim());
-  if (!match) {
+  // Playwright-style parsing: a recognized two-character suffix selects the
+  // unit (case-insensitive) and the rest goes through Number(), accepting
+  // forms like ".5in" or "1e2px". Unknown suffixes are rejected rather than
+  // falling back to pixels ("10pt" is an error, unlike in Playwright).
+  const suffix = value.slice(-2).toLowerCase();
+  const hasUnit = suffix in LENGTH_UNITS;
+  const amountText = hasUnit ? value.slice(0, -2) : value;
+  if (amountText.trim() === "") {
     throw new TypeError(`pdf: invalid length "${value}" (expected px/in/cm/mm units)`);
   }
-  const amount = Number(match[1]);
-  const unit = (match[2] ?? "px").toLowerCase();
-  return amount * LENGTH_TO_INCHES[unit];
+  const amount = Number(amountText);
+  if (!Number.isFinite(amount)) {
+    throw new TypeError(`pdf: invalid length "${value}" (expected px/in/cm/mm units)`);
+  }
+  return amount * (hasUnit ? LENGTH_UNITS[suffix] : LENGTH_UNITS.px);
 }
 
 export type PrintToPDFParams = Protocol.Page.PrintToPDFRequest & {
@@ -77,28 +83,29 @@ export function buildPrintToPDFParams(options: PagePdfOptions): PrintToPDFParams
     params.generateDocumentOutline = options.outline;
   }
 
-  let paperWidth: number | undefined;
-  let paperHeight: number | undefined;
-  if (options.width !== undefined) {
-    paperWidth = pdfLengthToInches(options.width);
-  }
-  if (options.height !== undefined) {
-    paperHeight = pdfLengthToInches(options.height);
-  }
-  if (paperWidth === undefined && paperHeight === undefined) {
-    const format = PAPER_FORMATS[options.format ?? "letter"];
+  // Playwright parity (crPdf.ts): a format wins entirely and ignores
+  // explicit width/height; without one, letter defaults are overridden per
+  // axis. Falsy inch values fall back to the default like Playwright's
+  // `|| default` coercion.
+  let paperWidth = 8.5;
+  let paperHeight = 11;
+  if (options.format !== undefined) {
+    const format = PAPER_FORMATS[options.format];
     if (!format) {
       throw new TypeError(`pdf: unsupported paper format "${options.format}"`);
     }
     paperWidth = format.width;
     paperHeight = format.height;
+  } else {
+    if (options.width !== undefined) {
+      paperWidth = pdfLengthToInches(options.width) || paperWidth;
+    }
+    if (options.height !== undefined) {
+      paperHeight = pdfLengthToInches(options.height) || paperHeight;
+    }
   }
-  if (paperWidth !== undefined) {
-    params.paperWidth = paperWidth;
-  }
-  if (paperHeight !== undefined) {
-    params.paperHeight = paperHeight;
-  }
+  params.paperWidth = paperWidth;
+  params.paperHeight = paperHeight;
 
   const margin = options.margin ?? {};
   params.marginTop = margin.top !== undefined ? pdfLengthToInches(margin.top) : 0;

@@ -14,9 +14,18 @@ describe("pdfLengthToInches", () => {
     expect(pdfLengthToInches("25.4mm")).toBeCloseTo(1);
   });
 
+  it("accepts Playwright-style numeric grammar", () => {
+    expect(pdfLengthToInches(".5in")).toBeCloseTo(0.5);
+    expect(pdfLengthToInches("1e2px")).toBeCloseTo(100 / 96);
+    expect(pdfLengthToInches("+3cm")).toBeCloseTo(3 / 2.54);
+    expect(pdfLengthToInches("10 PX")).toBeCloseTo(10 / 96);
+    expect(pdfLengthToInches("100")).toBeCloseTo(100 / 96);
+  });
+
   it("rejects malformed lengths", () => {
     expect(() => pdfLengthToInches("10pt")).toThrow(TypeError);
     expect(() => pdfLengthToInches("wide")).toThrow(TypeError);
+    expect(() => pdfLengthToInches("in")).toThrow(TypeError);
     expect(() => pdfLengthToInches(Number.NaN)).toThrow(TypeError);
   });
 });
@@ -48,10 +57,22 @@ describe("buildPrintToPDFParams", () => {
     expect(() => buildPrintToPDFParams({ format: "b5" as "a4" })).toThrow(TypeError);
   });
 
-  it("lets explicit width and height override the format", () => {
-    const params = buildPrintToPDFParams({ format: "a4", height: "11in", width: 408 });
+  it("prefers the format entirely when present, like Playwright", () => {
+    const params = buildPrintToPDFParams({ format: "a4", height: "11in", width: "10cm" });
+    expect(params.paperWidth).toBeCloseTo(8.27);
+    expect(params.paperHeight).toBeCloseTo(11.7);
+  });
+
+  it("overrides letter dimensions per-axis when no format is given", () => {
+    const params = buildPrintToPDFParams({ width: "10cm", height: "14in" });
+    expect(params.paperWidth).toBeCloseTo(10 / 2.54);
+    expect(params.paperHeight).toBeCloseTo(14);
+  });
+
+  it("coerces falsy paper dimensions to defaults like Playwright", () => {
+    const params = buildPrintToPDFParams({ width: "0px", height: 0 });
+    expect(params.paperWidth).toBeCloseTo(8.5);
     expect(params.paperHeight).toBeCloseTo(11);
-    expect(params.paperWidth).toBeCloseTo(4.25);
   });
 
   it("converts margin lengths to inches and defaults missing sides to zero", () => {

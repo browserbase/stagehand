@@ -78,6 +78,6 @@ describe("Page.pdf", () => {
 
   it("rejects invalid margin lengths", async () => {
     const page = await openSimplePage();
-    await expect(page.pdf({ margin: { top: "10pt" } })).rejects.toThrow(/length/i);
+    await expect(page.pdf({ margin: { top: "wide" } })).rejects.toThrow(/length/i);
   });
 });

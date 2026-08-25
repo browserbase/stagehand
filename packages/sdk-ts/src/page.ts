@@ -325,11 +325,16 @@ export class Page {
   /**
    * Render the page as a PDF (headless Chrome only).
    *
-   * Options mirror Playwright's page.pdf(); a bare number for width/height/
-   * margin is CSS pixels and strings may carry px/in/cm/mm units.
+   * Options mirror Playwright's page.pdf(): a bare number for width/height/
+   * margin is CSS pixels and strings may carry px/in/cm/mm units. Format
+   * wins over explicit width/height, matching Playwright.
    */
   async pdf(options?: PdfOptions): Promise<Uint8Array> {
-    const { path, ...pdfOptions } = options ?? {};
+    const { path, format, ...restOptions } = options ?? {};
+    const pdfOptions = {
+      ...restOptions,
+      ...(format ? { format: format.toLowerCase() as PdfOptions["format"] } : {}),
+    };
     const result = await this.rpcClient.send(StagehandMethods.pagePdf, {
       pageId: this.pageId,
       ...(Object.keys(pdfOptions).length > 0 ? { options: pdfOptions } : {}),
