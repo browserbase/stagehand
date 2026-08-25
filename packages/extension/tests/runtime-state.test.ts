@@ -174,6 +174,54 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
   });
 
+  it("waits for runtime disposal before initializing the next generation", async () => {
+    let markCloseStarted!: () => void;
+    const closeStarted = new Promise<void>((resolve) => {
+      markCloseStarted = resolve;
+    });
+    let releaseClose!: () => void;
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    const sessions: StagehandBrowserSession[] = [];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => {
+        const session = createBrowserSession({
+          close:
+            sessions.length === 0
+              ? async () => {
+                  markCloseStarted();
+                  await closeGate;
+                }
+              : async () => {},
+        });
+        sessions.push(session);
+        return session;
+      },
+    });
+    const params = {
+      ...runtimeIdentity,
+      browserCdpUrl: "ws://browser.example",
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    };
+    await runtime.initialize(params);
+
+    const closing = runtime.close();
+    await closeStarted;
+    const initializing = runtime.initialize(params);
+    await Promise.resolve();
+
+    expect(sessions).toHaveLength(1);
+
+    releaseClose();
+    await closing;
+    await expect(initializing).resolves.toStrictEqual({ initialized: true, pages: [] });
+    expect(sessions).toHaveLength(2);
+    expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
+  });
+
   it("leaves server state unchanged when initialization fails", async () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () =>

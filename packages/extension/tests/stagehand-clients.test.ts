@@ -613,12 +613,15 @@ function createHandle(adapters: StagehandRuntimeAdapters = {}) {
     runtimeAttachments?: { callback?: unknown },
   ): Promise<JSONRPCResponse> => {
     const request = JSONRPCRequestSchema.parse(input);
-    return await new Promise((resolve, reject) => {
+    const response = new Promise<JSONRPCResponse>((resolve) => {
       resolveResponse = resolve;
-      void scope
-        .__stagehandReceiveFromHost?.(JSON.stringify(request), runtimeAttachments)
-        .catch(reject);
     });
+    const received = scope.__stagehandReceiveFromHost?.(
+      JSON.stringify(request),
+      runtimeAttachments,
+    );
+    const [result] = await Promise.all([response, received]);
+    return result;
   };
 }
 

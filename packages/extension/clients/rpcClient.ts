@@ -199,8 +199,10 @@ export class RPCClient {
       return;
     }
 
+    let handled = false;
     try {
       const result = await this.router.handle(stagehandRequest.data, runtimeAttachments);
+      handled = true;
       const parsedResult = method.result.safeParse(result);
       if (!parsedResult.success) {
         await this.sendError(
@@ -233,6 +235,8 @@ export class RPCClient {
         error instanceof Error ? error.message : String(error),
         { name: error instanceof Error ? error.name : "Error" },
       );
+    } finally {
+      if (handled) await this.router.afterResponse(stagehandRequest.data);
     }
   }
 

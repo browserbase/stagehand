@@ -126,9 +126,11 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await expect(
-      router.handle(request({ id: 13, method: "stagehand.close", params: {} })),
-    ).resolves.toStrictEqual({ closed: true });
+    const closeRequest = request({ id: 13, method: "stagehand.close", params: {} });
+    await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
+
+    expect(lifecycle.at(-1)).toBe("ended:stagehand.close");
+    await router.afterResponse(closeRequest);
 
     expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "flush"]);
     await tracing.shutdown();
@@ -314,9 +316,11 @@ describe("Stagehand RPC router", () => {
     expect(initializeStagehand).toHaveBeenCalledOnce();
     expect(initializeStagehand).toHaveBeenCalledWith(initRequest.params);
 
-    await expect(
-      router.handle(request({ id: 16, method: "stagehand.close", params: {} })),
-    ).resolves.toStrictEqual({ closed: true });
+    const closeRequest = request({ id: 16, method: "stagehand.close", params: {} });
+    await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
+    expect(closeStagehand).not.toHaveBeenCalled();
+
+    await router.afterResponse(closeRequest);
     expect(closeStagehand).toHaveBeenCalledOnce();
   });
 

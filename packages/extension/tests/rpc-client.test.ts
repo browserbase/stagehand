@@ -126,6 +126,67 @@ describe("worker RPCClient", () => {
     }
   });
 
+  it("sends the stagehand.close response before disposing the runtime", async () => {
+    const lifecycle: string[] = [];
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(): void {
+          lifecycle.push("response");
+        },
+      },
+      "sendToHost",
+    );
+    const closeStagehand = vi.fn(async () => {
+      lifecycle.push("dispose");
+    });
+    const client = new RPCClient(runtimeClient, new RPCRouter(createRuntime(), { closeStagehand }));
+
+    try {
+      await runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 9,
+          method: "stagehand.close",
+          params: {},
+        }),
+      );
+
+      expect(lifecycle).toStrictEqual(["response", "dispose"]);
+      expect(closeStagehand).toHaveBeenCalledOnce();
+    } finally {
+      client.close();
+    }
+  });
+
+  it("still disposes the runtime when the stagehand.close response cannot be delivered", async () => {
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(): void {
+          throw new Error("host transport closed");
+        },
+      },
+      "sendToHost",
+    );
+    const closeStagehand = vi.fn(async () => {});
+    const client = new RPCClient(runtimeClient, new RPCRouter(createRuntime(), { closeStagehand }));
+
+    try {
+      await expect(
+        runtimeClient.receive(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 10,
+            method: "stagehand.close",
+            params: {},
+          }),
+        ),
+      ).rejects.toThrow("host transport closed");
+      expect(closeStagehand).toHaveBeenCalledOnce();
+    } finally {
+      client.close();
+    }
+  });
+
   it.each([
     ["1.0.9", true, undefined],
     ["1.1.0", false, "protocol-server-too-old"],

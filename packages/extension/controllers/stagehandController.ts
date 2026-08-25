@@ -45,7 +45,7 @@ export function createStagehandController(
       params.protocolVersion,
       STAGEHAND_PROTOCOL_VERSION,
     );
-    if (!compatibility.compatible) {
+    if (compatibility.compatible === false) {
       throw new StagehandProtocolCompatibilityError(compatibility.reason);
     }
     logger.setLevel(params.logLevel);
@@ -57,8 +57,11 @@ export function createStagehandController(
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
     logger.info("stagehand.close", {});
-    await closeRuntime();
     return { closed: true as const };
+  }
+
+  async function afterCloseResponse() {
+    await closeRuntime();
   }
 
   async function act(params: StagehandActParams, context: HandlerContext) {
@@ -158,6 +161,7 @@ export function createStagehandController(
   return {
     init,
     close,
+    afterCloseResponse,
     act,
     observe,
     extract,

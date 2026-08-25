@@ -305,6 +305,7 @@ export class StagehandRuntime {
     { pageId: string; dispose: () => void }
   >();
   private initializationInProgress = false;
+  private lifecycleTail = Promise.resolve();
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -342,43 +343,45 @@ export class StagehandRuntime {
     params: StagehandInitParams,
     logger: StagehandLogger = this.logger,
   ): Promise<StagehandInitResult> {
-    const state = this.state.getState();
     if (this.initializationInProgress) {
       throw new Error("Stagehand initialization is already in progress");
     }
     this.initializationInProgress = true;
 
     try {
-      this.logger.setLevel(params.logLevel);
-      if (!this.browserSession) {
-        if (!params.browserCdpUrl) {
-          throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
-        }
-        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
-      }
-      const pages = await this.runWithTelemetryContext(
-        Symbol("stagehand.init"),
-        logger,
-        async () => {
-          if (state.status === "idle") {
-            await this.browserSession?.prepareForInitialization?.();
+      return await this.enqueueLifecycle(async () => {
+        const state = this.state.getState();
+        this.logger.setLevel(params.logLevel);
+        if (!this.browserSession) {
+          if (!params.browserCdpUrl) {
+            throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
           }
-          return await this.contextPages();
-        },
-      );
-      this.tracing.configure(params.telemetry, params.clientInfo);
-      this.state.setState(
-        StagehandRuntimeStateSchema.parse({
-          status: "initialized",
-          initParams: params,
-        }),
-        true,
-      );
+          await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
+        }
+        const pages = await this.runWithTelemetryContext(
+          Symbol("stagehand.init"),
+          logger,
+          async () => {
+            if (state.status === "idle") {
+              await this.browserSession?.prepareForInitialization?.();
+            }
+            return await this.contextPages();
+          },
+        );
+        this.tracing.configure(params.telemetry, params.clientInfo);
+        this.state.setState(
+          StagehandRuntimeStateSchema.parse({
+            status: "initialized",
+            initParams: params,
+          }),
+          true,
+        );
 
-      return {
-        initialized: true,
-        pages,
-      };
+        return {
+          initialized: true,
+          pages,
+        };
+      });
     } finally {
       this.initializationInProgress = false;
     }
@@ -846,17 +849,28 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
-    const session = this.browserSession;
-    this.browserSession = undefined;
-    this.disposeAllPageEventSubscriptions();
-    this.pagesById.clear();
-    this.responseHandles.clear();
-    this.metrics.reset();
-    try {
-      await session?.close();
-    } finally {
-      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "idle" }), true);
-    }
+    await this.enqueueLifecycle(async () => {
+      const session = this.browserSession;
+      this.browserSession = undefined;
+      this.disposeAllPageEventSubscriptions();
+      this.pagesById.clear();
+      this.responseHandles.clear();
+      this.metrics.reset();
+      try {
+        await session?.close();
+      } finally {
+        this.state.setState(StagehandRuntimeStateSchema.parse({ status: "idle" }), true);
+      }
+    });
+  }
+
+  private enqueueLifecycle<Result>(run: () => Promise<Result>): Promise<Result> {
+    const result = this.lifecycleTail.then(run, run);
+    this.lifecycleTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   pageRefForId(pageId: string): PageRef {
