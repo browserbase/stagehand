@@ -25,7 +25,6 @@ import path from "node:path";
 import { bold, cyan, dim, gray, green, red, yellow, padRight } from "../format.js";
 import { readConfig, resolveConfigPath, type TracingConfigSection } from "./config.js";
 import { resolveTracingValue } from "./tracing.js";
-import { langSmithTracingEnabled } from "../../framework/langsmith.js";
 import { resolveKey, snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
 import { getPackageRootDir, getRuntimeTasksRoot } from "../../runtimePaths.js";
 import { discoverTasks } from "../../framework/discovery.js";
@@ -47,13 +46,19 @@ type ConfigSummary = {
   core: { tool: string | null; startup: string | null };
 };
 
-type TracingValue = { value: string | null; source: "env" | "config" | "none" };
+type TracingValue = {
+  value: string | null;
+  source: "env" | "config" | "none";
+  /** Set when the configured value was unrecognized and `value` is the runtime fallback. */
+  invalid?: string;
+};
 
 /** Effective trace-sink settings (env > evals.config.json `tracing` > none). */
 type TracingSummary = {
   transport: TracingValue;
   braintrustProject: TracingValue;
   langsmithProject: TracingValue;
+  /** LangSmith export will actually happen: otel transport + key + LANGSMITH_TRACING=true. */
   langsmithEnabled: boolean;
 };
 
@@ -153,7 +158,7 @@ function summarizeConfig(entryDir: string): ConfigSummary {
   };
 }
 
-function summarizeTracing(entryDir: string): TracingSummary {
+function summarizeTracing(entryDir: string, keys: EnvSnapshot): TracingSummary {
   let tracing: TracingConfigSection | undefined;
   try {
     tracing = readConfig(entryDir).tracing;
@@ -164,11 +169,24 @@ function summarizeTracing(entryDir: string): TracingSummary {
     const r = resolveTracingValue(key, tracing);
     return { value: r.value ?? null, source: r.source };
   };
+  // Mirror resolveTraceTransport(): anything other than "otel" runs native, so
+  // report the fallback rather than echoing a typo as if it were effective.
+  const transport = pick("transport");
+  if (transport.value !== null && transport.value !== "otel" && transport.value !== "native") {
+    transport.invalid = transport.value;
+    transport.value = "native";
+  }
+  // Same process.env + packages/evals/.env resolution as the Keys block, so the
+  // two sections cannot disagree about whether a LangSmith key exists.
+  const langsmithEnabled =
+    transport.value === "otel" &&
+    keys.langsmith.state === "set" &&
+    resolveKey("LANGSMITH_TRACING").value === "true";
   return {
-    transport: pick("transport"),
+    transport,
     braintrustProject: pick("braintrustProject"),
     langsmithProject: pick("langsmithProject"),
-    langsmithEnabled: langSmithTracingEnabled(),
+    langsmithEnabled,
   };
 }
 
@@ -255,12 +273,18 @@ async function buildReport(entryDir: string): Promise<DoctorReport> {
     mode: detectMode(entryDir),
   };
   const config = summarizeConfig(entryDir);
-  const tracing = summarizeTracing(entryDir);
-  const discovery = await summarizeDiscovery();
   const keys = snapshotEnv();
+  const tracing = summarizeTracing(entryDir, keys);
+  const discovery = await summarizeDiscovery();
   const computed = computeVerdict(keys, config, discovery);
   let verdict = computed.verdict;
   const reasons = [...computed.reasons];
+  if (tracing.transport.invalid) {
+    if (verdict === "ok") verdict = "warn";
+    reasons.push(
+      `Unrecognized EVAL_TRACE_TRANSPORT="${tracing.transport.invalid}" (expected "native" or "otel") — the runner falls back to native.`,
+    );
+  }
   if (
     tracing.transport.value === "otel" &&
     keys.braintrust.state === "missing" &&
@@ -293,6 +317,8 @@ function keyRow(
 
 function tracingCell(v: TracingValue, fallback: string): string {
   if (v.value === null) return gray(`(default: ${fallback})`);
+  if (v.invalid)
+    return `${cyan(v.value)}  ${yellow(`(fallback — ignored invalid "${v.invalid}" from ${v.source})`)}`;
   return `${cyan(v.value)}  ${dim(`(${v.source})`)}`;
 }
 

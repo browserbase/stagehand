@@ -147,6 +147,31 @@ describe("handleDoctor tracing block", () => {
     expect(tracing.braintrustProject).toEqual({ value: "from-env", source: "env" });
   });
 
+  it("reports an unrecognized transport as a native fallback and warns", async () => {
+    const entryDir = makeTempEntryDir();
+    process.env.OPENAI_API_KEY = "sk-test";
+    process.env.EVAL_TRACE_TRANSPORT = "jaeger";
+    const { report } = await runDoctorJson(entryDir);
+    const tracing = report.tracing as { transport: Record<string, unknown> };
+    expect(tracing.transport).toEqual({ value: "native", source: "env", invalid: "jaeger" });
+    expect(report.verdict).toBe("warn");
+    expect(
+      report.reasons.some((r) => r.includes('Unrecognized EVAL_TRACE_TRANSPORT="jaeger"')),
+    ).toBe(true);
+  });
+
+  it("only reports LangSmith export as on under the otel transport", async () => {
+    const entryDir = makeTempEntryDir();
+    process.env.LANGSMITH_API_KEY = "ls";
+    process.env.LANGSMITH_TRACING = "true";
+    let { report } = await runDoctorJson(entryDir);
+    expect((report.tracing as { langsmithEnabled: boolean }).langsmithEnabled).toBe(false);
+
+    process.env.EVAL_TRACE_TRANSPORT = "otel";
+    ({ report } = await runDoctorJson(entryDir));
+    expect((report.tracing as { langsmithEnabled: boolean }).langsmithEnabled).toBe(true);
+  });
+
   it("warns when otel is selected but no sink is configured", async () => {
     const entryDir = makeTempEntryDir();
     process.env.OPENAI_API_KEY = "sk-test";
