@@ -1,0 +1,103 @@
+# frozen_string_literal: true
+
+require_relative "test_helper"
+
+class TestModels < Minitest::Test
+  Models = Stagehand::Models
+
+  def test_act_params_round_trip_with_nested_options
+    params = Models::StagehandActParams.new(
+      page_id: "page-1",
+      instruction: "click the login button",
+      options: Models::ActOptions.new(timeout: 5_000),
+    )
+    assert_equal(
+      {
+        "page_id" => "page-1",
+        "instruction" => "click the login button",
+        "options" => { "timeout" => 5_000 },
+      },
+      params.to_wire,
+    )
+  end
+
+  def test_unset_fields_are_never_emitted
+    params = Models::StagehandInitParams.new(protocol_version: "1.0.0")
+    assert_equal({ "protocol_version" => "1.0.0" }, params.to_wire)
+    refute params.field_set?(:log_level)
+  end
+
+  def test_from_wire_decodes_nested_models
+    result = Models::ActResult.from_wire(
+      "data" => {
+        "success" => true,
+        "message" => "clicked",
+        "action_description" => "click login",
+        "actions" => [
+          { "selector" => "#login", "description" => "login button", "method" => "click" },
+        ],
+      },
+      "metadata" => {
+        "cache" => { "status" => "DISABLED" },
+        "usage" => { "input_tokens" => 0, "output_tokens" => 0, "inference_time_ms" => 0 },
+      },
+    )
+    assert_instance_of Models::ActResultData, result.data
+    assert_equal true, result.data.success
+    assert_instance_of Models::Action, result.data.actions.first
+    assert_equal "#login", result.data.actions.first.selector
+    assert_instance_of Models::StagehandResultMetadata, result.metadata
+  end
+
+  def test_from_wire_requires_required_fields
+    error = assert_raises(Stagehand::WireError) { Models::ActResult.from_wire("data" => {}) }
+    assert_match(/metadata/, error.message)
+  end
+
+  def test_union_field_decodes_matching_class_variant
+    params = Models::StagehandActParams.from_wire(
+      "page_id" => "page-1",
+      "instruction" => { "selector" => "#go", "description" => "go button" },
+    )
+    assert_instance_of Models::Action, params.instruction
+
+    plain = Models::StagehandActParams.from_wire("page_id" => "page-1", "instruction" => "click go")
+    assert_equal "click go", plain.instruction
+  end
+
+  def test_opaque_extract_data_passes_through_untouched
+    payload = { "camelCaseKey" => [1, 2.5, nil, { "another_one" => true }] }
+    result = Models::ExtractResult.from_wire(
+      "data" => payload,
+      "metadata" => {
+        "cache" => { "status" => "DISABLED" },
+        "usage" => { "input_tokens" => 1, "output_tokens" => 2, "inference_time_ms" => 3 },
+      },
+    )
+    assert_equal payload, result.data
+    assert_equal payload, result.to_wire.fetch("data")
+  end
+
+  def test_unknown_wire_keys_survive_round_trip
+    wire = { "page_id" => "page-1", "some_future_field" => { "x" => 1 } }
+    ref = Models::PageRef.from_wire(wire)
+    assert_equal wire, ref.to_wire
+    assert_equal({ "x" => 1 }, ref["some_future_field"])
+  end
+
+  def test_registries_cover_the_protocol
+    assert_equal 77, Models::METHODS.size
+    assert_equal 2, Models::NOTIFICATIONS.size
+    assert_equal "StagehandActParams", Models::METHODS.fetch("stagehand.act").fetch(:params)
+    assert_equal [:array, "PageRef"], Models::DEFS.fetch("ContextPagesResult")
+  end
+
+  def test_browserbase_session_create_params
+    params = Models::BrowserbaseSessionCreateParams.new(keep_alive: true, region: "us-west-2")
+    assert_equal({ "keep_alive" => true, "region" => "us-west-2" }, params.to_wire)
+  end
+
+  def test_unknown_constructor_field_raises
+    assert_raises(ArgumentError) { Models::PageRef.new(nope: 1) }
+  end
+end
