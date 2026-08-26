@@ -36,7 +36,7 @@ type StagehandTracingRuntime = {
 };
 
 export type StagehandTracing = StagehandTracingRuntime & {
-  configure(telemetry: TelemetryConfig, clientInfo: ImplementationInfo): void;
+  configure(telemetry: TelemetryConfig, clientInfo: ImplementationInfo): Promise<void>;
 };
 
 type StagehandTracingRuntimeDependencies = {
@@ -92,31 +92,62 @@ export function createStagehandTracing(
   const pendingTracer = trace.getTracer(STAGEHAND_TRACER_NAME);
   let runtime: StagehandTracingRuntime | undefined;
   let shutDown = false;
+  let globalsRegistered = false;
+  let lifecycleTail = Promise.resolve();
+  let activeTelemetry: TelemetryConfig | undefined;
+  let activeClientInfo: ImplementationInfo | undefined;
+
+  function enqueueLifecycle(run: () => Promise<void>): Promise<void> {
+    const result = lifecycleTail.then(run, run);
+    lifecycleTail = result.catch(() => undefined);
+    return result;
+  }
 
   return {
     get tracer() {
       return runtime?.tracer ?? pendingTracer;
     },
     configure(telemetry, clientInfo) {
-      if (runtime || shutDown) return;
-      runtime = createStagehandTracingRuntime(
-        {
-          ...options,
-          clientName: clientInfo.name,
-          clientVersion: clientInfo.version,
-        },
-        {
-          spanProcessors: [
-            ...dependencies.spanProcessors,
-            createOtlpSpanProcessor(telemetry.traces),
-          ],
-        },
-      );
+      return enqueueLifecycle(async () => {
+        if (shutDown) return;
+        if (runtime && telemetry === activeTelemetry && clientInfo === activeClientInfo) {
+          return;
+        }
+
+        const previousRuntime = runtime;
+        runtime = undefined;
+        await previousRuntime?.shutdown();
+
+        const registerGlobals = options.registerGlobals !== false && !globalsRegistered;
+        runtime = createStagehandTracingRuntime(
+          {
+            ...options,
+            clientName: clientInfo.name,
+            clientVersion: clientInfo.version,
+            registerGlobals,
+          },
+          {
+            spanProcessors: [
+              ...dependencies.spanProcessors,
+              createOtlpSpanProcessor(telemetry.traces),
+            ],
+          },
+        );
+        activeTelemetry = telemetry;
+        activeClientInfo = clientInfo;
+        globalsRegistered ||= registerGlobals;
+      });
     },
-    forceFlush: () => runtime?.forceFlush() ?? Promise.resolve(),
+    forceFlush: () => enqueueLifecycle(() => runtime?.forceFlush() ?? Promise.resolve()),
     shutdown: () => {
       shutDown = true;
-      return runtime?.shutdown() ?? Promise.resolve();
+      return enqueueLifecycle(async () => {
+        const activeRuntime = runtime;
+        runtime = undefined;
+        activeTelemetry = undefined;
+        activeClientInfo = undefined;
+        await activeRuntime?.shutdown();
+      });
     },
   };
 }
