@@ -306,6 +306,13 @@ export class StagehandRuntime {
   >();
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
+  private stagehandInstanceClosing = false;
+  private activeStagehandInstanceRequests = 0;
+  private stagehandInstanceRequestsDrained?: {
+    promise: Promise<void>;
+    resolve: () => void;
+  };
+  private stagehandInstanceDisposal?: Promise<void>;
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -858,9 +865,35 @@ export class StagehandRuntime {
   }
 
   async disposeStagehandInstance(): Promise<void> {
-    await this.enqueueLifecycle(async () => {
+    if (this.stagehandInstanceDisposal) return await this.stagehandInstanceDisposal;
+
+    this.stagehandInstanceClosing = true;
+    const disposal = this.enqueueLifecycle(async () => {
+      await this.waitForStagehandInstanceRequests();
       this.clearStagehandInstance();
     });
+    this.stagehandInstanceDisposal = disposal.finally(() => {
+      this.stagehandInstanceClosing = false;
+      this.stagehandInstanceDisposal = undefined;
+    });
+    return await this.stagehandInstanceDisposal;
+  }
+
+  acquireStagehandInstanceRequest(): () => void {
+    if (this.stagehandInstanceClosing) {
+      throw new Error("Stagehand instance is closing");
+    }
+
+    this.activeStagehandInstanceRequests += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.activeStagehandInstanceRequests -= 1;
+      if (this.activeStagehandInstanceRequests !== 0) return;
+      this.stagehandInstanceRequestsDrained?.resolve();
+      this.stagehandInstanceRequestsDrained = undefined;
+    };
   }
 
   private clearStagehandInstance(): void {
@@ -878,6 +911,18 @@ export class StagehandRuntime {
       () => undefined,
     );
     return result;
+  }
+
+  private waitForStagehandInstanceRequests(): Promise<void> {
+    if (this.activeStagehandInstanceRequests === 0) return Promise.resolve();
+    if (!this.stagehandInstanceRequestsDrained) {
+      let resolve!: () => void;
+      const promise = new Promise<void>((drained) => {
+        resolve = drained;
+      });
+      this.stagehandInstanceRequestsDrained = { promise, resolve };
+    }
+    return this.stagehandInstanceRequestsDrained.promise;
   }
 
   pageRefForId(pageId: string): PageRef {
