@@ -1319,12 +1319,6 @@ export const ContextVoidResultSchema = z
   })
   .meta({ id: "ContextVoidResult" });
 
-export const ContextCloseResultSchema = z
-  .strictObject({
-    closed: z.literal(true),
-  })
-  .meta({ id: "ContextCloseResult" });
-
 export const PageScreenshotClipSchema = z
   .strictObject({
     x: z.number(),

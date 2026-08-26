@@ -11,7 +11,6 @@ import type {
   ContextClipboardReadTextParams,
   ContextClipboardReadTextResult,
   ContextClipboardWriteTextParams,
-  ContextCloseResult,
   ContextCookiesParams,
   ContextCookiesResult,
   ContextGetDomainPolicyResult,
@@ -441,11 +440,6 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     await this.requireBrowserSession().setActivePage(page);
     return { ok: true };
-  }
-
-  async contextClose(): Promise<ContextCloseResult> {
-    await this.close();
-    return { closed: true };
   }
 
   async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {

@@ -198,11 +198,6 @@ export class RPCRouter {
           parseParams(StagehandMethods.contextSetActivePage, request.params),
           context,
         );
-      case "context.close":
-        return this.contextController.close(
-          parseParams(StagehandMethods.contextClose, request.params),
-          context,
-        );
       case "context.add_init_script":
         return this.contextController.addInitScript(
           parseParams(StagehandMethods.contextAddInitScript, request.params),

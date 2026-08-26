@@ -140,10 +140,6 @@ class ContextClipboardWriteTextParams(TypedDict):
     text: str
 
 
-class ContextCloseResult(TypedDict):
-    closed: Literal[True]
-
-
 class ContextCookiesParams(TypedDict):
     urls: NotRequired[str | list[str]]
 

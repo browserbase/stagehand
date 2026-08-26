@@ -1261,25 +1261,6 @@ describe("Stagehand worker clients", () => {
     expect(setActivePage).toHaveBeenCalledTimes(1);
   });
 
-  it("closes the configured context", async () => {
-    const context = new FakeBrowserSession();
-    const handle = await createConfiguredHandler(context);
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 9,
-        method: "context.close",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 9,
-      result: { closed: true },
-    });
-    expect(context.closed).toBe(true);
-  });
-
   it("routes context scripts, headers, and domain policy", async () => {
     const context = new FakeBrowserSession();
     const handle = await createConfiguredHandler(context);

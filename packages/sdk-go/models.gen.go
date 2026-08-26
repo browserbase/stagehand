@@ -380,11 +380,6 @@ type ContextClipboardWriteTextParams struct {
 	Text string `json:"text"`
 }
 
-type ContextCloseResult struct {
-	// Closed corresponds to the JSON schema field "closed".
-	Closed bool `json:"closed"`
-}
-
 type ContextCookiesParams struct {
 	// Urls corresponds to the JSON schema field "urls".
 	Urls *StringList `json:"urls,omitempty,omitzero"`
@@ -2227,9 +2222,6 @@ type generatedModelCatalog struct {
 	// ContextClipboardWriteTextParams corresponds to the JSON schema field
 	// "ContextClipboardWriteTextParams".
 	ContextClipboardWriteTextParams *ContextClipboardWriteTextParams `json:"ContextClipboardWriteTextParams,omitempty,omitzero"`
-
-	// ContextCloseResult corresponds to the JSON schema field "ContextCloseResult".
-	ContextCloseResult *ContextCloseResult `json:"ContextCloseResult,omitempty,omitzero"`
 
 	// ContextCookiesParams corresponds to the JSON schema field
 	// "ContextCookiesParams".
