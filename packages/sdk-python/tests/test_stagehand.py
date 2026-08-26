@@ -469,6 +469,25 @@ async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
 
 
 @pytest.mark.asyncio
+async def test_context_close_is_an_alias_for_browser_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, transport = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    context = browser.context
+
+    await asyncio.gather(context.close(), browser.close(), context.close())
+
+    assert browser.closed is True
+    assert transport.close_calls == 1
+    assert all(method != "context.close" for method, _params, _result in recording.calls)
+
+    await stagehand.close()
+
+
+@pytest.mark.asyncio
 async def test_invalid_success_response_fails_closed_because_initialization_is_ambiguous(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

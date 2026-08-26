@@ -115,7 +115,8 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		return nil, errors.Join(err, closeErr, browserErr)
 	}
 	browserContext := &BrowserContext{
-		rpc: rpc,
+		rpc:          rpc,
+		closeBrowser: client.browser.Close,
 		reportPageEventListenerPanic: func(recovered any) {
 			reportClientCallbackPanic(logging, "page event listener", recovered)
 		},

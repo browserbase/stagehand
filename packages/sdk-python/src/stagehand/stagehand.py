@@ -279,7 +279,10 @@ class Stagehand:
             init_params,
             StagehandInitResult,
         )
-        _attach_browser_context(self._browser_handle, BrowserContext(rpc_client))
+        _attach_browser_context(
+            self._browser_handle,
+            BrowserContext(rpc_client, self._browser_handle.close),
+        )
         self._initialized = True
 
     async def act(

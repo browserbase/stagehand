@@ -187,7 +187,10 @@ export class Stagehand {
         stagehandCreateParamsForWorker(createConfig, browser),
         signal,
       );
-      attachStagehandBrowserContext(this.browserHandle, new BrowserContext(rpcClient));
+      attachStagehandBrowserContext(
+        this.browserHandle,
+        new BrowserContext(rpcClient, () => this.browserHandle.close()),
+      );
     } catch (error) {
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;
