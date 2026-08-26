@@ -203,7 +203,6 @@ export class RPCClient {
       return;
     }
 
-    let handled = false;
     let releaseStagehandInstanceRequest: (() => void) | undefined;
     try {
       if (
@@ -213,7 +212,6 @@ export class RPCClient {
         releaseStagehandInstanceRequest = this.router.runtime.acquireStagehandInstanceRequest();
       }
       const result = await this.router.handle(stagehandRequest.data, runtimeAttachments);
-      handled = true;
       const parsedResult = method.result.safeParse(result);
       if (!parsedResult.success) {
         await this.sendError(
@@ -225,6 +223,7 @@ export class RPCClient {
         return;
       }
 
+      await this.router.beforeResponse(stagehandRequest.data);
       await this.runtime.send(
         JSONRPCSuccessResponseSchema.parse({
           jsonrpc: "2.0",
@@ -247,11 +246,7 @@ export class RPCClient {
         { name: error instanceof Error ? error.name : "Error" },
       );
     } finally {
-      try {
-        if (handled) await this.router.afterResponse(stagehandRequest.data);
-      } finally {
-        releaseStagehandInstanceRequest?.();
-      }
+      releaseStagehandInstanceRequest?.();
     }
   }
 

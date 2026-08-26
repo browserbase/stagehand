@@ -130,7 +130,7 @@ describe("Stagehand RPC router", () => {
     await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
 
     expect(lifecycle.at(-1)).toBe("ended:stagehand.close");
-    await router.afterResponse(closeRequest);
+    await router.beforeResponse(closeRequest);
 
     expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "flush"]);
     await tracing.shutdown();
@@ -320,7 +320,7 @@ describe("Stagehand RPC router", () => {
     await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
     expect(closeStagehand).toHaveBeenCalledOnce();
 
-    await router.afterResponse(closeRequest);
+    await router.beforeResponse(closeRequest);
     expect(closeStagehand).toHaveBeenCalledOnce();
   });
 

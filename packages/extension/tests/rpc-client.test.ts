@@ -128,6 +128,10 @@ describe("worker RPCClient", () => {
 
   it("disposes the Stagehand instance before sending the stagehand.close response", async () => {
     const lifecycle: string[] = [];
+    const runtime = createRuntime();
+    vi.spyOn(runtime.tracing, "forceFlush").mockImplementation(async () => {
+      lifecycle.push("flush");
+    });
     const runtimeClient = new ChromeRuntimeClient(
       {
         sendToHost(): void {
@@ -139,7 +143,7 @@ describe("worker RPCClient", () => {
     const closeStagehand = vi.fn(async () => {
       lifecycle.push("dispose");
     });
-    const client = new RPCClient(runtimeClient, new RPCRouter(createRuntime(), { closeStagehand }));
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime, { closeStagehand }));
 
     try {
       await runtimeClient.receive(
@@ -151,8 +155,39 @@ describe("worker RPCClient", () => {
         }),
       );
 
-      expect(lifecycle).toStrictEqual(["dispose", "response"]);
+      expect(lifecycle).toStrictEqual(["dispose", "flush", "response"]);
       expect(closeStagehand).toHaveBeenCalledOnce();
+    } finally {
+      client.close();
+    }
+  });
+
+  it("sends the stagehand.close response when tracing flush fails", async () => {
+    const responses: Array<Record<string, unknown>> = [];
+    const runtime = createRuntime();
+    vi.spyOn(runtime.tracing, "forceFlush").mockRejectedValue(new Error("export failed"));
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(payload: string): void {
+          responses.push(JSON.parse(payload) as Record<string, unknown>);
+        },
+      },
+      "sendToHost",
+    );
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime));
+
+    try {
+      await expect(
+        runtimeClient.receive(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 10,
+            method: "stagehand.close",
+            params: {},
+          }),
+        ),
+      ).resolves.toBeUndefined();
+      expect(responses).toStrictEqual([{ jsonrpc: "2.0", id: 10, result: { closed: true } }]);
     } finally {
       client.close();
     }
