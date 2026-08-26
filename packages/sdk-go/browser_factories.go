@@ -347,7 +347,7 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 				return errors.New("cannot terminate local browser: CDP connection is already closed")
 			}
 			err := sender.sendCommand(ctx, "Browser.close", map[string]any{})
-			if errors.Is(err, ErrCDPClientClosed) {
+			if errors.Is(err, ErrCDPClientClosed) || errors.Is(err, ErrCDPConnectionClosed) {
 				return nil
 			}
 			return err

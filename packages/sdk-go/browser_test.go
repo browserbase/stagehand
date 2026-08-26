@@ -205,22 +205,26 @@ func TestBrowserExplicitCloseMatrix(t *testing.T) {
 }
 
 func TestConnectedLocalBrowserCloseAcceptsCommandTransportLoss(t *testing.T) {
-	sender := &recordingBrowserCommandSender{err: ErrCDPClientClosed}
-	browser, err := connectBrowser(context.Background(), connectBrowserOptions{
-		provider: BrowserProviderLocal,
-		origin:   BrowserOriginConnected,
-		source:   browserConnectionSource{cdpURL: "ws://browser.test", keepAlive: true},
-	}, browserFactoryDependencies{
-		connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
-			return newBrowserTestCDP(t), nil
-		},
-		commandSender: func(*cdpClient) browserCommandSender { return sender },
-	})
-	if err != nil {
-		t.Fatalf("connectBrowser() error = %v", err)
-	}
-	if err := browser.Close(context.Background()); err != nil {
-		t.Fatalf("Close() error = %v", err)
+	for _, commandErr := range []error{ErrCDPClientClosed, ErrCDPConnectionClosed} {
+		t.Run(commandErr.Error(), func(t *testing.T) {
+			sender := &recordingBrowserCommandSender{err: commandErr}
+			browser, err := connectBrowser(context.Background(), connectBrowserOptions{
+				provider: BrowserProviderLocal,
+				origin:   BrowserOriginConnected,
+				source:   browserConnectionSource{cdpURL: "ws://browser.test", keepAlive: true},
+			}, browserFactoryDependencies{
+				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+					return newBrowserTestCDP(t), nil
+				},
+				commandSender: func(*cdpClient) browserCommandSender { return sender },
+			})
+			if err != nil {
+				t.Fatalf("connectBrowser() error = %v", err)
+			}
+			if err := browser.Close(context.Background()); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
 	}
 }
 
