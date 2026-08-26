@@ -264,11 +264,12 @@ describe("Stagehand browser factories", () => {
     expect(browser).toMatchObject({ provider: "browserbase", origin: "launched" });
   });
 
-  it("connects to an existing Browserbase session without owning its release", async () => {
+  it("connects to an existing Browserbase session", async () => {
     const connectSession = vi.fn(async () => ({
       sessionId: "session_123",
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
       region: "eu-central-1" as const,
+      close: vi.fn(),
     }));
     const cdp = fakeCdpClient();
     const connectCdp = vi.fn(async () => cdp);
@@ -346,6 +347,7 @@ describe("Stagehand browser factories", () => {
     const connectSession = vi.fn(async () => ({
       sessionId: "session_123",
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      close: vi.fn(),
     }));
     const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
     const { browserbase } = createBrowserFactoriesForTest({
