@@ -176,9 +176,11 @@ describe("Stagehand.create", () => {
       connectCdp: async () => cdp as unknown as CDPClient,
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const closeBrowser = vi.spyOn(browser, "close");
 
     await expect(Stagehand.create({ browser })).rejects.toThrow();
     expect(browser.closed).toBe(true);
+    expect(closeBrowser).not.toHaveBeenCalled();
     expect(cdp.close).toHaveBeenCalledOnce();
     await expect(Stagehand.create({ browser })).rejects.toThrow(
       "Cannot attach Stagehand to a closed browser",

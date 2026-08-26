@@ -488,6 +488,45 @@ async def test_invalid_success_response_fails_closed_because_initialization_is_a
 
 
 @pytest.mark.asyncio
+async def test_ambiguous_initialization_uses_browser_invalidation_not_public_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = _recording({"stagehand.init": ValueError("invalid init result")})
+    _install_rpc_client(monkeypatch, failed)
+    transport = _Transport()
+    close_calls = 0
+    invalidation_calls = 0
+
+    async def close() -> None:
+        nonlocal close_calls
+        close_calls += 1
+
+    async def invalidate() -> None:
+        nonlocal invalidation_calls
+        invalidation_calls += 1
+        await transport.close()
+
+    browser = StagehandBrowser(
+        "local",
+        "connected",
+        _ClaimedBrowser(
+            cdp_client=cast(CDPClient, transport),
+            worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
+        ),
+        close,
+        invalidate=invalidate,
+        _token=_BROWSER_TOKEN,
+    )
+
+    with pytest.raises(ValueError, match="invalid init result"):
+        await Stagehand.create(browser=browser)
+
+    assert close_calls == 0
+    assert invalidation_calls == 1
+    assert transport.close_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

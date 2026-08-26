@@ -47,6 +47,7 @@ from .browser import (
     _claim_browser,
     _ClaimedBrowser,
     _detach_browser_context,
+    _invalidate_browser,
     _release_browser,
 )
 from .browser_context import BrowserContext
@@ -547,11 +548,11 @@ class Stagehand:
         fail_closed: bool,
     ) -> None:
         if fail_closed:
-            browser_close = browser.close()
+            browser_invalidation = _invalidate_browser(browser)
             try:
                 await self._release_resources()
             finally:
-                await browser_close
+                await browser_invalidation
             return
 
         try:

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   claimStagehandBrowser,
   createBrowserFactoriesForTest,
+  invalidateStagehandBrowser,
 } from "../../src/browser/factories.js";
 import type { CDPClient, CDPClientOptions } from "../../src/cdpClient.js";
 
@@ -87,6 +88,35 @@ describe("Stagehand browser factories", () => {
     expect(closeSource).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { origin: "launched" as const, keepAlive: false, expectedSourceCloses: 1 },
+    { origin: "launched" as const, keepAlive: true, expectedSourceCloses: 0 },
+    { origin: "connected" as const, keepAlive: true, expectedSourceCloses: 0 },
+  ])(
+    "invalidates a $origin local browser with keepAlive=$keepAlive",
+    async ({ origin, keepAlive, expectedSourceCloses }) => {
+      const closeSource = vi.fn();
+      const closeCdp = vi.fn();
+      const { localBrowser } = createBrowserFactoriesForTest({
+        launchLocalBrowser: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          close: closeSource,
+        }),
+        connectCdp: async () => fakeCdpClient(closeCdp),
+      });
+      const browser =
+        origin === "launched"
+          ? await localBrowser.launch({ keepAlive })
+          : await localBrowser.connect({ cdpUrl: "ws://browser.example" });
+
+      await invalidateStagehandBrowser(browser);
+
+      expect(browser.closed).toBe(true);
+      expect(closeCdp).toHaveBeenCalledOnce();
+      expect(closeSource).toHaveBeenCalledTimes(expectedSourceCloses);
+    },
+  );
+
   it("launches Browserbase with worker initialization metadata", async () => {
     const closeSource = vi.fn();
     const createSession = vi.fn(async () => ({
@@ -170,6 +200,41 @@ describe("Stagehand browser factories", () => {
       },
     });
   });
+
+  it.each([
+    { origin: "launched" as const, keepAlive: false, expectedSessionCloses: 1 },
+    { origin: "launched" as const, keepAlive: true, expectedSessionCloses: 0 },
+    { origin: "connected" as const, keepAlive: true, expectedSessionCloses: 0 },
+  ])(
+    "invalidates a $origin Browserbase browser with keepAlive=$keepAlive",
+    async ({ origin, keepAlive, expectedSessionCloses }) => {
+      const closeSession = vi.fn();
+      const createSession = vi.fn(async () => ({
+        sessionId: "session_123",
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+        close: closeSession,
+      }));
+      const connectSession = vi.fn(async () => ({
+        sessionId: "session_123",
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      }));
+      const closeCdp = vi.fn();
+      const { browserbase } = createBrowserFactoriesForTest({
+        createBrowserbaseSessionClient: () => ({ createSession, connectSession }),
+        connectCdp: async () => fakeCdpClient(closeCdp),
+      });
+      const browser =
+        origin === "launched"
+          ? await browserbase.launch({ apiKey: "bb_key", keepAlive })
+          : await browserbase.connect({ apiKey: "bb_key", sessionId: "session_123" });
+
+      await invalidateStagehandBrowser(browser);
+
+      expect(browser.closed).toBe(true);
+      expect(closeCdp).toHaveBeenCalledOnce();
+      expect(closeSession).toHaveBeenCalledTimes(expectedSessionCloses);
+    },
+  );
 
   it("discovers Stagehand when connecting without a Chrome extension ID", async () => {
     const connectSession = vi.fn(async () => ({

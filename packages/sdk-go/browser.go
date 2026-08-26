@@ -100,6 +100,17 @@ func (browser *Browser) Context() (*BrowserContext, error) {
 // Close tears down the browser-owned resources once and memoizes the result.
 // A nil context is treated as context.Background.
 func (browser *Browser) Close(ctx context.Context) error {
+	return browser.runTerminalOperation(ctx, browser.invalidateResources)
+}
+
+func (browser *Browser) invalidate(ctx context.Context) error {
+	return browser.runTerminalOperation(ctx, browser.invalidateResources)
+}
+
+func (browser *Browser) runTerminalOperation(
+	ctx context.Context,
+	operation func(context.Context) error,
+) error {
 	if browser == nil {
 		return nil
 	}
@@ -130,6 +141,15 @@ func (browser *Browser) Close(ctx context.Context) error {
 	done := browser.mu.closeDone
 	browser.mu.Unlock()
 
+	result := operation(ctx)
+	browser.mu.Lock()
+	browser.closeResult = result
+	close(done)
+	browser.mu.Unlock()
+	return result
+}
+
+func (browser *Browser) invalidateResources(ctx context.Context) error {
 	var cdpErr error
 	if browser.cdp != nil {
 		cdpErr = browser.cdp.Close()
@@ -142,12 +162,7 @@ func (browser *Browser) Close(ctx context.Context) error {
 	if browser.cleanup != nil {
 		cleanupErr = browser.cleanup()
 	}
-	result := errors.Join(cdpErr, sourceErr, cleanupErr)
-	browser.mu.Lock()
-	browser.closeResult = result
-	close(done)
-	browser.mu.Unlock()
-	return result
+	return errors.Join(cdpErr, sourceErr, cleanupErr)
 }
 
 type claimedBrowser struct {

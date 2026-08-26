@@ -198,6 +198,51 @@ func TestConnectBrowserOwnsSourceMatrix(t *testing.T) {
 	}
 }
 
+func TestBrowserInvalidationOwnsSourceMatrix(t *testing.T) {
+	tests := []struct {
+		name      string
+		provider  BrowserProvider
+		origin    BrowserOrigin
+		keepAlive bool
+		wantClose int
+	}{
+		{name: "local launched", provider: BrowserProviderLocal, origin: BrowserOriginLaunched, wantClose: 1},
+		{name: "local launched keep alive", provider: BrowserProviderLocal, origin: BrowserOriginLaunched, keepAlive: true},
+		{name: "local connected", provider: BrowserProviderLocal, origin: BrowserOriginConnected, keepAlive: true},
+		{name: "Browserbase launched", provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched, wantClose: 1},
+		{name: "Browserbase launched keep alive", provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched, keepAlive: true},
+		{name: "Browserbase connected", provider: BrowserProviderBrowserbase, origin: BrowserOriginConnected, keepAlive: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sourceCloses := 0
+			browser, err := connectBrowser(context.Background(), connectBrowserOptions{
+				provider: test.provider, origin: test.origin,
+				source: browserConnectionSource{
+					cdpURL: "ws://browser.test", keepAlive: test.keepAlive,
+					close: func(context.Context) error { sourceCloses++; return nil },
+				},
+			}, browserFactoryDependencies{
+				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+					return newBrowserTestCDP(t), nil
+				},
+			})
+			if err != nil {
+				t.Fatalf("connectBrowser() error = %v", err)
+			}
+			if err := browser.invalidate(context.Background()); err != nil {
+				t.Fatalf("invalidate() error = %v", err)
+			}
+			if !browser.Closed() {
+				t.Fatal("Closed() = false after invalidation")
+			}
+			if sourceCloses != test.wantClose {
+				t.Fatalf("source closes = %d, want %d", sourceCloses, test.wantClose)
+			}
+		})
+	}
+}
+
 func TestLaunchLocalBrowserKeepAliveOwnership(t *testing.T) {
 	tests := []struct {
 		name      string

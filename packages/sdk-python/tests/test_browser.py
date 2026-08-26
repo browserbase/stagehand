@@ -21,6 +21,7 @@ from stagehand.browser import (
     _claim_browser,
     _connect_browser,
     _detach_browser_context,
+    _invalidate_browser,
     _launch_local_browser,
     _local_browser_flags,
     _release_browser,
@@ -131,6 +132,40 @@ async def test_handle_close_is_memoized_and_marks_closed_when_requested(
     assert source.close_calls == 1
     await handle.close()
     assert cdp.close_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive", "expected_source_closes"),
+    [
+        ("local", "launched", False, 1),
+        ("local", "launched", True, 0),
+        ("local", "connected", True, 0),
+        ("browserbase", "launched", False, 1),
+        ("browserbase", "launched", True, 0),
+        ("browserbase", "connected", True, 0),
+    ],
+)
+async def test_browser_invalidation_obeys_existing_source_ownership(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+    expected_source_closes: int,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+
+    await _invalidate_browser(handle)
+
+    assert handle.closed is True
+    assert fake_cdp.instances[-1].close_calls == 1
+    assert source.close_calls == expected_source_closes
 
 
 async def test_claim_release_reclaim_and_errors(fake_cdp: type[FakeCDPClient]) -> None:

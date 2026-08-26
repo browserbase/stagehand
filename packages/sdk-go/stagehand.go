@@ -110,7 +110,7 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 			context.WithoutCancel(ctx),
 			stagehandFailureCleanupTimeout,
 		)
-		browserErr := options.Browser.Close(cleanupCtx)
+		browserErr := options.Browser.invalidate(cleanupCtx)
 		cancelCleanup()
 		return nil, errors.Join(err, closeErr, browserErr)
 	}

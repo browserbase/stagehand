@@ -8,6 +8,7 @@ import {
 import {
   claimStagehandBrowserHandle,
   createStagehandBrowserHandle,
+  invalidateStagehandBrowserHandle,
   isStagehandBrowser,
   releaseStagehandBrowserHandle,
   type BrowserbaseBrowser,
@@ -229,6 +230,11 @@ export function releaseStagehandBrowser(browser: StagehandBrowser): void {
   releaseStagehandBrowserHandle(browser);
 }
 
+/** @internal */
+export function invalidateStagehandBrowser(browser: StagehandBrowser): Promise<void> {
+  return invalidateStagehandBrowserHandle(browser);
+}
+
 async function connectBrowser(options: {
   provider: StagehandBrowserProvider;
   origin: StagehandBrowserOrigin;
@@ -259,6 +265,12 @@ async function connectBrowser(options: {
     }
     await options.afterConnect?.(cdpClient, options.signal);
     const connectedClient = cdpClient;
+    const invalidate = async () => {
+      connectedClient.close();
+      if (ownsSource) {
+        await closeSource(options.source);
+      }
+    };
     return createStagehandBrowserHandle({
       provider: options.provider,
       origin: options.origin,
@@ -267,12 +279,8 @@ async function connectBrowser(options: {
         cdpClient: connectedClient,
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
-      close: async () => {
-        connectedClient.close();
-        if (ownsSource) {
-          await closeSource(options.source);
-        }
-      },
+      close: invalidate,
+      invalidate,
     });
   } catch (error) {
     cdpClient?.close();
