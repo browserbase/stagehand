@@ -282,12 +282,15 @@ export class Stagehand {
 
   close(): Promise<void> {
     this.closePromise ??= (async () => {
+      let shouldReleaseBrowserClaim = !this.isInitialized;
       try {
         if (this.isInitialized) {
           try {
             await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
+            shouldReleaseBrowserClaim = true;
           } catch (error) {
             if (!(error instanceof CDPConnectionClosedError)) throw error;
+            shouldReleaseBrowserClaim = true;
           }
         }
       } finally {
@@ -298,7 +301,7 @@ export class Stagehand {
         this.rpcClient?.close(new Error("Stagehand closed"), { closeTransport: false });
         this.rpcClient = undefined;
         detachStagehandBrowserContext(this.browserHandle);
-        releaseStagehandBrowser(this.browserHandle);
+        if (shouldReleaseBrowserClaim) releaseStagehandBrowser(this.browserHandle);
         this.isInitialized = false;
       }
     })();

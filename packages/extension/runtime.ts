@@ -358,6 +358,9 @@ export class StagehandRuntime {
     try {
       return await this.enqueueLifecycle(async () => {
         const state = this.state.getState();
+        if (state.status !== "idle") {
+          throw new Error("A Stagehand instance is already initialized");
+        }
         this.logger.setLevel(params.logLevel);
         if (!this.browserSession?.connected) {
           if (!params.browserCdpUrl) {

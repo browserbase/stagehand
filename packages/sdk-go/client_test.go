@@ -341,6 +341,10 @@ func TestClientCloseMemoizesFirstFailure(t *testing.T) {
 	if client.Initialized() {
 		t.Fatal("client remained initialized after Close")
 	}
+	if _, err := claimBrowser(client.browser); err == nil {
+		releaseBrowserClaim(client.browser)
+		t.Fatal("failed Close released the browser claim")
+	}
 }
 
 func TestActAcceptsObservedAction(t *testing.T) {
@@ -396,6 +400,10 @@ func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 	if !rpc.closed {
 		t.Fatal("protocol client was not closed")
 	}
+	if _, err := claimBrowser(client.browser); err != nil {
+		t.Fatalf("disconnected Close retained the browser claim: %v", err)
+	}
+	releaseBrowserClaim(client.browser)
 }
 
 func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {

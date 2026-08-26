@@ -151,6 +151,24 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
+  it("retains the browser claim when the worker rejects close", async () => {
+    const cdp = new FakeCDPClient();
+    cdp.responses.set("stagehand.close", new Error("worker close failed"));
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const stagehand = await Stagehand.create({ browser });
+
+    await expect(stagehand.close()).rejects.toThrow("worker close failed");
+    await expect(Stagehand.create({ browser })).rejects.toThrow(
+      "This browser is already attached to a Stagehand instance",
+    );
+    expect(cdp.requestsFor("stagehand.init")).toHaveLength(1);
+
+    await browser.close();
+  });
+
   it("invalidates the browser after an ambiguous invalid initialization result", async () => {
     const cdp = new FakeCDPClient();
     cdp.responses.set("stagehand.init", { initialized: "not-a-boolean" });
@@ -468,6 +486,8 @@ describe("Stagehand.create", () => {
       "Stagehand is unavailable. Create a new instance with await Stagehand.create().",
     );
 
+    const reattached = await Stagehand.create({ browser });
+    await reattached.close();
     await browser.close();
     expect(cdp.close).toHaveBeenCalledOnce();
   });

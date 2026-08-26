@@ -131,7 +131,7 @@ describe("Stagehand runtime state", () => {
     });
   });
 
-  it("updates configuration when an initialized runtime is attached again", async () => {
+  it("rejects initialization while another Stagehand instance is initialized", async () => {
     const prepareForInitialization = vi.fn();
     const browserSessionFactory = vi.fn(async () =>
       createBrowserSession({ prepareForInitialization }),
@@ -158,16 +158,21 @@ describe("Stagehand runtime state", () => {
       },
     };
 
-    await expect(runtime.initialize(replacementParams)).resolves.toStrictEqual({
-      initialized: true,
-      pages: [],
-    });
+    await expect(runtime.initialize(replacementParams)).rejects.toThrow(
+      "A Stagehand instance is already initialized",
+    );
 
     expect(browserSessionFactory).toHaveBeenCalledOnce();
     expect(prepareForInitialization).toHaveBeenCalledOnce();
     expect(runtime.state.getState()).toStrictEqual({
       status: "initialized",
-      initParams: replacementParams,
+      initParams: {
+        ...runtimeIdentity,
+        model: { modelName: "openai/gpt-5" },
+        telemetry: {
+          traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+        },
+      },
     });
   });
 

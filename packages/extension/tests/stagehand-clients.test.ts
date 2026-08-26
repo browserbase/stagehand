@@ -944,7 +944,7 @@ describe("Stagehand worker clients", () => {
     expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
-  it("reuses the browser session for a second stagehand.init", async () => {
+  it("rejects a second stagehand.init while the first instance is initialized", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -970,9 +970,10 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 2,
-      result: {
-        initialized: true,
-        pages: [],
+      error: {
+        code: -32603,
+        message: "A Stagehand instance is already initialized",
+        data: { name: "Error" },
       },
     });
 
