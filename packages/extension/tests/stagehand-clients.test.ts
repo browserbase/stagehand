@@ -576,7 +576,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
 
 const testTracing: StagehandTracing = {
   tracer: trace.getTracer("stagehand-app-test"),
-  configure: () => {},
+  configure: async () => {},
   forceFlush: async () => {},
   shutdown: async () => {},
 };

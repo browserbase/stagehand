@@ -450,7 +450,7 @@ function request(input: {
 function configuredTracing(
   runtime: ReturnType<typeof createStagehandTracingRuntime>,
 ): StagehandTracing {
-  return { ...runtime, configure: vi.fn() };
+  return { ...runtime, configure: vi.fn(async () => {}) };
 }
 
 function browserSessionFor(connection: CdpConnection): StagehandBrowserSession {

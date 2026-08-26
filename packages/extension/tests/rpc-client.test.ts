@@ -18,7 +18,7 @@ describe("worker RPCClient", () => {
       },
       {
         tracer: trace.getTracer("worker-rpc-client-test"),
-        configure: () => {},
+        configure: async () => {},
         forceFlush: async () => {},
         shutdown: async () => {},
       },
@@ -59,7 +59,7 @@ describe("worker RPCClient", () => {
       },
       {
         tracer: trace.getTracer("worker-rpc-client-trace-test"),
-        configure: () => {},
+        configure: async () => {},
         forceFlush: async () => {},
         shutdown: async () => {},
       },

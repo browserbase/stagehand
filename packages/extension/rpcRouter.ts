@@ -79,7 +79,7 @@ export class RPCRouter {
         ? (request.params as StagehandInitParams)
         : undefined;
     if (initParams) {
-      this.runtime.tracing.configure(initParams.telemetry, initParams.clientInfo);
+      await this.runtime.tracing.configure(initParams.telemetry, initParams.clientInfo);
     }
     const parentContext = W3C_TRACE_CONTEXT_PROPAGATOR.extract(ROOT_CONTEXT, request, {
       get(carrier, key) {

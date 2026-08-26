@@ -352,7 +352,7 @@ export class StagehandRuntime {
       return await this.enqueueLifecycle(async () => {
         const state = this.state.getState();
         this.logger.setLevel(params.logLevel);
-        if (!this.browserSession) {
+        if (!this.browserSession?.connected) {
           if (!params.browserCdpUrl) {
             throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
           }
@@ -368,7 +368,7 @@ export class StagehandRuntime {
             return await this.contextPages();
           },
         );
-        this.tracing.configure(params.telemetry, params.clientInfo);
+        await this.tracing.configure(params.telemetry, params.clientInfo);
         this.state.setState(
           StagehandRuntimeStateSchema.parse({
             status: "initialized",

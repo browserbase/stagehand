@@ -66,6 +66,35 @@ describe("Stagehand runtime state", () => {
     );
   });
 
+  it("replaces a retained browser session when its loopback connection is closed", async () => {
+    const closeDisconnectedSession = vi.fn();
+    const connectedSession = createBrowserSession();
+    const browserSessionFactory = vi.fn(async () => connectedSession);
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    runtime.browserSession = createBrowserSession({
+      connected: false,
+      close: closeDisconnectedSession,
+    });
+
+    await expect(
+      runtime.initialize({
+        ...runtimeIdentity,
+        browserCdpUrl: "ws://browser.example/reconnected",
+        telemetry: {
+          traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+        },
+      }),
+    ).resolves.toStrictEqual({ initialized: true, pages: [] });
+
+    expect(closeDisconnectedSession).toHaveBeenCalledOnce();
+    expect(browserSessionFactory).toHaveBeenCalledWith(
+      "ws://browser.example/reconnected",
+      runtime.logger,
+      runtime.logger,
+    );
+    expect(runtime.browserSession).toBe(connectedSession);
+  });
+
   it("stores the exact validated Stagehand init params after initialization", async () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),
