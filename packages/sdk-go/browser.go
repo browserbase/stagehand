@@ -28,20 +28,21 @@ const (
 
 // Browser is a factory-created browser whose Stagehand extension is ready.
 type Browser struct {
-	mu             browserMutex
-	provider       BrowserProvider
-	origin         BrowserOrigin
-	claimed        bool
-	browserContext *BrowserContext
-	closeRequested bool
-	closeResult    error
-	cdp            *cdpClient
-	workerAPIKey   *string
-	workerBrowser  *BrowserSessionMetadata
-	extensionDir   string
-	ownsSource     bool
-	closeSource    func(context.Context) error
-	cleanup        func() error
+	mu              browserMutex
+	provider        BrowserProvider
+	origin          BrowserOrigin
+	claimed         bool
+	browserContext  *BrowserContext
+	closeRequested  bool
+	closeResult     error
+	cdp             *cdpClient
+	workerAPIKey    *string
+	workerBrowser   *BrowserSessionMetadata
+	extensionDir    string
+	ownsSource      bool
+	closeSource     func(context.Context) error
+	terminateSource func(context.Context) error
+	cleanup         func() error
 }
 
 type browserMutex struct {
@@ -100,7 +101,7 @@ func (browser *Browser) Context() (*BrowserContext, error) {
 // Close tears down the browser-owned resources once and memoizes the result.
 // A nil context is treated as context.Background.
 func (browser *Browser) Close(ctx context.Context) error {
-	return browser.runTerminalOperation(ctx, browser.invalidateResources)
+	return browser.runTerminalOperation(ctx, browser.terminateResources)
 }
 
 func (browser *Browser) invalidate(ctx context.Context) error {
@@ -163,6 +164,22 @@ func (browser *Browser) invalidateResources(ctx context.Context) error {
 		cleanupErr = browser.cleanup()
 	}
 	return errors.Join(cdpErr, sourceErr, cleanupErr)
+}
+
+func (browser *Browser) terminateResources(ctx context.Context) error {
+	var terminationErr error
+	if browser.terminateSource != nil {
+		terminationErr = browser.terminateSource(ctx)
+	}
+	var cdpErr error
+	if browser.cdp != nil {
+		cdpErr = browser.cdp.Close()
+	}
+	var cleanupErr error
+	if browser.cleanup != nil {
+		cleanupErr = browser.cleanup()
+	}
+	return errors.Join(terminationErr, cdpErr, cleanupErr)
 }
 
 type claimedBrowser struct {

@@ -22,7 +22,7 @@ from ._generated.models import (
     BrowserSessionMetadata,
 )
 from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
-from .cdp_client import CDPClient
+from .cdp_client import CDPClient, CDPConnectionClosedError
 from .client_models import (
     BrowserbaseConnectOptions,
     LocalBrowserConnectOptions,
@@ -313,6 +313,27 @@ async def _connect_browser(
             if owns_source:
                 await source.close()
 
+    async def close() -> None:
+        errors: list[BaseException] = []
+        try:
+            if provider == "local" and origin == "connected":
+                try:
+                    await connected_client.send_command("Browser.close")
+                except CDPConnectionClosedError:
+                    pass
+            else:
+                await source.close()
+        except BaseException as error:
+            errors.append(error)
+        try:
+            await connected_client.close()
+        except BaseException as error:
+            errors.append(error)
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise BaseExceptionGroup("Browser termination and cleanup failed", errors)
+
     return StagehandBrowser(
         provider,
         origin,
@@ -320,7 +341,7 @@ async def _connect_browser(
             cdp_client=connected_client,
             worker_init_metadata=worker_init_metadata,
         ),
-        invalidate,
+        close,
         invalidate=invalidate,
         session_id=(
             worker_init_metadata.browser.session_id if worker_init_metadata.browser else None
@@ -581,7 +602,11 @@ class BrowserbaseBrowser:
         return await _connect_browser(
             provider="browserbase",
             origin="connected",
-            source=_ConnectedBrowserSource(connection.cdp_url),
+            source=ResolvedBrowserSource(
+                cdp_url=connection.cdp_url,
+                keep_alive=True,
+                _close_callback=connection.close,
+            ),
             extension_id=options.extension_id,
             preloaded_extension=options.extension_id is None,
             worker_init_metadata=_WorkerInitMetadata(

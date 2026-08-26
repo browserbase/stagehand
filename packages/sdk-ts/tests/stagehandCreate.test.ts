@@ -26,6 +26,7 @@ class FakeCDPClient {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   close = vi.fn();
+  sendCommand = vi.fn(async () => ({}));
   initError: Error | undefined;
   respondToInit = true;
   readonly requests: JSONRPCMessage[] = [];

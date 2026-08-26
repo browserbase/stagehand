@@ -496,6 +496,12 @@ func (c *cdpClient) Close() error {
 	return c.socketError
 }
 
+func (c *cdpClient) closedState() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closed
+}
+
 func (c *cdpClient) sendCommand(
 	ctx context.Context,
 	method string,

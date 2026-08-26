@@ -30,6 +30,7 @@ from stagehand.browser import (
     local_browser,
 )
 from stagehand.browser_context import BrowserContext
+from stagehand.cdp_client import CDPConnectionClosedError
 from stagehand.client_models import LocalBrowserLaunchOptions, LocalViewport
 
 
@@ -132,6 +133,91 @@ async def test_handle_close_is_memoized_and_marks_closed_when_requested(
     assert source.close_calls == 1
     await handle.close()
     assert cdp.close_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("provider", "origin", "keep_alive", "expected_source_closes", "expected_commands"),
+    [
+        ("local", "launched", False, 1, []),
+        ("local", "launched", True, 1, []),
+        ("local", "connected", True, 0, [("Browser.close", {})]),
+        ("browserbase", "launched", False, 1, []),
+        ("browserbase", "launched", True, 1, []),
+        ("browserbase", "connected", True, 1, []),
+    ],
+)
+async def test_explicit_browser_close_matrix(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+    expected_source_closes: int,
+    expected_commands: list[tuple[str, dict[str, object]]],
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        extension_dir="/extension",
+        worker_init_metadata=_metadata(),
+    )
+    cdp = fake_cdp.instances[-1]
+
+    await handle.close()
+
+    assert source.close_calls == expected_source_closes
+    assert cdp.commands == expected_commands
+    assert cdp.close_calls == 1
+
+
+async def test_connected_local_close_accepts_transport_loss_caused_by_command(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True), origin="connected")
+    cdp = fake_cdp.instances[-1]
+
+    async def disconnect(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise CDPConnectionClosedError
+
+    monkeypatch.setattr(cdp, "send_command", disconnect)
+
+    await handle.close()
+    assert cdp.close_calls == 1
+
+
+async def test_connected_local_close_reports_dispatch_failure_and_still_disconnects(
+    fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True), origin="connected")
+    cdp = fake_cdp.instances[-1]
+
+    async def fail(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise RuntimeError("dispatch failed")
+
+    monkeypatch.setattr(cdp, "send_command", fail)
+
+    with pytest.raises(RuntimeError, match="dispatch failed"):
+        await handle.close()
+    assert cdp.close_calls == 1
+
+
+async def test_explicit_close_aggregates_termination_and_transport_failures(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    source = FakeSource(keep_alive=False, close_error=LookupError("termination failed"))
+    handle = await _connected_handle(source)
+    fake_cdp.close_error = OSError("transport cleanup failed")
+
+    with pytest.raises(BaseExceptionGroup) as raised:
+        await handle.close()
+
+    assert [str(error) for error in raised.value.exceptions] == [
+        "termination failed",
+        "transport cleanup failed",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -611,7 +697,7 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     assert fake_cdp.instances[-1].close_calls == 1
 
 
-async def test_browserbase_launch_keep_alive_does_not_close_session(
+async def test_browserbase_launch_keep_alive_still_closes_session_explicitly(
     monkeypatch: pytest.MonkeyPatch,
     fake_cdp: type[FakeCDPClient],
 ) -> None:
@@ -619,11 +705,11 @@ async def test_browserbase_launch_keep_alive_does_not_close_session(
     handle = await browserbase.launch(api_key="api-key", keep_alive=True)
     await handle.close()
     assert configurations == [("api-key", "https://api.browserbase.com")]
-    assert client.created.close_calls == 0
+    assert client.created.close_calls == 1
     assert fake_cdp.instances[-1].close_calls == 1
 
 
-async def test_browserbase_connect_never_owns_session_and_selects_extension_mode(
+async def test_browserbase_connect_releases_session_and_selects_extension_mode(
     monkeypatch: pytest.MonkeyPatch,
     fake_cdp: type[FakeCDPClient],
 ) -> None:
@@ -655,7 +741,7 @@ async def test_browserbase_connect_never_owns_session_and_selects_extension_mode
         ("api-key", "https://api.dev.browserbase.com"),
         ("api-key", "https://api.browserbase.com"),
     ]
-    assert client.connected.close_calls == 0
+    assert client.connected.close_calls == 2
 
 
 async def test_browserbase_launch_connect_failure_closes_owned_session(
