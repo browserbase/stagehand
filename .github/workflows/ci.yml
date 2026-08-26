@@ -2,6 +2,12 @@ name: CI
 
 on:
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
   workflow_dispatch:
     inputs:
       pull_request_number:
@@ -21,7 +27,12 @@ jobs:
   determine-changes:
     name: Determine changes
     runs-on: ubuntu-latest
+    if: >-
+      !contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
+      contains(fromJSON('["skip-evals", "skip-regression-evals"]'), github.event.label.name)
     outputs:
+      docs-only: ${{ steps.docs-filter.outputs.docs-only }}
+      evals: ${{ steps.filter.outputs.evals }}
       extension: ${{ steps.filter.outputs.extension }}
       is_internal_head: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
@@ -34,6 +45,16 @@ jobs:
         id: filter
         with:
           filters: |
+            evals:
+              - 'packages/evals/**'
+              - 'packages/sdk-ts/**'
+              - 'packages/extension/**'
+              - 'packages/protocol/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.github/**'
             extension:
               - 'packages/extension/**'
               - 'packages/protocol/**'
@@ -59,6 +80,65 @@ jobs:
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - '.github/**'
+
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: docs-filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            docs-only:
+              - '**/*.md'
+              - 'examples/**'
+              - '!packages/**/*.md'
+
+  load-pr-context:
+    name: Load PR context
+    runs-on: ubuntu-latest
+    if: >-
+      !contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
+      contains(fromJSON('["skip-evals", "skip-regression-evals"]'), github.event.label.name)
+    outputs:
+      is-internal-head: ${{ steps.load.outputs.is-internal-head }}
+      skip-evals: ${{ steps.load.outputs.skip-evals }}
+      skip-regression-evals: ${{ steps.load.outputs.skip-regression-evals }}
+    steps:
+      - id: load
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          PR_NUMBER: ${{ github.event.inputs.pull_request_number }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const repoFullName = `${context.repo.owner}/${context.repo.repo}`;
+            let pr = context.payload.pull_request;
+
+            if (!pr) {
+              const prNumber = Number(process.env.PR_NUMBER);
+              if (!prNumber) {
+                throw new Error('workflow_dispatch requires pull_request_number input');
+              }
+
+              const { data } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+              pr = data;
+            }
+
+            const labels = new Set(
+              (pr.labels || [])
+                .map((label) => typeof label === 'string' ? label : label.name)
+                .filter(Boolean),
+            );
+
+            core.setOutput('is-internal-head', pr.head.repo?.full_name === repoFullName ? 'true' : 'false');
+            core.setOutput('skip-evals', labels.has('skip-evals') ? 'true' : 'false');
+            core.setOutput(
+              'skip-regression-evals',
+              labels.has('skip-regression-evals') ? 'true' : 'false',
+            );
+
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -431,6 +511,129 @@ jobs:
         if: always()
         with:
           name: coverage/integration/${{ matrix.test.safe_name }}
+
+  regression-evals:
+    name: evals/regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    needs: [build, determine-changes, load-pr-context]
+    if: >-
+      ${{
+        always() &&
+        needs.build.result == 'success' &&
+        needs.determine-changes.result == 'success' &&
+        needs.load-pr-context.result == 'success' &&
+        needs.load-pr-context.outputs.is-internal-head == 'true' &&
+        needs.load-pr-context.outputs.skip-evals != 'true' &&
+        needs.load-pr-context.outputs.skip-regression-evals != 'true' &&
+        !(needs.determine-changes.outputs.docs-only == 'true' &&
+          needs.determine-changes.outputs.evals == 'false' &&
+          needs.determine-changes.outputs.extension == 'false' &&
+          needs.determine-changes.outputs.sdk-ts == 'false' &&
+          needs.determine-changes.outputs.sdk-python == 'false' &&
+          needs.determine-changes.outputs.sdk-go == 'false')
+      }}
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+      BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+      BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      EVAL_MAX_CONCURRENCY: "25"
+      EVAL_MODELS: ${{ vars.EVAL_MODELS }}
+      EVAL_TRIAL_COUNT: "3"
+      GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "true"
+          restore-turbo-cache: "false"
+
+      - name: Run regression evals
+        id: run-evals
+        env:
+          NODE_V8_COVERAGE: coverage/evals/regression
+        run: |
+          set +e
+          pnpm --filter @browserbasehq/stagehand-evals run test:evals -- regression --env browserbase --trials "$EVAL_TRIAL_COUNT" --concurrency "$EVAL_MAX_CONCURRENCY"
+          eval_status=$?
+          set -e
+
+          if [ -f eval-summary.json ]; then
+            {
+              echo "summary-text<<EOF"
+              jq -r '
+                "Experiment: \(.experimentName)",
+                "Passed: \(.passed | length)",
+                "Failed: \(.failed | length)",
+                "Braintrust scores:",
+                ((.scores // {}) | to_entries[] | "  \(.key): \((.value.score * 100))%"),
+                "Category scores:",
+                ((.categories // {}) | to_entries[] | "  \(.key): \(.value)%")
+              ' eval-summary.json
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+          exit "$eval_status"
+
+      - name: Log eval score - regression
+        if: always()
+        env:
+          EVAL_STDOUT_SUMMARY: ${{ steps.run-evals.outputs.summary-text }}
+        run: |
+          if [ ! -f eval-summary.json ]; then
+            echo "Regression eval summary not found."
+            exit 1
+          fi
+
+          experiment_url=$(jq -r '.experimentUrl // empty' eval-summary.json)
+          if [ -z "$experiment_url" ]; then
+            experiment_name=$(jq -r '.experimentName // empty' eval-summary.json)
+            if [ -n "$experiment_name" ]; then
+              experiment_url="https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/${experiment_name}"
+            fi
+          fi
+
+          primary_score=$(jq -r '(.scores["Exact match"].score // .scores["Pass"].score // empty)' eval-summary.json)
+          if [ -z "$primary_score" ]; then
+            echo "Braintrust primary score not found in eval summary."
+            exit 1
+          fi
+
+          {
+            if [ -n "${EVAL_STDOUT_SUMMARY:-}" ]; then
+              echo "### Regression evals"
+              echo '```'
+              printf '%s\n' "$EVAL_STDOUT_SUMMARY"
+              echo '```'
+            fi
+            if [ -n "$experiment_url" ]; then
+              echo "[View Braintrust experiment]($experiment_url)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          primary_score_percent=$(jq -rn --arg score "$primary_score" '$score | tonumber * 100')
+          printf 'Regression Braintrust score: %.2f%%\n' "$primary_score_percent"
+          if [ -n "$experiment_url" ]; then
+            echo "View results at $experiment_url"
+          fi
+          if ! jq -en --arg score "$primary_score" '$score | tonumber >= 0.8' > /dev/null; then
+            echo "Regression Braintrust score is below 80%."
+            exit 1
+          fi
+
+      - uses: ./.github/actions/upload-ctrf-report
+        if: always()
+        with:
+          name: ctrf/evals/regression.json
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage/evals/regression
 
   go-windows:
     name: Go (Windows process management)
