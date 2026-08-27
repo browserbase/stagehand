@@ -4,7 +4,6 @@
  * - /packages/server-v3/scripts/runtimePaths.ts
  * - /packages/server-v4/scripts/runtimePaths.ts
  * - /packages/evals/runtimePaths.ts
- * - /packages/docs/scripts/runtimePaths.js
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
