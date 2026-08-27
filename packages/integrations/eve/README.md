@@ -29,11 +29,11 @@ No extra `build.externalDependencies` configuration is required in the consuming
 
 ## Tools
 
-| Tool                      | Purpose                                                               |
-| ------------------------- | --------------------------------------------------------------------- |
-| `browserbase__run`        | Run Playwright-shaped JavaScript or actions from the latest snapshot. |
-| `browserbase__snapshot`   | Inspect the page and hydrate IDs for subsequent actions.              |
-| `browserbase__screenshot` | Capture visual evidence from the active page.                         |
+| Tool                      | Purpose                                                  |
+| ------------------------- | -------------------------------------------------------- |
+| `browserbase__run`        | Run Playwright-shaped JavaScript or snapshot-ID actions. |
+| `browserbase__snapshot`   | Inspect the page and hydrate IDs for subsequent actions. |
+| `browserbase__screenshot` | Capture visual evidence from the active page.            |
 
 JavaScript passed to `run` receives Playwright-shaped `page`, `context`, and `browser` objects. It
 can call `await browser.close()` after collecting the result to release the owned browser.
