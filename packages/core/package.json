@@ -124,7 +124,7 @@
     "@types/node": "^20.11.30",
     "@types/ws": "^8.5.13",
     "@vitest/coverage-v8": "^4.1.9",
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.0",
     "chalk": "^5.4.1",
     "eslint": "10.0.2",
     "jsdom": "^29.1.1",
