@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "ai": "catalog:eve",
     "eve": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
