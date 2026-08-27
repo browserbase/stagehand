@@ -88,7 +88,7 @@
       "tar": "^7.5.16",
       "js-yaml@4.1.1": "4.2.0",
       "read-yaml-file": "2.1.0",
-      "undici": "^7.28.0"
+      "undici": "^7.29.0"
     }
   },
   "lint-staged": {
