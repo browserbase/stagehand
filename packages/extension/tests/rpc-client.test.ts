@@ -18,7 +18,7 @@ describe("worker RPCClient", () => {
       },
       {
         tracer: trace.getTracer("worker-rpc-client-test"),
-        configure: () => {},
+        configure: async () => {},
         forceFlush: async () => {},
         shutdown: async () => {},
       },
@@ -59,7 +59,7 @@ describe("worker RPCClient", () => {
       },
       {
         tracer: trace.getTracer("worker-rpc-client-trace-test"),
-        configure: () => {},
+        configure: async () => {},
         forceFlush: async () => {},
         shutdown: async () => {},
       },
@@ -123,6 +123,194 @@ describe("worker RPCClient", () => {
     } finally {
       client.close();
       vi.useRealTimers();
+    }
+  });
+
+  it("disposes the Stagehand instance before sending the stagehand.close response", async () => {
+    const lifecycle: string[] = [];
+    const runtime = createRuntime();
+    vi.spyOn(runtime.tracing, "forceFlush").mockImplementation(async () => {
+      lifecycle.push("flush");
+    });
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(): void {
+          lifecycle.push("response");
+        },
+      },
+      "sendToHost",
+    );
+    const closeStagehand = vi.fn(async () => {
+      lifecycle.push("dispose");
+    });
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime, { closeStagehand }));
+
+    try {
+      await runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 9,
+          method: "stagehand.close",
+          params: {},
+        }),
+      );
+
+      expect(lifecycle).toStrictEqual(["dispose", "flush", "response"]);
+      expect(closeStagehand).toHaveBeenCalledOnce();
+    } finally {
+      client.close();
+    }
+  });
+
+  it("sends the stagehand.close response when tracing flush fails", async () => {
+    const responses: Array<Record<string, unknown>> = [];
+    const runtime = createRuntime();
+    vi.spyOn(runtime.tracing, "forceFlush").mockRejectedValue(new Error("export failed"));
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(payload: string): void {
+          responses.push(JSON.parse(payload) as Record<string, unknown>);
+        },
+      },
+      "sendToHost",
+    );
+    const client = new RPCClient(runtimeClient, new RPCRouter(runtime));
+
+    try {
+      await expect(
+        runtimeClient.receive(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 10,
+            method: "stagehand.close",
+            params: {},
+          }),
+        ),
+      ).resolves.toBeUndefined();
+      expect(responses).toStrictEqual([{ jsonrpc: "2.0", id: 10, result: { closed: true } }]);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("waits for active Stagehand instance requests before closing", async () => {
+    let markRequestStarted!: () => void;
+    const requestStarted = new Promise<void>((resolve) => {
+      markRequestStarted = resolve;
+    });
+    let releaseRequest!: () => void;
+    const requestGate = new Promise<void>((resolve) => {
+      releaseRequest = resolve;
+    });
+    const responses: Array<Record<string, unknown>> = [];
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(payload: string): void {
+          responses.push(JSON.parse(payload) as Record<string, unknown>);
+        },
+      },
+      "sendToHost",
+    );
+    const runtime = createRuntime();
+    const router = new RPCRouter(runtime);
+    vi.spyOn(router.stagehandController, "act").mockImplementation(async () => {
+      markRequestStarted();
+      await requestGate;
+      const usage = {
+        inputTokens: 10,
+        outputTokens: 4,
+        reasoningTokens: 2,
+        cachedInputTokens: 3,
+        inferenceTimeMs: 100,
+      };
+      runtime.metrics.record("act", usage);
+      return {
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata: { cache: { status: "DISABLED" as const }, usage },
+      };
+    });
+    const client = new RPCClient(runtimeClient, router);
+
+    try {
+      const activeRequest = runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 11,
+          method: "stagehand.act",
+          params: { page_id: "page-1", instruction: "click the link" },
+        }),
+      );
+      await requestStarted;
+
+      let closeFinished = false;
+      const closeRequest = runtimeClient
+        .receive(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 12,
+            method: "stagehand.close",
+            params: {},
+          }),
+        )
+        .then(() => {
+          closeFinished = true;
+        });
+      await runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 13,
+          method: "stagehand.metrics",
+          params: {},
+        }),
+      );
+
+      expect(closeFinished).toBe(false);
+      expect(responses).toMatchObject([
+        {
+          id: 13,
+          error: { message: "Stagehand instance is closing" },
+        },
+      ]);
+
+      releaseRequest();
+      await Promise.all([activeRequest, closeRequest]);
+
+      expect(responses.map((response) => response.id)).toStrictEqual([13, 11, 12]);
+      expect(runtime.metrics.snapshot()).toMatchObject({
+        actPromptTokens: 0,
+        totalPromptTokens: 0,
+      });
+    } finally {
+      client.close();
+    }
+  });
+
+  it("disposes the Stagehand instance when the stagehand.close response cannot be delivered", async () => {
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(): void {
+          throw new Error("host transport closed");
+        },
+      },
+      "sendToHost",
+    );
+    const closeStagehand = vi.fn(async () => {});
+    const client = new RPCClient(runtimeClient, new RPCRouter(createRuntime(), { closeStagehand }));
+
+    try {
+      await expect(
+        runtimeClient.receive(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 10,
+            method: "stagehand.close",
+            params: {},
+          }),
+        ),
+      ).rejects.toThrow("host transport closed");
+      expect(closeStagehand).toHaveBeenCalledOnce();
+    } finally {
+      client.close();
     }
   });
 

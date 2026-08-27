@@ -117,6 +117,11 @@ class FakeWebSocket extends EventTarget {
     Object.defineProperty(event, "error", { value: error });
     this.dispatchEvent(event);
   }
+
+  closeFromRemote(): void {
+    this.readyState = 3;
+    this.dispatchEvent(new CloseEvent("close"));
+  }
 }
 
 describe("CDP WebSocket transport", () => {
@@ -136,16 +141,31 @@ describe("CDP WebSocket transport", () => {
     expect(createSocket).toHaveBeenCalledWith("wss://browser.example/devtools/browser/session");
   });
 
-  it("forwards socket errors that occur after connection", () => {
+  it("normalizes an Undici socket error before close as one connection-closed failure", async () => {
     const socket = new FakeWebSocket();
+    socket.open();
     const client = new CDPClient(socket as never, "wss://browser.example/devtools/browser/session");
     const onerror = vi.fn();
-    const error = new Error("socket reset");
+    const onclose = vi.fn();
+    const error = new TypeError();
     client.onerror = onerror;
+    client.onclose = onclose;
+
+    const command = client.sendCommand("Browser.getVersion");
 
     socket.fail(error);
+    socket.closeFromRemote();
 
-    expect(onerror).toHaveBeenCalledWith(error);
+    await expect(command).rejects.toMatchObject({
+      name: "CDPConnectionClosedError",
+      message: "CDP connection closed",
+      cause: error,
+    });
+    expect(onerror).toHaveBeenCalledOnce();
+    expect(onerror).toHaveBeenCalledWith(expect.any(CDPConnectionClosedError));
+    expect(onclose).not.toHaveBeenCalled();
+    expect(client.closed).toBe(true);
+    expect(socket.close).toHaveBeenCalledOnce();
   });
 
   it("discovers an installed extension before attaching to its ready worker", async () => {

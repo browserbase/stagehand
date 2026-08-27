@@ -450,6 +450,7 @@ class Stagehand:
 
     async def close(self) -> None:
         async def close_impl() -> None:
+            release_browser_claim = not self._initialized
             try:
                 if self._initialized and self._rpc_client is not None:
                     try:
@@ -458,10 +459,15 @@ class Stagehand:
                             EmptyParams(),
                             StagehandCloseResult,
                         )
+                        release_browser_claim = True
                     except CDPConnectionClosedError:
-                        pass
+                        release_browser_claim = True
             finally:
-                await asyncio.shield(self._release_resources())
+                try:
+                    await asyncio.shield(self._release_resources())
+                finally:
+                    if release_browser_claim:
+                        _release_browser(self._browser_handle)
 
         if self._close_task is None:
             self._close_task = asyncio.create_task(
