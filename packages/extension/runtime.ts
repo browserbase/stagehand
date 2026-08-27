@@ -149,6 +149,7 @@ export type UnderstudyRuntimePage = {
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
   addInitScript(source: string): Promise<void>;
+  enableCursorOverlay(): Promise<void>;
   setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
   setViewportSize(
     width: number,
@@ -743,6 +744,11 @@ export class StagehandRuntime {
     this.pagesById.delete(params.pageId);
     this.responseHandles.deleteForPage(params.pageId);
     return { closed: true };
+  }
+
+  async pageEnableCursorOverlay(params: PageIdParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).enableCursorOverlay();
+    return { ok: true };
   }
 
   pageOn(params: PageOnParams): PageVoidResult {

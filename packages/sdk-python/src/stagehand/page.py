@@ -385,6 +385,13 @@ class Page:
             PageVoidResult,
         )
 
+    async def enable_cursor_overlay(self) -> None:
+        await self._rpc_client.send(
+            "page.enable_cursor_overlay",
+            PageIdParams(page_id=self.page_id),
+            PageVoidResult,
+        )
+
     async def on(
         self,
         event: PageEventName,

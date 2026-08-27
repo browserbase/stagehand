@@ -55,6 +55,19 @@ RootResultT = TypeVar("RootResultT")
 
 
 @pytest.mark.asyncio
+async def test_page_enables_cursor_overlay() -> None:
+    recording = RecordingRPCClient({"page.enable_cursor_overlay": PageVoidResult(ok=True)})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.enable_cursor_overlay()
+
+    method, params, result_model = recording.calls[0]
+    assert method == "page.enable_cursor_overlay"
+    assert params == PageIdParams(page_id="page-1")
+    assert result_model is PageVoidResult
+
+
+@pytest.mark.asyncio
 async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_reference() -> None:
     recording = RecordingRPCClient({
         "page.goto": PageNavigationResult(

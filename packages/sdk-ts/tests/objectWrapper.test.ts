@@ -867,6 +867,18 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("enables the page cursor overlay", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageEnableCursorOverlay, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await page.enableCursorOverlay();
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageEnableCursorOverlay, { pageId: "page-1" }),
+    ]);
+  });
+
   it("routes page headers and viewport configuration", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageSetExtraHTTPHeaders, { ok: true });

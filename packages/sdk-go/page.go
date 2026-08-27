@@ -243,6 +243,13 @@ func (p *Page) AddInitScript(ctx context.Context, source string) error {
 	return p.rpc.call(ctx, "page.add_init_script", params, &result)
 }
 
+// EnableCursorOverlay renders the Stagehand cursor for coordinate-based interactions.
+func (p *Page) EnableCursorOverlay(ctx context.Context) error {
+	params := PageIDParams{PageID: p.PageID()}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.enable_cursor_overlay", params, &result)
+}
+
 // On subscribes to console events for this page and its OOPIF sessions.
 func (p *Page) On(
 	ctx context.Context,

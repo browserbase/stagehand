@@ -90,6 +90,11 @@ export function createPageController(runtime: StagehandRuntime) {
     return runtime.pageAddInitScript(params);
   }
 
+  async function enableCursorOverlay(params: PageIdParams, { logger }: HandlerContext) {
+    logger.debug("page.enable_cursor_overlay", {});
+    return runtime.pageEnableCursorOverlay(params);
+  }
+
   async function setExtraHTTPHeaders(
     params: PageSetExtraHTTPHeadersParams,
     { logger }: HandlerContext,
@@ -192,6 +197,7 @@ export function createPageController(runtime: StagehandRuntime) {
     keyPress,
     evaluate,
     addInitScript,
+    enableCursorOverlay,
     setExtraHTTPHeaders,
     setViewportSize,
     waitForLoadState,

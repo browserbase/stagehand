@@ -209,6 +209,12 @@ export class Page {
     });
   }
 
+  async enableCursorOverlay(): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageEnableCursorOverlay, {
+      pageId: this.pageId,
+    });
+  }
+
   async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
     const subscriptionId = crypto.randomUUID();
     const removeNotificationListener = this.rpcClient.onNotification((notification) => {

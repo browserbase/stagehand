@@ -216,6 +216,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   readonly keyPressCalls: Array<{ key: string; options?: PageKeyPressParams["options"] }> = [];
   readonly evaluateCalls: string[] = [];
   readonly addInitScriptCalls: string[] = [];
+  enableCursorOverlayCalls = 0;
   readonly setExtraHTTPHeadersCalls: Array<PageSetExtraHTTPHeadersParams["headers"]> = [];
   readonly setViewportSizeCalls: Array<{
     width: number;
@@ -347,6 +348,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 
   async addInitScript(source: PageAddInitScriptParams["source"]): Promise<void> {
     this.addInitScriptCalls.push(source);
+  }
+
+  async enableCursorOverlay(): Promise<void> {
+    this.enableCursorOverlayCalls += 1;
   }
 
   async setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void> {
@@ -1849,6 +1854,22 @@ describe("Stagehand worker clients", () => {
 
     expect(page.evaluateCalls).toStrictEqual(["({ camelCase: true })", "undefined"]);
     expect(page.addInitScriptCalls).toStrictEqual(["globalThis.ready = true"]);
+  });
+
+  it("routes cursor overlay enablement", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 240,
+        method: "page.enable_cursor_overlay",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 240, result: { ok: true } });
+
+    expect(page.enableCursorOverlayCalls).toBe(1);
   });
 
   it("routes page headers and viewport configuration", async () => {

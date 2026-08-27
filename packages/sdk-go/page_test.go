@@ -103,6 +103,25 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 	}
 }
 
+func TestPageEnableCursorOverlay(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.enable_cursor_overlay": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+
+	if err := page.EnableCursorOverlay(context.Background()); err != nil {
+		t.Fatalf("EnableCursorOverlay() error = %v", err)
+	}
+	if len(rpc.calls) != 1 || rpc.calls[0].method != "page.enable_cursor_overlay" {
+		t.Fatalf("EnableCursorOverlay() calls = %#v", rpc.calls)
+	}
+	if got := rpc.calls[0].params; !reflect.DeepEqual(got, PageIDParams{PageID: "page-1"}) {
+		t.Fatalf("EnableCursorOverlay() params = %#v", got)
+	}
+}
+
 func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 	t.Parallel()
 

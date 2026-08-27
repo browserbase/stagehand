@@ -328,6 +328,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageAddInitScript, request.params),
           context,
         );
+      case "page.enable_cursor_overlay":
+        return this.pageController.enableCursorOverlay(
+          parseParams(StagehandMethods.pageEnableCursorOverlay, request.params),
+          context,
+        );
       case "page.on":
         return this.pageController.on(
           parseParams(StagehandMethods.pageOn, request.params),

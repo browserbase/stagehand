@@ -330,6 +330,11 @@ export const StagehandMethods = {
     params: PageAddInitScriptParamsSchema,
     result: PageVoidResultSchema,
   },
+  pageEnableCursorOverlay: {
+    name: "page.enable_cursor_overlay",
+    params: PageIdParamsSchema,
+    result: PageVoidResultSchema,
+  },
   pageOn: {
     name: "page.on",
     params: PageOnParamsSchema,

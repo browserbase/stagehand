@@ -539,6 +539,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.enable_cursor_overlay": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.on": {
           "type": "object",
           "properties": {
@@ -1050,6 +1063,7 @@
         "page.key_press",
         "page.evaluate",
         "page.add_init_script",
+        "page.enable_cursor_overlay",
         "page.on",
         "page.off",
         "page.set_extra_http_headers",
@@ -6298,6 +6312,33 @@
             },
             "params": {
               "$ref": "#/$defs/PageAddInitScriptParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.enable_cursor_overlay"
+            },
+            "params": {
+              "$ref": "#/$defs/PageIdParams"
             },
             "traceparent": {
               "type": "string"
