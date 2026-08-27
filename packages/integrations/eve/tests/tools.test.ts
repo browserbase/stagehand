@@ -49,5 +49,6 @@ it("includes the canonical facade instructions and Eve close lifecycle", () => {
   const normalize = (text: string) => text.trim().replace(/\s+/g, " ");
 
   expect(normalize(file)).toContain(normalize(FACADE_AGENT_INSTRUCTIONS));
+  expect(normalize(file)).toContain("action `id` values omit the brackets");
   expect(file).toContain("await browser.close()");
 });
