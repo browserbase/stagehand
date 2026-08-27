@@ -19,6 +19,13 @@ export function harnessObservationsEnabled(): boolean {
   return (process.env[OBSERVATIONS_ENV] ?? "all") !== "none";
 }
 
+export function createObservationRecorder(
+  capture?: () => Promise<ProbeEvidence>,
+): ObservationRecorder | undefined {
+  if (!capture || !harnessObservationsEnabled()) return undefined;
+  return new ObservationRecorder(capture);
+}
+
 /**
  * Buffers per-step probe observations for an external-harness run. Each
  * record() consumes one run index (matching the harness's Nth run-tool
