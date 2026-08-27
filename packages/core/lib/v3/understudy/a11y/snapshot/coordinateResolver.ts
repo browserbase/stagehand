@@ -94,25 +94,53 @@ export async function resolveXpathForLocation(
           frameId = parentByFrame.get(frameId);
         }
 
+        let resolvedFramePath = false;
         if (frameId === curFrameId) {
+          resolvedFramePath = true;
           for (const childFrameId of framePath) {
             const parentFrameId = parentByFrame.get(childFrameId);
-            if (!parentFrameId) continue;
+            if (!parentFrameId) {
+              resolvedFramePath = false;
+              break;
+            }
             try {
               const parentSession = page.getSessionForFrame(parentFrameId);
               const { backendNodeId } = await parentSession.send<{
                 backendNodeId?: number;
               }>("DOM.getFrameOwner", { frameId: childFrameId });
-              if (typeof backendNodeId !== "number") continue;
+              if (typeof backendNodeId !== "number") {
+                resolvedFramePath = false;
+                break;
+              }
 
               chain.push({
                 parentSession,
                 iframeBackendNodeId: backendNodeId,
               });
             } catch {
-              //
+              resolvedFramePath = false;
+              break;
             }
           }
+        } else if (!parentByFrame.has(reportedFrameId)) {
+          try {
+            const { backendNodeId } = await curSession.send<{
+              backendNodeId?: number;
+            }>("DOM.getFrameOwner", { frameId: reportedFrameId });
+            if (typeof backendNodeId === "number") {
+              chain.push({
+                parentSession: curSession,
+                iframeBackendNodeId: backendNodeId,
+              });
+              resolvedFramePath = true;
+            }
+          } catch {
+            //
+          }
+        }
+
+        if (!resolvedFramePath) {
+          return null;
         }
 
         const leafSession = page.getSessionForFrame(reportedFrameId);
