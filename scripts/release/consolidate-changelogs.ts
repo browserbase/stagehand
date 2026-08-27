@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
 const rootChangelogPath = path.join(repositoryRoot, "CHANGELOG.md");
-const packageChangelogs = [
+export const packageChangelogs = [
   {
     label: "TypeScript SDK",
     path: path.join(repositoryRoot, "packages/sdk-ts/CHANGELOG.md"),

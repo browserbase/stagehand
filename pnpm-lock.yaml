@@ -290,8 +290,8 @@ catalogs:
       specifier: ^24
       version: 24.13.2
     ai:
-      specifier: ^7.0.16
-      version: 7.0.16
+      specifier: ^7.0.58
+      version: 7.0.79
     camelcase-keys:
       specifier: ^10.0.2
       version: 10.0.2
@@ -600,7 +600,7 @@ importers:
         version: 1.43.0
       ai:
         specifier: 'catalog:'
-        version: 7.0.16(zod@4.4.3)
+        version: 7.0.79(zod@4.4.3)
       devtools-protocol:
         specifier: 'catalog:'
         version: 0.0.1657692
@@ -798,7 +798,7 @@ importers:
         version: 24.13.2
       eve:
         specifier: 'catalog:'
-        version: 0.44.4(@opentelemetry/api@1.9.1)(ai@7.0.16(zod@4.4.3))(aws4fetch@1.0.20)(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.74)(zod@4.4.3))(dotenv@17.4.2)(jiti@2.7.0)(lru-cache@11.5.2)(vite@8.1.3(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(xml2js@0.6.2)
+        version: 0.44.4(@opentelemetry/api@1.9.1)(ai@7.0.79(zod@4.4.3))(aws4fetch@1.0.20)(braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.74)(zod@4.4.3))(dotenv@17.4.2)(jiti@2.7.0)(lru-cache@11.5.2)(vite@8.1.3(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(xml2js@0.6.2)
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -983,7 +983,7 @@ importers:
         version: link:../core
       ai:
         specifier: 'catalog:'
-        version: 7.0.16(zod@4.4.3)
+        version: 7.0.79(zod@4.4.3)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1129,8 +1129,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/gateway@4.0.12':
-    resolution: {integrity: sha512-Y7Fy8xJwPz7ZC0DhSQG3HIVk+drup42hrIj6yqKlib3CxwiR0F7nYyUI8+kPrEtbZEoyKoRstvT4/o0HEyFBHA==}
+  '@ai-sdk/gateway@4.0.64':
+    resolution: {integrity: sha512-iayK1z11I0b3sgbP3j6eKQypfpwO5Fbtaq1Mkwv7YxwGQG1YTNr5QAjyYsSfqyf/58WUOLWz2cTBpk+ExZVgpw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -3697,8 +3697,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  ai@7.0.16:
-    resolution: {integrity: sha512-OuA+uz6ZUVId+SVeB5bThi25Ofee/FmLvffAA368tlgqYCe2qAhqZUpfHL0dd9QC/iPiszdvCQYENJavSo/0gw==}
+  ai@7.0.79:
+    resolution: {integrity: sha512-zZkSUq6MgmXjwIfML2wkPFeQ5Azk8kGEWkciAtE0NgnFy3slj4ljsw5LvigsCbYXxTSVr+6iCHBTPZafpx1P0w==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -8435,10 +8435,10 @@ snapshots:
       '@vercel/oidc': 3.1.0
       zod: 4.4.3
 
-  '@ai-sdk/gateway@4.0.12(zod@4.4.3)':
+  '@ai-sdk/gateway@4.0.64(zod@4.4.3)':
     dependencies:
-      '@ai-sdk/provider': 4.0.2
-      '@ai-sdk/provider-utils': 5.0.5(zod@4.4.3)
+      '@ai-sdk/provider': 4.0.8
+      '@ai-sdk/provider-utils': 5.0.30(zod@4.4.3)
       '@vercel/oidc': 3.2.0
       zod: 4.4.3
 
@@ -11411,11 +11411,11 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       zod: 4.4.3
 
-  ai@7.0.16(zod@4.4.3):
+  ai@7.0.79(zod@4.4.3):
     dependencies:
-      '@ai-sdk/gateway': 4.0.12(zod@4.4.3)
-      '@ai-sdk/provider': 4.0.2
-      '@ai-sdk/provider-utils': 5.0.5(zod@4.4.3)
+      '@ai-sdk/gateway': 4.0.64(zod@4.4.3)
+      '@ai-sdk/provider': 4.0.8
+      '@ai-sdk/provider-utils': 5.0.30(zod@4.4.3)
       zod: 4.4.3
 
   ai@7.0.77(zod@4.4.3):
