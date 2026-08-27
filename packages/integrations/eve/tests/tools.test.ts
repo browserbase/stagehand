@@ -1,6 +1,6 @@
 import type { ToolContext } from "eve/tools";
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   CodeModeRunInputSchema,
@@ -15,8 +15,11 @@ import {
 import runTool from "../extension/tools/run.js";
 import screenshotTool from "../extension/tools/screenshot.js";
 import snapshotTool from "../extension/tools/snapshot.js";
+import { stagehandSession } from "../extension/lib/session.js";
 
 const fakeContext = {} as ToolContext;
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("Eve Stagehand facade tools", () => {
   it("uses the canonical facade descriptions", () => {
@@ -38,6 +41,23 @@ describe("Eve Stagehand facade tools", () => {
       runTool.execute({ code: "return 1;", actions: [{ op: "click", id: "1-1" }] }, fakeContext),
     ).rejects.toThrow();
     expect(CodeModeRunInputSchema.safeParse({ code: "return 1;" }).success).toBe(true);
+  });
+
+  it("validates snapshot input and delegates valid calls", async () => {
+    const snapshot = vi.fn(async () => "snapshot tree");
+    const run = vi
+      .spyOn(stagehandSession, "run")
+      .mockImplementation(async (operation) => operation({ tools: { snapshot } } as never));
+
+    await expect(snapshotTool.execute({ includeIframes: false }, fakeContext)).resolves.toBe(
+      "snapshot tree",
+    );
+    expect(snapshot).toHaveBeenCalledWith({ includeIframes: false });
+
+    await expect(
+      snapshotTool.execute({ includeIframes: "yes" } as never, fakeContext),
+    ).rejects.toThrow();
+    expect(run).toHaveBeenCalledOnce();
   });
 });
 

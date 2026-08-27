@@ -15,7 +15,7 @@ type RunEnvelope = {
   __stagehandPlaywrightCompat: true;
   value: unknown;
   closeRequested: boolean;
-  executionError?: { name: string; message: string; stack?: string };
+  executionError?: { name: string; message: string };
 };
 
 export type StagehandFacadeToolsOptions = {
@@ -26,6 +26,14 @@ export type StagehandFacadeScreenshot = {
   data: string;
   mimeType: "image/png" | "image/jpeg";
 };
+
+export class StagehandFacadeCleanupError extends Error {
+  override readonly name = "StagehandFacadeCleanupError";
+
+  constructor() {
+    super("Failed to close the Stagehand browser session.");
+  }
+}
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
   ...args: string[]
@@ -76,7 +84,6 @@ const FACADE_EPILOGUE = `
   executionError = {
     name: typeof error?.name === "string" ? error.name : "Error",
     message: typeof error?.message === "string" ? error.message : String(error),
-    ...(typeof error?.stack === "string" ? { stack: error.stack } : {}),
   };
 }
 return {
@@ -180,22 +187,22 @@ export class StagehandFacadeTools {
       {},
       { page, timeout: 60_000 },
     );
-    let closeError: unknown;
-    if (envelope.closeRequested && this.options.onCloseRequested) {
-      try {
-        await this.options.onCloseRequested();
-      } catch (error) {
-        closeError = error;
+    let closeError: StagehandFacadeCleanupError | undefined;
+    if (envelope.closeRequested) {
+      if (!this.options.onCloseRequested) {
+        closeError = new StagehandFacadeCleanupError();
+      } else {
+        try {
+          await this.options.onCloseRequested();
+        } catch {
+          closeError = new StagehandFacadeCleanupError();
+        }
       }
     }
     if (envelope.executionError) {
-      const error = new Error(envelope.executionError.message);
-      error.name = envelope.executionError.name;
-      if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
+      const error = executionErrorFromEnvelope(envelope.executionError);
       if (closeError) {
-        throw new AggregateError([error, closeError], "Run failed and cleanup also failed.", {
-          cause: error,
-        });
+        throw new AggregateError([error, closeError], "Run failed and cleanup also failed.");
       }
       throw error;
     }
@@ -221,4 +228,22 @@ export class StagehandFacadeTools {
 
 function trimTrailingTextNode(path: string | undefined): string | undefined {
   return path?.replace(/\/text\(\)(\[\d+\])?$/iu, "");
+}
+
+function executionErrorFromEnvelope(envelope: { name: string; message: string }): Error {
+  const error = new Error(sanitizeFacadeErrorMessage(envelope.message));
+  error.name = /^[A-Za-z][A-Za-z0-9]*Error$/u.test(envelope.name) ? envelope.name : "Error";
+  // The worker stack can contain browser internals or sensitive model-authored values.
+  // Keep the useful error category and sanitized message without transporting that stack.
+  error.stack = undefined;
+  return error;
+}
+
+export function sanitizeFacadeErrorMessage(message: string): string {
+  return message
+    .replace(/([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"']+/giu, "$1[redacted]")
+    .replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/gu, "$1[redacted]")
+    .replace(/\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+/gu, "$1[redacted]")
+    .replace(/\bAIza[0-9A-Za-z_-]{30,}/gu, "AIza[redacted]")
+    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/giu, "$1[redacted]");
 }
