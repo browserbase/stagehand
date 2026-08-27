@@ -86,11 +86,26 @@ export async function resolveXpathForLocation(
         reportedFrameId &&
         reportedFrameId !== curFrameId
       ) {
-        const abs = await buildAbsoluteXPathFromChain(
-          iframeChain,
-          curSession,
-          be,
-        );
+        const chain = [...iframeChain];
+        try {
+          const parentSession = parentByFrame.get(reportedFrameId)
+            ? page.getSessionForFrame(parentByFrame.get(reportedFrameId)!)
+            : curSession;
+          const { backendNodeId } = await parentSession.send<{
+            backendNodeId?: number;
+          }>("DOM.getFrameOwner", { frameId: reportedFrameId });
+          if (typeof backendNodeId === "number") {
+            chain.push({
+              parentSession,
+              iframeBackendNodeId: backendNodeId,
+            });
+          }
+        } catch {
+          //
+        }
+
+        const leafSession = page.getSessionForFrame(reportedFrameId);
+        const abs = await buildAbsoluteXPathFromChain(chain, leafSession, be);
         return abs
           ? { frameId: reportedFrameId, backendNodeId: be, absoluteXPath: abs }
           : null;
