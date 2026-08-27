@@ -197,20 +197,15 @@ describe("launchLocalChrome ignoreDefaultArgs", () => {
     expect(args.chromeFlags).toContain("--disable-extensions");
   });
 
-  it("allows users to disable the Stagehand --site-per-process default", async () => {
+  it("allows users to override the Stagehand SitePerProcess default", async () => {
     const args = await getLaunchArgs({
-      args: [
-        "--disable-features=site-per-process,IsolateOrigins",
-        "--renderer-process-limit=6",
-      ],
-      ignoreDefaultArgs: ["--site-per-process"],
+      args: ["--site-per-process", "--renderer-process-limit=6"],
+      ignoreDefaultArgs: ["--disable-features=SitePerProcess"],
     });
 
     expect(args.ignoreDefaultFlags).toBe(true);
-    expect(args.chromeFlags).not.toContain("--site-per-process");
-    expect(args.chromeFlags).toContain(
-      "--disable-features=site-per-process,IsolateOrigins",
-    );
+    expect(args.chromeFlags).not.toContain("--disable-features=SitePerProcess");
+    expect(args.chromeFlags).toContain("--site-per-process");
     expect(args.chromeFlags).toContain("--renderer-process-limit=6");
     expect(args.chromeFlags).toContain("--remote-allow-origins=*");
   });

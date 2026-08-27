@@ -86,11 +86,50 @@ export async function resolveXpathForLocation(
         reportedFrameId &&
         reportedFrameId !== curFrameId
       ) {
-        const abs = await buildAbsoluteXPathFromChain(
-          iframeChain,
-          curSession,
-          be,
-        );
+        const chain = [...iframeChain];
+        const framePath: string[] = [];
+        let frameId: string | null | undefined = reportedFrameId;
+        while (frameId && frameId !== curFrameId) {
+          framePath.unshift(frameId);
+          frameId = parentByFrame.get(frameId);
+        }
+
+        let resolvedFramePath = false;
+        if (frameId === curFrameId) {
+          resolvedFramePath = true;
+          for (const childFrameId of framePath) {
+            const parentFrameId = parentByFrame.get(childFrameId);
+            if (!parentFrameId) {
+              resolvedFramePath = false;
+              break;
+            }
+            try {
+              const parentSession = page.getSessionForFrame(parentFrameId);
+              const { backendNodeId } = await parentSession.send<{
+                backendNodeId?: number;
+              }>("DOM.getFrameOwner", { frameId: childFrameId });
+              if (typeof backendNodeId !== "number") {
+                resolvedFramePath = false;
+                break;
+              }
+
+              chain.push({
+                parentSession,
+                iframeBackendNodeId: backendNodeId,
+              });
+            } catch {
+              resolvedFramePath = false;
+              break;
+            }
+          }
+        }
+
+        if (!resolvedFramePath) {
+          return null;
+        }
+
+        const leafSession = page.getSessionForFrame(reportedFrameId);
+        const abs = await buildAbsoluteXPathFromChain(chain, leafSession, be);
         return abs
           ? { frameId: reportedFrameId, backendNodeId: be, absoluteXPath: abs }
           : null;
