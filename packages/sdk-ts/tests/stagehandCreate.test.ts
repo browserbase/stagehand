@@ -26,6 +26,7 @@ class FakeCDPClient {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   close = vi.fn();
+  sendCommand = vi.fn(async () => ({}));
   initError: Error | undefined;
   respondToInit = true;
   readonly requests: JSONRPCMessage[] = [];
@@ -151,6 +152,26 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
+  it("makes context close an alias for browser close", async () => {
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const stagehand = await Stagehand.create({ browser });
+    const context = browser.context;
+
+    await Promise.all([context.close(), browser.close(), context.close()]);
+
+    expect(browser.closed).toBe(true);
+    expect(cdp.sendCommand).toHaveBeenCalledOnce();
+    expect(cdp.sendCommand).toHaveBeenCalledWith("Browser.close");
+    expect(cdp.close).toHaveBeenCalledOnce();
+    expect(cdp.requestsFor("context.close")).toHaveLength(0);
+
+    await stagehand.close();
+  });
+
   it("retains the browser claim when the worker rejects close", async () => {
     const cdp = new FakeCDPClient();
     cdp.responses.set("stagehand.close", new Error("worker close failed"));
@@ -176,9 +197,11 @@ describe("Stagehand.create", () => {
       connectCdp: async () => cdp as unknown as CDPClient,
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const closeBrowser = vi.spyOn(browser, "close");
 
     await expect(Stagehand.create({ browser })).rejects.toThrow();
     expect(browser.closed).toBe(true);
+    expect(closeBrowser).not.toHaveBeenCalled();
     expect(cdp.close).toHaveBeenCalledOnce();
     await expect(Stagehand.create({ browser })).rejects.toThrow(
       "Cannot attach Stagehand to a closed browser",

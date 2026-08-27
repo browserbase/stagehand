@@ -533,6 +533,55 @@ func TestCreateFailureAndSuccessfulCloseReleaseClaim(t *testing.T) {
 	}
 }
 
+func TestBrowserContextCloseAliasesBrowserClose(t *testing.T) {
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init": StagehandInitResult{Initialized: true},
+	}}
+	terminationCalls := 0
+	browser := &Browser{
+		terminateSource: func(context.Context) error {
+			terminationCalls++
+			return nil
+		},
+	}
+	client, err := createWithAdapters(
+		context.Background(),
+		CreateOptions{Browser: browser},
+		clientAdapters{connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+			return rpc, nil
+		}},
+	)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	browserContext, err := browser.Context()
+	if err != nil {
+		t.Fatalf("Browser.Context() error = %v", err)
+	}
+
+	results := make(chan error, 3)
+	go func() { results <- browserContext.Close(context.Background()) }()
+	go func() { results <- browser.Close(context.Background()) }()
+	go func() { results <- browserContext.Close(context.Background()) }()
+	for range 3 {
+		if err := <-results; err != nil {
+			t.Fatalf("close error = %v", err)
+		}
+	}
+
+	if !browser.Closed() || terminationCalls != 1 {
+		t.Fatalf("browser closed = %t, termination calls = %d", browser.Closed(), terminationCalls)
+	}
+	for _, call := range rpc.calls {
+		if call.method == "context.close" {
+			t.Fatal("BrowserContext.Close() sent context.close RPC")
+		}
+	}
+	if client.Browser() != browser {
+		t.Fatal("Stagehand browser changed after context close")
+	}
+}
+
 func TestCreateBoundsInitializationAndFailsClosedOnCancellation(t *testing.T) {
 	t.Run("internal deadline", func(t *testing.T) {
 		browser := &Browser{}
