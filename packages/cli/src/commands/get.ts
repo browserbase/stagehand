@@ -1,7 +1,10 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
+import {
+  driverCommandFlags,
+  runDriverCommandFromFlags,
+} from "../lib/driver/command-cli.js";
 
 const GET_TYPES = [
   "url",
@@ -16,7 +19,8 @@ const GET_TYPES = [
 ];
 
 export default class Get extends BrowseCommand {
-  static override description = "Read page data or element state from the active browser page.";
+  static override description =
+    "Read page data or element state from the active browser page.";
 
   static override examples = [
     "browse get url",
@@ -45,6 +49,10 @@ export default class Get extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(Get);
-    await runDriverCommandFromFlags("get", { selector: args.selector, what: args.what }, flags);
+    await runDriverCommandFromFlags(
+      "get",
+      { selector: args.selector, what: args.what },
+      flags,
+    );
   }
 }

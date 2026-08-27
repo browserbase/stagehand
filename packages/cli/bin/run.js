@@ -10,12 +10,15 @@ import { config as loadDotenvConfig } from "dotenv";
 // the implicit default get a heads-up before the default changes.
 const dotenvToggle = process.env.BROWSE_LOAD_DOTENV;
 const dotenvOptedOut =
-  dotenvToggle !== undefined && ["0", "false", "no"].includes(dotenvToggle.toLowerCase());
+  dotenvToggle !== undefined &&
+  ["0", "false", "no"].includes(dotenvToggle.toLowerCase());
 
 if (!dotenvOptedOut) {
   const keysBeforeLoad = new Set(Object.keys(process.env));
   const { parsed } = loadDotenvConfig();
-  const appliedFromDotenv = Object.keys(parsed ?? {}).filter((key) => !keysBeforeLoad.has(key));
+  const appliedFromDotenv = Object.keys(parsed ?? {}).filter(
+    (key) => !keysBeforeLoad.has(key),
+  );
 
   if (appliedFromDotenv.length > 0 && dotenvToggle === undefined) {
     console.error(

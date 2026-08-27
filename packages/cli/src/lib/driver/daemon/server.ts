@@ -11,7 +11,11 @@ import {
   getSocketPath,
   writePrivateFile,
 } from "./paths.js";
-import { parseRequest, serializeResponse, type DriverRequest } from "./protocol.js";
+import {
+  parseRequest,
+  serializeResponse,
+  type DriverRequest,
+} from "./protocol.js";
 
 interface RunDriverDaemonOptions {
   session: string;
@@ -20,7 +24,10 @@ interface RunDriverDaemonOptions {
 
 type ShutdownDaemon = () => Promise<void>;
 
-export async function runDriverDaemon({ session, target }: RunDriverDaemonOptions): Promise<void> {
+export async function runDriverDaemon({
+  session,
+  target,
+}: RunDriverDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
   await cleanupDaemonFiles(session, { includeLock: false });
   await writePrivateFile(getPidPath(session), String(process.pid));
@@ -218,7 +225,9 @@ function formatError(error: unknown): {
     return {
       code: error.code,
       error: message,
-      ...(error.httpStatus !== undefined ? { httpStatus: error.httpStatus } : {}),
+      ...(error.httpStatus !== undefined
+        ? { httpStatus: error.httpStatus }
+        : {}),
     };
   }
   return { error: message };

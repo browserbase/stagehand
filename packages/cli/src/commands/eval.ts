@@ -1,10 +1,14 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
+import {
+  driverCommandFlags,
+  runDriverCommandFromFlags,
+} from "../lib/driver/command-cli.js";
 
 export default class Eval extends BrowseCommand {
-  static override description = "Evaluate JavaScript in the active browser page.";
+  static override description =
+    "Evaluate JavaScript in the active browser page.";
 
   static override examples = [
     "browse eval 'document.title'",
@@ -25,6 +29,10 @@ export default class Eval extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(Eval);
-    await runDriverCommandFromFlags("eval", { expression: args.expression }, flags);
+    await runDriverCommandFromFlags(
+      "eval",
+      { expression: args.expression },
+      flags,
+    );
   }
 }

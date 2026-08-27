@@ -18,9 +18,11 @@ export default class SkillsShow extends BrowseCommand {
     try {
       contents = await readFile(skillMdPath, "utf8");
     } catch (error) {
-      fail(`Could not read the bundled browse skill (SKILL.md): ${(error as Error).message}`, 1, {
-        resultCode: "skill_show_missing",
-      });
+      fail(
+        `Could not read the bundled browse skill (SKILL.md): ${(error as Error).message}`,
+        1,
+        { resultCode: "skill_show_missing" },
+      );
     }
 
     this.log(contents);

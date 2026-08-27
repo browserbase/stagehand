@@ -1,10 +1,14 @@
 import { Args, Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
+import {
+  driverCommandFlags,
+  runDriverCommandFromFlags,
+} from "../lib/driver/command-cli.js";
 
 export default class TypeText extends BrowseCommand {
-  static override description = "Type text into the active page at the current focus.";
+  static override description =
+    "Type text into the active page at the current focus.";
 
   static override examples = [
     "browse type 'hello world'",
@@ -26,7 +30,8 @@ export default class TypeText extends BrowseCommand {
       helpValue: "<ms>",
     }),
     mistakes: Flags.boolean({
-      description: "Allow human-like typing mistakes when supported by the browser driver.",
+      description:
+        "Allow human-like typing mistakes when supported by the browser driver.",
     }),
   };
 

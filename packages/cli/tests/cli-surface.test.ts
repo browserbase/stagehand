@@ -85,7 +85,9 @@ describe("CLI surface", () => {
     const result = await runCli(["cloud", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("$ browse cloud");
-    expect(result.stdout).toContain("Manage Browserbase cloud resources and APIs.");
+    expect(result.stdout).toContain(
+      "Manage Browserbase cloud resources and APIs.",
+    );
   });
 
   it("prints cloud topic help when invoked without a subcommand", async () => {
@@ -96,13 +98,16 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("cloud sessions");
   });
 
-  it.each(cloudCommandsWithExamples)("prints descriptive help for %j", async (...command) => {
-    const result = await runCli([...command, "--help"]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("DESCRIPTION");
-    expect(result.stdout).toContain("FLAGS");
-    expect(result.stdout).toContain("EXAMPLES");
-  });
+  it.each(cloudCommandsWithExamples)(
+    "prints descriptive help for %j",
+    async (...command) => {
+      const result = await runCli([...command, "--help"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("DESCRIPTION");
+      expect(result.stdout).toContain("FLAGS");
+      expect(result.stdout).toContain("EXAMPLES");
+    },
+  );
 
   it("shows --verified and hides --advanced-stealth for sessions create", async () => {
     const result = await runCli(["cloud", "sessions", "create", "--help"]);
@@ -120,13 +125,16 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("functions publish");
   });
 
-  it.each(functionsCommandsWithExamples)("prints descriptive help for %j", async (...command) => {
-    const result = await runCli([...command, "--help"]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("DESCRIPTION");
-    expect(result.stdout).toContain("FLAGS");
-    expect(result.stdout).toContain("EXAMPLES");
-  });
+  it.each(functionsCommandsWithExamples)(
+    "prints descriptive help for %j",
+    async (...command) => {
+      const result = await runCli([...command, "--help"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("DESCRIPTION");
+      expect(result.stdout).toContain("FLAGS");
+      expect(result.stdout).toContain("EXAMPLES");
+    },
+  );
 
   it("prints templates topic help", async () => {
     const result = await runCli(["templates"]);
@@ -136,13 +144,16 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("templates clone");
   });
 
-  it.each(templatesCommandsWithExamples)("prints descriptive help for %j", async (...command) => {
-    const result = await runCli([...command, "--help"]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("DESCRIPTION");
-    expect(result.stdout).toContain("FLAGS");
-    expect(result.stdout).toContain("EXAMPLES");
-  });
+  it.each(templatesCommandsWithExamples)(
+    "prints descriptive help for %j",
+    async (...command) => {
+      const result = await runCli([...command, "--help"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("DESCRIPTION");
+      expect(result.stdout).toContain("FLAGS");
+      expect(result.stdout).toContain("EXAMPLES");
+    },
+  );
 
   it("prints skills topic help", async () => {
     const result = await runCli(["skills"]);
@@ -155,10 +166,13 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("skills show");
   });
 
-  it.each(skillsCommandsWithExamples)("prints descriptive help for %j", async (...command) => {
-    const result = await runCli([...command, "--help"]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain("DESCRIPTION");
-    expect(result.stdout).toContain("EXAMPLES");
-  });
+  it.each(skillsCommandsWithExamples)(
+    "prints descriptive help for %j",
+    async (...command) => {
+      const result = await runCli([...command, "--help"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain("DESCRIPTION");
+      expect(result.stdout).toContain("EXAMPLES");
+    },
+  );
 });

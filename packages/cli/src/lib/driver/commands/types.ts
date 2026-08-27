@@ -44,4 +44,6 @@ export type DriverCommandHandler = (
   params: unknown,
 ) => Promise<unknown>;
 
-export type DriverCommandHandlers = Partial<Record<DriverCommandName, DriverCommandHandler>>;
+export type DriverCommandHandlers = Partial<
+  Record<DriverCommandName, DriverCommandHandler>
+>;

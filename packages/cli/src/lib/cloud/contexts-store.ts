@@ -24,7 +24,8 @@ const MAX_NAME_LENGTH = 64;
 const NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 // Browserbase context ids are UUIDs. A name must not be UUID-shaped, otherwise a
 // saved alias could shadow a real id and break raw-id passthrough in resolution.
-const CONTEXT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CONTEXT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ContextAlias {
   id: string;
@@ -56,7 +57,9 @@ export function contextNameRequirement(): string {
   return `Context names must be 1-${MAX_NAME_LENGTH} characters, start with a letter or number, contain only letters, numbers, dots, dashes, or underscores, and not look like a context ID.`;
 }
 
-export function contextsStorePath(env: NodeJS.ProcessEnv = process.env): string {
+export function contextsStorePath(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
   return join(resolveConfigDir(env), "contexts.json");
 }
 
@@ -69,7 +72,9 @@ function emptyStore(): ContextsStoreFile {
   };
 }
 
-async function readStore(env: NodeJS.ProcessEnv = process.env): Promise<ContextsStoreFile> {
+async function readStore(
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<ContextsStoreFile> {
   let raw: string;
   try {
     raw = await readFile(contextsStorePath(env), "utf8");
@@ -264,7 +269,11 @@ export async function resolveContextRefDetailed(
  * hints. The threshold scales with name length so short names aren't matched too
  * loosely.
  */
-export function closeContextNameMatches(ref: string, names: string[], limit = 3): string[] {
+export function closeContextNameMatches(
+  ref: string,
+  names: string[],
+  limit = 3,
+): string[] {
   return names
     .map((name) => ({ name, d: distance(ref, name) }))
     .filter(({ name, d }) => d <= Math.max(2, Math.floor(name.length / 3)))

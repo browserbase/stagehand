@@ -6,7 +6,8 @@ import { initFunctionsProject } from "../../lib/functions/init.js";
 const packageManagers = ["npm", "pnpm"] as const;
 
 export default class FunctionsInit extends BrowseCommand {
-  static override description = "Initialize a new Browserbase Functions project.";
+  static override description =
+    "Initialize a new Browserbase Functions project.";
 
   static override examples = [
     "browse functions init my-function",

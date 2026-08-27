@@ -4,7 +4,8 @@ import { BrowseCommand } from "../base.js";
 import { DEFAULT_CDP_DOMAINS, tailCdp } from "../lib/driver/cdp-tail.js";
 
 export default class Cdp extends BrowseCommand {
-  static override description = "Attach to a CDP endpoint and stream DevTools protocol events.";
+  static override description =
+    "Attach to a CDP endpoint and stream DevTools protocol events.";
 
   static override examples = [
     "browse cdp 9222",
@@ -27,7 +28,8 @@ export default class Cdp extends BrowseCommand {
       multiple: true,
     }),
     pretty: Flags.boolean({
-      description: "Print compact human-readable event lines instead of NDJSON.",
+      description:
+        "Print compact human-readable event lines instead of NDJSON.",
     }),
   };
 

@@ -6,7 +6,10 @@ import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { runCli } from "./helpers/run-cli.js";
-import { maybeAutoUpdateCli, refreshUpdateCheckCache } from "../src/lib/update.js";
+import {
+  maybeAutoUpdateCli,
+  refreshUpdateCheckCache,
+} from "../src/lib/update.js";
 
 const require = createRequire(import.meta.url);
 const { version: cliVersion } = require("../package.json") as {
@@ -48,7 +51,9 @@ describe("CLI auto-update", () => {
       browserConnected: false,
       session: "default",
     });
-    expect(result.stderr).toContain(`Update available: ${cliVersion} -> 99.0.0.`);
+    expect(result.stderr).toContain(
+      `Update available: ${cliVersion} -> 99.0.0.`,
+    );
     expect(result.stderr).toContain("Run:\n  npm i -g browse@latest");
   });
 
@@ -60,7 +65,9 @@ describe("CLI auto-update", () => {
       version: "1.0.0-beta.B",
     });
 
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const stderrSpy = vi
+      .spyOn(process.stderr, "write")
+      .mockImplementation(() => true);
 
     try {
       await maybeAutoUpdateCli("1.0.0-beta.b", {

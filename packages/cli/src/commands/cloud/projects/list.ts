@@ -1,4 +1,8 @@
-import { createBrowserbaseClient, outputJson, withBrowserbaseApi } from "../../../lib/cloud/api.js";
+import {
+  createBrowserbaseClient,
+  outputJson,
+  withBrowserbaseApi,
+} from "../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 import {
@@ -19,7 +23,10 @@ interface BrowserbaseProject {
 
 export default class ProjectsList extends BrowseCommand {
   static override description = "List projects visible to the current API key.";
-  static override examples = ["browse cloud projects list", "browse cloud projects list --json"];
+  static override examples = [
+    "browse cloud projects list",
+    "browse cloud projects list --json",
+  ];
   static override flags = { ...apiCommonFlags, ...outputFormatFlags };
 
   async run(): Promise<void> {
@@ -37,7 +44,10 @@ export default class ProjectsList extends BrowseCommand {
   }
 }
 
-function outputProjectsTable(projects: BrowserbaseProject[], options: { wide?: boolean }): void {
+function outputProjectsTable(
+  projects: BrowserbaseProject[],
+  options: { wide?: boolean },
+): void {
   if (projects.length === 0) {
     console.log("No projects found.");
     return;

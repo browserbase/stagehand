@@ -60,50 +60,61 @@ describe("skills install", () => {
     expect(shouldUseWindowsShell("C:\\npm\\npx.exe", "win32")).toBe(false);
   });
 
-  itPosix("fails with a timeout message when the npx child hangs past the deadline", async () => {
-    const stubDir = await createTempDir("browse-skills-timeout-bin-");
-    await writeSleepingNpxStub(stubDir);
+  itPosix(
+    "fails with a timeout message when the npx child hangs past the deadline",
+    async () => {
+      const stubDir = await createTempDir("browse-skills-timeout-bin-");
+      await writeSleepingNpxStub(stubDir);
 
-    const result = await runCli(["skills", "install"], {
-      env: {
-        PATH: stubDir,
-        BROWSE_SKILLS_INSTALL_TIMEOUT_MS: "1000",
-      },
-    });
+      const result = await runCli(["skills", "install"], {
+        env: {
+          PATH: stubDir,
+          BROWSE_SKILLS_INSTALL_TIMEOUT_MS: "1000",
+        },
+      });
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Skill install timed out after 1s");
-  });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("Skill install timed out after 1s");
+    },
+  );
 
-  itPosix("falls back to the GitHub installer when the catalog fetch hangs", async () => {
-    const stubDir = await createTempDir("browse-skills-hang-bin-");
-    const logPath = join(stubDir, "npx.log");
-    await writeNpxStub(stubDir);
-    const { server, baseUrl } = await startHangingServer();
-    cleanupServers.push(server);
+  itPosix(
+    "falls back to the GitHub installer when the catalog fetch hangs",
+    async () => {
+      const stubDir = await createTempDir("browse-skills-hang-bin-");
+      const logPath = join(stubDir, "npx.log");
+      await writeNpxStub(stubDir);
+      const { server, baseUrl } = await startHangingServer();
+      cleanupServers.push(server);
 
-    const result = await runCli(["skills", "add", "airline.example/book-flight-ab12cd"], {
-      env: {
-        BB_STUB_LOG: logPath,
-        BROWSE_SKILLS_API_BASE_URL: baseUrl,
-        BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
-        BROWSE_SKILLS_FETCH_TIMEOUT_MS: "500",
-        PATH: stubDir,
-      },
-    });
+      const result = await runCli(
+        ["skills", "add", "airline.example/book-flight-ab12cd"],
+        {
+          env: {
+            BB_STUB_LOG: logPath,
+            BROWSE_SKILLS_API_BASE_URL: baseUrl,
+            BROWSE_SKILLS_BLOB_BASE_URL: baseUrl,
+            BROWSE_SKILLS_FETCH_TIMEOUT_MS: "500",
+            PATH: stubDir,
+          },
+        },
+      );
 
-    expect(result.exitCode).toBe(0);
-    await expect(readFile(logPath, "utf8")).resolves.toContain(
-      "--yes skills add browserbase/browse.sh --skill airline.example/book-flight-ab12cd",
-    );
-  });
+      expect(result.exitCode).toBe(0);
+      await expect(readFile(logPath, "utf8")).resolves.toContain(
+        "--yes skills add browserbase/browse.sh --skill airline.example/book-flight-ab12cd",
+      );
+    },
+  );
 });
 
 describe("quoteForCmdShell", () => {
   it("leaves plain tokens untouched", () => {
     expect(quoteForCmdShell("npx")).toBe("npx");
     expect(quoteForCmdShell("--yes")).toBe("--yes");
-    expect(quoteForCmdShell("browserbase/browse.sh")).toBe("browserbase/browse.sh");
+    expect(quoteForCmdShell("browserbase/browse.sh")).toBe(
+      "browserbase/browse.sh",
+    );
     expect(quoteForCmdShell("C:\\nodejs\\npx.cmd")).toBe("C:\\nodejs\\npx.cmd");
   });
 
@@ -114,9 +125,9 @@ describe("quoteForCmdShell", () => {
   });
 
   it("quotes install paths with spaces", () => {
-    expect(quoteForCmdShell("C:\\Users\\First Last\\.config\\browserbase\\skill")).toBe(
-      '"C:\\Users\\First Last\\.config\\browserbase\\skill"',
-    );
+    expect(
+      quoteForCmdShell("C:\\Users\\First Last\\.config\\browserbase\\skill"),
+    ).toBe('"C:\\Users\\First Last\\.config\\browserbase\\skill"');
   });
 
   it("doubles embedded quotes", () => {
@@ -173,7 +184,11 @@ describe("spawnPassthrough", () => {
   });
 
   it("does not flag fast children as timed out", async () => {
-    const result = await spawnPassthrough(process.execPath, ["-e", "process.exit(0);"], 30_000);
+    const result = await spawnPassthrough(
+      process.execPath,
+      ["-e", "process.exit(0);"],
+      30_000,
+    );
 
     expect(result.timedOut).toBe(false);
     expect(result.exitCode).toBe(0);
@@ -190,7 +205,9 @@ async function writeNpxStub(stubDir: string): Promise<void> {
   const stubPath = join(stubDir, "npx");
   await writeFile(
     stubPath,
-    ["#!/bin/sh", 'printf \'%s\\n\' "$*" >> "$BB_STUB_LOG"', "exit 0", ""].join("\n"),
+    ["#!/bin/sh", 'printf \'%s\\n\' "$*" >> "$BB_STUB_LOG"', "exit 0", ""].join(
+      "\n",
+    ),
   );
   await chmod(stubPath, 0o755);
 }
@@ -198,7 +215,10 @@ async function writeNpxStub(stubDir: string): Promise<void> {
 async function writeSleepingNpxStub(stubDir: string): Promise<void> {
   const stubPath = join(stubDir, "npx");
   // PATH is stripped to the stub dir in these tests, so use an absolute path.
-  await writeFile(stubPath, ["#!/bin/sh", "exec /bin/sleep 600", ""].join("\n"));
+  await writeFile(
+    stubPath,
+    ["#!/bin/sh", "exec /bin/sleep 600", ""].join("\n"),
+  );
   await chmod(stubPath, 0o755);
 }
 

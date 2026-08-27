@@ -11,7 +11,9 @@ import { BrowseCommand } from "../../../../base.js";
 
 export default class SessionsUploadsCreate extends BrowseCommand {
   static override description = "Upload a file to a Browserbase session.";
-  static override examples = ["browse cloud sessions uploads create <session-id> ./file.pdf"];
+  static override examples = [
+    "browse cloud sessions uploads create <session-id> ./file.pdf",
+  ];
 
   static override args = {
     id: Args.string({ required: true, description: "Session ID." }),

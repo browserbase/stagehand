@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import type { DriverCommandHandlers } from "./types.js";
 
-const LoadStateSchema = z.enum(["load", "domcontentloaded", "networkidle"]).optional();
+const LoadStateSchema = z
+  .enum(["load", "domcontentloaded", "networkidle"])
+  .optional();
 const NavigationOptionsSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
   waitUntil: LoadStateSchema,
