@@ -122,12 +122,26 @@ describe("Browserbase Eve web tools", () => {
       format: "markdown",
       schema: { type: "object" },
     });
+    const missingTopLevelType = await browserbaseWebFetchInputSchema["~standard"].validate({
+      url: "https://example.com",
+      format: "json",
+      schema: { properties: { title: { type: "string" } } },
+    });
+    const structured = await browserbaseWebFetchInputSchema["~standard"].validate({
+      url: "https://example.com",
+      format: "json",
+      schema: { type: "object", properties: { title: { type: "string" } } },
+    });
     const valid = await browserbaseWebFetchInputSchema["~standard"].validate({
       url: "https://example.com",
     });
 
     expect("issues" in missingSchema).toBe(true);
     expect("issues" in misplacedSchema).toBe(true);
+    expect(missingTopLevelType).toMatchObject({
+      issues: [{ message: "schema.type must declare a top-level JSON Schema type." }],
+    });
+    expect("issues" in structured).toBe(false);
     expect(valid).toMatchObject({
       value: {
         url: "https://example.com",

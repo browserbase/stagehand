@@ -7,7 +7,7 @@ const jsonSchema = z
   .record(z.string(), z.unknown())
   .optional()
   .describe(
-    "A JSON Schema for structured extraction. Required with the json format and invalid with other formats.",
+    'A JSON Schema for structured extraction. It must declare a top-level type such as "object" or "array". Required with the json format and invalid with other formats.',
   );
 
 export const browserbaseWebFetchInputSchema = z
@@ -31,6 +31,17 @@ export const browserbaseWebFetchInputSchema = z
   .superRefine(({ format, schema }, context) => {
     if (format === "json" && !schema) {
       context.addIssue({ code: "custom", message: "schema is required when format is json." });
+    }
+    if (
+      format === "json" &&
+      schema &&
+      (typeof schema.type !== "string" || schema.type.length === 0)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "schema.type must declare a top-level JSON Schema type.",
+        path: ["schema", "type"],
+      });
     }
     if (format !== "json" && schema) {
       context.addIssue({ code: "custom", message: "schema can only be used when format is json." });
