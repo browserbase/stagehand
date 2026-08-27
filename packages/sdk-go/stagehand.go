@@ -300,11 +300,15 @@ func (s *Stagehand) Close(ctx context.Context) error {
 	}
 
 	var closeErr error
+	shouldReleaseBrowserClaim := !s.initialized
 	if s.initialized && s.rpc != nil {
 		var result StagehandCloseResult
 		closeErr = s.rpc.call(ctx, "stagehand.close", EmptyParams{}, &result)
 		if errors.Is(closeErr, ErrCDPConnectionClosed) {
 			closeErr = nil
+			shouldReleaseBrowserClaim = true
+		} else if closeErr == nil {
+			shouldReleaseBrowserClaim = true
 		}
 	}
 	if s.removeLLMHandler != nil {
@@ -321,6 +325,9 @@ func (s *Stagehand) Close(ctx context.Context) error {
 		s.rpc = nil
 	}
 	detachBrowserContext(s.browser)
+	if shouldReleaseBrowserClaim {
+		releaseBrowserClaim(s.browser)
+	}
 	s.initialized = false
 	s.closed = true
 	s.closeResult = errors.Join(closeErr, rpcErr)
