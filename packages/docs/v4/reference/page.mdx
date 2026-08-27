@@ -389,6 +389,18 @@ await page.addInitScript(() => {
   Resolves after the operation completes.
 </ResponseField>
 
+## enableCursorOverlay()
+
+Show the Stagehand cursor overlay used for coordinate-based interactions.
+
+```typescript
+await page.enableCursorOverlay();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the overlay is enabled.
+</ResponseField>
+
 ## setExtraHTTPHeaders()
 
 Set additional HTTP headers for this page.
@@ -1062,6 +1074,18 @@ await page.add_init_script("window.localStorage.clear()")
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
+</ResponseField>
+
+## enable_cursor_overlay()
+
+Show the Stagehand cursor overlay used for coordinate-based interactions.
+
+```python
+await page.enable_cursor_overlay()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the overlay is enabled.
 </ResponseField>
 
 ## set_extra_http_headers()
@@ -1776,6 +1800,20 @@ if err := page.AddInitScript(ctx, "window.localStorage.clear()"); err != nil {
 
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
+</ResponseField>
+
+## EnableCursorOverlay()
+
+Show the Stagehand cursor overlay used for coordinate-based interactions.
+
+```go
+if err := page.EnableCursorOverlay(ctx); err != nil {
+    return err
+}
+```
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the overlay is enabled.
 </ResponseField>
 
 ## SetExtraHTTPHeaders()
