@@ -121,16 +121,27 @@ they are deleted out of band. Sessions reached through `browserbase.connect()` a
 The same `browserbase` facade exposes Browserbase Search and Fetch without launching a browser:
 
 ```python
-results = await browserbase.search(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    query="browser agent frameworks",
-    num_results=5,
-)
-page = await browserbase.fetch(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    url=results.results[0].url,
-    format="markdown",
-)
+import asyncio
+import os
+
+from stagehand import browserbase
+
+
+async def search_and_fetch() -> None:
+    results = await browserbase.search(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        query="browser agent frameworks",
+        num_results=5,
+    )
+    fetched = await browserbase.fetch(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        url=results.results[0].url,
+        format="markdown",
+    )
+    print(fetched.content)
+
+
+asyncio.run(search_and_fetch())
 ```
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by

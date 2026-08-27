@@ -6,7 +6,17 @@ describe("Browserbase services client", () => {
     const searchWeb = vi.fn(async () => ({
       query: "browser agents",
       requestId: "request_123",
-      results: [{ id: "result_123", title: "Stagehand", url: "https://stagehand.dev" }],
+      results: [
+        {
+          id: "result_123",
+          title: "Stagehand",
+          url: "https://stagehand.dev",
+          author: null,
+          favicon: null,
+          image: null,
+          publishedDate: null,
+        },
+      ],
     }));
     const fetchCreate = vi.fn(async () => ({
       id: "fetch_123",
@@ -28,6 +38,7 @@ describe("Browserbase services client", () => {
 
     await expect(client.search({ query: "browser agents", numResults: 5 })).resolves.toMatchObject({
       requestId: "request_123",
+      results: [{ author: null, publishedDate: null }],
     });
     await expect(
       client.fetch({ url: "https://stagehand.dev", format: "markdown" }),

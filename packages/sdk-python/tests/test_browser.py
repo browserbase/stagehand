@@ -808,6 +808,14 @@ async def test_browserbase_search_and_fetch_delegate(
     ) == cast(object, "fetch-result")
     assert len(search_calls) == 1
     assert len(fetch_calls) == 1
+    search_options = cast(browser._BrowserbaseSearchOptions, search_calls[0])
+    assert search_options.api_key == "bb_key"
+    assert search_options.query == "browser agents"
+    assert search_options.num_results == 5
+    fetch_options = cast(browser._BrowserbaseFetchOptions, fetch_calls[0])
+    assert fetch_options.api_key == "bb_key"
+    assert str(fetch_options.url) == "https://stagehand.dev"
+    assert fetch_options.format == "markdown"
 
 
 async def test_local_browser_close_ignores_vanished_process_and_removes_profile(

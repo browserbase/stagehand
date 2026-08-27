@@ -156,11 +156,15 @@ results, err := stagehand.SearchBrowserbase(ctx, stagehand.BrowserbaseSearchOpti
 if err != nil {
 	return err
 }
-page, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+fetched, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
 	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
 	URL: results.Results[0].URL,
 	Format: stagehand.BrowserbaseFetchFormatMarkdown,
 })
+if err != nil {
+	return err
+}
+fmt.Println(fetched.Content)
 ```
 
 ## Navigation

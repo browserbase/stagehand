@@ -25,7 +25,14 @@ export type BrowserbaseServicesClient = {
   fetch(params: BrowserbaseFetchParams): Promise<BrowserbaseFetchResult>;
 };
 
-type BrowserbaseSdk = Pick<Browserbase, "fetchAPI" | "search">;
+type BrowserbaseSdk = {
+  search: {
+    web(params: BrowserbaseSearchParams): Promise<unknown>;
+  };
+  fetchAPI: {
+    create(params: BrowserbaseFetchParams): Promise<unknown>;
+  };
+};
 type BrowserbaseSdkFactory = (apiKey: string, baseUrl: string) => BrowserbaseSdk;
 
 export function createBrowserbaseServicesClient(

@@ -94,13 +94,17 @@ func FetchBrowserbase(ctx context.Context, options BrowserbaseFetchOptions) (Bro
 	if err != nil {
 		return BrowserbaseFetchResult{}, err
 	}
+	var schema *map[string]any
+	if options.Schema != nil {
+		schema = &options.Schema
+	}
 	response, err := sendBrowserbaseRequest[browserbaseFetchResponse](
 		ctx,
 		client,
 		browserbaseFetchRequest{
 			URL: options.URL, AllowInsecureSSL: options.AllowInsecureSSL,
 			AllowRedirects: options.AllowRedirects, Format: options.Format,
-			Proxies: options.Proxies, Schema: options.Schema,
+			Proxies: options.Proxies, Schema: schema,
 		},
 	)
 	if err != nil {
@@ -159,7 +163,7 @@ type browserbaseFetchRequest struct {
 	AllowRedirects   *bool                  `json:"allowRedirects,omitempty"`
 	Format           BrowserbaseFetchFormat `json:"format,omitempty"`
 	Proxies          *bool                  `json:"proxies,omitempty"`
-	Schema           map[string]any         `json:"schema,omitempty"`
+	Schema           *map[string]any        `json:"schema,omitempty"`
 }
 
 func (request browserbaseFetchRequest) encode() (browserbaseEncodedRequest, error) {

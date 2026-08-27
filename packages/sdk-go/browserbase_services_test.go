@@ -85,3 +85,21 @@ func TestBrowserbaseSearchAndFetchValidateOptions(t *testing.T) {
 		t.Fatal("FetchBrowserbase() expected format error")
 	}
 }
+
+func TestBrowserbaseFetchPreservesExplicitEmptySchema(t *testing.T) {
+	schema := map[string]any{}
+	encoded, err := (browserbaseFetchRequest{
+		URL: "https://stagehand.dev", Schema: &schema,
+	}).encode()
+	if err != nil {
+		t.Fatalf("encode() error = %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(encoded.body, &body); err != nil {
+		t.Fatalf("decode request: %v", err)
+	}
+	want := map[string]any{"url": "https://stagehand.dev", "schema": map[string]any{}}
+	if !reflect.DeepEqual(body, want) {
+		t.Fatalf("fetch body = %#v, want %#v", body, want)
+	}
+}
