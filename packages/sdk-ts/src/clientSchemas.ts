@@ -106,7 +106,7 @@ const BrowserbaseClientOptionsSchema = {
 export const BrowserbaseSearchOptionsSchema = z
   .strictObject({
     ...BrowserbaseClientOptionsSchema,
-    query: z.string().min(1),
+    query: z.string().min(1).max(200),
     numResults: z.int().min(1).max(25).optional(),
   })
   .meta({ id: "BrowserbaseSearchOptions" });
@@ -120,6 +120,10 @@ export const BrowserbaseFetchOptionsSchema = z
     format: z.enum(["raw", "json", "markdown"]).optional(),
     proxies: z.boolean().optional(),
     schema: z.record(z.string(), z.unknown()).optional(),
+  })
+  .refine(({ format, schema }) => schema === undefined || format === "json", {
+    message: 'schema is only valid when format is "json"',
+    path: ["schema"],
   })
   .meta({ id: "BrowserbaseFetchOptions" });
 

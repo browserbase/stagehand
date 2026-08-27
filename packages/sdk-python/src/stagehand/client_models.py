@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
 from ._generated.models import (
@@ -120,7 +120,7 @@ class _BrowserbaseSearchOptions(WireModel):
 
     api_key: Annotated[str, Field(min_length=1)]
     base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
-    query: Annotated[str, Field(min_length=1)]
+    query: Annotated[str, Field(min_length=1, max_length=200)]
     num_results: Annotated[int | None, Field(ge=1, le=25)] = None
 
 
@@ -135,6 +135,12 @@ class _BrowserbaseFetchOptions(WireModel):
     format: Literal["raw", "json", "markdown"] | None = None
     proxies: bool | None = None
     json_schema: dict[str, Any] | None = Field(default=None, alias="schema")
+
+    @model_validator(mode="after")
+    def validate_schema_format(self) -> _BrowserbaseFetchOptions:
+        if self.json_schema is not None and self.format != "json":
+            raise ValueError('schema is only valid when format is "json"')
+        return self
 
 
 class BrowserbaseSearchResultItem(WireModel):

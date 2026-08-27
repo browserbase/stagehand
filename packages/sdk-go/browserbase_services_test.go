@@ -80,10 +80,35 @@ func TestBrowserbaseSearchAndFetchValidateOptions(t *testing.T) {
 	}); err == nil {
 		t.Fatal("SearchBrowserbase() expected numResults error")
 	}
+	if _, err := SearchBrowserbase(context.Background(), BrowserbaseSearchOptions{
+		APIKey: "bb_test", Query: strings.Repeat("q", 201),
+	}); err == nil || !strings.Contains(err.Error(), "at most 200 characters") {
+		t.Fatalf("SearchBrowserbase() error = %v, want query length error", err)
+	}
 	if _, err := FetchBrowserbase(context.Background(), BrowserbaseFetchOptions{
 		APIKey: "bb_test", URL: "https://stagehand.dev", Format: "xml",
 	}); err == nil {
 		t.Fatal("FetchBrowserbase() expected format error")
+	}
+	if _, err := FetchBrowserbase(context.Background(), BrowserbaseFetchOptions{
+		APIKey: "bb_test", URL: "https://stagehand.dev",
+		Format: BrowserbaseFetchFormatMarkdown, Schema: map[string]any{"type": "object"},
+	}); err == nil || !strings.Contains(err.Error(), `schema is only valid when format is "json"`) {
+		t.Fatalf("FetchBrowserbase() error = %v, want schema format error", err)
+	}
+}
+
+func TestBrowserbaseSearchAndFetchAreNotReplaySafe(t *testing.T) {
+	search, err := (browserbaseSearchRequest{Query: "browser agents"}).encode()
+	if err != nil {
+		t.Fatalf("encode search: %v", err)
+	}
+	fetch, err := (browserbaseFetchRequest{URL: "https://stagehand.dev"}).encode()
+	if err != nil {
+		t.Fatalf("encode fetch: %v", err)
+	}
+	if search.replaySafe || fetch.replaySafe {
+		t.Fatalf("replaySafe = search %t, fetch %t; want both false", search.replaySafe, fetch.replaySafe)
 	}
 }
 
@@ -114,7 +139,7 @@ func TestBrowserbaseSearchRejectsResultsMissingRequiredFields(t *testing.T) {
 func TestBrowserbaseFetchPreservesExplicitEmptySchema(t *testing.T) {
 	schema := map[string]any{}
 	encoded, err := (browserbaseFetchRequest{
-		URL: "https://stagehand.dev", Schema: &schema,
+		URL: "https://stagehand.dev", Format: BrowserbaseFetchFormatJSON, Schema: &schema,
 	}).encode()
 	if err != nil {
 		t.Fatalf("encode() error = %v", err)
@@ -123,7 +148,9 @@ func TestBrowserbaseFetchPreservesExplicitEmptySchema(t *testing.T) {
 	if err := json.Unmarshal(encoded.body, &body); err != nil {
 		t.Fatalf("decode request: %v", err)
 	}
-	want := map[string]any{"url": "https://stagehand.dev", "schema": map[string]any{}}
+	want := map[string]any{
+		"url": "https://stagehand.dev", "format": "json", "schema": map[string]any{},
+	}
 	if !reflect.DeepEqual(body, want) {
 		t.Fatalf("fetch body = %#v, want %#v", body, want)
 	}

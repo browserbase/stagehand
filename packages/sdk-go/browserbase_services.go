@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 )
 
 // BrowserbaseSearchOptions configures a Browserbase web search.
@@ -120,10 +121,13 @@ type browserbaseSearchRequest struct {
 
 func (request browserbaseSearchRequest) encode() (browserbaseEncodedRequest, error) {
 	encoded := browserbaseEncodedRequest{
-		method: http.MethodPost, path: "/v1/search", replaySafe: true,
+		method: http.MethodPost, path: "/v1/search",
 	}
 	if strings.TrimSpace(request.Query) == "" {
 		return encoded, errors.New("query is required")
+	}
+	if utf8.RuneCountInString(request.Query) > 200 {
+		return encoded, errors.New("query must be at most 200 characters")
 	}
 	if request.NumResults != nil && (*request.NumResults < 1 || *request.NumResults > 25) {
 		return encoded, errors.New("numResults must be between 1 and 25")
@@ -196,7 +200,7 @@ type browserbaseFetchRequest struct {
 
 func (request browserbaseFetchRequest) encode() (browserbaseEncodedRequest, error) {
 	encoded := browserbaseEncodedRequest{
-		method: http.MethodPost, path: "/v1/fetch", replaySafe: true,
+		method: http.MethodPost, path: "/v1/fetch",
 	}
 	if err := validateBrowserbaseURL("url", request.URL, "http", "https"); err != nil {
 		return encoded, err
@@ -205,6 +209,9 @@ func (request browserbaseFetchRequest) encode() (browserbaseEncodedRequest, erro
 	case "", BrowserbaseFetchFormatRaw, BrowserbaseFetchFormatJSON, BrowserbaseFetchFormatMarkdown:
 	default:
 		return encoded, fmt.Errorf("invalid fetch format %q", request.Format)
+	}
+	if request.Schema != nil && request.Format != BrowserbaseFetchFormatJSON {
+		return encoded, errors.New(`schema is only valid when format is "json"`)
 	}
 	body, err := json.Marshal(request)
 	if err != nil {

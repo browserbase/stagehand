@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBrowserbaseServicesClient } from "../../src/browser/browserbaseServices.js";
+import {
+  BrowserbaseFetchOptionsSchema,
+  BrowserbaseSearchOptionsSchema,
+} from "../../src/clientSchemas.js";
 
 describe("Browserbase services client", () => {
   it("proxies search and fetch through the official Browserbase SDK", async () => {
@@ -50,5 +54,27 @@ describe("Browserbase services client", () => {
       url: "https://stagehand.dev",
       format: "markdown",
     });
+  });
+
+  it("enforces Browserbase Search and Fetch request constraints", () => {
+    expect(() =>
+      BrowserbaseSearchOptionsSchema.parse({ apiKey: "bb_key", query: "q".repeat(201) }),
+    ).toThrow();
+    expect(() =>
+      BrowserbaseFetchOptionsSchema.parse({
+        apiKey: "bb_key",
+        url: "https://stagehand.dev",
+        format: "markdown",
+        schema: { type: "object" },
+      }),
+    ).toThrow(/schema is only valid when format/u);
+    expect(() =>
+      BrowserbaseFetchOptionsSchema.parse({
+        apiKey: "bb_key",
+        url: "https://stagehand.dev",
+        format: "json",
+        schema: { type: "object" },
+      }),
+    ).not.toThrow();
   });
 });

@@ -90,3 +90,24 @@ async def test_browserbase_services_proxy_official_sdk(
     assert FakeAsyncBrowserbase.fetch_calls == [
         {"url": "https://stagehand.dev", "format": "markdown"}
     ]
+
+
+def test_browserbase_services_validate_request_constraints() -> None:
+    with pytest.raises(ValueError):
+        _BrowserbaseSearchOptions(api_key="bb_key", query="q" * 201)
+
+    with pytest.raises(ValueError, match='schema is only valid when format is "json"'):
+        _BrowserbaseFetchOptions(
+            api_key="bb_key",
+            url="https://stagehand.dev",
+            format="markdown",
+            schema={"type": "object"},
+        )
+
+    options = _BrowserbaseFetchOptions(
+        api_key="bb_key",
+        url="https://stagehand.dev",
+        format="json",
+        schema={"type": "object"},
+    )
+    assert options.json_schema == {"type": "object"}
