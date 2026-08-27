@@ -40,7 +40,10 @@ function paramsOf(e: RawLog): CdpLogParams {
 function trimStack(s: string): string {
   return (s || "")
     .split("\n")
-    .filter((l, i) => i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)))
+    .filter(
+      (l, i) =>
+        i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)),
+    )
     .slice(0, 4)
     .map((l) =>
       l
@@ -51,7 +54,10 @@ function trimStack(s: string): string {
     .join("\n");
 }
 
-export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown[] {
+export function reduceLogs(
+  raw: RawLog[],
+  opts: ReduceLogsOptions = {},
+): unknown[] {
   const out: Record<string, unknown>[] = [];
   const seen = new Set<string>();
   const push = (rec: Record<string, unknown>) => {
@@ -74,7 +80,9 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
       ["error", "warning", "assert"].includes(p.type)
     ) {
       const text = (Array.isArray(p.args) ? p.args : [])
-        .map((a) => (a && typeof a === "object" ? a.description || a.value || "" : ""))
+        .map((a) =>
+          a && typeof a === "object" ? a.description || a.value || "" : "",
+        )
         .filter(Boolean)
         .join(" ");
       if (text && !/^%[os]/.test(text))
@@ -90,7 +98,9 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
         domain: "Runtime",
         severity: "error",
         text: trimStack(
-          p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? "",
+          p.exceptionDetails?.exception?.description ??
+            p.exceptionDetails?.text ??
+            "",
         ),
       };
     } else if (
@@ -117,7 +127,10 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
         url: p.response?.url,
         type: p.type,
       };
-    } else if (m === "Network.loadingFailed" && p.errorText !== "net::ERR_ABORTED") {
+    } else if (
+      m === "Network.loadingFailed" &&
+      p.errorText !== "net::ERR_ABORTED"
+    ) {
       rec = {
         kind: "network.failed",
         domain: "Network",
@@ -125,10 +138,10 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
         type: p.type,
       };
     } else {
-      continue;
+      continue; // everything else (byte-chunk / lifecycle events) is noise
     }
 
-    if (!rec) continue;
+    if (!rec) continue; // e.g. a console.error whose text was empty / formatting noise
     if (opts.failedRequests && rec.domain !== "Network") continue;
     push(rec);
   }

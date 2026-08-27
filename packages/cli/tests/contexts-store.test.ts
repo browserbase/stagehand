@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -40,7 +40,16 @@ describe("isValidContextName", () => {
   });
 
   it("rejects empty, leading-punct, spaces, slashes, and over-long names", () => {
-    for (const name of ["", "-x", ".x", "_x", "a b", "a/b", "a:b", "x".repeat(65)]) {
+    for (const name of [
+      "",
+      "-x",
+      ".x",
+      "_x",
+      "a b",
+      "a/b",
+      "a:b",
+      "x".repeat(65),
+    ]) {
       expect(isValidContextName(name)).toBe(false);
     }
   });
@@ -60,8 +69,16 @@ describe("contexts store", () => {
   });
 
   it("saves, lists (sorted), and gets aliases", async () => {
-    await saveContextAlias("zebra", { id: "ctx_z", createdAt: "2026-01-02T00:00:00.000Z" }, env);
-    await saveContextAlias("alpha", { id: "ctx_a", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "zebra",
+      { id: "ctx_z", createdAt: "2026-01-02T00:00:00.000Z" },
+      env,
+    );
+    await saveContextAlias(
+      "alpha",
+      { id: "ctx_a", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
 
     const list = await listContextAliases(env);
     expect(list.map((c) => c.name)).toEqual(["alpha", "zebra"]);
@@ -72,7 +89,11 @@ describe("contexts store", () => {
   });
 
   it("writes the store to contexts.json with 0600 perms", async () => {
-    await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
     const path = contextsStorePath(env);
     expect(path).toBe(join(configDir, "contexts.json"));
 
@@ -94,11 +115,14 @@ describe("contexts store", () => {
       return;
     }
     const path = contextsStorePath(env);
-    await writeFile(path, "{}");
-    await chmod(path, 0o644);
+    await writeFile(path, "{}", { mode: 0o644 });
     expect((await stat(path)).mode & 0o777).toBe(0o644);
 
-    await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
     // Atomic temp+rename replaces the old file with a fresh 0600 one.
     expect((await stat(path)).mode & 0o777).toBe(0o600);
   });
@@ -121,26 +145,44 @@ describe("contexts store", () => {
       "utf8",
     );
 
-    expect((await listContextAliases(env)).map((c) => c.name)).toEqual(["good"]);
+    expect((await listContextAliases(env)).map((c) => c.name)).toEqual([
+      "good",
+    ]);
     expect(await getContextAlias("noId", env)).toBeUndefined();
     expect(await resolveContextRef("badId", env)).toBe("badId");
     // The id-shaped key was dropped, so resolving that UUID passes through.
-    expect(await resolveContextRef("45ed525f-63a5-490d-b4c4-853f50643b90", env)).toBe(
-      "45ed525f-63a5-490d-b4c4-853f50643b90",
-    );
+    expect(
+      await resolveContextRef("45ed525f-63a5-490d-b4c4-853f50643b90", env),
+    ).toBe("45ed525f-63a5-490d-b4c4-853f50643b90");
   });
 
   it("resolves a saved name to its id and passes unknown refs through", async () => {
-    await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
     expect(await resolveContextRef("github", env)).toBe("ctx_g");
     // A raw id (or any unknown ref) is returned unchanged.
     expect(await resolveContextRef("ctx_raw_123", env)).toBe("ctx_raw_123");
   });
 
   it("removes aliases by name and by id", async () => {
-    await saveContextAlias("a", { id: "ctx_shared", createdAt: "2026-01-01T00:00:00.000Z" }, env);
-    await saveContextAlias("b", { id: "ctx_shared", createdAt: "2026-01-01T00:00:00.000Z" }, env);
-    await saveContextAlias("c", { id: "ctx_other", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "a",
+      { id: "ctx_shared", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    await saveContextAlias(
+      "b",
+      { id: "ctx_shared", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    await saveContextAlias(
+      "c",
+      { id: "ctx_other", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
 
     expect(await removeContextAlias("a", env)).toBe(true);
     expect(await removeContextAlias("missing", env)).toBe(false);
@@ -162,7 +204,11 @@ describe("contexts store", () => {
 
 describe("resolveContextRefDetailed", () => {
   it("resolves a saved name to its id with no suggestions", async () => {
-    await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
     expect(await resolveContextRefDetailed("github", env)).toEqual({
       id: "ctx_g",
       suggestions: [],
@@ -178,14 +224,22 @@ describe("resolveContextRefDetailed", () => {
   });
 
   it("returns id=null and a did-you-mean suggestion for a typo'd name", async () => {
-    await saveContextAlias("my-login", { id: "ctx_l", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "my-login",
+      { id: "ctx_l", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
     const res = await resolveContextRefDetailed("my-loginn", env);
     expect(res.id).toBeNull();
     expect(res.suggestions).toContain("my-login");
   });
 
   it("returns id=null/no suggestions for an unknown ref so callers can pass it through", async () => {
-    await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
     // Far from any saved name -> no suggestions -> caller passes it through.
     expect(await resolveContextRefDetailed("zzz-zzz-zzz", env)).toEqual({
       id: null,
@@ -194,8 +248,17 @@ describe("resolveContextRefDetailed", () => {
   });
 
   it("never reads prototype keys as saved aliases", async () => {
-    await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);
-    for (const proto of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+    await saveContextAlias(
+      "github",
+      { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" },
+      env,
+    );
+    for (const proto of [
+      "toString",
+      "constructor",
+      "__proto__",
+      "hasOwnProperty",
+    ]) {
       expect(await getContextAlias(proto, env)).toBeUndefined();
       expect((await resolveContextRefDetailed(proto, env)).id).toBeNull();
     }

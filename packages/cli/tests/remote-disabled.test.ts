@@ -38,7 +38,9 @@ describe("remote.disabled (local-only capability)", () => {
     const { readFile } = await import("node:fs/promises");
     const { fileURLToPath } = await import("node:url");
     const source = await readFile(
-      fileURLToPath(new URL("../src/lib/driver/remote.disabled.ts", import.meta.url)),
+      fileURLToPath(
+        new URL("../src/lib/driver/remote.disabled.ts", import.meta.url),
+      ),
       "utf8",
     );
     expect(source).not.toContain("BROWSERBASE_API_KEY");

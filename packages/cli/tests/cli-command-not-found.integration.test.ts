@@ -56,7 +56,9 @@ describe("command_not_found hook (built CLI)", () => {
       });
 
       expect(result.exitCode).toBe(2);
-      expect(result.stderr).toContain('Did you mean "browse cloud sessions list"?');
+      expect(result.stderr).toContain(
+        'Did you mean "browse cloud sessions list"?',
+      );
 
       const payload = telemetryServer.requests
         .filter((request) => request.path === "/i/v0/e/")
@@ -71,7 +73,9 @@ describe("command_not_found hook (built CLI)", () => {
 
       expect(payload).toBeDefined();
       expect(payload?.properties?.attempted_command).toBe("sessions.list");
-      expect(payload?.properties?.suggested_command).toBe("cloud.sessions.list");
+      expect(payload?.properties?.suggested_command).toBe(
+        "cloud.sessions.list",
+      );
       expect(payload?.properties?.source).toBe("cli");
     } finally {
       await telemetryServer.close();
@@ -83,9 +87,10 @@ describe("command_not_found hook (built CLI)", () => {
 
     try {
       const installIdFile = await tempInstallIdFile("browse-notfound-priv-");
-      const result = await runCli(["opne", "https://example.com/?token=supersecret"], {
-        env: telemetryEnv(telemetryServer, installIdFile),
-      });
+      const result = await runCli(
+        ["opne", "https://example.com/?token=supersecret"],
+        { env: telemetryEnv(telemetryServer, installIdFile) },
+      );
 
       expect(result.exitCode).toBe(2);
       expect(result.stderr).toContain('Did you mean "browse open"?');

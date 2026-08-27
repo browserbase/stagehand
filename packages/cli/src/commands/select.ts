@@ -1,7 +1,10 @@
 import { Args, Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
+import {
+  driverCommandFlags,
+  runDriverCommandFromFlags,
+} from "../lib/driver/command-cli.js";
 
 export default class Select extends BrowseCommand {
   static override description =
@@ -27,7 +30,8 @@ export default class Select extends BrowseCommand {
   static override flags = {
     ...driverCommandFlags,
     value: Flags.string({
-      description: "Additional option value for multi-select controls. Repeat for multiple values.",
+      description:
+        "Additional option value for multi-select controls. Repeat for multiple values.",
       helpValue: "<value>",
       multiple: true,
     }),

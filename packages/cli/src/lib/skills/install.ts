@@ -1,6 +1,13 @@
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
-import { access, mkdir, mkdtemp, rm, rename, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  rm,
+  rename,
+  writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +16,8 @@ import { fail } from "../errors.js";
 import { setRunTelemetryCompletion } from "../run-telemetry.js";
 import { defaultSkillsApiBaseUrl, isRecord, responseDetail } from "./shared.js";
 
-const defaultBlobBaseUrl = "https://gh0lfhlmyzhg6tww.public.blob.vercel-storage.com";
+const defaultBlobBaseUrl =
+  "https://gh0lfhlmyzhg6tww.public.blob.vercel-storage.com";
 const generatedSkillSuffixPattern = /-[A-Za-z0-9]{6}$/;
 const domainPattern = /^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$/;
 const taskPattern = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$/;
@@ -65,11 +73,16 @@ function envTimeoutMs(name: string, fallback: number): number {
 }
 
 function installTimeoutMs(): number {
-  return envTimeoutMs("BROWSE_SKILLS_INSTALL_TIMEOUT_MS", defaultInstallTimeoutMs);
+  return envTimeoutMs(
+    "BROWSE_SKILLS_INSTALL_TIMEOUT_MS",
+    defaultInstallTimeoutMs,
+  );
 }
 
 function fetchTimeoutSignal(): AbortSignal {
-  return AbortSignal.timeout(envTimeoutMs("BROWSE_SKILLS_FETCH_TIMEOUT_MS", defaultFetchTimeoutMs));
+  return AbortSignal.timeout(
+    envTimeoutMs("BROWSE_SKILLS_FETCH_TIMEOUT_MS", defaultFetchTimeoutMs),
+  );
 }
 
 export function parseSkillId(rawSkillId: string): ParsedSkillId {
@@ -133,7 +146,12 @@ export async function installSkill(rawSkillId: string): Promise<void> {
     process.stdout.write(
       `Downloaded ${result.fileCount} skill file${result.fileCount === 1 ? "" : "s"} to ${result.installPath}\n`,
     );
-    await runSkillsInstall(npxPath, ["--yes", "skills", "add", result.installPath]);
+    await runSkillsInstall(npxPath, [
+      "--yes",
+      "skills",
+      "add",
+      result.installPath,
+    ]);
     return;
   }
 
@@ -183,7 +201,10 @@ export async function installBundledCliSkill(): Promise<void> {
 // Runs `npx skills add ...` with live passthrough, but fails with a diagnostic
 // message (including a tail of the child's output) when the child exits nonzero
 // so the failure is recorded in telemetry instead of an opaque exit code.
-async function runSkillsInstall(npxPath: string, args: string[]): Promise<void> {
+async function runSkillsInstall(
+  npxPath: string,
+  args: string[],
+): Promise<void> {
   const timeoutMs = installTimeoutMs();
   const result = await spawnPassthrough(npxPath, args, timeoutMs);
   if (result.exitCode === 0 && !result.timedOut) {
@@ -199,7 +220,9 @@ async function runSkillsInstall(npxPath: string, args: string[]): Promise<void> 
   }
 
   const detail = result.output.trim();
-  const reason = detail ? `: ${detail}` : " (see the output above for details).";
+  const reason = detail
+    ? `: ${detail}`
+    : " (see the output above for details).";
   fail(`Could not install skill${reason}`, result.exitCode || 1, {
     resultCode: "skill_install_failed",
   });
@@ -225,7 +248,10 @@ export async function downloadBlobSkill(
 
   try {
     for (const file of filesToDownload) {
-      const contents = await fetchSkillFile(file.url, `${skillId.id}/${file.path}`);
+      const contents = await fetchSkillFile(
+        file.url,
+        `${skillId.id}/${file.path}`,
+      );
       const outputPath = join(tempDir, file.path);
       await mkdir(dirname(outputPath), { recursive: true });
       await writeFile(outputPath, contents);
@@ -246,7 +272,13 @@ export async function downloadBlobSkill(
 
 function localSkillPath(skillId: ParsedSkillId): string {
   const configHome = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  return join(configHome, "browserbase", "skills", skillId.domain, skillId.task);
+  return join(
+    configHome,
+    "browserbase",
+    "skills",
+    skillId.domain,
+    skillId.task,
+  );
 }
 
 export function bundledCliSkillPath(): string {
@@ -257,7 +289,9 @@ function packageRoot(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 }
 
-async function fetchSkillFiles(skillId: ParsedSkillId): Promise<SkillFilesResult> {
+async function fetchSkillFiles(
+  skillId: ParsedSkillId,
+): Promise<SkillFilesResult> {
   const apiResult = await fetchSkillFilesFromApi(skillId);
   if (apiResult.status === "found") {
     return { status: "found", files: apiResult.files };
@@ -290,7 +324,9 @@ async function fetchSkillFiles(skillId: ParsedSkillId): Promise<SkillFilesResult
   return { status: "fallback" };
 }
 
-async function fetchSkillFilesFromApi(skillId: ParsedSkillId): Promise<SkillFilesApiResult> {
+async function fetchSkillFilesFromApi(
+  skillId: ParsedSkillId,
+): Promise<SkillFilesApiResult> {
   const url = skillFilesApiUrl(skillId);
   let response: Response;
   try {
@@ -319,7 +355,9 @@ async function fetchSkillFilesFromApi(skillId: ParsedSkillId): Promise<SkillFile
   try {
     payload = await response.json();
   } catch (error) {
-    fail(`Could not parse file list for ${skillId.id}: ${(error as Error).message}`);
+    fail(
+      `Could not parse file list for ${skillId.id}: ${(error as Error).message}`,
+    );
   }
 
   return {
@@ -342,13 +380,20 @@ async function directBlobSkillExists(skillId: ParsedSkillId): Promise<boolean> {
   return response.ok;
 }
 
-function validateApiSkillFiles(payload: unknown, skillId: string): SkillFileSource[] {
+function validateApiSkillFiles(
+  payload: unknown,
+  skillId: string,
+): SkillFileSource[] {
   if (!isRecord(payload) || !Array.isArray(payload.files)) {
-    fail(`Invalid file list for ${skillId}: expected {"files":[{"path":"SKILL.md","url":"..."}]}.`);
+    fail(
+      `Invalid file list for ${skillId}: expected {"files":[{"path":"SKILL.md","url":"..."}]}.`,
+    );
   }
 
   if (typeof payload.skillId === "string" && payload.skillId !== skillId) {
-    fail(`Invalid file list for ${skillId}: response was for ${payload.skillId}.`);
+    fail(
+      `Invalid file list for ${skillId}: response was for ${payload.skillId}.`,
+    );
   }
 
   if (payload.files.length === 0) {
@@ -356,14 +401,18 @@ function validateApiSkillFiles(payload: unknown, skillId: string): SkillFileSour
   }
 
   if (payload.files.length > maxSkillFiles) {
-    fail(`Invalid file list for ${skillId}: expected ${maxSkillFiles} files or fewer.`);
+    fail(
+      `Invalid file list for ${skillId}: expected ${maxSkillFiles} files or fewer.`,
+    );
   }
 
   const files: SkillFileSource[] = [];
   const seenPaths = new Set<string>();
   for (const file of payload.files) {
     if (!isRecord(file)) {
-      fail(`Invalid file list for ${skillId}: file entries must include path and url.`);
+      fail(
+        `Invalid file list for ${skillId}: file entries must include path and url.`,
+      );
     }
 
     const path = validateSkillFilePath(file.path, skillId);
@@ -385,13 +434,17 @@ function validateApiSkillFiles(payload: unknown, skillId: string): SkillFileSour
 
 function validateSkillFilePath(value: unknown, skillId: string): string {
   if (typeof value !== "string" || value.length === 0) {
-    fail(`Invalid file list for ${skillId}: file paths must be non-empty strings.`);
+    fail(
+      `Invalid file list for ${skillId}: file paths must be non-empty strings.`,
+    );
   }
 
   if (
     value.startsWith("/") ||
     value.includes("\\") ||
-    value.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+    value
+      .split("/")
+      .some((segment) => segment === "" || segment === "." || segment === "..")
   ) {
     fail(`Invalid file list for ${skillId}: unsafe file path "${value}".`);
   }
@@ -399,20 +452,30 @@ function validateSkillFilePath(value: unknown, skillId: string): string {
   return value;
 }
 
-function validateSkillFileUrl(value: unknown, skillId: string, path: string): URL {
+function validateSkillFileUrl(
+  value: unknown,
+  skillId: string,
+  path: string,
+): URL {
   if (typeof value !== "string" || value.length === 0) {
-    fail(`Invalid file list for ${skillId}: file "${path}" must include a URL.`);
+    fail(
+      `Invalid file list for ${skillId}: file "${path}" must include a URL.`,
+    );
   }
 
   let url: URL;
   try {
     url = new URL(value);
   } catch {
-    fail(`Invalid file list for ${skillId}: file "${path}" has an invalid URL.`);
+    fail(
+      `Invalid file list for ${skillId}: file "${path}" has an invalid URL.`,
+    );
   }
 
   if (url.protocol !== "https:" && url.protocol !== "http:") {
-    fail(`Invalid file list for ${skillId}: file "${path}" must use an HTTP URL.`);
+    fail(
+      `Invalid file list for ${skillId}: file "${path}" must use an HTTP URL.`,
+    );
   }
 
   return url;
@@ -432,18 +495,24 @@ async function fetchFromUrl(url: URL, label: string): Promise<Response> {
   }
 
   if (!response.ok) {
-    fail(`Could not download ${label}: ${response.status} ${response.statusText}`);
+    fail(
+      `Could not download ${label}: ${response.status} ${response.statusText}`,
+    );
   }
 
   return response;
 }
 
 function skillFilesApiUrl(skillId: ParsedSkillId): URL {
-  const baseUrl = process.env.BROWSE_SKILLS_API_BASE_URL || defaultSkillsApiBaseUrl;
+  const baseUrl =
+    process.env.BROWSE_SKILLS_API_BASE_URL || defaultSkillsApiBaseUrl;
   const pathname = ["api", "skills", skillId.domain, skillId.task, "files"]
     .map((segment) => encodeURIComponent(segment))
     .join("/");
-  const url = new URL(pathname, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+  const url = new URL(
+    pathname,
+    baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`,
+  );
   const bypassToken = process.env.BROWSE_ALPHA_TOKEN;
   if (bypassToken && !url.searchParams.has("x-vercel-protection-bypass")) {
     url.searchParams.append("x-vercel-protection-bypass", bypassToken);
@@ -467,7 +536,9 @@ async function findExecutable(command: string): Promise<string | null> {
 
   const extensions =
     process.platform === "win32"
-      ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM").split(";").filter(Boolean)
+      ? (process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM")
+          .split(";")
+          .filter(Boolean)
       : [""];
 
   for (const segment of pathEnv.split(delimiter)) {
@@ -575,6 +646,9 @@ export async function spawnPassthrough(
   });
 }
 
-export function shouldUseWindowsShell(command: string, platform = process.platform): boolean {
+export function shouldUseWindowsShell(
+  command: string,
+  platform = process.platform,
+): boolean {
   return platform === "win32" && /\.(?:bat|cmd)$/i.test(command);
 }

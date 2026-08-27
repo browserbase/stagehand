@@ -1,7 +1,11 @@
 import { Args, Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
-import { outputFormatFlags, outputJson, resolveOutputFormat } from "../../lib/output.js";
+import {
+  outputFormatFlags,
+  outputJson,
+  resolveOutputFormat,
+} from "../../lib/output.js";
 import {
   exactSkillMatch,
   listCatalogSkills,

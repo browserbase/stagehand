@@ -68,12 +68,18 @@ export const mouseHandlers: DriverCommandHandlers = {
       })
       .parse(params);
     const page = await manager.activePage();
-    const [fromXpath, toXpath] = await page.dragAndDrop(fromX, fromY, toX, toY, {
-      button,
-      delay,
-      returnXpath: returnXPath,
-      steps,
-    });
+    const [fromXpath, toXpath] = await page.dragAndDrop(
+      fromX,
+      fromY,
+      toX,
+      toY,
+      {
+        button,
+        delay,
+        returnXpath: returnXPath,
+        steps,
+      },
+    );
     return returnXPath
       ? { dragged: true, fromXpath, toXpath, xpath: fromXpath }
       : { dragged: true };

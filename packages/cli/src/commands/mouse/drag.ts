@@ -9,7 +9,8 @@ import {
 } from "../../lib/driver/command-cli.js";
 
 export default class MouseDrag extends BrowseCommand {
-  static override description = "Drag from one raw viewport coordinate to another.";
+  static override description =
+    "Drag from one raw viewport coordinate to another.";
 
   static override examples = [
     "browse mouse drag 100 100 400 400",

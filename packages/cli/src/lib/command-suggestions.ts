@@ -69,7 +69,10 @@ function tokenThreshold(token: string): number {
  * attempted command when it itself looks like a typo of a real command
  * segment — free-form user values can never ride along.
  */
-function prefixDistance(tokens: readonly string[], commandId: string): number | null {
+function prefixDistance(
+  tokens: readonly string[],
+  commandId: string,
+): number | null {
   const segments = commandId.split(":");
   if (segments.length !== tokens.length) {
     return null;
@@ -95,7 +98,10 @@ function prefixDistance(tokens: readonly string[], commandId: string): number | 
  * `attempted` (or the first token when nothing matches) so user-provided
  * values never escape into messaging or telemetry.
  */
-export function suggestCommand(id: string, commandIds: readonly string[]): CommandSuggestion {
+export function suggestCommand(
+  id: string,
+  commandIds: readonly string[],
+): CommandSuggestion {
   const tokens = extractCommandTokens(id);
   if (tokens.length === 0) {
     return { attempted: "", suggestion: null };

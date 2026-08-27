@@ -1,7 +1,11 @@
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
-import { outputFormatFlags, outputJson, resolveOutputFormat } from "../../lib/output.js";
+import {
+  outputFormatFlags,
+  outputJson,
+  resolveOutputFormat,
+} from "../../lib/output.js";
 import { listTemplates } from "../../lib/templates/api.js";
 import { outputTemplateTable } from "../../lib/templates/output.js";
 

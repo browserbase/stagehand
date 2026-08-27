@@ -1,6 +1,10 @@
 import { Args } from "@oclif/core";
 
-import { createBrowserbaseClient, outputJson, withBrowserbaseApi } from "../../../lib/cloud/api.js";
+import {
+  createBrowserbaseClient,
+  outputJson,
+  withBrowserbaseApi,
+} from "../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 

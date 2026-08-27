@@ -4,7 +4,8 @@ import { BrowseCommand } from "../../base.js";
 import { publishFunction } from "../../lib/functions/publish.js";
 
 export default class FunctionsPublish extends BrowseCommand {
-  static override description = "Package and upload a Browserbase Function build.";
+  static override description =
+    "Package and upload a Browserbase Function build.";
 
   static override examples = [
     "browse functions publish index.ts --dry-run",

@@ -1,7 +1,10 @@
 import { Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { driverCommandFlags, type DriverFlags } from "../lib/driver/command-cli.js";
+import {
+  driverCommandFlags,
+  type DriverFlags,
+} from "../lib/driver/command-cli.js";
 import { buildDoctorReport, renderDoctorReport } from "../lib/driver/doctor.js";
 import { sessionName } from "../lib/driver/flags.js";
 import { outputJson } from "../lib/output.js";

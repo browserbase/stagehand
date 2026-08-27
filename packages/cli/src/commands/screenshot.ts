@@ -11,7 +11,8 @@ import {
 } from "../lib/driver/command-cli.js";
 
 export default class Screenshot extends BrowseCommand {
-  static override description = "Capture a screenshot of the active browser page.";
+  static override description =
+    "Capture a screenshot of the active browser page.";
 
   static override examples = [
     "browse screenshot",
@@ -29,7 +30,8 @@ export default class Screenshot extends BrowseCommand {
       options: ["allow", "disabled"],
     }),
     base64: Flags.boolean({
-      description: "Print base64 to stdout instead of writing a file (legacy default).",
+      description:
+        "Print base64 to stdout instead of writing a file (legacy default).",
       exclusive: ["path"],
     }),
     caret: Flags.string({
