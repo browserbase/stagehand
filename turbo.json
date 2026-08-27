@@ -516,10 +516,6 @@
         "vitest.config.ts"
       ]
     },
-    "docs": {
-      "persistent": true,
-      "cache": false
-    },
     "dev": {
       "persistent": true,
       "cache": false

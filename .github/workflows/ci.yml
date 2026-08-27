@@ -7,8 +7,6 @@ on:
       - synchronize
       - labeled
       - unlabeled
-    paths-ignore:
-      - "packages/docs/**"
   workflow_dispatch:
     inputs:
       pull_request_number:
@@ -203,9 +201,9 @@ jobs:
             exit 0
           fi
 
-          # Skip evals if only docs/examples changed
+          # Skip evals if only root docs/examples changed
           if [[ "${{ needs.determine-changes.outputs.docs-only }}" == "true" && "${{ needs.determine-changes.outputs.core }}" == "false" && "${{ needs.determine-changes.outputs.evals }}" == "false" ]]; then
-            echo "Only docs/examples changed - skipping evals"
+            echo "Only root docs/examples changed - skipping evals"
             echo "skip-all-evals=true" >> $GITHUB_OUTPUT
             emit_categories
             exit 0

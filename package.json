@@ -32,7 +32,6 @@
     "test:evals:local": "STAGEHAND_BROWSER_TARGET=local pnpm run test:evals --",
     "test:evals:bb": "STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:evals --",
     "coverage:merge": "pnpm -w exec tsx packages/core/scripts/coverage.ts merge",
-    "docs": "turbo run docs",
     "dev": "turbo run dev",
     "example": "pnpm --filter @browserbasehq/stagehand run example --",
     "cache:clear": "turbo run build --force",
