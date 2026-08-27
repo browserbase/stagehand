@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "src/commands/cloud",
+    "src/commands/functions",
+    "src/commands/skills",
+    "src/commands/templates",
+    "src/lib/cloud",
+    "src/lib/functions",
+    "src/lib/skills",
+    "src/lib/templates",
+    "src/lib/driver/remote.ts"
+  ]
+}
