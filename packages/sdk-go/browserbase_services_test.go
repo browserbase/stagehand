@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -83,6 +84,30 @@ func TestBrowserbaseSearchAndFetchValidateOptions(t *testing.T) {
 		APIKey: "bb_test", URL: "https://stagehand.dev", Format: "xml",
 	}); err == nil {
 		t.Fatal("FetchBrowserbase() expected format error")
+	}
+}
+
+func TestBrowserbaseSearchRejectsResultsMissingRequiredFields(t *testing.T) {
+	for _, field := range []string{"id", "title", "url"} {
+		t.Run(field, func(t *testing.T) {
+			item := map[string]any{
+				"id": "result_123", "title": "Stagehand", "url": "https://stagehand.dev",
+			}
+			delete(item, field)
+			body, err := json.Marshal(map[string]any{
+				"query": "browser agents", "requestId": "request_123", "results": []any{item},
+			})
+			if err != nil {
+				t.Fatalf("encode response: %v", err)
+			}
+			var response browserbaseSearchResponse
+			if err := json.Unmarshal(body, &response); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if err := response.validate(); err == nil || !strings.Contains(err.Error(), field) {
+				t.Fatalf("validate() error = %v, want missing %s error", err, field)
+			}
+		})
 	}
 }
 

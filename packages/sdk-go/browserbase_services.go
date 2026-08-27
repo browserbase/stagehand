@@ -138,22 +138,50 @@ func (request browserbaseSearchRequest) encode() (browserbaseEncodedRequest, err
 }
 
 type browserbaseSearchResponse struct {
-	Query     *string                        `json:"query"`
-	RequestID *string                        `json:"requestId"`
-	Results   *[]BrowserbaseSearchResultItem `json:"results"`
+	Query     *string                          `json:"query"`
+	RequestID *string                          `json:"requestId"`
+	Results   *[]browserbaseSearchResponseItem `json:"results"`
+}
+
+type browserbaseSearchResponseItem struct {
+	ID            *string `json:"id"`
+	Title         *string `json:"title"`
+	URL           *string `json:"url"`
+	Author        *string `json:"author,omitempty"`
+	Favicon       *string `json:"favicon,omitempty"`
+	Image         *string `json:"image,omitempty"`
+	PublishedDate *string `json:"publishedDate,omitempty"`
 }
 
 func (response browserbaseSearchResponse) validate() error {
-	return requireBrowserbaseResponseFields(map[string]bool{
+	if err := requireBrowserbaseResponseFields(map[string]bool{
 		"query":     response.Query != nil,
 		"requestId": response.RequestID != nil,
 		"results":   response.Results != nil,
-	})
+	}); err != nil {
+		return err
+	}
+	for index, result := range *response.Results {
+		if err := requireBrowserbaseResponseFields(map[string]bool{
+			"id": result.ID != nil, "title": result.Title != nil, "url": result.URL != nil,
+		}); err != nil {
+			return fmt.Errorf("search result %d: %w", index, err)
+		}
+	}
+	return nil
 }
 
 func (response browserbaseSearchResponse) result() BrowserbaseSearchResult {
+	results := make([]BrowserbaseSearchResultItem, len(*response.Results))
+	for index, result := range *response.Results {
+		results[index] = BrowserbaseSearchResultItem{
+			ID: *result.ID, Title: *result.Title, URL: *result.URL,
+			Author: result.Author, Favicon: result.Favicon, Image: result.Image,
+			PublishedDate: result.PublishedDate,
+		}
+	}
 	return BrowserbaseSearchResult{
-		Query: *response.Query, RequestID: *response.RequestID, Results: *response.Results,
+		Query: *response.Query, RequestID: *response.RequestID, Results: results,
 	}
 }
 

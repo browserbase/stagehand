@@ -156,6 +156,9 @@ results, err := stagehand.SearchBrowserbase(ctx, stagehand.BrowserbaseSearchOpti
 if err != nil {
 	return err
 }
+if len(results.Results) == 0 {
+	return fmt.Errorf("search returned no results")
+}
 fetched, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
 	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
 	URL: results.Results[0].URL,
