@@ -1,0 +1,87 @@
+package stagehand
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+)
+
+func TestBrowserbaseSearchAndFetch(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("X-BB-API-Key") != "bb_test" {
+			t.Errorf("X-BB-API-Key = %q", request.Header.Get("X-BB-API-Key"))
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		switch request.URL.Path {
+		case "/v1/search":
+			want := map[string]any{"query": "browser agents", "numResults": float64(5)}
+			if !reflect.DeepEqual(body, want) {
+				t.Errorf("search body = %#v, want %#v", body, want)
+			}
+			writeBrowserbaseTestJSON(writer, map[string]any{
+				"query":     "browser agents",
+				"requestId": "request_123",
+				"results": []map[string]any{{
+					"id": "result_123", "title": "Stagehand", "url": "https://stagehand.dev",
+				}},
+			})
+		case "/v1/fetch":
+			want := map[string]any{"url": "https://stagehand.dev", "format": "markdown"}
+			if !reflect.DeepEqual(body, want) {
+				t.Errorf("fetch body = %#v, want %#v", body, want)
+			}
+			writeBrowserbaseTestJSON(writer, map[string]any{
+				"id": "fetch_123", "content": "# Stagehand", "contentType": "text/markdown",
+				"encoding": "utf-8", "headers": map[string]string{"content-type": "text/html"},
+				"statusCode": 200,
+			})
+		default:
+			http.Error(writer, "unexpected endpoint", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	numResults := 5
+	search, err := SearchBrowserbase(context.Background(), BrowserbaseSearchOptions{
+		APIKey: "bb_test", BaseURL: server.URL, Query: "browser agents", NumResults: &numResults,
+	})
+	if err != nil {
+		t.Fatalf("SearchBrowserbase() error = %v", err)
+	}
+	if search.RequestID != "request_123" || len(search.Results) != 1 {
+		t.Fatalf("SearchBrowserbase() = %#v", search)
+	}
+
+	fetch, err := FetchBrowserbase(context.Background(), BrowserbaseFetchOptions{
+		APIKey: "bb_test", BaseURL: server.URL, URL: "https://stagehand.dev",
+		Format: BrowserbaseFetchFormatMarkdown,
+	})
+	if err != nil {
+		t.Fatalf("FetchBrowserbase() error = %v", err)
+	}
+	if fetch.StatusCode != 200 || fetch.Content != "# Stagehand" {
+		t.Fatalf("FetchBrowserbase() = %#v", fetch)
+	}
+}
+
+func TestBrowserbaseSearchAndFetchValidateOptions(t *testing.T) {
+	zero := 0
+	if _, err := SearchBrowserbase(context.Background(), BrowserbaseSearchOptions{
+		APIKey: "bb_test", Query: "browser agents", NumResults: &zero,
+	}); err == nil {
+		t.Fatal("SearchBrowserbase() expected numResults error")
+	}
+	if _, err := FetchBrowserbase(context.Background(), BrowserbaseFetchOptions{
+		APIKey: "bb_test", URL: "https://stagehand.dev", Format: "xml",
+	}); err == nil {
+		t.Fatal("FetchBrowserbase() expected format error")
+	}
+}

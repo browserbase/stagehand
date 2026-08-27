@@ -59,6 +59,9 @@ from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
+    BrowserbaseFetchResult,
+    BrowserbaseSearchResult,
+    BrowserbaseSearchResultItem,
     DefaultExtract,
     ExtractResult,
 )
@@ -90,8 +93,11 @@ __all__ = [
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",
+    "BrowserbaseFetchResult",
     "BrowserbaseProxyConfig",
     "BrowserbaseRegion",
+    "BrowserbaseSearchResult",
+    "BrowserbaseSearchResultItem",
     "CacheOptions",
     "CacheMetadata",
     "CacheStatus",

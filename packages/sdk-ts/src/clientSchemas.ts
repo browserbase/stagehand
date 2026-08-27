@@ -98,6 +98,60 @@ export const BrowserbaseConnectOptionsSchema = z
   })
   .meta({ id: "BrowserbaseConnectOptions" });
 
+const BrowserbaseClientOptionsSchema = {
+  apiKey: z.string().min(1),
+  baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+};
+
+export const BrowserbaseSearchOptionsSchema = z
+  .strictObject({
+    ...BrowserbaseClientOptionsSchema,
+    query: z.string().min(1),
+    numResults: z.int().min(1).max(25).optional(),
+  })
+  .meta({ id: "BrowserbaseSearchOptions" });
+
+export const BrowserbaseFetchOptionsSchema = z
+  .strictObject({
+    ...BrowserbaseClientOptionsSchema,
+    url: z.url(),
+    allowInsecureSsl: z.boolean().optional(),
+    allowRedirects: z.boolean().optional(),
+    format: z.enum(["raw", "json", "markdown"]).optional(),
+    proxies: z.boolean().optional(),
+    schema: z.record(z.string(), z.unknown()).optional(),
+  })
+  .meta({ id: "BrowserbaseFetchOptions" });
+
+export const BrowserbaseSearchResultSchema = z
+  .object({
+    query: z.string(),
+    requestId: z.string(),
+    results: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        url: z.string(),
+        author: z.string().optional(),
+        favicon: z.string().optional(),
+        image: z.string().optional(),
+        publishedDate: z.string().optional(),
+      }),
+    ),
+  })
+  .meta({ id: "BrowserbaseSearchResult" });
+
+export const BrowserbaseFetchResultSchema = z
+  .object({
+    id: z.string(),
+    content: z.union([z.string(), z.record(z.string(), z.unknown())]),
+    contentType: z.string(),
+    encoding: z.string(),
+    headers: z.record(z.string(), z.string()),
+    statusCode: z.number().int(),
+  })
+  .meta({ id: "BrowserbaseFetchResult" });
+
 /** Data returned by the Browserbase SDK after creating a session. */
 export const BrowserbaseSessionCreateResultSchema = z
   .object({
@@ -221,6 +275,10 @@ export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptions
 export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
 export type BrowserbaseLaunchOptions = z.input<typeof BrowserbaseLaunchOptionsSchema>;
 export type BrowserbaseConnectOptions = z.input<typeof BrowserbaseConnectOptionsSchema>;
+export type BrowserbaseSearchOptions = z.input<typeof BrowserbaseSearchOptionsSchema>;
+export type BrowserbaseFetchOptions = z.input<typeof BrowserbaseFetchOptionsSchema>;
+export type BrowserbaseSearchResult = z.infer<typeof BrowserbaseSearchResultSchema>;
+export type BrowserbaseFetchResult = z.infer<typeof BrowserbaseFetchResultSchema>;
 export type BrowserbaseSessionCreateResult = z.infer<typeof BrowserbaseSessionCreateResultSchema>;
 export type BrowserbaseSessionRetrieveResult = z.infer<
   typeof BrowserbaseSessionRetrieveResultSchema

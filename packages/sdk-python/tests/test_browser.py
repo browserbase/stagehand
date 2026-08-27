@@ -779,6 +779,37 @@ async def test_browserbase_validation_precedes_api_calls(
     assert api_keys == []
 
 
+async def test_browserbase_search_and_fetch_delegate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    search_calls: list[object] = []
+    fetch_calls: list[object] = []
+
+    async def search(options: object) -> object:
+        search_calls.append(options)
+        return cast(object, "search-result")
+
+    async def fetch(options: object) -> object:
+        fetch_calls.append(options)
+        return cast(object, "fetch-result")
+
+    monkeypatch.setattr(browser, "search_browserbase", search)
+    monkeypatch.setattr(browser, "fetch_browserbase", fetch)
+
+    assert await browserbase.search(
+        api_key="bb_key",
+        query="browser agents",
+        num_results=5,
+    ) == cast(object, "search-result")
+    assert await browserbase.fetch(
+        api_key="bb_key",
+        url="https://stagehand.dev",
+        format="markdown",
+    ) == cast(object, "fetch-result")
+    assert len(search_calls) == 1
+    assert len(fetch_calls) == 1
+
+
 async def test_local_browser_close_ignores_vanished_process_and_removes_profile(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

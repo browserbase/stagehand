@@ -144,6 +144,25 @@ func run(ctx context.Context) (err error) {
 }
 ```
 
+Browserbase Search and Fetch are also available without launching a browser:
+
+```go
+numResults := 5
+results, err := stagehand.SearchBrowserbase(ctx, stagehand.BrowserbaseSearchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	Query: "browser agent frameworks",
+	NumResults: &numResults,
+})
+if err != nil {
+	return err
+}
+page, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	URL: results.Results[0].URL,
+	Format: stagehand.BrowserbaseFetchFormatMarkdown,
+})
+```
+
 ## Navigation
 
 Navigation methods return the main-document response when the browser performs a network request:

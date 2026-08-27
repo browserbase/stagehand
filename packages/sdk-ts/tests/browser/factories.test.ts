@@ -345,6 +345,53 @@ describe("Stagehand browser factories", () => {
       expect(closeSession).toHaveBeenCalledTimes(expectedSessionCloses);
     },
   );
+  it("delegates Browserbase search and fetch requests", async () => {
+    const search = vi.fn(async () => ({
+      query: "browser agents",
+      requestId: "request_123",
+      results: [{ id: "result_123", title: "Stagehand", url: "https://stagehand.dev" }],
+    }));
+    const fetch = vi.fn(async () => ({
+      id: "fetch_123",
+      content: "# Stagehand",
+      contentType: "text/markdown",
+      encoding: "utf-8",
+      headers: { "content-type": "text/html" },
+      statusCode: 200,
+    }));
+    const createBrowserbaseServicesClient = vi.fn(() => ({ search, fetch }));
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseServicesClient,
+    });
+
+    await expect(
+      browserbase.search({
+        apiKey: "bb_key",
+        baseUrl: "https://api.dev.browserbase.com",
+        query: "browser agents",
+        numResults: 5,
+      }),
+    ).resolves.toMatchObject({ requestId: "request_123" });
+    await expect(
+      browserbase.fetch({
+        apiKey: "bb_key",
+        baseUrl: "https://api.dev.browserbase.com",
+        url: "https://stagehand.dev",
+        format: "markdown",
+      }),
+    ).resolves.toMatchObject({ statusCode: 200 });
+
+    expect(createBrowserbaseServicesClient).toHaveBeenCalledTimes(2);
+    expect(createBrowserbaseServicesClient).toHaveBeenCalledWith(
+      "bb_key",
+      "https://api.dev.browserbase.com",
+    );
+    expect(search).toHaveBeenCalledWith({ query: "browser agents", numResults: 5 });
+    expect(fetch).toHaveBeenCalledWith({
+      url: "https://stagehand.dev",
+      format: "markdown",
+    });
+  });
 
   it("discovers Stagehand when connecting without a Chrome extension ID", async () => {
     const connectSession = vi.fn(async () => ({
