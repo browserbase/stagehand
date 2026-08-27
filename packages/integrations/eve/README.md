@@ -91,8 +91,10 @@ Model-authored JavaScript executes in Stagehand's browser extension, not Eve's N
 is still powerful browser-side code and must not be treated as a hostile-code sandbox. Concurrent
 Eve sessions in one process share pages, cookies, and authentication state.
 
-Every `snapshot` hydrates its displayed IDs for `run` actions. Snapshot IDs expire after navigation
-or a newer snapshot, so inspect the page again before retrying a stale action.
+Every `snapshot` hydrates its displayed IDs for `run` actions. Snapshot output renders an ID like
+`[0-22]`, while the action passes only the inner value (`id: "0-22"`) without brackets. Snapshot IDs
+expire after navigation or a newer snapshot, so inspect the page again before retrying a stale
+action.
 
 ## Development
 
