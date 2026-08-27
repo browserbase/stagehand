@@ -1,10 +1,14 @@
 import { Args, Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
+import {
+  driverCommandFlags,
+  runDriverCommandFromFlags,
+} from "../lib/driver/command-cli.js";
 
 export default class Highlight extends BrowseCommand {
-  static override description = "Highlight an element by snapshot ref, XPath, or selector.";
+  static override description =
+    "Highlight an element by snapshot ref, XPath, or selector.";
 
   static override examples = [
     "browse highlight @0-12",

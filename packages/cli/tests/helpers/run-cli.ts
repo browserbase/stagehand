@@ -15,18 +15,25 @@ export interface RunCliOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-export function runCli(args: string[], options: RunCliOptions = {}): Promise<CliResult> {
+export function runCli(
+  args: string[],
+  options: RunCliOptions = {},
+): Promise<CliResult> {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(process.execPath, [join(repoRoot, "bin/run.js"), ...args], {
-      cwd: options.cwd ?? repoRoot,
-      env: {
-        ...process.env,
-        BROWSE_DISABLE_UPDATE_CHECK: "1",
-        NODE_ENV: "test",
-        ...options.env,
+    const child = spawn(
+      process.execPath,
+      [join(repoRoot, "bin/run.js"), ...args],
+      {
+        cwd: options.cwd ?? repoRoot,
+        env: {
+          ...process.env,
+          BROWSE_DISABLE_UPDATE_CHECK: "1",
+          NODE_ENV: "test",
+          ...options.env,
+        },
+        stdio: ["ignore", "pipe", "pipe"],
       },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    );
 
     let stdout = "";
     let stderr = "";

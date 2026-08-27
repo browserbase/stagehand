@@ -1,11 +1,16 @@
 import { Args } from "@oclif/core";
 
-import { createBrowserbaseClient, outputJson, withBrowserbaseApi } from "../../../lib/cloud/api.js";
+import {
+  createBrowserbaseClient,
+  outputJson,
+  withBrowserbaseApi,
+} from "../../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 
 export default class SessionsDebug extends BrowseCommand {
-  static override description = "Get live debugger URLs for a Browserbase session.";
+  static override description =
+    "Get live debugger URLs for a Browserbase session.";
   static override examples = ["browse cloud sessions debug <session-id>"];
 
   static override args = {

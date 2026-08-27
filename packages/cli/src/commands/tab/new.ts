@@ -1,7 +1,10 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
-import { driverCommandFlags, runDriverCommandFromFlags } from "../../lib/driver/command-cli.js";
+import {
+  driverCommandFlags,
+  runDriverCommandFromFlags,
+} from "../../lib/driver/command-cli.js";
 
 export default class TabNew extends BrowseCommand {
   static override description = "Open a new tab and make it active.";

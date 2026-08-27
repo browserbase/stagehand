@@ -7,7 +7,8 @@ import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../base.js";
 
 export default class ContextsDelete extends BrowseCommand {
-  static override description = "Delete a Browserbase context by ID or saved name.";
+  static override description =
+    "Delete a Browserbase context by ID or saved name.";
   static override examples = [
     "browse cloud contexts delete <context-id>",
     "browse cloud contexts delete github",
