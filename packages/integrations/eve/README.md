@@ -64,9 +64,10 @@ export default browserbaseWebFetch();
 
 The filenames perform the override: the model sees `web_search` and `web_fetch`, while the mounted
 extension still contributes only the three `browserbase__*` Code Mode tools. Each factory also
-accepts optional `apiKey`, `baseUrl`, `maxRetries`, and `timeoutMs` client settings. By default, the
-API key is resolved from `BROWSERBASE_API_KEY` on first execution so Eve can build an agent without
-requiring runtime secrets.
+accepts optional `apiKey`, `baseUrl`, `maxRetries`, and `timeoutMs` client settings. Building the
+agent does not require an API key. Executing either override does: pass `apiKey` or set
+`BROWSERBASE_API_KEY` in the runtime environment. The default factory resolves the environment
+variable lazily on first execution.
 
 ## Configuration
 

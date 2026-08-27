@@ -7,10 +7,16 @@ const searchResultSchema = z.object({
   id: z.string(),
   title: z.string(),
   url: z.string(),
-  author: z.string().optional(),
-  favicon: z.string().optional(),
-  image: z.string().optional(),
-  publishedDate: z.string().optional(),
+  author: z.string().nullish(),
+  favicon: z.string().nullish(),
+  image: z.string().nullish(),
+  publishedDate: z.string().nullish(),
+});
+
+export const browserbaseWebSearchOutputSchema = z.object({
+  query: z.string(),
+  requestId: z.string(),
+  results: z.array(searchResultSchema),
 });
 
 export function browserbaseWebSearch(config: BrowserbaseWebToolConfig = {}) {
@@ -27,11 +33,7 @@ export function browserbaseWebSearch(config: BrowserbaseWebToolConfig = {}) {
         .default(10)
         .describe("The number of results to return."),
     }),
-    outputSchema: z.object({
-      query: z.string(),
-      requestId: z.string(),
-      results: z.array(searchResultSchema),
-    }),
+    outputSchema: browserbaseWebSearchOutputSchema,
     execute({ query, numResults }, context) {
       const browserbase = createBrowserbaseWebClient(config);
       return browserbase.search.web({ query, numResults }, { signal: context.abortSignal });

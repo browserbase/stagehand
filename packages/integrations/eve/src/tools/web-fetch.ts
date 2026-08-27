@@ -48,19 +48,21 @@ export const browserbaseWebFetchInputSchema = z
     }
   });
 
+export const browserbaseWebFetchOutputSchema = z.object({
+  id: z.string(),
+  content: z.union([z.string(), z.record(z.string(), z.unknown()), z.array(z.unknown())]),
+  contentType: z.string(),
+  encoding: z.string(),
+  headers: z.record(z.string(), z.string()),
+  statusCode: z.number().int(),
+});
+
 export function browserbaseWebFetch(config: BrowserbaseWebToolConfig = {}) {
   return defineTool({
     description:
       "Retrieve a URL through Browserbase Fetch without starting a browser session. Use raw for the original response, markdown for agent-friendly content, or json with a schema for structured extraction.",
     inputSchema: browserbaseWebFetchInputSchema,
-    outputSchema: z.object({
-      id: z.string(),
-      content: z.union([z.string(), z.record(z.string(), z.unknown())]),
-      contentType: z.string(),
-      encoding: z.string(),
-      headers: z.record(z.string(), z.string()),
-      statusCode: z.number().int(),
-    }),
+    outputSchema: browserbaseWebFetchOutputSchema,
     execute({ url, format, schema, allowRedirects, allowInsecureSsl, proxies }, context) {
       const browserbase = createBrowserbaseWebClient(config);
       return browserbase.fetchAPI.create(

@@ -2,7 +2,11 @@ import type { ToolContext } from "eve/tools";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { browserbaseWebFetch, browserbaseWebSearch } from "../src/tools/index.js";
-import { browserbaseWebFetchInputSchema } from "../src/tools/web-fetch.js";
+import {
+  browserbaseWebFetchInputSchema,
+  browserbaseWebFetchOutputSchema,
+} from "../src/tools/web-fetch.js";
+import { browserbaseWebSearchOutputSchema } from "../src/tools/web-search.js";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -36,7 +40,21 @@ describe("Browserbase Eve web tools", () => {
   });
 
   it("creates a reusable Browserbase web search tool", async () => {
-    const response = { query: "stagehand", requestId: "request-one", results: [] };
+    const response = {
+      query: "stagehand",
+      requestId: "request-one",
+      results: [
+        {
+          id: "result-one",
+          title: "Stagehand",
+          url: "https://www.stagehand.dev",
+          author: null,
+          favicon: null,
+          image: null,
+          publishedDate: null,
+        },
+      ],
+    };
     mocks.search.mockResolvedValueOnce(response);
     const tool = browserbaseWebSearch({
       apiKey: "test-key",
@@ -58,6 +76,9 @@ describe("Browserbase Eve web tools", () => {
       { query: "stagehand", numResults: 5 },
       { signal: abortSignal },
     );
+    expect(browserbaseWebSearchOutputSchema["~standard"].validate(response)).toEqual({
+      value: response,
+    });
   });
 
   it("creates a reusable Browserbase web fetch tool", async () => {
@@ -96,6 +117,21 @@ describe("Browserbase Eve web tools", () => {
       },
       { signal: abortSignal },
     );
+  });
+
+  it("accepts array-valued structured fetch results", async () => {
+    const response = {
+      id: "fetch-array",
+      content: [{ title: "Example" }, { title: "Domain" }],
+      contentType: "application/json",
+      encoding: "utf-8",
+      headers: {},
+      statusCode: 200,
+    };
+
+    expect(browserbaseWebFetchOutputSchema["~standard"].validate(response)).toEqual({
+      value: response,
+    });
   });
 
   it("resolves the default API key lazily from the runtime environment", async () => {
