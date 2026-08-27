@@ -122,21 +122,6 @@ export async function resolveXpathForLocation(
               break;
             }
           }
-        } else if (!parentByFrame.has(reportedFrameId)) {
-          try {
-            const { backendNodeId } = await curSession.send<{
-              backendNodeId?: number;
-            }>("DOM.getFrameOwner", { frameId: reportedFrameId });
-            if (typeof backendNodeId === "number") {
-              chain.push({
-                parentSession: curSession,
-                iframeBackendNodeId: backendNodeId,
-              });
-              resolvedFramePath = true;
-            }
-          } catch {
-            //
-          }
         }
 
         if (!resolvedFramePath) {
