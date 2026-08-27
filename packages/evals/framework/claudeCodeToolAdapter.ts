@@ -22,7 +22,7 @@ import {
 import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
+import { createObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export { waitForCdpEvent } from "../core/tools/cdp_code.js";
 
@@ -419,9 +419,7 @@ async function prepareAgentMountAdapter(
     cwd = await fsp.mkdtemp(path.join(os.tmpdir(), `stagehand-evals-claude-${input.toolSurface}-`));
     const cleanupCwd = cwd;
     const env = { ...process.env } as Record<string, string>;
-    const recorder = running.captureEvidence
-      ? new ObservationRecorder(running.captureEvidence)
-      : undefined;
+    const recorder = createObservationRecorder(running.captureEvidence);
     // handles mounts wrap the surface in the harness's run tool (which owns
     // per-step observation); mcp mounts pass the agent's own server spec
     // through, and observation is triggered from the runner's tool_result
