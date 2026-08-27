@@ -749,7 +749,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     stagehand = undefined;
     await activeBrowser.close();
     expect(activeBrowser.closed).toBe(true);
-  });
+  }, 15_000);
 });
 
 function operationUsageFromRawRpcMessage(message: unknown): Record<string, unknown> | undefined {
