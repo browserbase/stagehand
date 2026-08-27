@@ -430,14 +430,6 @@ class ContextClipboardWriteTextParams(WireModel):
     text: StrictStr
 
 
-class ContextCloseResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    closed: Literal[True]
-
-
 class ContextCookiesParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",

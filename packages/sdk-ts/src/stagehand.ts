@@ -35,6 +35,7 @@ import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 import {
   claimStagehandBrowser,
+  invalidateStagehandBrowser,
   releaseStagehandBrowser,
   type ClaimedStagehandBrowser,
   type StagehandBrowser,
@@ -90,7 +91,7 @@ export class Stagehand {
         (stagehand.initRequestStarted && !isDefinitiveRPCErrorResponse(error));
       if (initFailureIsAmbiguous) {
         try {
-          await browser.close();
+          await invalidateStagehandBrowser(browser);
         } catch (cleanupError) {
           throw new AggregateError(
             [error, cleanupError],
@@ -186,7 +187,10 @@ export class Stagehand {
         stagehandCreateParamsForWorker(createConfig, browser),
         signal,
       );
-      attachStagehandBrowserContext(this.browserHandle, new BrowserContext(rpcClient));
+      attachStagehandBrowserContext(
+        this.browserHandle,
+        new BrowserContext(rpcClient, () => this.browserHandle.close()),
+      );
     } catch (error) {
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;

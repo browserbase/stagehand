@@ -424,7 +424,6 @@ describe("RPCClient", () => {
       StagehandMethods.stagehandExtract.name,
       StagehandMethods.stagehandObserve.name,
       StagehandMethods.contextNewPage.name,
-      StagehandMethods.contextClose.name,
       StagehandMethods.contextAddInitScript.name,
       StagehandMethods.contextSetExtraHTTPHeaders.name,
       StagehandMethods.contextGetDomainPolicy.name,

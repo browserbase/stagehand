@@ -29,9 +29,8 @@ type LocalBrowserLaunchOptions struct {
 	IgnoreHTTPSErrors   bool
 	DownloadsPath       string
 	AcceptDownloads     *bool
-	// KeepAlive transfers ownership of the launched browser lifetime to the caller.
-	// Browser.Close leaves the process running and does not remove a temporary
-	// user data directory.
+	// KeepAlive preserves the launched browser after implicit SDK disconnection.
+	// Explicit Browser.Close still terminates the process.
 	KeepAlive bool
 }
 
@@ -243,7 +242,7 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 	}
 	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderBrowserbase, origin: BrowserOriginConnected,
-		source:      browserConnectionSource{cdpURL: session.cdpURL, keepAlive: true},
+		source:      browserConnectionSource{cdpURL: session.cdpURL, keepAlive: true, close: session.close},
 		extensionID: options.ExtensionID, preloadedExtension: options.ExtensionID == "",
 		workerAPIKey:  &options.APIKey,
 		workerBrowser: &BrowserSessionMetadata{SessionID: session.sessionID, Region: session.region},
@@ -334,11 +333,31 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 		}
 		return nil, errors.Join(err, cdpErr, sourceErr, cleanupErr)
 	}
+	terminateSource := options.source.close
+	if options.provider == BrowserProviderLocal && options.origin == BrowserOriginConnected {
+		commandSender := dependencies.commandSender
+		if commandSender == nil {
+			commandSender = func(cdp *cdpClient) browserCommandSender {
+				return cdpBrowserCommandSender{cdp: cdp}
+			}
+		}
+		sender := commandSender(cdp)
+		terminateSource = func(ctx context.Context) error {
+			if cdp.closedState() {
+				return errors.New("cannot terminate local browser: CDP connection is already closed")
+			}
+			err := sender.sendCommand(ctx, "Browser.close", map[string]any{})
+			if errors.Is(err, ErrCDPClientClosed) || errors.Is(err, ErrCDPConnectionClosed) {
+				return nil
+			}
+			return err
+		}
+	}
 	return &Browser{
 		provider: options.provider, origin: options.origin, cdp: cdp,
 		workerAPIKey:  options.workerAPIKey,
 		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
-		closeSource: options.source.close, cleanup: options.source.cleanup,
+		closeSource: options.source.close, terminateSource: terminateSource, cleanup: options.source.cleanup,
 	}, nil
 }
 
