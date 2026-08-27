@@ -232,7 +232,8 @@ function trimTrailingTextNode(path: string | undefined): string | undefined {
 
 function executionErrorFromEnvelope(envelope: { name: string; message: string }): Error {
   const error = new Error(sanitizeFacadeErrorMessage(envelope.message));
-  error.name = /^[A-Za-z][A-Za-z0-9]*Error$/u.test(envelope.name) ? envelope.name : "Error";
+  const name = sanitizeFacadeErrorMessage(envelope.name);
+  error.name = /^[A-Za-z][A-Za-z0-9]*Error$/u.test(name) ? name : "Error";
   // The worker stack can contain browser internals or sensitive model-authored values.
   // Keep the useful error category and sanitized message without transporting that stack.
   error.stack = undefined;

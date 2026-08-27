@@ -82,6 +82,21 @@ describe("StagehandFacadeTools", () => {
     );
   });
 
+  it("sanitizes model-authored error names", async () => {
+    const credential = `AIza${"A".repeat(35)}Error`;
+    const { stagehand } = createStagehand({
+      __stagehandPlaywrightCompat: true,
+      value: undefined,
+      closeRequested: false,
+      executionError: { name: credential, message: "failed" },
+    });
+    const tools = new StagehandFacadeTools(stagehand);
+
+    const error = await tools.run("throw new Error('failed');").catch((caught) => caught);
+    expect(error).toMatchObject({ name: "Error", message: "failed", stack: undefined });
+    expect(String(error)).not.toContain(credential);
+  });
+
   it("reports an unsupported host instead of dropping a close request", async () => {
     const { stagehand } = createStagehand({
       __stagehandPlaywrightCompat: true,
