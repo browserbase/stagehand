@@ -177,7 +177,10 @@ export type UnderstudyRuntimePage = {
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
-  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void;
+  subscribeCDPEvent(
+    eventName: PageOnParams["event"],
+    listener: (event: PageCDPEvent) => void,
+  ): () => void;
 };
 
 export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
@@ -743,7 +746,7 @@ export class StagehandRuntime {
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
       throw new DuplicatePageEventSubscriptionError();
     }
-    const dispose = this.resolvePage(params.pageId).subscribeCDPEvent((event) => {
+    const dispose = this.resolvePage(params.pageId).subscribeCDPEvent(params.event, (event) => {
       this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
     });
     this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });

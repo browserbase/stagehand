@@ -1,7 +1,8 @@
 import type {
   LoadState,
-  PageCDPEvent,
+  PageConsoleEvent,
   PageEventName,
+  PageNetworkEvent,
   PageClickParams,
   PageDragAndDropParams,
   PageKeyPressParams,
@@ -43,8 +44,12 @@ export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["
 export type PageTypeOptions = NonNullable<PageTypeParams["options"]>;
 export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["options"]>;
 
-export interface PageEventListener {
-  (event: PageCDPEvent): unknown;
+export type PageEventForName<EventName extends PageEventName> = EventName extends "console"
+  ? PageConsoleEvent
+  : PageNetworkEvent;
+
+export interface PageEventListener<EventName extends PageEventName = PageEventName> {
+  (event: PageEventForName<EventName>): unknown;
 }
 
 export class CDPSubscription {
@@ -209,7 +214,10 @@ export class Page {
     });
   }
 
-  async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
+  async on<EventName extends PageEventName>(
+    event: EventName,
+    listener: PageEventListener<EventName>,
+  ): Promise<CDPSubscription> {
     const subscriptionId = crypto.randomUUID();
     const removeNotificationListener = this.rpcClient.onNotification((notification) => {
       if (
@@ -219,7 +227,7 @@ export class Page {
         return;
       }
       try {
-        const result = listener(notification.params.event);
+        const result = listener(notification.params.event as PageEventForName<EventName>);
         if (result && typeof result === "object" && "then" in result) {
           void Promise.resolve(result).catch(reportPageEventListenerError);
         }

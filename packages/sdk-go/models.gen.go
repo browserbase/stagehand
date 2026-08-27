@@ -1201,7 +1201,7 @@ type PageAddInitScriptParams struct {
 
 type PageCDPEvent struct {
 	// Method corresponds to the JSON schema field "method".
-	Method string `json:"method"`
+	Method PageCDPEventMethod `json:"method"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1215,6 +1215,13 @@ type PageCDPEvent struct {
 	// TargetID corresponds to the JSON schema field "target_id".
 	TargetID string `json:"target_id"`
 }
+
+type PageCDPEventMethod string
+
+const PageCDPEventMethodNetworkLoadingFailed PageCDPEventMethod = "Network.loadingFailed"
+const PageCDPEventMethodNetworkLoadingFinished PageCDPEventMethod = "Network.loadingFinished"
+const PageCDPEventMethodNetworkRequestWillBeSent PageCDPEventMethod = "Network.requestWillBeSent"
+const PageCDPEventMethodRuntimeConsoleAPICalled PageCDPEventMethod = "Runtime.consoleAPICalled"
 
 type PageCDPEventNotification struct {
 	// Event corresponds to the JSON schema field "event".
@@ -1311,6 +1318,7 @@ type PageEvaluateResult struct {
 type PageEventName string
 
 const PageEventNameConsole PageEventName = "console"
+const PageEventNameNetwork PageEventName = "network"
 
 type PageGoBackParams struct {
 	// Options corresponds to the JSON schema field "options".
