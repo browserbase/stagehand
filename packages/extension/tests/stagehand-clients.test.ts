@@ -576,7 +576,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
 
 const testTracing: StagehandTracing = {
   tracer: trace.getTracer("stagehand-app-test"),
-  configure: () => {},
+  configure: async () => {},
   forceFlush: async () => {},
   shutdown: async () => {},
 };
@@ -613,12 +613,15 @@ function createHandle(adapters: StagehandRuntimeAdapters = {}) {
     runtimeAttachments?: { callback?: unknown },
   ): Promise<JSONRPCResponse> => {
     const request = JSONRPCRequestSchema.parse(input);
-    return await new Promise((resolve, reject) => {
+    const response = new Promise<JSONRPCResponse>((resolve) => {
       resolveResponse = resolve;
-      void scope
-        .__stagehandReceiveFromHost?.(JSON.stringify(request), runtimeAttachments)
-        .catch(reject);
     });
+    const received = scope.__stagehandReceiveFromHost?.(
+      JSON.stringify(request),
+      runtimeAttachments,
+    );
+    const [result] = await Promise.all([response, received]);
+    return result;
   };
 }
 
@@ -941,7 +944,7 @@ describe("Stagehand worker clients", () => {
     expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
-  it("reuses the browser session for a second stagehand.init", async () => {
+  it("rejects a second stagehand.init while the first instance is initialized", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -967,9 +970,10 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 2,
-      result: {
-        initialized: true,
-        pages: [],
+      error: {
+        code: -32603,
+        message: "A Stagehand instance is already initialized",
+        data: { name: "Error" },
       },
     });
 
@@ -978,10 +982,14 @@ describe("Stagehand worker clients", () => {
     expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
-  it("closes the browser session on stagehand.close", async () => {
-    const session = new FakeBrowserSession();
+  it("keeps the active browser session and reuses it after stagehand.close", async () => {
+    const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
-      browserSessionFactory: async () => session,
+      browserSessionFactory: async () => {
+        const session = new FakeBrowserSession();
+        sessions.push(session);
+        return session;
+      },
     });
 
     await handle({
@@ -1006,7 +1014,25 @@ describe("Stagehand worker clients", () => {
       },
     });
 
-    expect(session.closed).toBe(true);
+    expect(sessions[0]?.closed).toBe(false);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 6,
+        method: "stagehand.init",
+        params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 6,
+      result: {
+        initialized: true,
+        pages: [],
+      },
+    });
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.prepareForInitializationCalls).toBe(2);
   });
 
   it("returns a clear error for context.pages before runtime is configured", async () => {

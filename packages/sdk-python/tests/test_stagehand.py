@@ -634,6 +634,14 @@ async def test_close_is_memoized_and_never_closes_browser_or_transport(
     with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
         await stagehand.metrics()
 
+    next_recording = _recording()
+    _install_rpc_client(monkeypatch, next_recording)
+    next_stagehand = await Stagehand.create(browser=browser)
+    assert next_stagehand.initialized is True
+    assert next_stagehand.browser is browser
+
+    await next_stagehand.close()
+
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
@@ -675,6 +683,29 @@ async def test_close_swallows_cdp_connection_closed_error(
 
     assert recording.closed is True
     assert recording.close_transport_flags == [False]
+
+    reattached_recording = _recording()
+    _install_rpc_client(monkeypatch, reattached_recording)
+    reattached = await Stagehand.create(browser=browser)
+    await reattached.close()
+
+
+@pytest.mark.asyncio
+async def test_close_failure_retains_browser_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.close": RuntimeError("worker close failed")})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    with pytest.raises(RuntimeError, match="worker close failed"):
+        await stagehand.close()
+    with pytest.raises(RuntimeError, match="already attached"):
+        await Stagehand.create(browser=browser)
+
+    assert [call[0] for call in recording.calls].count("stagehand.init") == 1
+    await browser.close()
 
 
 @pytest.mark.asyncio
