@@ -79,7 +79,10 @@ export function printTemplateDetail(template: Template): void {
   }
 }
 
-export function templateMatchesQuery(template: Template, query: string): boolean {
+export function templateMatchesQuery(
+  template: Template,
+  query: string,
+): boolean {
   const normalizedQuery = query.toLowerCase();
   const haystack = [
     template.slug,

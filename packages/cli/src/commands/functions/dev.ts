@@ -4,7 +4,8 @@ import { BrowseCommand } from "../../base.js";
 import { startFunctionsDevServer } from "../../lib/functions/dev.js";
 
 export default class FunctionsDev extends BrowseCommand {
-  static override description = "Run the local Browserbase Functions development server.";
+  static override description =
+    "Run the local Browserbase Functions development server.";
 
   static override examples = [
     "browse functions dev index.ts",

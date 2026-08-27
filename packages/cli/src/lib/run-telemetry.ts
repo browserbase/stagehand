@@ -15,7 +15,9 @@ export function getRunTelemetry(): RunTelemetryState {
   return currentRunTelemetry;
 }
 
-export function setRunTelemetryCompletion(completion: Partial<RunTelemetryState>): void {
+export function setRunTelemetryCompletion(
+  completion: Partial<RunTelemetryState>,
+): void {
   currentRunTelemetry = {
     ...currentRunTelemetry,
     ...completion,

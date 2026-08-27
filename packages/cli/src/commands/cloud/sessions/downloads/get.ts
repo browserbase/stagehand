@@ -10,7 +10,8 @@ import { apiCommonFlags, toApiOptions } from "../../../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../../../base.js";
 
 export default class SessionsDownloadsGet extends BrowseCommand {
-  static override description = "Download Browserbase session files as a ZIP archive.";
+  static override description =
+    "Download Browserbase session files as a ZIP archive.";
   static override examples = [
     "browse cloud sessions downloads get <session-id>",
     "browse cloud sessions downloads get <session-id> --output ./downloads.zip",

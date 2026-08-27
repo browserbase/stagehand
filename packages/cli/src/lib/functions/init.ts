@@ -87,21 +87,29 @@ export async function initFunctionsProject({
     },
   };
 
-  await writeFile(join(projectRoot, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
+  await writeFile(
+    join(projectRoot, "package.json"),
+    `${JSON.stringify(packageJson, null, 2)}\n`,
+  );
   await writeFile(join(projectRoot, ".env"), envTemplate);
   await writeFile(join(projectRoot, ".gitignore"), gitignoreTemplate);
   await writeFile(join(projectRoot, "index.ts"), starterFunctionTemplate);
   await writeFile(join(projectRoot, "tsconfig.json"), tsconfigTemplate);
 
   const install = packageManager === "pnpm" ? ["add"] : ["install"];
-  const installDev = packageManager === "pnpm" ? ["add", "-D"] : ["install", "--save-dev"];
+  const installDev =
+    packageManager === "pnpm" ? ["add", "-D"] : ["install", "--save-dev"];
 
   runPackageManager(
     packageManager,
     [...install, "@browserbasehq/sdk-functions", "playwright-core"],
     projectRoot,
   );
-  runPackageManager(packageManager, [...installDev, "typescript", "@types/node"], projectRoot);
+  runPackageManager(
+    packageManager,
+    [...installDev, "typescript", "@types/node"],
+    projectRoot,
+  );
 
   if (!existsSync(join(projectRoot, ".git"))) {
     spawnSync("git", ["init"], {
@@ -136,7 +144,11 @@ function ensureCommand(command: string): void {
   }
 }
 
-function runPackageManager(packageManager: "npm" | "pnpm", args: string[], cwd: string): void {
+function runPackageManager(
+  packageManager: "npm" | "pnpm",
+  args: string[],
+  cwd: string,
+): void {
   const result = spawnSync(packageManager, args, {
     cwd,
     stdio: ["ignore", "pipe", "pipe"],

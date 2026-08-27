@@ -18,13 +18,19 @@ const hook: Hook.CommandNotFound = async function ({ config, id }) {
     const result = suggestCommand(id, commandIds);
     attempted = result.attempted;
     suggestion = result.suggestion;
-    if (suggestion && !config.findCommand(suggestion) && !config.findTopic(suggestion)) {
+    if (
+      suggestion &&
+      !config.findCommand(suggestion) &&
+      !config.findTopic(suggestion)
+    ) {
       // Guards against alias targets drifting out of the command tree.
       suggestion = null;
     }
 
     const displayAttempted = toSpaced(attempted || (id.split(":")[0] ?? id));
-    const didYouMean = suggestion ? ` Did you mean "${config.bin} ${toSpaced(suggestion)}"?` : "";
+    const didYouMean = suggestion
+      ? ` Did you mean "${config.bin} ${toSpaced(suggestion)}"?`
+      : "";
     process.stderr.write(
       `"${config.bin} ${displayAttempted}" is not a ${config.bin} command.${didYouMean} Run ${config.bin} --help for all commands.\n`,
     );

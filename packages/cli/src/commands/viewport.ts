@@ -9,7 +9,8 @@ import {
 } from "../lib/driver/command-cli.js";
 
 export default class Viewport extends BrowseCommand {
-  static override description = "Set the viewport size for the active browser page.";
+  static override description =
+    "Set the viewport size for the active browser page.";
 
   static override examples = [
     "browse viewport 1280 720",

@@ -15,7 +15,9 @@ export abstract class BrowseCommand extends Command {
     setCliVersion(this.config.version);
   }
 
-  protected override async catch(err: Error & { exitCode?: number }): Promise<unknown> {
+  protected override async catch(
+    err: Error & { exitCode?: number },
+  ): Promise<unknown> {
     if (err instanceof CommandFailure) {
       recordCommandError("runtime", "COMMAND_FAILURE", err.telemetry);
       process.stderr.write(`${err.message}\n`);

@@ -27,7 +27,9 @@ interface TemplatesApiParams extends ListTemplatesOptions {
 
 export type TemplateLanguage = "typescript" | "python";
 
-export async function listTemplates(options: ListTemplatesOptions = {}): Promise<Template[]> {
+export async function listTemplates(
+  options: ListTemplatesOptions = {},
+): Promise<Template[]> {
   const payload = await requestTemplatesJson(
     // The CLI always requests the full template catalog. The templates API defaults to
     // returning only `playgroundRunnable` templates — a website-playground concept that
@@ -45,7 +47,9 @@ export async function getTemplate(slug: string): Promise<Template> {
   return template;
 }
 
-export async function getTemplateIfExists(slug: string): Promise<Template | null> {
+export async function getTemplateIfExists(
+  slug: string,
+): Promise<Template | null> {
   const payload = await requestTemplatesJson(templatesApiUrl(slug), true);
   if (!payload) {
     return null;
@@ -54,7 +58,8 @@ export async function getTemplateIfExists(slug: string): Promise<Template | null
 }
 
 function templatesApiUrl(path?: string, params: TemplatesApiParams = {}): URL {
-  const baseUrl = process.env.BROWSERBASE_TEMPLATES_API ?? defaultTemplatesApiUrl;
+  const baseUrl =
+    process.env.BROWSERBASE_TEMPLATES_API ?? defaultTemplatesApiUrl;
   const url = path
     ? new URL(encodeURIComponent(path), `${baseUrl.replace(/\/+$/, "")}/`)
     : new URL(baseUrl);
@@ -68,7 +73,10 @@ function templatesApiUrl(path?: string, params: TemplatesApiParams = {}): URL {
   return url;
 }
 
-async function requestTemplatesJson(url: URL, allowNotFound = false): Promise<unknown | null> {
+async function requestTemplatesJson(
+  url: URL,
+  allowNotFound = false,
+): Promise<unknown | null> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -77,7 +85,9 @@ async function requestTemplatesJson(url: URL, allowNotFound = false): Promise<un
       },
     });
   } catch (error) {
-    fail(`Failed to fetch templates: ${error instanceof Error ? error.message : String(error)}`);
+    fail(
+      `Failed to fetch templates: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   if (response.status === 404 && allowNotFound) {
@@ -131,7 +141,9 @@ function parseTemplatesResponse(payload: unknown): Template[] {
     fail('Invalid templates response: expected {"templates":[...]}.');
   }
 
-  return payload.templates.map((template, index) => parseTemplate(template, `templates[${index}]`));
+  return payload.templates.map((template, index) =>
+    parseTemplate(template, `templates[${index}]`),
+  );
 }
 
 function parseTemplateResponse(payload: unknown, slug: string): Template {
@@ -144,15 +156,25 @@ function parseTemplateResponse(payload: unknown, slug: string): Template {
 
 function parseTemplate(payload: unknown, context: string): Template {
   if (!isRecord(payload)) {
-    fail(`Invalid template response for ${context}: template must be an object.`);
+    fail(
+      `Invalid template response for ${context}: template must be an object.`,
+    );
   }
 
   return {
     slug: requiredString(payload.slug, context, "slug"),
     title: requiredString(payload.title, context, "title"),
-    shortDescription: optionalString(payload.shortDescription, context, "shortDescription"),
+    shortDescription: optionalString(
+      payload.shortDescription,
+      context,
+      "shortDescription",
+    ),
     description: optionalString(payload.description, context, "description"),
-    descriptionTitle: optionalString(payload.descriptionTitle, context, "descriptionTitle"),
+    descriptionTitle: optionalString(
+      payload.descriptionTitle,
+      context,
+      "descriptionTitle",
+    ),
     source: optionalString(payload.source, context, "source"),
     category: optionalStringArray(payload.category, context, "category"),
     tags: optionalStringArray(payload.tags, context, "tags"),
@@ -161,33 +183,54 @@ function parseTemplate(payload: unknown, context: string): Template {
   };
 }
 
-function requiredString(value: unknown, context: string, field: string): string {
+function requiredString(
+  value: unknown,
+  context: string,
+  field: string,
+): string {
   if (typeof value !== "string" || value.length === 0) {
-    fail(`Invalid template response for ${context}: ${field} must be a non-empty string.`);
+    fail(
+      `Invalid template response for ${context}: ${field} must be a non-empty string.`,
+    );
   }
 
   return value;
 }
 
-function optionalString(value: unknown, context: string, field: string): string | undefined {
+function optionalString(
+  value: unknown,
+  context: string,
+  field: string,
+): string | undefined {
   if (value === undefined || value === null) {
     return undefined;
   }
 
   if (typeof value !== "string") {
-    fail(`Invalid template response for ${context}: ${field} must be a string.`);
+    fail(
+      `Invalid template response for ${context}: ${field} must be a string.`,
+    );
   }
 
   return value;
 }
 
-function optionalStringArray(value: unknown, context: string, field: string): string[] {
+function optionalStringArray(
+  value: unknown,
+  context: string,
+  field: string,
+): string[] {
   if (value === undefined || value === null) {
     return [];
   }
 
-  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
-    fail(`Invalid template response for ${context}: ${field} must be an array of strings.`);
+  if (
+    !Array.isArray(value) ||
+    value.some((entry) => typeof entry !== "string")
+  ) {
+    fail(
+      `Invalid template response for ${context}: ${field} must be an array of strings.`,
+    );
   }
 
   return value;

@@ -8,7 +8,8 @@ import { cloneTemplate } from "../../lib/templates/scaffold.js";
 const languages = ["typescript", "python"] as const;
 
 export default class TemplatesClone extends BrowseCommand {
-  static override description = "Scaffold a ready-to-run project from a Browserbase template.";
+  static override description =
+    "Scaffold a ready-to-run project from a Browserbase template.";
 
   static override examples = [
     "browse templates clone google-trends-keywords",
@@ -32,7 +33,8 @@ export default class TemplatesClone extends BrowseCommand {
       description: "Print clone result as JSON.",
     }),
     language: Flags.string({
-      description: "Template language. Defaults to TypeScript when available, then Python.",
+      description:
+        "Template language. Defaults to TypeScript when available, then Python.",
       helpValue: "<language>",
       options: [...languages],
     }),
