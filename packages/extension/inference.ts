@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { isJsonObject } from "../protocol/dynamic-json-schema.js";
 import type {
   LLMGenerateParams,
   LLMGenerateResult,
@@ -17,6 +18,11 @@ import {
   buildObserveUserMessage,
 } from "./prompt.js";
 import { SupportedUnderstudyAction } from "./types/private/handlers.js";
+import type { StructuredOutputContract } from "./llm/structuredOutput.js";
+import {
+  createZodStructuredOutputContract,
+  StructuredOutputValidationError,
+} from "./llm/structuredOutput.js";
 
 type GenerateLlm = (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
 
@@ -84,6 +90,13 @@ const ActInferenceSchema = z
   })
   .strict();
 
+const ExtractMetadataContract = createZodStructuredOutputContract(
+  "Metadata",
+  ExtractMetadataSchema,
+);
+const ObservationContract = createZodStructuredOutputContract("Observation", ObservationSchema);
+const ActInferenceContract = createZodStructuredOutputContract("Act", ActInferenceSchema);
+
 function promptText(prompt: { content: unknown }): string {
   if (typeof prompt.content !== "string") {
     throw new TypeError("Structured LLM prompts must contain text");
@@ -91,13 +104,17 @@ function promptText(prompt: { content: unknown }): string {
   return prompt.content;
 }
 
-async function generateStructured<Schema extends z.ZodType>(
+async function generateStructured<Output>(
   generate: GenerateLlm,
-  name: string,
-  schema: Schema,
+  contract: StructuredOutputContract<Output>,
   systemPrompt: string,
   userPrompt: string | LLMMessage,
-): Promise<{ data: z.output<Schema>; usage?: LLMUsage; durationMs: number }> {
+): Promise<{
+  data: Output;
+  usage?: LLMUsage;
+  durationMs: number;
+}> {
+  const { name } = contract;
   const startedAt = Date.now();
   const response = await generate({
     systemPrompt,
@@ -109,31 +126,31 @@ async function generateStructured<Schema extends z.ZodType>(
     responseFormat: {
       type: "json_schema",
       name,
-      schema: z.json().parse(z.toJSONSchema(schema)),
+      schema: contract.jsonSchema,
     },
   });
-
   if (response.outputFormat !== "json_schema") {
     throw new TypeError(`${name} generation returned text instead of structured content`);
   }
-
+  const validation = contract.validate(response.structuredContent);
+  if (validation.issues) throw new StructuredOutputValidationError(validation.issues);
   return {
-    data: schema.parse(response.structuredContent),
+    data: validation.value,
     usage: response.usage,
     durationMs: Date.now() - startedAt,
   };
 }
 
-export async function extract<T extends z.ZodObject>(params: {
+export async function extract(params: {
   instruction: string;
   domElements: string;
-  schema: T;
+  schema: StructuredOutputContract;
   generate: GenerateLlm;
   userProvidedInstructions?: string;
   screenshot?: LLMImageContent;
 }): Promise<
-  z.infer<T> & {
-    metadata: z.infer<typeof ExtractMetadataSchema>;
+  Record<string, unknown> & {
+    metadata: z.output<typeof ExtractMetadataSchema>;
     prompt_tokens: number;
     completion_tokens: number;
     reasoning_tokens: number;
@@ -145,19 +162,19 @@ export async function extract<T extends z.ZodObject>(params: {
     params;
   const extraction = await generateStructured(
     generate,
-    "Extraction",
     schema,
     promptText(buildExtractSystemPrompt(false, userProvidedInstructions, Boolean(screenshot))),
     buildExtractUserPrompt(instruction, domElements, false, screenshot),
   );
+  if (!isJsonObject(extraction.data)) {
+    throw new TypeError("Extraction schema must produce an object");
+  }
   const metadata = await generateStructured(
     generate,
-    "Metadata",
-    ExtractMetadataSchema,
+    ExtractMetadataContract,
     promptText(buildMetadataSystemPrompt()),
     promptText(buildMetadataPrompt(instruction, extraction.data)),
   );
-
   return {
     ...extraction.data,
     metadata: metadata.data,
@@ -196,12 +213,10 @@ export async function observe(params: {
   } = params;
   const observation = await generateStructured(
     generate,
-    "Observation",
-    ObservationSchema,
+    ObservationContract,
     promptText(buildObserveSystemPrompt(userProvidedInstructions, supportedActions, variables)),
     promptText(buildObserveUserMessage(instruction, domElements)),
   );
-
   return {
     elements: observation.data.elements,
     prompt_tokens: observation.usage?.inputTokens ?? 0,
@@ -229,12 +244,10 @@ export async function act(params: {
   const { instruction, domElements, generate, userProvidedInstructions } = params;
   const result = await generateStructured(
     generate,
-    "Act",
-    ActInferenceSchema,
+    ActInferenceContract,
     promptText(buildActSystemPrompt(userProvidedInstructions)),
     promptText(buildObserveUserMessage(instruction, domElements)),
   );
-
   return {
     element: result.data.action,
     twoStep: result.data.twoStep,
