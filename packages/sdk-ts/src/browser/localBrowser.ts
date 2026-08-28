@@ -7,27 +7,10 @@ import path from "node:path";
 import type { LocalBrowserLaunchOptions } from "../clientSchemas.js";
 import { abortable, abortableDelay, throwIfAborted } from "../abort.js";
 
-export const WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport";
-
 const CHROME_POLL_INTERVAL_MS = 100;
 const CHROME_REQUEST_TIMEOUT_MS = 100;
 const CHROME_TERMINATION_TIMEOUT_MS = 3_000;
 
-// Copyright 2017 Google Inc. All Rights Reserved.
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// Tracks chrome-launcher 1.2.1's DEFAULT_FLAGS, excluding --disable-extensions so Stagehand can
-// load its unpacked extension. The Python and Go SDKs use the same list.
 export const DEFAULT_CHROME_FLAGS = [
   "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
     "CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
@@ -54,11 +37,9 @@ export const DEFAULT_CHROME_FLAGS = [
   "--disable-prompt-on-repost",
   "--disable-domain-reliability",
   "--propagate-iph-for-testing",
-] as const;
-
-const STAGEHAND_DEFAULT_CHROME_FLAGS = [
   "--enable-unsafe-extension-debugging",
   "--remote-allow-origins=*",
+  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ] as const;
 
 type ChromeProcessExit = {
@@ -207,11 +188,9 @@ export function localBrowserChromeFlags(
 
   return [
     ...(includeDefaults ? selectedChromeFlags(DEFAULT_CHROME_FLAGS, ignoredFlags) : []),
-    ...(includeDefaults ? selectedChromeFlags(STAGEHAND_DEFAULT_CHROME_FLAGS, ignoredFlags) : []),
     ...(options.viewport !== undefined || (includeDefaults && !ignoredFlags.has(windowSizeFlag))
       ? [windowSizeFlag]
       : []),
-    ...(includeDefaults && !ignoredFlags.has(WEBMCP_CHROME_FLAG) ? [WEBMCP_CHROME_FLAG] : []),
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
     ...(options.headless === true ? ["--headless"] : []),

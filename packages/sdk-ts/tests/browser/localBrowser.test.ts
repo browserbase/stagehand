@@ -6,8 +6,9 @@ import {
   DEFAULT_CHROME_FLAGS,
   launchLocalBrowser,
   localBrowserChromeFlags,
-  WEBMCP_CHROME_FLAG,
 } from "../../src/browser/localBrowser.js";
+
+const WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport";
 
 const EXPECTED_DEFAULT_CHROME_FLAGS = [
   "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
@@ -35,12 +36,8 @@ const EXPECTED_DEFAULT_CHROME_FLAGS = [
   "--disable-prompt-on-repost",
   "--disable-domain-reliability",
   "--propagate-iph-for-testing",
-] as const;
-
-const STAGEHAND_DEFAULT_FLAGS = [
   "--enable-unsafe-extension-debugging",
   "--remote-allow-origins=*",
-  "--window-size=1280,800",
   WEBMCP_CHROME_FLAG,
 ] as const;
 
@@ -104,13 +101,13 @@ afterEach(() => {
 });
 
 describe("local browser Chrome flags", () => {
-  it("tracks chrome-launcher 1.2.1 defaults without disabling extensions", () => {
+  it("uses the Stagehand defaults without disabling extensions", () => {
     expect(DEFAULT_CHROME_FLAGS).toStrictEqual(EXPECTED_DEFAULT_CHROME_FLAGS);
     expect(DEFAULT_CHROME_FLAGS).not.toContain("--disable-extensions");
 
     expect(localBrowserChromeFlags({}, 9_222, "/tmp/profile", false)).toStrictEqual([
       ...EXPECTED_DEFAULT_CHROME_FLAGS,
-      ...STAGEHAND_DEFAULT_FLAGS,
+      "--window-size=1280,800",
       "--remote-debugging-port=9222",
       "--user-data-dir=/tmp/profile",
       "about:blank",
