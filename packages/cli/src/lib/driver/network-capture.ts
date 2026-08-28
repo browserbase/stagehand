@@ -352,3 +352,4 @@ function sanitizeForFilename(value: string, maxLen: number): string {
     .replace(/^-|-$/g, "")
     .slice(0, maxLen);
 }
+
