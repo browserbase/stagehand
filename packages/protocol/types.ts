@@ -148,7 +148,6 @@ import type {
   PageCDPEventNotificationSchema,
   PageCDPEventParamsSchema,
   PageCDPEventSchema,
-  PageConsoleEventSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
@@ -165,13 +164,6 @@ import type {
   PageLocatorSchema,
   PageNavigationResultSchema,
   PageNavigationOptionsSchema,
-  PageNetworkEventSchema,
-  PageNetworkLoadingFailedEventParamsSchema,
-  PageNetworkLoadingFailedEventSchema,
-  PageNetworkLoadingFinishedEventParamsSchema,
-  PageNetworkLoadingFinishedEventSchema,
-  PageNetworkRequestEventParamsSchema,
-  PageNetworkRequestEventSchema,
   PageOffParamsSchema,
   PageOnParamsSchema,
   PageRefSchema,
@@ -309,18 +301,6 @@ export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageEventName = z.infer<typeof PageEventNameSchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
-export type PageConsoleEvent = z.infer<typeof PageConsoleEventSchema>;
-export type PageNetworkRequestEventParams = z.infer<typeof PageNetworkRequestEventParamsSchema>;
-export type PageNetworkRequestEvent = z.infer<typeof PageNetworkRequestEventSchema>;
-export type PageNetworkLoadingFinishedEventParams = z.infer<
-  typeof PageNetworkLoadingFinishedEventParamsSchema
->;
-export type PageNetworkLoadingFinishedEvent = z.infer<typeof PageNetworkLoadingFinishedEventSchema>;
-export type PageNetworkLoadingFailedEventParams = z.infer<
-  typeof PageNetworkLoadingFailedEventParamsSchema
->;
-export type PageNetworkLoadingFailedEvent = z.infer<typeof PageNetworkLoadingFailedEventSchema>;
-export type PageNetworkEvent = z.infer<typeof PageNetworkEventSchema>;
 export type PageCDPEvent = z.infer<typeof PageCDPEventSchema>;
 export type PageCDPEventNotification = z.infer<typeof PageCDPEventNotificationSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
