@@ -715,7 +715,6 @@ describe("driver commands", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Prefer targetId");
   });
-
 });
 
 type FakeTabPage = {
