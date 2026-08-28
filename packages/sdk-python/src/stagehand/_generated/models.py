@@ -1297,13 +1297,6 @@ class LogLevel(StrEnum):
     debug = "debug"
 
 
-class Method(StrEnum):
-    runtime_console_api_called = "Runtime.consoleAPICalled"
-    network_request_will_be_sent = "Network.requestWillBeSent"
-    network_loading_finished = "Network.loadingFinished"
-    network_loading_failed = "Network.loadingFailed"
-
-
 class Mode(StrEnum):
     auto = "auto"
     required = "required"
@@ -1483,10 +1476,10 @@ class PageCDPEvent(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
+    method: Literal["Runtime.consoleAPICalled"]
+    params: PageCDPEventParams
     session_id: Annotated[StrictStr, Field(min_length=1)]
     target_id: Annotated[StrictStr, Field(min_length=1)]
-    method: Method
-    params: PageCDPEventParams
 
 
 class PageCDPEventNotification(WireModel):
@@ -1580,9 +1573,8 @@ class PageEvaluateResult(WireModel):
     value: Optional[FieldSchema9]
 
 
-class PageEventName(StrEnum):
-    console = "console"
-    network = "network"
+class PageEventName(RootModel[Literal["console"]]):
+    root: Literal["console"]
 
 
 class PageGoBackParams(WireModel):

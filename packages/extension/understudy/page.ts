@@ -21,7 +21,6 @@ import type {
   LoadState,
   LocalBrowserLaunchOptions,
   PageCDPEvent,
-  PageEventName,
   PageSnapshotOptions,
   SnapshotResult,
   WebMCPAnnotation,
@@ -92,10 +91,8 @@ type WebMCPInvocationRecord = {
 };
 
 type CDPEventSubscription = {
-  eventName: PageEventName;
   listener: (event: PageCDPEvent) => void;
   sessionHandlers: Map<string, { session: CDPSessionLike; handler: (params: unknown) => void }>;
-  networkDispose?: () => void;
 };
 
 function createDeferred<T>(): Deferred<T> {
@@ -407,9 +404,7 @@ export class Page {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
     for (const subscription of this.cdpEventSubscriptions) {
-      if (subscription.eventName === "console") {
-        this.attachCDPEventSubscription(subscription, childSession);
-      }
+      this.attachCDPEventSubscription(subscription, childSession);
     }
 
     this.networkManager.trackSession(childSession);
@@ -512,36 +507,15 @@ export class Page {
     return this.mainSession.send<T>(method, params);
   }
 
-  /** Subscribe to a typed event stream owned by this page. */
-  public subscribeCDPEvent(
-    eventName: PageEventName,
-    listener: (event: PageCDPEvent) => void,
-  ): () => void {
+  /** Subscribe to console events on every session owned by this page. */
+  public subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
     const subscription: CDPEventSubscription = {
-      eventName,
       listener,
       sessionHandlers: new Map(),
     };
     this.cdpEventSubscriptions.add(subscription);
-    if (eventName === "console") {
-      for (const session of this.sessions.values()) {
-        this.attachCDPEventSubscription(subscription, session);
-      }
-    } else {
-      subscription.networkDispose = this.networkManager.addCaptureObserver((networkEvent) => {
-        const session =
-          networkEvent.sessionId === "__main__"
-            ? this.mainSession
-            : this.sessions.get(networkEvent.sessionId);
-        this.deliverCDPEvent(
-          subscription,
-          PageCDPEventSchema.parse({
-            ...networkEvent,
-            pageId: this.pageId,
-            targetId: this.conn.targetIdForSession(session?.id ?? null) ?? this._targetId,
-          }),
-        );
-      });
+    for (const session of this.sessions.values()) {
+      this.attachCDPEventSubscription(subscription, session);
     }
 
     let active = true;
@@ -549,7 +523,6 @@ export class Page {
       if (!active) return;
       active = false;
       this.cdpEventSubscriptions.delete(subscription);
-      subscription.networkDispose?.();
       for (const sessionId of subscription.sessionHandlers.keys()) {
         this.detachCDPEventSubscription(subscription, sessionId);
       }
@@ -574,7 +547,17 @@ export class Page {
         sessionId,
         targetId: this.conn.targetIdForSession(session.id) ?? this._targetId,
       });
-      this.deliverCDPEvent(subscription, event);
+      try {
+        subscription.listener(event);
+      } catch (error) {
+        this.logger.error("Page CDP event listener failed", {
+          category: "page",
+          pageId: this.pageId,
+          method: "Runtime.consoleAPICalled",
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     };
     subscription.sessionHandlers.set(sessionId, { session, handler });
     session.on("Runtime.consoleAPICalled", handler);
@@ -585,20 +568,6 @@ export class Page {
     if (!registered) return;
     registered.session.off("Runtime.consoleAPICalled", registered.handler);
     subscription.sessionHandlers.delete(sessionId);
-  }
-
-  private deliverCDPEvent(subscription: CDPEventSubscription, event: PageCDPEvent): void {
-    try {
-      subscription.listener(event);
-    } catch (error) {
-      this.logger.error("Page CDP event listener failed", {
-        category: "page",
-        pageId: this.pageId,
-        method: event.method,
-        sessionId: event.sessionId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
   }
 
   /**
@@ -836,7 +805,6 @@ export class Page {
   public dispose(): void {
     for (const subscription of this.cdpEventSubscriptions) {
       this.cdpEventSubscriptions.delete(subscription);
-      subscription.networkDispose?.();
       for (const sessionId of subscription.sessionHandlers.keys()) {
         this.detachCDPEventSubscription(subscription, sessionId);
       }
