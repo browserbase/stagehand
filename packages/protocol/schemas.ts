@@ -1630,7 +1630,6 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-// Convert an anonymous object so Zod 4.4 does not wrap DefaultExtractData's registry id in a root $ref.
 export const DEFAULT_EXTRACT_JSON_SCHEMA = z
   .json()
   .parse(z.toJSONSchema(z.strictObject({ extraction: z.string() }), { target: "draft-2020-12" }));
