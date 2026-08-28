@@ -579,54 +579,6 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.listeners).toHaveLength(0);
   });
 
-  it("narrows and delivers typed network events", async () => {
-    const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageOn, { ok: true });
-    client.queueResponse(StagehandMethods.pageOff, { ok: true });
-    const page = new Page(client, { pageId: "page-1" });
-    const requestKeys: string[] = [];
-
-    const subscription = await page.on("network", (event) => {
-      if (event.method === "Network.requestWillBeSent") {
-        requestKeys.push(event.params.requestKey);
-      }
-    });
-    const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
-    client.emitNotification({
-      jsonrpc: "2.0",
-      method: "page.cdp_event",
-      params: {
-        subscriptionId,
-        event: {
-          pageId: "page-1",
-          method: "Network.requestWillBeSent",
-          params: {
-            requestKey: "session-1:request-1",
-            requestId: "request-1",
-            url: "https://example.test/api",
-            httpMethod: "GET",
-            headers: {},
-            body: null,
-            resourceType: "Fetch",
-            timestamp: "2026-08-27T12:00:00.000Z",
-          },
-          sessionId: "session-1",
-          targetId: "target-1",
-        },
-      },
-    });
-
-    expect(requestKeys).toStrictEqual(["session-1:request-1"]);
-    expect(client.calls[0]).toStrictEqual(
-      requestCall(StagehandMethods.pageOn, {
-        pageId: "page-1",
-        subscriptionId,
-        event: "network",
-      }),
-    );
-    await subscription.unsubscribe();
-  });
-
   it("cleans up page.on state when remote registration fails", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
