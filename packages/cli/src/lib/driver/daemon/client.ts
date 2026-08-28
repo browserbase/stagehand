@@ -28,6 +28,12 @@ interface OpenViaDaemonOptions {
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
 }
 
+const DEFAULT_DAEMON_REQUEST_TIMEOUT_MS = 35_000;
+const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
+// Stagehand gives browser/extension initialization 60 seconds. The daemon
+// transport must cover that work before the page navigation timeout begins.
+const OPEN_INITIALIZATION_ALLOWANCE_MS = 65_000;
+
 export async function ensureDriverDaemon({
   session,
   target,
@@ -44,7 +50,9 @@ export async function ensureDriverDaemon({
     fail(
       `Timed out waiting for driver daemon lock for session "${session}".`,
       1,
-      { resultCode: "daemon_lock_timeout" },
+      {
+        resultCode: "daemon_lock_timeout",
+      },
     );
   }
 
@@ -200,10 +208,12 @@ async function sendDriverRequest<T>(
         new CommandFailure(
           `Timed out waiting for driver daemon session "${session}".`,
           1,
-          { resultCode: "daemon_socket_timeout" },
+          {
+            resultCode: "daemon_socket_timeout",
+          },
         ),
       );
-    }, 35_000);
+    }, daemonRequestTimeoutMs(request));
 
     socket.on("connect", () => {
       socket.write(`${JSON.stringify(request)}\n`);
@@ -246,6 +256,14 @@ async function sendDriverRequest<T>(
       if (!settled) failRequest(incompleteResponseError());
     });
   });
+}
+
+function daemonRequestTimeoutMs(request: DriverRequest): number {
+  if (request.type !== "open") return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
+  return (
+    OPEN_INITIALIZATION_ALLOWANCE_MS +
+    (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS)
+  );
 }
 
 function spawnDaemon(session: string, target: ConnectionTarget): void {

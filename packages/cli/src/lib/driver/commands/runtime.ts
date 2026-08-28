@@ -4,6 +4,53 @@ import { z } from "zod";
 
 import type { DriverCommandHandlers } from "./types.js";
 
+const CURSOR_OVERLAY_SCRIPT = `(() => {
+  const cursorId = "__browse_cursor_overlay__";
+  const ensureCursor = () => {
+    const existing = document.getElementById(cursorId);
+    if (existing instanceof HTMLDivElement) return existing;
+
+    const root = document.documentElement || document.body;
+    if (!root) return null;
+
+    const cursor = document.createElement("div");
+    cursor.id = cursorId;
+    cursor.setAttribute("aria-hidden", "true");
+    Object.assign(cursor.style, {
+      contain: "layout style paint",
+      height: "24px",
+      left: "0px",
+      mixBlendMode: "normal",
+      pointerEvents: "none",
+      position: "fixed",
+      top: "0px",
+      userSelect: "none",
+      width: "16px",
+      willChange: "left,top",
+      zIndex: "2147483647",
+    });
+    cursor.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="24" viewBox="0 0 16 24"><path d="M1 0 L1 22 L6 14 L15 14 Z" fill="black" stroke="white" stroke-width="0.7"/></svg>';
+    root.appendChild(cursor);
+    return cursor;
+  };
+
+  ensureCursor();
+  if (!globalThis.__browseCursorOverlayListenerInstalled__) {
+    document.addEventListener(
+      "mousemove",
+      (event) => {
+        const cursor = ensureCursor();
+        if (!cursor) return;
+        cursor.style.left = Math.max(0, event.clientX) + "px";
+        cursor.style.top = Math.max(0, event.clientY) + "px";
+      },
+      { capture: true },
+    );
+    globalThis.__browseCursorOverlayListenerInstalled__ = true;
+  }
+})()`;
+
 export const runtimeHandlers: DriverCommandHandlers = {
   async screenshot(manager, params) {
     const options = z
@@ -26,19 +73,21 @@ export const runtimeHandlers: DriverCommandHandlers = {
       .parse(params);
     const page = await manager.activePage();
     const buffer = await page.screenshot({
-      animations: options.animations,
-      caret: options.caret,
-      clip: options.clip,
-      fullPage: options.fullPage,
-      quality: options.quality,
+      ...(options.animations === undefined
+        ? {}
+        : { animations: options.animations }),
+      ...(options.caret === undefined ? {} : { caret: options.caret }),
+      ...(options.clip === undefined ? {} : { clip: options.clip }),
+      ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
       timeout: 10_000,
-      type: options.type,
+      ...(options.type === undefined ? {} : { type: options.type }),
     });
     if (options.path) {
       await fs.writeFile(options.path, buffer);
       return { saved: options.path };
     }
-    return { base64: buffer.toString("base64") };
+    return { base64: Buffer.from(buffer).toString("base64") };
   },
 
   async viewport(manager, params) {
@@ -88,8 +137,8 @@ export const runtimeHandlers: DriverCommandHandlers = {
 
   async cursor(manager) {
     const page = await manager.activePage();
-    await page.enableCursorOverlay();
-    return { cursor: "enabled" };
+    await page.evaluate(CURSOR_OVERLAY_SCRIPT);
+    return { enabled: true };
   },
 };
 

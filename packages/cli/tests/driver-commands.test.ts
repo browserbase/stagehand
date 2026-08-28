@@ -3,8 +3,15 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { PageNetworkEvent } from "@browserbasehq/stagehand";
+
 import { describe, expect, it, vi } from "vitest";
 
+import { elementsHandlers } from "../src/lib/driver/commands/elements.js";
+import { keyboardHandlers } from "../src/lib/driver/commands/keyboard.js";
+import { mouseHandlers } from "../src/lib/driver/commands/mouse.js";
+import { navigationHandlers } from "../src/lib/driver/commands/navigation.js";
+import { networkHandlers } from "../src/lib/driver/commands/network.js";
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
 import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
@@ -103,7 +110,9 @@ describe("driver commands", () => {
       });
       await expect(
         resolveTargetForCommand("reuse-local", { remote: true }),
-      ).resolves.toEqual({ kind: "remote" });
+      ).resolves.toEqual({
+        kind: "remote",
+      });
     } finally {
       vi.doUnmock("../src/lib/driver/daemon/client.js");
       vi.resetModules();
@@ -147,7 +156,9 @@ describe("driver commands", () => {
       expect(runDriverCommandViaDaemon).toHaveBeenCalledWith(
         "cdp-state",
         "snapshot",
-        { compact: true },
+        {
+          compact: true,
+        },
       );
       expect(openViaDaemon).not.toHaveBeenCalled();
     } finally {
@@ -167,6 +178,283 @@ describe("driver commands", () => {
         JSON.stringify({ command: "not.real", id: "1", type: "command" }),
       ),
     ).toThrow();
+  });
+
+  it("maps the CLI navigation timeout contract to the V4 page option", async () => {
+    const page = { goto: vi.fn().mockResolvedValue(undefined) };
+    const manager = {
+      openResult: vi.fn().mockResolvedValue({ url: "https://example.com" }),
+      pageForOpen: vi.fn().mockResolvedValue(page),
+    } as unknown as Parameters<
+      NonNullable<(typeof navigationHandlers)["open"]>
+    >[0];
+
+    await expect(
+      navigationHandlers.open!(manager, {
+        timeoutMs: 5_000,
+        url: "https://example.com",
+        waitUntil: "load",
+      }),
+    ).resolves.toEqual({ url: "https://example.com" });
+    expect(page.goto).toHaveBeenCalledWith("https://example.com", {
+      timeout: 5_000,
+      waitUntil: "load",
+    });
+  });
+
+  it("routes selector click and fill through V4 locators", async () => {
+    const locator = {
+      click: vi.fn(),
+      fill: vi.fn(),
+    };
+    const page = {
+      keyPress: vi.fn(),
+      locator: vi.fn(() => locator),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      resolveSelector: vi.fn((selector: string) =>
+        selector === "@0-1" ? "/html/body/button" : selector,
+      ),
+    } as unknown as Parameters<
+      NonNullable<(typeof elementsHandlers)["click"]>
+    >[0];
+
+    await expect(
+      elementsHandlers.click!(manager, { selector: "@0-1" }),
+    ).resolves.toEqual({
+      clicked: true,
+    });
+    await expect(
+      elementsHandlers.fill!(manager, {
+        pressEnter: true,
+        selector: "#email",
+        value: "user@example.com",
+      }),
+    ).resolves.toEqual({ filled: true, pressedEnter: true });
+
+    expect(page.locator).toHaveBeenNthCalledWith(1, "/html/body/button");
+    expect(page.locator).toHaveBeenNthCalledWith(2, "#email");
+    expect(locator.click).toHaveBeenCalledOnce();
+    expect(locator.fill).toHaveBeenCalledWith("user@example.com");
+    expect(page.keyPress).toHaveBeenCalledWith("Enter");
+  });
+
+  it("keeps select and highlight on V4 locators", async () => {
+    const locator = {
+      highlight: vi.fn(),
+      selectOption: vi.fn().mockResolvedValue(["green", "blue"]),
+    };
+    const page = { locator: vi.fn(() => locator) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      resolveSelector: vi.fn((selector: string) => selector),
+    } as unknown as Parameters<
+      NonNullable<(typeof elementsHandlers)["select"]>
+    >[0];
+
+    await expect(
+      elementsHandlers.select!(manager, {
+        selector: "#colors",
+        values: ["green", "blue"],
+      }),
+    ).resolves.toEqual({ selected: ["green", "blue"] });
+    await expect(
+      elementsHandlers.highlight!(manager, {
+        durationMs: 750,
+        selector: "#colors",
+      }),
+    ).resolves.toEqual({ highlighted: true });
+
+    expect(page.locator).toHaveBeenNthCalledWith(1, "#colors");
+    expect(page.locator).toHaveBeenNthCalledWith(2, "#colors");
+    expect(locator.selectOption).toHaveBeenCalledWith(["green", "blue"]);
+    expect(locator.highlight).toHaveBeenCalledWith({ durationMs: 750 });
+  });
+
+  it("uploads files through the V4 locator API", async () => {
+    const setInputFiles = vi.fn();
+    const manager = {
+      activePage: vi.fn(async () => ({
+        locator: vi.fn(() => ({ setInputFiles })),
+      })),
+      resolveSelector: vi.fn((selector: string) => selector),
+    } as unknown as Parameters<
+      NonNullable<(typeof elementsHandlers)["upload"]>
+    >[0];
+
+    await expect(
+      elementsHandlers.upload!(manager, {
+        files: ["/tmp/file.txt"],
+        selector: "input[type=file]",
+      }),
+    ).resolves.toEqual({ files: ["/tmp/file.txt"], uploaded: true });
+    expect(setInputFiles).toHaveBeenCalledWith(["/tmp/file.txt"]);
+  });
+
+  it("omits undefined typing options from V4 requests", async () => {
+    const page = { type: vi.fn() };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof keyboardHandlers)["type"]>
+    >[0];
+
+    await expect(
+      keyboardHandlers.type!(manager, { text: "plain" }),
+    ).resolves.toEqual({
+      typed: true,
+    });
+    await expect(
+      keyboardHandlers.type!(manager, {
+        delay: 25,
+        mistakes: true,
+        text: "human",
+      }),
+    ).resolves.toEqual({ typed: true });
+
+    expect(page.type).toHaveBeenNthCalledWith(1, "plain", undefined);
+    expect(page.type).toHaveBeenNthCalledWith(2, "human", {
+      delay: 25,
+      withMistakes: true,
+    });
+  });
+
+  it("preserves supported coordinate mouse arguments on V4 pages", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    await expect(
+      mouseHandlers["mouse.click"]!(manager, {
+        button: "right",
+        clickCount: 2,
+        x: 10,
+        y: 20,
+      }),
+    ).resolves.toEqual({ clicked: true });
+    await expect(
+      mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 }),
+    ).resolves.toEqual({
+      hovered: true,
+    });
+    await expect(
+      mouseHandlers["mouse.scroll"]!(manager, {
+        deltaX: 5,
+        deltaY: 500,
+        x: 50,
+        y: 60,
+      }),
+    ).resolves.toEqual({ scrolled: true });
+    await expect(
+      mouseHandlers["mouse.drag"]!(manager, {
+        button: "left",
+        delay: 25,
+        fromX: 70,
+        fromY: 80,
+        steps: 4,
+        toX: 90,
+        toY: 100,
+      }),
+    ).resolves.toEqual({ dragged: true });
+
+    expect(page.click).toHaveBeenCalledWith(10, 20, {
+      button: "right",
+      clickCount: 2,
+    });
+    expect(page.hover).toHaveBeenCalledWith(30, 40);
+    expect(page.scroll).toHaveBeenCalledWith(50, 60, 5, 500);
+    expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {
+      button: "left",
+      delay: 25,
+      steps: 4,
+    });
+  });
+
+  it("omits undefined coordinate options from V4 requests", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    await mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 });
+    await mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 });
+    await mouseHandlers["mouse.scroll"]!(manager, {
+      deltaX: 5,
+      deltaY: 500,
+      x: 50,
+      y: 60,
+    });
+    await mouseHandlers["mouse.drag"]!(manager, {
+      fromX: 70,
+      fromY: 80,
+      toX: 90,
+      toY: 100,
+    });
+
+    expect(page.click).toHaveBeenCalledWith(10, 20, {});
+    expect(page.hover).toHaveBeenCalledWith(30, 40);
+    expect(page.scroll).toHaveBeenCalledWith(50, 60, 5, 500);
+    expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {});
+  });
+
+  it("fails explicitly for the V4 coordinate XPath capability", async () => {
+    const manager = {} as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    for (const [command, params] of [
+      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.hover", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
+      ["mouse.drag", { fromX: 1, fromY: 2, returnXPath: true, toX: 3, toY: 4 }],
+    ] as const) {
+      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
+        "Coordinate XPath lookup is not exposed by Stagehand V4",
+      );
+    }
+  });
+
+  it("enables V4 network capture and installs the CLI-owned cursor overlay", async () => {
+    const page = { evaluate: vi.fn() };
+    const network = {
+      enable: vi.fn(async () => ({ enabled: true, path: "/tmp/network" })),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      network,
+    } as unknown as Parameters<
+      NonNullable<(typeof networkHandlers)["network.on"]>
+    >[0];
+
+    await expect(networkHandlers["network.on"]!(manager, {})).resolves.toEqual({
+      enabled: true,
+      path: "/tmp/network",
+    });
+    await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
+      enabled: true,
+    });
+    expect(network.enable).toHaveBeenCalledWith(page);
+    expect(page.evaluate).toHaveBeenCalledOnce();
+    const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
+    expect(cursorInstaller).toEqual(expect.any(String));
+    expect(cursorInstaller).toContain("__browse_cursor_overlay__");
+    expect(cursorInstaller).toContain('"mousemove"');
   });
 
   it("selects a remaining tab after closing the active tab", async () => {
@@ -217,8 +505,44 @@ describe("driver commands", () => {
 
     await expect(
       runtimeHandlers.wait!(manager, { arg: "100", type: "timeout" }),
-    ).resolves.toEqual({ waited: true });
+    ).resolves.toEqual({
+      waited: true,
+    });
     expect(page.waitForTimeout).toHaveBeenCalledWith(100);
+  });
+
+  it("omits undefined screenshot options from V4 wire requests", async () => {
+    const page = {
+      screenshot: vi.fn().mockResolvedValue(Buffer.from("image")),
+    };
+    const manager = {
+      activePage: async () => page,
+    } as unknown as Parameters<
+      NonNullable<(typeof runtimeHandlers)["screenshot"]>
+    >[0];
+
+    await expect(runtimeHandlers.screenshot!(manager, {})).resolves.toEqual({
+      base64: Buffer.from("image").toString("base64"),
+    });
+    expect(page.screenshot).toHaveBeenCalledWith({ timeout: 10_000 });
+
+    await runtimeHandlers.screenshot!(manager, {
+      animations: "disabled",
+      caret: "hide",
+      clip: { height: 200, width: 300, x: 10, y: 20 },
+      fullPage: true,
+      quality: 80,
+      type: "jpeg",
+    });
+    expect(page.screenshot).toHaveBeenLastCalledWith({
+      animations: "disabled",
+      caret: "hide",
+      clip: { height: 200, width: 300, x: 10, y: 20 },
+      fullPage: true,
+      quality: 80,
+      timeout: 10_000,
+      type: "jpeg",
+    });
   });
 
   it("accepts fractional viewport scale values", async () => {
@@ -398,39 +722,53 @@ describe("driver commands", () => {
     const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-network-race-"));
     const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
     process.env.BROWSE_DAEMON_DIR = daemonDir;
-    const cdp = new FakeCdpSession();
+    const page = new FakeNetworkPage();
     const capture = new NetworkCapture("race");
     const originalWriteFile = fs.writeFile.bind(fs);
     const writeFileSpy = vi
       .spyOn(fs, "writeFile")
       .mockImplementation(async (...args) => {
-        if (String(args[0]).endsWith("request.json")) {
+        if (typeof args[0] === "string" && args[0].endsWith("request.json")) {
           await new Promise((resolve) => setTimeout(resolve, 25));
         }
         return originalWriteFile(...args);
       });
 
     try {
-      await capture.enable({ mainFrame: () => ({ session: cdp }) });
-      cdp.emit("Network.requestWillBeSent", {
-        request: {
+      await capture.enable(page);
+      page.emit({
+        method: "Network.requestWillBeSent",
+        pageId: "page-1",
+        params: {
+          body: null,
           headers: {},
-          method: "GET",
+          httpMethod: "GET",
+          requestId: "req-1",
+          requestKey: "main:req-1",
+          resourceType: "Document",
+          timestamp: "2026-08-27T12:00:00.000Z",
           url: "https://example.com/fast",
         },
-        requestId: "req-1",
-        type: "Document",
+        sessionId: "main",
+        targetId: "page-1",
       });
-      cdp.emit("Network.responseReceived", {
-        requestId: "req-1",
-        response: {
+      page.emit({
+        method: "Network.loadingFinished",
+        pageId: "page-1",
+        params: {
+          base64Encoded: false,
+          body: "ok",
+          durationMs: 5,
           headers: { "content-type": "text/plain" },
           mimeType: "text/plain",
+          requestId: "req-1",
+          requestKey: "main:req-1",
           status: 200,
           statusText: "OK",
         },
+        sessionId: "main",
+        targetId: "page-1",
       });
-      cdp.emit("Network.loadingFinished", { requestId: "req-1" });
 
       const responsePath = join(
         daemonDir,
@@ -452,6 +790,8 @@ describe("driver commands", () => {
         status: number;
       };
       expect(response).toMatchObject({ body: "ok", status: 200 });
+      await capture.disable();
+      expect(page.unsubscribe).toHaveBeenCalledOnce();
     } finally {
       writeFileSpy.mockRestore();
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
@@ -460,46 +800,29 @@ describe("driver commands", () => {
   });
 });
 
-class FakeCdpSession {
-  private readonly listeners = new Map<
-    string,
-    Array<(params: unknown) => void>
-  >();
+class FakeNetworkPage {
+  private listener: ((event: PageNetworkEvent) => void) | null = null;
+  readonly unsubscribe = vi.fn(async () => {});
 
-  async send<T = unknown>(method: string): Promise<T> {
-    if (method === "Network.getResponseBody") {
-      return { body: "ok" } as T;
-    }
-    return {} as T;
+  async on(
+    event: "network",
+    listener: (event: PageNetworkEvent) => void,
+  ): Promise<{ unsubscribe: () => Promise<void> }> {
+    expect(event).toBe("network");
+    this.listener = listener;
+    return { unsubscribe: this.unsubscribe };
   }
 
-  on(event: string, listener: (params: unknown) => void): void {
-    const listeners = this.listeners.get(event) ?? [];
-    listeners.push(listener);
-    this.listeners.set(event, listeners);
-  }
-
-  off(event: string, listener: (params: unknown) => void): void {
-    this.listeners.set(
-      event,
-      (this.listeners.get(event) ?? []).filter(
-        (candidate) => candidate !== listener,
-      ),
-    );
-  }
-
-  emit(event: string, params: unknown): void {
-    for (const listener of this.listeners.get(event) ?? []) {
-      listener(params);
-    }
+  emit(event: PageNetworkEvent): void {
+    this.listener?.(event);
   }
 }
 
 type FakeTabPage = {
   close: ReturnType<typeof vi.fn>;
-  targetId: () => string;
+  pageId: string;
   title: () => Promise<string>;
-  url: () => string;
+  url: () => Promise<string>;
 };
 
 function createFakeTabManager(targetIds: string[], activeIndex: number) {
@@ -510,9 +833,9 @@ function createFakeTabManager(targetIds: string[], activeIndex: number) {
       close: vi.fn(async () => {
         pages = pages.filter((candidate) => candidate !== page);
       }),
-      targetId: () => targetId,
+      pageId: targetId,
       title: async () => targetId,
-      url: () => `https://example.com/${targetId}`,
+      url: async () => `https://example.com/${targetId}`,
     };
     return page;
   };
@@ -520,9 +843,9 @@ function createFakeTabManager(targetIds: string[], activeIndex: number) {
   pages = targetIds.map(makePage);
   active = pages[activeIndex] ?? null;
   const context = {
-    activePage: () => active,
-    pages: () => pages,
-    setActivePage: vi.fn((page: FakeTabPage) => {
+    activePage: async () => active,
+    pages: async () => pages,
+    setActivePage: vi.fn(async (page: FakeTabPage) => {
       active = page;
     }),
   };
