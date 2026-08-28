@@ -67,6 +67,7 @@ allowBuilds:
   "@ast-grep/lang-python": true
   "@google/genai": false
   "@scarf/scarf": false
+  braintrust: false
   bufferutil: false
   esbuild: true
   keytar: false

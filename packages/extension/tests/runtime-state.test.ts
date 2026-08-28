@@ -66,6 +66,35 @@ describe("Stagehand runtime state", () => {
     );
   });
 
+  it("replaces a retained browser session when its loopback connection is closed", async () => {
+    const closeDisconnectedSession = vi.fn();
+    const connectedSession = createBrowserSession();
+    const browserSessionFactory = vi.fn(async () => connectedSession);
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    runtime.browserSession = createBrowserSession({
+      connected: false,
+      close: closeDisconnectedSession,
+    });
+
+    await expect(
+      runtime.initialize({
+        ...runtimeIdentity,
+        browserCdpUrl: "ws://browser.example/reconnected",
+        telemetry: {
+          traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+        },
+      }),
+    ).resolves.toStrictEqual({ initialized: true, pages: [] });
+
+    expect(closeDisconnectedSession).toHaveBeenCalledOnce();
+    expect(browserSessionFactory).toHaveBeenCalledWith(
+      "ws://browser.example/reconnected",
+      runtime.logger,
+      runtime.logger,
+    );
+    expect(runtime.browserSession).toBe(connectedSession);
+  });
+
   it("stores the exact validated Stagehand init params after initialization", async () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),
@@ -102,7 +131,7 @@ describe("Stagehand runtime state", () => {
     });
   });
 
-  it("updates configuration when an initialized runtime is attached again", async () => {
+  it("rejects initialization while another Stagehand instance is initialized", async () => {
     const prepareForInitialization = vi.fn();
     const browserSessionFactory = vi.fn(async () =>
       createBrowserSession({ prepareForInitialization }),
@@ -129,39 +158,104 @@ describe("Stagehand runtime state", () => {
       },
     };
 
-    await expect(runtime.initialize(replacementParams)).resolves.toStrictEqual({
-      initialized: true,
-      pages: [],
-    });
+    await expect(runtime.initialize(replacementParams)).rejects.toThrow(
+      "A Stagehand instance is already initialized",
+    );
 
     expect(browserSessionFactory).toHaveBeenCalledOnce();
     expect(prepareForInitialization).toHaveBeenCalledOnce();
     expect(runtime.state.getState()).toStrictEqual({
       status: "initialized",
-      initParams: replacementParams,
+      initParams: {
+        ...runtimeIdentity,
+        model: { modelName: "openai/gpt-5" },
+        telemetry: {
+          traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+        },
+      },
     });
   });
 
-  it("does not initialize a closed runtime", async () => {
+  it("returns to a neutral state and reuses the browser session after Stagehand disposal", async () => {
+    const sessions: StagehandBrowserSession[] = [];
+    const close = vi.fn();
+    const prepareForInitialization = vi.fn();
     const runtime = createStagehandRuntime({
-      browserSessionFactory: async () => createBrowserSession(),
+      browserSessionFactory: async () => {
+        const session = createBrowserSession({ close, prepareForInitialization });
+        sessions.push(session);
+        return session;
+      },
     });
 
-    await runtime.replaceBrowserConnection({
-      cdpUrl: "ws://browser.example",
-    });
     const params = {
       ...runtimeIdentity,
+      browserCdpUrl: "ws://browser.example",
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },
     };
     await runtime.initialize(params);
-    await runtime.close();
+    await runtime.disposeStagehandInstance();
 
-    await expect(runtime.initialize(params)).rejects.toThrow(
-      "Stagehand has been closed and cannot be initialized again",
-    );
+    expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
+    expect(close).not.toHaveBeenCalled();
+
+    await expect(runtime.initialize(params)).resolves.toStrictEqual({
+      initialized: true,
+      pages: [],
+    });
+    expect(sessions).toHaveLength(1);
+    expect(prepareForInitialization).toHaveBeenCalledTimes(2);
+    expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
+  });
+
+  it("waits for runtime disposal before initializing the next Stagehand instance", async () => {
+    let markCloseStarted!: () => void;
+    const closeStarted = new Promise<void>((resolve) => {
+      markCloseStarted = resolve;
+    });
+    let releaseClose!: () => void;
+    const closeGate = new Promise<void>((resolve) => {
+      releaseClose = resolve;
+    });
+    const sessions: StagehandBrowserSession[] = [];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => {
+        const session = createBrowserSession({
+          close:
+            sessions.length === 0
+              ? async () => {
+                  markCloseStarted();
+                  await closeGate;
+                }
+              : async () => {},
+        });
+        sessions.push(session);
+        return session;
+      },
+    });
+    const params = {
+      ...runtimeIdentity,
+      browserCdpUrl: "ws://browser.example",
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    };
+    await runtime.initialize(params);
+
+    const closing = runtime.close();
+    await closeStarted;
+    const initializing = runtime.initialize(params);
+    await Promise.resolve();
+
+    expect(sessions).toHaveLength(1);
+
+    releaseClose();
+    await closing;
+    await expect(initializing).resolves.toStrictEqual({ initialized: true, pages: [] });
+    expect(sessions).toHaveLength(2);
+    expect(runtime.state.getState()).toMatchObject({ status: "initialized" });
   });
 
   it("leaves server state unchanged when initialization fails", async () => {
@@ -186,7 +280,7 @@ describe("Stagehand runtime state", () => {
         },
       }),
     ).rejects.toThrow("Could not read pages");
-    expect(runtime.state.getState()).toStrictEqual({ status: "created" });
+    expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
   });
 
   it("rejects concurrent initialization before creating another browser session", async () => {
@@ -216,7 +310,7 @@ describe("Stagehand runtime state", () => {
     await expect(firstInitialization).resolves.toMatchObject({ initialized: true });
   });
 
-  it("clears initialized configuration when Stagehand closes", async () => {
+  it("clears initialized configuration without closing the browser session", async () => {
     const close = vi.fn();
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession({ close }),
@@ -233,9 +327,9 @@ describe("Stagehand runtime state", () => {
       },
     });
 
-    await runtime.close();
+    await runtime.disposeStagehandInstance();
 
-    expect(runtime.state.getState()).toStrictEqual({ status: "closed" });
-    expect(close).toHaveBeenCalledOnce();
+    expect(runtime.state.getState()).toStrictEqual({ status: "idle" });
+    expect(close).not.toHaveBeenCalled();
   });
 });
