@@ -427,27 +427,27 @@ describe("driver commands", () => {
     }
   });
 
-  it("reports the isolated V4 network-capture gap and installs the CLI-owned cursor overlay", async () => {
+  it("enables sidecar network capture and installs the CLI-owned cursor overlay", async () => {
     const page = { evaluate: vi.fn() };
     const network = {
-      enable: vi.fn(async () => {
-        throw new Error("Network capture is not available");
-      }),
+      enable: vi.fn(async () => ({ enabled: true, path: "/tmp/network" })),
     };
     const manager = {
       activePage: vi.fn(async () => page),
       network,
+      networkWebSocketDebuggerUrl: vi.fn(async () => "ws://sidecar.test"),
     } as unknown as Parameters<
       NonNullable<(typeof networkHandlers)["network.on"]>
     >[0];
 
-    await expect(networkHandlers["network.on"]!(manager, {})).rejects.toThrow(
-      "Network capture is not available",
-    );
+    await expect(networkHandlers["network.on"]!(manager, {})).resolves.toEqual({
+      enabled: true,
+      path: "/tmp/network",
+    });
     await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
       enabled: true,
     });
-    expect(network.enable).toHaveBeenCalledWith(page);
+    expect(network.enable).toHaveBeenCalledWith(page, "ws://sidecar.test");
     expect(page.evaluate).toHaveBeenCalledOnce();
     const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
     expect(cursorInstaller).toEqual(expect.any(String));
@@ -715,7 +715,6 @@ describe("driver commands", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Prefer targetId");
   });
-
 });
 
 type FakeTabPage = {
