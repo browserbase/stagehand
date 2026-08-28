@@ -1,5 +1,4 @@
 import { Protocol } from "devtools-protocol";
-import type { PageNetworkEvent } from "../../../protocol/types.js";
 
 /** Metadata tracked for each network request currently in-flight. */
 export type NetworkRequestInfo = {
@@ -20,14 +19,6 @@ export interface NetworkObserver {
   onRequestFinished(info: NetworkRequestInfo): void;
   onRequestFailed(info: NetworkRequestInfo): void;
 }
-
-export type NetworkCaptureEvent = PageNetworkEvent extends infer Event
-  ? Event extends PageNetworkEvent
-    ? Omit<Event, "pageId" | "targetId">
-    : never
-  : never;
-
-export type NetworkCaptureObserver = (event: NetworkCaptureEvent) => void;
 
 /** Options for the idle waiter helper. */
 export type WaitForIdleOptions = {

@@ -3,8 +3,6 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { PageNetworkEvent } from "@browserbasehq/stagehand";
-
 import { describe, expect, it, vi } from "vitest";
 
 import { elementsHandlers } from "../src/lib/driver/commands/elements.js";
@@ -21,7 +19,6 @@ import { DRIVER_COMMAND_NAMES } from "../src/lib/driver/commands/types.js";
 import { hasExplicitDriverTarget } from "../src/lib/driver/command-cli.js";
 import { getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { parseRequest } from "../src/lib/driver/daemon/protocol.js";
-import { NetworkCapture } from "../src/lib/driver/network-capture.js";
 import { runCli } from "./helpers/run-cli.js";
 
 describe("driver commands", () => {
@@ -413,7 +410,7 @@ describe("driver commands", () => {
     expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {});
   });
 
-  it("enables V4 network capture and installs the CLI-owned cursor overlay", async () => {
+  it("enables sidecar network capture and installs the CLI-owned cursor overlay", async () => {
     const page = { evaluate: vi.fn() };
     const network = {
       enable: vi.fn(async () => ({ enabled: true, path: "/tmp/network" })),
@@ -421,6 +418,7 @@ describe("driver commands", () => {
     const manager = {
       activePage: vi.fn(async () => page),
       network,
+      networkWebSocketDebuggerUrl: vi.fn(async () => "ws://sidecar.test"),
     } as unknown as Parameters<
       NonNullable<(typeof networkHandlers)["network.on"]>
     >[0];
@@ -432,7 +430,7 @@ describe("driver commands", () => {
     await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
       enabled: true,
     });
-    expect(network.enable).toHaveBeenCalledWith(page);
+    expect(network.enable).toHaveBeenCalledWith(page, "ws://sidecar.test");
     expect(page.evaluate).toHaveBeenCalledOnce();
     const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
     expect(cursorInstaller).toEqual(expect.any(String));
@@ -700,7 +698,6 @@ describe("driver commands", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Prefer targetId");
   });
-
   it("does not expose the removed coordinate XPath flag", async () => {
     for (const command of ["click", "hover", "scroll", "drag"]) {
       const result = await runCli(["mouse", command, "--help"]);
@@ -708,106 +705,7 @@ describe("driver commands", () => {
       expect(result.stdout).not.toContain("--return-xpath");
     }
   });
-
-  it("keeps network responses when loading finishes before request file writes", async () => {
-    const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-network-race-"));
-    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
-    process.env.BROWSE_DAEMON_DIR = daemonDir;
-    const page = new FakeNetworkPage();
-    const capture = new NetworkCapture("race");
-    const originalWriteFile = fs.writeFile.bind(fs);
-    const writeFileSpy = vi
-      .spyOn(fs, "writeFile")
-      .mockImplementation(async (...args) => {
-        if (typeof args[0] === "string" && args[0].endsWith("request.json")) {
-          await new Promise((resolve) => setTimeout(resolve, 25));
-        }
-        return originalWriteFile(...args);
-      });
-
-    try {
-      await capture.enable(page);
-      page.emit({
-        method: "Network.requestWillBeSent",
-        pageId: "page-1",
-        params: {
-          body: null,
-          headers: {},
-          httpMethod: "GET",
-          requestId: "req-1",
-          requestKey: "main:req-1",
-          resourceType: "Document",
-          timestamp: "2026-08-27T12:00:00.000Z",
-          url: "https://example.com/fast",
-        },
-        sessionId: "main",
-        targetId: "page-1",
-      });
-      page.emit({
-        method: "Network.loadingFinished",
-        pageId: "page-1",
-        params: {
-          base64Encoded: false,
-          body: "ok",
-          durationMs: 5,
-          headers: { "content-type": "text/plain" },
-          mimeType: "text/plain",
-          requestId: "req-1",
-          requestKey: "main:req-1",
-          status: 200,
-          statusText: "OK",
-        },
-        sessionId: "main",
-        targetId: "page-1",
-      });
-
-      const responsePath = join(
-        daemonDir,
-        "race-network",
-        "000-GET-example.com-fast",
-        "response.json",
-      );
-      await waitForFile(responsePath);
-      if (process.platform !== "win32") {
-        const networkDir = join(daemonDir, "race-network");
-        const requestDir = join(networkDir, "000-GET-example.com-fast");
-        expect(await fileMode(networkDir)).toBe(0o700);
-        expect(await fileMode(requestDir)).toBe(0o700);
-        expect(await fileMode(join(requestDir, "request.json"))).toBe(0o600);
-        expect(await fileMode(responsePath)).toBe(0o600);
-      }
-      const response = JSON.parse(await fs.readFile(responsePath, "utf8")) as {
-        body: string;
-        status: number;
-      };
-      expect(response).toMatchObject({ body: "ok", status: 200 });
-      await capture.disable();
-      expect(page.unsubscribe).toHaveBeenCalledOnce();
-    } finally {
-      writeFileSpy.mockRestore();
-      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
-      await fs.rm(daemonDir, { recursive: true, force: true });
-    }
-  });
 });
-
-class FakeNetworkPage {
-  private listener: ((event: PageNetworkEvent) => void) | null = null;
-  readonly unsubscribe = vi.fn(async () => {});
-
-  async on(
-    event: "network",
-    listener: (event: PageNetworkEvent) => void,
-  ): Promise<{ unsubscribe: () => Promise<void> }> {
-    expect(event).toBe("network");
-    this.listener = listener;
-    return { unsubscribe: this.unsubscribe };
-  }
-
-  emit(event: PageNetworkEvent): void {
-    this.listener?.(event);
-  }
-}
 
 type FakeTabPage = {
   close: ReturnType<typeof vi.fn>;
@@ -854,23 +752,6 @@ function createFakeTabManager(targetIds: string[], activeIndex: number) {
     >[0],
     pages,
   };
-}
-
-async function waitForFile(path: string): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < 1000) {
-    try {
-      await fs.access(path);
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  throw new Error(`Timed out waiting for ${path}`);
-}
-
-async function fileMode(path: string): Promise<number> {
-  return (await fs.stat(path)).mode & 0o777;
 }
 
 function restoreEnv(key: string, value: string | undefined): void {

@@ -3,31 +3,11 @@ import type { CDPSessionLike } from "./cdp.js";
 import {
   DEFAULT_IDLE_WAIT,
   IGNORED_RESOURCE_TYPES,
-  NetworkCaptureEvent,
-  NetworkCaptureObserver,
   NetworkObserver,
   NetworkRequestInfo,
   WaitForIdleHandle,
   WaitForIdleOptions,
 } from "../types/private/network.js";
-
-const NETWORK_CAPTURE_BUFFER_LIMITS = {
-  maxResourceBufferSize: 5_000_000,
-  maxTotalBufferSize: 10_000_000,
-} as const;
-
-type NetworkCaptureRequest = {
-  requestKey: string;
-  requestId: string;
-  startedAt: number;
-};
-
-type NetworkCaptureResponse = {
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  mimeType: string;
-};
 
 /**
  * Cross-session network tracker.
@@ -52,12 +32,6 @@ export class NetworkManager {
   >();
 
   readonly observers = new Set<NetworkObserver>();
-
-  readonly captureObservers = new Set<NetworkCaptureObserver>();
-
-  readonly captureRequests = new Map<string, NetworkCaptureRequest>();
-
-  readonly captureResponses = new Map<string, NetworkCaptureResponse>();
 
   readonly requests = new Map<string, NetworkRequestInfo>();
 
@@ -92,31 +66,6 @@ export class NetworkManager {
       }
 
       this.emitStart(info);
-
-      if (this.captureObservers.size > 0) {
-        if (evt.redirectResponse) {
-          this.emitRedirectCapture(sid, info.requestKey, evt.requestId, evt.redirectResponse);
-        }
-        this.captureRequests.set(info.requestKey, {
-          requestKey: info.requestKey,
-          requestId: evt.requestId,
-          startedAt: Date.now(),
-        });
-        this.emitCapture({
-          method: "Network.requestWillBeSent",
-          params: {
-            requestKey: info.requestKey,
-            requestId: evt.requestId,
-            url: evt.request.url,
-            httpMethod: evt.request.method,
-            headers: normalizeHeaders(evt.request.headers),
-            body: evt.request.postData ?? null,
-            resourceType: evt.type ?? "Other",
-            timestamp: new Date().toISOString(),
-          },
-          sessionId: sid,
-        });
-      }
     };
 
     const finish = (reqId: string) => {
@@ -156,29 +105,15 @@ export class NetworkManager {
     const onFinished = (evt: { requestId: string }) => {
       if (!evt?.requestId) return;
       finish(evt.requestId);
-      if (this.captureObservers.size > 0) {
-        void this.emitFinishedCapture(session, sid, evt.requestId);
-      }
     };
 
     const onFailed = (evt: Protocol.Network.LoadingFailedEvent) => {
       if (!evt?.requestId) return;
       fail(evt.requestId);
-      if (this.captureObservers.size > 0) {
-        this.emitFailedCapture(sid, evt);
-      }
     };
 
     const onResponse = (evt: Protocol.Network.ResponseReceivedEvent) => {
       if (!evt?.requestId) return;
-      if (this.captureObservers.size > 0 && evt.response) {
-        this.captureResponses.set(this.requestKey(sid, evt.requestId), {
-          status: evt.response.status,
-          statusText: evt.response.statusText,
-          headers: normalizeHeaders(evt.response.headers),
-          mimeType: evt.response.mimeType,
-        });
-      }
       const url = evt.response?.url ?? "";
       if (url.startsWith("data:")) finish(evt.requestId);
     };
@@ -204,12 +139,7 @@ export class NetworkManager {
     session.on("Network.responseReceived", onResponse);
     session.on("Page.frameStoppedLoading", onFrameStopped);
 
-    void session
-      .send(
-        "Network.enable",
-        this.captureObservers.size > 0 ? NETWORK_CAPTURE_BUFFER_LIMITS : undefined,
-      )
-      .catch(() => {});
+    void session.send("Network.enable").catch(() => {});
     void session.send("Page.enable").catch(() => {});
 
     this.sessions.set(sid, {
@@ -238,12 +168,6 @@ export class NetworkManager {
     for (const key of this.requests.keys()) {
       if (key.startsWith(`${sid}:`)) this.requests.delete(key);
     }
-    for (const key of this.captureRequests.keys()) {
-      if (key.startsWith(`${sid}:`)) this.captureRequests.delete(key);
-    }
-    for (const key of this.captureResponses.keys()) {
-      if (key.startsWith(`${sid}:`)) this.captureResponses.delete(key);
-    }
 
     for (const [frameId, key] of this.documentRequestsByFrame.entries()) {
       if (key.startsWith(`${sid}:`)) {
@@ -260,28 +184,6 @@ export class NetworkManager {
     this.observers.add(observer);
     return () => {
       this.observers.delete(observer);
-    };
-  }
-
-  /**
-   * Register an observer for typed request/response capture records.
-   * Network tracking remains enabled after disposal because navigation and idle
-   * detection share the same CDP domain.
-   */
-  public addCaptureObserver(observer: NetworkCaptureObserver): () => void {
-    const firstObserver = this.captureObservers.size === 0;
-    this.captureObservers.add(observer);
-    if (firstObserver) {
-      for (const { session } of this.sessions.values()) {
-        void session.send("Network.enable", NETWORK_CAPTURE_BUFFER_LIMITS).catch(() => undefined);
-      }
-    }
-    return () => {
-      this.captureObservers.delete(observer);
-      if (this.captureObservers.size === 0) {
-        this.captureRequests.clear();
-        this.captureResponses.clear();
-      }
     };
   }
 
@@ -402,10 +304,7 @@ export class NetworkManager {
     }
     this.sessions.clear();
     this.observers.clear();
-    this.captureObservers.clear();
     this.requests.clear();
-    this.captureRequests.clear();
-    this.captureResponses.clear();
     this.documentRequestsByFrame.clear();
   }
 
@@ -430,101 +329,6 @@ export class NetworkManager {
     }
   }
 
-  private emitCapture(event: NetworkCaptureEvent): void {
-    for (const observer of this.captureObservers) {
-      try {
-        observer(event);
-      } catch {
-        // Capture observers are passive and must not disrupt CDP dispatch.
-      }
-    }
-  }
-
-  private emitRedirectCapture(
-    sessionId: string,
-    requestKey: string,
-    requestId: string,
-    response: Protocol.Network.Response,
-  ): void {
-    const request = this.captureRequests.get(requestKey);
-    this.emitCapture({
-      method: "Network.loadingFinished",
-      params: {
-        requestKey,
-        requestId,
-        status: response.status,
-        statusText: response.statusText,
-        headers: normalizeHeaders(response.headers),
-        mimeType: response.mimeType,
-        body: null,
-        base64Encoded: false,
-        durationMs: request ? Date.now() - request.startedAt : 0,
-      },
-      sessionId,
-    });
-    this.captureRequests.delete(requestKey);
-    this.captureResponses.delete(requestKey);
-  }
-
-  private async emitFinishedCapture(
-    session: CDPSessionLike,
-    sessionId: string,
-    requestId: string,
-  ): Promise<void> {
-    const requestKey = this.requestKey(sessionId, requestId);
-    const request = this.captureRequests.get(requestKey);
-    const response = this.captureResponses.get(requestKey);
-    let body: string | null = null;
-    let base64Encoded = false;
-    try {
-      const result = await session.send<{ body?: string; base64Encoded?: boolean }>(
-        "Network.getResponseBody",
-        { requestId },
-      );
-      body = result.body ?? null;
-      base64Encoded = result.base64Encoded ?? false;
-    } catch {
-      // Some response types do not expose a body through CDP.
-    }
-
-    this.emitCapture({
-      method: "Network.loadingFinished",
-      params: {
-        requestKey,
-        requestId,
-        status: response?.status ?? 0,
-        statusText: response?.statusText ?? "",
-        headers: response?.headers ?? {},
-        mimeType: response?.mimeType ?? "",
-        body,
-        base64Encoded,
-        durationMs: request ? Date.now() - request.startedAt : 0,
-      },
-      sessionId,
-    });
-    if (this.captureRequests.get(requestKey) === request) {
-      this.captureRequests.delete(requestKey);
-      this.captureResponses.delete(requestKey);
-    }
-  }
-
-  private emitFailedCapture(sessionId: string, event: Protocol.Network.LoadingFailedEvent): void {
-    const requestKey = this.requestKey(sessionId, event.requestId);
-    const request = this.captureRequests.get(requestKey);
-    this.emitCapture({
-      method: "Network.loadingFailed",
-      params: {
-        requestKey,
-        requestId: event.requestId,
-        errorText: event.errorText,
-        durationMs: request ? Date.now() - request.startedAt : 0,
-      },
-      sessionId,
-    });
-    this.captureRequests.delete(requestKey);
-    this.captureResponses.delete(requestKey);
-  }
-
   /** Compute a stable key for a session (falls back to synthetic root id). */
   sessionKey(session: CDPSessionLike): string {
     return session.id ?? "__main__";
@@ -534,10 +338,4 @@ export class NetworkManager {
   requestKey(sessionId: string, requestId: string): string {
     return `${sessionId}:${requestId}`;
   }
-}
-
-function normalizeHeaders(headers: Protocol.Network.Headers | undefined): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(headers ?? {}).map(([name, value]) => [name, String(value)]),
-  );
 }

@@ -3634,7 +3634,7 @@
     },
     "PageEventName": {
       "type": "string",
-      "enum": ["console", "network"]
+      "enum": ["console"]
     },
     "PageOffParams": {
       "type": "object",
@@ -4880,6 +4880,13 @@
           "type": "string",
           "minLength": 1
         },
+        "method": {
+          "type": "string",
+          "const": "Runtime.consoleAPICalled"
+        },
+        "params": {
+          "$ref": "#/$defs/PageCDPEventParams"
+        },
         "session_id": {
           "type": "string",
           "minLength": 1
@@ -4887,21 +4894,9 @@
         "target_id": {
           "type": "string",
           "minLength": 1
-        },
-        "method": {
-          "type": "string",
-          "enum": [
-            "Runtime.consoleAPICalled",
-            "Network.requestWillBeSent",
-            "Network.loadingFinished",
-            "Network.loadingFailed"
-          ]
-        },
-        "params": {
-          "$ref": "#/$defs/PageCDPEventParams"
         }
       },
-      "required": ["page_id", "session_id", "target_id", "method", "params"],
+      "required": ["page_id", "method", "params", "session_id", "target_id"],
       "additionalProperties": false
     },
     "PageCDPEventParams": {
