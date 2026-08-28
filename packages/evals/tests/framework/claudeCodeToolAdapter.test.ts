@@ -1,8 +1,11 @@
+import { execFile } from "node:child_process";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildBrowseCliWrapperScript,
   getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
   insertAfterFrontmatter,
@@ -17,6 +20,9 @@ import {
   resolveCodexToolSurface,
 } from "../../framework/codexToolAdapter.js";
 import type { CdpEventMessage } from "../../core/tools/cdp_code.js";
+import { BROWSE_CLI_ENTRYPOINT } from "../../browseCliPaths.js";
+
+const execFileAsync = promisify(execFile);
 
 describe("claude code tool adapter resolution", () => {
   afterEach(() => {
@@ -110,6 +116,7 @@ describe("claude code tool adapter resolution", () => {
     expect(isAllowedBrowseCommand("./browse -h")).toBe(false);
     expect(isAllowedBrowseCommand("npm test")).toBe(false);
     expect(isAllowedBrowseCommand("browse status; rm -rf /")).toBe(false);
+    expect(isAllowedBrowseCommand("browse cloud contexts list")).toBe(false);
     expect(isAllowedBrowseCommand("browse status\ncat ~/.ssh/id_rsa")).toBe(false);
     expect(isAllowedBrowseCommand("browse status\r\ncat ~/.ssh/id_rsa")).toBe(false);
   });
@@ -124,8 +131,8 @@ describe("claude code tool adapter resolution", () => {
   it("exposes browse cli metadata for Braintrust rows", () => {
     expect(getBrowseCliToolMetadata()).toMatchObject({
       toolCommand: "browse",
-      browseCliVersion: "0.9.5",
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      browseCliVersion: "0.9.6",
+      browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
     });
   });
 
@@ -247,6 +254,46 @@ describe("claude code tool adapter resolution", () => {
       // formatting choices in the shipped skill.
       expect(installed.slice(0, sourceFrontmatter.length)).toBe(sourceFrontmatter);
       expect(installed.startsWith(sourceFrontmatter)).toBe(true);
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("routes only driver commands through the pinned browse wrapper", async () => {
+    const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-wrapper-test-"));
+    const entrypoint = path.join(cwd, "capture.mjs");
+    const wrapper = path.join(cwd, "browse");
+    try {
+      await fsp.writeFile(
+        entrypoint,
+        "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n",
+      );
+      await fsp.writeFile(
+        wrapper,
+        buildBrowseCliWrapperScript({
+          entrypoint,
+          modeFlag: "--local",
+          nodePath: process.execPath,
+          session: "eval-session",
+        }),
+        { mode: 0o755 },
+      );
+
+      const open = await execFileAsync(wrapper, ["open", "about:blank"]);
+      expect(JSON.parse(open.stdout)).toEqual([
+        "open",
+        "about:blank",
+        "--local",
+        "--session",
+        "eval-session",
+      ]);
+
+      const stop = await execFileAsync(wrapper, ["stop", "--force"]);
+      expect(JSON.parse(stop.stdout)).toEqual(["stop", "--force", "--session", "eval-session"]);
+
+      await expect(execFileAsync(wrapper, ["cloud", "projects", "list"])).rejects.toMatchObject({
+        code: 64,
+      });
     } finally {
       await fsp.rm(cwd, { recursive: true, force: true });
     }
