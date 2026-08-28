@@ -94,11 +94,6 @@ type SpawnChromeOptions = {
   env: NodeJS.ProcessEnv;
 };
 
-type InternalChromeLaunchOptions = {
-  signal?: AbortSignal;
-  startingUrl?: string;
-};
-
 const defaultDependencies: LocalBrowserLauncherDependencies = {
   platform: process.platform,
   env: process.env,
@@ -125,16 +120,20 @@ export type LocalBrowserLauncher = (
   signal?: AbortSignal,
 ) => Promise<{ cdpUrl: string; close: () => Promise<void> }>;
 
-export const launchLocalBrowser: LocalBrowserLauncher = async (options, signal) =>
-  await launchChrome(options, { signal }, defaultDependencies);
+export async function launchLocalBrowser(
+  options: LocalBrowserLaunchOptions,
+  signal?: AbortSignal,
+): Promise<{ cdpUrl: string; close: () => Promise<void> }> {
+  return await launchChrome(options, signal, defaultDependencies);
+}
 
 async function launchChrome(
   options: LocalBrowserLaunchOptions,
-  internalOptions: InternalChromeLaunchOptions,
+  signal: AbortSignal | undefined,
   dependencies: LocalBrowserLauncherDependencies,
 ): Promise<{ cdpUrl: string; close: () => Promise<void> }> {
   validateLocalBrowserOptions(options);
-  throwIfAborted(internalOptions.signal);
+  throwIfAborted(signal);
 
   const chromePath = await findChromePath(options.executablePath, dependencies);
   const port = await resolveChromePort(options.port, dependencies);
@@ -151,13 +150,12 @@ async function launchChrome(
   let child: ChildProcess | undefined;
   let close: (() => Promise<void>) | undefined;
   try {
-    throwIfAborted(internalOptions.signal);
+    throwIfAborted(signal);
     const args = localBrowserChromeFlags(
       options,
       port,
       userDataDir,
       shouldDisableSandbox(options, dependencies),
-      internalOptions.startingUrl ?? "about:blank",
     );
     child = dependencies.spawnChrome(chromePath, args, {
       detached: dependencies.platform !== "win32",
@@ -165,10 +163,10 @@ async function launchChrome(
     });
     const monitor = monitorChromeProcess(child);
     close = memoizedChromeClose(child, monitor, userDataDir, removeProfile, dependencies);
-    await abortable(monitor.spawned, internalOptions.signal);
+    await abortable(monitor.spawned, signal);
 
     const cdpUrl = `http://127.0.0.1:${port}`;
-    await waitForChrome(cdpUrl, monitor, internalOptions.signal, dependencies.fetch);
+    await waitForChrome(cdpUrl, monitor, signal, dependencies.fetch);
     return { cdpUrl, close };
   } catch (error) {
     if (close) {
@@ -201,7 +199,6 @@ export function localBrowserChromeFlags(
   port: number,
   userDataDir: string,
   disableSandbox: boolean,
-  startingUrl = "about:blank",
 ): string[] {
   const ignoredDefaultArgs = options.ignoreDefaultArgs;
   const ignoredFlags = new Set(Array.isArray(ignoredDefaultArgs) ? ignoredDefaultArgs : []);
@@ -230,7 +227,7 @@ export function localBrowserChromeFlags(
     ...(options.hasTouch === true ? ["--touch-events=enabled"] : []),
     ...(options.ignoreHTTPSErrors === true ? ["--ignore-certificate-errors"] : []),
     ...(options.args ?? []),
-    startingUrl,
+    "about:blank",
   ];
 }
 
@@ -629,9 +626,7 @@ async function runTaskkill(pid: number, force: boolean): Promise<void> {
 /** @internal */
 export function createLocalBrowserLauncherForTest(
   overrides: Partial<LocalBrowserLauncherDependencies>,
-  internalOptions: Omit<InternalChromeLaunchOptions, "signal"> = {},
 ): LocalBrowserLauncher {
   const dependencies = { ...defaultDependencies, ...overrides };
-  return async (options, signal) =>
-    await launchChrome(options, { ...internalOptions, signal }, dependencies);
+  return async (options, signal) => await launchChrome(options, signal, dependencies);
 }

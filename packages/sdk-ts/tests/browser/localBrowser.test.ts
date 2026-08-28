@@ -68,10 +68,7 @@ function readyResponse(): Response {
   );
 }
 
-function fakeLauncher(
-  overrides: Record<string, unknown> = {},
-  internalOptions: { startingUrl?: string } = {},
-) {
+function fakeLauncher(overrides: Record<string, unknown> = {}) {
   const child = new FakeChromeProcess();
   const removeProfile = vi.fn(async () => {});
   const spawnChrome = vi.fn((_executablePath: string, _args: string[]) => {
@@ -81,27 +78,24 @@ function fakeLauncher(
   const signalProcess = vi.fn((_pid: number, signal: NodeJS.Signals) => {
     queueMicrotask(() => child.exited(0, signal));
   });
-  const launch = createLocalBrowserLauncherForTest(
-    {
-      platform: "darwin",
-      env: {},
-      getuid: undefined,
-      isExecutableFile: async (filePath) => filePath === "/path/to/chrome",
-      mkdir: vi.fn(async () => undefined),
-      mkdtemp: vi.fn(async () => "/tmp/stagehand-chrome-profile"),
-      rm: removeProfile,
-      spawnChrome,
-      fetch: vi.fn(async () => readyResponse()),
-      findAvailablePort: async () => 9_222,
-      assertPortAvailable: async () => {},
-      signalProcess,
-      runTaskkill: async () => {
-        queueMicrotask(() => child.exited());
-      },
-      ...overrides,
+  const launch = createLocalBrowserLauncherForTest({
+    platform: "darwin",
+    env: {},
+    getuid: undefined,
+    isExecutableFile: async (filePath) => filePath === "/path/to/chrome",
+    mkdir: vi.fn(async () => undefined),
+    mkdtemp: vi.fn(async () => "/tmp/stagehand-chrome-profile"),
+    rm: removeProfile,
+    spawnChrome,
+    fetch: vi.fn(async () => readyResponse()),
+    findAvailablePort: async () => 9_222,
+    assertPortAvailable: async () => {},
+    signalProcess,
+    runTaskkill: async () => {
+      queueMicrotask(() => child.exited());
     },
-    internalOptions,
-  );
+    ...overrides,
+  });
   return { child, launch, removeProfile, signalProcess, spawnChrome };
 }
 
@@ -534,17 +528,6 @@ describe("local browser launch lifecycle", () => {
 
     expect(rejection).toBeInstanceOf(AggregateError);
     expect((rejection as AggregateError).errors).toStrictEqual([processError, profileError]);
-  });
-
-  it("supports an internal starting URL without changing the public launch options", async () => {
-    const { launch, spawnChrome } = fakeLauncher(
-      {},
-      { startingUrl: "http://127.0.0.1:3000/fixture" },
-    );
-    const browser = await launch({ executablePath: "/path/to/chrome" });
-
-    expect(spawnChrome.mock.calls[0]?.[1].at(-1)).toBe("http://127.0.0.1:3000/fixture");
-    await browser.close();
   });
 });
 
