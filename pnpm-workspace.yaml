@@ -53,6 +53,7 @@ catalog:
   tsx: ^4.23.1
   openai: ^6.48.0
   "@browserbasehq/sdk": ^2.16.0
+  "@browserbasehq/sdk-functions": github:browserbase/sdk-functions-node#c74bea65c3dd645470e0fc80e65cfff283310665
   fflate: ^0.8.3
   mint: 4.2.788
   publint: ^0.3.8
@@ -60,6 +61,9 @@ catalog:
 overrides:
   vite: "catalog:"
 allowBuilds:
+  # TODO(functions-core-release): remove this git-dependency build allowance once
+  # @browserbasehq/sdk-functions/core is available from npm.
+  "@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/c74bea65c3dd645470e0fc80e65cfff283310665": true
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
   "@google/genai": false

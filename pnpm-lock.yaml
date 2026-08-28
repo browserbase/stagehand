@@ -42,6 +42,9 @@ catalogs:
     '@browserbasehq/sdk':
       specifier: ^2.16.0
       version: 2.16.0
+    '@browserbasehq/sdk-functions':
+      specifier: github:browserbase/sdk-functions-node#c74bea65c3dd645470e0fc80e65cfff283310665
+      version: 1.0.2
     '@changesets/changelog-github':
       specifier: 0.7.0
       version: 0.7.0
@@ -242,6 +245,9 @@ importers:
       '@browserbasehq/sdk':
         specifier: ^2.17.0
         version: 2.19.0
+      '@browserbasehq/sdk-functions':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/c74bea65c3dd645470e0fc80e65cfff283310665
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../sdk-ts
@@ -251,9 +257,6 @@ importers:
       '@vercel/detect-agent':
         specifier: ^1.2.3
         version: 1.2.3
-      archiver:
-        specifier: ^7.0.1
-        version: 7.0.1
       deepmerge:
         specifier: ^4.3.1
         version: 4.3.1
@@ -266,18 +269,12 @@ importers:
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
-      ignore:
-        specifier: ^7.0.5
-        version: 7.0.5
       node-html-markdown:
         specifier: ^1.3.0
         version: 1.3.0
       semver:
         specifier: ^7.7.4
         version: 7.8.5
-      tsx:
-        specifier: ^4.20.6
-        version: 4.23.1
       ws:
         specifier: ^8.18.3
         version: 8.21.0(bufferutil@4.1.0)
@@ -288,9 +285,6 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.9.1(jiti@2.7.0))
-      '@types/archiver':
-        specifier: ^6.0.3
-        version: 6.0.4
       '@types/node':
         specifier: ^20.11.30
         version: 20.19.43
@@ -1427,6 +1421,11 @@ packages:
       '@opentelemetry/exporter-trace-otlp-http': '>=0.35.0'
       '@opentelemetry/sdk-trace-base': '>=1.9.0'
       braintrust: '>=1.0.0-0'
+
+  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/c74bea65c3dd645470e0fc80e65cfff283310665':
+    resolution: {gitHosted: true, integrity: sha512-8uiwu5GdEPxIEYOSoaGmjerFS3PQ7uX6iwhnVA3W9IBZRJMp1zinoOJS9pUzetPwlmLFiow2xMPARnYaPtd61Q==, tarball: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/c74bea65c3dd645470e0fc80e65cfff283310665}
+    version: 1.0.2
+    hasBin: true
 
   '@browserbasehq/sdk@2.16.0':
     resolution: {integrity: sha512-mPAuLRU9jWR7o0KJi9+gQnOBDUSIkoKbbFv4HjrA+80qWVcFacrNPlZmf4mguQnfZ0oP2t5c3ws6yuFyAX9vpA==}
@@ -3412,9 +3411,6 @@ packages:
   '@types/acorn@4.0.6':
     resolution: {integrity: sha512-veQTnWP+1D/xbxVrPC3zHnCZRjSrKfhbMUlEA43iMZLu7EsnTtkJklIuwrCPbOi8YkvDQAiW05VQQFvvz9oieQ==}
 
-  '@types/archiver@6.0.4':
-    resolution: {integrity: sha512-ULdQpARQ3sz9WH4nb98mJDYA0ft2A8C4f4fovvUcFwINa1cgGjY36JCAYuP5YypRq4mco1lJp1/7jEMS2oR0Hg==}
-
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
@@ -3504,9 +3500,6 @@ packages:
 
   '@types/react@19.2.17':
     resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==}
-
-  '@types/readdir-glob@1.1.5':
-    resolution: {integrity: sha512-raiuEPUYqXu+nvtY2Pe8s8FEmZ3x5yAH4VkLdihcPdalvsHltomrRC9BzuStrJ9yk06470hS0Crw0f1pXqD+Hg==}
 
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
@@ -4240,6 +4233,10 @@ packages:
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
+
+  commander@14.0.3:
+    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
+    engines: {node: '>=20'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -9575,6 +9572,22 @@ snapshots:
       '@opentelemetry/sdk-trace-base': 2.9.0(@opentelemetry/api@1.9.1)
       braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.76)(zod@4.4.3)
 
+  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/c74bea65c3dd645470e0fc80e65cfff283310665':
+    dependencies:
+      '@browserbasehq/sdk': 2.19.0
+      archiver: 7.0.1
+      chalk: 5.6.2
+      commander: 14.0.3
+      dotenv: 17.4.2
+      ignore: 7.0.5
+      tsx: 4.23.1
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - encoding
+      - react-native-b4a
+
   '@browserbasehq/sdk@2.16.0':
     dependencies:
       '@types/node': 18.19.130
@@ -11975,10 +11988,6 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
 
-  '@types/archiver@6.0.4':
-    dependencies:
-      '@types/readdir-glob': 1.1.5
-
   '@types/chai@5.2.3':
     dependencies:
       '@types/deep-eql': 4.0.2
@@ -12077,10 +12086,6 @@ snapshots:
   '@types/react@19.2.17':
     dependencies:
       csstype: 3.2.3
-
-  '@types/readdir-glob@1.1.5':
-    dependencies:
-      '@types/node': 20.19.43
 
   '@types/retry@0.12.0': {}
 
@@ -12917,6 +12922,8 @@ snapshots:
       delayed-stream: 1.0.0
 
   comma-separated-tokens@2.0.3: {}
+
+  commander@14.0.3: {}
 
   commander@2.20.3: {}
 
