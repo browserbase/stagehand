@@ -413,14 +413,29 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 		_ map[string]json.RawMessage,
 	) map[string]any {
 		switch method {
+		case "Extensions.getExtensions":
+			return map[string]any{"result": map[string]any{
+				"extensions": []map[string]any{
+					installedExtension("other-extension", "Other Extension", true),
+					installedExtension("preloaded-extension", "Stagehand Runtime", true),
+				},
+			}}
 		case "Target.getTargets":
 			return map[string]any{"result": map[string]any{
-				"targetInfos": []map[string]any{{
-					"targetId": "worker-target",
-					"type":     "service_worker",
-					"title":    "Stagehand",
-					"url":      "chrome-extension://preloaded-extension/service-worker.js",
-				}},
+				"targetInfos": []map[string]any{
+					{
+						"targetId": "other-worker",
+						"type":     "service_worker",
+						"title":    "Other",
+						"url":      "chrome-extension://other-extension/service-worker.js",
+					},
+					{
+						"targetId": "worker-target",
+						"type":     "service_worker",
+						"title":    "Stagehand",
+						"url":      "chrome-extension://preloaded-extension/service-worker.js",
+					},
+				},
 			}}
 		case "Target.attachToTarget":
 			return map[string]any{"result": map[string]any{"sessionId": "worker-session"}}
@@ -447,17 +462,138 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 	client.mu.Lock()
 	service := client.service
 	client.mu.Unlock()
-	if service.ExtensionID != "preloaded-extension" {
-		t.Fatalf("extension ID = %q", service.ExtensionID)
+	if service.ExtensionID != "preloaded-extension" || service.TargetID != "worker-target" {
+		t.Fatalf("service worker = %#v", service)
 	}
 	actualMethods := drainMethods(methods)
-	if len(actualMethods) == 0 || actualMethods[0] != "Target.getTargets" {
-		t.Fatalf("CDP methods = %#v", actualMethods)
+	expectedMethods := []string{
+		"Extensions.getExtensions",
+		"Target.getTargets",
+		"Target.attachToTarget",
+		"Runtime.enable",
+		"Runtime.addBinding",
+		"Runtime.evaluate",
 	}
-	for _, method := range actualMethods {
-		if method == "Extensions.loadUnpacked" {
-			t.Fatalf("preloaded extension unexpectedly called %s", method)
-		}
+	if !reflect.DeepEqual(actualMethods, expectedMethods) {
+		t.Fatalf("CDP methods = %#v, want %#v", actualMethods, expectedMethods)
+	}
+}
+
+func TestDiscoverInstalledStagehandExtensionID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		extensions any
+		wantID     string
+		wantError  string
+	}{
+		{
+			name: "single enabled match",
+			extensions: []map[string]any{
+				installedExtension("other", "Other Extension", true),
+				installedExtension("stagehand", "Stagehand Runtime", true),
+			},
+			wantID: "stagehand",
+		},
+		{
+			name: "missing",
+			extensions: []map[string]any{
+				installedExtension("other", "Other Extension", true),
+			},
+			wantError: "Stagehand extension is not installed in the connected browser. " +
+				"The extension must be included when the Browserbase session is created.",
+		},
+		{
+			name: "disabled",
+			extensions: []map[string]any{
+				installedExtension("stagehand", "Stagehand Runtime", false),
+			},
+			wantError: "Stagehand extension is installed in the connected browser but is disabled.",
+		},
+		{
+			name: "multiple enabled matches",
+			extensions: []map[string]any{
+				installedExtension("stagehand-z", "Stagehand Runtime", true),
+				installedExtension("stagehand-a", "Stagehand Runtime", true),
+			},
+			wantError: "Multiple enabled Stagehand extensions are installed: " +
+				"stagehand-a, stagehand-z",
+		},
+		{
+			name: "malformed entry",
+			extensions: []map[string]any{
+				{
+					"id":      "stagehand",
+					"name":    "Stagehand Runtime",
+					"version": "4.0.2",
+					"path":    "/remote/stagehand",
+				},
+			},
+			wantError: "Extensions.getExtensions returned an invalid extension entry",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			socket := newFakeCDPWebSocket()
+			methods := make(chan string, 2)
+			socket.writeHook = responseHook(t, socket, methods, func(
+				string,
+				map[string]json.RawMessage,
+			) map[string]any {
+				return map[string]any{"result": map[string]any{"extensions": test.extensions}}
+			})
+			client := newTestCDPClient(
+				t,
+				socket,
+				"ws://127.0.0.1/devtools/browser/test",
+			)
+
+			got, err := client.discoverInstalledStagehandExtensionID(context.Background())
+			if test.wantError != "" {
+				if err == nil || err.Error() != test.wantError {
+					t.Fatalf("error = %v, want %q", err, test.wantError)
+				}
+			} else if err != nil || got != test.wantID {
+				t.Fatalf("result = %q, %v, want %q, nil", got, err, test.wantID)
+			}
+			if actual := drainMethods(methods); !reflect.DeepEqual(
+				actual,
+				[]string{"Extensions.getExtensions"},
+			) {
+				t.Fatalf("CDP methods = %#v", actual)
+			}
+		})
+	}
+}
+
+func TestDiscoverInstalledStagehandExtensionIDPropagatesCommandError(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	methods := make(chan string, 2)
+	socket.writeHook = responseHook(t, socket, methods, func(
+		string,
+		map[string]json.RawMessage,
+	) map[string]any {
+		return map[string]any{"error": map[string]any{
+			"code": -32601, "message": "Method not available",
+		}}
+	})
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+
+	_, err := client.discoverInstalledStagehandExtensionID(context.Background())
+	var commandError *cdpCommandError
+	if !errors.As(err, &commandError) || commandError.Method != "Extensions.getExtensions" {
+		t.Fatalf("error = %T %v, want Extensions.getExtensions command error", err, err)
+	}
+	if actual := drainMethods(methods); !reflect.DeepEqual(
+		actual,
+		[]string{"Extensions.getExtensions"},
+	) {
+		t.Fatalf("CDP methods = %#v", actual)
 	}
 }
 
@@ -971,6 +1107,16 @@ func readyRuntimeResponse() map[string]any {
 			},
 		},
 	}}
+}
+
+func installedExtension(id string, name string, enabled bool) map[string]any {
+	return map[string]any{
+		"id":      id,
+		"name":    name,
+		"version": "4.0.2",
+		"path":    "/remote/extensions/" + id,
+		"enabled": enabled,
+	}
 }
 
 func receiveCDPWrite(t *testing.T, socket *fakeCDPWebSocket) []byte {

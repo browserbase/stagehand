@@ -158,9 +158,23 @@ const RuntimeReadinessEnvelopeSchema = z.looseObject({
   hasReceiver: z.boolean(),
 });
 
+const InstalledExtensionSchema = z.looseObject({
+  id: z.string().min(1),
+  name: z.string(),
+  version: z.string(),
+  path: z.string(),
+  enabled: z.boolean(),
+});
+
+const InstalledExtensionsResultSchema = z.looseObject({
+  extensions: z.array(InstalledExtensionSchema),
+});
+
+const STAGEHAND_EXTENSION_NAME = "Stagehand Runtime";
+
 export class CDPConnectionClosedError extends Error {
-  constructor() {
-    super("CDP connection closed");
+  constructor(options?: ErrorOptions) {
+    super("CDP connection closed", options);
     this.name = "CDPConnectionClosedError";
   }
 }
@@ -198,9 +212,17 @@ export class CDPClient {
     });
 
     this.socket.addEventListener("error", (event) => {
-      const error = asError((event as Event & { error?: unknown }).error ?? event);
-      this.rejectPending(error);
-      this.onerror?.(error);
+      if (this.closed) return;
+      this.closed = true;
+      const socketError = asError((event as Event & { error?: unknown }).error ?? event);
+      const reason = new CDPConnectionClosedError({ cause: socketError });
+      this.rejectPending(reason);
+      try {
+        this.socket.close();
+      } catch {
+        // The transport is already terminal; preserve the original socket failure.
+      }
+      this.onerror?.(reason);
     });
   }
 
@@ -213,39 +235,32 @@ export class CDPClient {
     const client = new CDPClient(socket, webSocketDebuggerUrl);
 
     try {
-      let serviceWorker: TargetInfo;
-      let attached: { sessionId: string };
-      let extensionId: string | undefined;
-
-      if (options.preloadedExtension) {
-        const discovered = await waitForPreloadedStagehandServiceWorker(client, {
-          urlIncludes: options.serviceWorkerUrlIncludes,
-          runtimeRequirement: options.runtimeRequirement,
-          allowFallbackInstall: options.allowFallbackInstall,
-          signal,
-        });
-        serviceWorker = discovered.serviceWorker;
-        attached = { sessionId: discovered.sessionId };
-        extensionId = extensionIdFromUrl(serviceWorker.url);
+      let extensionId: string;
+      if (options.extensionDir) {
+        extensionId = await loadUnpackedExtension(client, options.extensionDir, signal);
+      } else if (options.extensionId) {
+        extensionId = options.extensionId;
+      } else if (options.preloadedExtension) {
+        extensionId = await discoverInstalledStagehandExtensionId(client, { signal });
       } else {
-        extensionId = options.extensionDir
-          ? await loadUnpackedExtension(client, options.extensionDir, signal)
-          : options.extensionId;
-        serviceWorker = await waitForServiceWorker(client, {
-          extensionId,
-          urlIncludes: options.serviceWorkerUrlIncludes,
-          signal,
-        });
-        attached = await client.sendCommand<{ sessionId: string }>(
-          "Target.attachToTarget",
-          {
-            targetId: serviceWorker.targetId,
-            flatten: true,
-          },
-          undefined,
-          signal,
+        throw new Error(
+          "Exactly one of extensionDir, extensionId, or preloadedExtension is required",
         );
       }
+      const serviceWorker = await waitForServiceWorker(client, {
+        extensionId,
+        urlIncludes: options.serviceWorkerUrlIncludes,
+        signal,
+      });
+      const attached = await client.sendCommand<{ sessionId: string }>(
+        "Target.attachToTarget",
+        {
+          targetId: serviceWorker.targetId,
+          flatten: true,
+        },
+        undefined,
+        signal,
+      );
 
       client.sessionId = attached.sessionId;
       client.attachedServiceWorker = {
@@ -496,82 +511,37 @@ export async function waitForRuntimeReady(
   }
 }
 
-export async function waitForPreloadedStagehandServiceWorker(
+export async function discoverInstalledStagehandExtensionId(
   cdp: CDPCommandSender,
-  options: {
-    urlIncludes?: string;
-    pollIntervalMs?: number;
-    delayFn?: (ms: number) => Promise<void>;
-    runtimeRequirement?: RuntimeRequirement;
-    allowFallbackInstall?: boolean;
-    signal: AbortSignal;
-  },
-): Promise<{ serviceWorker: TargetInfo; sessionId: string }> {
-  const pollIntervalMs = options.pollIntervalMs ?? 100;
-  const delayFn = options.delayFn ?? delay;
-  const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
+  options: { signal: AbortSignal },
+): Promise<string> {
+  throwIfAborted(options.signal);
+  const response = await cdp.sendCommand<unknown>(
+    "Extensions.getExtensions",
+    {},
+    undefined,
+    options.signal,
+  );
+  const installed = InstalledExtensionsResultSchema.parse(response).extensions.filter(
+    (extension) => extension.name === STAGEHAND_EXTENSION_NAME,
+  );
+  const enabled = installed.filter((extension) => extension.enabled);
 
-  while (true) {
-    throwIfAborted(options.signal);
-    const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>(
-      "Target.getTargets",
-      {},
-      undefined,
-      options.signal,
-    );
-    const candidates = targets.targetInfos.filter(
-      (target) =>
-        target.type === "service_worker" &&
-        target.url.startsWith("chrome-extension://") &&
-        target.url.includes(workerUrlIncludes),
-    );
-    let incompatibleRuntime: Extract<RuntimeCompatibility, { kind: "incompatible" }> | undefined;
-    for (const serviceWorker of candidates) {
-      let sessionId: string | undefined;
-      let keepAttached = false;
-      try {
-        const attached = await cdp.sendCommand<{ sessionId: string }>(
-          "Target.attachToTarget",
-          {
-            targetId: serviceWorker.targetId,
-            flatten: true,
-          },
-          undefined,
-          options.signal,
-        );
-        sessionId = attached.sessionId;
-        const evaluated = await evaluateRuntimeReadiness(cdp, sessionId, options.signal);
-        if (!evaluated.exceptionDetails) {
-          const readiness = parseRuntimeReadiness(evaluated.result?.value);
-          const compatibility = negotiateRuntimeCompatibility(
-            options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
-            readiness.marker,
-          );
-          if (compatibility.kind === "compatible" && readiness.hasReceiver) {
-            keepAttached = true;
-            return { serviceWorker, sessionId };
-          }
-          if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false) {
-            incompatibleRuntime = compatibility;
-          }
-        }
-      } catch {
-        throwIfAborted(options.signal);
-        // The worker may still be starting. Detach and retry until initialization is cancelled.
-      } finally {
-        if (sessionId && !keepAttached) {
-          await cdp
-            .sendCommand("Target.detachFromTarget", { sessionId }, undefined, options.signal)
-            .catch(() => undefined);
-        }
-      }
-    }
-
-    if (incompatibleRuntime) {
-      throw new StagehandRuntimeIncompatibleError(incompatibleRuntime);
-    }
-    await abortable(delayFn(pollIntervalMs), options.signal);
+  if (enabled.length === 1) return enabled[0].id;
+  if (enabled.length > 1) {
+    const ids = enabled
+      .map((extension) => extension.id)
+      .sort()
+      .join(", ");
+    throw new Error(`Multiple enabled Stagehand extensions are installed: ${ids}`);
   }
+  if (installed.length > 0) {
+    throw new Error("Stagehand extension is installed in the connected browser but is disabled.");
+  }
+  throw new Error(
+    "Stagehand extension is not installed in the connected browser. " +
+      "The extension must be included when the Browserbase session is created.",
+  );
 }
 
 async function evaluateRuntimeReadiness(
@@ -598,15 +568,10 @@ function parseRuntimeReadiness(value: unknown): z.output<typeof RuntimeReadiness
   return parsed.success ? parsed.data : { marker: null, hasReceiver: false };
 }
 
-function extensionIdFromUrl(url: string): string | undefined {
-  const match = /^chrome-extension:\/\/([^/]+)\//u.exec(url);
-  return match?.[1];
-}
-
 export async function waitForServiceWorker(
   cdp: CDPCommandSender,
   options: {
-    extensionId?: string;
+    extensionId: string;
     urlIncludes?: string;
     activationDelayMs?: number;
     pollIntervalMs?: number;
@@ -634,19 +599,13 @@ export async function waitForServiceWorker(
         (target) =>
           target.type === "service_worker" &&
           target.url.startsWith("chrome-extension://") &&
-          (options.extensionId
-            ? target.url.startsWith(`chrome-extension://${options.extensionId}/`)
-            : true) &&
+          target.url.startsWith(`chrome-extension://${options.extensionId}/`) &&
           target.url.includes(workerUrlIncludes),
       );
 
       if (serviceWorker) return serviceWorker;
 
-      if (
-        options.extensionId &&
-        !activationTargetId &&
-        Date.now() - startedAt >= activationDelayMs
-      ) {
+      if (!activationTargetId && Date.now() - startedAt >= activationDelayMs) {
         const activation = await cdp
           .sendCommand<{ targetId?: string }>(
             "Target.createTarget",

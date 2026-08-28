@@ -58,6 +58,11 @@ if (fs.existsSync(distConfigPath)) {
     if (existing._meta) {
       sourceConfig._meta = { ...sourceConfig._meta, ...existing._meta };
     }
+    // Same for the user-owned `core` and `tracing` sections (set via
+    // `evals config core|tracing` on the built CLI) — the source config never
+    // carries them, so without this a rebuild would silently drop them.
+    if (existing.core) sourceConfig.core = { ...sourceConfig.core, ...existing.core };
+    if (existing.tracing) sourceConfig.tracing = { ...sourceConfig.tracing, ...existing.tracing };
   } catch {
     // invalid existing config – overwrite entirely
   }

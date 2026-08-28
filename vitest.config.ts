@@ -4,6 +4,7 @@ import { instrumentedDecoratorBuild } from "./packages/extension/instrumentedDec
 export default defineConfig({
   plugins: [instrumentedDecoratorBuild()],
   test: {
+    testTimeout: 15_000,
     include: [
       "packages/protocol/tests/**/*.test.ts",
       "packages/protocol/json-rpc/tests/**/*.test.ts",

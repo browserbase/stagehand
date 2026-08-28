@@ -160,6 +160,7 @@ export function printConfigHelp(): void {
     ),
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or all defaults"),
     row(`${cyan("core")} ${dim("[...]")}`, "Configure core tier tool + startup defaults"),
+    row(`${cyan("tracing")} ${dim("[...]")}`, "Configure trace transport + sink projects"),
     "",
     `  ${bold("Core subcommands:")} ${dim("(under `evals config core`)")}`,
     "",
@@ -179,6 +180,7 @@ export function printConfigHelp(): void {
     `    ${dim("$")} evals config set trials 5`,
     `    ${dim("$")} evals config core set tool understudy_code`,
     `    ${dim("$")} evals config core set startup tool_launch_local`,
+    `    ${dim("$")} evals config tracing set transport otel`,
     `    ${dim("$")} evals config core reset`,
     "",
   ]);
@@ -315,6 +317,46 @@ export function printExperimentsHelp(subcommand?: "list" | "show" | "open" | "co
     `    ${dim("$")} evals experiments show observe-90b34916`,
     `    ${dim("$")} evals experiments open extract-a12c91de`,
     `    ${dim("$")} evals experiments compare exp1 exp2 --project stagehand-core-dev`,
+    "",
+  ]);
+}
+
+export function printConfigTracingHelp(): void {
+  print([
+    "",
+    `  ${dustyCyanHeader("evals config tracing")} ${dim("[subcommand]")}`,
+    "",
+    "  Persisted defaults for the trace transport and where traces land.",
+    `  Each key backs one env var; the env var always wins when set.`,
+    "",
+    `  ${bold("Subcommands:")}`,
+    "",
+    row(dim("(none)"), "Print current tracing configuration"),
+    row(cyan("path"), "Print the config file path"),
+    row(`${cyan("set")} ${dim("<key> <value>")}`, "Set one key (see below)"),
+    row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole tracing section"),
+    "",
+    `  ${bold("Keys:")}`,
+    "",
+    row(
+      `${cyan("transport")} ${dim("native|otel")}`,
+      `${gray("EVAL_TRACE_TRANSPORT")} — otel fans out to Braintrust + LangSmith`,
+    ),
+    row(
+      `${cyan("braintrustProject")} ${dim("<name>")}`,
+      `${gray("BRAINTRUST_PROJECT_NAME")} — both transports; default stagehand[-core][-dev]`,
+    ),
+    row(
+      `${cyan("langsmithProject")} ${dim("<name>")}`,
+      `${gray("LANGSMITH_PROJECT")} — otel only; needs LANGSMITH_API_KEY + LANGSMITH_TRACING=true`,
+    ),
+    "",
+    `  ${bold("Examples:")}`,
+    "",
+    `    ${dim("$")} evals config tracing set transport otel`,
+    `    ${dim("$")} evals config tracing set braintrustProject my-team-evals`,
+    `    ${dim("$")} evals config tracing set langsmithProject stagehand-evals`,
+    `    ${dim("$")} evals config tracing reset`,
     "",
   ]);
 }

@@ -18,6 +18,7 @@ import {
   parseBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
+import { TRACING_ENV_VARS } from "./config.js";
 
 export interface RunFlags {
   target?: string;
@@ -323,11 +324,19 @@ export interface CoreConfig {
   startup?: string;
 }
 
+/** Persisted trace-sink defaults (evals.config.json `tracing`). Env wins. */
+export interface TracingConfig {
+  transport?: string;
+  braintrustProject?: string;
+  langsmithProject?: string;
+}
+
 export function resolveRunOptions(
   flags: RunFlags,
   defaults: ConfigDefaults,
   env: NodeJS.ProcessEnv,
   core: CoreConfig = {},
+  tracing: TracingConfig = {},
 ): ResolvedRunOptions {
   const parseIntEnv = (value: string | undefined): number | undefined => {
     if (!value) return undefined;
@@ -360,6 +369,14 @@ export function resolveRunOptions(
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
+
+  // Trace-sink defaults from config are applied as env overrides only when the
+  // corresponding env var is unset, so a shell export or CI secret always wins.
+  for (const key of Object.keys(TRACING_ENV_VARS) as Array<keyof TracingConfig>) {
+    const value = tracing[key]?.trim();
+    const envName = TRACING_ENV_VARS[key];
+    if (value && !env[envName]?.trim()) envOverrides[envName] = value;
+  }
 
   envOverrides.EVAL_ENV = environment;
   envOverrides.USE_API = String(Boolean(useApi));

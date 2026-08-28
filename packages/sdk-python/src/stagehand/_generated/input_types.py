@@ -140,10 +140,6 @@ class ContextClipboardWriteTextParams(TypedDict):
     text: str
 
 
-class ContextCloseResult(TypedDict):
-    closed: Literal[True]
-
-
 class ContextCookiesParams(TypedDict):
     urls: NotRequired[str | list[str]]
 
@@ -848,7 +844,6 @@ class PageScreenshotParams(TypedDict):
 
 class PageScreenshotResult(TypedDict):
     data: str
-    type: Literal["png", "jpeg"]
 
 
 class PageScrollParams(TypedDict):

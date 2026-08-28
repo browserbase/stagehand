@@ -720,6 +720,36 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(activeStagehand.metrics()).resolves.toStrictEqual(after);
     expect(rawMetricsSnapshots.at(-1)).toStrictEqual(metricsToWire(after));
   });
+
+  it("closes and reattaches Stagehand without closing the local browser or its pages", async () => {
+    const firstStagehand = requireStagehand(stagehand);
+    const activeBrowser = firstStagehand.browser;
+    const page =
+      (await activeBrowser.context.pages())[0] ?? (await activeBrowser.context.newPage());
+    await page.goto(requireFixtureServer(fixtureServer).url, { waitUntil: "load" });
+    const pageId = page.pageId;
+
+    await expect(firstStagehand.close()).resolves.toBeUndefined();
+    expect(activeBrowser.closed).toBe(false);
+
+    const nextStagehand = await Stagehand.create({
+      browser: activeBrowser,
+      logging: { level: "off" },
+    });
+    stagehand = nextStagehand;
+    const reattachedPage = (await activeBrowser.context.pages()).find(
+      (candidate) => candidate.pageId === pageId,
+    );
+
+    expect(reattachedPage).toBeDefined();
+    if (!reattachedPage) throw new Error("Reattached Stagehand did not retain the existing page");
+    await expect(reattachedPage.title()).resolves.toBe("Stagehand SDK Smoke");
+
+    await nextStagehand.close();
+    stagehand = undefined;
+    await activeBrowser.close();
+    expect(activeBrowser.closed).toBe(true);
+  });
 });
 
 function operationUsageFromRawRpcMessage(message: unknown): Record<string, unknown> | undefined {

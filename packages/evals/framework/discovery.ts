@@ -27,6 +27,7 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
   ionwave: ["regression"],
   wichita: ["regression"],
   extract_memorial_healthcare: ["regression"],
+  observe_main_frame_element_ids: ["regression"],
   observe_github: ["regression"],
   observe_vantechjournal: ["regression"],
   observe_iframes1: ["regression"],

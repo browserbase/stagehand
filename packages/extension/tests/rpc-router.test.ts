@@ -109,10 +109,12 @@ describe("Stagehand RPC router", () => {
     await tracing.shutdown();
   });
 
-  it("ends the final Stagehand span before tracing shuts down", async () => {
+  it("ends the Stagehand close span before flushing reusable tracing", async () => {
     const lifecycle: string[] = [];
     const processor: SpanProcessor = {
-      forceFlush: async () => {},
+      forceFlush: async () => {
+        lifecycle.push("flush");
+      },
       onEnd: (span) => lifecycle.push(`ended:${span.name}`),
       onStart: () => {},
       shutdown: async () => {
@@ -124,11 +126,14 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await expect(
-      router.handle(request({ id: 13, method: "stagehand.close", params: {} })),
-    ).resolves.toStrictEqual({ closed: true });
+    const closeRequest = request({ id: 13, method: "stagehand.close", params: {} });
+    await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
 
-    expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "shutdown"]);
+    expect(lifecycle.at(-1)).toBe("ended:stagehand.close");
+    await router.beforeResponse(closeRequest);
+
+    expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "flush"]);
+    await tracing.shutdown();
   });
 
   it("keeps filtered log spans under the JSON-RPC request span", async () => {
@@ -311,9 +316,11 @@ describe("Stagehand RPC router", () => {
     expect(initializeStagehand).toHaveBeenCalledOnce();
     expect(initializeStagehand).toHaveBeenCalledWith(initRequest.params);
 
-    await expect(
-      router.handle(request({ id: 16, method: "stagehand.close", params: {} })),
-    ).resolves.toStrictEqual({ closed: true });
+    const closeRequest = request({ id: 16, method: "stagehand.close", params: {} });
+    await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
+    expect(closeStagehand).toHaveBeenCalledOnce();
+
+    await router.beforeResponse(closeRequest);
     expect(closeStagehand).toHaveBeenCalledOnce();
   });
 
@@ -443,7 +450,7 @@ function request(input: {
 function configuredTracing(
   runtime: ReturnType<typeof createStagehandTracingRuntime>,
 ): StagehandTracing {
-  return { ...runtime, configure: vi.fn() };
+  return { ...runtime, configure: vi.fn(async () => {}) };
 }
 
 function browserSessionFor(connection: CdpConnection): StagehandBrowserSession {

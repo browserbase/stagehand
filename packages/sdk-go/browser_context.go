@@ -9,6 +9,7 @@ import (
 // BrowserContext exposes browser-wide protocol operations.
 type BrowserContext struct {
 	rpc                          protocolClient
+	closeBrowser                 func(context.Context) error
 	reportPageEventListenerPanic func(any)
 	clipboardOnce                sync.Once
 	clipboard                    *BrowserClipboard
@@ -78,10 +79,12 @@ func (c *BrowserContext) SetActivePage(ctx context.Context, page *Page) error {
 	return c.rpc.call(ctx, "context.set_active_page", params, &result)
 }
 
-// Close closes the remote browser context.
+// Close closes the underlying browser.
 func (c *BrowserContext) Close(ctx context.Context) error {
-	var result ContextCloseResult
-	return c.rpc.call(ctx, "context.close", EmptyParams{}, &result)
+	if c == nil || c.closeBrowser == nil {
+		return ErrNotInitialized
+	}
+	return c.closeBrowser(ctx)
 }
 
 // AddInitScript installs JavaScript source in every new page.

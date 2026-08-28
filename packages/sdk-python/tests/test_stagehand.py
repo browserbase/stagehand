@@ -469,6 +469,26 @@ async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
 
 
 @pytest.mark.asyncio
+async def test_context_close_is_an_alias_for_browser_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, transport = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        context = browser.context
+
+        await asyncio.gather(context.close(), browser.close(), context.close())
+
+        assert browser.closed is True
+        assert transport.close_calls == 1
+        assert all(method != "context.close" for method, _params, _result in recording.calls)
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
 async def test_invalid_success_response_fails_closed_because_initialization_is_ambiguous(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -485,6 +505,45 @@ async def test_invalid_success_response_fails_closed_because_initialization_is_a
     assert transport.close_calls == 1
     with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
         await Stagehand.create(browser=browser)
+
+
+@pytest.mark.asyncio
+async def test_ambiguous_initialization_uses_browser_invalidation_not_public_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = _recording({"stagehand.init": ValueError("invalid init result")})
+    _install_rpc_client(monkeypatch, failed)
+    transport = _Transport()
+    close_calls = 0
+    invalidation_calls = 0
+
+    async def close() -> None:
+        nonlocal close_calls
+        close_calls += 1
+
+    async def invalidate() -> None:
+        nonlocal invalidation_calls
+        invalidation_calls += 1
+        await transport.close()
+
+    browser = StagehandBrowser(
+        "local",
+        "connected",
+        _ClaimedBrowser(
+            cdp_client=cast(CDPClient, transport),
+            worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
+        ),
+        close,
+        invalidate=invalidate,
+        _token=_BROWSER_TOKEN,
+    )
+
+    with pytest.raises(ValueError, match="invalid init result"):
+        await Stagehand.create(browser=browser)
+
+    assert close_calls == 0
+    assert invalidation_calls == 1
+    assert transport.close_calls == 1
 
 
 @pytest.mark.asyncio
@@ -634,6 +693,14 @@ async def test_close_is_memoized_and_never_closes_browser_or_transport(
     with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
         await stagehand.metrics()
 
+    next_recording = _recording()
+    _install_rpc_client(monkeypatch, next_recording)
+    next_stagehand = await Stagehand.create(browser=browser)
+    assert next_stagehand.initialized is True
+    assert next_stagehand.browser is browser
+
+    await next_stagehand.close()
+
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
@@ -675,6 +742,29 @@ async def test_close_swallows_cdp_connection_closed_error(
 
     assert recording.closed is True
     assert recording.close_transport_flags == [False]
+
+    reattached_recording = _recording()
+    _install_rpc_client(monkeypatch, reattached_recording)
+    reattached = await Stagehand.create(browser=browser)
+    await reattached.close()
+
+
+@pytest.mark.asyncio
+async def test_close_failure_retains_browser_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.close": RuntimeError("worker close failed")})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    with pytest.raises(RuntimeError, match="worker close failed"):
+        await stagehand.close()
+    with pytest.raises(RuntimeError, match="already attached"):
+        await Stagehand.create(browser=browser)
+
+    assert [call[0] for call in recording.calls].count("stagehand.init") == 1
+    await browser.close()
 
 
 @pytest.mark.asyncio

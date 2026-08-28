@@ -23,7 +23,11 @@ import {
 } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.js";
 import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
-import { getStagehandMethod, StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
+import {
+  getStagehandMethod,
+  StagehandMethods,
+  StagehandRpcRequestSchema,
+} from "../../protocol/schema-registry.js";
 import { z } from "zod/v4";
 import { RPCRouter } from "../rpcRouter.js";
 import { ChromeRuntimeClient } from "./chromeRuntimeClient.js";
@@ -199,7 +203,14 @@ export class RPCClient {
       return;
     }
 
+    let releaseStagehandInstanceRequest: (() => void) | undefined;
     try {
+      if (
+        request.data.method !== StagehandMethods.stagehandInit.name &&
+        request.data.method !== StagehandMethods.stagehandClose.name
+      ) {
+        releaseStagehandInstanceRequest = this.router.runtime.acquireStagehandInstanceRequest();
+      }
       const result = await this.router.handle(stagehandRequest.data, runtimeAttachments);
       const parsedResult = method.result.safeParse(result);
       if (!parsedResult.success) {
@@ -212,6 +223,7 @@ export class RPCClient {
         return;
       }
 
+      await this.router.beforeResponse(stagehandRequest.data);
       await this.runtime.send(
         JSONRPCSuccessResponseSchema.parse({
           jsonrpc: "2.0",
@@ -233,6 +245,8 @@ export class RPCClient {
         error instanceof Error ? error.message : String(error),
         { name: error instanceof Error ? error.name : "Error" },
       );
+    } finally {
+      releaseStagehandInstanceRequest?.();
     }
   }
 

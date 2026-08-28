@@ -78,6 +78,15 @@ describe("StagehandMetricsAccumulator", () => {
     expect(metrics.snapshot()).toStrictEqual(emptyMetrics());
     expect(metrics.snapshot()).not.toBe(metrics.snapshot());
   });
+
+  it("resets accumulated usage for a new Stagehand instance", () => {
+    const metrics = new StagehandMetricsAccumulator();
+    metrics.record("act", ACT_USAGE);
+
+    metrics.reset();
+
+    expect(metrics.snapshot()).toStrictEqual(emptyMetrics());
+  });
 });
 
 function emptyMetrics(): StagehandMetrics {

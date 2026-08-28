@@ -73,7 +73,6 @@ const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
   StagehandMethods.stagehandExtract.name,
   StagehandMethods.stagehandObserve.name,
   StagehandMethods.contextNewPage.name,
-  StagehandMethods.contextClose.name,
   StagehandMethods.contextAddInitScript.name,
   StagehandMethods.contextSetExtraHTTPHeaders.name,
   StagehandMethods.contextGetDomainPolicy.name,

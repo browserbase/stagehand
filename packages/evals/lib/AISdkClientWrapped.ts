@@ -21,7 +21,9 @@ import {
   toJsonSchema,
 } from "stagehand-v3";
 
-type WrappedAI = ReturnType<(typeof import("braintrust"))["wrapAISDK"]>;
+// braintrust 3.x types wrapAISDK's return as `{}`, so derive the surface we
+// use from the `ai` module instead (the wrapper preserves these signatures).
+type WrappedAI = Pick<typeof ai, "generateText" | "generateObject" | "streamText" | "streamObject">;
 
 let wrappedAiPromise: Promise<WrappedAI> | undefined;
 
@@ -31,7 +33,7 @@ async function loadWrappedAISDK(): Promise<WrappedAI> {
       return ai as unknown as WrappedAI;
     }
     const { wrapAISDK } = await import("braintrust");
-    return wrapAISDK(ai);
+    return wrapAISDK(ai) as WrappedAI;
   })();
   return wrappedAiPromise;
 }

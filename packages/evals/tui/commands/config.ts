@@ -45,10 +45,34 @@ export type WelcomeMeta = {
   version?: number;
 };
 
+/**
+ * Trace sink configuration. Every key maps 1:1 to an env var, and the env var
+ * always wins — this section is a persisted default for users who don't want
+ * to export vars per shell. Owned by tui/commands/tracing.ts.
+ *
+ *   transport         → EVAL_TRACE_TRANSPORT   ("native" | "otel")
+ *   braintrustProject → BRAINTRUST_PROJECT_NAME (both transports)
+ *   langsmithProject  → LANGSMITH_PROJECT       (otel transport only)
+ */
+export type TracingConfigSection = {
+  transport?: TraceTransport;
+  braintrustProject?: string;
+  langsmithProject?: string;
+};
+
+export type TraceTransport = "native" | "otel";
+
+export const TRACING_ENV_VARS: Record<keyof TracingConfigSection, string> = {
+  transport: "EVAL_TRACE_TRANSPORT",
+  braintrustProject: "BRAINTRUST_PROJECT_NAME",
+  langsmithProject: "LANGSMITH_PROJECT",
+};
+
 export type ConfigFile = {
   defaults: Defaults;
   benchmarks?: Record<string, unknown>;
   core?: CoreConfigSection;
+  tracing?: TracingConfigSection;
   _meta?: WelcomeMeta;
 };
 
@@ -82,6 +106,7 @@ export function readConfig(entryDir: string): ConfigFile {
       defaults: raw.defaults ?? {},
       benchmarks: raw.benchmarks ?? {},
       core: raw.core ?? undefined,
+      tracing: raw.tracing ?? undefined,
       _meta: raw._meta ?? undefined,
     };
   } catch (error) {
@@ -128,6 +153,9 @@ export function printConfig(entryDir: string): void {
   if (env.USE_API) overrides.push(`USE_API=${env.USE_API}`);
   if (env.STAGEHAND_BROWSER_TARGET)
     overrides.push(`STAGEHAND_BROWSER_TARGET=${env.STAGEHAND_BROWSER_TARGET}`);
+  for (const name of Object.values(TRACING_ENV_VARS)) {
+    if (env[name]) overrides.push(`${name}=${env[name]}`);
+  }
 
   if (overrides.length > 0) {
     console.log(`\n    ${dim("Env overrides:")}`);
@@ -156,6 +184,12 @@ export async function handleConfig(args: string[], entryDir: string): Promise<vo
   if (sub === "core") {
     const { handleCore } = await import("./core.js");
     await handleCore(args.slice(1), entryDir);
+    return;
+  }
+
+  if (sub === "tracing") {
+    const { handleTracing } = await import("./tracing.js");
+    await handleTracing(args.slice(1), entryDir);
     return;
   }
 
@@ -222,7 +256,7 @@ export async function handleConfig(args: string[], entryDir: string): Promise<vo
   }
 
   console.error(red(`  Unknown config subcommand "${sub}"`));
-  console.log(dim("  Usage: config [set <key> <value> | reset [key] | path]"));
+  console.log(dim("  Usage: config [set <key> <value> | reset [key] | path | core | tracing]"));
   process.exitCode = 1;
 }
 

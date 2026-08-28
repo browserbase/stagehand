@@ -28,7 +28,7 @@ export function createStagehandController(
   runtime: StagehandRuntime,
   options: StagehandControllerOptions = {},
 ) {
-  const closeRuntime = options.close ?? (() => runtime.close());
+  const closeRuntime = options.close ?? (() => runtime.disposeStagehandInstance());
 
   async function runOperation<Result>(
     name: string,
@@ -45,7 +45,7 @@ export function createStagehandController(
       params.protocolVersion,
       STAGEHAND_PROTOCOL_VERSION,
     );
-    if (!compatibility.compatible) {
+    if (compatibility.compatible === false) {
       throw new StagehandProtocolCompatibilityError(compatibility.reason);
     }
     logger.setLevel(params.logLevel);

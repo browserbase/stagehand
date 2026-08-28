@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -142,6 +142,11 @@ class _BrowserbaseSessionConnection:
     session_id: str
     cdp_url: str
     region: BrowserbaseRegion | None = None
+    _close_callback: Callable[[], Awaitable[None]] | None = field(default=None, repr=False)
+
+    async def close(self) -> None:
+        if self._close_callback is not None:
+            await self._close_callback()
 
 
 @dataclass
@@ -254,10 +259,22 @@ class _BrowserbaseSessionClient:
         cdp_url = connect_url.strip() if connect_url is not None else ""
         if not cdp_url:
             raise BrowserbaseSessionError("Browserbase session is not available for connection")
+        released = False
+        close_lock = asyncio.Lock()
+
+        async def close() -> None:
+            nonlocal released
+            async with close_lock:
+                if released:
+                    return
+                await self._api.release_session(retrieved_id.strip() or normalized_session_id)
+                released = True
+
         return _BrowserbaseSessionConnection(
             session_id=retrieved_id.strip() or normalized_session_id,
             cdp_url=cdp_url,
             region=region,
+            _close_callback=close,
         )
 
     async def _delete_extension_best_effort(self, extension_id: str | None) -> None:

@@ -70,8 +70,7 @@ func TestBrowserClaimAndCloseSemantics(t *testing.T) {
 		cleanupErr := errors.New("cleanup failed")
 		sourceCalls, cleanupCalls := 0, 0
 		browser := &Browser{
-			ownsSource: true,
-			closeSource: func(context.Context) error {
+			terminateSource: func(context.Context) error {
 				sourceCalls++
 				return sourceErr
 			},
@@ -100,8 +99,7 @@ func TestBrowserClaimAndCloseSemantics(t *testing.T) {
 		started := make(chan struct{})
 		finish := make(chan struct{})
 		browser := &Browser{
-			ownsSource: true,
-			closeSource: func(context.Context) error {
+			terminateSource: func(context.Context) error {
 				close(started)
 				<-finish
 				return nil
@@ -124,8 +122,7 @@ func TestBrowserClaimAndCloseSemantics(t *testing.T) {
 		started := make(chan struct{})
 		finish := make(chan struct{})
 		browser := &Browser{
-			ownsSource: true,
-			closeSource: func(context.Context) error {
+			terminateSource: func(context.Context) error {
 				close(started)
 				<-finish
 				return sourceErr
@@ -160,22 +157,124 @@ func TestBrowserClaimAndCloseSemantics(t *testing.T) {
 	})
 }
 
-func TestConnectBrowserOwnsSourceMatrix(t *testing.T) {
+func TestBrowserExplicitCloseMatrix(t *testing.T) {
 	tests := []struct {
 		name      string
+		provider  BrowserProvider
 		origin    BrowserOrigin
 		keepAlive bool
 		wantClose int
 	}{
-		{name: "launched", origin: BrowserOriginLaunched, wantClose: 1},
-		{name: "launched keep alive", origin: BrowserOriginLaunched, keepAlive: true},
-		{name: "connected", origin: BrowserOriginConnected},
+		{name: "local launched", provider: BrowserProviderLocal, origin: BrowserOriginLaunched, wantClose: 1},
+		{name: "local launched keep alive", provider: BrowserProviderLocal, origin: BrowserOriginLaunched, keepAlive: true, wantClose: 1},
+		{name: "local connected", provider: BrowserProviderLocal, origin: BrowserOriginConnected},
+		{name: "Browserbase launched", provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched, wantClose: 1},
+		{name: "Browserbase launched keep alive", provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched, keepAlive: true, wantClose: 1},
+		{name: "Browserbase connected", provider: BrowserProviderBrowserbase, origin: BrowserOriginConnected, keepAlive: true, wantClose: 1},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sourceCloses := 0
+			sender := &recordingBrowserCommandSender{}
+			browser, err := connectBrowser(context.Background(), connectBrowserOptions{
+				provider: test.provider, origin: test.origin,
+				source: browserConnectionSource{
+					cdpURL: "ws://browser.test", keepAlive: test.keepAlive,
+					close: func(context.Context) error { sourceCloses++; return nil },
+				},
+			}, browserFactoryDependencies{
+				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+					return newBrowserTestCDP(t), nil
+				},
+				commandSender: func(*cdpClient) browserCommandSender { return sender },
+			})
+			if err != nil {
+				t.Fatalf("connectBrowser() error = %v", err)
+			}
+			if err := browser.Close(context.Background()); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+			if sourceCloses != test.wantClose {
+				t.Fatalf("source closes = %d, want %d", sourceCloses, test.wantClose)
+			}
+			if test.provider == BrowserProviderLocal && test.origin == BrowserOriginConnected && sender.method != "Browser.close" {
+				t.Fatalf("close command = %q, want Browser.close", sender.method)
+			}
+		})
+	}
+}
+
+func TestConnectedLocalBrowserCloseAcceptsCommandTransportLoss(t *testing.T) {
+	for _, commandErr := range []error{ErrCDPClientClosed, ErrCDPConnectionClosed} {
+		t.Run(commandErr.Error(), func(t *testing.T) {
+			sender := &recordingBrowserCommandSender{err: commandErr}
+			browser, err := connectBrowser(context.Background(), connectBrowserOptions{
+				provider: BrowserProviderLocal,
+				origin:   BrowserOriginConnected,
+				source:   browserConnectionSource{cdpURL: "ws://browser.test", keepAlive: true},
+			}, browserFactoryDependencies{
+				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+					return newBrowserTestCDP(t), nil
+				},
+				commandSender: func(*cdpClient) browserCommandSender { return sender },
+			})
+			if err != nil {
+				t.Fatalf("connectBrowser() error = %v", err)
+			}
+			if err := browser.Close(context.Background()); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+	}
+}
+
+func TestConnectedLocalBrowserCloseRejectsPreexistingTransportLoss(t *testing.T) {
+	sender := &recordingBrowserCommandSender{}
+	browser, err := connectBrowser(context.Background(), connectBrowserOptions{
+		provider: BrowserProviderLocal,
+		origin:   BrowserOriginConnected,
+		source:   browserConnectionSource{cdpURL: "ws://browser.test", keepAlive: true},
+	}, browserFactoryDependencies{
+		connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+			return newBrowserTestCDP(t), nil
+		},
+		commandSender: func(*cdpClient) browserCommandSender { return sender },
+	})
+	if err != nil {
+		t.Fatalf("connectBrowser() error = %v", err)
+	}
+	if err := browser.cdp.Close(); err != nil {
+		t.Fatalf("CDP Close() error = %v", err)
+	}
+	err = browser.Close(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "CDP connection is already closed") {
+		t.Fatalf("Browser.Close() error = %v", err)
+	}
+	if sender.method != "" {
+		t.Fatalf("command dispatched after transport loss: %q", sender.method)
+	}
+}
+
+func TestBrowserInvalidationOwnsSourceMatrix(t *testing.T) {
+	tests := []struct {
+		name      string
+		provider  BrowserProvider
+		origin    BrowserOrigin
+		keepAlive bool
+		wantClose int
+	}{
+		{name: "local launched", provider: BrowserProviderLocal, origin: BrowserOriginLaunched, wantClose: 1},
+		{name: "local launched keep alive", provider: BrowserProviderLocal, origin: BrowserOriginLaunched, keepAlive: true},
+		{name: "local connected", provider: BrowserProviderLocal, origin: BrowserOriginConnected, keepAlive: true},
+		{name: "Browserbase launched", provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched, wantClose: 1},
+		{name: "Browserbase launched keep alive", provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched, keepAlive: true},
+		{name: "Browserbase connected", provider: BrowserProviderBrowserbase, origin: BrowserOriginConnected, keepAlive: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			sourceCloses := 0
 			browser, err := connectBrowser(context.Background(), connectBrowserOptions{
-				provider: BrowserProviderLocal, origin: test.origin,
+				provider: test.provider, origin: test.origin,
 				source: browserConnectionSource{
 					cdpURL: "ws://browser.test", keepAlive: test.keepAlive,
 					close: func(context.Context) error { sourceCloses++; return nil },
@@ -188,8 +287,11 @@ func TestConnectBrowserOwnsSourceMatrix(t *testing.T) {
 			if err != nil {
 				t.Fatalf("connectBrowser() error = %v", err)
 			}
-			if err := browser.Close(context.Background()); err != nil {
-				t.Fatalf("Close() error = %v", err)
+			if err := browser.invalidate(context.Background()); err != nil {
+				t.Fatalf("invalidate() error = %v", err)
+			}
+			if !browser.Closed() {
+				t.Fatal("Closed() = false after invalidation")
 			}
 			if sourceCloses != test.wantClose {
 				t.Fatalf("source closes = %d, want %d", sourceCloses, test.wantClose)
@@ -198,14 +300,14 @@ func TestConnectBrowserOwnsSourceMatrix(t *testing.T) {
 	}
 }
 
-func TestLaunchLocalBrowserKeepAliveOwnership(t *testing.T) {
+func TestLaunchLocalBrowserExplicitCloseIgnoresKeepAlive(t *testing.T) {
 	tests := []struct {
 		name      string
 		keepAlive bool
 		wantClose int
 	}{
 		{name: "owns launched chrome", wantClose: 1},
-		{name: "keep alive retains chrome", keepAlive: true},
+		{name: "keep alive", keepAlive: true, wantClose: 1},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -242,11 +344,12 @@ func TestLaunchLocalBrowserKeepAliveOwnership(t *testing.T) {
 type recordingBrowserCommandSender struct {
 	method string
 	params any
+	err    error
 }
 
 func (sender *recordingBrowserCommandSender) sendCommand(_ context.Context, method string, params any) error {
 	sender.method, sender.params = method, params
-	return nil
+	return sender.err
 }
 
 func TestLaunchLocalBrowserDownloadBehaviorAndExtension(t *testing.T) {
@@ -317,6 +420,9 @@ func TestConnectLocalBrowserExtensionIDSkipsMaterialization(t *testing.T) {
 			}
 			connectDeadline = time.Until(deadline)
 			return newBrowserTestCDP(t), nil
+		},
+		commandSender: func(*cdpClient) browserCommandSender {
+			return &recordingBrowserCommandSender{}
 		},
 	})
 	if err != nil {
@@ -528,9 +634,15 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			extensionID := "caller-ext"
 			keepAlive := true
 			userMetadata := map[string]json.RawMessage{"team": json.RawMessage(`"qa"`)}
+			sessionCloses := 0
+			closeSession := func(context.Context) error { sessionCloses++; return nil }
 			client := &fakeBrowserbaseFactoryClient{
-				created:   resolvedBrowserSource{cdpURL: "ws://browser.test", browserbaseSessionID: "created"},
-				connected: browserbaseSessionConnection{cdpURL: "ws://browser.test", sessionID: "retrieved", region: &region},
+				created: resolvedBrowserSource{
+					cdpURL: "ws://browser.test", browserbaseSessionID: "created", close: closeSession,
+				},
+				connected: browserbaseSessionConnection{
+					cdpURL: "ws://browser.test", sessionID: "retrieved", region: &region, close: closeSession,
+				},
 			}
 			var connected cdpClientOptions
 			var configuredBaseURL string
@@ -560,7 +672,6 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			if configuredBaseURL != "https://api.dev.browserbase.com" {
 				t.Fatalf("Browserbase base URL = %q", configuredBaseURL)
 			}
-			defer browser.Close(context.Background())
 			if !test.connect {
 				created := client.createOptions
 				if created.ExtensionID == nil || *created.ExtensionID != extensionID ||
@@ -586,6 +697,12 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			}
 			if test.connect && claimed.workerBrowser.SessionID != "retrieved" {
 				t.Fatalf("session ID = %q", claimed.workerBrowser.SessionID)
+			}
+			if err := browser.Close(context.Background()); err != nil {
+				t.Fatalf("Browser.Close() error = %v", err)
+			}
+			if sessionCloses != 1 {
+				t.Fatalf("session closes = %d, want 1", sessionCloses)
 			}
 		})
 	}

@@ -39,11 +39,6 @@ export function createContextController(runtime: StagehandRuntime) {
     return runtime.contextSetActivePage(params);
   }
 
-  async function close(_params: EmptyParams, { logger }: HandlerContext) {
-    logger.debug("context.close", {});
-    return runtime.contextClose();
-  }
-
   async function addInitScript(params: ContextAddInitScriptParams, { logger }: HandlerContext) {
     logger.debug("context.add_init_script", {});
     return runtime.contextAddInitScript(params);
@@ -123,7 +118,6 @@ export function createContextController(runtime: StagehandRuntime) {
     newPage,
     activePage,
     setActivePage,
-    close,
     addInitScript,
     setExtraHTTPHeaders,
     getDomainPolicy,

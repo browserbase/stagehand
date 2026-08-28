@@ -106,3 +106,38 @@ describe("withEnvOverrides", () => {
     expect(process.env.EVAL_TRAJECTORY_GROUP).toBe("pre-existing");
   });
 });
+
+describe("resolveRunOptions: tracing config → env overrides", () => {
+  it("applies persisted tracing defaults as env overrides when env is unset", () => {
+    const resolved = resolveRunOptions(
+      {},
+      {},
+      {},
+      {},
+      { transport: "otel", braintrustProject: "team-evals", langsmithProject: "ls-proj" },
+    );
+    expect(resolved.envOverrides.EVAL_TRACE_TRANSPORT).toBe("otel");
+    expect(resolved.envOverrides.BRAINTRUST_PROJECT_NAME).toBe("team-evals");
+    expect(resolved.envOverrides.LANGSMITH_PROJECT).toBe("ls-proj");
+  });
+
+  it("lets an already-set env var win over the persisted default", () => {
+    const resolved = resolveRunOptions(
+      {},
+      {},
+      { EVAL_TRACE_TRANSPORT: "native", BRAINTRUST_PROJECT_NAME: "from-env" },
+      {},
+      { transport: "otel", braintrustProject: "from-config", langsmithProject: "ls-proj" },
+    );
+    expect(resolved.envOverrides.EVAL_TRACE_TRANSPORT).toBeUndefined();
+    expect(resolved.envOverrides.BRAINTRUST_PROJECT_NAME).toBeUndefined();
+    expect(resolved.envOverrides.LANGSMITH_PROJECT).toBe("ls-proj");
+  });
+
+  it("emits no tracing overrides when the section is absent", () => {
+    const resolved = resolveRunOptions({}, {}, {});
+    expect(resolved.envOverrides.EVAL_TRACE_TRANSPORT).toBeUndefined();
+    expect(resolved.envOverrides.BRAINTRUST_PROJECT_NAME).toBeUndefined();
+    expect(resolved.envOverrides.LANGSMITH_PROJECT).toBeUndefined();
+  });
+});

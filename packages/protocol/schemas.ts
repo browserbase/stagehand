@@ -1319,12 +1319,6 @@ export const ContextVoidResultSchema = z
   })
   .meta({ id: "ContextVoidResult" });
 
-export const ContextCloseResultSchema = z
-  .strictObject({
-    closed: z.literal(true),
-  })
-  .meta({ id: "ContextCloseResult" });
-
 export const PageScreenshotClipSchema = z
   .strictObject({
     x: z.number(),
@@ -2085,7 +2079,6 @@ export const PageEvaluateResultSchema = z
 export const PageScreenshotResultSchema = z
   .strictObject({
     data: z.base64().meta({ format: "byte" }),
-    type: z.enum(["png", "jpeg"]),
   })
   .meta({ id: "PageScreenshotResult" });
 

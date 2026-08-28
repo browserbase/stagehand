@@ -2,6 +2,11 @@ name: Publish Python SDK
 
 on:
   workflow_call:
+    inputs:
+      alpha:
+        description: Publish a commit-addressed alpha (`<next>a0.dev<N>`) instead of the checked-in version.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -15,6 +20,9 @@ jobs:
       version: ${{ steps.package-version.outputs.version }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Alphas number builds by commit count.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -48,7 +56,19 @@ jobs:
       - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
       - run: just install
-      - run: just build
+
+      - name: Apply alpha version
+        if: inputs.alpha
+        run: just _version-python-alpha
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build only the extension bundled into the Python package and the Python
+      # distributions. Alpha versioning temporarily changes other workspace
+      # packages, so the repository-wide build would validate unrelated SDK
+      # artifacts against those ephemeral versions.
+      - run: pnpm --filter ./packages/extension build
+      - run: uv --directory packages/sdk-python run --locked python scripts/build.py
 
       - name: Read package version
         id: package-version

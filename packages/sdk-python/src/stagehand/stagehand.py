@@ -47,6 +47,7 @@ from .browser import (
     _claim_browser,
     _ClaimedBrowser,
     _detach_browser_context,
+    _invalidate_browser,
     _release_browser,
 )
 from .browser_context import BrowserContext
@@ -278,7 +279,10 @@ class Stagehand:
             init_params,
             StagehandInitResult,
         )
-        _attach_browser_context(self._browser_handle, BrowserContext(rpc_client))
+        _attach_browser_context(
+            self._browser_handle,
+            BrowserContext(rpc_client, self._browser_handle.close),
+        )
         self._initialized = True
 
     async def act(
@@ -450,6 +454,7 @@ class Stagehand:
 
     async def close(self) -> None:
         async def close_impl() -> None:
+            release_browser_claim = not self._initialized
             try:
                 if self._initialized and self._rpc_client is not None:
                     try:
@@ -458,10 +463,15 @@ class Stagehand:
                             EmptyParams(),
                             StagehandCloseResult,
                         )
+                        release_browser_claim = True
                     except CDPConnectionClosedError:
-                        pass
+                        release_browser_claim = True
             finally:
-                await asyncio.shield(self._release_resources())
+                try:
+                    await asyncio.shield(self._release_resources())
+                finally:
+                    if release_browser_claim:
+                        _release_browser(self._browser_handle)
 
         if self._close_task is None:
             self._close_task = asyncio.create_task(
@@ -541,11 +551,11 @@ class Stagehand:
         fail_closed: bool,
     ) -> None:
         if fail_closed:
-            browser_close = browser.close()
+            browser_invalidation = _invalidate_browser(browser)
             try:
                 await self._release_resources()
             finally:
-                await browser_close
+                await browser_invalidation
             return
 
         try:

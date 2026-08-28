@@ -17,12 +17,12 @@ import {
 } from "../clientSchemas.js";
 
 type OwnedBrowserbaseSession = BrowserbaseSessionConnection & {
-  close?: () => Promise<void> | void;
+  close: () => Promise<void> | void;
 };
 
 export type BrowserbaseSessionClient = {
   createSession(params: Browserbase.SessionCreateParams): Promise<OwnedBrowserbaseSession>;
-  connectSession?(sessionId: string): Promise<BrowserbaseSessionConnection>;
+  connectSession?(sessionId: string): Promise<OwnedBrowserbaseSession>;
 };
 
 export type BrowserbaseSessionClientFactory = (
@@ -147,11 +147,20 @@ export function createBrowserbaseSessionClient(
       if (!cdpUrl) {
         throw new BrowserbaseSessionError("Browserbase session is not available for connection");
       }
-      return BrowserbaseSessionConnectionSchema.parse({
+      let sessionReleased = false;
+      const connection = BrowserbaseSessionConnectionSchema.parse({
         sessionId: session.id.trim() || normalizedSessionId,
         cdpUrl,
         ...(session.region === undefined ? {} : { region: session.region }),
       });
+      return {
+        ...connection,
+        async close() {
+          if (sessionReleased) return;
+          await browserbase.releaseSession(connection.sessionId);
+          sessionReleased = true;
+        },
+      };
     },
   };
 }

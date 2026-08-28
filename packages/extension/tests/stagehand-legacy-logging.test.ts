@@ -30,7 +30,7 @@ describe("Stagehand legacy logging migration", () => {
     const logs: StagehandLog[] = [];
     const tracing: StagehandTracing = {
       tracer: trace.getTracer("stagehand-logging-migration-test"),
-      configure: () => {},
+      configure: async () => {},
       forceFlush: async () => {},
       shutdown: async () => {},
     };

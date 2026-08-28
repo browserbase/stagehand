@@ -311,19 +311,29 @@ func TestBrowserbaseSessionClientConnectSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("connectSession() error = %v", err)
 	}
-	want := browserbaseSessionConnection{
-		sessionID: "session_123",
-		cdpURL:    "wss://connect.browserbase.com/session_123",
-		region:    &region,
-	}
-	if !reflect.DeepEqual(connection, want) {
-		t.Fatalf("connection = %#v, want %#v", connection, want)
+	if connection.sessionID != "session_123" ||
+		connection.cdpURL != "wss://connect.browserbase.com/session_123" ||
+		connection.region == nil || *connection.region != region || connection.close == nil {
+		t.Fatalf("connection = %#v", connection)
 	}
 	if api.retrieveSessionCalls != 1 || api.releaseSessionCalls != 0 {
 		t.Fatalf(
 			"calls = retrieve %d, release %d; want 1, 0",
 			api.retrieveSessionCalls,
 			api.releaseSessionCalls,
+		)
+	}
+	if err := connection.close(context.Background()); err != nil {
+		t.Fatalf("connection close error = %v", err)
+	}
+	if err := connection.close(context.Background()); err != nil {
+		t.Fatalf("second connection close error = %v", err)
+	}
+	if api.releaseSessionCalls != 1 || api.deleteExtensionCalls != 0 {
+		t.Fatalf(
+			"close calls = release %d, delete extension %d; want 1, 0",
+			api.releaseSessionCalls,
+			api.deleteExtensionCalls,
 		)
 	}
 }

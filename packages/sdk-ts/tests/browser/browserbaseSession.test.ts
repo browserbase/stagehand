@@ -70,7 +70,7 @@ describe("Browserbase session creation", () => {
     await expect(client.retrieveSession("session_123")).rejects.toThrow();
   });
 
-  it("connects to an existing running session without taking release ownership", async () => {
+  it("connects to and explicitly releases an existing running session", async () => {
     const retrieveSession = vi.fn(async () => ({
       id: "session_123",
       connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
@@ -82,13 +82,19 @@ describe("Browserbase session creation", () => {
       provisionExtension: vi.fn(),
     });
 
-    await expect(client.connectSession?.("session_123")).resolves.toStrictEqual({
+    const connection = await client.connectSession?.("session_123");
+    expect(connection).toMatchObject({
       sessionId: "session_123",
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
       region: "eu-central-1",
     });
     expect(retrieveSession).toHaveBeenCalledWith("session_123");
     expect(releaseSession).not.toHaveBeenCalled();
+
+    await connection?.close?.();
+    await connection?.close?.();
+    expect(releaseSession).toHaveBeenCalledOnce();
+    expect(releaseSession).toHaveBeenCalledWith("session_123");
   });
 
   it("rejects a Browserbase session without a connection URL", async () => {

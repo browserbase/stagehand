@@ -22,7 +22,7 @@ from ._generated.models import (
     BrowserSessionMetadata,
 )
 from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
-from .cdp_client import CDPClient
+from .cdp_client import CDPClient, CDPConnectionClosedError
 from .client_models import (
     BrowserbaseConnectOptions,
     LocalBrowserConnectOptions,
@@ -98,7 +98,8 @@ class StagehandBrowser:
         "_attachment",
         "_claimed",
         "_close_callback",
-        "_close_task",
+        "_invalidate_callback",
+        "_terminal_task",
         "_context",
         "_origin",
         "_provider",
@@ -112,6 +113,7 @@ class StagehandBrowser:
         attachment: _ClaimedBrowser,
         close: Callable[[], Awaitable[None]],
         *,
+        invalidate: Callable[[], Awaitable[None]] | None = None,
         session_id: str | None = None,
         _token: object | None = None,
     ) -> None:
@@ -121,8 +123,9 @@ class StagehandBrowser:
         self._origin = origin
         self._attachment = attachment
         self._close_callback = close
+        self._invalidate_callback = invalidate or close
         self._claimed = False
-        self._close_task: asyncio.Task[None] | None = None
+        self._terminal_task: asyncio.Task[None] | None = None
         self._context: BrowserContext | None = None
         self._session_id = session_id
 
@@ -141,7 +144,7 @@ class StagehandBrowser:
 
     @property
     def closed(self) -> bool:
-        return self._close_task is not None
+        return self._terminal_task is not None
 
     @property
     def context(self) -> BrowserContext:
@@ -153,15 +156,12 @@ class StagehandBrowser:
         return self._context
 
     def close(self) -> Awaitable[None]:
-        if self._close_task is None:
-            self._close_task = asyncio.create_task(
-                self._run_close(),
+        if self._terminal_task is None:
+            self._terminal_task = asyncio.create_task(
+                _run_browser_terminal_callback(self._close_callback),
                 name="stagehand-browser-close",
             )
-        return asyncio.shield(self._close_task)
-
-    async def _run_close(self) -> None:
-        await self._close_callback()
+        return asyncio.shield(self._terminal_task)
 
 
 def _claim_browser(browser: object) -> _ClaimedBrowser:
@@ -179,6 +179,23 @@ def _release_browser(browser: StagehandBrowser) -> None:
     if not isinstance(browser, StagehandBrowser):
         raise TypeError("browser must be created by local_browser or browserbase")
     browser._claimed = False
+
+
+def _invalidate_browser(browser: StagehandBrowser) -> Awaitable[None]:
+    if not isinstance(browser, StagehandBrowser):
+        raise TypeError("browser must be created by local_browser or browserbase")
+    if browser._terminal_task is None:
+        browser._terminal_task = asyncio.create_task(
+            _run_browser_terminal_callback(browser._invalidate_callback),
+            name="stagehand-browser-invalidate",
+        )
+    return asyncio.shield(browser._terminal_task)
+
+
+async def _run_browser_terminal_callback(
+    callback: Callable[[], Awaitable[None]],
+) -> None:
+    await callback()
 
 
 def _attach_browser_context(
@@ -289,12 +306,33 @@ async def _connect_browser(
 
     connected_client = cdp_client
 
-    async def close() -> None:
+    async def invalidate() -> None:
         try:
             await connected_client.close()
         finally:
             if owns_source:
                 await source.close()
+
+    async def close() -> None:
+        errors: list[BaseException] = []
+        try:
+            if provider == "local" and origin == "connected":
+                try:
+                    await connected_client.send_command("Browser.close")
+                except CDPConnectionClosedError:
+                    pass
+            else:
+                await source.close()
+        except BaseException as error:
+            errors.append(error)
+        try:
+            await connected_client.close()
+        except BaseException as error:
+            errors.append(error)
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise BaseExceptionGroup("Browser termination and cleanup failed", errors)
 
     return StagehandBrowser(
         provider,
@@ -304,6 +342,7 @@ async def _connect_browser(
             worker_init_metadata=worker_init_metadata,
         ),
         close,
+        invalidate=invalidate,
         session_id=(
             worker_init_metadata.browser.session_id if worker_init_metadata.browser else None
         ),
@@ -563,7 +602,11 @@ class BrowserbaseBrowser:
         return await _connect_browser(
             provider="browserbase",
             origin="connected",
-            source=_ConnectedBrowserSource(connection.cdp_url),
+            source=ResolvedBrowserSource(
+                cdp_url=connection.cdp_url,
+                keep_alive=True,
+                _close_callback=connection.close,
+            ),
             extension_id=options.extension_id,
             preloaded_extension=options.extension_id is None,
             worker_init_metadata=_WorkerInitMetadata(

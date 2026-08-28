@@ -26,6 +26,7 @@ type browserbaseSessionConnection struct {
 	sessionID string
 	cdpURL    string
 	region    *BrowserbaseRegion
+	close     func(context.Context) error
 }
 
 func newBrowserbaseSessionClient(
@@ -199,10 +200,15 @@ func (client *browserbaseSessionClient) connectSession(
 			"Browserbase session is not available for connection",
 		)
 	}
+	resources := &browserbaseSessionResources{
+		api:       client.api,
+		sessionID: strings.TrimSpace(*session.ID),
+	}
 	return browserbaseSessionConnection{
 		sessionID: strings.TrimSpace(*session.ID),
 		cdpURL:    cdpURL,
 		region:    session.Region,
+		close:     resources.close,
 	}, nil
 }
 
