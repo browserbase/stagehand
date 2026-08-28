@@ -15,7 +15,7 @@ export default class MouseClick extends BrowseCommand {
   static override examples = [
     "browse mouse click 240 320",
     "browse mouse click 240 320 --button right",
-    "browse mouse click 240 320 --click-count 2 --return-xpath",
+    "browse mouse click 240 320 --click-count 2",
   ];
 
   static override args = {
@@ -31,10 +31,6 @@ export default class MouseClick extends BrowseCommand {
       description: "Number of clicks to send.",
       helpValue: "<count>",
     }),
-    "return-xpath": Flags.boolean({
-      description:
-        "Include the XPath under the coordinate when the driver can return it.",
-    }),
   };
 
   async run(): Promise<void> {
@@ -44,7 +40,6 @@ export default class MouseClick extends BrowseCommand {
       {
         button: flags.button,
         clickCount: flags["click-count"],
-        returnXPath: flags["return-xpath"],
         x: parseNumber(args.x, "x"),
         y: parseNumber(args.y, "y"),
       },
