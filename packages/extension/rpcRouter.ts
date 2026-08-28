@@ -79,7 +79,7 @@ export class RPCRouter {
         ? (request.params as StagehandInitParams)
         : undefined;
     if (initParams) {
-      this.runtime.tracing.configure(initParams.telemetry, initParams.clientInfo);
+      await this.runtime.tracing.configure(initParams.telemetry, initParams.clientInfo);
     }
     const parentContext = W3C_TRACE_CONTEXT_PROPAGATOR.extract(ROOT_CONTEXT, request, {
       get(carrier, key) {
@@ -129,10 +129,12 @@ export class RPCRouter {
       throw error;
     } finally {
       span.end();
-      if (request.method === StagehandMethods.stagehandClose.name) {
-        await this.runtime.tracing.shutdown();
-      }
     }
+  }
+
+  async beforeResponse(request: StagehandRpcRequest): Promise<void> {
+    if (request.method !== StagehandMethods.stagehandClose.name) return;
+    await this.runtime.tracing.forceFlush().catch(() => undefined);
   }
 
   async route(
@@ -194,11 +196,6 @@ export class RPCRouter {
       case "context.set_active_page":
         return this.contextController.setActivePage(
           parseParams(StagehandMethods.contextSetActivePage, request.params),
-          context,
-        );
-      case "context.close":
-        return this.contextController.close(
-          parseParams(StagehandMethods.contextClose, request.params),
           context,
         );
       case "context.add_init_script":
