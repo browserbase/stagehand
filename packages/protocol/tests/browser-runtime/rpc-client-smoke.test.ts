@@ -26,6 +26,7 @@ describe("Stagehand service worker RPC client smoke", () => {
   let fixtureServer: FixtureServer | undefined;
   let chrome: LaunchedLocalBrowser | undefined;
   let rpcClient: RPCClient | undefined;
+  const bufferedInitNotifications: StagehandRpcNotification[] = [];
 
   beforeAll(async () => {
     const signal = AbortSignal.timeout(60_000);
@@ -47,6 +48,10 @@ describe("Stagehand service worker RPC client smoke", () => {
       },
       signal,
     );
+    const stopCapturingInitNotifications = rpcClient.onNotification((notification) => {
+      bufferedInitNotifications.push(notification);
+    });
+    stopCapturingInitNotifications();
     const pages = await rpcClient.send(StagehandMethods.contextPages, {}, { signal });
     const page =
       pages[0] ?? (await rpcClient.send(StagehandMethods.contextNewPage, {}, { signal }));
@@ -71,12 +76,7 @@ describe("Stagehand service worker RPC client smoke", () => {
   });
 
   it("buffers Stagehand logs until the SDK notification listener is attached", () => {
-    const notifications: StagehandRpcNotification[] = [];
-    const stopListening = requireRpcClient(rpcClient).onNotification((notification) => {
-      notifications.push(notification);
-    });
-
-    expect(notifications).toContainEqual({
+    expect(bufferedInitNotifications).toContainEqual({
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
@@ -85,7 +85,6 @@ describe("Stagehand service worker RPC client smoke", () => {
         data: {},
       },
     });
-    stopListening();
   });
 
   it("streams validated Stagehand log notifications over the existing CDP connection", async () => {
