@@ -487,6 +487,23 @@ In v3 these hung off the page. In v4 they're top-level methods on Stagehand, and
 
 Calling `extract()` with no schema returns `{ extraction: string }`.
 
+### extract() schemas in TypeScript
+
+Python and Go are unchanged. Pydantic models and Go type parameters work as they did.
+
+TypeScript now requires Zod 4.2.0 or newer, imported from `zod/v4`. Zod 3 schemas are rejected.
+
+```diff
+- import { z } from "zod";
++ import { z } from "zod/v4";
+```
+
+Pass the Zod schema as the second argument, same as the positional-args change above. ArkType works the same way. A raw JSON Schema object does not; wrap it with `jsonSchema()`. Valibot, Effect, and TypeBox need the adapters in [supported TypeScript schema implementations](/v4/reference/stagehand#supported-typescript-schema-implementations).
+
+Object schemas that omit `additionalProperties` are sent with `additionalProperties: false`. Extra keys that used to slip through now fail validation.
+
+Conversion failures throw `StagehandSchemaError` before the browser call. Failed validation throws `StagehandValidationError`. Catch those instead of a generic `Error` if you branched on extract failures.
+
 ### Model configuration
 
 `modelName` and `modelClientOptions` collapse into one `model` object:
@@ -583,6 +600,7 @@ Metrics became a method:
 | `page.act(...)` | `stagehand.act(...)`, with `{ page }` to target a tab |
 | `await stagehand.observe(...)` returns an array | `.data` holds the array |
 | `extract({ instruction, schema })` | `extract(instruction, schema)` |
+| `extract()` with Zod 3 or a JSON object | Zod 4.2+ from `zod/v4`, or `jsonSchema()` for Draft 2020-12 |
 | `page.deepLocator()` | `page.locator()`, same selector syntax |
 | `stagehand.agent()`, `agent.execute()` | Code mode, or a tool-calling loop you own |
 | `execute({ maxSteps })` | Your loop bound, or the length of the script |
@@ -609,6 +627,10 @@ Metrics became a method:
 **`Property 'act' does not exist on type 'Page'`.** `act()`, `extract()`, and `observe()` are methods on the Stagehand instance now. Target a specific tab with `options.page`.
 
 **`Property 'length' does not exist`** on an `observe()` result. Read `.data` first.
+
+**`Unsupported schema` or missing JSON Schema converters.** TypeScript `extract()` needs Zod 4.2+ or a schema that can produce Draft 2020-12. Upgrade Zod, or wrap JSON Schema with `jsonSchema()`. See [extract() schemas in TypeScript](#extract-schemas-in-typescript).
+
+**Extract validation fails on extra properties.** Converted object schemas now set `additionalProperties: false` when the keyword was omitted. Tighten the schema or stop expecting extra keys.
 
 **Your generated script uses v3 APIs.** The assistant is drawing on v2 and v3 patterns in its training data. Install the rule files from [AI rules](/v4/first-steps/ai-rules).
 

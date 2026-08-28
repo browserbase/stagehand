@@ -310,6 +310,7 @@ describe("SDK reference surface", () => {
       "Error",
       "EvaluateResult",
       "Input",
+      "InferOutput",
       "Map",
       "Promise",
       "R",
@@ -1215,7 +1216,7 @@ describe("SDK reference surface", () => {
             publicReferenceFieldType(method, language, field.key) ??
             (method.operationName === "stagehand.extract" && field.key === "result.data"
               ? language === "TypeScript"
-                ? "z.output<Schema>"
+                ? "StagehandSchemaOutput<Schema>"
                 : "ResultModel"
               : canonicalSchemaType(field.schema, language, protocol));
           if (actual.type !== expectedType || actual.optional !== field.optional) {
