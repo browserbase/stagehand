@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 const (
 	stagehandSendToHostBinding       = "__stagehandSendToHost"
 	stagehandReceiveFromHostFunction = "__stagehandReceiveFromHost"
+	stagehandExtensionName           = "Stagehand Runtime"
 
 	defaultCDPPollInterval    = 100 * time.Millisecond
 	defaultCDPResolveInterval = 250 * time.Millisecond
@@ -110,6 +112,14 @@ type cdpTargetInfo struct {
 	Type     string `json:"type"`
 	Title    string `json:"title"`
 	URL      string `json:"url"`
+}
+
+type cdpInstalledExtension struct {
+	ID      string  `json:"id"`
+	Name    *string `json:"name"`
+	Version *string `json:"version"`
+	Path    *string `json:"path"`
+	Enabled *bool   `json:"enabled"`
 }
 
 type cdpServiceWorkerInfo struct {
@@ -290,55 +300,51 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 	var (
 		serviceWorker cdpTargetInfo
 		sessionID     string
-		extensionID   string
 		err           error
 	)
 
-	if options.preloadedExtension {
-		serviceWorker, sessionID, err = c.waitForPreloadedServiceWorker(
-			ctx,
-			options.serviceWorkerURLIncludes,
-			options.pollInterval,
-		)
+	extensionID := options.extensionID
+	if options.extensionDir != "" {
+		extensionID, err = c.loadUnpackedExtension(ctx, options.extensionDir)
 		if err != nil {
 			return err
 		}
-		extensionID = extensionIDFromURL(serviceWorker.URL)
-	} else {
-		extensionID = options.extensionID
-		if options.extensionDir != "" {
-			extensionID, err = c.loadUnpackedExtension(ctx, options.extensionDir)
-			if err != nil {
-				return err
-			}
-		}
-		serviceWorker, err = c.waitForServiceWorker(
-			ctx,
-			extensionID,
-			options.serviceWorkerURLIncludes,
-			options.activationDelay,
-			options.pollInterval,
-		)
-		if err != nil {
-			return err
-		}
-		var attached struct {
-			SessionID string `json:"sessionId"`
-		}
-		if err := c.sendCommand(
-			ctx,
-			"Target.attachToTarget",
-			map[string]any{"targetId": serviceWorker.TargetID, "flatten": true},
-			"",
-			&attached,
-		); err != nil {
-			return err
-		}
-		if attached.SessionID == "" {
-			return errors.New("Target.attachToTarget did not return sessionId")
-		}
-		sessionID = attached.SessionID
 	}
+	if options.preloadedExtension {
+		extensionID, err = c.discoverInstalledStagehandExtensionID(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if extensionID == "" {
+		return errors.New("Stagehand extension ID was not resolved")
+	}
+	serviceWorker, err = c.waitForServiceWorker(
+		ctx,
+		extensionID,
+		options.serviceWorkerURLIncludes,
+		options.activationDelay,
+		options.pollInterval,
+	)
+	if err != nil {
+		return err
+	}
+	var attached struct {
+		SessionID string `json:"sessionId"`
+	}
+	if err := c.sendCommand(
+		ctx,
+		"Target.attachToTarget",
+		map[string]any{"targetId": serviceWorker.TargetID, "flatten": true},
+		"",
+		&attached,
+	); err != nil {
+		return err
+	}
+	if attached.SessionID == "" {
+		return errors.New("Target.attachToTarget did not return sessionId")
+	}
+	sessionID = attached.SessionID
 
 	c.mu.Lock()
 	c.sessionID = sessionID
@@ -488,6 +494,12 @@ func (c *cdpClient) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.socketError
+}
+
+func (c *cdpClient) closedState() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closed
 }
 
 func (c *cdpClient) sendCommand(
@@ -802,6 +814,68 @@ func (c *cdpClient) loadUnpackedExtension(
 	return loaded.ID, nil
 }
 
+func (c *cdpClient) discoverInstalledStagehandExtensionID(
+	ctx context.Context,
+) (string, error) {
+	var response struct {
+		Extensions *[]cdpInstalledExtension `json:"extensions"`
+	}
+	if err := c.sendCommand(
+		ctx,
+		"Extensions.getExtensions",
+		map[string]any{},
+		"",
+		&response,
+	); err != nil {
+		return "", err
+	}
+	if response.Extensions == nil {
+		return "", errors.New("Extensions.getExtensions did not return extensions")
+	}
+
+	installed := false
+	enabledIDs := make([]string, 0, 1)
+	for _, extension := range *response.Extensions {
+		if extension.ID == "" ||
+			extension.Name == nil ||
+			extension.Version == nil ||
+			extension.Path == nil ||
+			extension.Enabled == nil {
+			return "", errors.New(
+				"Extensions.getExtensions returned an invalid extension entry",
+			)
+		}
+		if *extension.Name != stagehandExtensionName {
+			continue
+		}
+		installed = true
+		if *extension.Enabled {
+			enabledIDs = append(enabledIDs, extension.ID)
+		}
+	}
+
+	switch len(enabledIDs) {
+	case 1:
+		return enabledIDs[0], nil
+	case 0:
+		if installed {
+			return "", errors.New(
+				"Stagehand extension is installed in the connected browser but is disabled.",
+			)
+		}
+		return "", errors.New(
+			"Stagehand extension is not installed in the connected browser. " +
+				"The extension must be included when the Browserbase session is created.",
+		)
+	default:
+		slices.Sort(enabledIDs)
+		return "", fmt.Errorf(
+			"Multiple enabled Stagehand extensions are installed: %s",
+			strings.Join(enabledIDs, ", "),
+		)
+	}
+}
+
 func (c *cdpClient) waitForServiceWorker(
 	ctx context.Context,
 	extensionID string,
@@ -842,8 +916,7 @@ func (c *cdpClient) waitForServiceWorker(
 			}
 		}
 
-		if extensionID != "" &&
-			activationTargetID == "" &&
+		if activationTargetID == "" &&
 			time.Since(startedAt) >= activationDelay {
 			var activation struct {
 				TargetID string `json:"targetId"`
@@ -862,59 +935,6 @@ func (c *cdpClient) waitForServiceWorker(
 			) == nil {
 				activationTargetID = activation.TargetID
 			}
-		}
-		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
-			continue
-		}
-	}
-}
-
-func (c *cdpClient) waitForPreloadedServiceWorker(
-	ctx context.Context,
-	urlIncludes string,
-	pollInterval time.Duration,
-) (cdpTargetInfo, string, error) {
-	var lastTargets []cdpTargetInfo
-
-	for {
-		if err := ctx.Err(); err != nil {
-			return cdpTargetInfo{}, "", fmt.Errorf(
-				"discover preloaded Stagehand service worker: %w; observed targets: %s",
-				err,
-				formatCDPTargets(lastTargets),
-			)
-		}
-		targets, err := c.getTargets(ctx)
-		if err != nil {
-			return cdpTargetInfo{}, "", err
-		}
-		lastTargets = targets
-		for _, target := range targets {
-			if !isStagehandServiceWorker(target, "", urlIncludes) {
-				continue
-			}
-			var attached struct {
-				SessionID string `json:"sessionId"`
-			}
-			err := c.sendCommand(
-				ctx,
-				"Target.attachToTarget",
-				map[string]any{"targetId": target.TargetID, "flatten": true},
-				"",
-				&attached,
-			)
-			if err != nil || attached.SessionID == "" {
-				continue
-			}
-			ready, _ := c.evaluateRuntimeReadiness(ctx, attached.SessionID)
-			if ready {
-				return target, attached.SessionID, nil
-			}
-			c.bestEffortCommand(
-				ctx,
-				"Target.detachFromTarget",
-				map[string]any{"sessionId": attached.SessionID},
-			)
 		}
 		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
 			continue
@@ -1143,20 +1163,7 @@ func isStagehandServiceWorker(
 		!strings.Contains(target.URL, urlIncludes) {
 		return false
 	}
-	if extensionID == "" {
-		return true
-	}
 	return strings.HasPrefix(target.URL, "chrome-extension://"+extensionID+"/")
-}
-
-func extensionIDFromURL(value string) string {
-	const prefix = "chrome-extension://"
-	if !strings.HasPrefix(value, prefix) {
-		return ""
-	}
-	remainder := strings.TrimPrefix(value, prefix)
-	extensionID, _, _ := strings.Cut(remainder, "/")
-	return extensionID
 }
 
 func formatCDPTargets(targets []cdpTargetInfo) string {

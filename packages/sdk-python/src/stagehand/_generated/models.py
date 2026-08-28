@@ -430,14 +430,6 @@ class ContextClipboardWriteTextParams(WireModel):
     text: StrictStr
 
 
-class ContextCloseResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    closed: Literal[True]
-
-
 class ContextCookiesParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1773,7 +1765,6 @@ class PageScreenshotResult(WireModel):
             pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
         ),
     ]
-    type: Type
 
 
 class PageScrollParams(WireModel):

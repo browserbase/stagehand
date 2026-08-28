@@ -26,6 +26,7 @@ class FakeCDPClient {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   close = vi.fn();
+  sendCommand = vi.fn(async () => ({}));
   initError: Error | undefined;
   respondToInit = true;
   readonly requests: JSONRPCMessage[] = [];
@@ -131,6 +132,64 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
+  it("releases the browser claim after close so another Stagehand can attach", async () => {
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const firstStagehand = await Stagehand.create({ browser });
+
+    await firstStagehand.close();
+
+    const secondStagehand = await Stagehand.create({ browser });
+    expect(secondStagehand.initialized).toBe(true);
+    expect(secondStagehand.browser).toBe(browser);
+    expect(cdp.requestsFor("stagehand.init")).toHaveLength(2);
+    expect(cdp.close).not.toHaveBeenCalled();
+
+    await secondStagehand.close();
+    await browser.close();
+  });
+
+  it("makes context close an alias for browser close", async () => {
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const stagehand = await Stagehand.create({ browser });
+    const context = browser.context;
+
+    await Promise.all([context.close(), browser.close(), context.close()]);
+
+    expect(browser.closed).toBe(true);
+    expect(cdp.sendCommand).toHaveBeenCalledOnce();
+    expect(cdp.sendCommand).toHaveBeenCalledWith("Browser.close");
+    expect(cdp.close).toHaveBeenCalledOnce();
+    expect(cdp.requestsFor("context.close")).toHaveLength(0);
+
+    await stagehand.close();
+  });
+
+  it("retains the browser claim when the worker rejects close", async () => {
+    const cdp = new FakeCDPClient();
+    cdp.responses.set("stagehand.close", new Error("worker close failed"));
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const stagehand = await Stagehand.create({ browser });
+
+    await expect(stagehand.close()).rejects.toThrow("worker close failed");
+    await expect(Stagehand.create({ browser })).rejects.toThrow(
+      "This browser is already attached to a Stagehand instance",
+    );
+    expect(cdp.requestsFor("stagehand.init")).toHaveLength(1);
+
+    await browser.close();
+  });
+
   it("invalidates the browser after an ambiguous invalid initialization result", async () => {
     const cdp = new FakeCDPClient();
     cdp.responses.set("stagehand.init", { initialized: "not-a-boolean" });
@@ -138,9 +197,11 @@ describe("Stagehand.create", () => {
       connectCdp: async () => cdp as unknown as CDPClient,
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const closeBrowser = vi.spyOn(browser, "close");
 
     await expect(Stagehand.create({ browser })).rejects.toThrow();
     expect(browser.closed).toBe(true);
+    expect(closeBrowser).not.toHaveBeenCalled();
     expect(cdp.close).toHaveBeenCalledOnce();
     await expect(Stagehand.create({ browser })).rejects.toThrow(
       "Cannot attach Stagehand to a closed browser",
@@ -448,6 +509,8 @@ describe("Stagehand.create", () => {
       "Stagehand is unavailable. Create a new instance with await Stagehand.create().",
     );
 
+    const reattached = await Stagehand.create({ browser });
+    await reattached.close();
     await browser.close();
     expect(cdp.close).toHaveBeenCalledOnce();
   });

@@ -96,3 +96,12 @@ _publish-typescript-alpha:
     pnpm exec changeset version --snapshot
     pnpm --filter ./packages/sdk-ts build
     pnpm exec changeset publish --tag alpha --no-git-tag
+
+# Rewrites the Python project to the commit-addressed alpha (`<next>a0.dev<N>`)
+# derived from the changesets snapshot version. Nothing is committed; the
+# working tree is discarded after publishing.
+_version-python-alpha:
+    pnpm exec changeset version --snapshot
+    pnpm exec tsx scripts/release/python-alpha-version.ts
+    uv --directory "{{python_dir}}" lock
+    uv --directory "{{python_dir}}" run --locked python scripts/generate.py
