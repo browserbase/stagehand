@@ -20,6 +20,7 @@ export class NetworkCapture {
   async enable(
     _page: unknown,
   ): Promise<{ alreadyEnabled?: boolean; enabled: true; path: string }> {
+    void _page;
     throw new DriverError(
       "Network capture is not available in this Stagehand V4 runtime. Apply the CLI CDP sidecar fast-follow to restore `browse network on`.",
       { code: "network_capture_unavailable" },

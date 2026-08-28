@@ -765,23 +765,6 @@ function createFakeTabManager(targetIds: string[], activeIndex: number) {
   };
 }
 
-async function waitForFile(path: string): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < 1000) {
-    try {
-      await fs.access(path);
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  throw new Error(`Timed out waiting for ${path}`);
-}
-
-async function fileMode(path: string): Promise<number> {
-  return (await fs.stat(path)).mode & 0o777;
-}
-
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[key];
