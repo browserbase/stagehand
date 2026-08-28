@@ -5,15 +5,15 @@ import { dirname, join } from "node:path";
 import { resolveConfigDir } from "../identity.js";
 
 /**
- * Local name -> Browserbase context-id map.
+ * Local cache of Browserbase context names -> context ids.
  *
- * Browserbase contexts are identified only by an opaque id and the platform has
- * no server-side list endpoint, so to give contexts memorable names (e.g.
- * `github`, `gmail`) we keep a small map on the local device. It lives next to
- * the CLI's other state at `(XDG_CONFIG_HOME||~/.config)/browserbase/contexts.json`
- * (honoring `BROWSERBASE_CONFIG_DIR`). This is purely a client-side convenience:
- * the ids it stores are the same ids the API already returns, and a missing or
- * corrupt file degrades to "no saved contexts" rather than an error.
+ * Browserbase stores an optional, project-scoped name on each Context. The
+ * public API still identifies Contexts and session persistence by opaque id and
+ * does not expose list or lookup-by-name endpoints, so the CLI caches the names
+ * it creates on this device. It lives next to the CLI's other state at
+ * `(XDG_CONFIG_HOME||~/.config)/browserbase/contexts.json` (honoring
+ * `BROWSERBASE_CONFIG_DIR`). A missing or corrupt cache degrades to "no cached
+ * contexts" rather than an error; Browserbase remains authoritative for names.
  */
 
 const STORE_VERSION = 1;

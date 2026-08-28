@@ -29,8 +29,8 @@ function pathOf(request: CapturedRequest): string {
 
 /**
  * Drives the real built CLI through the full named-context lifecycle against a
- * fake Browserbase server, proving the local name->id map is written on create
- * and resolved by list / get / sessions-create / delete.
+ * fake Browserbase server, proving Browserbase receives the name and the local
+ * lookup cache resolves its returned id for list / get / sessions-create / delete.
  */
 describe("named contexts (end to end through the CLI)", () => {
   it("creates by name, resolves the name everywhere, and prunes on delete", async () => {
@@ -70,7 +70,8 @@ describe("named contexts (end to end through the CLI)", () => {
     const storePath = join(configDir, "contexts.json");
 
     try {
-      // 1. create --name writes the local alias and echoes the name back.
+      // 1. create --name sends the server-owned name, caches the returned id,
+      // and echoes the name back.
       const created = await runCli(
         ["cloud", "contexts", "create", "--name", "github"],
         { env },
@@ -83,6 +84,10 @@ describe("named contexts (end to end through the CLI)", () => {
       expect(JSON.parse(await readFile(storePath, "utf8"))).toMatchObject({
         contexts: { github: { id: CONTEXT_ID } },
       });
+      const createRequest = server.requests.find(
+        (r) => r.method === "POST" && pathOf(r) === "/v1/contexts",
+      );
+      expect(createRequest?.jsonBody).toMatchObject({ name: "github" });
 
       // 2. list --json surfaces the saved alias.
       const listed = await runCli(["cloud", "contexts", "list", "--json"], {
@@ -226,6 +231,79 @@ describe("named contexts (end to end through the CLI)", () => {
       expect(
         JSON.parse(await readFile(storePath, "utf8")).contexts,
       ).toMatchObject({ "team-login": { id: newId } });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("preserves a legacy local alias when its Browserbase-managed name differs", async () => {
+    const legacyId = "00000000-0000-4000-8000-0000000000cc";
+    const server = await startFakeBrowserbaseServer((request, response) => {
+      if (
+        request.method === "GET" &&
+        pathOf(request) === `/v1/contexts/${legacyId}`
+      ) {
+        jsonResponse(response, 200, {
+          id: legacyId,
+          name: "managed-name",
+          status: "ready",
+        });
+        return;
+      }
+      if (request.method === "POST" && pathOf(request) === "/v1/contexts") {
+        jsonResponse(response, 200, { id: "ctx_should_not_be_created" });
+        return;
+      }
+      jsonResponse(response, 200, {});
+    });
+    const env = {
+      BROWSERBASE_CONFIG_DIR: configDir,
+      BROWSERBASE_API_KEY: "test-key",
+      BROWSERBASE_BASE_URL: server.baseUrl,
+    };
+    const storePath = join(configDir, "contexts.json");
+
+    try {
+      // A pre-managed-name CLI install may already have an arbitrary local
+      // alias. It remains a valid lookup even when the API reports another
+      // Browserbase-owned name for that Context.
+      const added = await runCli(
+        ["cloud", "contexts", "add", "legacy-login", legacyId],
+        { env },
+      );
+      expect(added.exitCode).toBe(0);
+
+      const got = await runCli(["cloud", "contexts", "get", "legacy-login"], {
+        env,
+      });
+      expect(got.exitCode).toBe(0);
+      expect(JSON.parse(got.stdout)).toMatchObject({
+        id: legacyId,
+        name: "managed-name",
+      });
+
+      // Creating a new managed Context under the same local name must fail
+      // before the API call instead of silently repointing the legacy alias.
+      const duplicate = await runCli(
+        ["cloud", "contexts", "create", "--name", "legacy-login"],
+        {
+          env,
+        },
+      );
+      expect(duplicate.exitCode).not.toBe(0);
+      expect(duplicate.stderr).toContain("already exists locally");
+      expect(duplicate.stderr).toContain(
+        "may predate Browserbase-managed Context names",
+      );
+      expect(
+        server.requests.some(
+          (request) =>
+            request.method === "POST" && pathOf(request) === "/v1/contexts",
+        ),
+      ).toBe(false);
+      expect(JSON.parse(await readFile(storePath, "utf8"))).toMatchObject({
+        contexts: { "legacy-login": { id: legacyId } },
+      });
     } finally {
       await server.close();
     }

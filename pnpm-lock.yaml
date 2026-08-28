@@ -240,8 +240,8 @@ importers:
   packages/cli:
     dependencies:
       '@browserbasehq/sdk':
-        specifier: ^2.14.0
-        version: 2.16.0
+        specifier: ^2.17.0
+        version: 2.19.0
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../sdk-ts
@@ -1430,6 +1430,9 @@ packages:
 
   '@browserbasehq/sdk@2.16.0':
     resolution: {integrity: sha512-mPAuLRU9jWR7o0KJi9+gQnOBDUSIkoKbbFv4HjrA+80qWVcFacrNPlZmf4mguQnfZ0oP2t5c3ws6yuFyAX9vpA==}
+
+  '@browserbasehq/sdk@2.19.0':
+    resolution: {integrity: sha512-Fiehnkt0q9ItPnkVyi16fQLNtzUMi5KsAFYLzLcDXKWQV6kXhBNVHOa+v9BqqzSxHIS2Nbzk4E1XRKvphLh1eA==}
 
   '@browserbasehq/stagehand@3.7.1':
     resolution: {integrity: sha512-vAuYSZWIhh3d76BxwppNVE3dB0ztEBLBi85G6TWulZNiebdWptNoANOMuprOB/cw5dE+80b/ZZQo4G33Pc9i6w==}
@@ -9573,6 +9576,18 @@ snapshots:
       braintrust: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.76)(zod@4.4.3)
 
   '@browserbasehq/sdk@2.16.0':
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
+  '@browserbasehq/sdk@2.19.0':
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
