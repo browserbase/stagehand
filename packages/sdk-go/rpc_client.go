@@ -49,7 +49,6 @@ var (
 		"stagehand.extract":              {},
 		"stagehand.observe":              {},
 		"context.new_page":               {},
-		"context.close":                  {},
 		"context.add_init_script":        {},
 		"context.set_extra_http_headers": {},
 		"context.get_domain_policy":      {},

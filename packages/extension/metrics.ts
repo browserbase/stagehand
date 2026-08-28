@@ -63,4 +63,8 @@ export class StagehandMetricsAccumulator {
   snapshot(): StagehandMetrics {
     return { ...this.values };
   }
+
+  reset(): void {
+    Object.assign(this.values, EMPTY_METRICS);
+  }
 }

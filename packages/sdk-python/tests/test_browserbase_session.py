@@ -386,6 +386,10 @@ async def test_connect_validates_sanitizes_and_normalizes(
     assert connection.region == BrowserbaseRegion.us_east_1
     assert fake_api.retrieve_calls[-1] == "input"
 
+    await connection.close()
+    await connection.close()
+    assert fake_api.release_calls == ["retrieved"]
+
 
 async def test_connect_preserves_missing_region(fake_api: FakeBrowserbaseAPI) -> None:
     fake_api.retrieve_result = ("session-id", "wss://browser", None)
