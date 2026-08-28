@@ -308,7 +308,6 @@ describe("SDK reference surface", () => {
       "Awaited",
       "Buffer",
       "Error",
-      "EventName",
       "EvaluateResult",
       "Input",
       "Map",

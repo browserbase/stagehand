@@ -6,17 +6,10 @@ import { Page } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
   readonly handlers = new Map<string, Set<(params: unknown) => void>>();
-  readonly sendCalls: Array<{ method: string; params?: object }> = [];
-  readonly responseBodies = new Map<string, { body: string; base64Encoded: boolean }>();
 
   constructor(readonly id: string) {}
 
-  async send<Result = unknown>(method: string, params?: object): Promise<Result> {
-    this.sendCalls.push({ method, params });
-    if (method === "Network.getResponseBody") {
-      const requestId = (params as { requestId?: string } | undefined)?.requestId ?? "";
-      return (this.responseBodies.get(requestId) ?? {}) as Result;
-    }
+  async send<Result = unknown>(): Promise<Result> {
     return {} as Result;
   }
 
@@ -52,13 +45,13 @@ function createPage(
 }
 
 describe("Page CDP event subscriptions", () => {
-  it("covers the main session plus current and future OOPIF sessions", async () => {
+  it("covers the main session plus current and future OOPIF sessions", () => {
     const main = new FakeCDPSession("main");
     const child = new FakeCDPSession("child");
     const page = createPage(main);
     const events: unknown[] = [];
 
-    const unsubscribe = await page.subscribeCDPEvent("console", (event) => {
+    const unsubscribe = page.subscribeCDPEvent((event) => {
       events.push(event);
     });
     main.emit("Runtime.consoleAPICalled", { type: "log", args: [] });
@@ -88,29 +81,29 @@ describe("Page CDP event subscriptions", () => {
     expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
   });
 
-  it("removes every raw listener when the page is disposed", async () => {
+  it("removes every raw listener when the page is disposed", () => {
     const main = new FakeCDPSession("main");
     const child = new FakeCDPSession("child");
     const page = createPage(main);
 
     page.adoptOopifSession(child, "frame-child");
-    await page.subscribeCDPEvent("console", () => {});
+    page.subscribeCDPEvent(() => {});
     page.dispose();
 
     expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
     expect(child.listenerCount("Runtime.consoleAPICalled")).toBe(0);
   });
 
-  it("isolates listener failures so other subscriptions still receive the event", async () => {
+  it("isolates listener failures so other subscriptions still receive the event", () => {
     const main = new FakeCDPSession("main");
     const logError = vi.fn();
     const page = createPage(main, { error: logError } as unknown as StagehandLogger);
     const events: PageCDPEvent[] = [];
 
-    await page.subscribeCDPEvent("console", () => {
+    page.subscribeCDPEvent(() => {
       throw new Error("listener failed");
     });
-    await page.subscribeCDPEvent("console", (event) => events.push(event));
+    page.subscribeCDPEvent((event) => events.push(event));
 
     expect(() => main.emit("Runtime.consoleAPICalled", { type: "log", args: [] })).not.toThrow();
     expect(events).toHaveLength(1);
@@ -123,84 +116,5 @@ describe("Page CDP event subscriptions", () => {
         error: "listener failed",
       }),
     );
-  });
-
-  it("emits typed network captures with response bodies across page sessions", async () => {
-    const main = new FakeCDPSession("main");
-    const child = new FakeCDPSession("child");
-    main.responseBodies.set("request-1", { body: '{"ok":true}', base64Encoded: false });
-    const page = createPage(main);
-    page.adoptOopifSession(child, "frame-child");
-    const events: PageCDPEvent[] = [];
-
-    const unsubscribe = await page.subscribeCDPEvent("network", (event) => events.push(event));
-    main.emit("Network.requestWillBeSent", {
-      requestId: "request-1",
-      request: {
-        url: "https://example.test/api",
-        method: "POST",
-        headers: { "Content-Type": "application/json", attempts: 2 },
-        postData: '{"ready":true}',
-      },
-      type: "Fetch",
-    });
-    main.emit("Network.responseReceived", {
-      requestId: "request-1",
-      response: {
-        url: "https://example.test/api",
-        status: 200,
-        statusText: "OK",
-        headers: { "Content-Type": "application/json" },
-        mimeType: "application/json",
-      },
-    });
-    main.emit("Network.loadingFinished", { requestId: "request-1" });
-    child.emit("Network.requestWillBeSent", {
-      requestId: "request-1",
-      request: { url: "https://child.example.test/", method: "GET", headers: {} },
-      type: "Document",
-    });
-    child.emit("Network.loadingFailed", {
-      requestId: "request-1",
-      errorText: "net::ERR_FAILED",
-    });
-
-    await vi.waitFor(() => expect(events).toHaveLength(4));
-    expect(events[0]).toMatchObject({
-      method: "Network.requestWillBeSent",
-      sessionId: "main",
-      targetId: "target-main",
-      params: {
-        requestKey: "main:request-1",
-        requestId: "request-1",
-        httpMethod: "POST",
-        headers: { "Content-Type": "application/json", attempts: "2" },
-        body: '{"ready":true}',
-      },
-    });
-    expect(events[1]).toMatchObject({
-      method: "Network.requestWillBeSent",
-      sessionId: "child",
-      targetId: "target-child",
-      params: { requestKey: "child:request-1" },
-    });
-    expect(events[2]).toMatchObject({
-      method: "Network.loadingFailed",
-      sessionId: "child",
-      params: { requestKey: "child:request-1", errorText: "net::ERR_FAILED" },
-    });
-    expect(events[3]).toMatchObject({
-      method: "Network.loadingFinished",
-      sessionId: "main",
-      params: {
-        requestKey: "main:request-1",
-        status: 200,
-        body: '{"ok":true}',
-        base64Encoded: false,
-      },
-    });
-
-    unsubscribe();
-    expect(main.sendCalls.some((call) => call.method === "Network.disable")).toBe(false);
   });
 });

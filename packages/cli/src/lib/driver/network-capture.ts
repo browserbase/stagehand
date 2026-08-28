@@ -1,4 +1,3 @@
-import type { PageNetworkEvent } from "@browserbasehq/stagehand";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -8,6 +7,10 @@ import {
   getNetworkDir,
   writePrivateFile,
 } from "./daemon/paths.js";
+import {
+  NetworkCdpSidecar,
+  type NetworkCdpSession,
+} from "./network-cdp-sidecar.js";
 
 interface PendingRequest {
   body: string | null;
@@ -19,49 +22,87 @@ interface PendingRequest {
   url: string;
 }
 
-type NetworkEventPage = {
-  on(
-    event: "network",
-    listener: (event: PageNetworkEvent) => void,
-  ): Promise<NetworkSubscription>;
+interface ResponseMetadata {
+  headers: Record<string, string>;
+  mimeType: string;
+  status: number;
+  statusText: string;
+}
+
+type StagehandV4Page = {
+  pageId: string;
 };
 
-type NetworkSubscription = {
-  unsubscribe(): Promise<void>;
-};
-
+/**
+ * The V3 Browse network writer, adapted only at the CDP-session boundary.
+ * Keeping request correlation and the on-disk request/response schema here
+ * unchanged gives the V4 CLI observable parity without adding a public
+ * Stagehand network-event API.
+ */
 export class NetworkCapture {
+  private cdpSession: NetworkCdpSession | null = null;
   private counter = 0;
   private enabled = false;
+  private readonly pendingRequests = new Map<string, PendingRequest>();
   private readonly requestDirs = new Map<string, Promise<string | null>>();
+  private readonly requestStartTimes = new Map<string, number>();
+  private readonly responseMetadata = new Map<string, ResponseMetadata>();
+  private readonly listeners: Array<[string, (params: unknown) => void]> = [];
   private networkDir: string | null = null;
-  private subscription: NetworkSubscription | null = null;
 
-  constructor(private readonly session: string) {}
+  constructor(
+    private readonly session: string,
+    private readonly sidecar = new NetworkCdpSidecar(),
+  ) {}
 
   async enable(
-    page: NetworkEventPage,
+    page: StagehandV4Page,
+    browserWebSocketDebuggerUrl: string,
   ): Promise<{ alreadyEnabled?: boolean; enabled: true; path: string }> {
-    if (this.enabled && this.networkDir) {
+    if (this.enabled && this.networkDir && this.cdpSession?.connected) {
       return { alreadyEnabled: true, enabled: true, path: this.networkDir };
     }
+    if (this.enabled) await this.disable();
 
     await ensureRuntimeDir();
     this.networkDir = getNetworkDir(this.session);
     await ensurePrivateDir(this.networkDir);
     this.counter = 0;
+    this.pendingRequests.clear();
     this.requestDirs.clear();
-    this.enabled = true;
+    this.requestStartTimes.clear();
+    this.responseMetadata.clear();
 
+    const cdpSession = await this.sidecar.attach(
+      browserWebSocketDebuggerUrl,
+      page.pageId,
+    );
+    this.cdpSession = cdpSession;
     try {
-      this.subscription = await page.on("network", (event) => {
-        void this.handleEvent(event);
+      await cdpSession.send("Network.enable", {
+        maxResourceBufferSize: 5_000_000,
+        maxTotalBufferSize: 10_000_000,
+      });
+
+      this.addListener("Network.requestWillBeSent", (params) => {
+        void this.handleRequestWillBeSent(params);
+      });
+      this.addListener("Network.responseReceived", (params) => {
+        this.handleResponseReceived(params);
+      });
+      this.addListener("Network.loadingFinished", (params) => {
+        void this.handleLoadingFinished(params);
+      });
+      this.addListener("Network.loadingFailed", (params) => {
+        void this.handleLoadingFailed(params);
       });
     } catch (error) {
-      this.enabled = false;
+      this.cdpSession = null;
+      await cdpSession.detach().catch(() => undefined);
       throw error;
     }
 
+    this.enabled = true;
     return { enabled: true, path: this.networkDir };
   }
 
@@ -74,22 +115,27 @@ export class NetworkCapture {
       return { alreadyDisabled: true, enabled: false, path: this.networkDir };
     }
 
-    const subscription = this.subscription;
+    const cdpSession = this.cdpSession;
     this.enabled = false;
-    try {
-      await subscription?.unsubscribe();
-    } catch (error) {
-      this.enabled = true;
-      throw error;
+    for (const [event, listener] of this.listeners) {
+      cdpSession?.off(event, listener);
     }
-    this.subscription = null;
-    this.requestDirs.clear();
+    this.listeners.length = 0;
+
+    await cdpSession?.send("Network.disable").catch(() => undefined);
+    await cdpSession?.detach().catch(() => undefined);
+    this.cdpSession = null;
     return { enabled: false, path: this.networkDir };
+  }
+
+  async close(): Promise<void> {
+    await this.disable().catch(() => undefined);
+    this.sidecar.close();
   }
 
   path(): { enabled: boolean; path: string } {
     return {
-      enabled: this.enabled,
+      enabled: this.enabled && (this.cdpSession?.connected ?? false),
       path: this.networkDir ?? getNetworkDir(this.session),
     };
   }
@@ -107,7 +153,10 @@ export class NetworkCapture {
           ),
       );
       this.counter = 0;
+      this.pendingRequests.clear();
       this.requestDirs.clear();
+      this.requestStartTimes.clear();
+      this.responseMetadata.clear();
       return { cleared: true, path: dir };
     } catch (error) {
       return {
@@ -118,56 +167,123 @@ export class NetworkCapture {
     }
   }
 
-  private async handleEvent(event: PageNetworkEvent): Promise<void> {
+  private addListener(
+    event: string,
+    listener: (params: unknown) => void,
+  ): void {
+    this.cdpSession?.on(event, listener);
+    this.listeners.push([event, listener]);
+  }
+
+  private handleRequestWillBeSent(params: unknown): void {
     if (!this.enabled || !this.networkDir) return;
-    if (event.method === "Network.requestWillBeSent") {
-      const request: PendingRequest = {
-        body: event.params.body,
-        headers: event.params.headers,
-        id: event.params.requestId,
-        method: event.params.httpMethod,
-        resourceType: event.params.resourceType,
-        timestamp: event.params.timestamp,
-        url: event.params.url,
+    const event = params as {
+      request?: {
+        headers?: Record<string, string>;
+        method?: string;
+        postData?: string;
+        url?: string;
       };
-      const requestDir = this.writeRequest(request).catch(() => null);
-      this.requestDirs.set(event.params.requestKey, requestDir);
-      return;
-    }
+      requestId?: string;
+      type?: string;
+    };
+    if (!event.requestId || !event.request?.url) return;
 
-    const requestDir = await this.requestDirs.get(event.params.requestKey);
+    const request: PendingRequest = {
+      body: event.request.postData ?? null,
+      headers: event.request.headers ?? {},
+      id: event.requestId,
+      method: event.request.method ?? "GET",
+      resourceType: event.type ?? "Other",
+      timestamp: new Date().toISOString(),
+      url: event.request.url,
+    };
+
+    this.pendingRequests.set(event.requestId, request);
+    this.requestStartTimes.set(event.requestId, Date.now());
+    const requestDir = this.writeRequest(request).catch(() => null);
+    this.requestDirs.set(event.requestId, requestDir);
+  }
+
+  private handleResponseReceived(params: unknown): void {
+    const event = params as {
+      requestId?: string;
+      response?: {
+        headers?: Record<string, string>;
+        mimeType?: string;
+        status?: number;
+        statusText?: string;
+      };
+    };
+    if (!event.requestId || !event.response) return;
+    this.responseMetadata.set(event.requestId, {
+      headers: event.response.headers ?? {},
+      mimeType: event.response.mimeType ?? "",
+      status: event.response.status ?? 0,
+      statusText: event.response.statusText ?? "",
+    });
+  }
+
+  private async handleLoadingFinished(params: unknown): Promise<void> {
+    if (!this.enabled) return;
+    const event = params as { requestId?: string };
+    if (!event.requestId) return;
+    const requestDir = await this.requestDirs.get(event.requestId);
     if (!requestDir) {
-      this.requestDirs.delete(event.params.requestKey);
+      this.forget(event.requestId);
       return;
     }
+    const metadata = this.responseMetadata.get(event.requestId);
+    const started = this.requestStartTimes.get(event.requestId) ?? Date.now();
+    let body: string | null;
 
-    if (event.method === "Network.loadingFailed") {
-      await this.writeResponse(requestDir, {
-        body: null,
-        duration: event.params.durationMs,
-        error: event.params.errorText,
-        headers: {},
-        id: event.params.requestId,
-        mimeType: "",
-        status: 0,
-        statusText: "Failed",
+    try {
+      const result = await this.cdpSession?.send<{
+        base64Encoded?: boolean;
+        body?: string;
+      }>("Network.getResponseBody", {
+        requestId: event.requestId,
       });
-    } else {
-      const body =
-        event.params.base64Encoded && event.params.body
-          ? `[base64] ${event.params.body.slice(0, 100)}...`
-          : event.params.body;
-      await this.writeResponse(requestDir, {
-        body,
-        duration: event.params.durationMs,
-        headers: event.params.headers,
-        id: event.params.requestId,
-        mimeType: event.params.mimeType,
-        status: event.params.status,
-        statusText: event.params.statusText,
-      });
+      body = result?.body ?? null;
+      if (result?.base64Encoded && body) {
+        body = `[base64] ${body.slice(0, 100)}...`;
+      }
+    } catch {
+      body = null;
     }
-    this.requestDirs.delete(event.params.requestKey);
+
+    await this.writeResponse(requestDir, {
+      body,
+      duration: Date.now() - started,
+      headers: metadata?.headers ?? {},
+      id: event.requestId,
+      mimeType: metadata?.mimeType ?? "",
+      status: metadata?.status ?? 0,
+      statusText: metadata?.statusText ?? "",
+    });
+    this.forget(event.requestId);
+  }
+
+  private async handleLoadingFailed(params: unknown): Promise<void> {
+    const event = params as { errorText?: string; requestId?: string };
+    if (!event.requestId) return;
+    const requestDir = await this.requestDirs.get(event.requestId);
+    if (!requestDir) {
+      this.forget(event.requestId);
+      return;
+    }
+    const started = this.requestStartTimes.get(event.requestId) ?? Date.now();
+    await this.writeResponse(requestDir, {
+      body: null,
+      duration: Date.now() - started,
+      error: event.errorText ?? "Unknown error",
+      headers: {},
+      id: event.requestId,
+      mimeType: "",
+      status: 0,
+      statusText: "Failed",
+    });
+    this.forget(event.requestId);
   }
 
   private async writeRequest(request: PendingRequest): Promise<string | null> {
@@ -201,6 +317,13 @@ export class NetworkCapture {
       path.join(requestDir, "response.json"),
       JSON.stringify(response, null, 2),
     ).catch(() => undefined);
+  }
+
+  private forget(requestId: string): void {
+    this.pendingRequests.delete(requestId);
+    this.requestDirs.delete(requestId);
+    this.requestStartTimes.delete(requestId);
+    this.responseMetadata.delete(requestId);
   }
 }
 

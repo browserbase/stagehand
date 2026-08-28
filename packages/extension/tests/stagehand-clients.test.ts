@@ -44,7 +44,6 @@ import type {
   PageEvaluateParams,
   PageKeyPressParams,
   PageNavigationOptions,
-  PageOnParams,
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
@@ -458,25 +457,14 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
-  subscribeCDPEvent(
-    eventName: PageOnParams["event"],
-    listener: (event: PageCDPEvent) => void,
-  ): () => void {
-    const methods: PageCDPEvent["method"][] =
-      eventName === "console"
-        ? ["Runtime.consoleAPICalled"]
-        : ["Network.requestWillBeSent", "Network.loadingFinished", "Network.loadingFailed"];
-    for (const method of methods) {
-      const listeners = this.cdpEventListeners.get(method) ?? new Set();
-      listeners.add(listener);
-      this.cdpEventListeners.set(method, listeners);
-    }
+  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
+    const method = "Runtime.consoleAPICalled";
+    const listeners = this.cdpEventListeners.get(method) ?? new Set();
+    listeners.add(listener);
+    this.cdpEventListeners.set(method, listeners);
     return () => {
-      for (const method of methods) {
-        const listeners = this.cdpEventListeners.get(method);
-        listeners?.delete(listener);
-        if (listeners?.size === 0) this.cdpEventListeners.delete(method);
-      }
+      listeners.delete(listener);
+      if (listeners.size === 0) this.cdpEventListeners.delete(method);
     };
   }
 

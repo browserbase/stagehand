@@ -336,9 +336,8 @@ const title = await page.evaluate(() => document.title);
 
 ## on()
 
-Subscribe to console or network events from this page and its page-owned sessions. The
-listener type is narrowed from the event name: `"console"` delivers `PageConsoleEvent`,
-while `"network"` delivers `PageNetworkEvent`.
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```typescript
 const subscription = await page.on("console", (event) => {
@@ -349,13 +348,13 @@ await page.evaluate(() => console.log("ready"));
 await subscription.unsubscribe();
 ```
 
-<ParamField path="event" type="EventName">
-  The event name: `"console"` or `"network"`.
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
 </ParamField>
 
-<ParamField path="listener" type="PageEventListener&lt;EventName&gt;">
-  A callback that receives the typed event payload. Async callbacks may overlap and
-  are not awaited by later page calls.
+<ParamField path="listener" type="PageEventListener">
+  A callback that receives the event method, raw parameters, session ID, target ID,
+  and page ID. Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
 
 <ResponseField name="result" type="Promise<CDPSubscription>">
@@ -1017,9 +1016,8 @@ title = await page.evaluate("document.title", result_type=str)
 
 ## on()
 
-Subscribe to console or network events from this page and its page-owned sessions.
-Both values deliver a `PageCDPEvent` envelope with the corresponding CDP method and
-parameters.
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```python
 async def handle_console(event: PageCDPEvent) -> None:
@@ -1031,7 +1029,7 @@ await subscription.unsubscribe()
 ```
 
 <ParamField path="event" type="PageEventName">
-  The event name: `"console"` or `"network"`.
+  The console event name. Currently, the only supported value is `"console"`.
 </ParamField>
 
 <ParamField path="listener" type="PageEventListener">
@@ -1724,9 +1722,8 @@ fmt.Println(title)
 
 ## On()
 
-Subscribe to console or network events from this page and its page-owned sessions.
-Both values deliver a `PageCDPEvent` envelope with the corresponding CDP method and
-parameters.
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```go
 subscription, err := page.On(ctx, stagehand.PageEventNameConsole, func(event stagehand.PageCDPEvent) {
@@ -1745,7 +1742,7 @@ if err := subscription.Close(ctx); err != nil {
 ```
 
 <ParamField path="event" type="PageEventName">
-  The event name: `PageEventNameConsole` or `PageEventNameNetwork`.
+  The console event name. Currently, the only supported value is `PageEventNameConsole`.
 </ParamField>
 
 <ParamField path="listener" type="func(PageCDPEvent)">
