@@ -1,5 +1,13 @@
 # @browserbasehq/stagehand
 
+## 3.7.3
+
+### Patch Changes
+
+- [#2842](https://github.com/browserbase/stagehand/pull/2842) [`f86e609`](https://github.com/browserbase/stagehand/commit/f86e609b934d3f8ae625f5399104df2df9ade7a5) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - update the MCP SDK to v1.30 and refresh supporting dependency versions
+
+- [#2836](https://github.com/browserbase/stagehand/pull/2836) [`94a0ee4`](https://github.com/browserbase/stagehand/commit/94a0ee4e195a7563ae53a04793a092f37aabd388) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fix cross-frame xpaths building logic for coordinates inside of iframes.
+
 ## 3.7.2
 
 ### Patch Changes

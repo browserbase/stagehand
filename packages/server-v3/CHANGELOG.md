@@ -1,5 +1,14 @@
 # @browserbasehq/stagehand-server-v3
 
+## 3.7.6
+
+### Patch Changes
+
+- [#2845](https://github.com/browserbase/stagehand/pull/2845) [`c2eef9c`](https://github.com/browserbase/stagehand/commit/c2eef9c5808cf70872d42b609317f7ce2cc086d7) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - refresh server routing and OpenAPI dependencies
+
+- Updated dependencies [[`f86e609`](https://github.com/browserbase/stagehand/commit/f86e609b934d3f8ae625f5399104df2df9ade7a5), [`94a0ee4`](https://github.com/browserbase/stagehand/commit/94a0ee4e195a7563ae53a04793a092f37aabd388)]:
+  - @browserbasehq/stagehand@3.7.3
+
 ## 3.7.5
 
 ### Patch Changes
