@@ -295,9 +295,6 @@ catalogs:
     camelcase-keys:
       specifier: ^10.0.2
       version: 10.0.2
-    chrome-launcher:
-      specifier: ^1.2.1
-      version: 1.2.1
     devtools-protocol:
       specifier: ^0.0.1657692
       version: 0.0.1657692
@@ -790,9 +787,6 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
-      chrome-launcher:
-        specifier: 'catalog:'
-        version: 1.2.1
       oxfmt:
         specifier: 'catalog:'
         version: 0.57.0
@@ -821,9 +815,6 @@ importers:
       '@opentelemetry/core':
         specifier: 'catalog:'
         version: 2.9.0(@opentelemetry/api@1.9.1)
-      chrome-launcher:
-        specifier: 'catalog:'
-        version: 1.2.1
       zod:
         specifier: 'catalog:'
         version: 4.4.3

@@ -138,9 +138,8 @@ async function launchChrome(
   const chromePath = await findChromePath(options.executablePath, dependencies);
   const port = await resolveChromePort(options.port, dependencies);
   const temporaryProfile = options.userDataDir === undefined;
-  const userDataDir = temporaryProfile
-    ? await dependencies.mkdtemp(path.join(tmpdir(), "stagehand-chrome-"))
-    : options.userDataDir;
+  const userDataDir =
+    options.userDataDir ?? (await dependencies.mkdtemp(path.join(tmpdir(), "stagehand-chrome-")));
   const removeProfile = temporaryProfile && options.preserveUserDataDir !== true;
 
   if (!temporaryProfile) {
