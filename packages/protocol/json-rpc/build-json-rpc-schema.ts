@@ -63,9 +63,7 @@ const StagehandProtocolDocumentSchema = z
       errorResponse: JSONRPCErrorResponseSchema,
     }),
   })
-  // Zod 4.4 emits a root `$ref` when root metadata has an id. The protocol document is already
-  // assigned its canonical `$id` below, so only nested reusable definitions carry registry ids.
-  .meta({ title: "Stagehand V4 Protocol" });
+  .meta({ id: "StagehandProtocolDocument", title: "Stagehand V4 Protocol" });
 
 function buildStagehandProtocolDocument(): Record<string, unknown> {
   const preservedDocumentPropertyNames = new Set([
@@ -98,7 +96,6 @@ function buildStagehandProtocolDocument(): Record<string, unknown> {
   };
 }
 
-/** Keep the committed wire artifact stable across Zod 4.4's compact simple-union encoding. */
 function preserveProtocolUnionEncoding(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(preserveProtocolUnionEncoding);
   if (typeof value !== "object" || value === null) return value;
