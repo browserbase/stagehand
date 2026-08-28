@@ -676,10 +676,10 @@ PageCDPEventParams: TypeAlias = dict[str, FieldSchema12]
 
 class PageCDPEvent(TypedDict):
     page_id: str
-    method: Literal["Runtime.consoleAPICalled"]
-    params: PageCDPEventParams
     session_id: str
     target_id: str
+    method: Literal["Runtime.consoleAPICalled", "Network.requestWillBeSent", "Network.loadingFinished", "Network.loadingFailed"]
+    params: PageCDPEventParams
 
 
 class PageCDPEventNotification(TypedDict):
@@ -733,7 +733,7 @@ class PageEvaluateResult(TypedDict):
     value: FieldSchema9
 
 
-PageEventName: TypeAlias = Literal["console"]
+PageEventName: TypeAlias = Literal["console", "network"]
 
 
 class PageHoverParams(TypedDict):

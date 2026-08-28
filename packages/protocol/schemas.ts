@@ -1441,19 +1441,92 @@ export const ResponseFinishedResultSchema = z
   })
   .meta({ id: "ResponseFinishedResult" });
 
-export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
+export const PageEventNameSchema = z.enum(["console", "network"]).meta({ id: "PageEventName" });
 
 export const PageCDPEventParamsSchema = z
   .record(z.string(), z.json())
   .meta({ id: "PageCDPEventParams" });
 
+const PageEventEnvelopeSchema = z.strictObject({
+  pageId: z.string().min(1),
+  sessionId: z.string().min(1),
+  targetId: z.string().min(1),
+});
+
+export const PageConsoleEventSchema = PageEventEnvelopeSchema.extend({
+  method: z.literal("Runtime.consoleAPICalled"),
+  params: PageCDPEventParamsSchema,
+}).meta({ id: "PageConsoleEvent" });
+
+export const PageNetworkRequestEventParamsSchema = z
+  .strictObject({
+    requestKey: z.string().min(1),
+    requestId: z.string().min(1),
+    url: z.string(),
+    httpMethod: z.string().min(1),
+    headers: z.record(z.string(), z.string()),
+    body: z.string().nullable(),
+    resourceType: z.string(),
+    timestamp: z.iso.datetime(),
+  })
+  .meta({ id: "PageNetworkRequestEventParams" });
+
+export const PageNetworkRequestEventSchema = PageEventEnvelopeSchema.extend({
+  method: z.literal("Network.requestWillBeSent"),
+  params: PageNetworkRequestEventParamsSchema,
+}).meta({ id: "PageNetworkRequestEvent" });
+
+export const PageNetworkLoadingFinishedEventParamsSchema = z
+  .strictObject({
+    requestKey: z.string().min(1),
+    requestId: z.string().min(1),
+    status: z.number(),
+    statusText: z.string(),
+    headers: z.record(z.string(), z.string()),
+    mimeType: z.string(),
+    body: z.string().nullable(),
+    base64Encoded: z.boolean(),
+    durationMs: z.number().nonnegative(),
+  })
+  .meta({ id: "PageNetworkLoadingFinishedEventParams" });
+
+export const PageNetworkLoadingFinishedEventSchema = PageEventEnvelopeSchema.extend({
+  method: z.literal("Network.loadingFinished"),
+  params: PageNetworkLoadingFinishedEventParamsSchema,
+}).meta({ id: "PageNetworkLoadingFinishedEvent" });
+
+export const PageNetworkLoadingFailedEventParamsSchema = z
+  .strictObject({
+    requestKey: z.string().min(1),
+    requestId: z.string().min(1),
+    errorText: z.string(),
+    durationMs: z.number().nonnegative(),
+  })
+  .meta({ id: "PageNetworkLoadingFailedEventParams" });
+
+export const PageNetworkLoadingFailedEventSchema = PageEventEnvelopeSchema.extend({
+  method: z.literal("Network.loadingFailed"),
+  params: PageNetworkLoadingFailedEventParamsSchema,
+}).meta({ id: "PageNetworkLoadingFailedEvent" });
+
+export const PageNetworkEventSchema = z
+  .discriminatedUnion("method", [
+    PageNetworkRequestEventSchema,
+    PageNetworkLoadingFinishedEventSchema,
+    PageNetworkLoadingFailedEventSchema,
+  ])
+  .meta({ id: "PageNetworkEvent" });
+
 export const PageCDPEventSchema = z
   .strictObject({
-    pageId: z.string().min(1),
-    method: z.literal("Runtime.consoleAPICalled"),
+    ...PageEventEnvelopeSchema.shape,
+    method: z.enum([
+      "Runtime.consoleAPICalled",
+      "Network.requestWillBeSent",
+      "Network.loadingFinished",
+      "Network.loadingFailed",
+    ]),
     params: PageCDPEventParamsSchema,
-    sessionId: z.string().min(1),
-    targetId: z.string().min(1),
   })
   .meta({ id: "PageCDPEvent" });
 

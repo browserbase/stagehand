@@ -20,7 +20,7 @@ type Page struct {
 	reportEventListenerPanic func(any)
 }
 
-// CDPSubscription is a page-scoped console event listener registration.
+// CDPSubscription is a page-scoped event listener registration.
 type CDPSubscription struct {
 	rpc                 protocolClient
 	page                *Page
@@ -243,7 +243,7 @@ func (p *Page) AddInitScript(ctx context.Context, source string) error {
 	return p.rpc.call(ctx, "page.add_init_script", params, &result)
 }
 
-// On subscribes to console events for this page and its OOPIF sessions.
+// On subscribes to console or network events for this page and its OOPIF sessions.
 func (p *Page) On(
 	ctx context.Context,
 	event PageEventName,
