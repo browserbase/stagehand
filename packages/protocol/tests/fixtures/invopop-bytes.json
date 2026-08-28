@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/BinaryPayload",
+  "$defs": {
+    "BinaryPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64"
+        }
+      },
+      "required": ["data"]
+    }
+  }
+}

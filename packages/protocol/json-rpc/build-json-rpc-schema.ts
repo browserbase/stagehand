@@ -63,7 +63,9 @@ const StagehandProtocolDocumentSchema = z
       errorResponse: JSONRPCErrorResponseSchema,
     }),
   })
-  .meta({ id: "StagehandProtocolDocument", title: "Stagehand V4 Protocol" });
+  // Zod 4.5 emits a root `$ref` when root metadata has an id. The protocol document is already
+  // assigned its canonical `$id` below, so only nested reusable definitions carry registry ids.
+  .meta({ title: "Stagehand V4 Protocol" });
 
 function buildStagehandProtocolDocument(): Record<string, unknown> {
   const preservedDocumentPropertyNames = new Set([
@@ -80,10 +82,12 @@ function buildStagehandProtocolDocument(): Record<string, unknown> {
     ...notificationEntries.map((notification) => notification.name),
   ]);
   const generated = toWireJsonSchema(
-    z.toJSONSchema(StagehandProtocolDocumentSchema, {
-      io: "input",
-      unrepresentable: "any",
-    }),
+    preserveProtocolUnionEncoding(
+      z.toJSONSchema(StagehandProtocolDocumentSchema, {
+        io: "input",
+        target: "draft-2020-12",
+      }),
+    ),
     preservedDocumentPropertyNames,
   ) as Record<string, unknown>;
   const { $schema, ...document } = generated;
@@ -92,6 +96,20 @@ function buildStagehandProtocolDocument(): Record<string, unknown> {
     $id: `https://stagehand.dev/schema/${PROTOCOL_DOCUMENT_ID}.json`,
     ...document,
   };
+}
+
+/** Keep the committed wire artifact stable across Zod 4.5's compact simple-union encoding. */
+function preserveProtocolUnionEncoding(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(preserveProtocolUnionEncoding);
+  if (typeof value !== "object" || value === null) return value;
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) =>
+      key === "type" && Array.isArray(entry)
+        ? ["anyOf", entry.map((type) => ({ type }))]
+        : [key, preserveProtocolUnionEncoding(entry)],
+    ),
+  );
 }
 
 await writeFile(

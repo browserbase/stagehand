@@ -12,6 +12,7 @@ export default defineConfig({
       "packages/evals/tests/**/*.test.ts",
       "packages/integrations/core/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
+      "packages/extension/llm/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",

@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "homepage": {
+      "format": "uri",
+      "minLength": 1,
+      "title": "Homepage",
+      "type": "string"
+    },
+    "payload": {
+      "format": "binary",
+      "title": "Payload",
+      "type": "string"
+    }
+  },
+  "required": ["homepage", "payload"],
+  "title": "Contact",
+  "type": "object"
+}
