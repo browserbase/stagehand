@@ -29,9 +29,9 @@ describe("Stagehand service worker RPC client smoke", () => {
   const bufferedInitNotifications: StagehandRpcNotification[] = [];
 
   beforeAll(async () => {
-    const signal = AbortSignal.timeout(60_000);
     extensionDir = await createFullGraphSmokeExtension();
     fixtureServer = await startFixtureServer();
+    const signal = AbortSignal.timeout(60_000);
     chrome = await launchLocalBrowser({ headless: true }, signal);
     rpcClient = await connectRPCClient({
       cdpUrl: chrome.cdpUrl,
