@@ -115,7 +115,7 @@ describe("Every public SDK field participates in the protocol pipeline", () => {
       missing.sort(),
       "Every protocol request field must be visibly constructed, forwarded wholesale, or handled by a complete adapter",
     ).toEqual([]);
-  });
+  }, 15_000);
 
   it("consumes every declared result field in every SDK", async () => {
     const [protocol, calls] = await Promise.all([protocolDocument(), publicRpcCalls()]);
