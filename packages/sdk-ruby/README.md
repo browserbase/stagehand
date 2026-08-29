@@ -26,8 +26,13 @@ end to end but deliberately implements only a sliver of the API surface.
   and `Stagehand::Browserbase.session_logs(api_key:, session_id:)` to fetch a
   session's raw CDP event log for post-run verification.
 - **Client surface** — `Stagehand.create` / `close`, `act`, `extract` (plain JSON
-  Schema hashes), `observe`, `metrics`, `context.pages/new_page/active_page`,
-  `page.goto/url/title`.
+  Schema hashes), `observe`, `metrics`, `context.pages/new_page/active_page`.
+- **Core interactions** — `page.goto/reload/go_back/go_forward/url/title`,
+  `page.click/hover/scroll/type/key_press`, `page.evaluate`, `page.screenshot`,
+  `page.wait_for_load_state/wait_for_selector/wait_for_timeout`, and
+  `page.locator(selector)` → `Locator` with `click/fill/type/count/text_content/
+  inner_text/input_value/visible?/checked?/set_input_files` (+ `first`/`nth`;
+  file uploads take paths or `Stagehand::FilePayload`, 50 MiB/file).
 
 ## Usage
 
@@ -67,6 +72,8 @@ each runnable as `bundle exec ruby examples/<name>.rb [--browserbase]`:
 | `model_gateway.rb` | Browserbase-only; no model configured (Gateway picks one) |
 | `caching.rb` | Browserbase-only; `cache: true` + `metadata.cache` round-trip |
 | `custom_logging.rb` | `on_log:` callback appending JSONL to `stagehand.jsonl` |
+| `file_upload.rb` | mirrors the Python example; no LLM needed (runs local or Browserbase) |
+| `page_interactions.rb` | locator fill/type/click/readers, evaluate, screenshot, history; no LLM needed |
 | `demo.rb`, `arctic_observe.rb` | spike walkthroughs (not part of the canonical set) |
 
 The remaining canonical examples need methods the spike skipped (priced in
@@ -85,8 +92,9 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 
 ## Spike shortcuts (not production behavior)
 
-- Only ~15 of the 77 protocol methods are wrapped; the rest need mechanical
-  wrappers on the existing pattern.
+- 36 of the 77 protocol methods are wrapped (AI primitives + navigation + core
+  page/locator interactions); the rest need mechanical wrappers on the
+  existing pattern.
 - Unions decode laxly (first structurally-matching variant); no strict scalar
   validation (the extension re-validates everything server-side).
 - `llm.generate` (client-side LLM) and `stagehand.callback_batch` are unsupported.
