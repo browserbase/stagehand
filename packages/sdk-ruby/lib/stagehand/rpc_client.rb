@@ -14,9 +14,9 @@ module Stagehand
   #
   # Spike notes:
   # - Inbound server->client requests (llm.generate) are answered with
-  #   -32601 Method not found; client-LLM support is out of scope.
-  # - Notification listeners run inline on the reader thread, so they must
-  #   not issue RPC calls themselves (the stderr log listener does not).
+  #   -32601 Method not found; client-LLM support needs a dispatcher thread.
+  # - Notification listeners (stagehand.log, page.cdp_event) run inline on
+  #   the reader thread, so they must not issue RPC calls themselves.
   class RPCClient
     MAX_REQUEST_ID = 9_007_199_254_740_991
     MAX_PENDING_NOTIFICATIONS = 100

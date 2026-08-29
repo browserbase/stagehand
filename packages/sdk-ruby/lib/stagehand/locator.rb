@@ -5,10 +5,8 @@ require_relative "generated/models"
 require_relative "rpc_client"
 
 module Stagehand
-  # An element locator bound to a page, created via Page#locator. Port of the
-  # core-interactions subset of packages/sdk-python/src/stagehand/locator.py;
-  # the remaining methods (hover, scroll_to, centroid, highlight,
-  # send_click_event, select_option, inner_html) follow the same pattern.
+  # An element locator bound to a page, created via Page#locator. Port of
+  # packages/sdk-python/src/stagehand/locator.py.
   class Locator
     attr_reader :page_id, :selector, :nth_index
 
@@ -40,6 +38,53 @@ module Stagehand
       nil
     end
 
+    def hover
+      @rpc_client.send("locator.hover", descriptor, "LocatorHoverResult")
+      nil
+    end
+
+    # percent: 0-100 Numeric or a "50%" style String.
+    def scroll_to(percent)
+      @rpc_client.send("locator.scroll_to", Models::LocatorScrollToParams.new(**descriptor_values, percent: percent), "LocatorScrollToResult")
+      nil
+    end
+
+    # The element's viewport centroid as Models::LocatorCentroidResult (x/y).
+    def centroid
+      @rpc_client.send("locator.centroid", descriptor, "LocatorCentroidResult")
+    end
+
+    # Colors are {r:, g:, b:, a:} Hashes or Models::RgbaColor.
+    def highlight(duration_ms: nil, border_color: nil, content_color: nil)
+      values = descriptor_values
+      options = {
+        duration_ms: duration_ms,
+        border_color: rgba(border_color),
+        content_color: rgba(content_color),
+      }.compact
+      values[:options] = Models::LocatorHighlightOptions.new(**options) unless options.empty?
+      @rpc_client.send("locator.highlight", Models::LocatorHighlightParams.new(**values), "LocatorHighlightResult")
+      nil
+    end
+
+    # Dispatches a synthetic MouseEvent("click") instead of trusted input.
+    def send_click_event(bubbles: nil, cancelable: nil, composed: nil, detail: nil)
+      values = descriptor_values
+      options = { bubbles: bubbles, cancelable: cancelable, composed: composed, detail: detail }.compact
+      values[:options] = Models::LocatorSendClickEventOptions.new(**options) unless options.empty?
+      @rpc_client.send("locator.send_click_event", Models::LocatorSendClickEventParams.new(**values), "LocatorSendClickEventResult")
+      nil
+    end
+
+    # values: a String or array of Strings; returns the selected values.
+    def select_option(values)
+      @rpc_client.send(
+        "locator.select_option",
+        Models::LocatorSelectOptionParams.new(**descriptor_values, values: values.is_a?(String) ? values : values.to_a),
+        "LocatorSelectOptionResult",
+      )
+    end
+
     def type(text, delay: nil)
       values = descriptor_values
       values[:text] = text
@@ -58,6 +103,10 @@ module Stagehand
 
     def inner_text
       @rpc_client.send("locator.inner_text", descriptor, nil)
+    end
+
+    def inner_html
+      @rpc_client.send("locator.inner_html", descriptor, nil)
     end
 
     def input_value
@@ -82,6 +131,14 @@ module Stagehand
     end
 
     private
+
+    def rgba(color)
+      case color
+      when nil, Models::RgbaColor then color
+      when Hash then Models::RgbaColor.new(**color.transform_keys(&:to_sym))
+      else raise ArgumentError, "colors must be a Models::RgbaColor or a Hash with r/g/b (and optional a)"
+      end
+    end
 
     def descriptor
       Models::LocatorDescriptor.new(**descriptor_values)

@@ -95,6 +95,71 @@ class TestLocator < Minitest::Test
     assert_equal({ "page_id" => "page-1", "selector" => "#login", "nth" => 2 }, request["params"])
   end
 
+  def test_hover_and_scroll_to
+    request = expect_rpc(result: { "hovered" => true }) { assert_nil @locator.hover }
+    assert_equal "locator.hover", request["method"]
+    assert_equal({ "page_id" => "page-1", "selector" => "#login" }, request["params"])
+
+    request = expect_rpc(result: { "scrolled" => true }) { assert_nil @locator.scroll_to(50) }
+    assert_equal "locator.scroll_to", request["method"]
+    assert_equal({ "page_id" => "page-1", "selector" => "#login", "percent" => 50 }, request["params"])
+
+    request = expect_rpc(result: { "scrolled" => true }) { @locator.scroll_to("75%") }
+    assert_equal "75%", request["params"]["percent"]
+  end
+
+  def test_inner_html
+    request = expect_rpc(result: "<b>hi</b>") { assert_equal "<b>hi</b>", @locator.inner_html }
+    assert_equal "locator.inner_html", request["method"]
+  end
+
+  def test_centroid
+    request = expect_rpc(result: { "x" => 10.5, "y" => 20 }) do
+      centroid = @locator.centroid
+      assert_equal 10.5, centroid.x
+      assert_equal 20, centroid.y
+    end
+    assert_equal "locator.centroid", request["method"]
+  end
+
+  def test_highlight_with_colors
+    request = expect_rpc(result: { "highlighted" => true }) { assert_nil @locator.highlight }
+    assert_equal "locator.highlight", request["method"]
+    assert_equal({ "page_id" => "page-1", "selector" => "#login" }, request["params"])
+
+    request = expect_rpc(result: { "highlighted" => true }) do
+      @locator.highlight(duration_ms: 500, border_color: { r: 255, g: 0, b: 0 },
+                         content_color: Stagehand::Models::RgbaColor.new(r: 0, g: 0, b: 255, a: 0.2))
+    end
+    assert_equal(
+      { "duration_ms" => 500,
+        "border_color" => { "r" => 255, "g" => 0, "b" => 0 },
+        "content_color" => { "r" => 0, "g" => 0, "b" => 255, "a" => 0.2 } },
+      request["params"]["options"],
+    )
+
+    assert_raises(ArgumentError) { @locator.highlight(border_color: "red") }
+  end
+
+  def test_send_click_event
+    request = expect_rpc(result: { "clicked" => true }) do
+      assert_nil @locator.send_click_event(bubbles: true, detail: 1)
+    end
+    assert_equal "locator.send_click_event", request["method"]
+    assert_equal({ "bubbles" => true, "detail" => 1 }, request["params"]["options"])
+  end
+
+  def test_select_option_accepts_string_or_array
+    request = expect_rpc(result: ["large"]) do
+      assert_equal ["large"], @locator.select_option("large")
+    end
+    assert_equal "locator.select_option", request["method"]
+    assert_equal({ "page_id" => "page-1", "selector" => "#login", "values" => "large" }, request["params"])
+
+    request = expect_rpc(result: %w[a b]) { @locator.select_option(%w[a b]) }
+    assert_equal %w[a b], request["params"]["values"]
+  end
+
   def test_set_input_files_encodes_payload
     Tempfile.create(["upload", ".txt"]) do |file|
       file.write("hello upload")

@@ -119,6 +119,35 @@ module Stagehand
       connected_rpc_client.send("stagehand.metrics", Models::EmptyParams.new, "StagehandMetrics")
     end
 
+    UNSET_BATCH_INPUT = Object.new
+    private_constant :UNSET_BATCH_INPUT
+    MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000
+
+    # Runs trusted JavaScript against the worker-local Stagehand object model
+    # (the source travels beside, not inside, the JSON-RPC message — see
+    # CDPClient.callback_batch_expression). Returns the callback's JSON value.
+    def experimental_batch(source, input = UNSET_BATCH_INPUT, timeout: 30_000, page: nil)
+      raise ArgumentError, "source must be a non-empty JavaScript string" unless source.is_a?(String) && !source.strip.empty?
+      unless timeout.is_a?(Integer) && timeout.positive?
+        raise ArgumentError, "timeout must be a positive number of milliseconds"
+      end
+      raise ArgumentError, "timeout must not exceed #{MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds" if timeout > MAX_CALLBACK_BATCH_TIMEOUT_MS
+
+      options = { timeout: timeout }
+      options[:page_id] = page.page_id unless page.nil?
+      values = { callback_source: source, options: Models::CallbackBatchOptions.new(**options) }
+      unless input.equal?(UNSET_BATCH_INPUT)
+        assert_json_value(input)
+        values[:input] = input
+      end
+      result = connected_rpc_client.send(
+        "stagehand.callback_batch",
+        Models::CallbackBatchParams.new(**values),
+        "CallbackBatchResult",
+      )
+      result.value
+    end
+
     def close
       @close_mutex.synchronize do
         return if @closed
@@ -214,6 +243,27 @@ module Stagehand
       # api_key from create() overrides browser metadata when both are given.
       values[:api_key] = @config[:api_key] unless @config[:api_key].nil?
       values
+    end
+
+    # Ruby's JSON.generate stringifies unknown objects instead of raising, so
+    # batch input is validated structurally to match the sibling SDKs.
+    def assert_json_value(value)
+      case value
+      when nil, true, false, String, Integer
+        nil
+      when Float
+        raise ArgumentError, "input must be JSON-serializable" unless value.finite?
+      when Array
+        value.each { |entry| assert_json_value(entry) }
+      when Hash
+        value.each do |key, entry|
+          raise ArgumentError, "input must be JSON-serializable" unless key.is_a?(String) || key.is_a?(Symbol)
+          assert_json_value(entry)
+        end
+      else
+        raise ArgumentError, "input must be JSON-serializable"
+      end
+      nil
     end
 
     def handle_log(log)
