@@ -22,7 +22,7 @@ PAGE_INFO = {
 ExampleHelpers.with_stagehand do |stagehand, page|
   console_events = Thread::Queue.new
   subscription = page.on("console") do |event|
-    # Runs on the RPC reader thread: only hand the event over, no RPC calls.
+    # Runs on the RPC dispatcher thread: keep it quick, hand the event over.
     console_events << event if event.params.is_a?(Hash) && event.params["type"] == "log"
   end
 

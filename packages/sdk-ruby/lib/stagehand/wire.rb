@@ -58,7 +58,8 @@ module Stagehand
       end
     end
 
-    def decode_union(value, variants)
+    def decode_union(value, variants, depth = 0)
+      return value if depth > 16
       if value.is_a?(Hash)
         variants.each do |variant|
           model = resolve_model(variant)
@@ -67,10 +68,20 @@ module Stagehand
         end
       end
       variants.each do |variant|
-        next unless variant.is_a?(Array)
-        kind = variant.first
-        return decode(value, variant) if kind == :array && value.is_a?(Array)
-        return decode(value, variant) if kind == :map && value.is_a?(Hash)
+        descriptor = variant.is_a?(String) ? Models::DEFS[variant] : variant
+        next unless descriptor.is_a?(Array)
+        kind = descriptor.first
+        case kind
+        when :array
+          return decode(value, descriptor) if value.is_a?(Array)
+        when :map
+          return decode(value, descriptor) if value.is_a?(Hash)
+        when :union
+          # A reference to another union (e.g. LLMMessageContentBlock): decode
+          # through it and keep the result when a nested variant matched.
+          decoded = decode_union(value, descriptor.last, depth + 1)
+          return decoded unless decoded.equal?(value)
+        end
       end
       value
     end

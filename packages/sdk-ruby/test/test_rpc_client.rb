@@ -21,6 +21,32 @@ class TestRPCClient < Minitest::Test
     end
   end
 
+  # Inbound work (notifications, requests) is dispatched asynchronously.
+  def wait_until(timeout: 2)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    until yield
+      flunk "condition not met within #{timeout}s" if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+      sleep 0.005
+    end
+  end
+
+  LLM_REQUEST = {
+    "jsonrpc" => "2.0", "id" => 11, "method" => "llm.generate",
+    "params" => {
+      "messages" => [{ "role" => "user", "content" => { "type" => "text", "text" => "hi" } }],
+      "response_format" => { "type" => "json_schema", "name" => "extract", "schema" => { "type" => "object" } },
+    },
+  }.freeze
+
+  def structured_result(text: "{}", structured_content: {})
+    Stagehand::Models::LLMStructuredGenerateResult.new(
+      role: "assistant",
+      content: Stagehand::Models::LLMTextContent.new(type: "text", text: text),
+      output_format: "json_schema",
+      structured_content: structured_content,
+    )
+  end
+
   def test_request_response_round_trip
     responder = respond_to_next_request do |request|
       assert_equal "2.0", request["jsonrpc"]
@@ -84,15 +110,93 @@ class TestRPCClient < Minitest::Test
     @client.on_notification("stagehand.log") { |log| seen << log }
     @client.receive({ "jsonrpc" => "2.0", "method" => "stagehand.log",
                       "params" => { "level" => "warn", "message" => "late", "data" => {} } })
+    wait_until { seen.size == 2 }
     assert_equal %w[early late], seen.map(&:message)
     assert_instance_of Stagehand::Models::StagehandLog, seen.first
   end
 
-  def test_inbound_request_gets_method_not_found
+  def test_inbound_request_without_handler_gets_method_not_found
     @client.receive({ "jsonrpc" => "2.0", "id" => 7, "method" => "llm.generate", "params" => {} })
     reply = @transport.next_sent
     assert_equal 7, reply["id"]
     assert_equal(-32_601, reply.dig("error", "code"))
+  end
+
+  def test_on_request_round_trip
+    seen = nil
+    @client.on_request("llm.generate") do |params|
+      seen = params
+      structured_result(structured_content: { "greeting" => "hello" })
+    end
+    @client.receive(LLM_REQUEST.dup)
+    reply = @transport.next_sent
+    assert_equal 11, reply["id"]
+    assert_equal(
+      { "role" => "assistant", "content" => { "type" => "text", "text" => "{}" },
+        "output_format" => "json_schema", "structured_content" => { "greeting" => "hello" } },
+      reply["result"],
+    )
+    assert_instance_of Stagehand::Models::LLMStructuredGenerateParams, seen
+    assert_equal "extract", seen.response_format.name
+    assert_equal "hi", seen.messages.first.content.text
+  end
+
+  def test_request_handler_may_issue_rpc_calls
+    @client.on_request("llm.generate") do |_params|
+      title = @client.send("page.title", Stagehand::Models::PageIdParams.new(page_id: "page-1"), "PageTitleResult")
+      structured_result(structured_content: { "title" => title })
+    end
+    @client.receive(LLM_REQUEST.dup)
+    inner = @transport.next_sent
+    assert_equal "page.title", inner["method"]
+    @transport.push({ "jsonrpc" => "2.0", "id" => inner["id"], "result" => "Example Domain" })
+    reply = @transport.next_sent
+    assert_equal 11, reply["id"]
+    assert_equal "Example Domain", reply.dig("result", "structured_content", "title")
+  end
+
+  def test_request_handler_error_maps_to_internal_error_with_name
+    @client.on_request("llm.generate") { raise "llm exploded" }
+    @client.receive(LLM_REQUEST.dup)
+    reply = @transport.next_sent
+    assert_equal 11, reply["id"]
+    assert_equal(-32_603, reply.dig("error", "code"))
+    assert_equal "llm exploded", reply.dig("error", "message")
+    assert_equal({ "name" => "RuntimeError" }, reply.dig("error", "data"))
+  end
+
+  def test_request_with_unmatched_union_params_gets_invalid_params
+    @client.on_request("llm.generate") { |params| params }
+    @client.receive({ "jsonrpc" => "2.0", "id" => 4, "method" => "llm.generate", "params" => { "foo" => 1 } })
+    reply = @transport.next_sent
+    assert_equal 4, reply["id"]
+    assert_equal(-32_602, reply.dig("error", "code"))
+  end
+
+  def test_invalid_handler_result_maps_to_internal_error
+    @client.on_request("llm.generate") { { "bogus" => true } }
+    @client.receive(LLM_REQUEST.dup)
+    reply = @transport.next_sent
+    assert_equal(-32_603, reply.dig("error", "code"))
+    assert_equal "Internal error", reply.dig("error", "message")
+  end
+
+  def test_on_request_remove_restores_method_not_found
+    remove = @client.on_request("llm.generate") { structured_result }
+    replaced = @client.on_request("llm.generate") { structured_result }
+    remove.call # stale removal is a no-op: the second registration stays
+    @client.receive(LLM_REQUEST.dup)
+    assert_equal 11, @transport.next_sent["id"]
+    replaced.call
+    @client.receive(LLM_REQUEST.merge("id" => 12))
+    reply = @transport.next_sent
+    assert_equal 12, reply["id"]
+    assert_equal(-32_601, reply.dig("error", "code"))
+  end
+
+  def test_on_request_after_close_raises
+    @client.close
+    assert_raises(Stagehand::StagehandError) { @client.on_request("llm.generate") { nil } }
   end
 
   def test_malformed_json_gets_parse_error
