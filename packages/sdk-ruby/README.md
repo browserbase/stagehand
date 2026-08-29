@@ -74,6 +74,8 @@ each runnable as `bundle exec ruby examples/<name>.rb [--browserbase]`:
 | `custom_logging.rb` | `on_log:` callback appending JSONL to `stagehand.jsonl` |
 | `file_upload.rb` | mirrors the Python example; no LLM needed (runs local or Browserbase) |
 | `page_interactions.rb` | locator fill/type/click/readers, evaluate, screenshot, history; no LLM needed |
+| `hybrid_news.rb` | AI extract + deterministic locators/pagination/screenshot on Hacker News |
+| `search_flow.rb` | locator-driven search on DuckDuckGo + AI extraction of the results |
 | `demo.rb`, `arctic_observe.rb` | spike walkthroughs (not part of the canonical set) |
 
 The remaining canonical examples need methods the spike skipped (priced in
