@@ -1,28 +1,77 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-example-eve-facade",
-  "version": "4.0.2",
-  "private": true,
+  "name": "@browserbasehq/eve",
+  "version": "0.1.0",
+  "description": "Browserbase for Eve, powered by Stagehand V4 Code Mode.",
+  "keywords": [
+    "ai-agents",
+    "browser-automation",
+    "browserbase",
+    "eve",
+    "stagehand"
+  ],
+  "homepage": "https://stagehand.dev",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "license": "MIT",
+  "author": "Browserbase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/integrations/eve"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "default": "./dist/tools/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "eve build",
-    "dev": "node scripts/eve-with-stagehand-env.mjs dev",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "start": "node scripts/eve-with-stagehand-env.mjs start"
+    "build": "pnpm run stage:facade && eve extension build",
+    "prepack": "pnpm run build",
+    "stage:facade": "node scripts/stage-facade.mjs",
+    "test": "pnpm run stage:facade && vitest run",
+    "test:unit": "pnpm run stage:facade && vitest run",
+    "typecheck": "pnpm run stage:facade && tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/sdk": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
-    "@browserbasehq/stagehand-integrations": "workspace:*",
-    "dotenv": "catalog:",
-    "eve": "catalog:"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "ai": "catalog:eve",
+    "eve": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
+  "peerDependencies": {
+    "eve": ">=0.39.3 <1"
+  },
   "engines": {
     "node": ">=24"
+  },
+  "eve": {
+    "extension": {
+      "source": "./extension",
+      "dist": "./dist/extension",
+      "externalDependencies": [
+        "@browserbasehq/sdk",
+        "@browserbasehq/stagehand"
+      ]
+    }
   }
 }

@@ -31,6 +31,15 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "@browserbasehq/eve#build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
+        "!dist/**"
+      ],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -81,6 +90,20 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "@browserbasehq/eve#typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/integrations/core/src/facade/**"]
+    },
+    "@browserbasehq/eve#test:unit": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "extension/**",
+        "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
