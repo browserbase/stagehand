@@ -1,47 +1,8 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
+require_relative "support/fake_transport"
 require "stagehand/rpc_client"
-
-class FakeTransport
-  attr_reader :sent
-
-  def initialize
-    @sent = Thread::Queue.new
-    @inbound = Thread::Queue.new
-    @closed = false
-  end
-
-  def send(message)
-    @sent << message
-  end
-
-  # Mirrors the real CDP transport: close unblocks receive with an error.
-  def receive
-    value = @inbound.pop
-    raise value if value.is_a?(Exception)
-    value
-  end
-
-  def push(message)
-    @inbound << message
-  end
-
-  def next_sent(timeout: 2)
-    value = @sent.pop(timeout: timeout)
-    raise "no message sent" if value.nil?
-    value
-  end
-
-  def close
-    @closed = true
-    @inbound << Stagehand::CDPConnectionClosedError.new
-  end
-
-  def closed?
-    @closed
-  end
-end
 
 class TestRPCClient < Minitest::Test
   def setup

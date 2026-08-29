@@ -26,8 +26,25 @@ end to end but deliberately implements only a sliver of the API surface.
   and `Stagehand::Browserbase.session_logs(api_key:, session_id:)` to fetch a
   session's raw CDP event log for post-run verification.
 - **Client surface** — `Stagehand.create` / `close`, `act`, `extract` (plain JSON
-  Schema hashes), `observe`, `metrics`, `context.pages/new_page/active_page`,
-  `page.goto/url/title`.
+  Schema hashes), `observe`, `metrics`, and `experimental_batch` (trusted
+  JavaScript against the worker-local object model via the callback-batch
+  CDP delivery path).
+- **Page** — navigation (`goto/reload/go_back/go_forward`, returning a
+  `Stagehand::Response` with `status/headers/body/security_details/finished`),
+  `url/title/close`, input (`click/hover/scroll/drag_and_drop/type/key_press`),
+  `evaluate`, `screenshot`, `snapshot`, `add_init_script`,
+  `set_extra_http_headers`, `set_viewport_size`, the `wait_for_*` family,
+  console events via `page.on("console") { |event| ... }` (+ unsubscribe),
+  and WebMCP (`tools` → invoke/result/cancel).
+- **Locator** — `page.locator(selector)` → all 17 locator methods
+  (`click/fill/type/hover/scroll_to/count/text_content/inner_text/inner_html/
+  input_value/visible?/checked?/centroid/highlight/send_click_event/
+  select_option/set_input_files` + `first`/`nth`; file uploads take paths or
+  `Stagehand::FilePayload`, 50 MiB/file).
+- **Context** — `pages/new_page/active_page/set_active_page/close`, cookies
+  (`cookies/add_cookies/clear_cookies` with String/Regexp filters), clipboard
+  (`read_text/write_text/clear/paste/copy/cut`), `add_init_script`,
+  `set_extra_http_headers`, and `get/set_domain_policy`.
 
 ## Usage
 
@@ -67,11 +84,18 @@ each runnable as `bundle exec ruby examples/<name>.rb [--browserbase]`:
 | `model_gateway.rb` | Browserbase-only; no model configured (Gateway picks one) |
 | `caching.rb` | Browserbase-only; `cache: true` + `metadata.cache` round-trip |
 | `custom_logging.rb` | `on_log:` callback appending JSONL to `stagehand.jsonl` |
+| `file_upload.rb` | mirrors the Python example; no LLM needed (runs local or Browserbase) |
+| `page_interactions.rb` | locator fill/type/click/readers, evaluate, screenshot, history; no LLM needed |
+| `hybrid_news.rb` | AI extract + deterministic locators/pagination/screenshot on Hacker News |
+| `search_flow.rb` | locator-driven search on DuckDuckGo + AI extraction of the results |
+| `batch.rb` | mirrors the Python example; callback batch, no LLM needed |
+| `page_events.rb` | mirrors the Python example; page.on console events + AI extract |
+| `context_and_response.rb` | Response/cookies/clipboard/viewport/snapshot tour; no LLM needed |
 | `demo.rb`, `arctic_observe.rb` | spike walkthroughs (not part of the canonical set) |
 
-The remaining canonical examples need methods the spike skipped (priced in
-`ESTIMATE.md`): `batch` (callback_batch), `custom_llm` (`llm.generate`),
-`file_upload`, `page_events`, `webmcp`.
+The remaining canonical examples need `llm.generate` inbound dispatch (priced
+in `ESTIMATE.md`): `custom_llm`; `webmcp` additionally needs a WebMCP-enabled
+target page.
 
 ## Development
 
@@ -85,14 +109,15 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 
 ## Spike shortcuts (not production behavior)
 
-- Only ~15 of the 77 protocol methods are wrapped; the rest need mechanical
-  wrappers on the existing pattern.
+- 76 of the 77 protocol methods are wrapped — the complete outbound surface.
+  The one remaining method, `llm.generate` (client-side LLM), is inbound
+  (extension→SDK) and needs a request dispatcher thread.
 - Unions decode laxly (first structurally-matching variant); no strict scalar
   validation (the extension re-validates everything server-side).
-- `llm.generate` (client-side LLM) and `stagehand.callback_batch` are unsupported.
 - No OpenTelemetry trace propagation (`traceparent` is simply omitted).
 - `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
 - Windows Chrome launching is not implemented.
-- Notification listeners run on the RPC reader thread and must not issue RPC calls.
+- Notification listeners (including `page.on` event blocks) run on the RPC
+  reader thread and must not issue RPC calls.
 - Not wired into ast-grep parity tests, docs tabs, CI, or release tooling
   (each is priced in `ESTIMATE.md`).

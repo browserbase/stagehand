@@ -131,12 +131,14 @@ module Stagehand
     def send(message)
       raise StagehandError, "CDP client is closed" if @closed
       raise StagehandError, "Stagehand service worker is not attached" if @session_id.nil?
-      if message["method"] == "stagehand.callback_batch"
-        raise StagehandError, "stagehand.callback_batch is not supported by the Ruby SDK spike"
-      end
 
-      serialized = JSON.generate(message)
-      expression = "void globalThis.__stagehandReceiveFromHost(#{JSON.generate(serialized)}); true"
+      callback_source = self.class.callback_source_from_message(message)
+      expression =
+        if callback_source.nil?
+          "void globalThis.__stagehandReceiveFromHost(#{JSON.generate(JSON.generate(message))}); true"
+        else
+          self.class.callback_batch_expression(message, callback_source)
+        end
       evaluated = send_command(
         "Runtime.evaluate",
         { "expression" => expression, "awaitPromise" => false, "returnByValue" => true },
@@ -373,6 +375,31 @@ module Stagehand
     end
 
     class << self
+      # stagehand.callback_batch carries JavaScript that must reach the worker
+      # as code, not as a JSON string. Returns the callback source for such
+      # messages, nil for every other method.
+      def callback_source_from_message(message)
+        return nil unless message["method"] == "stagehand.callback_batch"
+
+        params = message["params"]
+        source = params.is_a?(Hash) ? params["callback_source"] : nil
+        unless source.is_a?(String) && !source.strip.empty?
+          raise StagehandError, "Stagehand callback batch request is missing callback_source"
+        end
+        source
+      end
+
+      # The same expression the sibling SDKs evaluate: the JSON-RPC message as
+      # a double-encoded string plus the callback as a live function value.
+      # __name shims esbuild's helper for transformed sources.
+      def callback_batch_expression(message, source)
+        serialized_message = JSON.generate(JSON.generate(message))
+        "(() => { const __name = (fn, name) => { try { " \
+          "Object.defineProperty(fn, 'name', { value: name, configurable: true }); " \
+          "} catch {} return fn; }; void globalThis.__stagehandReceiveFromHost(" \
+          "#{serialized_message}, { callback: (#{source}) }); return true; })()"
+      end
+
       # Returns [compatible, detail]. Never raises: a malformed marker is just
       # incompatible.
       def negotiate_runtime(marker)
