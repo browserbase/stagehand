@@ -121,9 +121,13 @@ class Generator
     end
 
     if (variants = node["anyOf"] || node["oneOf"])
-      compiled = variants.map { |variant| compile(variant) }.compact
-      return nil if compiled.empty?
-      return [:union, compiled]
+      compiled = variants.map { |variant| compile(variant) }
+      structured = compiled.compact
+      return nil if structured.empty?
+      # A trailing nil marks an "open" union: at least one variant was a
+      # scalar/null/opaque schema, so any unmatched value stays raw. Closed
+      # unions (every variant structured) decode strictly.
+      return [:union, structured.length == compiled.length ? structured : structured + [nil]]
     end
 
     case node["type"]

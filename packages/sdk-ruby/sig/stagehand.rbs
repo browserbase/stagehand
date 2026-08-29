@@ -1,0 +1,273 @@
+# Public API signatures for the Stagehand Ruby SDK (validated by `rake rbs`).
+# Generated wire models (Stagehand::Models::*) are intentionally `untyped`
+# here: they are machine-generated plain data classes whose shape is owned by
+# packages/protocol/stagehand.v4.json.
+
+module Stagehand
+  VERSION: String
+  STAGEHAND_PROTOCOL_VERSION: String
+
+  # -- errors ---------------------------------------------------------------
+
+  class StagehandError < StandardError
+  end
+
+  class RPCError < StagehandError
+    attr_reader code: Integer
+    attr_reader data: untyped
+    def initialize: (String message, code: Integer, ?data: untyped) -> void
+  end
+
+  class CDPError < StagehandError
+    attr_reader method: String?
+    attr_reader code: Integer?
+    attr_reader data: untyped
+    def initialize: (String message, ?method: String?, ?code: Integer?, ?data: untyped) -> void
+  end
+
+  class CDPConnectionClosedError < StagehandError
+    def initialize: (?String message) -> void
+  end
+
+  class WireError < StagehandError
+  end
+
+  class BrowserbaseSessionError < StagehandError
+  end
+
+  class TimeoutError < StagehandError
+  end
+
+  # -- generated wire models (opaque here) ----------------------------------
+
+  module Models
+  end
+
+  # -- browsers ---------------------------------------------------------------
+
+  class StagehandBrowser
+    attr_reader provider: String
+    attr_reader origin: String
+    attr_reader session_id: String?
+    def closed?: () -> bool
+    def context: () -> BrowserContext
+    def close: () -> nil
+  end
+
+  module LocalBrowser
+    def self?.launch: (
+      ?headless: bool?, ?devtools: bool?, ?chromium_sandbox: bool?,
+      ?args: Array[String]?, ?executable_path: String?, ?port: Integer?,
+      ?user_data_dir: String?, ?viewport_width: Integer, ?viewport_height: Integer
+    ) -> StagehandBrowser
+    def self?.connect: (cdp_url: String, ?extension_id: String?) -> StagehandBrowser
+  end
+
+  module Browserbase
+    def self?.launch: (
+      api_key: String, ?base_url: String, ?extension_id: String?, ?keep_alive: bool?,
+      ?proxies: untyped, ?region: String?, ?timeout: Numeric?,
+      ?user_metadata: Hash[untyped, untyped]?, ?browser_settings: Hash[untyped, untyped]?
+    ) -> StagehandBrowser
+    def self?.connect: (api_key: String, session_id: String, ?base_url: String, ?extension_id: String?) -> StagehandBrowser
+    def self?.session_logs: (api_key: String, session_id: String, ?base_url: String) -> untyped
+  end
+
+  # -- client -----------------------------------------------------------------
+
+  # model: a model name String, or a callable (LLM generate handler) that
+  # receives decoded llm.generate params and returns a *GenerateResult.
+  type model_input = String | ^(untyped params) -> untyped
+  type cache_input = bool | Hash[Symbol | String, untyped]
+
+  def self.create: (
+    browser: StagehandBrowser, ?api_key: String?, ?api_url: String?,
+    ?model: model_input?, ?model_api_key: String?, ?model_headers: Hash[Symbol | String, String]?,
+    ?telemetry: untyped, ?system_prompt: String?, ?self_heal: bool?,
+    ?dom_settle_timeout_ms: Integer?, ?cache: cache_input?,
+    ?log_level: String, ?on_log: (^(untyped log) -> void)?
+  ) -> Client
+
+  class Client
+    MAX_CALLBACK_BATCH_TIMEOUT_MS: Integer
+    LOG_LEVEL_PRIORITY: Hash[String, Numeric]
+
+    def self.create: (
+      browser: StagehandBrowser, ?api_key: String?, ?api_url: String?,
+      ?model: model_input?, ?model_api_key: String?, ?model_headers: Hash[Symbol | String, String]?,
+      ?telemetry: untyped, ?system_prompt: String?, ?self_heal: bool?,
+      ?dom_settle_timeout_ms: Integer?, ?cache: cache_input?,
+      ?log_level: String, ?on_log: (^(untyped log) -> void)?
+    ) -> Client
+
+    attr_reader browser: StagehandBrowser
+    def initialized?: () -> bool
+    def context: () -> BrowserContext
+    def act: (untyped instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?cache: cache_input?) -> untyped
+    def observe: (?String? instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?cache: cache_input?) -> untyped
+    def extract: (String instruction, ?schema: Hash[String, untyped]?, ?page: Page?, ?model: untyped, ?timeout: Numeric?, ?screenshot: bool?, ?cache: cache_input?) -> untyped
+    def metrics: () -> untyped
+    def experimental_batch: (String source, ?untyped input, ?timeout: Integer, ?page: Page?) -> untyped
+    def close: () -> nil
+  end
+
+  # -- pages ------------------------------------------------------------------
+
+  class CDPSubscription
+    attr_reader subscription_id: String
+    def unsubscribe: () -> nil
+  end
+
+  class Page
+    attr_reader page_id: String
+    def locator: (String selector) -> Locator
+    def goto: (String url, ?wait_until: String?, ?timeout: Numeric?) -> Response?
+    def reload: (?wait_until: String?, ?timeout: Numeric?, ?ignore_cache: bool?) -> Response?
+    def go_back: (?wait_until: String?, ?timeout: Numeric?) -> Response?
+    def go_forward: (?wait_until: String?, ?timeout: Numeric?) -> Response?
+    def url: () -> String
+    def title: () -> String
+    def close: () -> nil
+    def click: (Numeric x, Numeric y, ?button: String?, ?click_count: Integer?) -> nil
+    def hover: (Numeric x, Numeric y) -> nil
+    def scroll: (Numeric x, Numeric y, Numeric delta_x, Numeric delta_y) -> nil
+    def drag_and_drop: (Numeric from_x, Numeric from_y, Numeric to_x, Numeric to_y, ?button: String?, ?steps: Integer?, ?delay: Numeric?, ?route: Array[untyped]?) -> nil
+    def type: (String text, ?delay: Numeric?, ?with_mistakes: bool?) -> nil
+    def key_press: (String key, ?delay: Numeric?) -> nil
+    def add_init_script: (String | Pathname source) -> nil
+    def set_extra_http_headers: (Hash[Symbol | String, String] headers) -> nil
+    def set_viewport_size: (Integer width, Integer height, ?device_scale_factor: Numeric?) -> nil
+    def on: (String event) { (untyped event) -> void } -> CDPSubscription
+    def evaluate: (String expression) -> untyped
+    def screenshot: (
+      ?path: (String | Pathname)?, ?animations: String?, ?caret: String?, ?clip: untyped,
+      ?full_page: bool?, ?mask: Array[Locator]?, ?mask_color: String?, ?omit_background: bool?,
+      ?quality: Integer?, ?scale: String?, ?style: String?, ?timeout: Numeric?, ?type: String?
+    ) -> String
+    def snapshot: (?include_iframes: bool?) -> untyped
+    def tools: (?timeout: Numeric?) -> Array[WebMCPTool]
+    def wait_for_load_state: (String state, ?timeout: Numeric?) -> nil
+    def wait_for_timeout: (Numeric ms) -> nil
+    def wait_for_selector: (String selector, ?state: String?, ?timeout: Numeric?, ?pierce_shadow: bool?) -> nil
+  end
+
+  class Locator
+    attr_reader page_id: String
+    attr_reader selector: String
+    attr_reader nth_index: Integer?
+    def first: () -> Locator
+    def nth: (Integer index) -> Locator
+    def click: (?button: String?, ?click_count: Integer?) -> nil
+    def fill: (String value) -> nil
+    def hover: () -> nil
+    def scroll_to: (Numeric | String percent) -> nil
+    def centroid: () -> untyped
+    def highlight: (?duration_ms: Numeric?, ?border_color: untyped, ?content_color: untyped) -> nil
+    def send_click_event: (?bubbles: bool?, ?cancelable: bool?, ?composed: bool?, ?detail: Integer?) -> nil
+    def select_option: (String | Array[String] values) -> Array[String]
+    def type: (String text, ?delay: Numeric?) -> nil
+    def count: () -> Integer
+    def text_content: () -> String?
+    def inner_text: () -> String
+    def inner_html: () -> String
+    def input_value: () -> String
+    def visible?: () -> bool
+    alias is_visible visible?
+    def checked?: () -> bool
+    alias is_checked checked?
+    def set_input_files: (untyped files) -> nil
+  end
+
+  # -- context ------------------------------------------------------------------
+
+  class BrowserContext
+    def clipboard: () -> BrowserClipboard
+    def pages: () -> Array[Page]
+    def new_page: (?String? url) -> Page
+    def active_page: () -> Page?
+    def set_active_page: (Page page) -> nil
+    def close: () -> nil
+    def add_init_script: (String | Pathname source) -> nil
+    def set_extra_http_headers: (Hash[Symbol | String, String] headers) -> nil
+    def get_domain_policy: () -> untyped
+    def set_domain_policy: (untyped policy) -> nil
+    def cookies: (?(String | Array[String])? urls) -> Array[untyped]
+    def add_cookies: (Array[untyped] cookies) -> nil
+    def clear_cookies: (?name: (String | Regexp | untyped)?, ?domain: (String | Regexp | untyped)?, ?path: (String | Regexp | untyped)?) -> nil
+  end
+
+  class BrowserClipboard
+    def read_text: (?page: Page?) -> String
+    def write_text: (String text, ?page: Page?) -> nil
+    def clear: (?page: Page?) -> nil
+    def paste: (?page: Page?, ?shortcut: bool?) -> nil
+    def copy: (?page: Page?) -> nil
+    def cut: (?page: Page?) -> nil
+  end
+
+  # -- navigation responses -----------------------------------------------------
+
+  class Response
+    def url: () -> String
+    def status: () -> Integer
+    def status_text: () -> String
+    def ok?: () -> bool
+    alias ok ok?
+    def headers: () -> Hash[String, String]
+    def from_service_worker?: () -> bool
+    def all_headers: () -> Hash[String, String]
+    def header_value: (String name) -> String?
+    def header_values: (String name) -> Array[String]
+    def headers_array: () -> Array[Hash[String, String]]
+    def security_details: () -> untyped
+    def server_addr: () -> untyped
+    def body: () -> String
+    def text: () -> String
+    def json: () -> untyped
+    def finished: () -> StagehandError?
+  end
+
+  # -- WebMCP -------------------------------------------------------------------
+
+  class WebMCPTool
+    attr_reader name: String
+    attr_reader description: String?
+    attr_reader input_schema: untyped
+    attr_reader annotations: untyped
+    attr_reader frame_id: String?
+    attr_reader backend_node_id: Integer?
+    def invoke: (?input: untyped) -> WebMCPInvocation
+  end
+
+  class WebMCPInvocation
+    attr_reader invocation_id: String
+    attr_reader tool_name: String
+    attr_reader frame_id: String?
+    attr_reader input: untyped
+    def result: (?timeout: Numeric?) -> untyped
+    def cancel: () -> nil
+  end
+
+  # -- file uploads ---------------------------------------------------------------
+
+  class FilePayload
+    attr_reader name: String
+    attr_reader buffer: String
+    attr_reader mime_type: String?
+    attr_reader last_modified: Integer?
+    def initialize: (name: String, buffer: String, ?mime_type: String?, ?last_modified: Integer?) -> void
+  end
+
+  # -- validation helpers -----------------------------------------------------------
+
+  module Validation
+    MAX_SAFE_INTEGER: Integer
+    def self?.boolean!: (untyped value, String name) -> nil
+    def self?.nonempty_string!: (untyped value, String name) -> nil
+    def self?.positive_integer!: (untyped value, String name, ?max: Integer) -> nil
+    def self?.string_map!: (untyped value, String name) -> nil
+    def self?.screenshot_options!: (Hash[Symbol, untyped] options) -> nil
+    def self?.telemetry_config: (untyped telemetry) -> untyped
+    def self?.cache_config: (untyped cache) -> (bool | Hash[String, untyped])
+  end
+end

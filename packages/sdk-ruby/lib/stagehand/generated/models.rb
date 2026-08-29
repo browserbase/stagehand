@@ -120,7 +120,7 @@ module Stagehand
     class StagehandActParams < Stagehand::Wire::Model
       FIELDS = {
         "page_id" => nil,
-        "instruction" => [:union, ["Action"].freeze].freeze,
+        "instruction" => [:union, ["Action", nil].freeze].freeze,
         "options" => "ActOptions",
       }.freeze
       REQUIRED = %w[page_id instruction].freeze
@@ -618,7 +618,7 @@ module Stagehand
 
     class ContextSetDomainPolicyParams < Stagehand::Wire::Model
       FIELDS = {
-        "policy" => [:union, ["DomainPolicy"].freeze].freeze,
+        "policy" => [:union, ["DomainPolicy", nil].freeze].freeze,
       }.freeze
       REQUIRED = %w[policy].freeze
       attr_reader :policy
@@ -750,7 +750,7 @@ module Stagehand
     class PageNavigationResult < Stagehand::Wire::Model
       FIELDS = {
         "page" => "PageRef",
-        "response" => [:union, ["NavigationResponseDescriptor"].freeze].freeze,
+        "response" => [:union, ["NavigationResponseDescriptor", nil].freeze].freeze,
       }.freeze
       REQUIRED = %w[page response].freeze
       attr_reader :page, :response
@@ -1532,7 +1532,7 @@ module Stagehand
 
     class ResponseSecurityDetailsResult < Stagehand::Wire::Model
       FIELDS = {
-        "value" => [:union, ["NavigationSecurityDetails"].freeze].freeze,
+        "value" => [:union, ["NavigationSecurityDetails", nil].freeze].freeze,
       }.freeze
       REQUIRED = %w[value].freeze
       attr_reader :value
@@ -1552,7 +1552,7 @@ module Stagehand
 
     class ResponseServerAddrResult < Stagehand::Wire::Model
       FIELDS = {
-        "value" => [:union, ["NavigationServerAddr"].freeze].freeze,
+        "value" => [:union, ["NavigationServerAddr", nil].freeze].freeze,
       }.freeze
       REQUIRED = %w[value].freeze
       attr_reader :value
@@ -1569,7 +1569,7 @@ module Stagehand
 
     class ResponseFinishedResult < Stagehand::Wire::Model
       FIELDS = {
-        "error" => [:union, ["NavigationFinishedError"].freeze].freeze,
+        "error" => [:union, ["NavigationFinishedError", nil].freeze].freeze,
       }.freeze
       REQUIRED = %w[error].freeze
       attr_reader :error
@@ -1623,7 +1623,7 @@ module Stagehand
         "browser_settings" => "BrowserbaseBrowserSettings",
         "extension_id" => nil,
         "keep_alive" => nil,
-        "proxies" => [:union, [[:array, "ProxyConfig"].freeze].freeze].freeze,
+        "proxies" => [:union, [[:array, "ProxyConfig"].freeze, nil].freeze].freeze,
         "region" => nil,
         "timeout" => nil,
         "user_metadata" => nil,
@@ -1816,13 +1816,13 @@ module Stagehand
       "__schema8" => nil,
       "ContextPagesResult" => [:array, "PageRef"].freeze,
       "ContextNewPageParams" => ContextNewPageParams,
-      "ContextActivePageResult" => [:union, ["PageRef"].freeze].freeze,
+      "ContextActivePageResult" => [:union, ["PageRef", nil].freeze].freeze,
       "ContextSetActivePageParams" => ContextSetActivePageParams,
       "ContextVoidResult" => ContextVoidResult,
       "ContextCloseResult" => ContextCloseResult,
       "ContextAddInitScriptParams" => ContextAddInitScriptParams,
       "ContextSetExtraHTTPHeadersParams" => ContextSetExtraHTTPHeadersParams,
-      "ContextGetDomainPolicyResult" => [:union, ["DomainPolicy"].freeze].freeze,
+      "ContextGetDomainPolicyResult" => [:union, ["DomainPolicy", nil].freeze].freeze,
       "DomainPolicy" => DomainPolicy,
       "ContextSetDomainPolicyParams" => ContextSetDomainPolicyParams,
       "ContextCookiesParams" => ContextCookiesParams,
@@ -1832,7 +1832,7 @@ module Stagehand
       "CookieParam" => CookieParam,
       "ContextClearCookiesParams" => ContextClearCookiesParams,
       "ClearCookieOptions" => ClearCookieOptions,
-      "CookieFilter" => [:union, ["CookieRegex"].freeze].freeze,
+      "CookieFilter" => [:union, ["CookieRegex", nil].freeze].freeze,
       "CookieRegex" => CookieRegex,
       "ContextClipboardTarget" => ContextClipboardTarget,
       "ContextClipboardReadTextResult" => nil,

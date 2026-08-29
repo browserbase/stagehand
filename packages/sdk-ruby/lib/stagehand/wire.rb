@@ -16,7 +16,12 @@ module Stagehand
   #   String            reference to a definition in Models::DEFS
   #   [:array, desc]    array of desc
   #   [:map, desc]      string-keyed object whose values are desc
-  #   [:union, [desc]]  first structurally-matching variant wins, else raw
+  #   [:union, [desc]]  first structurally-matching variant wins. A nil in
+  #                     the variant list marks an "open" union (the protocol
+  #                     union also had scalar/null variants): unmatched
+  #                     values stay raw. Closed unions raise WireError when
+  #                     nothing matches. JSON null passes through everywhere
+  #                     (nullable fields).
   module Wire
     module_function
 
@@ -36,7 +41,9 @@ module Stagehand
       when String
         decode(value, Models::DEFS.fetch(descriptor) { raise WireError, "unknown wire definition: #{descriptor}" })
       when Class
-        value.is_a?(Hash) ? descriptor.from_wire(value) : value
+        return descriptor.from_wire(value) if value.is_a?(Hash)
+        return value if value.nil?
+        raise WireError, "#{descriptor.name} expects a wire object, got #{value.class}"
       when Array
         decode_compound(value, descriptor)
       else
@@ -48,9 +55,13 @@ module Stagehand
       kind, inner = descriptor
       case kind
       when :array
-        value.is_a?(Array) ? value.map { |entry| decode(entry, inner) } : value
+        return value.map { |entry| decode(entry, inner) } if value.is_a?(Array)
+        return value if value.nil?
+        raise WireError, "expected a wire array, got #{value.class}"
       when :map
-        value.is_a?(Hash) ? value.transform_values { |entry| decode(entry, inner) } : value
+        return value.transform_values { |entry| decode(entry, inner) } if value.is_a?(Hash)
+        return value if value.nil?
+        raise WireError, "expected a wire object, got #{value.class}"
       when :union
         decode_union(value, inner)
       else
@@ -60,6 +71,7 @@ module Stagehand
 
     def decode_union(value, variants, depth = 0)
       return value if depth > 16
+      open = variants.any?(&:nil?)
       if value.is_a?(Hash)
         variants.each do |variant|
           model = resolve_model(variant)
@@ -68,7 +80,11 @@ module Stagehand
         end
       end
       variants.each do |variant|
+        next if variant.nil?
         descriptor = variant.is_a?(String) ? Models::DEFS[variant] : variant
+        # A reference that resolves to an opaque definition (enum, scalar
+        # alias) accepts any value: the union stays open.
+        open = true if variant.is_a?(String) && descriptor.nil? && Models::DEFS.key?(variant)
         next unless descriptor.is_a?(Array)
         kind = descriptor.first
         case kind
@@ -79,11 +95,17 @@ module Stagehand
         when :union
           # A reference to another union (e.g. LLMMessageContentBlock): decode
           # through it and keep the result when a nested variant matched.
-          decoded = decode_union(value, descriptor.last, depth + 1)
-          return decoded unless decoded.equal?(value)
+          begin
+            decoded = decode_union(value, descriptor.last, depth + 1)
+            return decoded unless decoded.equal?(value)
+            open = true # the nested union was open and passed the value raw
+          rescue WireError
+            nil # closed nested union with no match: try the remaining variants
+          end
         end
       end
-      value
+      return value if open || value.nil?
+      raise WireError, "value matches no union variant"
     end
 
     # Follows reference chains until a Model class or nil.
