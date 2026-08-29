@@ -16,8 +16,9 @@ end to end but deliberately implements only a sliver of the API surface.
   attach (with wake nudge), `__stagehandSendToHost` binding, runtime marker + semver
   negotiation, `Runtime.evaluate` double-JSON envelope delivery.
 - **JSON-RPC client** (`rpc_client.rb`) — strict envelopes, per-method timeout table,
-  notification buffering (`stagehand.log` → stderr), inbound requests answered with
-  `-32601`, deterministic shutdown.
+  notification buffering (`stagehand.log` → stderr), an inbound dispatcher thread
+  serving server→client requests (`on_request`, used for `llm.generate`) and
+  notification listeners, deterministic shutdown.
 - **Local Chrome** (`browser.rb`) — hand-rolled launcher (no Playwright): Chrome
   discovery, temp profile, the Stagehand flag set, `Extensions.loadUnpacked`.
 - **Browserbase** (`browserbase_client.rb`, `browserbase_session.rb`,
@@ -26,9 +27,11 @@ end to end but deliberately implements only a sliver of the API surface.
   and `Stagehand::Browserbase.session_logs(api_key:, session_id:)` to fetch a
   session's raw CDP event log for post-run verification.
 - **Client surface** — `Stagehand.create` / `close`, `act`, `extract` (plain JSON
-  Schema hashes), `observe`, `metrics`, and `experimental_batch` (trusted
+  Schema hashes), `observe`, `metrics`, `experimental_batch` (trusted
   JavaScript against the worker-local object model via the callback-batch
-  CDP delivery path).
+  CDP delivery path), and client-side LLMs: pass a callable as `model:` and
+  every model call comes back as an inbound `llm.generate` request with
+  decoded params (see `examples/custom_llm.rb`).
 - **Page** — navigation (`goto/reload/go_back/go_forward`, returning a
   `Stagehand::Response` with `status/headers/body/security_details/finished`),
   `url/title/close`, input (`click/hover/scroll/drag_and_drop/type/key_press`),
@@ -91,11 +94,11 @@ each runnable as `bundle exec ruby examples/<name>.rb [--browserbase]`:
 | `batch.rb` | mirrors the Python example; callback batch, no LLM needed |
 | `page_events.rb` | mirrors the Python example; page.on console events + AI extract |
 | `context_and_response.rb` | Response/cookies/clipboard/viewport/snapshot tour; no LLM needed |
+| `custom_llm.rb` | mirrors the Python example; bring-your-own-LLM via `llm.generate` (OPENAI_API_KEY or AI_GATEWAY_API_KEY) |
 | `demo.rb`, `arctic_observe.rb` | spike walkthroughs (not part of the canonical set) |
 
-The remaining canonical examples need `llm.generate` inbound dispatch (priced
-in `ESTIMATE.md`): `custom_llm`; `webmcp` additionally needs a WebMCP-enabled
-target page.
+The one remaining canonical example is `webmcp`, which needs a WebMCP-enabled
+target page (the `page.webmcp_*` methods themselves are wrapped and tested).
 
 ## Development
 
@@ -109,15 +112,15 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 
 ## Spike shortcuts (not production behavior)
 
-- 76 of the 77 protocol methods are wrapped — the complete outbound surface.
-  The one remaining method, `llm.generate` (client-side LLM), is inbound
-  (extension→SDK) and needs a request dispatcher thread.
+- All 77 protocol methods are wrapped — the complete method surface,
+  including inbound `llm.generate` (client-side LLMs).
 - Unions decode laxly (first structurally-matching variant); no strict scalar
   validation (the extension re-validates everything server-side).
 - No OpenTelemetry trace propagation (`traceparent` is simply omitted).
 - `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
 - Windows Chrome launching is not implemented.
-- Notification listeners (including `page.on` event blocks) run on the RPC
-  reader thread and must not issue RPC calls.
+- Inbound work (request handlers, notification listeners including `page.on`
+  blocks) runs on one dispatcher thread: handlers may issue RPC calls, but a
+  slow handler delays later inbound work (Python runs these concurrently).
 - Not wired into ast-grep parity tests, docs tabs, CI, or release tooling
   (each is priced in `ESTIMATE.md`).

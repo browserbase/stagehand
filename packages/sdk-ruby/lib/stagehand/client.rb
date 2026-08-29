@@ -35,6 +35,12 @@ module Stagehand
         if model.nil? && (model_api_key || model_headers)
           raise ArgumentError, "model connection options require a model name"
         end
+        if model.respond_to?(:call) && (model_api_key || model_headers)
+          raise ArgumentError, "model connection options cannot be used with an LLM callback"
+        end
+        unless model.nil? || model.is_a?(String) || model.respond_to?(:call)
+          raise ArgumentError, "model must be a model name String or a callable LLM generate handler"
+        end
         unless LOG_LEVEL_PRIORITY.key?(log_level)
           raise ArgumentError, "log_level must be one of #{LOG_LEVEL_PRIORITY.keys.join(", ")}"
         end
@@ -77,6 +83,7 @@ module Stagehand
       @config = config
       @rpc_client = nil
       @remove_log_listener = nil
+      @remove_client_llm_handler = nil
       @initialized = false
       @close_mutex = Mutex.new
       @closed = false
@@ -171,6 +178,10 @@ module Stagehand
       rpc_client = RPCClient.new(@cdp_client)
       @rpc_client = rpc_client
       @remove_log_listener = rpc_client.on_notification("stagehand.log") { |log| handle_log(log) }
+      if client_llm?
+        client_llm = @config[:model]
+        @remove_client_llm_handler = rpc_client.on_request("llm.generate") { |params| client_llm.call(params) }
+      end
       rpc_client.send("stagehand.init", Models::StagehandInitParams.new(**worker_init_values), "StagehandInitResult")
       @browser.__attach_context(BrowserContext.new(rpc_client))
       @initialized = true
@@ -178,6 +189,8 @@ module Stagehand
     end
 
     def __release_resources
+      @remove_client_llm_handler&.call
+      @remove_client_llm_handler = nil
       @remove_log_listener&.call
       @remove_log_listener = nil
       rpc_client = @rpc_client
@@ -189,6 +202,12 @@ module Stagehand
     end
 
     private
+
+    # A callable model (anything responding to #call, e.g. a Proc) is a
+    # client-side LLM: the worker sends llm.generate requests back to it.
+    def client_llm?
+      @config[:model].respond_to?(:call)
+    end
 
     def connected_rpc_client
       unless @initialized && @rpc_client
@@ -234,7 +253,9 @@ module Stagehand
       values[:system_prompt] = @config[:system_prompt] unless @config[:system_prompt].nil?
       values[:self_heal] = @config[:self_heal] unless @config[:self_heal].nil?
       values[:dom_settle_timeout_ms] = @config[:dom_settle_timeout_ms] unless @config[:dom_settle_timeout_ms].nil?
-      unless @config[:model].nil?
+      if client_llm?
+        values[:model] = Models::ClientModelReference.new(source: "client")
+      elsif !@config[:model].nil?
         model_values = { model_name: @config[:model] }
         model_values[:api_key] = @config[:model_api_key] unless @config[:model_api_key].nil?
         model_values[:headers] = @config[:model_headers] unless @config[:model_headers].nil?

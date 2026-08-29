@@ -9,14 +9,13 @@ require_relative "generated/models"
 
 module Stagehand
   # JSON-RPC 2.0 client over a Stagehand transport (the CDP client). Port of
-  # packages/sdk-python/src/stagehand/rpc_client.py onto a background reader
-  # thread with per-request queues.
-  #
-  # Spike notes:
-  # - Inbound server->client requests (llm.generate) are answered with
-  #   -32601 Method not found; client-LLM support needs a dispatcher thread.
-  # - Notification listeners (stagehand.log, page.cdp_event) run inline on
-  #   the reader thread, so they must not issue RPC calls themselves.
+  # packages/sdk-python/src/stagehand/rpc_client.py onto two background
+  # threads: a reader that routes responses to per-request queues, and a
+  # dispatcher that runs inbound work (server->client requests such as
+  # llm.generate, and notification listeners). Handlers and listeners run on
+  # the dispatcher thread and may issue RPC calls themselves; inbound work is
+  # processed one item at a time, so a slow handler delays later inbound
+  # requests and notifications (Python runs these as concurrent tasks).
   class RPCClient
     MAX_REQUEST_ID = 9_007_199_254_740_991
     MAX_PENDING_NOTIFICATIONS = 100
@@ -57,10 +56,14 @@ module Stagehand
       @next_request_id = 1
       @state_mutex = Mutex.new
       @pending = {}
+      @request_handlers = {}
       @notification_listeners = Hash.new { |hash, key| hash[key] = [] }
       @pending_notifications = []
+      @inbound = Thread::Queue.new
       @closed = false
       @close_reason = nil
+      @dispatcher = Thread.new { dispatch_loop }
+      @dispatcher.name = "stagehand-rpc-dispatcher"
       @reader = Thread.new { read_loop }
       @reader.name = "stagehand-rpc-reader"
     end
@@ -101,9 +104,31 @@ module Stagehand
       end
     end
 
+    # Registers the handler for an inbound server->client request (e.g.
+    # llm.generate). Params arrive decoded via Models::METHODS; the handler's
+    # return value (a wire model or Hash matching the result definition) is
+    # sent back as the JSON-RPC result. The handler runs on the dispatcher
+    # thread and may issue RPC calls. Returns a proc that removes the handler
+    # (a no-op if another handler replaced it in the meantime).
+    def on_request(method, &handler)
+      raise StagehandError, "RPC client is closed" if @closed
+      raise ArgumentError, "a handler block is required" if handler.nil?
+
+      token = Object.new
+      @state_mutex.synchronize { @request_handlers[method] = { token: token, handler: handler } }
+      lambda do
+        @state_mutex.synchronize do
+          registered = @request_handlers[method]
+          @request_handlers.delete(method) if registered && registered[:token].equal?(token)
+        end
+      end
+    end
+
     # Registers a listener for a server notification. Params are decoded via
-    # Models::NOTIFICATIONS when the method is a known notification. Returns
-    # a proc that removes the listener.
+    # Models::NOTIFICATIONS when the method is a known notification. Listeners
+    # run on the dispatcher thread (never the caller's), so a notification
+    # buffered before registration is also replayed asynchronously. Returns a
+    # proc that removes the listener.
     def on_notification(method, &listener)
       raise StagehandError, "RPC client is closed" if @closed
       raise ArgumentError, "a listener block is required" if listener.nil?
@@ -114,7 +139,7 @@ module Stagehand
         @pending_notifications.reject! { |entry| entry.fetch("method") == method }
         buffered
       end
-      replayable.each { |entry| dispatch_notification(method, entry["params"], [listener]) }
+      replayable.each { |entry| @inbound << [:notification, method, entry["params"], [listener]] }
 
       lambda do
         @state_mutex.synchronize do
@@ -130,16 +155,22 @@ module Stagehand
         return if @closed
         @closed = true
         @close_reason = reason || StagehandError.new("RPC client closed")
+        @request_handlers.clear
         @notification_listeners.clear
         @pending_notifications.clear
         @pending.each_value { |queue| queue << @close_reason }
         @pending.clear
       end
+      @inbound << :close
       @transport.close if close_transport
       unless Thread.current == @reader
         # The real transport unblocks the reader on close; the kill is a
         # backstop for transports that cannot (it is parked in receive).
         @reader.kill unless @reader.join(2)
+      end
+      unless Thread.current == @dispatcher
+        # The kill is a backstop for a handler stuck in slow user code.
+        @dispatcher.kill unless @dispatcher.join(2)
       end
       nil
     end
@@ -259,7 +290,21 @@ module Stagehand
           registered.dup
         end
       end
-      dispatch_notification(method, message["params"], listeners) if listeners
+      @inbound << [:notification, method, message["params"], listeners] if listeners
+    end
+
+    def dispatch_loop
+      loop do
+        entry = @inbound.pop
+        break if entry == :close
+        kind, *rest = entry
+        case kind
+        when :notification then dispatch_notification(*rest)
+        when :request then handle_request(rest.first)
+        end
+      end
+    rescue Exception => error
+      close(error) unless @closed
     end
 
     def dispatch_notification(method, params, listeners)
@@ -289,7 +334,69 @@ module Stagehand
         return
       end
 
-      send_error(message["id"], -32_601, "Method not found")
+      @inbound << [:request, message]
+    end
+
+    # Runs on the dispatcher thread: decode params, run the registered
+    # handler, validate its result against the method's wire definition, and
+    # answer. Errors map to JSON-RPC codes the same way the Python SDK does.
+    def handle_request(message)
+      request_id = message["id"]
+      registered = @state_mutex.synchronize { @request_handlers[message["method"]] }
+      if registered.nil?
+        send_error(request_id, -32_601, "Method not found")
+        return
+      end
+
+      entry = Models::METHODS[message["method"]]
+      params =
+        begin
+          decoded = entry ? Wire.decode(message["params"], entry[:params]) : message["params"]
+          # Union params must decode to a wire model (unions are otherwise lax).
+          raise WireError, "params match no union variant" if entry && union_descriptor?(entry[:params]) && !decoded.is_a?(Wire::Model)
+          decoded
+        rescue WireError
+          send_error(request_id, -32_602, "Invalid params")
+          return
+        end
+
+      result =
+        begin
+          registered[:handler].call(params)
+        rescue StandardError => error
+          send_error(request_id, -32_603, error.message, { "name" => error.class.name })
+          return
+        end
+
+      wire_result =
+        begin
+          encoded = Wire.encode(result)
+          if entry
+            decoded = Wire.decode(encoded, entry[:result])
+            # Unions decode laxly (raw value when no variant matches), so a
+            # union result must round-trip back to a wire model to be valid.
+            raise WireError, "result matches no union variant" if union_descriptor?(entry[:result]) && !decoded.is_a?(Wire::Model)
+          end
+          encoded
+        rescue StandardError
+          send_error(request_id, -32_603, "Internal error")
+          return
+        end
+
+      begin
+        @transport.send({ "jsonrpc" => "2.0", "id" => request_id, "result" => wire_result })
+      rescue StandardError
+        nil
+      end
+    end
+
+    def union_descriptor?(descriptor, depth = 0)
+      return false if depth > 16
+      case descriptor
+      when String then union_descriptor?(Models::DEFS[descriptor], depth + 1)
+      when Array then descriptor.first == :union
+      else false
+      end
     end
 
     def send_error(request_id, code, message, data = nil)
