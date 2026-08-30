@@ -351,10 +351,7 @@ module Stagehand
       entry = Models::METHODS[message["method"]]
       params =
         begin
-          decoded = entry ? Wire.decode(message["params"], entry[:params]) : message["params"]
-          # Union params must decode to a wire model (unions are otherwise lax).
-          raise WireError, "params match no union variant" if entry && union_descriptor?(entry[:params]) && !decoded.is_a?(Wire::Model)
-          decoded
+          entry ? Wire.decode(message["params"], entry[:params]) : message["params"]
         rescue WireError
           send_error(request_id, -32_602, "Invalid params")
           return
@@ -371,12 +368,9 @@ module Stagehand
       wire_result =
         begin
           encoded = Wire.encode(result)
-          if entry
-            decoded = Wire.decode(encoded, entry[:result])
-            # Unions decode laxly (raw value when no variant matches), so a
-            # union result must round-trip back to a wire model to be valid.
-            raise WireError, "result matches no union variant" if union_descriptor?(entry[:result]) && !decoded.is_a?(Wire::Model)
-          end
+          # Round-trip through the result definition: strict decode raises
+          # when the handler's result does not satisfy the wire schema.
+          Wire.decode(encoded, entry[:result]) if entry
           encoded
         rescue StandardError
           send_error(request_id, -32_603, "Internal error")
@@ -387,15 +381,6 @@ module Stagehand
         @transport.send({ "jsonrpc" => "2.0", "id" => request_id, "result" => wire_result })
       rescue StandardError
         nil
-      end
-    end
-
-    def union_descriptor?(descriptor, depth = 0)
-      return false if depth > 16
-      case descriptor
-      when String then union_descriptor?(Models::DEFS[descriptor], depth + 1)
-      when Array then descriptor.first == :union
-      else false
       end
     end
 

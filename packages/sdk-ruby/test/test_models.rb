@@ -65,6 +65,42 @@ class TestModels < Minitest::Test
     assert_equal "click go", plain.instruction
   end
 
+  def test_closed_unions_decode_strictly
+    # LLMGenerateResult has only structured variants: garbage must raise.
+    assert_raises(Stagehand::WireError) do
+      Stagehand::Wire.decode({ "bogus" => true }, "LLMGenerateResult")
+    end
+    assert_raises(Stagehand::WireError) do
+      Stagehand::Wire.decode("not an object", "LLMGenerateParams")
+    end
+    decoded = Stagehand::Wire.decode(
+      { "role" => "assistant", "content" => { "type" => "text", "text" => "hi" }, "output_format" => "text" },
+      "LLMGenerateResult",
+    )
+    assert_instance_of Models::LLMMessageGenerateResult, decoded
+    assert_instance_of Models::LLMTextContent, decoded.content
+  end
+
+  def test_open_unions_pass_unmatched_values_through
+    # ContextActivePageResult is PageRef | null in the protocol.
+    assert_nil Stagehand::Wire.decode(nil, "ContextActivePageResult")
+    # instruction is string | Action: strings stay raw even under strictness.
+    assert_equal "click", Stagehand::Wire.decode("click", Models::StagehandActParams::FIELDS["instruction"])
+    # CookieFilter is string | CookieRegex.
+    assert_equal "session", Stagehand::Wire.decode("session", "CookieFilter")
+    regex = Stagehand::Wire.decode({ "source" => "^a", "flags" => "i" }, "CookieFilter")
+    assert_instance_of Models::CookieRegex, regex
+  end
+
+  def test_structural_mismatches_raise
+    assert_raises(Stagehand::WireError) { Stagehand::Wire.decode("nope", Models::ActResult) }
+    assert_raises(Stagehand::WireError) { Stagehand::Wire.decode({ "a" => 1 }, [:array, "PageRef"]) }
+    assert_raises(Stagehand::WireError) { Stagehand::Wire.decode([1], [:map, "PageRef"]) }
+    # JSON null stays nil for nullable fields at every level.
+    assert_nil Stagehand::Wire.decode(nil, Models::ActResult)
+    assert_nil Stagehand::Wire.decode(nil, [:array, "PageRef"])
+  end
+
   def test_opaque_extract_data_passes_through_untouched
     payload = { "camelCaseKey" => [1, 2.5, nil, { "another_one" => true }] }
     result = Models::ExtractResult.from_wire(

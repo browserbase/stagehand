@@ -20,4 +20,9 @@ namespace :generate do
   end
 end
 
-task default: :test
+desc "Validate the RBS signatures in sig/"
+task :rbs do
+  sh "rbs -I sig validate"
+end
+
+task default: %i[test rbs]

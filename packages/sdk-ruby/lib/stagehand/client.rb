@@ -9,6 +9,7 @@ require_relative "generated/models"
 require_relative "generated/protocol_version"
 require_relative "rpc_client"
 require_relative "sdk_identity"
+require_relative "validation"
 
 module Stagehand
   # The Stagehand client. Walking-skeleton surface: create/close plus the AI
@@ -25,9 +26,11 @@ module Stagehand
         model: nil,
         model_api_key: nil,
         model_headers: nil,
+        telemetry: nil,
         system_prompt: nil,
         self_heal: nil,
         dom_settle_timeout_ms: nil,
+        cache: nil,
         log_level: "info",
         on_log: nil
       )
@@ -41,6 +44,15 @@ module Stagehand
         unless model.nil? || model.is_a?(String) || model.respond_to?(:call)
           raise ArgumentError, "model must be a model name String or a callable LLM generate handler"
         end
+        Validation.nonempty_string!(api_key, "api_key") unless api_key.nil?
+        Validation.nonempty_string!(api_url, "api_url") unless api_url.nil?
+        Validation.nonempty_string!(model_api_key, "model_api_key") unless model_api_key.nil?
+        Validation.string_map!(model_headers, "model_headers") unless model_headers.nil?
+        Validation.nonempty_string!(system_prompt, "system_prompt") unless system_prompt.nil?
+        Validation.boolean!(self_heal, "self_heal") unless self_heal.nil?
+        Validation.positive_integer!(dom_settle_timeout_ms, "dom_settle_timeout_ms") unless dom_settle_timeout_ms.nil?
+        telemetry = Validation.telemetry_config(telemetry) unless telemetry.nil?
+        cache = Validation.cache_config(cache) unless cache.nil?
         unless LOG_LEVEL_PRIORITY.key?(log_level)
           raise ArgumentError, "log_level must be one of #{LOG_LEVEL_PRIORITY.keys.join(", ")}"
         end
@@ -55,9 +67,11 @@ module Stagehand
           model: model,
           model_api_key: model_api_key,
           model_headers: model_headers,
+          telemetry: telemetry,
           system_prompt: system_prompt,
           self_heal: self_heal,
           dom_settle_timeout_ms: dom_settle_timeout_ms,
+          cache: cache,
           log_level: log_level,
           on_log: on_log,
         )
@@ -236,7 +250,7 @@ module Stagehand
       values[:variables] = variables unless variables.nil?
       values[:timeout] = timeout unless timeout.nil?
       values[:screenshot] = screenshot unless screenshot.nil?
-      values[:cache] = cache unless cache.nil?
+      values[:cache] = Validation.cache_config(cache) unless cache.nil?
       values.empty? ? nil : values
     end
 
@@ -250,9 +264,11 @@ module Stagehand
       values[:api_key] = @worker_init_metadata.api_key unless @worker_init_metadata.api_key.nil?
       values[:browser] = @worker_init_metadata.browser unless @worker_init_metadata.browser.nil?
       values[:api_url] = @config[:api_url] unless @config[:api_url].nil?
+      values[:telemetry] = @config[:telemetry] unless @config[:telemetry].nil?
       values[:system_prompt] = @config[:system_prompt] unless @config[:system_prompt].nil?
       values[:self_heal] = @config[:self_heal] unless @config[:self_heal].nil?
       values[:dom_settle_timeout_ms] = @config[:dom_settle_timeout_ms] unless @config[:dom_settle_timeout_ms].nil?
+      values[:cache] = @config[:cache] unless @config[:cache].nil?
       if client_llm?
         values[:model] = Models::ClientModelReference.new(source: "client")
       elsif !@config[:model].nil?

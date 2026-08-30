@@ -31,7 +31,16 @@ end to end but deliberately implements only a sliver of the API surface.
   JavaScript against the worker-local object model via the callback-batch
   CDP delivery path), and client-side LLMs: pass a callable as `model:` and
   every model call comes back as an inbound `llm.generate` request with
-  decoded params (see `examples/custom_llm.rb`).
+  decoded params (see `examples/custom_llm.rb`). `create` also takes
+  `telemetry:` (OTLP traces, endpoint validated) and `cache:`
+  (true/false/`{threshold:}`), mirroring the sibling SDKs.
+- **Validation** (`validation.rb`) — port of the Python SDK's `_validation.py`:
+  create-config scalar constraints, screenshot cross-field rules
+  (`full_page`+`clip`, `quality` only for jpeg), OTLP endpoint and cache
+  option checks. Closed protocol unions decode strictly (a value matching no
+  variant raises `WireError`); unions with scalar/null variants stay open.
+- **RBS signatures** (`sig/stagehand.rbs`) — the public API surface, validated
+  by `bundle exec rake rbs` (part of the default rake task).
 - **Page** — navigation (`goto/reload/go_back/go_forward`, returning a
   `Stagehand::Response` with `status/headers/body/security_details/finished`),
   `url/title/close`, input (`click/hover/scroll/drag_and_drop/type/key_press`),
@@ -106,7 +115,8 @@ Requires Ruby >= 3.2 and the built extension (`pnpm --filter ./packages/extensio
 
 ```
 bundle install
-bundle exec rake test         # unit tests (no browser needed)
+bundle exec rake              # unit tests + RBS validation (no browser needed)
+SOAK=20 bundle exec rake test # scale up the thread-safety soak suite
 ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 ```
 
@@ -114,8 +124,9 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 
 - All 77 protocol methods are wrapped — the complete method surface,
   including inbound `llm.generate` (client-side LLMs).
-- Unions decode laxly (first structurally-matching variant); no strict scalar
-  validation (the extension re-validates everything server-side).
+- No strict scalar validation inside wire models (field types are not
+  checked; the extension re-validates everything server-side). Union and
+  structural mismatches do raise.
 - No OpenTelemetry trace propagation (`traceparent` is simply omitted).
 - `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
 - Windows Chrome launching is not implemented.

@@ -8,6 +8,7 @@ require_relative "generated/models"
 require_relative "locator"
 require_relative "response"
 require_relative "rpc_client"
+require_relative "validation"
 require_relative "webmcp"
 
 module Stagehand
@@ -242,6 +243,7 @@ module Stagehand
         timeout: timeout,
         type: type,
       }.compact
+      Validation.screenshot_options!(options)
       params[:options] = Models::PageScreenshotOptions.new(**options) unless options.empty?
       result = @rpc_client.send("page.screenshot", Models::PageScreenshotParams.new(**params), "PageScreenshotResult")
       data = Base64.strict_decode64(result.data)
