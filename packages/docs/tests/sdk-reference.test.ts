@@ -1341,7 +1341,7 @@ describe("Mintlify customization boundary", () => {
       differences,
       "Language-scoped documentation must use field names derived from that SDK's public source",
     ).toEqual([]);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 
   it("includes every indexed MDX content page in docs.json navigation", async () => {
     const docsConfig = JSON.parse(
@@ -1451,7 +1451,7 @@ describe("Mintlify customization boundary", () => {
       problems,
       "Every language tab group must offer the same languages, so switching never hides a snippet",
     ).toEqual([]);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 
   it("never mixes language tabs with other tabs in one group", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
