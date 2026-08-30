@@ -1,0 +1,6 @@
+{
+  "name": "@browserbasehq/stagehand-ruby",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Changesets version proxy for the Stagehand Ruby SDK"
+}

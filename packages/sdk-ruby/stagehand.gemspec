@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.version = Stagehand::VERSION
   spec.authors = ["Browserbase"]
   spec.email = ["support@browserbase.com"]
-  spec.summary = "Stagehand v4 Ruby SDK (spike)"
+  spec.summary = "Stagehand v4 Ruby SDK"
   spec.description =
     "AI-powered browser automation. Ruby client for the Stagehand v4 runtime: " \
     "JSON-RPC over the Chrome DevTools Protocol to the embedded Stagehand extension."

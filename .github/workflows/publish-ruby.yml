@@ -1,0 +1,135 @@
+name: Publish Ruby SDK
+
+# Callable from release.yml once the Ruby SDK reaches its release bar, and
+# manually dispatchable for the first publish. RubyGems trusted publishing
+# must be configured for this repository + workflow on rubygems.org
+# (the `stagehand` gem is Browserbase-owned; 3.x was the retired v3 client).
+on:
+  workflow_dispatch:
+    inputs:
+      alpha:
+        description: Publish a commit-addressed alpha (`<next>.pre.alpha.<N>`) instead of the checked-in version.
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      alpha:
+        description: Publish a commit-addressed alpha (`<next>.pre.alpha.<N>`) instead of the checked-in version.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Ruby gem
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.package-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Alphas number builds by commit count.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
+        id: setup-chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: packages/sdk-ruby
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply alpha version
+        if: inputs.alpha
+        run: |
+          pnpm exec changeset version --snapshot
+          pnpm exec tsx scripts/release/ruby-alpha-version.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build only the extension bundled into the gem and the gem itself.
+      # Alpha versioning temporarily changes other workspace packages, so the
+      # repository-wide build would validate unrelated SDK artifacts against
+      # those ephemeral versions.
+      - run: pnpm --filter ./packages/extension build
+      - run: ruby packages/sdk-ruby/scripts/build.rb
+
+      - name: Read package version
+        id: package-version
+        run: |
+          VERSION="$(ruby -r ./packages/sdk-ruby/lib/stagehand/version.rb -e 'print Stagehand::VERSION')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test installed gem
+        run: |
+          export GEM_HOME="$RUNNER_TEMP/stagehand-gem-smoke"
+          export GEM_PATH="$GEM_HOME"
+          gem install --no-document packages/sdk-ruby/dist/*.gem
+          ruby packages/sdk-ruby/scripts/smoke.rb
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ruby-gem
+          path: packages/sdk-ruby/dist/*.gem
+          if-no-files-found: error
+
+  publish:
+    name: Publish Ruby gem
+    needs: build
+    runs-on: ubuntu-latest
+    environment: rubygems
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ruby-gem
+          path: dist
+
+      - uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
+        with:
+          ruby-version: "3.3"
+
+      - uses: rubygems/configure-rubygems-credentials@bc6dd217f8a4f919d6835fcfefd470ef821f5c44 # v1.0.0
+
+      - run: gem push dist/*.gem
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Tag Ruby release
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          TAG="stagehand-ruby@$VERSION"
+          if git rev-parse --verify --quiet "refs/tags/$TAG"; then
+            echo "$TAG already exists"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"

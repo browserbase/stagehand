@@ -462,7 +462,7 @@ describe("SDK reference surface", () => {
     }
 
     expect(problems, "Internal v4 reference links must resolve to a page and heading").toEqual([]);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 
   it("documents callable helper members as methods and metadata as properties", async () => {
     const webmcpPath = resolve(REFERENCE_ROOT, "webmcp.mdx");
@@ -1283,7 +1283,7 @@ describe("Mintlify customization boundary", () => {
       differences,
       "Language-scoped documentation must use field names derived from that SDK's public source",
     ).toEqual([]);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 
   it("includes every indexed MDX content page in docs.json navigation", async () => {
     const docsConfig = JSON.parse(
@@ -1314,7 +1314,7 @@ describe("Mintlify customization boundary", () => {
       navigatedPages,
       "Every indexed MDX content page must be reachable from docs.json",
     ).toStrictEqual(indexedContentPages);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 
   it("gives every language tab group the same complete language set", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
@@ -1393,7 +1393,7 @@ describe("Mintlify customization boundary", () => {
       problems,
       "Every language tab group must offer the same languages, so switching never hides a snippet",
     ).toEqual([]);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 
   it("never mixes language tabs with other tabs in one group", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
@@ -1422,7 +1422,7 @@ describe("Mintlify customization boundary", () => {
       problems,
       "A tab group switches on exactly one axis: either language or something else, never both",
     ).toEqual([]);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 
   it("uses no custom presentation code", async () => {
     const customPresentationFiles = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory))
@@ -1438,7 +1438,7 @@ describe("Mintlify customization boundary", () => {
       customPresentationFiles,
       "Mintlify should use native components without custom CSS, JavaScript, JSX, or TSX",
     ).toStrictEqual([]);
-  });
+  }, 30_000); // Parses every MDX page; cold CI runners exceed the 5s default.
 });
 
 async function readTypescriptMethods(): Promise<SdkMethod[]> {

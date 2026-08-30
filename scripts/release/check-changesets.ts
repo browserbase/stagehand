@@ -8,6 +8,7 @@ const allowedPackages = new Set([
   "@browserbasehq/stagehand-go",
   "@browserbasehq/stagehand-protocol",
   "@browserbasehq/stagehand-python",
+  "@browserbasehq/stagehand-ruby",
   "@browserbasehq/stagehand-extension",
 ]);
 

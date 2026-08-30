@@ -27,6 +27,7 @@ jobs:
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
+      sdk-ruby: ${{ steps.filter.outputs.sdk-ruby }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -56,6 +57,11 @@ jobs:
               - '.github/**'
             sdk-go:
               - 'packages/sdk-go/**'
+              - 'packages/extension/**'
+              - 'packages/protocol/**'
+              - '.github/**'
+            sdk-ruby:
+              - 'packages/sdk-ruby/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - '.github/**'
@@ -300,6 +306,61 @@ jobs:
           uv run --isolated --no-project
           --with dist/*.whl
           python scripts/smoke.py
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+  ruby-checks:
+    name: Ruby checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.sdk-ruby == 'true'
+    defaults:
+      run:
+        working-directory: packages/sdk-ruby
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: packages/sdk-ruby
+
+      - run: ruby scripts/generate.rb --check
+      - run: bundle exec rake
+
+  ruby-gem-smoke:
+    name: Ruby gem smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, determine-changes]
+    if: needs.determine-changes.outputs.sdk-ruby == 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "true"
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: packages/sdk-ruby
+
+      - run: pnpm --filter ./packages/extension build
+      - run: ruby packages/sdk-ruby/scripts/build.rb
+
+      - name: Smoke test installed gem
+        run: |
+          export GEM_HOME="$RUNNER_TEMP/stagehand-gem-smoke"
+          export GEM_PATH="$GEM_HOME"
+          gem install --no-document packages/sdk-ruby/dist/*.gem
+          ruby packages/sdk-ruby/scripts/smoke.rb
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 

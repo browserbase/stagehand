@@ -617,6 +617,8 @@ importers:
 
   packages/sdk-python: {}
 
+  packages/sdk-ruby: {}
+
   packages/sdk-ts:
     dependencies:
       '@browserbasehq/sdk':
