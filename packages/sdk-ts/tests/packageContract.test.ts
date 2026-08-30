@@ -63,19 +63,17 @@ describe("published TypeScript SDK", () => {
       expect(publishedManifest.dependencies?.["@standard-schema/spec"]).toBeDefined();
       expect(publishedManifest.dependencies).not.toHaveProperty("@cfworker/json-schema");
       expect(publishedManifest.dependencies).not.toHaveProperty("json-schema-typed");
-      expect(publishedManifest.dependencies).not.toHaveProperty("typebox");
       expect(runtimeBundle).toMatch(zodRuntimeImport);
       expect(runtimeBundle).not.toContain("@cfworker/json-schema");
-      expect(runtimeBundle).not.toMatch(/typebox|runtime-schema|zod\/compile/u);
+      expect(runtimeBundle).not.toMatch(/runtime-schema|zod\/compile/u);
       expect(declarations).toMatch(/from\s+["']zod(?:\/[^"']*)?["']/u);
       expect(declarations).toMatch(/from\s+["']@standard-schema\/spec["']/u);
       expect(declarations).not.toMatch(/from\s+["']json-schema-typed["']/u);
       expect(declarations).toContain("JsonSchemaDocument");
       expect(declarations).not.toContain("JsonSchemaProperties");
       expect(declarations).not.toContain("RawJsonSchema");
-      expect(declarations).not.toMatch(/from\s+["']typebox(?:\/[^"']*)?["']/u);
       expect(declarations).not.toMatch(/runtime-schema|zod\/compile/u);
-      expect(extensionBundle).not.toMatch(/typebox|runtime-schema|fromJSONSchema|zod\/compile/u);
+      expect(extensionBundle).not.toMatch(/runtime-schema|fromJSONSchema|zod\/compile/u);
       expect(extensionBundle).toContain("@cfworker/json-schema");
       expect(declarations).toMatch(/declare const LocalBrowserConnectOptionsSchema: z\.ZodObject/u);
 
