@@ -127,14 +127,24 @@ SOAK=20 bundle exec rake test # scale up the thread-safety soak suite
 ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 ```
 
-## Known deviations from the sibling SDKs
+## Parity status
 
 - All 77 protocol methods are wrapped — the complete method surface,
   including inbound `llm.generate` (client-side LLMs).
+- `LocalBrowser.launch` carries the full sibling option set (proxy, locale,
+  viewport, downloads, keep_alive, ignore_default_args, …); the
+  `sdk-client-schema-parity` lane holds the kwargs equal to the TS schemas.
 - Wire models validate strictly: scalar and enum fields check types on
   decode and construction; union and structural mismatches raise.
-- No OpenTelemetry trace propagation (`traceparent` is simply omitted).
-- `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
+- Outbound requests carry W3C `traceparent`/`tracestate` when an
+  OpenTelemetry span is current (`opentelemetry-api` is a runtime
+  dependency, like the sibling SDKs).
+- Inbound requests and notification deliveries each run on their own
+  thread, like Python's per-item tasks. One retained deviation: a
+  notification listener that raises is logged and skipped rather than
+  tearing down the client.
+- `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash
+  (matches the TS open schema).
 - Wired into every ast-grep parity lane (`rpc`, `cdp`, `example`, `sdk`,
   `sdk-field-pipeline`, `sdk-client-schema-parity`), the docs reference
   validation (`packages/docs/tests`), CI, and the release tooling. Ruby tabs

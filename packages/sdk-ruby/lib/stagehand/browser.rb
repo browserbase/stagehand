@@ -9,6 +9,7 @@ require_relative "timeouts"
 require_relative "cdp_client"
 require_relative "extension_assets"
 require_relative "browserbase_session"
+require_relative "validation"
 require_relative "generated/models"
 
 module Stagehand
@@ -110,47 +111,82 @@ module Stagehand
     module_function
 
     def launch(
-      headless: nil,
-      devtools: nil,
-      chromium_sandbox: nil,
       args: nil,
       executable_path: nil,
       port: nil,
       user_data_dir: nil,
-      viewport_width: 1280,
-      viewport_height: 800
+      preserve_user_data_dir: nil,
+      headless: nil,
+      devtools: nil,
+      chromium_sandbox: nil,
+      ignore_default_args: nil,
+      proxy: nil,
+      locale: nil,
+      viewport: nil,
+      device_scale_factor: nil,
+      has_touch: nil,
+      ignore_https_errors: nil,
+      downloads_path: nil,
+      accept_downloads: nil,
+      keep_alive: nil
     )
+      proxy = normalize_proxy(proxy)
+      viewport = normalize_viewport(viewport)
+      Validation.positive_integer!(port, "port", max: 65_535) unless port.nil?
+      unless ignore_default_args.nil? || ignore_default_args == true || ignore_default_args.is_a?(Array)
+        raise ArgumentError, "ignore_default_args must be true or an Array of flag strings"
+      end
+      if accept_downloads == true && downloads_path.nil?
+        raise ArgumentError, "downloads_path is required when accept_downloads is true"
+      end
+
       deadline = Deadline.stagehand_init
       chrome_path = executable_path || find_chrome_path
       debug_port = port || available_port
       temporary_profile = user_data_dir.nil?
       profile_dir = user_data_dir || Dir.mktmpdir("stagehand-chrome-")
 
-      flags = [
-        *DEFAULT_CHROME_FLAGS,
-        *STAGEHAND_DEFAULT_FLAGS,
-        "--window-size=#{viewport_width},#{viewport_height}",
-        WEBMCP_CHROME_FLAG,
-        "--remote-debugging-port=#{debug_port}",
-        "--user-data-dir=#{profile_dir}",
-        *(headless ? ["--headless"] : []),
-        *(devtools ? ["--auto-open-devtools-for-tabs"] : []),
-        *(ENV["CI"] || chromium_sandbox == false ? ["--no-sandbox"] : []),
-        *(args || []),
-        "about:blank",
-      ]
+      flags = launch_flags(
+        debug_port: debug_port,
+        profile_dir: profile_dir,
+        headless: headless,
+        devtools: devtools,
+        chromium_sandbox: chromium_sandbox,
+        args: args,
+        ignore_default_args: ignore_default_args,
+        proxy: proxy,
+        locale: locale,
+        viewport: viewport,
+        device_scale_factor: device_scale_factor,
+        has_touch: has_touch,
+        ignore_https_errors: ignore_https_errors,
+      )
+
+      remove_profile = lambda do
+        FileUtils.remove_entry(profile_dir, true) if temporary_profile && preserve_user_data_dir != true
+      end
 
       # POSIX gets a process group so the whole Chrome tree can be signalled;
       # Windows has no process groups — new_pgroup detaches from Ctrl-C.
       spawn_options = { in: File::NULL, out: File::NULL, err: File::NULL }
       spawn_options[Gem.win_platform? ? :new_pgroup : :pgroup] = true
-      pid = Process.spawn(chrome_path, *flags, **spawn_options)
+      begin
+        pid = Process.spawn(chrome_path, *flags, **spawn_options)
+      rescue StandardError
+        remove_profile.call
+        raise
+      end
       waiter = Process.detach(pid)
       close_chrome = lambda do
         stop_process(pid, waiter)
       ensure
-        FileUtils.remove_entry(profile_dir, true) if temporary_profile
+        remove_profile.call
       end
+
+      # keep_alive relinquishes ownership: close tears down only the CDP
+      # client, leaving Chrome running and the profile in place.
+      close_source = keep_alive ? nil : close_chrome
+      set_download_behavior = download_behavior_hook(downloads_path, accept_downloads)
 
       begin
         connect_browser(
@@ -160,12 +196,53 @@ module Stagehand
           extension_dir: ExtensionAssets.extension_directory,
           deadline: deadline,
           worker_init_metadata: WorkerInitMetadata.new(api_key: nil, browser: nil),
-          close_source: close_chrome,
+          close_source: close_source,
+          after_connect: set_download_behavior,
         )
       rescue Exception
-        close_chrome.call
+        close_chrome.call unless keep_alive
         raise
       end
+    end
+
+    # Pure options -> Chrome flag list mapping (unit-testable without Chrome).
+    # `ignore_default_args` filters exactly the default groups: the shared
+    # Chrome defaults, the Stagehand pair, the default --window-size, and the
+    # WebMCP flag. An explicit viewport always re-adds --window-size.
+    def launch_flags(
+      debug_port:, profile_dir:, headless: nil, devtools: nil, chromium_sandbox: nil,
+      args: nil, ignore_default_args: nil, proxy: nil, locale: nil, viewport: nil,
+      device_scale_factor: nil, has_touch: nil, ignore_https_errors: nil, ci: !ENV["CI"].nil?
+    )
+      drop_all = ignore_default_args == true
+      ignored = ignore_default_args.is_a?(Array) ? ignore_default_args : []
+      keep = ->(flag) { !drop_all && !ignored.include?(flag) }
+
+      flags = (DEFAULT_CHROME_FLAGS + STAGEHAND_DEFAULT_FLAGS).select(&keep)
+      size = viewport ? "--window-size=#{viewport[:width]},#{viewport[:height]}" : "--window-size=1280,800"
+      flags << size if viewport || keep.call(size)
+      flags << WEBMCP_CHROME_FLAG if keep.call(WEBMCP_CHROME_FLAG)
+      flags << "--remote-debugging-port=#{debug_port}"
+      flags << "--user-data-dir=#{profile_dir}"
+      flags << "--headless" if headless == true
+      flags << "--auto-open-devtools-for-tabs" if devtools == true
+      flags << "--no-sandbox" if ci || chromium_sandbox == false
+      unless proxy.nil?
+        flags << "--proxy-server=#{proxy[:server]}"
+        bypass = proxy[:bypass]
+        flags << "--proxy-bypass-list=#{bypass}" if bypass && !bypass.to_s.empty?
+      end
+      flags << "--lang=#{locale}" unless locale.nil?
+      unless device_scale_factor.nil?
+        # Shortest-form number: 2 rather than 2.0 (matches the Go launcher).
+        scale = (device_scale_factor % 1).zero? ? device_scale_factor.to_i : device_scale_factor
+        flags << "--force-device-scale-factor=#{scale}"
+      end
+      flags << "--touch-events=enabled" if has_touch == true
+      flags << "--ignore-certificate-errors" if ignore_https_errors == true
+      flags.concat(args) unless args.nil?
+      flags << "about:blank"
+      flags
     end
 
     def connect(cdp_url:, extension_id: nil)
@@ -181,8 +258,46 @@ module Stagehand
       )
     end
 
+    # Normalizes a proxy option Hash; authenticated local proxies are
+    # rejected before launch, like the sibling SDKs.
+    def normalize_proxy(proxy)
+      return nil if proxy.nil?
+      raise ArgumentError, "proxy must be a Hash with a :server key" unless proxy.is_a?(Hash)
+      proxy = proxy.transform_keys(&:to_sym)
+      server = proxy[:server]
+      if (server.nil? || server.to_s.empty?) && (proxy[:bypass] || proxy[:username] || proxy[:password])
+        raise ArgumentError, "proxy server is required when configuring a local proxy"
+      end
+      raise ArgumentError, "proxy must be a Hash with a :server key" if server.nil? || server.to_s.empty?
+      if proxy[:username] || proxy[:password]
+        raise NotImplementedError, "Authenticated local browser proxies are not implemented yet"
+      end
+      proxy
+    end
+
+    def normalize_viewport(viewport)
+      return nil if viewport.nil?
+      raise ArgumentError, "viewport must be a Hash with :width and :height" unless viewport.is_a?(Hash)
+      viewport = viewport.transform_keys(&:to_sym)
+      Validation.positive_integer!(viewport[:width], "viewport width")
+      Validation.positive_integer!(viewport[:height], "viewport height")
+      viewport
+    end
+
+    # Downloads configure through CDP after connect (no Chrome flags), only
+    # when either option is provided — mirroring the sibling SDKs.
+    def download_behavior_hook(downloads_path, accept_downloads)
+      return nil if downloads_path.nil? && accept_downloads.nil?
+      lambda do |cdp_client|
+        params = { "behavior" => accept_downloads == false ? "deny" : "allow" }
+        params["downloadPath"] = downloads_path.to_s unless downloads_path.nil?
+        cdp_client.send_command("Browser.setDownloadBehavior", params)
+      end
+    end
+
     def connect_browser(provider:, origin:, cdp_url:, deadline:, worker_init_metadata:, close_source:,
-                        extension_dir: nil, extension_id: nil, preloaded_extension: false, session_id: nil)
+                        extension_dir: nil, extension_id: nil, preloaded_extension: false, session_id: nil,
+                        after_connect: nil)
       cdp_client = CDPClient.connect(
         cdp_url: cdp_url,
         extension_dir: extension_dir&.to_s,
@@ -190,6 +305,12 @@ module Stagehand
         preloaded_extension: preloaded_extension,
         deadline: deadline,
       )
+      begin
+        after_connect&.call(cdp_client)
+      rescue Exception
+        cdp_client.close
+        raise
+      end
       close_callback = lambda do
         cdp_client.close
       ensure
