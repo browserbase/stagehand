@@ -134,7 +134,7 @@ export async function runCodexSession(input: {
   let stopReason: string | undefined;
   let iterationError: unknown;
   let tokenUsage = emptyTokenUsage();
-  const maxToolSteps = positiveInteger(input.maxToolSteps, 50);
+  const maxToolSteps = positiveInteger(input.maxToolSteps, 100);
   const budgetController = new AbortController();
   const forwardAbort = () => budgetController.abort(input.signal?.reason);
   if (input.signal) {
