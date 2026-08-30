@@ -11,7 +11,7 @@
 
 require "json"
 
-require_relative "../lib/stagehand"
+require_relative "../../lib/stagehand"
 
 module ExampleHelpers
   module_function

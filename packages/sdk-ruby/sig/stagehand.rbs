@@ -102,7 +102,6 @@ module Stagehand
 
     attr_reader browser: StagehandBrowser
     def initialized?: () -> bool
-    def context: () -> BrowserContext
     def act: (untyped instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?cache: cache_input?) -> untyped
     def observe: (?String? instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?cache: cache_input?) -> untyped
     def extract: (String instruction, ?schema: Hash[String, untyped]?, ?page: Page?, ?model: untyped, ?timeout: Numeric?, ?screenshot: bool?, ?cache: cache_input?) -> untyped

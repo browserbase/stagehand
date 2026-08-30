@@ -19,11 +19,13 @@ module Stagehand
     def write_text(text, page: nil)
       values = { text: text }
       values[:page_id] = page.page_id unless page.nil?
-      void("context.clipboard_write_text", Models::ContextClipboardWriteTextParams.new(**values))
+      @rpc_client.send("context.clipboard_write_text", Models::ContextClipboardWriteTextParams.new(**values), "ContextVoidResult")
+      nil
     end
 
     def clear(page: nil)
-      void("context.clipboard_clear", target(page))
+      @rpc_client.send("context.clipboard_clear", target(page), "ContextVoidResult")
+      nil
     end
 
     # shortcut: "ControlOrMeta+V" (default), "Meta+V", or "Control+V".
@@ -31,15 +33,18 @@ module Stagehand
       values = {}
       values[:page_id] = page.page_id unless page.nil?
       values[:shortcut] = shortcut unless shortcut.nil?
-      void("context.clipboard_paste", Models::ContextClipboardPasteParams.new(**values))
+      @rpc_client.send("context.clipboard_paste", Models::ContextClipboardPasteParams.new(**values), "ContextVoidResult")
+      nil
     end
 
     def copy(page: nil)
-      void("context.clipboard_copy", target(page))
+      @rpc_client.send("context.clipboard_copy", target(page), "ContextVoidResult")
+      nil
     end
 
     def cut(page: nil)
-      void("context.clipboard_cut", target(page))
+      @rpc_client.send("context.clipboard_cut", target(page), "ContextVoidResult")
+      nil
     end
 
     private
@@ -48,9 +53,5 @@ module Stagehand
       page.nil? ? Models::ContextClipboardTarget.new : Models::ContextClipboardTarget.new(page_id: page.page_id)
     end
 
-    def void(method, params)
-      @rpc_client.send(method, params, "ContextVoidResult")
-      nil
-    end
   end
 end

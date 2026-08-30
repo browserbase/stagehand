@@ -10,13 +10,11 @@
 require "json"
 
 require_relative "../lib/stagehand"
-require_relative "example_helpers"
 
 browser =
   if ARGV.include?("--browserbase")
-    api_key = ExampleHelpers.env("BROWSERBASE_API_KEY") or abort "Set BROWSERBASE_API_KEY."
     puts "Creating a Browserbase session..."
-    Stagehand::Browserbase.launch(api_key: api_key)
+    Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
   else
     puts "Launching local Chrome..."
     Stagehand::LocalBrowser.launch(headless: ENV["HEADED"].nil?)
