@@ -7,9 +7,9 @@ import {
   FACADE_AGENT_INSTRUCTIONS,
   FACADE_TOOLS,
 } from "@browserbasehq/stagehand-integrations/facade";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 
 import {
-  buildAllowlistedEnv,
   buildOpenCodeConfig,
   extractAssistantText,
   resolveInstruction,
@@ -217,9 +217,7 @@ describe("opencode stagehand example", () => {
 function fakeRuntime(failure?: string) {
   const leakedPayload = { request: { context: { authorization: "secret-token" } } };
   const create = vi.fn(async () =>
-    failure === "session creation"
-      ? { error: leakedPayload }
-      : { data: { id: "session-1" } },
+    failure === "session creation" ? { error: leakedPayload } : { data: { id: "session-1" } },
   );
   const prompt = vi.fn(
     async (

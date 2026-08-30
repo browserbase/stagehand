@@ -2,6 +2,10 @@ import {
   FACADE_AGENT_INSTRUCTIONS,
   FACADE_TOOLS,
 } from "@browserbasehq/stagehand-integrations/facade";
+import {
+  buildAllowlistedEnv,
+  sanitizeErrorMessage,
+} from "@browserbasehq/stagehand-integrations/harness";
 import { createOpencodeClient, createOpencodeServer, type Config } from "@opencode-ai/sdk/v2";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,16 +13,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const STAGEHAND_TOOL_NAMES = FACADE_TOOLS.map((tool) => `stagehand_${tool.name}`);
-
-export function buildAllowlistedEnv(
-  source: NodeJS.ProcessEnv = process.env,
-): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(source)) {
-    if (/^(STAGEHAND_|BROWSERBASE_)/u.test(key) && value) env[key] = value;
-  }
-  return env;
-}
 
 export function buildOpenCodeConfig(
   facadeServerPath: string,
@@ -247,7 +241,7 @@ async function main(): Promise<void> {
 if (import.meta.main) {
   main().catch((error: unknown) => {
     // oxlint-disable-next-line no-console -- CLI example reports failures to stderr.
-    console.error(error instanceof Error ? error.message : error);
+    console.error(sanitizeErrorMessage(error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;
   });
 }
