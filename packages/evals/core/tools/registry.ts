@@ -16,7 +16,10 @@ export function listCoreTools(): ToolSurface[] {
     "cdp_code",
     "playwright_mcp",
     "chrome_devtools_mcp",
-    "stagehand_facade",
+    // stagehand_facade is intentionally absent: it is resolvable via
+    // getCoreTool for agent harness mounts, but its CoreSession cannot serve
+    // core-tier runs (every page operation throws), so it must not be
+    // selectable as a core tool.
     "browse_cli",
   ];
 }

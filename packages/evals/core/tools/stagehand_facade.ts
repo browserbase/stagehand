@@ -128,6 +128,11 @@ export class StagehandFacadeTool implements CoreTool {
           },
         },
       },
+      // Best-effort only: the facade stdio child (and the browser it owns)
+      // is spawned by the agent harness, so this cleanup cannot reap it. If
+      // the harness dies without killing its process tree, the child leaks
+      // until it exits on its own (Browserbase session TTL bounds the remote
+      // case).
       cleanup: async () => {
         await session.close();
       },

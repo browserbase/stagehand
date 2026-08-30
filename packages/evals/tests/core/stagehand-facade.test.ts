@@ -34,7 +34,9 @@ afterEach(() => {
 
 describe("stagehand facade tool surface", () => {
   it("is registered", () => {
-    expect(listCoreTools()).toContain("stagehand_facade");
+    // Mount-only: resolvable for agent harness mounts, never selectable as a
+    // core-tier tool (its CoreSession throws on every page operation).
+    expect(listCoreTools()).not.toContain("stagehand_facade");
     expect(getCoreTool("stagehand_facade")).toBeInstanceOf(StagehandFacadeTool);
   });
 
