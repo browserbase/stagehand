@@ -1405,7 +1405,7 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("transports and validates an adapted canonical JSON Schema unchanged", async () => {
+  it("transports a wrapped plain JSON Schema unchanged", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: "Example Domain" },

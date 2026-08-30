@@ -134,8 +134,12 @@ describe("published TypeScript SDK", () => {
               properties: { ok: { type: "boolean" } },
               required: ["ok"],
             });
-            const rawResult = await rawSchema["~standard"].validate({ ok: true });
-            if (!("value" in rawResult)) throw new Error("Raw schema adapter validation failed");
+            if (rawSchema.jsonSchema.type !== "object") {
+              throw new Error("Plain JSON Schema wrapper is unavailable");
+            }
+            if ("~standard" in rawSchema) {
+              throw new Error("Plain JSON Schema wrapper exposes a Standard Schema adapter");
+            }
             if (typeof WebMCPTool !== "function") throw new Error("WebMCPTool export is unavailable");
             if (typeof WebMCPInvocation !== "function") {
               throw new Error("WebMCPInvocation export is unavailable");
@@ -293,7 +297,6 @@ describe("published TypeScript SDK", () => {
           "arktype@2.1.28",
           "valibot@1.2.0",
           "@valibot/to-json-schema@1.5.0",
-          "typebox@1.3.7",
         ],
         { cwd: consumerDirectory },
       );
@@ -304,7 +307,6 @@ describe("published TypeScript SDK", () => {
           import { toStandardJsonSchema } from "@valibot/to-json-schema";
           import * as v from "valibot";
           import { z } from "zod/v4";
-          import Type, { type Static } from "typebox";
           import {
             jsonSchema,
             LocalBrowserConnectOptionsSchema,
@@ -316,12 +318,16 @@ describe("published TypeScript SDK", () => {
           const zodSchema = z.object({ count: z.coerce.number() });
           const arkSchema = type({ name: "string" });
           const valibotSchema = toStandardJsonSchema(v.object({ active: v.boolean() }));
-          const ProductJsonSchema = Type.Object({
-            name: Type.String(),
-            price: Type.Number(),
-            note: Type.Optional(Type.String()),
+          type Product = { name: string; price: number; note?: string };
+          const productSchema = jsonSchema<Product>({
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              price: { type: "number" },
+              note: { type: "string" },
+            },
+            required: ["name", "price"],
           });
-          const productSchema = jsonSchema<Static<typeof ProductJsonSchema>>(ProductJsonSchema);
           const unknownSchema = jsonSchema({
             type: "object",
             properties: { value: { type: "string" } },
@@ -337,7 +343,7 @@ describe("published TypeScript SDK", () => {
             stagehand.extract("name", arkSchema);
           const valibotResult: Promise<ExtractResult<{ active: boolean }>> =
             stagehand.extract("active", valibotSchema);
-          const productResult: Promise<ExtractResult<Static<typeof ProductJsonSchema>>> =
+          const productResult: Promise<ExtractResult<Product>> =
             stagehand.extract("product", productSchema);
           const unknownResult: Promise<ExtractResult<unknown>> =
             stagehand.extract("unknown", unknownSchema);
