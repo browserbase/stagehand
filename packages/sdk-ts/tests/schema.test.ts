@@ -3,7 +3,6 @@ import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import * as arktype from "arktype";
 import { Schema } from "effect";
 import * as valibot from "valibot";
-import Type, { type Static } from "typebox";
 import * as zod3 from "zod3";
 
 import {
@@ -12,6 +11,7 @@ import {
   StagehandValidationError,
   type ExtractResult,
   type JsonSchemaDocument,
+  type StagehandJsonSchema,
   type StagehandSchema,
 } from "../src/index.js";
 import { z } from "zod/v4";
@@ -26,6 +26,9 @@ describe("extract schema boundary", () => {
   it("types ExtractResult from the schema object", () => {
     const schema = z.object({ count: z.coerce.number() });
     expectTypeOf<ExtractResult<typeof schema>["data"]>().toEqualTypeOf<{ count: number }>();
+    expectTypeOf<ExtractResult<StagehandJsonSchema<{ name: string }>>["data"]>().toEqualTypeOf<{
+      name: string;
+    }>();
     expectTypeOf<ExtractResult<StagehandSchema<string, number>>["data"]>().toEqualTypeOf<number>();
     expectTypeOf<ExtractResult<number>["data"]>().toEqualTypeOf<number>();
   });
@@ -37,7 +40,7 @@ describe("extract schema boundary", () => {
       required: ["name"],
       additionalProperties: false,
     } as const satisfies JsonSchemaDocument;
-    const document: JsonSchemaDocument = standardSchemaToJsonSchema(jsonSchema(source), "input");
+    const document: JsonSchemaDocument = resolveExtractSchema(jsonSchema(source)).jsonSchema;
 
     expect(document).toMatchObject({
       type: "object",
@@ -46,19 +49,24 @@ describe("extract schema boundary", () => {
     });
   });
 
-  it("adapts TypeBox schemas without casts and preserves generic output typing", async () => {
-    const ProductJsonSchema = Type.Object({
-      name: Type.String(),
-      price: Type.Number(),
-      note: Type.Optional(Type.String()),
+  it("carries the generic output type without adding runtime validation", async () => {
+    const productSchema = jsonSchema<{ name: string; price: number; note?: string }>({
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        price: { type: "number" },
+        note: { type: "string" },
+      },
+      required: ["name", "price"],
+      additionalProperties: false,
     });
-    const productSchema = jsonSchema<Static<typeof ProductJsonSchema>>(ProductJsonSchema);
     const resolved = resolveExtractSchema(productSchema);
 
-    const product: Static<typeof ProductJsonSchema> = await resolved.validate({
+    const product = await resolved.validate({
       name: "widget",
       price: 12,
     });
+    expectTypeOf(product).toEqualTypeOf<{ name: string; price: number; note?: string }>();
     expect(product).toEqual({ name: "widget", price: 12 });
     expect(resolveExtractSchema(productSchema).jsonSchema.required).toEqual(["name", "price"]);
     await expect(resolved.validate({ name: "widget", price: "free" })).resolves.toEqual({
@@ -85,19 +93,21 @@ describe("extract schema boundary", () => {
     } as const;
     const schema = jsonSchema<{ slash: string; tilde: number }>(document);
 
-    expect(standardSchemaToJsonSchema(schema, "input")).toMatchObject({
+    expect(resolveExtractSchema(schema).jsonSchema).toMatchObject({
       properties: {
         slash: { $ref: "#/properties/slash/$defs/slash~1type" },
         tilde: { $ref: "#/properties/tilde/$defs/tilde~0type" },
       },
     });
-    await expect(validateStandardSchema(schema, { slash: "yes", tilde: 1 })).resolves.toEqual({
+    await expect(
+      resolveExtractSchema(schema).validate({ slash: "yes", tilde: 1 }),
+    ).resolves.toEqual({
       slash: "yes",
       tilde: 1,
     });
   });
 
-  it("stores an isolated canonical schema and returns a fresh clone per conversion", () => {
+  it("wraps the plain JSON Schema document without a Standard Schema adapter", () => {
     const source = {
       $schema: "https://json-schema.org/draft/2020-12/schema",
       type: "object",
@@ -106,36 +116,9 @@ describe("extract schema boundary", () => {
       additionalProperties: false,
     } as const;
     const schema = jsonSchema(source);
-    const first = standardSchemaToJsonSchema(schema, "input");
-    const second = standardSchemaToJsonSchema(schema, "output");
-
-    expect(first).toEqual({
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-      properties: source.properties,
-      required: ["name"],
-      additionalProperties: false,
-    });
-    expect(first).not.toBe(source);
-    expect(first).not.toBe(second);
-    (source.properties.name as { type: string }).type = "number";
-    (first.properties as Record<string, unknown>).name = { type: "boolean" };
-    expect(standardSchemaToJsonSchema(schema, "input")).toEqual({
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      type: "object",
-      properties: { name: { type: "string" } },
-      required: ["name"],
-      additionalProperties: false,
-    });
-  });
-
-  it("rejects unsupported adapter targets and malformed raw schemas", () => {
-    const schema = jsonSchema({ type: "object", properties: { value: { type: "string" } } });
-    expect(() => schema["~standard"].jsonSchema.input({ target: "draft-07" })).toThrow(
-      /only support.*draft-2020-12/,
-    );
-    expect(() => jsonSchema({ type: 42 } as never)).not.toThrow();
-    expect(() => jsonSchema(true as never)).toThrow(/return an object/);
+    expect(schema.jsonSchema).toBe(source);
+    expect("~standard" in schema).toBe(false);
+    expect(resolveExtractSchema(schema).jsonSchema).toBe(source);
   });
 
   it("treats defaults as annotations", async () => {
@@ -144,8 +127,10 @@ describe("extract schema boundary", () => {
       properties: { page: { type: "number", default: 1 } },
       required: ["page"],
     });
-    await expect(validateStandardSchema(defaults, { page: 2 })).resolves.toEqual({ page: 2 });
-    await expect(validateStandardSchema(defaults, {})).resolves.toEqual({});
+    await expect(resolveExtractSchema(defaults).validate({ page: 2 })).resolves.toEqual({
+      page: 2,
+    });
+    await expect(resolveExtractSchema(defaults).validate({})).resolves.toEqual({});
   });
 
   it("generates the model schema from the validator input", async () => {
