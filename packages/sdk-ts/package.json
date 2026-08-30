@@ -55,7 +55,6 @@
     "effect": "4.0.0-rc.112",
     "publint": "catalog:",
     "tsdown": "catalog:",
-    "typebox": "catalog:",
     "valibot": "catalog:",
     "vitest": "catalog:",
     "zod3": "npm:zod@3.25.76"
