@@ -728,8 +728,8 @@ console.log(product.data, product.metadata.cache.status);
 
 <ParamField path="schema" type="StagehandSchema | StagehandClientExtractOptions" optional>
   The schema used to validate extracted data. Pass a Zod 4.2+ or ArkType schema, wrap Valibot with
-  `toStandardJsonSchema()`, wrap Effect with both of its Standard Schema adapters, or wrap a plain
-  Draft 2020-12 document with `jsonSchema()`. Defaults to an object with a string `extraction` field
+  `toStandardJsonSchema()`, wrap Effect with both of its Standard Schema adapters, or wrap a JSON
+  Schema object with `jsonSchema()`. Stagehand supplies the Draft 2020-12 dialect. Defaults to an object with a string `extraction` field
   when omitted. See [supported TypeScript schema implementations](#supported-typescript-schema-implementations).
 </ParamField>
 
@@ -861,7 +861,7 @@ console.log(product.data, product.metadata.cache.status);
 ### Supported TypeScript schema implementations
 
 `extract()` accepts Standard Schema implementations that validate values and produce Draft 2020-12
-JSON Schema. Use `jsonSchema<T>()` when you already have a JSON Schema object that follows Draft 2020-12.
+JSON Schema. Use `jsonSchema<T>()` when you already have a JSON Schema object. Stagehand supplies the Draft 2020-12 dialect.
 
 | Library | How to pass it to `extract()` | Minimum version |
 | --- | --- | --- |
@@ -869,7 +869,7 @@ JSON Schema. Use `jsonSchema<T>()` when you already have a JSON Schema object th
 | ArkType | Pass the type directly | ArkType 2.1.28+ |
 | Valibot | Wrap it with `toStandardJsonSchema()` | Valibot 1.2.0+ and `@valibot/to-json-schema` 1.5.0+ |
 | Effect | Add both Effect Standard Schema adapters | Effect 4 API |
-| Plain JSON Schema | Pass the complete document to `jsonSchema<T>()` | Draft 2020-12 |
+| Plain JSON Schema | Pass the object to `jsonSchema<T>()` | Draft 2020-12 (supplied by Stagehand) |
 
 <Tabs>
 <Tab title="Zod">
@@ -944,7 +944,6 @@ type Product = {
 };
 
 const schema = jsonSchema<Product>({
-  $schema: "https://json-schema.org/draft/2020-12/schema",
   type: "object",
   properties: {
     name: { type: "string" },
@@ -956,8 +955,8 @@ const schema = jsonSchema<Product>({
 const { data } = await stagehand.extract("extract product", schema);
 ```
 
-Pass a complete Draft 2020-12 document to `jsonSchema()`. JSON Schema cannot infer a TypeScript type,
-so supply one with `jsonSchema<T>()` or omit the generic when the type is unknown. The wrapper does
+Pass a JSON Schema object to `jsonSchema()`. Stagehand supplies the Draft 2020-12 dialect declaration.
+JSON Schema cannot infer a TypeScript type, so supply one with `jsonSchema<T>()` or omit the generic when the type is unknown. The wrapper does
 not add validation callbacks, coerce values, run transforms, or apply `default` annotations. The
 browser extension validates extracted data against the document before returning it.
 </Tab>
@@ -966,7 +965,7 @@ browser extension validates extracted data against the document before returning
 
 #### Errors and JSON Schema
 
-Do not pass a raw JSON Schema document directly to `extract()`. Wrap it with `jsonSchema()` first.
+Do not pass a raw JSON Schema object directly to `extract()`. Wrap it with `jsonSchema()` first.
 
 A Standard Schema implementation that Stagehand cannot convert throws `StagehandSchemaError` before
 the browser call. Data that fails its original Standard Schema validation throws

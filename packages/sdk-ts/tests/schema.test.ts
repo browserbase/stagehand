@@ -33,7 +33,7 @@ describe("extract schema boundary", () => {
     expectTypeOf<ExtractResult<number>["data"]>().toEqualTypeOf<number>();
   });
 
-  it("accepts complete JSON Schema documents", () => {
+  it("adds the Draft 2020-12 dialect to JSON Schema objects", () => {
     const source = {
       type: "object",
       properties: { name: { type: "string" } },
@@ -43,6 +43,7 @@ describe("extract schema boundary", () => {
     const document: JsonSchemaDocument = resolveExtractSchema(jsonSchema(source)).jsonSchema;
 
     expect(document).toMatchObject({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
       type: "object",
       properties: source.properties,
       required: ["name"],
@@ -107,18 +108,30 @@ describe("extract schema boundary", () => {
     });
   });
 
-  it("wraps the plain JSON Schema document without a Standard Schema adapter", () => {
+  it("wraps the JSON Schema object without a Standard Schema adapter", () => {
     const source = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
       type: "object",
       properties: { name: { type: "string" } },
       required: ["name"],
       additionalProperties: false,
     } as const;
     const schema = jsonSchema(source);
-    expect(schema.jsonSchema).toBe(source);
+    expect(schema.jsonSchema).not.toBe(source);
+    expect(source).not.toHaveProperty("$schema");
+    expect(schema.jsonSchema).toMatchObject({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+    });
     expect("~standard" in schema).toBe(false);
-    expect(resolveExtractSchema(schema).jsonSchema).toBe(source);
+    expect(resolveExtractSchema(schema).jsonSchema).toBe(schema.jsonSchema);
+  });
+
+  it("replaces a conflicting dialect declaration", () => {
+    const schema = jsonSchema({
+      $schema: "https://json-schema.org/draft/2019-09/schema",
+      type: "string",
+    });
+
+    expect(schema.jsonSchema.$schema).toBe("https://json-schema.org/draft/2020-12/schema");
   });
 
   it("treats defaults as annotations", async () => {

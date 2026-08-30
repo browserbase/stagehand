@@ -600,7 +600,7 @@ Metrics became a method:
 | `page.act(...)` | `stagehand.act(...)`, with `{ page }` to target a tab |
 | `await stagehand.observe(...)` returns an array | `.data` holds the array |
 | `extract({ instruction, schema })` | `extract(instruction, schema)` |
-| `extract()` with Zod 3 or a JSON object | Zod 4.2+ from `zod/v4`, or `jsonSchema()` for Draft 2020-12 |
+| `extract()` with Zod 3 or a JSON object | Zod 4.2+ from `zod/v4`, or `jsonSchema()` for JSON Schema objects |
 | `page.deepLocator()` | `page.locator()`, same selector syntax |
 | `stagehand.agent()`, `agent.execute()` | Code mode, or a tool-calling loop you own |
 | `execute({ maxSteps })` | Your loop bound, or the length of the script |
