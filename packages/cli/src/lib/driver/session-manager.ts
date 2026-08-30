@@ -37,6 +37,27 @@ const CHROME_NOT_FOUND_ERROR_CODES = new Set([
   "ERR_LAUNCHER_PATH_NOT_SET",
 ]);
 
+function readBrowseChromeArgs(): string[] {
+  const raw = process.env.BROWSE_CHROME_ARGS?.trim();
+  if (!raw) return [];
+
+  if (raw.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (
+        Array.isArray(parsed) &&
+        parsed.every((arg) => typeof arg === "string")
+      ) {
+        return parsed;
+      }
+    } catch {
+      // Fall back to whitespace-separated args below.
+    }
+  }
+
+  return raw.split(/\s+/).filter(Boolean);
+}
+
 interface InitFailure {
   error: unknown;
   retryAt: number;
@@ -402,11 +423,14 @@ export class DriverSessionManager {
     }
 
     if (target.kind === "managed-local") {
+      const chromeArgs = target.chromeArgs?.length
+        ? target.chromeArgs
+        : readBrowseChromeArgs();
       return {
         disablePino: true,
         env: "LOCAL",
         localBrowserLaunchOptions: {
-          ...(target.chromeArgs?.length ? { args: target.chromeArgs } : {}),
+          ...(chromeArgs.length ? { args: chromeArgs } : {}),
           ...(target.ignoreDefaultArgs !== undefined
             ? { ignoreDefaultArgs: target.ignoreDefaultArgs }
             : {}),
