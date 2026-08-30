@@ -33,8 +33,6 @@ from .client_models import (
 from .extension_assets import extension_directory
 from .timeouts import stagehand_init_deadline
 
-_WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
-
 _DEFAULT_CHROME_FLAGS = (
     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,"
     "CalculateNativeWinOcclusion,InterestFeedContentSuggestions,"
@@ -61,6 +59,9 @@ _DEFAULT_CHROME_FLAGS = (
     "--disable-prompt-on-repost",
     "--disable-domain-reliability",
     "--propagate-iph-for-testing",
+    "--enable-unsafe-extension-debugging",
+    "--remote-allow-origins=*",
+    "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 )
 
 _BROWSER_TOKEN = object()
@@ -687,10 +688,6 @@ def _local_browser_flags(
     ignored_default_args = options.ignore_default_args
     ignored_flags = set(ignored_default_args) if isinstance(ignored_default_args, list) else set()
     include_defaults = ignored_default_args is not True
-    stagehand_default_flags = (
-        "--enable-unsafe-extension-debugging",
-        "--remote-allow-origins=*",
-    )
     viewport = (
         options.viewport if options.viewport is not None else LocalViewport(width=1280, height=800)
     )
@@ -703,19 +700,9 @@ def _local_browser_flags(
             else []
         ),
         *(
-            [flag for flag in stagehand_default_flags if flag not in ignored_flags]
-            if include_defaults
-            else []
-        ),
-        *(
             [window_size_flag]
             if options.viewport is not None
             or (include_defaults and window_size_flag not in ignored_flags)
-            else []
-        ),
-        *(
-            [_WEBMCP_CHROME_FLAG]
-            if include_defaults and _WEBMCP_CHROME_FLAG not in ignored_flags
             else []
         ),
         f"--remote-debugging-port={port}",
