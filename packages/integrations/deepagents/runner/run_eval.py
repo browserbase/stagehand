@@ -356,80 +356,80 @@ async def run(
             event = _sanitize_event(event)
         emit({**event, "ts": time.time()})
 
+    stack = AsyncExitStack()
     try:
-        async with AsyncExitStack() as stack:
-            tools: list[object] = []
-            tool_servers: dict[str, str] = {}
-            if config.mcp_servers:
-                connections = {
-                    name: {
-                        "transport": "stdio",
-                        "command": server.command,
-                        "args": server.args,
-                        **({"env": server.env} if server.env is not None else {}),
-                        **({"cwd": server.cwd} if server.cwd is not None else {}),
-                    }
-                    for name, server in config.mcp_servers.items()
+        tools: list[object] = []
+        tool_servers: dict[str, str] = {}
+        if config.mcp_servers:
+            connections = {
+                name: {
+                    "transport": "stdio",
+                    "command": server.command,
+                    "args": server.args,
+                    **({"env": server.env} if server.env is not None else {}),
+                    **({"cwd": server.cwd} if server.cwd is not None else {}),
                 }
-                client = MultiServerMCPClient(connections)  # type: ignore[arg-type]
-                for name in config.mcp_servers:
-                    session = await stack.enter_async_context(client.session(name))
-                    server_tools = await load_mcp_tools(session, server_name=name)
-                    tools.extend(server_tools)
-                    tool_servers.update({tool.name: name for tool in server_tools})
+                for name, server in config.mcp_servers.items()
+            }
+            client = MultiServerMCPClient(connections)  # type: ignore[arg-type]
+            for name in config.mcp_servers:
+                session = await stack.enter_async_context(client.session(name))
+                server_tools = await load_mcp_tools(session, server_name=name)
+                tools.extend(server_tools)
+                tool_servers.update({tool.name: name for tool in server_tools})
 
-            agent = (build_agent or _default_build_agent)(config, tools)
-            stream = agent.astream(  # type: ignore[attr-defined]
-                {"messages": [{"role": "user", "content": config.prompt}]},
-                config={"recursion_limit": config.recursion_limit},
-                stream_mode="updates",
-            )
-            async for chunk in stream:
-                if not isinstance(chunk, dict):
+        agent = (build_agent or _default_build_agent)(config, tools)
+        stream = agent.astream(  # type: ignore[attr-defined]
+            {"messages": [{"role": "user", "content": config.prompt}]},
+            config={"recursion_limit": config.recursion_limit},
+            stream_mode="updates",
+        )
+        async for chunk in stream:
+            if not isinstance(chunk, dict):
+                continue
+            should_stop = False
+            for update in chunk.values():
+                if not isinstance(update, dict) or not isinstance(update.get("messages"), list):
                     continue
-                should_stop = False
-                for update in chunk.values():
-                    if not isinstance(update, dict) or not isinstance(update.get("messages"), list):
-                        continue
-                    for message in update["messages"]:
-                        message_key: tuple[str, str] | None = None
-                        if isinstance(message, AIMessage) and message.id:
-                            message_key = ("assistant", message.id)
-                        elif isinstance(message, ToolMessage):
-                            identifier = message.id or message.tool_call_id
-                            if identifier:
-                                message_key = ("tool", identifier)
-                        if message_key is not None:
-                            if message_key in emitted_message_ids:
-                                continue
-                            emitted_message_ids.add(message_key)
-                        if isinstance(message, AIMessage):
-                            last_text = flatten_text(message.content)
-                            usages.append(message.usage_metadata)
-                        for event in message_events(message, tool_servers):
-                            emit_event(event)
-                            if event["type"] == "tool_result":
-                                tool_result_count += 1
-                                if tool_result_count >= config.max_tool_steps:
-                                    emit_event(
-                                        {
-                                            "type": "error",
-                                            "kind": "tool_step_budget",
-                                            "message": (
-                                                "tool step budget exhausted "
-                                                f"({config.max_tool_steps} steps)"
-                                            ),
-                                        }
-                                    )
-                                    should_stop = True
-                                    break
-                        if should_stop:
-                            break
+                for message in update["messages"]:
+                    message_key: tuple[str, str] | None = None
+                    if isinstance(message, AIMessage) and message.id:
+                        message_key = ("assistant", message.id)
+                    elif isinstance(message, ToolMessage):
+                        identifier = message.id or message.tool_call_id
+                        if identifier:
+                            message_key = ("tool", identifier)
+                    if message_key is not None:
+                        if message_key in emitted_message_ids:
+                            continue
+                        emitted_message_ids.add(message_key)
+                    if isinstance(message, AIMessage):
+                        last_text = flatten_text(message.content)
+                        usages.append(message.usage_metadata)
+                    for event in message_events(message, tool_servers):
+                        emit_event(event)
+                        if event["type"] == "tool_result":
+                            tool_result_count += 1
+                            if tool_result_count >= config.max_tool_steps:
+                                emit_event(
+                                    {
+                                        "type": "error",
+                                        "kind": "tool_step_budget",
+                                        "message": (
+                                            "tool step budget exhausted "
+                                            f"({config.max_tool_steps} steps)"
+                                        ),
+                                    }
+                                )
+                                should_stop = True
+                                break
                     if should_stop:
                         break
                 if should_stop:
-                    await stream.aclose()
                     break
+            if should_stop:
+                await stream.aclose()
+                break
     except GraphRecursionError as error:
         emit_event(
             {
@@ -448,6 +448,15 @@ async def run(
         emit_event({"type": "final", "text": last_text})
         emit_event({"type": "usage", **aggregate_usage(usages)})
         return 1
+    finally:
+        # Best-effort teardown: a flaky MCP session close after the stream
+        # finished must not convert a completed run into an exit-1 failure
+        # (the Node side maps any nonzero exit to sdk_error) or emit an
+        # error event that overwrites the real stop classification.
+        try:
+            await stack.aclose()
+        except Exception:  # noqa: BLE001
+            pass
 
     emit_event({"type": "final", "text": last_text})
     emit_event({"type": "usage", **aggregate_usage(usages)})
