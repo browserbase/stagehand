@@ -109,6 +109,11 @@ SDK operations aligned with the sibling SDKs.
 `hybrid_news.rb`, `search_flow.rb`, `arctic_observe.rb`) plus their shared
 `example_helpers.rb`.
 
+### Evals
+
+`evals/` holds Ruby ports of the bench-tier eval tasks (act/extract/observe)
+with their own runner — see [`evals/README.md`](./evals/README.md).
+
 ## Development
 
 Requires Ruby >= 3.2 and the built extension (`pnpm --filter ./packages/extension build`).
