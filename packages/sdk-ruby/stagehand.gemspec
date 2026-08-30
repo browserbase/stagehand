@@ -25,5 +25,6 @@ Gem::Specification.new do |spec|
   spec.files = Dir["lib/**/*", "sig/**/*", "README.md"]
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "opentelemetry-api", "~> 1.5"
   spec.add_dependency "websocket-driver", "~> 0.8"
 end

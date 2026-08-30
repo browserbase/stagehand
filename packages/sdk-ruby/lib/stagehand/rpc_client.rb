@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "json"
+require "opentelemetry"
 require "set"
 
 require_relative "errors"
@@ -49,6 +50,8 @@ module Stagehand
     ].to_set.freeze
 
     REQUEST_KEYS = %w[jsonrpc id method params traceparent tracestate].freeze
+
+    TRACE_CONTEXT_PROPAGATOR = OpenTelemetry::Trace::Propagation::TraceContext.text_map_propagator
     NOTIFICATION_KEYS = %w[jsonrpc method params].freeze
 
     def initialize(transport)
@@ -92,6 +95,9 @@ module Stagehand
       end
 
       request = { "jsonrpc" => "2.0", "id" => request_id, "method" => method, "params" => wire_params }
+      # W3C trace context rides on the request envelope, like the sibling
+      # SDKs (the direct propagator, independent of any configured SDK).
+      TRACE_CONTEXT_PROPAGATOR.inject(request)
       timeout = self.class.response_timeout_seconds(method, wire_params)
       begin
         @transport.send(request)

@@ -213,6 +213,39 @@ class TestRPCClient < Minitest::Test
     assert_equal(-32_600, reply.dig("error", "code"))
   end
 
+  def test_send_injects_w3c_trace_context_when_a_span_is_current
+    span_context = OpenTelemetry::Trace::SpanContext.new(
+      trace_id: ["0af7651916cd43dd8448eb211c80319c"].pack("H*"),
+      span_id: ["b7ad6b7169203331"].pack("H*"),
+      trace_flags: OpenTelemetry::Trace::TraceFlags::SAMPLED,
+    )
+    span = OpenTelemetry::Trace.non_recording_span(span_context)
+    context = OpenTelemetry::Trace.context_with_span(span)
+
+    responder = Thread.new do
+      request = @transport.next_sent
+      @transport.push({ "jsonrpc" => "2.0", "id" => request["id"], "result" => "t" })
+      request
+    end
+    OpenTelemetry::Context.with_current(context) do
+      @client.send("page.title", Stagehand::Models::PageIdParams.new(page_id: "p"), "PageTitleResult")
+    end
+    request = responder.value
+    assert_equal "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01", request["traceparent"]
+  end
+
+  def test_send_omits_trace_context_without_a_current_span
+    responder = Thread.new do
+      request = @transport.next_sent
+      @transport.push({ "jsonrpc" => "2.0", "id" => request["id"], "result" => "t" })
+      request
+    end
+    @client.send("page.title", Stagehand::Models::PageIdParams.new(page_id: "p"), "PageTitleResult")
+    request = responder.value
+    refute request.key?("traceparent")
+    refute request.key?("tracestate")
+  end
+
   def test_close_rejects_pending_requests
     sender = Thread.new do
       @client.send("stagehand.metrics", Stagehand::Models::EmptyParams.new, "StagehandMetrics")
