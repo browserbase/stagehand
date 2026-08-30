@@ -22,6 +22,10 @@ const packageChangelogs = [
     path: path.join(repositoryRoot, "packages/sdk-go/CHANGELOG.md"),
   },
   {
+    label: "Ruby SDK",
+    path: path.join(repositoryRoot, "packages/sdk-ruby/CHANGELOG.md"),
+  },
+  {
     label: "Protocol",
     path: path.join(repositoryRoot, "packages/protocol/CHANGELOG.md"),
   },
