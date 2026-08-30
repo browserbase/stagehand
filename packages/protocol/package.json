@@ -19,7 +19,6 @@
   "devDependencies": {
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
-    "chrome-launcher": "catalog:",
     "oxfmt": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

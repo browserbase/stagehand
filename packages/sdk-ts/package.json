@@ -46,7 +46,6 @@
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
     "@standard-schema/spec": "catalog:",
-    "chrome-launcher": "catalog:",
     "zod": "catalog:sdk-minimum"
   },
   "devDependencies": {
