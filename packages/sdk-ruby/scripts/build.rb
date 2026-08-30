@@ -28,9 +28,14 @@ FileUtils.mkdir_p(output_directory)
 begin
   FileUtils.cp_r(extension_dist, staged_extension)
 
-  specification = Gem::Specification.load(File.join(package_root, "stagehand.gemspec"))
-  abort "Could not load stagehand.gemspec" if specification.nil?
-  gem_path = Dir.chdir(package_root) { Gem::Package.build(specification) }
+  # The gemspec globs files relative to the working directory, so both the
+  # load and the build must run from the package root (CI invokes this
+  # script from the repository root).
+  gem_path = Dir.chdir(package_root) do
+    specification = Gem::Specification.load("stagehand.gemspec")
+    abort "Could not load stagehand.gemspec" if specification.nil?
+    Gem::Package.build(specification)
+  end
   built = File.join(package_root, gem_path)
   target = File.join(output_directory, File.basename(gem_path))
   FileUtils.mv(built, target)
