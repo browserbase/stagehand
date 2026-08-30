@@ -141,6 +141,31 @@ class TestRPCClient < Minitest::Test
     assert_equal "hi", seen.messages.first.content.text
   end
 
+  def llm_request(id, name)
+    {
+      "jsonrpc" => "2.0", "id" => id, "method" => "llm.generate",
+      "params" => {
+        "messages" => [{ "role" => "user", "content" => { "type" => "text", "text" => "hi" } }],
+        "response_format" => { "type" => "json_schema", "name" => name, "schema" => { "type" => "object" } },
+      },
+    }
+  end
+
+  # Impossible under a serial dispatcher: the first handler blocks until the
+  # second request has been fully answered.
+  def test_inbound_requests_run_concurrently
+    release = Thread::Queue.new
+    @client.on_request("llm.generate") do |params|
+      release.pop if params.response_format.name == "first"
+      release << :go if params.response_format.name == "second"
+      structured_result(structured_content: { "name" => params.response_format.name })
+    end
+    @client.receive(llm_request(21, "first"))
+    @client.receive(llm_request(22, "second"))
+    replies = Array.new(2) { @transport.next_sent }
+    assert_equal [22, 21], replies.map { |reply| reply["id"] }
+  end
+
   def test_request_handler_may_issue_rpc_calls
     @client.on_request("llm.generate") do |_params|
       title = @client.send("page.title", Stagehand::Models::PageIdParams.new(page_id: "page-1"), "PageTitleResult")

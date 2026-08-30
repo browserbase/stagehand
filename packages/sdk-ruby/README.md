@@ -17,9 +17,10 @@ example set, eval-task ports, docs tabs, and cross-language parity lanes.
   attach (with wake nudge), `__stagehandSendToHost` binding, runtime marker + semver
   negotiation, `Runtime.evaluate` double-JSON envelope delivery.
 - **JSON-RPC client** (`rpc_client.rb`) — strict envelopes, per-method timeout table,
-  notification buffering (`stagehand.log` → stderr), an inbound dispatcher thread
-  serving server→client requests (`on_request`, used for `llm.generate`) and
-  notification listeners, deterministic shutdown.
+  notification buffering (`stagehand.log` → stderr), inbound server→client
+  requests (`on_request`, used for `llm.generate`) and notification listeners
+  each running on their own tracked thread (like Python's per-item tasks),
+  deterministic shutdown.
 - **Local Chrome** (`browser.rb`) — hand-rolled launcher (no Playwright): Chrome
   discovery, temp profile, the Stagehand flag set, `Extensions.loadUnpacked`.
 - **Browserbase** (`browserbase_client.rb`, `browserbase_session.rb`,
@@ -135,9 +136,6 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
   structural mismatches do raise.
 - No OpenTelemetry trace propagation (`traceparent` is simply omitted).
 - `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
-- Inbound work (request handlers, notification listeners including `page.on`
-  blocks) runs on one dispatcher thread: handlers may issue RPC calls, but a
-  slow handler delays later inbound work (Python runs these concurrently).
 - Wired into every ast-grep parity lane (`rpc`, `cdp`, `example`, `sdk`,
   `sdk-field-pipeline`, `sdk-client-schema-parity`), the docs reference
   validation (`packages/docs/tests`), CI, and the release tooling. Ruby tabs

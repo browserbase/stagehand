@@ -46,7 +46,8 @@ begin
 
     console_events = Thread::Queue.new
     subscription = page.on("console") do |event|
-      # Runs on the RPC dispatcher thread: keep it quick, hand the event over.
+      # Runs on an SDK inbound thread (deliveries may be concurrent): hand
+      # the event over to the queue rather than doing work here.
       console_events << event if event.params.is_a?(Hash) && event.params["type"] == "log"
     end
 

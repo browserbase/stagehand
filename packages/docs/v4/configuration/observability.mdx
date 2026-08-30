@@ -1412,8 +1412,8 @@ stagehand = Stagehand.create(
 # ... run your automation
 
 # Inspect what happened, or write it to disk alongside the metrics.
-# Copy under the mutex: on_log runs on the SDK's dispatcher thread, so
-# iterating over `history` directly would race with an incoming log.
+# Copy under the mutex: on_log runs on SDK inbound threads (deliveries can
+# be concurrent), so iterating over `history` directly would race.
 captured = history_mutex.synchronize { history.dup }
 pp captured.select { |entry| entry["level"] == "error" }
 pp stagehand.metrics.to_wire

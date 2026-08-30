@@ -44,7 +44,8 @@ def message_text(content)
   end.join("\n")
 end
 
-# The llm.generate handler. Runs on the SDK's dispatcher thread.
+# The llm.generate handler. Each request runs on its own SDK thread, so
+# concurrent generations are possible.
 def generate_with_openai(params)
   unless params.is_a?(Stagehand::Models::LLMStructuredGenerateParams)
     raise ArgumentError, "This example only supports structured generation"

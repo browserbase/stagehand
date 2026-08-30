@@ -10,13 +10,12 @@ require_relative "generated/models"
 
 module Stagehand
   # JSON-RPC 2.0 client over a Stagehand transport (the CDP client). Port of
-  # packages/sdk-python/src/stagehand/rpc_client.py onto two background
-  # threads: a reader that routes responses to per-request queues, and a
-  # dispatcher that runs inbound work (server->client requests such as
-  # llm.generate, and notification listeners). Handlers and listeners run on
-  # the dispatcher thread and may issue RPC calls themselves; inbound work is
-  # processed one item at a time, so a slow handler delays later inbound
-  # requests and notifications (Python runs these as concurrent tasks).
+  # packages/sdk-python/src/stagehand/rpc_client.py: a background reader
+  # routes responses to per-request queues, and every inbound item — a
+  # server->client request such as llm.generate, or a notification delivery —
+  # runs on its own tracked thread (the analogue of Python's per-item asyncio
+  # tasks). Handlers and listeners may issue RPC calls and run concurrently;
+  # no ordering is guaranteed between inbound items.
   class RPCClient
     MAX_REQUEST_ID = 9_007_199_254_740_991
     MAX_PENDING_NOTIFICATIONS = 100
@@ -62,11 +61,9 @@ module Stagehand
       @request_handlers = {}
       @notification_listeners = Hash.new { |hash, key| hash[key] = [] }
       @pending_notifications = []
-      @inbound = Thread::Queue.new
+      @inbound_threads = Set.new
       @closed = false
       @close_reason = nil
-      @dispatcher = Thread.new { dispatch_loop }
-      @dispatcher.name = "stagehand-rpc-dispatcher"
       @reader = Thread.new { read_loop }
       @reader.name = "stagehand-rpc-reader"
     end
@@ -113,9 +110,9 @@ module Stagehand
     # Registers the handler for an inbound server->client request (e.g.
     # llm.generate). Params arrive decoded via Models::METHODS; the handler's
     # return value (a wire model or Hash matching the result definition) is
-    # sent back as the JSON-RPC result. The handler runs on the dispatcher
-    # thread and may issue RPC calls. Returns a proc that removes the handler
-    # (a no-op if another handler replaced it in the meantime).
+    # sent back as the JSON-RPC result. Each request runs on its own thread —
+    # handlers may issue RPC calls and run concurrently. Returns a proc that
+    # removes the handler (a no-op if another handler replaced it).
     def on_request(method, &handler)
       raise StagehandError, "RPC client is closed" if @closed
       raise ArgumentError, "a handler block is required" if handler.nil?
@@ -131,8 +128,8 @@ module Stagehand
     end
 
     # Registers a listener for a server notification. Params are decoded via
-    # Models::NOTIFICATIONS when the method is a known notification. Listeners
-    # run on the dispatcher thread (never the caller's), so a notification
+    # Models::NOTIFICATIONS when the method is a known notification. Each
+    # delivery runs on its own thread (never the caller's), so a notification
     # buffered before registration is also replayed asynchronously. Returns a
     # proc that removes the listener.
     def on_notification(method, &listener)
@@ -145,7 +142,9 @@ module Stagehand
         @pending_notifications.reject! { |entry| entry.fetch("method") == method }
         buffered
       end
-      replayable.each { |entry| @inbound << [:notification, method, entry["params"], [listener]] }
+      replayable.each do |entry|
+        track_inbound { dispatch_notification(method, entry["params"], [listener]) }
+      end
 
       lambda do
         @state_mutex.synchronize do
@@ -167,16 +166,18 @@ module Stagehand
         @pending.each_value { |queue| queue << @close_reason }
         @pending.clear
       end
-      @inbound << :close
       @transport.close if close_transport
       unless Thread.current == @reader
         # The real transport unblocks the reader on close; the kill is a
         # backstop for transports that cannot (it is parked in receive).
         @reader.kill unless @reader.join(2)
       end
-      unless Thread.current == @dispatcher
-        # The kill is a backstop for a handler stuck in slow user code.
-        @dispatcher.kill unless @dispatcher.join(2)
+      # Wait out in-flight inbound work (Python's cancel + gather); the kill
+      # is a backstop for a handler stuck in slow user code.
+      inbound = @state_mutex.synchronize { @inbound_threads.to_a }
+      inbound.each do |thread|
+        next if thread == Thread.current
+        thread.kill unless thread.join(2)
       end
       nil
     end
@@ -296,21 +297,22 @@ module Stagehand
           registered.dup
         end
       end
-      @inbound << [:notification, method, message["params"], listeners] if listeners
+      track_inbound { dispatch_notification(method, message["params"], listeners) } if listeners
     end
 
-    def dispatch_loop
-      loop do
-        entry = @inbound.pop
-        break if entry == :close
-        kind, *rest = entry
-        case kind
-        when :notification then dispatch_notification(*rest)
-        when :request then handle_request(rest.first)
-        end
+    # Runs one inbound item on its own tracked thread — the analogue of
+    # Python's _track_inbound tasks. An unexpected escape closes the client.
+    def track_inbound(&work)
+      thread = Thread.new do
+        work.call
+      rescue Exception => error
+        close(error) unless @closed
+      ensure
+        @state_mutex.synchronize { @inbound_threads.delete(Thread.current) }
       end
-    rescue Exception => error
-      close(error) unless @closed
+      thread.name = "stagehand-rpc-inbound"
+      @state_mutex.synchronize { @inbound_threads << thread }
+      nil
     end
 
     def dispatch_notification(method, params, listeners)
@@ -340,12 +342,12 @@ module Stagehand
         return
       end
 
-      @inbound << [:request, message]
+      track_inbound { handle_request(message) }
     end
 
-    # Runs on the dispatcher thread: decode params, run the registered
-    # handler, validate its result against the method's wire definition, and
-    # answer. Errors map to JSON-RPC codes the same way the Python SDK does.
+    # Runs on an inbound thread: decode params, run the registered handler,
+    # validate its result against the method's wire definition, and answer.
+    # Errors map to JSON-RPC codes the same way the Python SDK does.
     def handle_request(message)
       request_id = message["id"]
       registered = @state_mutex.synchronize { @request_handlers[message["method"]] }
