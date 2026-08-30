@@ -1,7 +1,6 @@
 import { Codex, type CodexOptions } from "@openai/codex-sdk";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
-
-import { buildAllowlistedEnv } from "./env.ts";
 
 const serverPath = fileURLToPath(
   import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),

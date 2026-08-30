@@ -459,6 +459,9 @@ importers:
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../sdk-ts
+      '@browserbasehq/stagehand-integrations':
+        specifier: workspace:*
+        version: link:../integrations/core
       '@openai/codex-sdk':
         specifier: 'catalog:'
         version: 0.147.0
