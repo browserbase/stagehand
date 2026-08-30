@@ -7,6 +7,7 @@ require "tempfile"
 class TestFileUpload < Minitest::Test
   def test_normalizes_a_path_into_a_wire_payload
     Tempfile.create(["report", ".csv"]) do |file|
+      file.binmode # keep the fixture byte-stable on Windows (no CRLF translation)
       file.write("a,b\n1,2\n")
       file.flush
       payloads = Stagehand::FileUpload.normalize_file_input(file.path)
