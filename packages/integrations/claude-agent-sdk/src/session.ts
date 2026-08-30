@@ -102,7 +102,9 @@ export async function runClaudeAgentSession(input: {
       prompt: input.prompt,
       options: {
         abortController,
-        allowedTools: input.session.allowedTools ?? ["WebFetch", "WebSearch"],
+        // No implicit tool grants: a shared session layer must not default to
+        // web access. Callers opt in to every tool explicitly.
+        allowedTools: input.session.allowedTools ?? [],
         ...(input.session.canUseTool && { canUseTool: input.session.canUseTool }),
         ...(input.session.cwd && { cwd: input.session.cwd }),
         ...(input.session.env && { env: input.session.env }),
@@ -195,9 +197,10 @@ export function resolveClaudeCodeStatus(
   resultMessage: ClaudeSdkMessage | undefined,
   iterationError: unknown,
 ): "completed" | "max_turns" | "sdk_error" {
-  if (isClaudeCodeMaxTurnsError(iterationError) || isClaudeCodeMaxTurnsError(resultMessage)) {
-    return "max_turns";
-  }
+  // The SDK reports turn exhaustion structurally on the result message; the
+  // prose regex stays only for errors thrown before a result arrives.
+  if (resultMessage?.subtype === "error_max_turns") return "max_turns";
+  if (isClaudeCodeMaxTurnsError(iterationError)) return "max_turns";
   if (iterationError || resultMessage?.is_error === true) return "sdk_error";
   return "completed";
 }

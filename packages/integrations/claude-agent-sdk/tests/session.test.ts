@@ -42,6 +42,64 @@ describe("Claude Agent SDK session", () => {
     expect(isClaudeCodeMaxTurnsError(result.iterationError)).toBe(true);
   });
 
+  it("classifies the SDK's structured error_max_turns result subtype", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield { type: "result", subtype: "error_max_turns", errors: [], usage: {} };
+      },
+    };
+    const result = await runClaudeAgentSession({
+      prompt: "task",
+      model: "anthropic/claude-sonnet-4-20250514",
+      logger,
+      sdk,
+      session: {},
+    });
+
+    expect(result.status).toBe("max_turns");
+  });
+
+  it("does not misclassify a successful result whose text mentions a turn limit", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield {
+          type: "result",
+          subtype: "success",
+          result: "The site enforces a turn limit of 3 rounds per player.",
+          usage: {},
+        };
+      },
+    };
+    const result = await runClaudeAgentSession({
+      prompt: "task",
+      model: "anthropic/claude-sonnet-4-20250514",
+      logger,
+      sdk,
+      session: {},
+    });
+
+    expect(result.status).toBe("completed");
+  });
+
+  it("defaults allowedTools to an empty list", async () => {
+    let capturedOptions: Record<string, unknown> | undefined;
+    const sdk: ClaudeAgentSdk = {
+      query: async function* (input) {
+        capturedOptions = input.options;
+        yield { type: "result", subtype: "success", result: "ok", usage: {} };
+      },
+    };
+    await runClaudeAgentSession({
+      prompt: "task",
+      model: "anthropic/claude-sonnet-4-20250514",
+      logger,
+      sdk,
+      session: {},
+    });
+
+    expect(capturedOptions?.allowedTools).toEqual([]);
+  });
+
   it("forwards explicit session options and extracts result usage", async () => {
     let capturedOptions: Record<string, unknown> | undefined;
     const mcpServers = { stagehand: { command: "node", args: ["server.mjs"] } };
