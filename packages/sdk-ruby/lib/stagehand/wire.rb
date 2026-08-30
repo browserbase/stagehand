@@ -13,7 +13,10 @@ module Stagehand
   #
   # Field descriptors:
   #   nil               raw JSON value, passed through verbatim
+  #   :string/:integer/:number/:boolean/:null
+  #                     scalar type check (nil always passes: nullable fields)
   #   String            reference to a definition in Models::DEFS
+  #   [:enum, name]     value must be in Models::<name>::VALUES
   #   [:array, desc]    array of desc
   #   [:map, desc]      string-keyed object whose values are desc
   #   [:union, [desc]]  first structurally-matching variant wins. A nil in
@@ -38,6 +41,9 @@ module Stagehand
       case descriptor
       when nil
         value
+      when Symbol
+        check_scalar(value, descriptor) { |message| raise WireError, message }
+        value
       when String
         decode(value, Models::DEFS.fetch(descriptor) { raise WireError, "unknown wire definition: #{descriptor}" })
       when Class
@@ -53,6 +59,11 @@ module Stagehand
 
     def decode_compound(value, descriptor)
       kind, inner = descriptor
+      case kind
+      when :enum
+        check_scalar(value, descriptor) { |message| raise WireError, message }
+        return value
+      end
       case kind
       when :array
         return value.map { |entry| decode(entry, inner) } if value.is_a?(Array)
@@ -82,12 +93,15 @@ module Stagehand
       variants.each do |variant|
         next if variant.nil?
         descriptor = variant.is_a?(String) ? Models::DEFS[variant] : variant
-        # A reference that resolves to an opaque definition (enum, scalar
-        # alias) accepts any value: the union stays open.
+        # A reference that resolves to an opaque definition accepts any
+        # value: the union stays open.
         open = true if variant.is_a?(String) && descriptor.nil? && Models::DEFS.key?(variant)
+        return value if descriptor.is_a?(Symbol) && scalar_matches?(value, descriptor)
         next unless descriptor.is_a?(Array)
         kind = descriptor.first
         case kind
+        when :enum
+          return value if scalar_matches?(value, descriptor)
         when :array
           return decode(value, descriptor) if value.is_a?(Array)
         when :map
@@ -106,6 +120,43 @@ module Stagehand
       end
       return value if open || value.nil?
       raise WireError, "value matches no union variant"
+    end
+
+    # True when the value satisfies a scalar or enum descriptor (nil always
+    # passes: nullable fields).
+    def scalar_matches?(value, descriptor)
+      return true if value.nil?
+      case descriptor
+      when :string then value.is_a?(String)
+      when :integer then value.is_a?(Integer)
+      when :number then value.is_a?(Numeric) && !value.is_a?(Complex)
+      when :boolean then value == true || value == false
+      when :null then false # non-nil value never matches null
+      when Array then descriptor.first == :enum && enum_values(descriptor.last).include?(value)
+      else false
+      end
+    end
+
+    def check_scalar(value, descriptor)
+      return if scalar_matches?(value, descriptor)
+      expected = descriptor.is_a?(Array) ? "one of #{descriptor.last}::VALUES" : descriptor.to_s
+      yield "expected #{expected}, got #{value.inspect}"
+    end
+
+    def enum_values(name)
+      Models.const_get(name)::VALUES
+    end
+
+    # Resolves a descriptor to its scalar/enum form (following reference
+    # chains), or nil when it is not scalar-checkable.
+    def scalar_descriptor(descriptor, depth = 0)
+      return nil if depth > 16
+      case descriptor
+      when Symbol then descriptor
+      when String then scalar_descriptor(Models::DEFS[descriptor], depth + 1)
+      when Array then descriptor.first == :enum ? descriptor : nil
+      else nil
+      end
     end
 
     # Follows reference chains until a Model class or nil.
@@ -141,6 +192,15 @@ module Stagehand
         values.each do |key, value|
           name = key.to_s
           raise ArgumentError, "unknown field #{name} for #{self.class.name}" unless fields.key?(name)
+          # Scalar and enum fields validate at construction (the analogue of
+          # pydantic's validate-on-construct); structured fields stay shallow
+          # here and validate at the decode boundary.
+          scalar = Wire.scalar_descriptor(fields[name])
+          if scalar
+            Wire.check_scalar(value, scalar) do |message|
+              raise ArgumentError, "#{self.class.name}.#{name}: #{message}"
+            end
+          end
           instance_variable_set(:"@#{name}", value)
           @__set_keys << name
         end

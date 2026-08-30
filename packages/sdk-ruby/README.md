@@ -131,9 +131,8 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 
 - All 77 protocol methods are wrapped — the complete method surface,
   including inbound `llm.generate` (client-side LLMs).
-- No strict scalar validation inside wire models (field types are not
-  checked; the extension re-validates everything server-side). Union and
-  structural mismatches do raise.
+- Wire models validate strictly: scalar and enum fields check types on
+  decode and construction; union and structural mismatches raise.
 - No OpenTelemetry trace propagation (`traceparent` is simply omitted).
 - `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
 - Wired into every ast-grep parity lane (`rpc`, `cdp`, `example`, `sdk`,

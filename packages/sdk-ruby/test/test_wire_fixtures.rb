@@ -19,12 +19,16 @@ class TestWireFixtures < Minitest::Test
     walk = lambda do |descriptor|
       case descriptor
       when nil then nil
+      when :string, :integer, :number, :boolean, :null then nil
       when String
         assert Stagehand::Models::DEFS.key?(descriptor), "dangling wire reference: #{descriptor}"
       when Array
         kind, inner = descriptor
         if kind == :union
           inner.each { |variant| walk.call(variant) }
+        elsif kind == :enum
+          assert Stagehand::Models.const_defined?(inner), "dangling enum reference: #{inner}"
+          assert_kind_of Array, Stagehand::Models.const_get(inner)::VALUES
         else
           walk.call(inner)
         end

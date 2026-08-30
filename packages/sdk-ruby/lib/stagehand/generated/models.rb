@@ -10,19 +10,19 @@ module Stagehand
 
     class StagehandInitParams < Stagehand::Wire::Model
       FIELDS = {
-        "protocol_version" => nil,
+        "protocol_version" => :string,
         "client_info" => "ImplementationInfo",
-        "browser_cdp_url" => nil,
-        "api_key" => nil,
-        "api_url" => nil,
+        "browser_cdp_url" => :string,
+        "api_key" => :string,
+        "api_url" => :string,
         "browser" => "BrowserSessionMetadata",
         "model" => [:union, ["ModelConfig", "ClientModelReference"].freeze].freeze,
         "telemetry" => "TelemetryConfig",
-        "log_level" => nil,
-        "system_prompt" => nil,
-        "self_heal" => nil,
-        "dom_settle_timeout_ms" => nil,
-        "cache" => nil,
+        "log_level" => :string,
+        "system_prompt" => :string,
+        "self_heal" => :boolean,
+        "dom_settle_timeout_ms" => :integer,
+        "cache" => "Caching",
       }.freeze
       REQUIRED = %w[protocol_version client_info].freeze
       attr_reader :protocol_version, :client_info, :browser_cdp_url, :api_key, :api_url, :browser, :model, :telemetry, :log_level, :system_prompt, :self_heal, :dom_settle_timeout_ms, :cache
@@ -30,8 +30,8 @@ module Stagehand
 
     class ImplementationInfo < Stagehand::Wire::Model
       FIELDS = {
-        "name" => nil,
-        "version" => nil,
+        "name" => :string,
+        "version" => :string,
       }.freeze
       REQUIRED = %w[name version].freeze
       attr_reader :name, :version
@@ -39,8 +39,8 @@ module Stagehand
 
     class BrowserSessionMetadata < Stagehand::Wire::Model
       FIELDS = {
-        "session_id" => nil,
-        "region" => nil,
+        "session_id" => :string,
+        "region" => "BrowserbaseRegion",
       }.freeze
       REQUIRED = %w[session_id].freeze
       attr_reader :session_id, :region
@@ -52,9 +52,9 @@ module Stagehand
 
     class ModelConfig < Stagehand::Wire::Model
       FIELDS = {
-        "api_key" => nil,
-        "headers" => nil,
-        "model_name" => nil,
+        "api_key" => :string,
+        "headers" => [:map, :string].freeze,
+        "model_name" => "ModelName",
       }.freeze
       REQUIRED = %w[model_name].freeze
       attr_reader :api_key, :headers, :model_name
@@ -62,7 +62,7 @@ module Stagehand
 
     class ClientModelReference < Stagehand::Wire::Model
       FIELDS = {
-        "source" => nil,
+        "source" => :string,
       }.freeze
       REQUIRED = %w[source].freeze
       attr_reader :source
@@ -78,8 +78,8 @@ module Stagehand
 
     class TelemetryTraces < Stagehand::Wire::Model
       FIELDS = {
-        "endpoint" => nil,
-        "headers" => nil,
+        "endpoint" => :string,
+        "headers" => [:map, :string].freeze,
       }.freeze
       REQUIRED = %w[endpoint].freeze
       attr_reader :endpoint, :headers
@@ -87,7 +87,7 @@ module Stagehand
 
     class StagehandInitResult < Stagehand::Wire::Model
       FIELDS = {
-        "initialized" => nil,
+        "initialized" => :boolean,
         "pages" => [:array, "PageRef"].freeze,
       }.freeze
       REQUIRED = %w[initialized pages].freeze
@@ -96,9 +96,9 @@ module Stagehand
 
     class PageRef < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "url" => nil,
-        "title" => nil,
+        "page_id" => :string,
+        "url" => :string,
+        "title" => :string,
       }.freeze
       REQUIRED = %w[page_id].freeze
       attr_reader :page_id, :url, :title
@@ -111,7 +111,7 @@ module Stagehand
 
     class StagehandCloseResult < Stagehand::Wire::Model
       FIELDS = {
-        "closed" => nil,
+        "closed" => :boolean,
       }.freeze
       REQUIRED = %w[closed].freeze
       attr_reader :closed
@@ -119,8 +119,8 @@ module Stagehand
 
     class StagehandActParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "instruction" => [:union, ["Action", nil].freeze].freeze,
+        "page_id" => :string,
+        "instruction" => [:union, [:string, "Action"].freeze].freeze,
         "options" => "ActOptions",
       }.freeze
       REQUIRED = %w[page_id instruction].freeze
@@ -129,10 +129,10 @@ module Stagehand
 
     class Action < Stagehand::Wire::Model
       FIELDS = {
-        "selector" => nil,
-        "description" => nil,
-        "method" => nil,
-        "arguments" => nil,
+        "selector" => :string,
+        "description" => :string,
+        "method" => :string,
+        "arguments" => [:array, :string].freeze,
       }.freeze
       REQUIRED = %w[selector description].freeze
       attr_reader :selector, :description, :method, :arguments
@@ -142,10 +142,10 @@ module Stagehand
       FIELDS = {
         "model" => "ModelConfig",
         "variables" => "Variables",
-        "timeout" => nil,
+        "timeout" => :number,
         "locator" => "Locator",
         "ignore_locators" => [:array, "Locator"].freeze,
-        "cache" => nil,
+        "cache" => "Caching",
       }.freeze
       REQUIRED = [].freeze
       attr_reader :model, :variables, :timeout, :locator, :ignore_locators, :cache
@@ -153,8 +153,8 @@ module Stagehand
 
     class DescribedVariableValue < Stagehand::Wire::Model
       FIELDS = {
-        "value" => nil,
-        "description" => nil,
+        "value" => "VariablePrimitive",
+        "description" => :string,
       }.freeze
       REQUIRED = %w[value].freeze
       attr_reader :value, :description
@@ -162,8 +162,8 @@ module Stagehand
 
     class Locator < Stagehand::Wire::Model
       FIELDS = {
-        "selector" => nil,
-        "nth" => nil,
+        "selector" => :string,
+        "nth" => :integer,
       }.freeze
       REQUIRED = %w[selector].freeze
       attr_reader :selector, :nth
@@ -180,9 +180,9 @@ module Stagehand
 
     class ActResultData < Stagehand::Wire::Model
       FIELDS = {
-        "success" => nil,
-        "message" => nil,
-        "action_description" => nil,
+        "success" => :boolean,
+        "message" => :string,
+        "action_description" => :string,
         "actions" => [:array, "Action"].freeze,
       }.freeze
       REQUIRED = %w[success message action_description actions].freeze
@@ -191,7 +191,7 @@ module Stagehand
 
     class StagehandResultMetadata < Stagehand::Wire::Model
       FIELDS = {
-        "action_id" => nil,
+        "action_id" => :string,
         "cache" => "CacheMetadata",
         "usage" => "StagehandResultUsage",
       }.freeze
@@ -205,9 +205,9 @@ module Stagehand
 
     class CacheTokenSavings < Stagehand::Wire::Model
       FIELDS = {
-        "input_tokens" => nil,
-        "output_tokens" => nil,
-        "total_tokens" => nil,
+        "input_tokens" => :integer,
+        "output_tokens" => :integer,
+        "total_tokens" => :integer,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :input_tokens, :output_tokens, :total_tokens
@@ -215,10 +215,10 @@ module Stagehand
 
     class CacheMetadata < Stagehand::Wire::Model
       FIELDS = {
-        "status" => nil,
-        "count" => nil,
-        "threshold" => nil,
-        "miss_reason" => nil,
+        "status" => "CacheStatus",
+        "count" => :integer,
+        "threshold" => :integer,
+        "miss_reason" => :string,
         "tokens_saved" => "CacheTokenSavings",
       }.freeze
       REQUIRED = %w[status].freeze
@@ -227,11 +227,11 @@ module Stagehand
 
     class StagehandResultUsage < Stagehand::Wire::Model
       FIELDS = {
-        "input_tokens" => nil,
-        "output_tokens" => nil,
-        "reasoning_tokens" => nil,
-        "cached_input_tokens" => nil,
-        "inference_time_ms" => nil,
+        "input_tokens" => :integer,
+        "output_tokens" => :integer,
+        "reasoning_tokens" => :integer,
+        "cached_input_tokens" => :integer,
+        "inference_time_ms" => :integer,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :input_tokens, :output_tokens, :reasoning_tokens, :cached_input_tokens, :inference_time_ms
@@ -239,8 +239,8 @@ module Stagehand
 
     class StagehandObserveParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "instruction" => nil,
+        "page_id" => :string,
+        "instruction" => :string,
         "options" => "ObserveOptions",
       }.freeze
       REQUIRED = %w[page_id].freeze
@@ -251,10 +251,10 @@ module Stagehand
       FIELDS = {
         "model" => "ModelConfig",
         "variables" => "Variables",
-        "timeout" => nil,
+        "timeout" => :number,
         "locator" => "Locator",
         "ignore_locators" => [:array, "Locator"].freeze,
-        "cache" => nil,
+        "cache" => "Caching",
       }.freeze
       REQUIRED = [].freeze
       attr_reader :model, :variables, :timeout, :locator, :ignore_locators, :cache
@@ -271,9 +271,9 @@ module Stagehand
 
     class StagehandExtractParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "instruction" => nil,
-        "schema" => nil,
+        "page_id" => :string,
+        "instruction" => :string,
+        "schema" => "__schema0",
         "options" => "ExtractOptions",
       }.freeze
       REQUIRED = %w[page_id instruction].freeze
@@ -283,11 +283,11 @@ module Stagehand
     class ExtractOptions < Stagehand::Wire::Model
       FIELDS = {
         "model" => "ModelConfig",
-        "timeout" => nil,
+        "timeout" => :number,
         "locator" => "Locator",
         "ignore_locators" => [:array, "Locator"].freeze,
-        "screenshot" => nil,
-        "cache" => nil,
+        "screenshot" => :boolean,
+        "cache" => "Caching",
       }.freeze
       REQUIRED = [].freeze
       attr_reader :model, :timeout, :locator, :ignore_locators, :screenshot, :cache
@@ -295,7 +295,7 @@ module Stagehand
 
     class ExtractResult < Stagehand::Wire::Model
       FIELDS = {
-        "data" => nil,
+        "data" => "__schema1",
         "metadata" => "StagehandResultMetadata",
       }.freeze
       REQUIRED = %w[data metadata].freeze
@@ -304,26 +304,26 @@ module Stagehand
 
     class StagehandMetrics < Stagehand::Wire::Model
       FIELDS = {
-        "act_prompt_tokens" => nil,
-        "act_completion_tokens" => nil,
-        "act_reasoning_tokens" => nil,
-        "act_cached_input_tokens" => nil,
-        "act_inference_time_ms" => nil,
-        "extract_prompt_tokens" => nil,
-        "extract_completion_tokens" => nil,
-        "extract_reasoning_tokens" => nil,
-        "extract_cached_input_tokens" => nil,
-        "extract_inference_time_ms" => nil,
-        "observe_prompt_tokens" => nil,
-        "observe_completion_tokens" => nil,
-        "observe_reasoning_tokens" => nil,
-        "observe_cached_input_tokens" => nil,
-        "observe_inference_time_ms" => nil,
-        "total_prompt_tokens" => nil,
-        "total_completion_tokens" => nil,
-        "total_reasoning_tokens" => nil,
-        "total_cached_input_tokens" => nil,
-        "total_inference_time_ms" => nil,
+        "act_prompt_tokens" => :number,
+        "act_completion_tokens" => :number,
+        "act_reasoning_tokens" => :number,
+        "act_cached_input_tokens" => :number,
+        "act_inference_time_ms" => :number,
+        "extract_prompt_tokens" => :number,
+        "extract_completion_tokens" => :number,
+        "extract_reasoning_tokens" => :number,
+        "extract_cached_input_tokens" => :number,
+        "extract_inference_time_ms" => :number,
+        "observe_prompt_tokens" => :number,
+        "observe_completion_tokens" => :number,
+        "observe_reasoning_tokens" => :number,
+        "observe_cached_input_tokens" => :number,
+        "observe_inference_time_ms" => :number,
+        "total_prompt_tokens" => :number,
+        "total_completion_tokens" => :number,
+        "total_reasoning_tokens" => :number,
+        "total_cached_input_tokens" => :number,
+        "total_inference_time_ms" => :number,
       }.freeze
       REQUIRED = %w[act_prompt_tokens act_completion_tokens act_reasoning_tokens act_cached_input_tokens act_inference_time_ms extract_prompt_tokens extract_completion_tokens extract_reasoning_tokens extract_cached_input_tokens extract_inference_time_ms observe_prompt_tokens observe_completion_tokens observe_reasoning_tokens observe_cached_input_tokens observe_inference_time_ms total_prompt_tokens total_completion_tokens total_reasoning_tokens total_cached_input_tokens total_inference_time_ms].freeze
       attr_reader :act_prompt_tokens, :act_completion_tokens, :act_reasoning_tokens, :act_cached_input_tokens, :act_inference_time_ms, :extract_prompt_tokens, :extract_completion_tokens, :extract_reasoning_tokens, :extract_cached_input_tokens, :extract_inference_time_ms, :observe_prompt_tokens, :observe_completion_tokens, :observe_reasoning_tokens, :observe_cached_input_tokens, :observe_inference_time_ms, :total_prompt_tokens, :total_completion_tokens, :total_reasoning_tokens, :total_cached_input_tokens, :total_inference_time_ms
@@ -331,8 +331,8 @@ module Stagehand
 
     class CallbackBatchParams < Stagehand::Wire::Model
       FIELDS = {
-        "callback_source" => nil,
-        "input" => nil,
+        "callback_source" => :string,
+        "input" => "__schema2",
         "options" => "CallbackBatchOptions",
       }.freeze
       REQUIRED = %w[callback_source options].freeze
@@ -341,8 +341,8 @@ module Stagehand
 
     class CallbackBatchOptions < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "timeout" => nil,
+        "page_id" => :string,
+        "timeout" => :integer,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :page_id, :timeout
@@ -350,7 +350,7 @@ module Stagehand
 
     class CallbackBatchResult < Stagehand::Wire::Model
       FIELDS = {
-        "value" => nil,
+        "value" => "__schema3",
       }.freeze
       REQUIRED = [].freeze
       attr_reader :value
@@ -359,9 +359,9 @@ module Stagehand
     class LLMStructuredGenerateParams < Stagehand::Wire::Model
       FIELDS = {
         "messages" => [:array, "LLMMessage"].freeze,
-        "system_prompt" => nil,
-        "temperature" => nil,
-        "stop_sequences" => nil,
+        "system_prompt" => :string,
+        "temperature" => :number,
+        "stop_sequences" => [:array, :string].freeze,
         "response_format" => "LLMJsonSchemaResponseFormat",
       }.freeze
       REQUIRED = %w[messages response_format].freeze
@@ -370,7 +370,7 @@ module Stagehand
 
     class LLMMessage < Stagehand::Wire::Model
       FIELDS = {
-        "role" => nil,
+        "role" => "LLMRole",
         "content" => [:union, ["LLMMessageContentBlock", [:array, "LLMMessageContentBlock"].freeze].freeze].freeze,
       }.freeze
       REQUIRED = %w[role content].freeze
@@ -383,8 +383,8 @@ module Stagehand
 
     class LLMTextContent < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
-        "text" => nil,
+        "type" => :string,
+        "text" => :string,
         "annotations" => "LLMAnnotations",
       }.freeze
       REQUIRED = %w[type text].freeze
@@ -393,9 +393,9 @@ module Stagehand
 
     class LLMAnnotations < Stagehand::Wire::Model
       FIELDS = {
-        "audience" => nil,
-        "priority" => nil,
-        "last_modified" => nil,
+        "audience" => [:array, "LLMRole"].freeze,
+        "priority" => :number,
+        "last_modified" => :string,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :audience, :priority, :last_modified
@@ -403,9 +403,9 @@ module Stagehand
 
     class LLMImageContent < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
-        "data" => nil,
-        "mime_type" => nil,
+        "type" => :string,
+        "data" => :string,
+        "mime_type" => :string,
         "annotations" => "LLMAnnotations",
       }.freeze
       REQUIRED = %w[type data mime_type].freeze
@@ -414,10 +414,10 @@ module Stagehand
 
     class LLMToolUseContent < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
-        "id" => nil,
-        "name" => nil,
-        "input" => nil,
+        "type" => :string,
+        "id" => :string,
+        "name" => :string,
+        "input" => [:map, "__schema4"].freeze,
       }.freeze
       REQUIRED = %w[type id name input].freeze
       attr_reader :type, :id, :name, :input
@@ -425,11 +425,11 @@ module Stagehand
 
     class LLMToolResultContent < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
-        "tool_use_id" => nil,
+        "type" => :string,
+        "tool_use_id" => :string,
         "content" => [:array, "LLMToolResultContentBlock"].freeze,
-        "structured_content" => nil,
-        "is_error" => nil,
+        "structured_content" => [:map, "__schema5"].freeze,
+        "is_error" => :boolean,
       }.freeze
       REQUIRED = %w[type tool_use_id content].freeze
       attr_reader :type, :tool_use_id, :content, :structured_content, :is_error
@@ -437,10 +437,10 @@ module Stagehand
 
     class LLMJsonSchemaResponseFormat < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
-        "name" => nil,
-        "description" => nil,
-        "schema" => nil,
+        "type" => :string,
+        "name" => :string,
+        "description" => :string,
+        "schema" => "__schema6",
       }.freeze
       REQUIRED = %w[type name schema].freeze
       attr_reader :type, :name, :description, :schema
@@ -449,9 +449,9 @@ module Stagehand
     class LLMMessageGenerateParams < Stagehand::Wire::Model
       FIELDS = {
         "messages" => [:array, "LLMMessage"].freeze,
-        "system_prompt" => nil,
-        "temperature" => nil,
-        "stop_sequences" => nil,
+        "system_prompt" => :string,
+        "temperature" => :number,
+        "stop_sequences" => [:array, :string].freeze,
         "tools" => [:array, "LLMClientTool"].freeze,
         "tool_choice" => "LLMToolChoice",
         "response_format" => "LLMTextResponseFormat",
@@ -462,10 +462,10 @@ module Stagehand
 
     class LLMClientTool < Stagehand::Wire::Model
       FIELDS = {
-        "name" => nil,
-        "title" => nil,
+        "name" => :string,
+        "title" => :string,
         "icons" => [:array, "LLMToolIcon"].freeze,
-        "description" => nil,
+        "description" => :string,
         "input_schema" => nil,
         "execution" => "LLMToolExecution",
         "output_schema" => nil,
@@ -477,10 +477,10 @@ module Stagehand
 
     class LLMToolIcon < Stagehand::Wire::Model
       FIELDS = {
-        "src" => nil,
-        "mime_type" => nil,
-        "sizes" => nil,
-        "theme" => nil,
+        "src" => :string,
+        "mime_type" => :string,
+        "sizes" => [:array, :string].freeze,
+        "theme" => :string,
       }.freeze
       REQUIRED = %w[src].freeze
       attr_reader :src, :mime_type, :sizes, :theme
@@ -488,7 +488,7 @@ module Stagehand
 
     class LLMToolExecution < Stagehand::Wire::Model
       FIELDS = {
-        "task_support" => nil,
+        "task_support" => :string,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :task_support
@@ -496,11 +496,11 @@ module Stagehand
 
     class LLMToolAnnotations < Stagehand::Wire::Model
       FIELDS = {
-        "title" => nil,
-        "read_only_hint" => nil,
-        "destructive_hint" => nil,
-        "idempotent_hint" => nil,
-        "open_world_hint" => nil,
+        "title" => :string,
+        "read_only_hint" => :boolean,
+        "destructive_hint" => :boolean,
+        "idempotent_hint" => :boolean,
+        "open_world_hint" => :boolean,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :title, :read_only_hint, :destructive_hint, :idempotent_hint, :open_world_hint
@@ -508,7 +508,7 @@ module Stagehand
 
     class LLMToolChoice < Stagehand::Wire::Model
       FIELDS = {
-        "mode" => nil,
+        "mode" => :string,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :mode
@@ -516,7 +516,7 @@ module Stagehand
 
     class LLMTextResponseFormat < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
+        "type" => :string,
       }.freeze
       REQUIRED = %w[type].freeze
       attr_reader :type
@@ -524,11 +524,11 @@ module Stagehand
 
     class LLMMessageGenerateResult < Stagehand::Wire::Model
       FIELDS = {
-        "role" => nil,
+        "role" => "LLMRole",
         "content" => [:union, ["LLMMessageContentBlock", [:array, "LLMMessageContentBlock"].freeze].freeze].freeze,
-        "stop_reason" => nil,
+        "stop_reason" => :string,
         "usage" => "LLMUsage",
-        "output_format" => nil,
+        "output_format" => :string,
       }.freeze
       REQUIRED = %w[role content output_format].freeze
       attr_reader :role, :content, :stop_reason, :usage, :output_format
@@ -536,11 +536,11 @@ module Stagehand
 
     class LLMUsage < Stagehand::Wire::Model
       FIELDS = {
-        "input_tokens" => nil,
-        "output_tokens" => nil,
-        "total_tokens" => nil,
-        "reasoning_tokens" => nil,
-        "cached_input_tokens" => nil,
+        "input_tokens" => :integer,
+        "output_tokens" => :integer,
+        "total_tokens" => :integer,
+        "reasoning_tokens" => :integer,
+        "cached_input_tokens" => :integer,
       }.freeze
       REQUIRED = %w[input_tokens output_tokens total_tokens].freeze
       attr_reader :input_tokens, :output_tokens, :total_tokens, :reasoning_tokens, :cached_input_tokens
@@ -548,12 +548,12 @@ module Stagehand
 
     class LLMStructuredGenerateResult < Stagehand::Wire::Model
       FIELDS = {
-        "role" => nil,
+        "role" => "LLMRole",
         "content" => [:union, ["LLMMessageContentBlock", [:array, "LLMMessageContentBlock"].freeze].freeze].freeze,
-        "stop_reason" => nil,
+        "stop_reason" => :string,
         "usage" => "LLMUsage",
-        "output_format" => nil,
-        "structured_content" => nil,
+        "output_format" => :string,
+        "structured_content" => "__schema8",
       }.freeze
       REQUIRED = %w[role content output_format structured_content].freeze
       attr_reader :role, :content, :stop_reason, :usage, :output_format, :structured_content
@@ -561,7 +561,7 @@ module Stagehand
 
     class ContextNewPageParams < Stagehand::Wire::Model
       FIELDS = {
-        "url" => nil,
+        "url" => :string,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :url
@@ -569,7 +569,7 @@ module Stagehand
 
     class ContextSetActivePageParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
       }.freeze
       REQUIRED = %w[page_id].freeze
       attr_reader :page_id
@@ -577,7 +577,7 @@ module Stagehand
 
     class ContextVoidResult < Stagehand::Wire::Model
       FIELDS = {
-        "ok" => nil,
+        "ok" => :boolean,
       }.freeze
       REQUIRED = %w[ok].freeze
       attr_reader :ok
@@ -585,7 +585,7 @@ module Stagehand
 
     class ContextCloseResult < Stagehand::Wire::Model
       FIELDS = {
-        "closed" => nil,
+        "closed" => :boolean,
       }.freeze
       REQUIRED = %w[closed].freeze
       attr_reader :closed
@@ -593,7 +593,7 @@ module Stagehand
 
     class ContextAddInitScriptParams < Stagehand::Wire::Model
       FIELDS = {
-        "source" => nil,
+        "source" => :string,
       }.freeze
       REQUIRED = %w[source].freeze
       attr_reader :source
@@ -601,7 +601,7 @@ module Stagehand
 
     class ContextSetExtraHTTPHeadersParams < Stagehand::Wire::Model
       FIELDS = {
-        "headers" => nil,
+        "headers" => [:map, :string].freeze,
       }.freeze
       REQUIRED = %w[headers].freeze
       attr_reader :headers
@@ -609,8 +609,8 @@ module Stagehand
 
     class DomainPolicy < Stagehand::Wire::Model
       FIELDS = {
-        "allowed_domains" => nil,
-        "blocked_domains" => nil,
+        "allowed_domains" => [:array, :string].freeze,
+        "blocked_domains" => [:array, :string].freeze,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :allowed_domains, :blocked_domains
@@ -618,7 +618,7 @@ module Stagehand
 
     class ContextSetDomainPolicyParams < Stagehand::Wire::Model
       FIELDS = {
-        "policy" => [:union, ["DomainPolicy", nil].freeze].freeze,
+        "policy" => [:union, ["DomainPolicy", :null].freeze].freeze,
       }.freeze
       REQUIRED = %w[policy].freeze
       attr_reader :policy
@@ -626,7 +626,7 @@ module Stagehand
 
     class ContextCookiesParams < Stagehand::Wire::Model
       FIELDS = {
-        "urls" => nil,
+        "urls" => [:union, [:string, [:array, :string].freeze].freeze].freeze,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :urls
@@ -634,14 +634,14 @@ module Stagehand
 
     class Cookie < Stagehand::Wire::Model
       FIELDS = {
-        "name" => nil,
-        "value" => nil,
-        "domain" => nil,
-        "path" => nil,
-        "expires" => nil,
-        "http_only" => nil,
-        "secure" => nil,
-        "same_site" => nil,
+        "name" => :string,
+        "value" => :string,
+        "domain" => :string,
+        "path" => :string,
+        "expires" => :number,
+        "http_only" => :boolean,
+        "secure" => :boolean,
+        "same_site" => :string,
       }.freeze
       REQUIRED = %w[name value domain path expires http_only secure same_site].freeze
       attr_reader :name, :value, :domain, :path, :expires, :http_only, :secure, :same_site
@@ -657,15 +657,15 @@ module Stagehand
 
     class CookieParam < Stagehand::Wire::Model
       FIELDS = {
-        "name" => nil,
-        "value" => nil,
-        "url" => nil,
-        "domain" => nil,
-        "path" => nil,
-        "expires" => nil,
-        "http_only" => nil,
-        "secure" => nil,
-        "same_site" => nil,
+        "name" => :string,
+        "value" => :string,
+        "url" => :string,
+        "domain" => :string,
+        "path" => :string,
+        "expires" => :number,
+        "http_only" => :boolean,
+        "secure" => :boolean,
+        "same_site" => :string,
       }.freeze
       REQUIRED = %w[name value].freeze
       attr_reader :name, :value, :url, :domain, :path, :expires, :http_only, :secure, :same_site
@@ -691,8 +691,8 @@ module Stagehand
 
     class CookieRegex < Stagehand::Wire::Model
       FIELDS = {
-        "source" => nil,
-        "flags" => nil,
+        "source" => :string,
+        "flags" => :string,
       }.freeze
       REQUIRED = %w[source].freeze
       attr_reader :source, :flags
@@ -700,7 +700,7 @@ module Stagehand
 
     class ContextClipboardTarget < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :page_id
@@ -708,8 +708,8 @@ module Stagehand
 
     class ContextClipboardWriteTextParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "text" => nil,
+        "page_id" => :string,
+        "text" => :string,
       }.freeze
       REQUIRED = %w[text].freeze
       attr_reader :page_id, :text
@@ -717,8 +717,8 @@ module Stagehand
 
     class ContextClipboardPasteParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "shortcut" => nil,
+        "page_id" => :string,
+        "shortcut" => :string,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :page_id, :shortcut
@@ -726,8 +726,8 @@ module Stagehand
 
     class PageGotoParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "url" => nil,
+        "page_id" => :string,
+        "url" => :string,
         "options" => "PageNavigationOptions",
       }.freeze
       REQUIRED = %w[page_id url].freeze
@@ -736,8 +736,8 @@ module Stagehand
 
     class PageNavigationOptions < Stagehand::Wire::Model
       FIELDS = {
-        "wait_until" => nil,
-        "timeout" => nil,
+        "wait_until" => "LoadState",
+        "timeout" => :integer,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :wait_until, :timeout
@@ -750,7 +750,7 @@ module Stagehand
     class PageNavigationResult < Stagehand::Wire::Model
       FIELDS = {
         "page" => "PageRef",
-        "response" => [:union, ["NavigationResponseDescriptor", nil].freeze].freeze,
+        "response" => [:union, ["NavigationResponseDescriptor", :null].freeze].freeze,
       }.freeze
       REQUIRED = %w[page response].freeze
       attr_reader :page, :response
@@ -758,12 +758,12 @@ module Stagehand
 
     class NavigationResponseDescriptor < Stagehand::Wire::Model
       FIELDS = {
-        "response_id" => nil,
-        "url" => nil,
-        "status" => nil,
-        "status_text" => nil,
-        "headers" => nil,
-        "from_service_worker" => nil,
+        "response_id" => :string,
+        "url" => :string,
+        "status" => :integer,
+        "status_text" => :string,
+        "headers" => [:map, :string].freeze,
+        "from_service_worker" => :boolean,
       }.freeze
       REQUIRED = %w[response_id url status status_text headers from_service_worker].freeze
       attr_reader :response_id, :url, :status, :status_text, :headers, :from_service_worker
@@ -771,7 +771,7 @@ module Stagehand
 
     class PageIdParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
       }.freeze
       REQUIRED = %w[page_id].freeze
       attr_reader :page_id
@@ -779,7 +779,7 @@ module Stagehand
 
     class PageCloseResult < Stagehand::Wire::Model
       FIELDS = {
-        "closed" => nil,
+        "closed" => :boolean,
       }.freeze
       REQUIRED = %w[closed].freeze
       attr_reader :closed
@@ -787,7 +787,7 @@ module Stagehand
 
     class PageReloadParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
         "options" => "PageReloadOptions",
       }.freeze
       REQUIRED = %w[page_id].freeze
@@ -796,9 +796,9 @@ module Stagehand
 
     class PageReloadOptions < Stagehand::Wire::Model
       FIELDS = {
-        "wait_until" => nil,
-        "timeout" => nil,
-        "ignore_cache" => nil,
+        "wait_until" => "LoadState",
+        "timeout" => :integer,
+        "ignore_cache" => :boolean,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :wait_until, :timeout, :ignore_cache
@@ -806,7 +806,7 @@ module Stagehand
 
     class PageGoBackParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
         "options" => "PageNavigationOptions",
       }.freeze
       REQUIRED = %w[page_id].freeze
@@ -815,7 +815,7 @@ module Stagehand
 
     class PageGoForwardParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
         "options" => "PageNavigationOptions",
       }.freeze
       REQUIRED = %w[page_id].freeze
@@ -824,9 +824,9 @@ module Stagehand
 
     class PageClickParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "x" => nil,
-        "y" => nil,
+        "page_id" => :string,
+        "x" => :number,
+        "y" => :number,
         "options" => "PageClickOptions",
       }.freeze
       REQUIRED = %w[page_id x y].freeze
@@ -835,8 +835,8 @@ module Stagehand
 
     class PageClickOptions < Stagehand::Wire::Model
       FIELDS = {
-        "button" => nil,
-        "click_count" => nil,
+        "button" => "MouseButton",
+        "click_count" => :integer,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :button, :click_count
@@ -848,7 +848,7 @@ module Stagehand
 
     class PageVoidResult < Stagehand::Wire::Model
       FIELDS = {
-        "ok" => nil,
+        "ok" => :boolean,
       }.freeze
       REQUIRED = %w[ok].freeze
       attr_reader :ok
@@ -856,9 +856,9 @@ module Stagehand
 
     class PageHoverParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "x" => nil,
-        "y" => nil,
+        "page_id" => :string,
+        "x" => :number,
+        "y" => :number,
       }.freeze
       REQUIRED = %w[page_id x y].freeze
       attr_reader :page_id, :x, :y
@@ -866,11 +866,11 @@ module Stagehand
 
     class PageScrollParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "x" => nil,
-        "y" => nil,
-        "delta_x" => nil,
-        "delta_y" => nil,
+        "page_id" => :string,
+        "x" => :number,
+        "y" => :number,
+        "delta_x" => :number,
+        "delta_y" => :number,
       }.freeze
       REQUIRED = %w[page_id x y delta_x delta_y].freeze
       attr_reader :page_id, :x, :y, :delta_x, :delta_y
@@ -878,11 +878,11 @@ module Stagehand
 
     class PageDragAndDropParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "from_x" => nil,
-        "from_y" => nil,
-        "to_x" => nil,
-        "to_y" => nil,
+        "page_id" => :string,
+        "from_x" => :number,
+        "from_y" => :number,
+        "to_x" => :number,
+        "to_y" => :number,
         "options" => "PageDragAndDropOptions",
       }.freeze
       REQUIRED = %w[page_id from_x from_y to_x to_y].freeze
@@ -891,9 +891,9 @@ module Stagehand
 
     class PageDragAndDropOptions < Stagehand::Wire::Model
       FIELDS = {
-        "button" => nil,
-        "steps" => nil,
-        "delay" => nil,
+        "button" => "MouseButton",
+        "steps" => :integer,
+        "delay" => :number,
         "route" => [:array, "PageDragAndDropRoutePoint"].freeze,
       }.freeze
       REQUIRED = [].freeze
@@ -902,8 +902,8 @@ module Stagehand
 
     class PageDragAndDropRoutePoint < Stagehand::Wire::Model
       FIELDS = {
-        "x" => nil,
-        "y" => nil,
+        "x" => :number,
+        "y" => :number,
       }.freeze
       REQUIRED = %w[x y].freeze
       attr_reader :x, :y
@@ -911,8 +911,8 @@ module Stagehand
 
     class PageTypeParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "text" => nil,
+        "page_id" => :string,
+        "text" => :string,
         "options" => "PageTypeOptions",
       }.freeze
       REQUIRED = %w[page_id text].freeze
@@ -921,8 +921,8 @@ module Stagehand
 
     class PageTypeOptions < Stagehand::Wire::Model
       FIELDS = {
-        "delay" => nil,
-        "with_mistakes" => nil,
+        "delay" => :number,
+        "with_mistakes" => :boolean,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :delay, :with_mistakes
@@ -930,8 +930,8 @@ module Stagehand
 
     class PageKeyPressParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "key" => nil,
+        "page_id" => :string,
+        "key" => :string,
         "options" => "PageKeyPressOptions",
       }.freeze
       REQUIRED = %w[page_id key].freeze
@@ -940,7 +940,7 @@ module Stagehand
 
     class PageKeyPressOptions < Stagehand::Wire::Model
       FIELDS = {
-        "delay" => nil,
+        "delay" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :delay
@@ -948,8 +948,8 @@ module Stagehand
 
     class PageEvaluateParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "expression" => nil,
+        "page_id" => :string,
+        "expression" => :string,
       }.freeze
       REQUIRED = %w[page_id expression].freeze
       attr_reader :page_id, :expression
@@ -957,7 +957,7 @@ module Stagehand
 
     class PageEvaluateResult < Stagehand::Wire::Model
       FIELDS = {
-        "value" => nil,
+        "value" => "__schema9",
       }.freeze
       REQUIRED = %w[value].freeze
       attr_reader :value
@@ -965,8 +965,8 @@ module Stagehand
 
     class PageAddInitScriptParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "source" => nil,
+        "page_id" => :string,
+        "source" => :string,
       }.freeze
       REQUIRED = %w[page_id source].freeze
       attr_reader :page_id, :source
@@ -974,9 +974,9 @@ module Stagehand
 
     class PageOnParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "subscription_id" => nil,
-        "event" => nil,
+        "page_id" => :string,
+        "subscription_id" => :string,
+        "event" => "PageEventName",
       }.freeze
       REQUIRED = %w[page_id subscription_id event].freeze
       attr_reader :page_id, :subscription_id, :event
@@ -988,7 +988,7 @@ module Stagehand
 
     class PageOffParams < Stagehand::Wire::Model
       FIELDS = {
-        "subscription_id" => nil,
+        "subscription_id" => :string,
       }.freeze
       REQUIRED = %w[subscription_id].freeze
       attr_reader :subscription_id
@@ -996,8 +996,8 @@ module Stagehand
 
     class PageSetExtraHTTPHeadersParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "headers" => nil,
+        "page_id" => :string,
+        "headers" => [:map, :string].freeze,
       }.freeze
       REQUIRED = %w[page_id headers].freeze
       attr_reader :page_id, :headers
@@ -1005,7 +1005,7 @@ module Stagehand
 
     class PageScreenshotParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
         "options" => "PageScreenshotOptions",
       }.freeze
       REQUIRED = %w[page_id].freeze
@@ -1014,18 +1014,18 @@ module Stagehand
 
     class PageScreenshotOptions < Stagehand::Wire::Model
       FIELDS = {
-        "animations" => nil,
-        "caret" => nil,
+        "animations" => :string,
+        "caret" => :string,
         "clip" => "PageScreenshotClip",
-        "full_page" => nil,
+        "full_page" => :boolean,
         "mask" => [:array, "LocatorDescriptor"].freeze,
-        "mask_color" => nil,
-        "omit_background" => nil,
-        "quality" => nil,
-        "scale" => nil,
-        "style" => nil,
-        "timeout" => nil,
-        "type" => nil,
+        "mask_color" => :string,
+        "omit_background" => :boolean,
+        "quality" => :integer,
+        "scale" => :string,
+        "style" => :string,
+        "timeout" => :number,
+        "type" => :string,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :animations, :caret, :clip, :full_page, :mask, :mask_color, :omit_background, :quality, :scale, :style, :timeout, :type
@@ -1033,10 +1033,10 @@ module Stagehand
 
     class PageScreenshotClip < Stagehand::Wire::Model
       FIELDS = {
-        "x" => nil,
-        "y" => nil,
-        "width" => nil,
-        "height" => nil,
+        "x" => :number,
+        "y" => :number,
+        "width" => :number,
+        "height" => :number,
       }.freeze
       REQUIRED = %w[x y width height].freeze
       attr_reader :x, :y, :width, :height
@@ -1044,9 +1044,9 @@ module Stagehand
 
     class LocatorDescriptor < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
       }.freeze
       REQUIRED = %w[page_id selector].freeze
       attr_reader :page_id, :selector, :nth
@@ -1054,7 +1054,7 @@ module Stagehand
 
     class PageScreenshotResult < Stagehand::Wire::Model
       FIELDS = {
-        "data" => nil,
+        "data" => :string,
       }.freeze
       REQUIRED = %w[data].freeze
       attr_reader :data
@@ -1062,7 +1062,7 @@ module Stagehand
 
     class PageSnapshotParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
         "options" => "PageSnapshotOptions",
       }.freeze
       REQUIRED = %w[page_id].freeze
@@ -1071,7 +1071,7 @@ module Stagehand
 
     class PageSnapshotOptions < Stagehand::Wire::Model
       FIELDS = {
-        "include_iframes" => nil,
+        "include_iframes" => :boolean,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :include_iframes
@@ -1079,9 +1079,9 @@ module Stagehand
 
     class SnapshotResult < Stagehand::Wire::Model
       FIELDS = {
-        "formatted_tree" => nil,
-        "xpath_map" => nil,
-        "url_map" => nil,
+        "formatted_tree" => :string,
+        "xpath_map" => [:map, :string].freeze,
+        "url_map" => [:map, :string].freeze,
       }.freeze
       REQUIRED = %w[formatted_tree xpath_map url_map].freeze
       attr_reader :formatted_tree, :xpath_map, :url_map
@@ -1089,9 +1089,9 @@ module Stagehand
 
     class PageSetViewportSizeParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "width" => nil,
-        "height" => nil,
+        "page_id" => :string,
+        "width" => :integer,
+        "height" => :integer,
         "options" => "PageSetViewportSizeOptions",
       }.freeze
       REQUIRED = %w[page_id width height].freeze
@@ -1100,7 +1100,7 @@ module Stagehand
 
     class PageSetViewportSizeOptions < Stagehand::Wire::Model
       FIELDS = {
-        "device_scale_factor" => nil,
+        "device_scale_factor" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :device_scale_factor
@@ -1108,9 +1108,9 @@ module Stagehand
 
     class PageWaitForLoadStateParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "state" => nil,
-        "timeout" => nil,
+        "page_id" => :string,
+        "state" => "LoadState",
+        "timeout" => :integer,
       }.freeze
       REQUIRED = %w[page_id state].freeze
       attr_reader :page_id, :state, :timeout
@@ -1118,8 +1118,8 @@ module Stagehand
 
     class PageWaitForTimeoutParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "ms" => nil,
+        "page_id" => :string,
+        "ms" => :integer,
       }.freeze
       REQUIRED = %w[page_id ms].freeze
       attr_reader :page_id, :ms
@@ -1127,8 +1127,8 @@ module Stagehand
 
     class PageWaitForSelectorParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
+        "page_id" => :string,
+        "selector" => :string,
         "options" => "PageWaitForSelectorOptions",
       }.freeze
       REQUIRED = %w[page_id selector].freeze
@@ -1137,9 +1137,9 @@ module Stagehand
 
     class PageWaitForSelectorOptions < Stagehand::Wire::Model
       FIELDS = {
-        "state" => nil,
-        "timeout" => nil,
-        "pierce_shadow" => nil,
+        "state" => :string,
+        "timeout" => :integer,
+        "pierce_shadow" => :boolean,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :state, :timeout, :pierce_shadow
@@ -1147,7 +1147,7 @@ module Stagehand
 
     class PageWaitForSelectorResult < Stagehand::Wire::Model
       FIELDS = {
-        "matched" => nil,
+        "matched" => :boolean,
       }.freeze
       REQUIRED = %w[matched].freeze
       attr_reader :matched
@@ -1155,7 +1155,7 @@ module Stagehand
 
     class PageWebMCPToolsParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
+        "page_id" => :string,
         "options" => "WebMCPToolsOptions",
       }.freeze
       REQUIRED = %w[page_id].freeze
@@ -1164,7 +1164,7 @@ module Stagehand
 
     class WebMCPToolsOptions < Stagehand::Wire::Model
       FIELDS = {
-        "timeout" => nil,
+        "timeout" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :timeout
@@ -1180,12 +1180,12 @@ module Stagehand
 
     class WebMCPToolDescriptor < Stagehand::Wire::Model
       FIELDS = {
-        "name" => nil,
-        "description" => nil,
-        "input_schema" => nil,
+        "name" => :string,
+        "description" => :string,
+        "input_schema" => [:map, "WebMCPJsonValue"].freeze,
         "annotations" => "WebMCPAnnotation",
-        "frame_id" => nil,
-        "backend_node_id" => nil,
+        "frame_id" => :string,
+        "backend_node_id" => :integer,
       }.freeze
       REQUIRED = %w[name description frame_id].freeze
       attr_reader :name, :description, :input_schema, :annotations, :frame_id, :backend_node_id
@@ -1193,9 +1193,9 @@ module Stagehand
 
     class WebMCPAnnotation < Stagehand::Wire::Model
       FIELDS = {
-        "read_only" => nil,
-        "untrusted_content" => nil,
-        "autosubmit" => nil,
+        "read_only" => :boolean,
+        "untrusted_content" => :boolean,
+        "autosubmit" => :boolean,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :read_only, :untrusted_content, :autosubmit
@@ -1203,10 +1203,10 @@ module Stagehand
 
     class PageWebMCPInvokeToolParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "frame_id" => nil,
-        "tool_name" => nil,
-        "input" => nil,
+        "page_id" => :string,
+        "frame_id" => :string,
+        "tool_name" => :string,
+        "input" => [:map, "WebMCPJsonValue"].freeze,
       }.freeze
       REQUIRED = %w[page_id frame_id tool_name].freeze
       attr_reader :page_id, :frame_id, :tool_name, :input
@@ -1214,10 +1214,10 @@ module Stagehand
 
     class WebMCPInvocationDescriptor < Stagehand::Wire::Model
       FIELDS = {
-        "invocation_id" => nil,
-        "tool_name" => nil,
-        "frame_id" => nil,
-        "input" => nil,
+        "invocation_id" => :string,
+        "tool_name" => :string,
+        "frame_id" => :string,
+        "input" => [:map, "WebMCPJsonValue"].freeze,
       }.freeze
       REQUIRED = %w[invocation_id tool_name frame_id input].freeze
       attr_reader :invocation_id, :tool_name, :frame_id, :input
@@ -1225,8 +1225,8 @@ module Stagehand
 
     class PageWebMCPInvocationResultParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "invocation_id" => nil,
+        "page_id" => :string,
+        "invocation_id" => :string,
         "options" => "WebMCPResultOptions",
       }.freeze
       REQUIRED = %w[page_id invocation_id].freeze
@@ -1235,7 +1235,7 @@ module Stagehand
 
     class WebMCPResultOptions < Stagehand::Wire::Model
       FIELDS = {
-        "timeout" => nil,
+        "timeout" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :timeout
@@ -1243,11 +1243,11 @@ module Stagehand
 
     class WebMCPToolResponse < Stagehand::Wire::Model
       FIELDS = {
-        "invocation_id" => nil,
-        "status" => nil,
-        "output" => nil,
-        "error_text" => nil,
-        "exception" => nil,
+        "invocation_id" => :string,
+        "status" => "WebMCPInvocationStatus",
+        "output" => "WebMCPJsonValue",
+        "error_text" => :string,
+        "exception" => "WebMCPRemoteObject",
       }.freeze
       REQUIRED = %w[invocation_id status].freeze
       attr_reader :invocation_id, :status, :output, :error_text, :exception
@@ -1259,8 +1259,8 @@ module Stagehand
 
     class PageWebMCPCancelInvocationParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "invocation_id" => nil,
+        "page_id" => :string,
+        "invocation_id" => :string,
       }.freeze
       REQUIRED = %w[page_id invocation_id].freeze
       attr_reader :page_id, :invocation_id
@@ -1268,9 +1268,9 @@ module Stagehand
 
     class LocatorClickParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
         "options" => "LocatorClickOptions",
       }.freeze
       REQUIRED = %w[page_id selector].freeze
@@ -1279,8 +1279,8 @@ module Stagehand
 
     class LocatorClickOptions < Stagehand::Wire::Model
       FIELDS = {
-        "button" => nil,
-        "click_count" => nil,
+        "button" => "MouseButton",
+        "click_count" => :integer,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :button, :click_count
@@ -1288,7 +1288,7 @@ module Stagehand
 
     class LocatorClickResult < Stagehand::Wire::Model
       FIELDS = {
-        "clicked" => nil,
+        "clicked" => :boolean,
       }.freeze
       REQUIRED = %w[clicked].freeze
       attr_reader :clicked
@@ -1296,10 +1296,10 @@ module Stagehand
 
     class LocatorFillParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
-        "value" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
+        "value" => :string,
       }.freeze
       REQUIRED = %w[page_id selector value].freeze
       attr_reader :page_id, :selector, :nth, :value
@@ -1307,7 +1307,7 @@ module Stagehand
 
     class LocatorFillResult < Stagehand::Wire::Model
       FIELDS = {
-        "filled" => nil,
+        "filled" => :boolean,
       }.freeze
       REQUIRED = %w[filled].freeze
       attr_reader :filled
@@ -1315,7 +1315,7 @@ module Stagehand
 
     class LocatorHoverResult < Stagehand::Wire::Model
       FIELDS = {
-        "hovered" => nil,
+        "hovered" => :boolean,
       }.freeze
       REQUIRED = %w[hovered].freeze
       attr_reader :hovered
@@ -1323,10 +1323,10 @@ module Stagehand
 
     class LocatorScrollToParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
-        "percent" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
+        "percent" => [:union, [:number, :string].freeze].freeze,
       }.freeze
       REQUIRED = %w[page_id selector percent].freeze
       attr_reader :page_id, :selector, :nth, :percent
@@ -1334,7 +1334,7 @@ module Stagehand
 
     class LocatorScrollToResult < Stagehand::Wire::Model
       FIELDS = {
-        "scrolled" => nil,
+        "scrolled" => :boolean,
       }.freeze
       REQUIRED = %w[scrolled].freeze
       attr_reader :scrolled
@@ -1342,8 +1342,8 @@ module Stagehand
 
     class LocatorCentroidResult < Stagehand::Wire::Model
       FIELDS = {
-        "x" => nil,
-        "y" => nil,
+        "x" => :number,
+        "y" => :number,
       }.freeze
       REQUIRED = %w[x y].freeze
       attr_reader :x, :y
@@ -1351,9 +1351,9 @@ module Stagehand
 
     class LocatorHighlightParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
         "options" => "LocatorHighlightOptions",
       }.freeze
       REQUIRED = %w[page_id selector].freeze
@@ -1362,7 +1362,7 @@ module Stagehand
 
     class LocatorHighlightOptions < Stagehand::Wire::Model
       FIELDS = {
-        "duration_ms" => nil,
+        "duration_ms" => :integer,
         "border_color" => "RgbaColor",
         "content_color" => "RgbaColor",
       }.freeze
@@ -1372,10 +1372,10 @@ module Stagehand
 
     class RgbaColor < Stagehand::Wire::Model
       FIELDS = {
-        "r" => nil,
-        "g" => nil,
-        "b" => nil,
-        "a" => nil,
+        "r" => :number,
+        "g" => :number,
+        "b" => :number,
+        "a" => :number,
       }.freeze
       REQUIRED = %w[r g b].freeze
       attr_reader :r, :g, :b, :a
@@ -1383,7 +1383,7 @@ module Stagehand
 
     class LocatorHighlightResult < Stagehand::Wire::Model
       FIELDS = {
-        "highlighted" => nil,
+        "highlighted" => :boolean,
       }.freeze
       REQUIRED = %w[highlighted].freeze
       attr_reader :highlighted
@@ -1391,9 +1391,9 @@ module Stagehand
 
     class LocatorSendClickEventParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
         "options" => "LocatorSendClickEventOptions",
       }.freeze
       REQUIRED = %w[page_id selector].freeze
@@ -1402,10 +1402,10 @@ module Stagehand
 
     class LocatorSendClickEventOptions < Stagehand::Wire::Model
       FIELDS = {
-        "bubbles" => nil,
-        "cancelable" => nil,
-        "composed" => nil,
-        "detail" => nil,
+        "bubbles" => :boolean,
+        "cancelable" => :boolean,
+        "composed" => :boolean,
+        "detail" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :bubbles, :cancelable, :composed, :detail
@@ -1413,7 +1413,7 @@ module Stagehand
 
     class LocatorSendClickEventResult < Stagehand::Wire::Model
       FIELDS = {
-        "clicked" => nil,
+        "clicked" => :boolean,
       }.freeze
       REQUIRED = %w[clicked].freeze
       attr_reader :clicked
@@ -1421,10 +1421,10 @@ module Stagehand
 
     class LocatorTypeParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
-        "text" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
+        "text" => :string,
         "options" => "LocatorTypeOptions",
       }.freeze
       REQUIRED = %w[page_id selector text].freeze
@@ -1433,7 +1433,7 @@ module Stagehand
 
     class LocatorTypeOptions < Stagehand::Wire::Model
       FIELDS = {
-        "delay" => nil,
+        "delay" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :delay
@@ -1441,7 +1441,7 @@ module Stagehand
 
     class LocatorTypeResult < Stagehand::Wire::Model
       FIELDS = {
-        "typed" => nil,
+        "typed" => :boolean,
       }.freeze
       REQUIRED = %w[typed].freeze
       attr_reader :typed
@@ -1449,10 +1449,10 @@ module Stagehand
 
     class LocatorSelectOptionParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
-        "values" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
+        "values" => [:union, [:string, [:array, :string].freeze].freeze].freeze,
       }.freeze
       REQUIRED = %w[page_id selector values].freeze
       attr_reader :page_id, :selector, :nth, :values
@@ -1460,9 +1460,9 @@ module Stagehand
 
     class LocatorSetInputFilesParams < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "selector" => nil,
-        "nth" => nil,
+        "page_id" => :string,
+        "selector" => :string,
+        "nth" => :integer,
         "files" => [:array, "InputFilePayload"].freeze,
       }.freeze
       REQUIRED = %w[page_id selector files].freeze
@@ -1471,10 +1471,10 @@ module Stagehand
 
     class InputFilePayload < Stagehand::Wire::Model
       FIELDS = {
-        "name" => nil,
-        "mime_type" => nil,
-        "data" => nil,
-        "last_modified" => nil,
+        "name" => :string,
+        "mime_type" => :string,
+        "data" => :string,
+        "last_modified" => :integer,
       }.freeze
       REQUIRED = %w[name data].freeze
       attr_reader :name, :mime_type, :data, :last_modified
@@ -1482,7 +1482,7 @@ module Stagehand
 
     class LocatorSetInputFilesResult < Stagehand::Wire::Model
       FIELDS = {
-        "set" => nil,
+        "set" => :boolean,
       }.freeze
       REQUIRED = %w[set].freeze
       attr_reader :set
@@ -1490,7 +1490,7 @@ module Stagehand
 
     class ResponseIdParams < Stagehand::Wire::Model
       FIELDS = {
-        "response_id" => nil,
+        "response_id" => :string,
       }.freeze
       REQUIRED = %w[response_id].freeze
       attr_reader :response_id
@@ -1498,8 +1498,8 @@ module Stagehand
 
     class ResponseBodyResult < Stagehand::Wire::Model
       FIELDS = {
-        "body" => nil,
-        "base64_encoded" => nil,
+        "body" => :string,
+        "base64_encoded" => :boolean,
       }.freeze
       REQUIRED = %w[body base64_encoded].freeze
       attr_reader :body, :base64_encoded
@@ -1507,7 +1507,7 @@ module Stagehand
 
     class ResponseAllHeadersResult < Stagehand::Wire::Model
       FIELDS = {
-        "headers" => nil,
+        "headers" => [:map, :string].freeze,
       }.freeze
       REQUIRED = %w[headers].freeze
       attr_reader :headers
@@ -1523,8 +1523,8 @@ module Stagehand
 
     class NavigationHeader < Stagehand::Wire::Model
       FIELDS = {
-        "name" => nil,
-        "value" => nil,
+        "name" => :string,
+        "value" => :string,
       }.freeze
       REQUIRED = %w[name value].freeze
       attr_reader :name, :value
@@ -1532,7 +1532,7 @@ module Stagehand
 
     class ResponseSecurityDetailsResult < Stagehand::Wire::Model
       FIELDS = {
-        "value" => [:union, ["NavigationSecurityDetails", nil].freeze].freeze,
+        "value" => [:union, ["NavigationSecurityDetails", :null].freeze].freeze,
       }.freeze
       REQUIRED = %w[value].freeze
       attr_reader :value
@@ -1540,11 +1540,11 @@ module Stagehand
 
     class NavigationSecurityDetails < Stagehand::Wire::Model
       FIELDS = {
-        "issuer" => nil,
-        "protocol" => nil,
-        "subject_name" => nil,
-        "valid_from" => nil,
-        "valid_to" => nil,
+        "issuer" => :string,
+        "protocol" => :string,
+        "subject_name" => :string,
+        "valid_from" => :number,
+        "valid_to" => :number,
       }.freeze
       REQUIRED = %w[issuer protocol subject_name valid_from valid_to].freeze
       attr_reader :issuer, :protocol, :subject_name, :valid_from, :valid_to
@@ -1552,7 +1552,7 @@ module Stagehand
 
     class ResponseServerAddrResult < Stagehand::Wire::Model
       FIELDS = {
-        "value" => [:union, ["NavigationServerAddr", nil].freeze].freeze,
+        "value" => [:union, ["NavigationServerAddr", :null].freeze].freeze,
       }.freeze
       REQUIRED = %w[value].freeze
       attr_reader :value
@@ -1560,8 +1560,8 @@ module Stagehand
 
     class NavigationServerAddr < Stagehand::Wire::Model
       FIELDS = {
-        "ip_address" => nil,
-        "port" => nil,
+        "ip_address" => :string,
+        "port" => :integer,
       }.freeze
       REQUIRED = %w[ip_address port].freeze
       attr_reader :ip_address, :port
@@ -1569,7 +1569,7 @@ module Stagehand
 
     class ResponseFinishedResult < Stagehand::Wire::Model
       FIELDS = {
-        "error" => [:union, ["NavigationFinishedError", nil].freeze].freeze,
+        "error" => [:union, ["NavigationFinishedError", :null].freeze].freeze,
       }.freeze
       REQUIRED = %w[error].freeze
       attr_reader :error
@@ -1577,7 +1577,7 @@ module Stagehand
 
     class NavigationFinishedError < Stagehand::Wire::Model
       FIELDS = {
-        "message" => nil,
+        "message" => :string,
       }.freeze
       REQUIRED = %w[message].freeze
       attr_reader :message
@@ -1585,9 +1585,9 @@ module Stagehand
 
     class StagehandLog < Stagehand::Wire::Model
       FIELDS = {
-        "level" => nil,
-        "message" => nil,
-        "data" => nil,
+        "level" => "StagehandLogLevel",
+        "message" => :string,
+        "data" => "StagehandLogData",
       }.freeze
       REQUIRED = %w[level message data].freeze
       attr_reader :level, :message, :data
@@ -1599,7 +1599,7 @@ module Stagehand
 
     class PageCDPEventNotification < Stagehand::Wire::Model
       FIELDS = {
-        "subscription_id" => nil,
+        "subscription_id" => :string,
         "event" => "PageCDPEvent",
       }.freeze
       REQUIRED = %w[subscription_id event].freeze
@@ -1608,11 +1608,11 @@ module Stagehand
 
     class PageCDPEvent < Stagehand::Wire::Model
       FIELDS = {
-        "page_id" => nil,
-        "method" => nil,
-        "params" => nil,
-        "session_id" => nil,
-        "target_id" => nil,
+        "page_id" => :string,
+        "method" => :string,
+        "params" => "PageCDPEventParams",
+        "session_id" => :string,
+        "target_id" => :string,
       }.freeze
       REQUIRED = %w[page_id method params session_id target_id].freeze
       attr_reader :page_id, :method, :params, :session_id, :target_id
@@ -1621,11 +1621,11 @@ module Stagehand
     class BrowserbaseSessionCreateParams < Stagehand::Wire::Model
       FIELDS = {
         "browser_settings" => "BrowserbaseBrowserSettings",
-        "extension_id" => nil,
-        "keep_alive" => nil,
-        "proxies" => [:union, [[:array, "ProxyConfig"].freeze, nil].freeze].freeze,
-        "region" => nil,
-        "timeout" => nil,
+        "extension_id" => :string,
+        "keep_alive" => :boolean,
+        "proxies" => [:union, [:boolean, [:array, "ProxyConfig"].freeze].freeze].freeze,
+        "region" => "BrowserbaseRegion",
+        "timeout" => :number,
         "user_metadata" => nil,
       }.freeze
       REQUIRED = [].freeze
@@ -1634,18 +1634,18 @@ module Stagehand
 
     class BrowserbaseBrowserSettings < Stagehand::Wire::Model
       FIELDS = {
-        "advanced_stealth" => nil,
-        "block_ads" => nil,
-        "captcha_image_selector" => nil,
-        "captcha_input_selector" => nil,
+        "advanced_stealth" => :boolean,
+        "block_ads" => :boolean,
+        "captcha_image_selector" => :string,
+        "captcha_input_selector" => :string,
         "context" => "BrowserbaseContext",
-        "extension_id" => nil,
+        "extension_id" => :string,
         "fingerprint" => "BrowserbaseFingerprint",
-        "log_session" => nil,
-        "os" => nil,
-        "record_session" => nil,
-        "solve_captchas" => nil,
-        "verified" => nil,
+        "log_session" => :boolean,
+        "os" => :string,
+        "record_session" => :boolean,
+        "solve_captchas" => :boolean,
+        "verified" => :boolean,
         "viewport" => "BrowserbaseViewport",
       }.freeze
       REQUIRED = [].freeze
@@ -1654,8 +1654,8 @@ module Stagehand
 
     class BrowserbaseContext < Stagehand::Wire::Model
       FIELDS = {
-        "id" => nil,
-        "persist" => nil,
+        "id" => :string,
+        "persist" => :boolean,
       }.freeze
       REQUIRED = %w[id].freeze
       attr_reader :id, :persist
@@ -1663,11 +1663,11 @@ module Stagehand
 
     class BrowserbaseFingerprint < Stagehand::Wire::Model
       FIELDS = {
-        "browsers" => nil,
-        "devices" => nil,
-        "http_version" => nil,
-        "locales" => nil,
-        "operating_systems" => nil,
+        "browsers" => [:array, :string].freeze,
+        "devices" => [:array, :string].freeze,
+        "http_version" => :string,
+        "locales" => [:array, :string].freeze,
+        "operating_systems" => [:array, :string].freeze,
         "screen" => "BrowserbaseFingerprintScreen",
       }.freeze
       REQUIRED = [].freeze
@@ -1676,10 +1676,10 @@ module Stagehand
 
     class BrowserbaseFingerprintScreen < Stagehand::Wire::Model
       FIELDS = {
-        "max_height" => nil,
-        "max_width" => nil,
-        "min_height" => nil,
-        "min_width" => nil,
+        "max_height" => :number,
+        "max_width" => :number,
+        "min_height" => :number,
+        "min_width" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :max_height, :max_width, :min_height, :min_width
@@ -1687,8 +1687,8 @@ module Stagehand
 
     class BrowserbaseViewport < Stagehand::Wire::Model
       FIELDS = {
-        "width" => nil,
-        "height" => nil,
+        "width" => :number,
+        "height" => :number,
       }.freeze
       REQUIRED = [].freeze
       attr_reader :width, :height
@@ -1696,8 +1696,8 @@ module Stagehand
 
     class BrowserbaseProxyConfig < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
-        "domain_pattern" => nil,
+        "type" => :string,
+        "domain_pattern" => :string,
         "geolocation" => "BrowserbaseProxyGeolocation",
       }.freeze
       REQUIRED = %w[type].freeze
@@ -1706,9 +1706,9 @@ module Stagehand
 
     class BrowserbaseProxyGeolocation < Stagehand::Wire::Model
       FIELDS = {
-        "country" => nil,
-        "city" => nil,
-        "state" => nil,
+        "country" => :string,
+        "city" => :string,
+        "state" => :string,
       }.freeze
       REQUIRED = %w[country].freeze
       attr_reader :country, :city, :state
@@ -1716,11 +1716,11 @@ module Stagehand
 
     class ExternalProxyConfig < Stagehand::Wire::Model
       FIELDS = {
-        "type" => nil,
-        "server" => nil,
-        "domain_pattern" => nil,
-        "username" => nil,
-        "password" => nil,
+        "type" => :string,
+        "server" => :string,
+        "domain_pattern" => :string,
+        "username" => :string,
+        "password" => :string,
       }.freeze
       REQUIRED = %w[type server].freeze
       attr_reader :type, :server, :domain_pattern, :username, :password
@@ -1728,9 +1728,9 @@ module Stagehand
 
     class JSONRPCErrorObject < Stagehand::Wire::Model
       FIELDS = {
-        "code" => nil,
-        "message" => nil,
-        "data" => nil,
+        "code" => :integer,
+        "message" => :string,
+        "data" => "__schema14",
       }.freeze
       REQUIRED = %w[code message].freeze
       attr_reader :code, :message, :data
@@ -1740,18 +1740,18 @@ module Stagehand
       "StagehandInitParams" => StagehandInitParams,
       "ImplementationInfo" => ImplementationInfo,
       "BrowserSessionMetadata" => BrowserSessionMetadata,
-      "BrowserbaseRegion" => nil,
+      "BrowserbaseRegion" => [:enum, "BrowserbaseRegion"].freeze,
       "ModelConfig" => ModelConfig,
-      "OpenAIModelName" => nil,
-      "AnthropicModelName" => nil,
-      "GoogleModelName" => nil,
-      "GroqModelName" => nil,
-      "CerebrasModelName" => nil,
-      "ModelName" => nil,
+      "OpenAIModelName" => :string,
+      "AnthropicModelName" => :string,
+      "GoogleModelName" => :string,
+      "GroqModelName" => :string,
+      "CerebrasModelName" => :string,
+      "ModelName" => [:union, ["OpenAIModelName", "AnthropicModelName", "GoogleModelName", "GroqModelName", "CerebrasModelName"].freeze].freeze,
       "ClientModelReference" => ClientModelReference,
       "TelemetryConfig" => TelemetryConfig,
       "TelemetryTraces" => TelemetryTraces,
-      "Caching" => nil,
+      "Caching" => [:union, [:boolean, nil].freeze].freeze,
       "StagehandInitResult" => StagehandInitResult,
       "PageRef" => PageRef,
       "EmptyParams" => EmptyParams,
@@ -1761,13 +1761,13 @@ module Stagehand
       "ActOptions" => ActOptions,
       "Variables" => [:map, "VariableValue"].freeze,
       "VariableValue" => [:union, ["VariablePrimitive", "DescribedVariableValue"].freeze].freeze,
-      "VariablePrimitive" => nil,
+      "VariablePrimitive" => [:union, [:string, :number, :boolean].freeze].freeze,
       "DescribedVariableValue" => DescribedVariableValue,
       "Locator" => Locator,
       "ActResult" => ActResult,
       "ActResultData" => ActResultData,
       "StagehandResultMetadata" => StagehandResultMetadata,
-      "CacheStatus" => nil,
+      "CacheStatus" => [:enum, "CacheStatus"].freeze,
       "CacheTokenSavings" => CacheTokenSavings,
       "CacheMetadata" => CacheMetadata,
       "StagehandResultUsage" => StagehandResultUsage,
@@ -1775,36 +1775,36 @@ module Stagehand
       "ObserveOptions" => ObserveOptions,
       "ObserveResult" => ObserveResult,
       "StagehandExtractParams" => StagehandExtractParams,
-      "__schema0" => nil,
+      "__schema0" => [:union, [:string, :number, :boolean, :null, [:array, "__schema0"].freeze, [:map, "__schema0"].freeze].freeze].freeze,
       "ExtractOptions" => ExtractOptions,
       "ExtractResult" => ExtractResult,
-      "__schema1" => nil,
+      "__schema1" => [:union, [:string, :number, :boolean, :null, [:array, "__schema1"].freeze, [:map, "__schema1"].freeze].freeze].freeze,
       "StagehandMetrics" => StagehandMetrics,
       "CallbackBatchParams" => CallbackBatchParams,
-      "__schema2" => nil,
+      "__schema2" => [:union, [:string, :number, :boolean, :null, [:array, "__schema2"].freeze, [:map, "__schema2"].freeze].freeze].freeze,
       "CallbackBatchOptions" => CallbackBatchOptions,
       "CallbackBatchResult" => CallbackBatchResult,
-      "__schema3" => nil,
+      "__schema3" => [:union, [:string, :number, :boolean, :null, [:array, "__schema3"].freeze, [:map, "__schema3"].freeze].freeze].freeze,
       "LLMGenerateParams" => [:union, ["LLMStructuredGenerateParams", "LLMMessageGenerateParams"].freeze].freeze,
       "LLMStructuredGenerateParams" => LLMStructuredGenerateParams,
       "LLMMessage" => LLMMessage,
-      "LLMRole" => nil,
+      "LLMRole" => [:enum, "LLMRole"].freeze,
       "LLMMessageContentBlock" => [:union, ["LLMTextContent", "LLMImageContent", "LLMToolUseContent", "LLMToolResultContent"].freeze].freeze,
       "LLMTextContent" => LLMTextContent,
       "LLMAnnotations" => LLMAnnotations,
       "LLMImageContent" => LLMImageContent,
       "LLMToolUseContent" => LLMToolUseContent,
-      "__schema4" => nil,
+      "__schema4" => [:union, [:string, :number, :boolean, :null, [:array, "__schema4"].freeze, [:map, "__schema4"].freeze].freeze].freeze,
       "LLMToolResultContent" => LLMToolResultContent,
       "LLMToolResultContentBlock" => [:union, ["LLMTextContent", "LLMImageContent"].freeze].freeze,
-      "__schema5" => nil,
+      "__schema5" => [:union, [:string, :number, :boolean, :null, [:array, "__schema5"].freeze, [:map, "__schema5"].freeze].freeze].freeze,
       "LLMJsonSchemaResponseFormat" => LLMJsonSchemaResponseFormat,
-      "__schema6" => nil,
+      "__schema6" => [:union, [:string, :number, :boolean, :null, [:array, "__schema6"].freeze, [:map, "__schema6"].freeze].freeze].freeze,
       "LLMMessageGenerateParams" => LLMMessageGenerateParams,
       "LLMClientTool" => LLMClientTool,
       "LLMToolIcon" => LLMToolIcon,
       "LLMToolJson" => nil,
-      "__schema7" => nil,
+      "__schema7" => [:union, [:string, :number, :boolean, :null, [:array, "__schema7"].freeze, [:map, "__schema7"].freeze].freeze].freeze,
       "LLMToolExecution" => LLMToolExecution,
       "LLMToolAnnotations" => LLMToolAnnotations,
       "LLMToolChoice" => LLMToolChoice,
@@ -1813,16 +1813,16 @@ module Stagehand
       "LLMMessageGenerateResult" => LLMMessageGenerateResult,
       "LLMUsage" => LLMUsage,
       "LLMStructuredGenerateResult" => LLMStructuredGenerateResult,
-      "__schema8" => nil,
+      "__schema8" => [:union, [:string, :number, :boolean, :null, [:array, "__schema8"].freeze, [:map, "__schema8"].freeze].freeze].freeze,
       "ContextPagesResult" => [:array, "PageRef"].freeze,
       "ContextNewPageParams" => ContextNewPageParams,
-      "ContextActivePageResult" => [:union, ["PageRef", nil].freeze].freeze,
+      "ContextActivePageResult" => [:union, ["PageRef", :null].freeze].freeze,
       "ContextSetActivePageParams" => ContextSetActivePageParams,
       "ContextVoidResult" => ContextVoidResult,
       "ContextCloseResult" => ContextCloseResult,
       "ContextAddInitScriptParams" => ContextAddInitScriptParams,
       "ContextSetExtraHTTPHeadersParams" => ContextSetExtraHTTPHeadersParams,
-      "ContextGetDomainPolicyResult" => [:union, ["DomainPolicy", nil].freeze].freeze,
+      "ContextGetDomainPolicyResult" => [:union, ["DomainPolicy", :null].freeze].freeze,
       "DomainPolicy" => DomainPolicy,
       "ContextSetDomainPolicyParams" => ContextSetDomainPolicyParams,
       "ContextCookiesParams" => ContextCookiesParams,
@@ -1832,20 +1832,20 @@ module Stagehand
       "CookieParam" => CookieParam,
       "ContextClearCookiesParams" => ContextClearCookiesParams,
       "ClearCookieOptions" => ClearCookieOptions,
-      "CookieFilter" => [:union, ["CookieRegex", nil].freeze].freeze,
+      "CookieFilter" => [:union, [:string, "CookieRegex"].freeze].freeze,
       "CookieRegex" => CookieRegex,
       "ContextClipboardTarget" => ContextClipboardTarget,
-      "ContextClipboardReadTextResult" => nil,
+      "ContextClipboardReadTextResult" => :string,
       "ContextClipboardWriteTextParams" => ContextClipboardWriteTextParams,
       "ContextClipboardPasteParams" => ContextClipboardPasteParams,
       "PageGotoParams" => PageGotoParams,
       "PageNavigationOptions" => PageNavigationOptions,
-      "LoadState" => nil,
+      "LoadState" => [:enum, "LoadState"].freeze,
       "PageNavigationResult" => PageNavigationResult,
       "NavigationResponseDescriptor" => NavigationResponseDescriptor,
       "PageIdParams" => PageIdParams,
-      "PageUrlResult" => nil,
-      "PageTitleResult" => nil,
+      "PageUrlResult" => :string,
+      "PageTitleResult" => :string,
       "PageCloseResult" => PageCloseResult,
       "PageReloadParams" => PageReloadParams,
       "PageReloadOptions" => PageReloadOptions,
@@ -1853,7 +1853,7 @@ module Stagehand
       "PageGoForwardParams" => PageGoForwardParams,
       "PageClickParams" => PageClickParams,
       "PageClickOptions" => PageClickOptions,
-      "MouseButton" => nil,
+      "MouseButton" => [:enum, "MouseButton"].freeze,
       "PageVoidResult" => PageVoidResult,
       "PageHoverParams" => PageHoverParams,
       "PageScrollParams" => PageScrollParams,
@@ -1866,10 +1866,10 @@ module Stagehand
       "PageKeyPressOptions" => PageKeyPressOptions,
       "PageEvaluateParams" => PageEvaluateParams,
       "PageEvaluateResult" => PageEvaluateResult,
-      "__schema9" => nil,
+      "__schema9" => [:union, [:string, :number, :boolean, :null, [:array, "__schema9"].freeze, [:map, "__schema9"].freeze].freeze].freeze,
       "PageAddInitScriptParams" => PageAddInitScriptParams,
       "PageOnParams" => PageOnParams,
-      "PageEventName" => nil,
+      "PageEventName" => [:enum, "PageEventName"].freeze,
       "PageOffParams" => PageOffParams,
       "PageSetExtraHTTPHeadersParams" => PageSetExtraHTTPHeadersParams,
       "PageScreenshotParams" => PageScreenshotParams,
@@ -1891,16 +1891,16 @@ module Stagehand
       "WebMCPToolsOptions" => WebMCPToolsOptions,
       "PageWebMCPToolsResult" => PageWebMCPToolsResult,
       "WebMCPToolDescriptor" => WebMCPToolDescriptor,
-      "WebMCPJsonValue" => nil,
-      "__schema10" => nil,
+      "WebMCPJsonValue" => "__schema10",
+      "__schema10" => [:union, [:string, :number, :boolean, :null, [:array, "__schema10"].freeze, [:map, "__schema10"].freeze].freeze].freeze,
       "WebMCPAnnotation" => WebMCPAnnotation,
       "PageWebMCPInvokeToolParams" => PageWebMCPInvokeToolParams,
       "WebMCPInvocationDescriptor" => WebMCPInvocationDescriptor,
       "PageWebMCPInvocationResultParams" => PageWebMCPInvocationResultParams,
       "WebMCPResultOptions" => WebMCPResultOptions,
       "WebMCPToolResponse" => WebMCPToolResponse,
-      "WebMCPInvocationStatus" => nil,
-      "WebMCPRemoteObject" => nil,
+      "WebMCPInvocationStatus" => [:enum, "WebMCPInvocationStatus"].freeze,
+      "WebMCPRemoteObject" => [:map, "WebMCPJsonValue"].freeze,
       "PageWebMCPCancelInvocationParams" => PageWebMCPCancelInvocationParams,
       "LocatorClickParams" => LocatorClickParams,
       "LocatorClickOptions" => LocatorClickOptions,
@@ -1908,13 +1908,13 @@ module Stagehand
       "LocatorFillParams" => LocatorFillParams,
       "LocatorFillResult" => LocatorFillResult,
       "LocatorHoverResult" => LocatorHoverResult,
-      "LocatorCountResult" => nil,
-      "LocatorIsCheckedResult" => nil,
-      "LocatorInputValueResult" => nil,
-      "LocatorIsVisibleResult" => nil,
-      "LocatorInnerTextResult" => nil,
-      "LocatorInnerHtmlResult" => nil,
-      "LocatorTextContentResult" => nil,
+      "LocatorCountResult" => :integer,
+      "LocatorIsCheckedResult" => :boolean,
+      "LocatorInputValueResult" => :string,
+      "LocatorIsVisibleResult" => :boolean,
+      "LocatorInnerTextResult" => :string,
+      "LocatorInnerHtmlResult" => :string,
+      "LocatorTextContentResult" => :string,
       "LocatorScrollToParams" => LocatorScrollToParams,
       "LocatorScrollToResult" => LocatorScrollToResult,
       "LocatorCentroidResult" => LocatorCentroidResult,
@@ -1929,7 +1929,7 @@ module Stagehand
       "LocatorTypeOptions" => LocatorTypeOptions,
       "LocatorTypeResult" => LocatorTypeResult,
       "LocatorSelectOptionParams" => LocatorSelectOptionParams,
-      "LocatorSelectOptionResult" => nil,
+      "LocatorSelectOptionResult" => [:array, :string].freeze,
       "LocatorSetInputFilesParams" => LocatorSetInputFilesParams,
       "InputFilePayload" => InputFilePayload,
       "LocatorSetInputFilesResult" => LocatorSetInputFilesResult,
@@ -1945,13 +1945,13 @@ module Stagehand
       "ResponseFinishedResult" => ResponseFinishedResult,
       "NavigationFinishedError" => NavigationFinishedError,
       "StagehandLog" => StagehandLog,
-      "StagehandLogLevel" => nil,
-      "StagehandLogData" => nil,
-      "__schema11" => nil,
+      "StagehandLogLevel" => [:enum, "StagehandLogLevel"].freeze,
+      "StagehandLogData" => [:map, "__schema11"].freeze,
+      "__schema11" => [:union, [:string, :number, :boolean, :null, [:array, "__schema11"].freeze, [:map, "__schema11"].freeze].freeze].freeze,
       "PageCDPEventNotification" => PageCDPEventNotification,
       "PageCDPEvent" => PageCDPEvent,
-      "PageCDPEventParams" => nil,
-      "__schema12" => nil,
+      "PageCDPEventParams" => [:map, "__schema12"].freeze,
+      "__schema12" => [:union, [:string, :number, :boolean, :null, [:array, "__schema12"].freeze, [:map, "__schema12"].freeze].freeze].freeze,
       "BrowserbaseSessionCreateParams" => BrowserbaseSessionCreateParams,
       "BrowserbaseBrowserSettings" => BrowserbaseBrowserSettings,
       "BrowserbaseContext" => BrowserbaseContext,
@@ -1962,11 +1962,11 @@ module Stagehand
       "BrowserbaseProxyConfig" => BrowserbaseProxyConfig,
       "BrowserbaseProxyGeolocation" => BrowserbaseProxyGeolocation,
       "ExternalProxyConfig" => ExternalProxyConfig,
-      "JSONRPCRequestId" => nil,
-      "__schema13" => nil,
+      "JSONRPCRequestId" => :integer,
+      "__schema13" => [:union, [:string, :number, :boolean, :null, [:array, "__schema13"].freeze, [:map, "__schema13"].freeze].freeze].freeze,
       "JSONRPCErrorObject" => JSONRPCErrorObject,
-      "__schema14" => nil,
-      "JSONRPCErrorResponseId" => nil,
+      "__schema14" => [:union, [:string, :number, :boolean, :null, [:array, "__schema14"].freeze, [:map, "__schema14"].freeze].freeze].freeze,
+      "JSONRPCErrorResponseId" => [:union, ["JSONRPCRequestId", :null].freeze].freeze,
     }.freeze
 
     METHODS = {
@@ -1990,15 +1990,15 @@ module Stagehand
       "context.cookies" => { params: "ContextCookiesParams", result: "ContextCookiesResult" }.freeze,
       "context.add_cookies" => { params: "ContextAddCookiesParams", result: "ContextVoidResult" }.freeze,
       "context.clear_cookies" => { params: "ContextClearCookiesParams", result: "ContextVoidResult" }.freeze,
-      "context.clipboard_read_text" => { params: "ContextClipboardTarget", result: nil }.freeze,
+      "context.clipboard_read_text" => { params: "ContextClipboardTarget", result: "ContextClipboardReadTextResult" }.freeze,
       "context.clipboard_write_text" => { params: "ContextClipboardWriteTextParams", result: "ContextVoidResult" }.freeze,
       "context.clipboard_clear" => { params: "ContextClipboardTarget", result: "ContextVoidResult" }.freeze,
       "context.clipboard_paste" => { params: "ContextClipboardPasteParams", result: "ContextVoidResult" }.freeze,
       "context.clipboard_copy" => { params: "ContextClipboardTarget", result: "ContextVoidResult" }.freeze,
       "context.clipboard_cut" => { params: "ContextClipboardTarget", result: "ContextVoidResult" }.freeze,
       "page.goto" => { params: "PageGotoParams", result: "PageNavigationResult" }.freeze,
-      "page.url" => { params: "PageIdParams", result: nil }.freeze,
-      "page.title" => { params: "PageIdParams", result: nil }.freeze,
+      "page.url" => { params: "PageIdParams", result: "PageUrlResult" }.freeze,
+      "page.title" => { params: "PageIdParams", result: "PageTitleResult" }.freeze,
       "page.close" => { params: "PageIdParams", result: "PageCloseResult" }.freeze,
       "page.reload" => { params: "PageReloadParams", result: "PageNavigationResult" }.freeze,
       "page.go_back" => { params: "PageGoBackParams", result: "PageNavigationResult" }.freeze,
@@ -2027,19 +2027,19 @@ module Stagehand
       "locator.click" => { params: "LocatorClickParams", result: "LocatorClickResult" }.freeze,
       "locator.fill" => { params: "LocatorFillParams", result: "LocatorFillResult" }.freeze,
       "locator.hover" => { params: "LocatorDescriptor", result: "LocatorHoverResult" }.freeze,
-      "locator.count" => { params: "LocatorDescriptor", result: nil }.freeze,
-      "locator.is_checked" => { params: "LocatorDescriptor", result: nil }.freeze,
-      "locator.input_value" => { params: "LocatorDescriptor", result: nil }.freeze,
-      "locator.is_visible" => { params: "LocatorDescriptor", result: nil }.freeze,
-      "locator.inner_text" => { params: "LocatorDescriptor", result: nil }.freeze,
-      "locator.inner_html" => { params: "LocatorDescriptor", result: nil }.freeze,
-      "locator.text_content" => { params: "LocatorDescriptor", result: nil }.freeze,
+      "locator.count" => { params: "LocatorDescriptor", result: "LocatorCountResult" }.freeze,
+      "locator.is_checked" => { params: "LocatorDescriptor", result: "LocatorIsCheckedResult" }.freeze,
+      "locator.input_value" => { params: "LocatorDescriptor", result: "LocatorInputValueResult" }.freeze,
+      "locator.is_visible" => { params: "LocatorDescriptor", result: "LocatorIsVisibleResult" }.freeze,
+      "locator.inner_text" => { params: "LocatorDescriptor", result: "LocatorInnerTextResult" }.freeze,
+      "locator.inner_html" => { params: "LocatorDescriptor", result: "LocatorInnerHtmlResult" }.freeze,
+      "locator.text_content" => { params: "LocatorDescriptor", result: "LocatorTextContentResult" }.freeze,
       "locator.scroll_to" => { params: "LocatorScrollToParams", result: "LocatorScrollToResult" }.freeze,
       "locator.centroid" => { params: "LocatorDescriptor", result: "LocatorCentroidResult" }.freeze,
       "locator.highlight" => { params: "LocatorHighlightParams", result: "LocatorHighlightResult" }.freeze,
       "locator.send_click_event" => { params: "LocatorSendClickEventParams", result: "LocatorSendClickEventResult" }.freeze,
       "locator.type" => { params: "LocatorTypeParams", result: "LocatorTypeResult" }.freeze,
-      "locator.select_option" => { params: "LocatorSelectOptionParams", result: nil }.freeze,
+      "locator.select_option" => { params: "LocatorSelectOptionParams", result: "LocatorSelectOptionResult" }.freeze,
       "locator.set_input_files" => { params: "LocatorSetInputFilesParams", result: "LocatorSetInputFilesResult" }.freeze,
       "response.body" => { params: "ResponseIdParams", result: "ResponseBodyResult" }.freeze,
       "response.all_headers" => { params: "ResponseIdParams", result: "ResponseAllHeadersResult" }.freeze,
