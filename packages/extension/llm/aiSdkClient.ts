@@ -7,6 +7,11 @@ import { generateText, jsonSchema, Output } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { z } from "zod/v4";
 import {
+  createStructuredOutputContract,
+  StructuredOutputValidationError,
+  type StructuredOutputContract,
+} from "./structuredOutput.js";
+import {
   AnthropicModelIdSchema,
   CerebrasModelIdSchema,
   createLLMGenerateResultSchema,
@@ -172,6 +177,23 @@ export async function generateWithAiSdk(
   input: LLMGenerateParams,
 ): Promise<LLMGenerateResult> {
   const params = LLMGenerateParamsSchema.parse(input);
+  let structuredOutputContract: StructuredOutputContract | undefined;
+  let structuredOutput: { output: ReturnType<typeof Output.object> } | undefined;
+  if (params.responseFormat?.type === "json_schema") {
+    const format = params.responseFormat;
+    structuredOutputContract = createStructuredOutputContract(
+      "AI SDK structured output",
+      format.schema as Record<string, unknown>,
+      "AI SDK",
+    );
+    structuredOutput = {
+      output: Output.object({
+        name: format.name,
+        description: format.description,
+        schema: dynamicAiSdkSchema(structuredOutputContract),
+      }),
+    };
+  }
   const configuredTools = "tools" in params ? params.tools : undefined;
   const configuredToolChoice = "toolChoice" in params ? params.toolChoice : undefined;
   if (configuredToolChoice && !configuredTools?.length) {
@@ -196,17 +218,7 @@ export async function generateWithAiSdk(
     stopSequences: params.stopSequences,
     tools,
     toolChoice: tools ? (configuredToolChoice?.mode ?? "auto") : undefined,
-    ...(params.responseFormat?.type === "json_schema"
-      ? {
-          output: Output.object({
-            name: params.responseFormat.name,
-            description: params.responseFormat.description,
-            schema: z.fromJSONSchema(
-              params.responseFormat.schema as Parameters<typeof z.fromJSONSchema>[0],
-            ),
-          }),
-        }
-      : {}),
+    ...structuredOutput,
   });
 
   // The AI SDK result's `output` getter throws NoOutputGeneratedError unless
@@ -219,6 +231,11 @@ export async function generateWithAiSdk(
     usage: response.usage,
     ...(params.responseFormat?.type === "json_schema" ? { output: response.output } : {}),
   };
+
+  if (structuredOutputContract !== undefined) {
+    const validation = structuredOutputContract.validate(response.output);
+    if (validation.issues) throw new StructuredOutputValidationError(validation.issues);
+  }
 
   const result = AiSdkGenerationSchema.transform((value) => {
     const content = [
@@ -262,4 +279,18 @@ export async function generateWithAiSdk(
   const candidate: unknown = result;
   const validatedResult: unknown = createLLMGenerateResultSchema(params).parse(candidate);
   return LLMGenerateResultSchema.parse(validatedResult);
+}
+
+function dynamicAiSdkSchema(contract: StructuredOutputContract) {
+  return jsonSchema(contract.jsonSchema, {
+    validate: (value) => {
+      const result = contract.validate(value);
+      return result.issues
+        ? {
+            success: false as const,
+            error: new StructuredOutputValidationError(result.issues),
+          }
+        : { success: true as const, value: result.value };
+    },
+  });
 }

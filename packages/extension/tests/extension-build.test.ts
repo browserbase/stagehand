@@ -130,6 +130,7 @@ describe("extension build", () => {
     expect(serviceWorker).not.toContain("__vite_browser_external");
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");
     expect(serviceWorker).not.toContain("__v3Cursor");
+    expect(serviceWorker).toContain("jitless: true");
     expect(JSON.stringify(manifest)).not.toContain("stagehand-smoke-worker");
   });
 

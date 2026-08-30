@@ -47,6 +47,8 @@ extracted, err := stagehand.Extract[repository](
 
 `extract()` grabs structured data from a webpage. Every call takes an instruction and an output shape: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a Go type parameter whose JSON Schema Stagehand derives automatically. Stagehand validates the result against that shape before returning it, so what you get back is already typed.
 
+Other TypeScript schema libraries work too. See [supported TypeScript schema implementations](/v4/reference/stagehand#supported-typescript-schema-implementations).
+
 ## Why use `extract()`?
 
 <CardGroup cols={2}>

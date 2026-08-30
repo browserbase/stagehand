@@ -5,6 +5,11 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@valibot/to-json-schema": 1.7.1
+  "@standard-schema/spec": 1.1.0
+  "@cfworker/json-schema": 4.1.1
+  arktype: 2.2.3
+  valibot: 1.4.2
   "@modelcontextprotocol/sdk": 1.29.0
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6
@@ -56,8 +61,15 @@ catalog:
   mint: 4.2.788
   publint: ^0.3.8
   smol-toml: 1.7.0
+catalogs:
+  sdk-minimum:
+    zod: ^4.2.0
 overrides:
   vite: "catalog:"
+  zod: "catalog:"
+  "@mintlify/cli>zod": 4.3.6
+  "@mintlify/validation>zod": 3.24.0
+  "@mintlify/scraping>zod": 3.24.0
 allowBuilds:
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
@@ -67,6 +79,7 @@ allowBuilds:
   bufferutil: false
   esbuild: true
   keytar: false
+  msgpackr-extract: false
   protobufjs: false
   puppeteer: false
   sharp: true

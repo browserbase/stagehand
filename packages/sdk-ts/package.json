@@ -45,12 +45,18 @@
     "@browserbasehq/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
-    "zod": "catalog:"
+    "@standard-schema/spec": "catalog:",
+    "zod": "catalog:sdk-minimum"
   },
   "devDependencies": {
+    "@valibot/to-json-schema": "catalog:",
+    "arktype": "catalog:",
+    "effect": "4.0.0-rc.112",
     "publint": "catalog:",
     "tsdown": "catalog:",
-    "vitest": "catalog:"
+    "valibot": "catalog:",
+    "vitest": "catalog:",
+    "zod3": "npm:zod@3.25.76"
   },
   "engines": {
     "node": ">=22.18.0"

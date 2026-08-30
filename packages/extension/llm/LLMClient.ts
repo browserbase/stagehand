@@ -12,6 +12,7 @@ import type { z } from "zod/v4";
 import type { ModelName } from "../../protocol/types.js";
 import type { StagehandLogger } from "../logger.js";
 import type { ChatCompletionOptionsSchema } from "./schemas.js";
+import type { StructuredOutputContract } from "./structuredOutput.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -117,7 +118,7 @@ export abstract class LLMClient {
   abstract createChatCompletion<T>(
     options: CreateChatCompletionOptions & {
       options: {
-        response_model: { name: string; schema: z.ZodType };
+        response_model: StructuredOutputContract<T>;
       };
     },
   ): Promise<LLMParsedResponse<T>>;

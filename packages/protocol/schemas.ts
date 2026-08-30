@@ -565,8 +565,8 @@ export const LLMGenerateResultSchema = z
 /**
  * Builds the result validator for a particular llm.generate request.
  *
- * Prefer the original in-memory Zod schema. When only the wire JSON Schema is
- * available, Zod can recreate an equivalent validator.
+ * Prefer an original in-memory Zod schema when one exists. Foreign wire JSON
+ * Schema validation belongs to the extension's hardened interpreter boundary.
  */
 export function createLLMGenerateResultSchema(
   params: z.output<typeof LLMGenerateParamsSchema>,
@@ -576,9 +576,7 @@ export function createLLMGenerateResultSchema(
     return LLMMessageGenerateResultSchema;
   }
 
-  const structuredContentSchema =
-    originalStructuredContentSchema ??
-    z.fromJSONSchema(params.responseFormat.schema as Parameters<typeof z.fromJSONSchema>[0]);
+  const structuredContentSchema = originalStructuredContentSchema ?? z.json();
 
   return LLMGenerateBaseResultSchema.extend({
     outputFormat: z.literal("json_schema"),
@@ -1632,7 +1630,9 @@ export const DefaultExtractDataSchema = z
   })
   .meta({ id: "DefaultExtractData" });
 
-export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z
+  .json()
+  .parse(z.toJSONSchema(z.strictObject({ extraction: z.string() }), { target: "draft-2020-12" }));
 
 export const StagehandExtractParamsSchema = z
   .strictObject({

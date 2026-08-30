@@ -10,15 +10,19 @@ import type { StagehandRpcNotification } from "../../protocol/types.js";
 import {
   BrowserClipboard,
   BrowserContext,
+  jsonSchema,
   type ExperimentalBatchContext,
   Locator,
   Page,
   Response,
   Stagehand,
+  StagehandSchemaError,
+  StagehandValidationError,
   type StagehandMetrics,
   WebMCPInvocation,
   WebMCPTool,
 } from "../src/index.js";
+import { resolveExtractSchema } from "../src/schema.js";
 import { RPCClient } from "../src/rpcClient.js";
 import {
   attachStagehandBrowserContext,
@@ -1392,13 +1396,49 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.stagehandExtract, {
         pageId: "page-1",
         instruction: "Extract the page heading",
-        schema: z.json().parse(z.toJSONSchema(schema)),
+        schema: resolveExtractSchema(schema).jsonSchema,
         options: {
           locator: { selector: "main", nth: 1 },
           ignoreLocators: [{ selector: "nav" }],
         },
       }),
     ]);
+  });
+
+  it("transports a wrapped plain JSON Schema unchanged", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      data: { heading: "Example Domain" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-1" });
+    const properties = { heading: { type: "string" as const } };
+    const schema = jsonSchema<{ heading: string }>({
+      type: "object",
+      properties,
+      required: ["heading"],
+      additionalProperties: false,
+    });
+
+    await expect(stagehand.extract("Extract the page heading", schema, { page })).resolves.toEqual({
+      data: { heading: "Example Domain" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
+    });
+    expect(client.calls).toContainEqual(
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page heading",
+        schema: {
+          $schema: "https://json-schema.org/draft/2020-12/schema",
+          type: "object",
+          properties,
+          required: ["heading"],
+          additionalProperties: false,
+        },
+        options: {},
+      }),
+    );
   });
 
   it("uses the default extraction schema when stagehand.extract omits a schema", async () => {
@@ -1444,6 +1484,23 @@ describe("Stagehand TS object wrapper", () => {
         options: { locator: { selector: "main" } },
       }),
     ]);
+  });
+
+  it("rejects incomplete Standard Schema inputs before sending an RPC request", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    const validateOnly = {
+      "~standard": {
+        version: 1,
+        vendor: "validate-only",
+        validate: (value: unknown) => ({ value }),
+      },
+    };
+
+    await expect(stagehand.extract("Extract the page text", validateOnly as never)).rejects.toThrow(
+      StagehandSchemaError,
+    );
+    expect(client.calls).toStrictEqual([]);
   });
 
   it("rejects act, observe, and extract locators from a different page", async () => {
@@ -1510,7 +1567,31 @@ describe("Stagehand TS object wrapper", () => {
 
     await expect(
       stagehand.extract("Extract the page heading", z.object({ heading: z.string() }), { page }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(StagehandValidationError);
+  });
+
+  it("validates and transforms extract responses through Standard Schema", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      data: { length: "hello" },
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-1" });
+    const schema = z.object({ length: z.string().transform((value) => value.length) });
+
+    const result = await stagehand.extract("Measure the heading", schema, { page });
+
+    expectTypeOf(result.data).toEqualTypeOf<{ length: number }>();
+    expect(result.data).toEqual({ length: 5 });
+    expect(client.calls).toContainEqual(
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Measure the heading",
+        schema: resolveExtractSchema(schema).jsonSchema,
+        options: {},
+      }),
+    );
   });
 
   it("does not expose AI methods on Page", () => {

@@ -20,13 +20,33 @@ describe("protocol schema metadata", () => {
         expect(id, `${moduleName}.${name} must declare Zod metadata with an ID`).toBeTypeOf(
           "string",
         );
-
         const registeredSchema = schemasById.get(id!);
         expect(
           registeredSchema === undefined || registeredSchema === schema,
           `${moduleName}.${name} reuses JSON Schema ID ${id!} for a different Zod schema`,
         ).toBe(true);
         schemasById.set(id!, schema);
+      }
+    }
+  });
+
+  it("keeps every registered protocol schema wire-emittable", () => {
+    for (const [kind, definitions] of Object.entries({
+      method: SchemaRegistry.StagehandMethods,
+      notification: SchemaRegistry.StagehandNotifications,
+    })) {
+      for (const definition of Object.values(definitions)) {
+        for (const [role, schema] of Object.entries(definition)) {
+          if (role !== "params" && role !== "result") continue;
+          expect(
+            () =>
+              z.toJSONSchema(schema as z.ZodType, {
+                io: "input",
+                target: "draft-2020-12",
+              }),
+            `${kind} ${definition.name} ${role} must not contain runtime-only Zod values`,
+          ).not.toThrow();
+        }
       }
     }
   });

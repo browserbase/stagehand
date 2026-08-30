@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build --config vite.config.ts",
-    "test": "pnpm run build && vitest run --root ../.. packages/extension/tests",
-    "test:unit": "vitest run --root ../.. packages/extension/tests packages/extension/understudy"
+    "test": "pnpm run build && vitest run --root ../.. packages/extension/tests packages/extension/llm",
+    "test:unit": "vitest run --root ../.. packages/extension/tests packages/extension/understudy packages/extension/llm"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "catalog:",
@@ -15,6 +15,7 @@
     "@ai-sdk/groq": "catalog:",
     "@ai-sdk/openai": "catalog:",
     "@ai-sdk/provider": "catalog:",
+    "@cfworker/json-schema": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
     "@opentelemetry/exporter-trace-otlp-http": "catalog:",

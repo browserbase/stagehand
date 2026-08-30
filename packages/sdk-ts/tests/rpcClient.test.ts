@@ -16,8 +16,8 @@ import {
 
 const UppercaseMethod = {
   name: "test.uppercase",
-  params: z.object({ value: z.string() }).strict(),
-  result: z.object({ value: z.string() }).strict(),
+  params: z.strictObject({ value: z.string() }),
+  result: z.strictObject({ value: z.string() }),
 } as const satisfies RPCMethod;
 
 class FakeCDPTransport implements CDPTransport {

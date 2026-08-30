@@ -1,11 +1,11 @@
-import { generateText, NoObjectGeneratedError, Output } from "ai";
+import { generateText, jsonSchema, NoObjectGeneratedError, Output } from "ai";
 import type { ImagePart, LanguageModel, ModelMessage, TextPart, Tool, ToolSet } from "ai";
 import type { JSONValue } from "@ai-sdk/provider";
-import { z } from "zod/v4";
 import type { ClientOptions, ModelName } from "../../protocol/types.js";
 import { CreateChatCompletionOptions, LLMClient, type LLMResponse } from "./LLMClient.js";
 import { ChatCompletionOptionsSchema } from "./schemas.js";
 import { anthropicFallbacksOptions } from "./anthropicOptions.js";
+import { providerJsonSchema, StructuredOutputValidationError } from "./structuredOutput.js";
 
 type ProviderOptionValue = JSONValue;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;
@@ -200,6 +200,10 @@ export class AISdkClient extends LLMClient {
     }
 
     if (options.response_model) {
+      const isolatedJsonSchema = providerJsonSchema(
+        options.response_model.jsonSchema,
+        providerName,
+      );
       // Log LLM request for structured generation (extract)
       const promptSummary = summarizeLlmPrompt(options.messages, {
         hasSchema: true,
@@ -212,11 +216,11 @@ export class AISdkClient extends LLMClient {
 
       // For models that don't support native structured outputs, add a prompt instruction
       if (needsPromptJsonFallback) {
-        const parsedSchema = JSON.stringify(z.toJSONSchema(options.response_model.schema));
+        const parsedSchema = JSON.stringify(isolatedJsonSchema);
 
         formattedMessages.push({
           role: "user",
-          content: `Respond in this zod schema format:\n${parsedSchema}\n
+          content: `Respond in this JSON Schema format:\n${parsedSchema}\n
 You must respond in JSON format. respond WITH JSON. Do not include any other text, formatting or markdown in your output. Do not include \`\`\` or \`\`\`json in your response. Only the JSON object itself.`,
         });
       }
@@ -231,7 +235,17 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
               messages: formattedMessages,
               output: Output.object({
                 name: options.response_model.name,
-                schema: options.response_model.schema,
+                schema: jsonSchema(isolatedJsonSchema, {
+                  validate: (value) => {
+                    const result = options.response_model!.validate(value);
+                    return result.issues
+                      ? {
+                          success: false as const,
+                          error: new StructuredOutputValidationError(result.issues),
+                        }
+                      : { success: true as const, value: result.value };
+                  },
+                }),
               }),
               maxRetries: options.maxRetries,
               ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {}),

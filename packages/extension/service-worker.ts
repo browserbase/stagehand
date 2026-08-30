@@ -1,3 +1,4 @@
+import "./zod-runtime.js";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,

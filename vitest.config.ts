@@ -14,6 +14,7 @@ export default defineConfig({
       "packages/integrations/claude-agent-sdk/tests/**/*.test.ts",
       "packages/integrations/codex-sdk/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
+      "packages/extension/llm/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",

@@ -39,7 +39,18 @@ export {
 } from "./response.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
-export { Stagehand, type ExtractResult } from "./stagehand.js";
+export { Stagehand, type ExtractMetadata, type ExtractResult } from "./stagehand.js";
+export {
+  jsonSchema,
+  StagehandSchemaError,
+  StagehandValidationError,
+  type JsonSchemaDocument,
+  type StagehandJsonSchema,
+  type StagehandSchema,
+  type StagehandSchemaOutput,
+  type StandardJSONSchemaV1,
+  type StandardSchemaV1,
+} from "./schema.js";
 export type {
   ExperimentalBatchCallback,
   ExperimentalBatchBrowserContext,

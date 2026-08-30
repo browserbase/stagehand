@@ -14,6 +14,6 @@ export async function generateWithClientLlm(
 ): Promise<LLMGenerateResult> {
   const params = LLMGenerateParamsSchema.parse(input);
   const candidate: unknown = await request(params);
-  const validatedResult: unknown = createLLMGenerateResultSchema(params).parse(candidate);
+  const validatedResult = createLLMGenerateResultSchema(params).parse(candidate);
   return LLMGenerateResultSchema.parse(validatedResult);
 }

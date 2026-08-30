@@ -5,15 +5,14 @@ import { z } from "zod/v4";
  *
  * - The JSON-schema literals below are the WIRE contract — the exact bytes
  *   advertised to MCP clients via tools/list. They are hand-written because
- *   they cannot be generated from the zod schemas: the `const`-typed `op`
- *   discriminators and the per-property guidance descriptions do not survive
- *   zod-to-JSON-schema conversion, and `.refine()` emits nothing at all.
+ *   the `const`-typed `op` discriminators, property guidance, and cross-field
+ *   refinement are part of the model prompt as well as runtime validation.
  *   Their wording is pinned string-exact to the reference contract (models
  *   are prompted against these descriptions) — see
  *   tests/facade-contract.test.ts. One deliberate deviation is documented on
  *   RUN_INPUT_SCHEMA below.
  *
- * - The zod schemas at the bottom are the RUNTIME validators: they parse
+ * - The Zod schemas at the bottom are the RUNTIME validators: they parse
  *   tools/call arguments into typed values and enforce what the wire schema
  *   states (e.g. the code/actions exclusivity via `.refine`).
  *
