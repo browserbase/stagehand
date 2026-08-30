@@ -32,7 +32,6 @@
     "@browserbasehq/stagehand-integrations-fx-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
-    "@browserbasehq/stagehand-integrations-fx-sdk": "workspace:*",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
