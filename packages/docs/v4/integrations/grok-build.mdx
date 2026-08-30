@@ -69,9 +69,9 @@ pnpm --dir packages/integrations/grok-build start -- \
 
 The example opens one ACP session with Grok and mounts exactly one MCP server: the Stagehand facade. That server owns the browser for the full prompt turn, so `run`, `snapshot`, and `screenshot` share page state. Preserve that lifetime if you adapt the integration; a new process per tool call starts a new browser.
 
-Grok is restricted to a browser-only tool surface, matching the Claude and Codex examples. An agent profile allowlists only `search_tool` and `use_tool` (required to discover and invoke lazy MCP tools). Shell, file, plan, subagent, memory, and web-search capabilities are denied. The client approves one-time permission only for `stagehand__run`, `stagehand__snapshot`, and `stagehand__screenshot`; everything else is rejected or cancelled.
+The agent profile restricts Grok to a browser-only tool surface, matching the Claude and Codex examples. It allows only `search_tool` and `use_tool`, which discover and invoke lazy MCP tools, and denies shell, file, plan, subagent, memory, and web-search capabilities. The client approves one-time permission only for `stagehand__run`, `stagehand__snapshot`, and `stagehand__screenshot`; it rejects or cancels everything else.
 
-Each run uses a disposable workspace, home directory, and `GROK_HOME`. Compatibility MCP imports from Claude/Cursor are disabled, and user or project MCP servers, plugins, hooks, skills, and rules are not loaded. A minimal launcher creates the actual facade runtime with non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables plus basic OS values needed to launch Node and local Chrome; `XAI_API_KEY` and unrelated host secrets are unavailable to the facade. The ACP bridge terminates the full agent process tree on cancellation or failure.
+Each run uses a disposable workspace, home directory, and `GROK_HOME`. The launcher disables compatibility MCP imports from Claude and Cursor, and it does not load user or project MCP servers, plugins, hooks, skills, or rules. A minimal launcher creates the actual facade runtime with non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables plus basic OS values needed to launch Node and local Chrome; it does not expose `XAI_API_KEY` or unrelated host secrets to the facade. The ACP bridge terminates the full agent process tree on cancellation or failure.
 
 ## Troubleshooting
 

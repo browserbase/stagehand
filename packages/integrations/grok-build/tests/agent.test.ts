@@ -113,7 +113,7 @@ describe("Grok ACP profile", () => {
   it("resolves the packaged Grok executable", async () => {
     const executable = resolveGrokExecutable();
     await expect(access(executable)).resolves.toBeUndefined();
-    expect(executable).toContain("@xai-official/grok/bin/grok");
+    expect(executable.replaceAll("\\", "/")).toContain("@xai-official/grok/bin/grok");
   });
 
   it("resolves cached auth only from the supplied environment", () => {
@@ -122,6 +122,9 @@ describe("Grok ACP profile", () => {
     expect(resolveGrokAuthHome({ USERPROFILE: "C:\\Users\\test" })).toBe(
       join("C:\\Users\\test", ".grok"),
     );
+    expect(
+      resolveGrokAuthHome({ HOME: "/git-bash/home", USERPROFILE: "C:\\Users\\test" }, "win32"),
+    ).toBe(join("C:\\Users\\test", ".grok"));
     expect(resolveGrokAuthHome({})).toBeUndefined();
   });
 });

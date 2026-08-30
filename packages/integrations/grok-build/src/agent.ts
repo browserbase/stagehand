@@ -4,6 +4,7 @@ import type {
 } from "@browserbasehq/stagehand-integrations/acp";
 import { runAcpFacadeAgent } from "@browserbasehq/stagehand-integrations/acp";
 import { FACADE_TOOLS } from "@browserbasehq/stagehand-integrations/facade";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { createRequire } from "node:module";
 import { access, copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -55,10 +56,16 @@ export function resolveGrokExecutable(): string {
   return require.resolve("@xai-official/grok/bin/grok");
 }
 
-export function resolveGrokAuthHome(env: NodeJS.ProcessEnv): string | undefined {
+export function resolveGrokAuthHome(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+): string | undefined {
   const configured = env.GROK_HOME?.trim();
   if (configured) return configured;
-  const userHome = env.HOME?.trim() || env.USERPROFILE?.trim();
+  const userHome =
+    platform === "win32"
+      ? env.USERPROFILE?.trim() || env.HOME?.trim()
+      : env.HOME?.trim() || env.USERPROFILE?.trim();
   return userHome ? join(userHome, ".grok") : undefined;
 }
 
@@ -245,6 +252,6 @@ if (import.meta.main) {
 
 function handleFailure(error: unknown): void {
   // oxlint-disable-next-line no-console -- CLI example reports failures to stderr.
-  console.error(error instanceof Error ? error.message : error);
+  console.error(sanitizeErrorMessage(error instanceof Error ? error.message : String(error)));
   process.exitCode = 1;
 }

@@ -2,6 +2,8 @@ import { ndJsonStream, type Stream } from "@agentclientprotocol/sdk";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 
+import { HarnessAdapterError } from "../harness/contract.js";
+
 export type AcpAgentProcess = {
   readonly transport: Stream;
   readonly started: Promise<void>;
@@ -24,7 +26,9 @@ export function spawnAcpAgentProcess(options: {
   });
   const started = new Promise<void>((resolve, reject) => {
     child.once("spawn", resolve);
-    child.on("error", reject);
+    child.on("error", (error) => {
+      reject(new HarnessAdapterError("Unable to start the ACP agent process.", { cause: error }));
+    });
   });
   child.stderr.pipe(options.stderr, { end: false });
 

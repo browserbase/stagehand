@@ -7,7 +7,7 @@ This example starts the packaged Grok Build CLI as an ACP v1 agent and mounts th
 From the repository root:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
 export XAI_API_KEY=xai-...
 pnpm --dir packages/integrations/grok-build start -- \

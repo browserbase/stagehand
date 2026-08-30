@@ -13,6 +13,7 @@ import {
 import { fileURLToPath } from "node:url";
 
 import { FACADE_AGENT_INSTRUCTIONS } from "../facade/contract.js";
+import { HarnessAdapterError } from "../harness/contract.js";
 import { spawnAcpAgentProcess } from "./agent-process.js";
 import { buildAcpFacadeMcpServer } from "./facade-mcp.js";
 
@@ -110,10 +111,9 @@ export async function runAcpFacadeAgent(options: RunAcpFacadeAgentOptions): Prom
     try {
       await agentProcess.started;
     } catch (error) {
-      throw new Error(
-        `Unable to start ACP agent ${options.profile.id}: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
-      );
+      throw new HarnessAdapterError(`Unable to start ACP agent ${options.profile.id}.`, {
+        cause: error,
+      });
     }
     return await app.connectWith(agentProcess.transport, async (context) => {
       agentContext = context;

@@ -1,9 +1,12 @@
 import { spawn } from "node:child_process";
 
+import { HarnessAdapterError } from "../harness/contract.js";
 import { buildAcpFacadeRuntimeEnv } from "./env.js";
 
 const [facadeServerPath, ...facadeArgs] = process.argv.slice(2);
-if (!facadeServerPath) throw new Error("Stagehand ACP facade launcher requires a server path.");
+if (!facadeServerPath) {
+  throw new HarnessAdapterError("Stagehand ACP facade launcher requires a server path.");
+}
 
 // ACP agents may merge an MCP server's declared env with their own environment.
 // Start the actual facade as a second process so its environment is enforced here.
