@@ -861,7 +861,7 @@ console.log(product.data, product.metadata.cache.status);
 ### Supported TypeScript schema implementations
 
 `extract()` accepts Standard Schema implementations that validate values and produce Draft 2020-12
-JSON Schema. Use `jsonSchema<T>()` when the schema is already a plain Draft 2020-12 document.
+JSON Schema. Use `jsonSchema<T>()` when you already have a JSON Schema object that follows Draft 2020-12.
 
 | Library | How to pass it to `extract()` | Minimum version |
 | --- | --- | --- |
@@ -973,8 +973,8 @@ the browser call. Data that fails its original Standard Schema validation throws
 `StagehandValidationError`. Data that fails a plain JSON Schema document fails extraction inside the
 browser extension.
 
-Object schemas that omit `additionalProperties` are sent with `additionalProperties: false`. Set
-`additionalProperties: true` when extra keys should pass.
+Stagehand rejects fields that are not declared in an object schema. Set
+`additionalProperties: true` to allow undeclared fields.
 
 </Tab>
 
