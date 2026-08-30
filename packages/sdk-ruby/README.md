@@ -61,13 +61,13 @@ Browserbase sessions.
 Ruby ports of the canonical example set (`packages/sdk-{ts,python,go}/examples`),
 each runnable as `bundle exec ruby examples/<name>.rb [--browserbase]`:
 
-| Example | Notes |
-|---|---|
-| `act.rb`, `observe.rb`, `extract.rb` | example.com, mirror the Python examples |
-| `model_gateway.rb` | Browserbase-only; no model configured (Gateway picks one) |
-| `caching.rb` | Browserbase-only; `cache: true` + `metadata.cache` round-trip |
-| `custom_logging.rb` | `on_log:` callback appending JSONL to `stagehand.jsonl` |
-| `demo.rb`, `arctic_observe.rb` | spike walkthroughs (not part of the canonical set) |
+| Example                              | Notes                                                         |
+| ------------------------------------ | ------------------------------------------------------------- |
+| `act.rb`, `observe.rb`, `extract.rb` | example.com, mirror the Python examples                       |
+| `model_gateway.rb`                   | Browserbase-only; no model configured (Gateway picks one)     |
+| `caching.rb`                         | Browserbase-only; `cache: true` + `metadata.cache` round-trip |
+| `custom_logging.rb`                  | `on_log:` callback appending JSONL to `stagehand.jsonl`       |
+| `demo.rb`, `arctic_observe.rb`       | spike walkthroughs (not part of the canonical set)            |
 
 The remaining canonical examples need methods the spike skipped (priced in
 `ESTIMATE.md`): `batch` (callback_batch), `custom_llm` (`llm.generate`),
