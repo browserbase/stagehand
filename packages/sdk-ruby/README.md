@@ -52,8 +52,8 @@ example set, eval-task ports, docs tabs, and cross-language parity lanes.
   and WebMCP (`tools` → invoke/result/cancel).
 - **Locator** — `page.locator(selector)` → all 17 locator methods
   (`click/fill/type/hover/scroll_to/count/text_content/inner_text/inner_html/
-  input_value/visible?/checked?/centroid/highlight/send_click_event/
-  select_option/set_input_files` + `first`/`nth`; file uploads take paths or
+input_value/visible?/checked?/centroid/highlight/send_click_event/
+select_option/set_input_files` + `first`/`nth`; file uploads take paths or
   `Stagehand::FilePayload`, 50 MiB/file).
 - **Context** — `pages/new_page/active_page/set_active_page/close`, cookies
   (`cookies/add_cookies/clear_cookies` with String/Regexp filters), clipboard
@@ -94,17 +94,17 @@ self-contained and runnable as `bundle exec ruby examples/<name>.rb
 [--browserbase]`. The `example-parity` ast-grep lane keeps their inventory and
 SDK operations aligned with the sibling SDKs.
 
-| Example | Notes |
-|---|---|
+| Example                              | Notes                                                                         |
+| ------------------------------------ | ----------------------------------------------------------------------------- |
 | `act.rb`, `observe.rb`, `extract.rb` | example.com; local runs need OPENAI_API_KEY, `--browserbase` uses the Gateway |
-| `model_gateway.rb` | Browserbase-only; no model configured (Gateway picks one) |
-| `caching.rb` | Browserbase-only; `cache: true` + `metadata.cache` round-trip |
-| `custom_logging.rb` | `on_log:` callback appending JSONL to `stagehand.jsonl` |
-| `file_upload.rb` | locator.set_input_files + evaluate; no LLM needed |
-| `batch.rb` | callback batch, no LLM needed |
-| `page_events.rb` | page.on console events + AI extract |
-| `custom_llm.rb` | bring-your-own-LLM via `llm.generate` (OPENAI_API_KEY or AI_GATEWAY_API_KEY) |
-| `webmcp.rb` | page-registered tools via `page.tools` → invoke → result; no LLM needed |
+| `model_gateway.rb`                   | Browserbase-only; no model configured (Gateway picks one)                     |
+| `caching.rb`                         | Browserbase-only; `cache: true` + `metadata.cache` round-trip                 |
+| `custom_logging.rb`                  | `on_log:` callback appending JSONL to `stagehand.jsonl`                       |
+| `file_upload.rb`                     | locator.set_input_files + evaluate; no LLM needed                             |
+| `batch.rb`                           | callback batch, no LLM needed                                                 |
+| `page_events.rb`                     | page.on console events + AI extract                                           |
+| `custom_llm.rb`                      | bring-your-own-LLM via `llm.generate` (OPENAI_API_KEY or AI_GATEWAY_API_KEY)  |
+| `webmcp.rb`                          | page-registered tools via `page.tools` → invoke → result; no LLM needed       |
 
 `examples/extras/` holds Ruby-only walkthroughs outside the canonical set
 (`demo.rb`, `page_interactions.rb`, `context_and_response.rb`,
