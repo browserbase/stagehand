@@ -1,12 +1,15 @@
 import { readFile } from "node:fs/promises";
 import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
+import ruby from "@ast-grep/lang-ruby";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ go, python, ruby });
 
-type Language = "go" | "python" | "typescript";
+type Language = "go" | "python" | "ruby" | "typescript";
+
+const languages = ["typescript", "python", "go", "ruby"] as const;
 
 const clients = {
   typescript: {
@@ -24,6 +27,11 @@ const clients = {
     runtimeFile: new URL("../../packages/sdk-go/runtime_compatibility.go", import.meta.url),
     typeName: "cdpClient",
   },
+  ruby: {
+    file: new URL("../../packages/sdk-ruby/lib/stagehand/cdp_client.rb", import.meta.url),
+    runtimeFile: undefined,
+    typeName: "CDPClient",
+  },
 } as const satisfies Record<
   Language,
   { file: URL; runtimeFile: URL | undefined; typeName: string }
@@ -32,19 +40,29 @@ const clients = {
 const capabilities = [
   {
     name: "outbound JSON-RPC transport",
-    methods: { typescript: "send", python: "send", go: "Send" },
+    methods: { typescript: "send", python: "send", go: "Send", ruby: "send" },
   },
   {
     name: "correlated CDP commands",
-    methods: { typescript: "sendCommand", python: "send_command", go: "sendCommand" },
+    methods: {
+      typescript: "sendCommand",
+      python: "send_command",
+      go: "sendCommand",
+      ruby: "send_command",
+    },
   },
   {
     name: "incoming CDP dispatch",
-    methods: { typescript: "handleMessage", python: "_handle_message", go: "handleMessage" },
+    methods: {
+      typescript: "handleMessage",
+      python: "_handle_message",
+      go: "handleMessage",
+      ruby: "handle_message",
+    },
   },
   {
     name: "deterministic shutdown",
-    methods: { typescript: "close", python: "close", go: "Close" },
+    methods: { typescript: "close", python: "close", go: "Close", ruby: "close" },
   },
 ] as const;
 
@@ -63,6 +81,7 @@ const runtimeBindingTokens = {
   typescript: "STAGEHAND_SEND_TO_HOST_BINDING",
   python: "__stagehandSendToHost",
   go: "__stagehandSendToHost",
+  ruby: "__stagehandSendToHost",
 } as const satisfies Record<Language, string>;
 
 const pages = {
@@ -80,6 +99,11 @@ const pages = {
     file: new URL("../../packages/sdk-go/page.go", import.meta.url),
     typeName: "Page",
     method: "On",
+  },
+  ruby: {
+    file: new URL("../../packages/sdk-ruby/lib/stagehand/page.rb", import.meta.url),
+    typeName: "Page",
+    method: "on",
   },
 } as const satisfies Record<Language, { file: URL; typeName: string; method: string }>;
 
@@ -99,11 +123,16 @@ const subscriptions = {
     typeName: "CDPSubscription",
     method: "Close",
   },
+  ruby: {
+    file: new URL("../../packages/sdk-ruby/lib/stagehand/page.rb", import.meta.url),
+    typeName: "CDPSubscription",
+    method: "unsubscribe",
+  },
 } as const satisfies Record<Language, { file: URL; typeName: string; method: string }>;
 
 describe("CDP clients retain the same core behavior", () => {
-  it("exposes page event subscriptions in TypeScript, Python, and Go", async () => {
-    for (const language of ["typescript", "python", "go"] as const) {
+  it("exposes page event subscriptions in TypeScript, Python, Go, and Ruby", async () => {
+    for (const language of languages) {
       const page = pages[language];
       const root = parse(language, await readFile(page.file, "utf8")).root();
       expect(
@@ -113,8 +142,8 @@ describe("CDP clients retain the same core behavior", () => {
     }
   });
 
-  it("returns removable subscription handles in TypeScript, Python, and Go", async () => {
-    for (const language of ["typescript", "python", "go"] as const) {
+  it("returns removable subscription handles in TypeScript, Python, Go, and Ruby", async () => {
+    for (const language of languages) {
       const subscription = subscriptions[language];
       const root = parse(language, await readFile(subscription.file, "utf8")).root();
       expect(
@@ -124,17 +153,17 @@ describe("CDP clients retain the same core behavior", () => {
     }
   });
 
-  it("keeps the same transport lifecycle in TypeScript, Python, and Go", async () => {
+  it("keeps the same transport lifecycle in TypeScript, Python, Go, and Ruby", async () => {
     const methods = new Map<Language, Set<string>>();
 
-    for (const language of ["typescript", "python", "go"] as const) {
+    for (const language of languages) {
       const client = clients[language];
       const root = parse(language, await readFile(client.file, "utf8")).root();
       methods.set(language, clientMethods(root, language, client.typeName));
     }
 
     for (const capability of capabilities) {
-      for (const language of ["typescript", "python", "go"] as const) {
+      for (const language of languages) {
         expect(
           methods.get(language)?.has(capability.methods[language]),
           `${language} CDP client must implement ${capability.name}`,
@@ -145,7 +174,7 @@ describe("CDP clients retain the same core behavior", () => {
 
   it("keeps extension discovery and runtime bridging aligned", async () => {
     const sources = await Promise.all(
-      (["typescript", "python", "go"] as const).map(async (language) => ({
+      languages.map(async (language) => ({
         language,
         source: (
           await Promise.all(
@@ -196,6 +225,20 @@ function clientMethods(root: SgNode, language: Language, typeName: string): Set<
           const name = namedChildren(method).find((child) => child.kind() === "field_identifier");
           return name ? [name.text()] : [];
         }),
+    );
+  }
+
+  if (language === "ruby") {
+    const classNode = root
+      .findAll({ rule: { kind: "class" } })
+      .find((node) => namedChildren(node)[0]?.text() === typeName);
+    // findAll instead of direct children: `public def x` wraps the method in
+    // a visibility call node, and `class << self` nests class-level methods.
+    return new Set(
+      (classNode ? classNode.findAll({ rule: { kind: "method" } }) : []).flatMap((method) => {
+        const name = namedChildren(method).find((child) => child.kind() === "identifier");
+        return name ? [name.text()] : [];
+      }),
     );
   }
 

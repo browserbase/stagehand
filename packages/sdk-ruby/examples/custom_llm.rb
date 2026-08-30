@@ -18,15 +18,14 @@ require "net/http"
 require "uri"
 
 require_relative "../lib/stagehand"
-require_relative "example_helpers"
 
-if ExampleHelpers.env("OPENAI_API_KEY")
+if !ENV.fetch("OPENAI_API_KEY", "").empty?
   LLM_URL = URI("https://api.openai.com/v1/chat/completions")
-  LLM_API_KEY = ExampleHelpers.env("OPENAI_API_KEY")
+  LLM_API_KEY = ENV.fetch("OPENAI_API_KEY")
   LLM_MODEL = "gpt-5.4-mini"
-elsif ExampleHelpers.env("AI_GATEWAY_API_KEY")
+elsif !ENV.fetch("AI_GATEWAY_API_KEY", "").empty?
   LLM_URL = URI("https://ai-gateway.vercel.sh/v1/chat/completions")
-  LLM_API_KEY = ExampleHelpers.env("AI_GATEWAY_API_KEY")
+  LLM_API_KEY = ENV.fetch("AI_GATEWAY_API_KEY")
   LLM_MODEL = "openai/gpt-5.4-mini"
 else
   abort "Set OPENAI_API_KEY or AI_GATEWAY_API_KEY."
@@ -115,9 +114,8 @@ PAGE_INFO_SCHEMA = {
 
 browser =
   if ARGV.include?("--browserbase")
-    api_key = ExampleHelpers.env("BROWSERBASE_API_KEY") or abort "Set BROWSERBASE_API_KEY."
     puts "Creating a Browserbase session..."
-    Stagehand::Browserbase.launch(api_key: api_key)
+    Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
   else
     puts "Launching local Chrome..."
     Stagehand::LocalBrowser.launch(headless: ENV["HEADED"].nil?)

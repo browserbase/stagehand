@@ -4,7 +4,9 @@
 # configured, the Browserbase Model Gateway selects one automatically for each
 # inference call; the Browserbase API key and session authenticate it.
 
-require_relative "example_helpers"
+require "json"
+
+require_relative "../lib/stagehand"
 
 PAGE_INFO = {
   "type" => "object",
@@ -16,7 +18,7 @@ PAGE_INFO = {
   "additionalProperties" => false,
 }.freeze
 
-api_key = ExampleHelpers.env("BROWSERBASE_API_KEY") or abort "Set BROWSERBASE_API_KEY."
+api_key = ENV.fetch("BROWSERBASE_API_KEY")
 
 puts "Creating a Browserbase session..."
 browser = Stagehand::Browserbase.launch(api_key: api_key)

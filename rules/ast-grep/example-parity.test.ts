@@ -1,14 +1,16 @@
 import { readdir, readFile } from "node:fs/promises";
 import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
+import ruby from "@ast-grep/lang-ruby";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ go, python, ruby });
 
 const exampleDirectories = {
   go: new URL("../../packages/sdk-go/examples/", import.meta.url),
   python: new URL("../../packages/sdk-python/examples/", import.meta.url),
+  ruby: new URL("../../packages/sdk-ruby/examples/", import.meta.url),
   typescript: new URL("../../packages/sdk-ts/examples/", import.meta.url),
 } as const;
 
@@ -17,6 +19,7 @@ type ExampleLanguage = keyof typeof exampleDirectories;
 const exampleExtensions: Record<ExampleLanguage, string> = {
   go: ".go",
   python: ".py",
+  ruby: ".rb",
   typescript: ".ts",
 };
 
@@ -38,11 +41,13 @@ describe("All language examples remain in sync", () => {
     const inventories = {
       go: (await examples("go")).map(({ name }) => name),
       python: (await examples("python")).map(({ name }) => name),
+      ruby: (await examples("ruby")).map(({ name }) => name),
       typescript: (await examples("typescript")).map(({ name }) => name),
     };
 
     expect(inventories.python).toStrictEqual(inventories.typescript);
     expect(inventories.go).toStrictEqual(inventories.typescript);
+    expect(inventories.ruby).toStrictEqual(inventories.typescript);
     expect(inventories.typescript.length).toBeGreaterThan(0);
   });
 
@@ -52,17 +57,23 @@ describe("All language examples remain in sync", () => {
       (await examples("python")).map((example) => [example.name, example]),
     );
     const goExamples = new Map((await examples("go")).map((example) => [example.name, example]));
+    const rubyExamples = new Map(
+      (await examples("ruby")).map((example) => [example.name, example]),
+    );
 
     for (const typescript of typescriptExamples) {
       const pythonExample = pythonExamples.get(typescript.name);
       const goExample = goExamples.get(typescript.name);
+      const rubyExample = rubyExamples.get(typescript.name);
       expect(pythonExample, `${typescript.name} must have a Python example`).toBeDefined();
       expect(goExample, `${typescript.name} must have a Go example`).toBeDefined();
-      if (!pythonExample || !goExample) continue;
+      expect(rubyExample, `${typescript.name} must have a Ruby example`).toBeDefined();
+      if (!pythonExample || !goExample || !rubyExample) continue;
 
       const typescriptRoot = parse("typescript", await readFile(typescript.url, "utf8")).root();
       const pythonRoot = parse("python", await readFile(pythonExample.url, "utf8")).root();
       const goRoot = parse("go", await readFile(goExample.url, "utf8")).root();
+      const rubyRoot = parse("ruby", await readFile(rubyExample.url, "utf8")).root();
 
       expect(
         publicSdkOperations(pythonRoot, "python"),
@@ -71,6 +82,10 @@ describe("All language examples remain in sync", () => {
       expect(
         publicSdkOperations(goRoot, "go"),
         `${typescript.name} must call the same public SDK operations in Go and TypeScript`,
+      ).toStrictEqual(publicSdkOperations(typescriptRoot, "typescript"));
+      expect(
+        publicSdkOperations(rubyRoot, "ruby"),
+        `${typescript.name} must call the same public SDK operations in Ruby and TypeScript`,
       ).toStrictEqual(publicSdkOperations(typescriptRoot, "typescript"));
     }
   });
@@ -93,7 +108,7 @@ func main() {
   });
 
   it("uses the public Stagehand lifecycle in every example", async () => {
-    for (const language of ["typescript", "python", "go"] as const) {
+    for (const language of ["typescript", "python", "go", "ruby"] as const) {
       for (const example of await examples(language)) {
         const root = parse(language, await readFile(example.url, "utf8")).root();
         const stagehand = stagehandVariable(root, language);
@@ -109,7 +124,9 @@ func main() {
                   pattern:
                     language === "typescript"
                       ? 'import { $$$IMPORTS } from "../src/index.js"'
-                      : "from stagehand import $$$IMPORTS",
+                      : language === "ruby"
+                        ? 'require_relative "../lib/stagehand"'
+                        : "from stagehand import $$$IMPORTS",
                 },
               });
 
@@ -117,7 +134,7 @@ func main() {
           publicImport,
           `${language} ${example.file} must import the public SDK`,
         ).toBeDefined();
-        if (language !== "go") {
+        if (language !== "go" && language !== "ruby") {
           expect(
             publicImport?.getMultipleMatches("IMPORTS").some((node) => node.text() === "Stagehand"),
             `${language} ${example.file} must import public Stagehand`,
@@ -140,6 +157,15 @@ func main() {
             goCalls(root).some(({ object, method }) => object === stagehand && method === "Close"),
             `${language} ${example.file} must close Stagehand`,
           ).toBe(true);
+        } else if (language === "ruby") {
+          expect(
+            root.find({ rule: { pattern: `${stagehand} = Stagehand.create($$$ARGS)` } }),
+            `${language} ${example.file} must create Stagehand`,
+          ).not.toBeNull();
+          expect(
+            root.find({ rule: { pattern: `${stagehand}.close` } }),
+            `${language} ${example.file} must close Stagehand`,
+          ).not.toBeNull();
         } else {
           expect(
             root.find({ rule: { pattern: `${stagehand} = await Stagehand.create($$$ARGS)` } }),
@@ -188,7 +214,9 @@ function stagehandVariable(root: SgNode, language: ExampleLanguage): string | un
       pattern:
         language === "typescript"
           ? "const $STAGEHAND = await Stagehand.create($$$ARGS)"
-          : "$STAGEHAND = await Stagehand.create($$$ARGS)",
+          : language === "ruby"
+            ? "$STAGEHAND = Stagehand.create($$$ARGS)"
+            : "$STAGEHAND = await Stagehand.create($$$ARGS)",
     },
   });
 

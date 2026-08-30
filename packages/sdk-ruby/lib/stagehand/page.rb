@@ -65,26 +65,34 @@ module Stagehand
     def goto(url, wait_until: nil, timeout: nil)
       params = { page_id: @page_id, url: url }
       assign_navigation_options(params, wait_until: wait_until, timeout: timeout)
-      navigate("page.goto", Models::PageGotoParams.new(**params))
+      result = @rpc_client.send("page.goto", Models::PageGotoParams.new(**params), "PageNavigationResult")
+      @page_id = result.page.page_id
+      result.response.nil? ? nil : Response.new(@rpc_client, result.response)
     end
 
     def reload(wait_until: nil, timeout: nil, ignore_cache: nil)
       params = { page_id: @page_id }
       options = { wait_until: wait_until, timeout: timeout, ignore_cache: ignore_cache }.compact
       params[:options] = Models::PageReloadOptions.new(**options) unless options.empty?
-      navigate("page.reload", Models::PageReloadParams.new(**params))
+      result = @rpc_client.send("page.reload", Models::PageReloadParams.new(**params), "PageNavigationResult")
+      @page_id = result.page.page_id
+      result.response.nil? ? nil : Response.new(@rpc_client, result.response)
     end
 
     def go_back(wait_until: nil, timeout: nil)
       params = { page_id: @page_id }
       assign_navigation_options(params, wait_until: wait_until, timeout: timeout)
-      navigate("page.go_back", Models::PageGoBackParams.new(**params))
+      result = @rpc_client.send("page.go_back", Models::PageGoBackParams.new(**params), "PageNavigationResult")
+      @page_id = result.page.page_id
+      result.response.nil? ? nil : Response.new(@rpc_client, result.response)
     end
 
     def go_forward(wait_until: nil, timeout: nil)
       params = { page_id: @page_id }
       assign_navigation_options(params, wait_until: wait_until, timeout: timeout)
-      navigate("page.go_forward", Models::PageGoForwardParams.new(**params))
+      result = @rpc_client.send("page.go_forward", Models::PageGoForwardParams.new(**params), "PageNavigationResult")
+      @page_id = result.page.page_id
+      result.response.nil? ? nil : Response.new(@rpc_client, result.response)
     end
 
     def url
@@ -113,15 +121,18 @@ module Stagehand
       params = { page_id: @page_id, x: x, y: y }
       options = { button: button, click_count: click_count }.compact
       params[:options] = Models::PageClickOptions.new(**options) unless options.empty?
-      void("page.click", Models::PageClickParams.new(**params))
+      @rpc_client.send("page.click", Models::PageClickParams.new(**params), "PageVoidResult")
+      nil
     end
 
     def hover(x, y)
-      void("page.hover", Models::PageHoverParams.new(page_id: @page_id, x: x, y: y))
+      @rpc_client.send("page.hover", Models::PageHoverParams.new(page_id: @page_id, x: x, y: y), "PageVoidResult")
+      nil
     end
 
     def scroll(x, y, delta_x, delta_y)
-      void("page.scroll", Models::PageScrollParams.new(page_id: @page_id, x: x, y: y, delta_x: delta_x, delta_y: delta_y))
+      @rpc_client.send("page.scroll", Models::PageScrollParams.new(page_id: @page_id, x: x, y: y, delta_x: delta_x, delta_y: delta_y), "PageVoidResult")
+      nil
     end
 
     # route: optional intermediate points, each {x:, y:} Hash or
@@ -135,20 +146,23 @@ module Stagehand
         end
       end
       params[:options] = Models::PageDragAndDropOptions.new(**options) unless options.empty?
-      void("page.drag_and_drop", Models::PageDragAndDropParams.new(**params))
+      @rpc_client.send("page.drag_and_drop", Models::PageDragAndDropParams.new(**params), "PageVoidResult")
+      nil
     end
 
     def type(text, delay: nil, with_mistakes: nil)
       params = { page_id: @page_id, text: text }
       options = { delay: delay, with_mistakes: with_mistakes }.compact
       params[:options] = Models::PageTypeOptions.new(**options) unless options.empty?
-      void("page.type", Models::PageTypeParams.new(**params))
+      @rpc_client.send("page.type", Models::PageTypeParams.new(**params), "PageVoidResult")
+      nil
     end
 
     def key_press(key, delay: nil)
       params = { page_id: @page_id, key: key }
       params[:options] = Models::PageKeyPressOptions.new(delay: delay) unless delay.nil?
-      void("page.key_press", Models::PageKeyPressParams.new(**params))
+      @rpc_client.send("page.key_press", Models::PageKeyPressParams.new(**params), "PageVoidResult")
+      nil
     end
 
     # -- configuration ----------------------------------------------------
@@ -162,11 +176,13 @@ module Stagehand
         else
           source
         end
-      void("page.add_init_script", Models::PageAddInitScriptParams.new(page_id: @page_id, source: script))
+      @rpc_client.send("page.add_init_script", Models::PageAddInitScriptParams.new(page_id: @page_id, source: script), "PageVoidResult")
+      nil
     end
 
     def set_extra_http_headers(headers)
-      void("page.set_extra_http_headers", Models::PageSetExtraHTTPHeadersParams.new(page_id: @page_id, headers: headers.to_h))
+      @rpc_client.send("page.set_extra_http_headers", Models::PageSetExtraHTTPHeadersParams.new(page_id: @page_id, headers: headers.to_h), "PageVoidResult")
+      nil
     end
 
     def set_viewport_size(width, height, device_scale_factor: nil)
@@ -174,7 +190,8 @@ module Stagehand
       unless device_scale_factor.nil?
         params[:options] = Models::PageSetViewportSizeOptions.new(device_scale_factor: device_scale_factor)
       end
-      void("page.set_viewport_size", Models::PageSetViewportSizeParams.new(**params))
+      @rpc_client.send("page.set_viewport_size", Models::PageSetViewportSizeParams.new(**params), "PageVoidResult")
+      nil
     end
 
     # -- events -----------------------------------------------------------
@@ -272,11 +289,13 @@ module Stagehand
     def wait_for_load_state(state, timeout: nil)
       params = { page_id: @page_id, state: state }
       params[:timeout] = timeout unless timeout.nil?
-      void("page.wait_for_load_state", Models::PageWaitForLoadStateParams.new(**params))
+      @rpc_client.send("page.wait_for_load_state", Models::PageWaitForLoadStateParams.new(**params), "PageVoidResult")
+      nil
     end
 
     def wait_for_timeout(ms)
-      void("page.wait_for_timeout", Models::PageWaitForTimeoutParams.new(page_id: @page_id, ms: ms))
+      @rpc_client.send("page.wait_for_timeout", Models::PageWaitForTimeoutParams.new(page_id: @page_id, ms: ms), "PageVoidResult")
+      nil
     end
 
     # Returns true when the selector reached the requested state.
@@ -296,15 +315,6 @@ module Stagehand
       params
     end
 
-    def navigate(method, params)
-      result = @rpc_client.send(method, params, "PageNavigationResult")
-      @page_id = result.page.page_id
-      result.response.nil? ? nil : Response.new(@rpc_client, result.response)
-    end
 
-    def void(method, params)
-      @rpc_client.send(method, params, "PageVoidResult")
-      nil
-    end
   end
 end

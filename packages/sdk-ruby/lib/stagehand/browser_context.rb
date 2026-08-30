@@ -38,7 +38,8 @@ module Stagehand
     end
 
     def set_active_page(page)
-      void("context.set_active_page", Models::ContextSetActivePageParams.new(page_id: page.page_id))
+      @rpc_client.send("context.set_active_page", Models::ContextSetActivePageParams.new(page_id: page.page_id), "ContextVoidResult")
+      nil
     end
 
     # Closes the remote context; use Stagehand::Client#close to release local
@@ -51,11 +52,13 @@ module Stagehand
     # source is JavaScript text, or a Pathname whose contents are read and
     # tagged with a sourceURL comment (matching the sibling SDKs).
     def add_init_script(source)
-      void("context.add_init_script", Models::ContextAddInitScriptParams.new(source: init_script_source(source)))
+      @rpc_client.send("context.add_init_script", Models::ContextAddInitScriptParams.new(source: init_script_source(source)), "ContextVoidResult")
+      nil
     end
 
     def set_extra_http_headers(headers)
-      void("context.set_extra_http_headers", Models::ContextSetExtraHTTPHeadersParams.new(headers: headers.to_h))
+      @rpc_client.send("context.set_extra_http_headers", Models::ContextSetExtraHTTPHeadersParams.new(headers: headers.to_h), "ContextVoidResult")
+      nil
     end
 
     # Models::DomainPolicy or nil when no policy is set.
@@ -72,7 +75,8 @@ module Stagehand
         when Hash then Models::DomainPolicy.new(**policy.transform_keys(&:to_sym))
         else raise ArgumentError, "policy must be a Models::DomainPolicy, a Hash, or nil"
         end
-      void("context.set_domain_policy", Models::ContextSetDomainPolicyParams.new(policy: encoded))
+      @rpc_client.send("context.set_domain_policy", Models::ContextSetDomainPolicyParams.new(policy: encoded), "ContextVoidResult")
+      nil
     end
 
     # Cookies visible to the context, optionally filtered to one or more URLs.
@@ -93,7 +97,8 @@ module Stagehand
       encoded = cookies.map do |cookie|
         cookie.is_a?(Models::CookieParam) ? cookie : Models::CookieParam.new(**cookie.transform_keys(&:to_sym))
       end
-      void("context.add_cookies", Models::ContextAddCookiesParams.new(cookies: encoded))
+      @rpc_client.send("context.add_cookies", Models::ContextAddCookiesParams.new(cookies: encoded), "ContextVoidResult")
+      nil
     end
 
     # Each filter is a String (exact match), a Regexp, or a
@@ -106,7 +111,8 @@ module Stagehand
         filters[field] = cookie_filter(value) unless value.nil?
       end
       values = filters.empty? ? {} : { options: Models::ClearCookieOptions.new(**filters) }
-      void("context.clear_cookies", Models::ContextClearCookiesParams.new(**values))
+      @rpc_client.send("context.clear_cookies", Models::ContextClearCookiesParams.new(**values), "ContextVoidResult")
+      nil
     end
 
     private
@@ -135,9 +141,5 @@ module Stagehand
       "#{source.read}\n//# sourceURL=#{source_url}"
     end
 
-    def void(method, params)
-      @rpc_client.send(method, params, "ContextVoidResult")
-      nil
-    end
   end
 end

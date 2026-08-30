@@ -31,6 +31,7 @@
   "devDependencies": {
     "@ast-grep/lang-go": "catalog:",
     "@ast-grep/lang-python": "catalog:",
+    "@ast-grep/lang-ruby": "catalog:",
     "@ast-grep/napi": "catalog:",
     "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",

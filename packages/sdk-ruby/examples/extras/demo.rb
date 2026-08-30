@@ -10,7 +10,7 @@
 # ANTHROPIC_API_KEY / GOOGLE_API_KEY. On Browserbase the model may be omitted
 # entirely (Model Gateway picks one).
 
-require_relative "../lib/stagehand"
+require_relative "../../lib/stagehand"
 
 def env(name)
   value = ENV.fetch(name, nil)

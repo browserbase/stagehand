@@ -87,27 +87,27 @@ Browserbase sessions.
 
 ### Examples
 
-Ruby ports of the canonical example set (`packages/sdk-{ts,python,go}/examples`),
-each runnable as `bundle exec ruby examples/<name>.rb [--browserbase]`:
+The canonical example set (`packages/sdk-{ts,python,go}/examples`), each
+self-contained and runnable as `bundle exec ruby examples/<name>.rb
+[--browserbase]`. The `example-parity` ast-grep lane keeps their inventory and
+SDK operations aligned with the sibling SDKs.
 
 | Example | Notes |
 |---|---|
-| `act.rb`, `observe.rb`, `extract.rb` | example.com, mirror the Python examples |
+| `act.rb`, `observe.rb`, `extract.rb` | example.com; local runs need OPENAI_API_KEY, `--browserbase` uses the Gateway |
 | `model_gateway.rb` | Browserbase-only; no model configured (Gateway picks one) |
 | `caching.rb` | Browserbase-only; `cache: true` + `metadata.cache` round-trip |
 | `custom_logging.rb` | `on_log:` callback appending JSONL to `stagehand.jsonl` |
-| `file_upload.rb` | mirrors the Python example; no LLM needed (runs local or Browserbase) |
-| `page_interactions.rb` | locator fill/type/click/readers, evaluate, screenshot, history; no LLM needed |
-| `hybrid_news.rb` | AI extract + deterministic locators/pagination/screenshot on Hacker News |
-| `search_flow.rb` | locator-driven search on DuckDuckGo + AI extraction of the results |
-| `batch.rb` | mirrors the Python example; callback batch, no LLM needed |
-| `page_events.rb` | mirrors the Python example; page.on console events + AI extract |
-| `context_and_response.rb` | Response/cookies/clipboard/viewport/snapshot tour; no LLM needed |
-| `custom_llm.rb` | mirrors the Python example; bring-your-own-LLM via `llm.generate` (OPENAI_API_KEY or AI_GATEWAY_API_KEY) |
-| `webmcp.rb` | mirrors the Python example; page-registered tools via `page.tools` → invoke → result; no LLM needed |
-| `demo.rb`, `arctic_observe.rb` | spike walkthroughs (not part of the canonical set) |
+| `file_upload.rb` | locator.set_input_files + evaluate; no LLM needed |
+| `batch.rb` | callback batch, no LLM needed |
+| `page_events.rb` | page.on console events + AI extract |
+| `custom_llm.rb` | bring-your-own-LLM via `llm.generate` (OPENAI_API_KEY or AI_GATEWAY_API_KEY) |
+| `webmcp.rb` | page-registered tools via `page.tools` → invoke → result; no LLM needed |
 
-That completes the canonical example set from `packages/sdk-{ts,python,go}/examples`.
+`examples/extras/` holds Ruby-only walkthroughs outside the canonical set
+(`demo.rb`, `page_interactions.rb`, `context_and_response.rb`,
+`hybrid_news.rb`, `search_flow.rb`, `arctic_observe.rb`) plus their shared
+`example_helpers.rb`.
 
 ## Development
 
@@ -133,5 +133,7 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 - Inbound work (request handlers, notification listeners including `page.on`
   blocks) runs on one dispatcher thread: handlers may issue RPC calls, but a
   slow handler delays later inbound work (Python runs these concurrently).
-- Not wired into ast-grep parity tests, docs tabs, CI, or release tooling
-  (each is priced in `ESTIMATE.md`).
+- Wired into the ast-grep parity lanes (`rules/ast-grep/{rpc,cdp,example,sdk}-parity`);
+  the `sdk-field-pipeline` and `sdk-client-schema-parity` Ruby lanes land with
+  the docs tabs. Docs, CI, and release tooling are still pending (priced in
+  `ESTIMATE.md`).

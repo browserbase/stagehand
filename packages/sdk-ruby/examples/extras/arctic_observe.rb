@@ -9,7 +9,7 @@
 #
 # Flow: goto -> observe (nav) -> observe (search box) -> observe (product links).
 
-require_relative "../lib/stagehand"
+require_relative "../../lib/stagehand"
 
 SITE = ENV.fetch("ARCTIC_URL", "https://www.everythingarcticcatoffroad.com/")
 

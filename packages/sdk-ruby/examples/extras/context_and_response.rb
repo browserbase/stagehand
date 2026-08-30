@@ -9,7 +9,7 @@
 #   ruby examples/context_and_response.rb                # local Chrome
 #   ruby examples/context_and_response.rb --browserbase  # Browserbase session
 
-require_relative "../lib/stagehand"
+require_relative "../../lib/stagehand"
 require_relative "example_helpers"
 
 browser =

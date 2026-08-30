@@ -4,10 +4,12 @@
 # console events via page.on, trigger one with evaluate, then AI-extract the
 # page content.
 #
-#   ruby examples/page_events.rb --browserbase   # (AI needs a model; Gateway on Browserbase)
-#   ruby examples/page_events.rb                 # local Chrome + provider key
+#   ruby examples/page_events.rb                # local Chrome (needs OPENAI_API_KEY)
+#   ruby examples/page_events.rb --browserbase  # Browserbase (Model Gateway)
 
-require_relative "example_helpers"
+require "json"
+
+require_relative "../lib/stagehand"
 
 PAGE_INFO = {
   "type" => "object",
@@ -19,22 +21,49 @@ PAGE_INFO = {
   "additionalProperties" => false,
 }.freeze
 
-ExampleHelpers.with_stagehand do |stagehand, page|
-  console_events = Thread::Queue.new
-  subscription = page.on("console") do |event|
-    # Runs on the RPC dispatcher thread: keep it quick, hand the event over.
-    console_events << event if event.params.is_a?(Hash) && event.params["type"] == "log"
+openai_api_key = ENV.fetch("OPENAI_API_KEY", "")
+
+browser =
+  if ARGV.include?("--browserbase")
+    puts "Creating a Browserbase session..."
+    Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+  else
+    abort "Local runs need OPENAI_API_KEY (the Browserbase Model Gateway is session-only)." if openai_api_key.empty?
+    puts "Launching local Chrome..."
+    Stagehand::LocalBrowser.launch(headless: ENV["HEADED"].nil?)
   end
 
+begin
+  create_options = { browser: browser, log_level: ENV.fetch("STAGEHAND_LOG_LEVEL", "warn") }
+  unless openai_api_key.empty?
+    create_options[:model] = "openai/gpt-5.4-mini"
+    create_options[:model_api_key] = openai_api_key
+  end
+  stagehand = Stagehand.create(**create_options)
   begin
-    page.goto("https://example.com")
-    page.evaluate('console.log("stagehand-page-on-example"); "emitted"')
-    event = console_events.pop(timeout: 10)
-    raise "console event did not arrive within 10s" if event.nil?
+    page = stagehand.browser.context.active_page()
+    raise "Stagehand initialized without an active page" if page.nil?
 
-    result = stagehand.extract("Extract the page heading and description", schema: PAGE_INFO)
-    puts JSON.pretty_generate({ "event_method" => event.method, "extracted" => result.data })
+    console_events = Thread::Queue.new
+    subscription = page.on("console") do |event|
+      # Runs on the RPC dispatcher thread: keep it quick, hand the event over.
+      console_events << event if event.params.is_a?(Hash) && event.params["type"] == "log"
+    end
+
+    begin
+      page.goto("https://example.com")
+      page.evaluate('console.log("stagehand-page-on-example"); "emitted"')
+      event = console_events.pop(timeout: 10)
+      raise "console event did not arrive within 10s" if event.nil?
+
+      result = stagehand.extract("Extract the page heading and description", schema: PAGE_INFO)
+      puts JSON.pretty_generate({ "event_method" => event.method, "extracted" => result.data })
+    ensure
+      subscription.unsubscribe
+    end
   ensure
-    subscription.unsubscribe
+    stagehand.close
   end
+ensure
+  browser.close
 end

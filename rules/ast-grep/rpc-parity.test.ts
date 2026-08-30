@@ -1,12 +1,15 @@
 import { readFile } from "node:fs/promises";
 import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
+import ruby from "@ast-grep/lang-ruby";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ go, python, ruby });
 
-type Language = "go" | "python" | "typescript";
+type Language = "go" | "python" | "ruby" | "typescript";
+
+const languages = ["typescript", "python", "go", "ruby"] as const;
 
 const clients = {
   typescript: {
@@ -21,16 +24,20 @@ const clients = {
     file: new URL("../../packages/sdk-go/rpc_client.go", import.meta.url),
     typeName: "rpcClient",
   },
+  ruby: {
+    file: new URL("../../packages/sdk-ruby/lib/stagehand/rpc_client.rb", import.meta.url),
+    typeName: "RPCClient",
+  },
 } as const satisfies Record<Language, { file: URL; typeName: string }>;
 
 const capabilities = [
   {
     name: "outbound requests",
-    methods: { typescript: "send", python: "send", go: "call" },
+    methods: { typescript: "send", python: "send", go: "call", ruby: "send" },
   },
   {
     name: "inbound request handlers",
-    methods: { typescript: "onRequest", python: "on_request", go: "onRequest" },
+    methods: { typescript: "onRequest", python: "on_request", go: "onRequest", ruby: "on_request" },
   },
   {
     name: "notification listeners",
@@ -38,30 +45,31 @@ const capabilities = [
       typescript: "onNotification",
       python: "on_notification",
       go: "onNotification",
+      ruby: "on_notification",
     },
   },
   {
     name: "incoming message processing",
-    methods: { typescript: "receive", python: "_read", go: "receive" },
+    methods: { typescript: "receive", python: "_read", go: "receive", ruby: "receive" },
   },
   {
     name: "deterministic shutdown",
-    methods: { typescript: "close", python: "close", go: "close" },
+    methods: { typescript: "close", python: "close", go: "close", ruby: "close" },
   },
 ] as const;
 
 describe("JSON-RPC clients retain the same core behavior", () => {
-  it("keeps the same lifecycle capabilities in TypeScript, Python, and Go", async () => {
+  it("keeps the same lifecycle capabilities in TypeScript, Python, Go, and Ruby", async () => {
     const methods = new Map<Language, Set<string>>();
 
-    for (const language of ["typescript", "python", "go"] as const) {
+    for (const language of languages) {
       const client = clients[language];
       const root = parse(language, await readFile(client.file, "utf8")).root();
       methods.set(language, clientMethods(root, language, client.typeName));
     }
 
     for (const capability of capabilities) {
-      for (const language of ["typescript", "python", "go"] as const) {
+      for (const language of languages) {
         expect(
           methods.get(language)?.has(capability.methods[language]),
           `${language} RPC client must implement ${capability.name}`,
@@ -71,11 +79,12 @@ describe("JSON-RPC clients retain the same core behavior", () => {
   });
 
   it("uses the protocol error codes and notification buffer bound in every client", async () => {
-    const [protocol, typescript, pythonSource, goSource] = await Promise.all([
+    const [protocol, typescript, pythonSource, goSource, rubySource] = await Promise.all([
       readFile(new URL("../../packages/protocol/json-rpc/schemas.ts", import.meta.url), "utf8"),
       readFile(clients.typescript.file, "utf8"),
       readFile(clients.python.file, "utf8"),
       readFile(clients.go.file, "utf8"),
+      readFile(clients.ruby.file, "utf8"),
     ]);
 
     const errorCodes = [
@@ -92,10 +101,14 @@ describe("JSON-RPC clients retain the same core behavior", () => {
       );
       expect(pythonSource, `Python must use JSON-RPC error ${code}`).toContain(code);
       expect(goSource, `Go must use JSON-RPC error ${code}`).toContain(code);
+      // Ruby writes numeric literals with digit separators (-32_700).
+      const rubyCode = new RegExp(`${code.slice(0, 3)}_?${code.slice(3)}`, "u");
+      expect(rubyCode.test(rubySource), `Ruby must use JSON-RPC error ${code}`).toBe(true);
     }
     expect(typescript).toMatch(/MAX_PENDING_NOTIFICATIONS\s*=\s*100/u);
     expect(pythonSource).toMatch(/_MAX_PENDING_NOTIFICATIONS\s*=\s*100/u);
     expect(goSource).toMatch(/maxPendingNotifications\s*=\s*100/u);
+    expect(rubySource).toMatch(/MAX_PENDING_NOTIFICATIONS\s*=\s*100/u);
   });
 });
 
@@ -112,6 +125,20 @@ function clientMethods(root: SgNode, language: Language, typeName: string): Set<
           const name = namedChildren(method).find((child) => child.kind() === "field_identifier");
           return name ? [name.text()] : [];
         }),
+    );
+  }
+
+  if (language === "ruby") {
+    const classNode = root
+      .findAll({ rule: { kind: "class" } })
+      .find((node) => namedChildren(node)[0]?.text() === typeName);
+    // findAll instead of direct children: `public def x` wraps the method in
+    // a visibility call node, and `class << self` nests class-level methods.
+    return new Set(
+      (classNode ? classNode.findAll({ rule: { kind: "method" } }) : []).flatMap((method) => {
+        const name = namedChildren(method).find((child) => child.kind() === "identifier");
+        return name ? [name.text()] : [];
+      }),
     );
   }
 

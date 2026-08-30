@@ -107,10 +107,6 @@ module Stagehand
       @initialized
     end
 
-    def context
-      @browser.context
-    end
-
     def act(instruction, page: nil, model: nil, variables: nil, timeout: nil, cache: nil)
       params = { page_id: target_page_id(page), instruction: encode_instruction(instruction) }
       options = call_options(model: model, variables: variables, timeout: timeout, cache: cache)

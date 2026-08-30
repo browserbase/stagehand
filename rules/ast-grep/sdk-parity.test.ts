@@ -1,10 +1,11 @@
 import { readdir, readFile } from "node:fs/promises";
 import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
+import ruby from "@ast-grep/lang-ruby";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ go, python, ruby });
 
 const sdkObjects = [
   ["Stagehand", "stagehand.ts", "stagehand.py", "stagehand.go", "Stagehand"],
@@ -603,6 +604,368 @@ describe("All language SDK operations remain in sync", () => {
     ).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ruby lane. Ruby call syntax (receiver/method/arguments fields) and idioms
+// (`?` predicates with `is_` aliases, attr_reader accessors, `private`
+// section markers) differ enough from Python that it gets its own
+// extractors. Ruby has no in-source type annotations (the types live in
+// packages/sdk-ruby/sig/stagehand.rbs), so the typed-parameter checks above
+// intentionally have no Ruby lane.
+// ---------------------------------------------------------------------------
+
+const rubySource = new URL("../../packages/sdk-ruby/lib/stagehand/", import.meta.url);
+
+const rubyObjects: Readonly<Record<string, { file: string; typeName: string }>> = {
+  Stagehand: { file: "client.rb", typeName: "Client" },
+  BrowserContext: { file: "browser_context.rb", typeName: "BrowserContext" },
+  BrowserClipboard: { file: "browser_clipboard.rb", typeName: "BrowserClipboard" },
+  Page: { file: "page.rb", typeName: "Page" },
+  Locator: { file: "locator.rb", typeName: "Locator" },
+};
+
+// Ruby methods that correspond to TypeScript getters (memoized accessors and
+// `?` predicates); they are compared as accessors, not callables.
+const rubyAccessorNames: Readonly<Record<string, ReadonlySet<string>>> = {
+  Stagehand: new Set(["initialized"]),
+  BrowserContext: new Set(["clipboard"]),
+  BrowserClipboard: new Set(),
+  Page: new Set(),
+  Locator: new Set(),
+};
+
+describe("Ruby SDK operations remain in sync", () => {
+  it("sends protocol version and client identity in stagehand.init", async () => {
+    const source = await readFile(new URL("client.rb", rubySource), "utf8");
+    expect(source, "ruby stagehand.init must send the protocol version").toMatch(
+      /protocol_version:\s*STAGEHAND_PROTOCOL_VERSION/u,
+    );
+    expect(source, "ruby stagehand.init must send the client identity").toMatch(
+      /client_info:\s*Models::ImplementationInfo/u,
+    );
+  });
+
+  it("references every registered protocol operation", async () => {
+    const registry = await stagehandMethodNames();
+    expect(
+      await rubyProtocolOperations(),
+      "Ruby must reference every StagehandMethods operation",
+    ).toStrictEqual([...registry.values()].sort());
+  });
+
+  it("matches the extension router outbound and the TypeScript inbound surface", async () => {
+    const registry = await stagehandMethodNames();
+    const [extensionInbound, typescriptInbound] = await Promise.all([
+      extensionRouterOperations(),
+      protocolOperations("typescript", typescriptSource, registry, "inbound"),
+    ]);
+    expect(
+      await rubyProtocolOperations("outbound"),
+      "Ruby outbound operations must match the extension router",
+    ).toStrictEqual(extensionInbound);
+    expect(
+      await rubyProtocolOperations("inbound"),
+      "Ruby inbound request handlers must match TypeScript inbound request handlers",
+    ).toStrictEqual(typescriptInbound);
+  });
+
+  it("handles every registered notification", async () => {
+    const registry = await stagehandNotificationNames();
+    const notifications = new Set<string>();
+    for (const root of await rubyRoots()) {
+      for (const call of rubyCalls(root, "on_notification")) {
+        const notification = rubyCallArguments(call)[0];
+        if (notification?.kind() === "string") notifications.add(stringLiteral(notification));
+      }
+    }
+    expect(
+      [...notifications].sort(),
+      "Ruby must handle every StagehandNotifications entry",
+    ).toStrictEqual([...registry.values()].sort());
+  });
+
+  it("exposes the same RPC-backed operations as TypeScript", async () => {
+    const registry = await stagehandMethodNames();
+    for (const [className, typescriptFile] of sdkObjects.map(
+      ([name, file]) => [name, file] as const,
+    )) {
+      const typescript = await publicOperations(
+        "typescript",
+        new URL(typescriptFile, typescriptSource),
+        className,
+        registry,
+      );
+      expect(
+        await rubyPublicOperations(className),
+        `${className} must expose the same RPC-backed operations in Ruby`,
+      ).toStrictEqual(typescript);
+    }
+  });
+
+  it("exposes the same public callable surface as TypeScript", async () => {
+    for (const [className, typescriptFile] of sdkObjects.map(
+      ([name, file]) => [name, file] as const,
+    )) {
+      const typescript = await publicCallableMethods(
+        "typescript",
+        new URL(typescriptFile, typescriptSource),
+        className,
+      );
+      expect(
+        await rubyPublicCallableMethods(className),
+        `${className} Ruby public methods must remain in sync`,
+      ).toStrictEqual(typescript);
+    }
+  });
+
+  it("keeps Stagehand accessors aligned with TypeScript", async () => {
+    const [className, typescriptFile] = sdkObjects[0];
+    const typescript = await publicAccessors(
+      "typescript",
+      new URL(typescriptFile, typescriptSource),
+      className,
+    );
+    const accessors = await rubyPublicAccessors(className);
+    expect(accessors, "Stagehand Ruby accessors must remain in sync").toStrictEqual(typescript);
+    expect(accessors, "Ruby Stagehand must not expose context").not.toContain("context");
+  });
+
+  it("uses the protocol parameter and result models at Ruby RPC boundaries", async () => {
+    const methods = await protocolMethods();
+    let staticallyVisibleParams = 0;
+
+    for (const { file, root } of await rubyRootsWithFiles()) {
+      for (const call of rubyCalls(root, "send")) {
+        const [methodNode, params, result] = rubyCallArguments(call);
+        if (methodNode?.kind() !== "string") continue;
+        const wireMethod = stringLiteral(methodNode);
+        const protocolMethod = methods[wireMethod];
+        expect(
+          protocolMethod,
+          `${file} calls undeclared protocol method ${wireMethod}`,
+        ).toBeDefined();
+        if (!protocolMethod || !params || !result) continue;
+
+        const paramsModel = rubyModelName(params);
+        if (paramsModel) {
+          staticallyVisibleParams += 1;
+          expect(
+            paramsModel,
+            `${file} must send ${wireMethod} with ${referencedModel(protocolMethod.properties.params.$ref)}`,
+          ).toBe(referencedModel(protocolMethod.properties.params.$ref));
+        }
+        // Ruby result descriptors are wire-definition names; nil means the
+        // raw JSON result is used as-is (scalar results).
+        if (result.kind() === "string") {
+          expect(
+            stringLiteral(result),
+            `${file} must decode ${wireMethod} with its protocol result model`,
+          ).toBe(referencedModel(protocolMethod.properties.result.$ref));
+        }
+      }
+    }
+
+    expect(staticallyVisibleParams).toBeGreaterThan(0);
+  });
+});
+
+type RubyClassMethod = {
+  name: string;
+  mappedName: string;
+  node: SgNode;
+  isPublic: boolean;
+};
+
+async function rubyRoots(): Promise<SgNode[]> {
+  return (await rubyRootsWithFiles()).map(({ root }) => root);
+}
+
+async function rubyRootsWithFiles(): Promise<Array<{ file: string; root: SgNode }>> {
+  const files = (await readdir(rubySource, { recursive: true }))
+    .filter((file) => file.endsWith(".rb"))
+    .sort();
+  return Promise.all(
+    files.map(async (file) => ({
+      file,
+      root: parse("ruby", await readFile(new URL(file, rubySource), "utf8")).root(),
+    })),
+  );
+}
+
+// Calls on an RPC client receiver (@rpc_client, rpc_client,
+// connected_rpc_client) with the given method name.
+function rubyCalls(node: SgNode, methodName: string): SgNode[] {
+  return node.findAll({ rule: { kind: "call" } }).filter((call) => {
+    if (call.field("method")?.text() !== methodName) return false;
+    const receiver = call.field("receiver")?.text() ?? "";
+    return /(?:^|[.@_])rpc_client$/u.test(receiver);
+  });
+}
+
+function rubyCallArguments(call: SgNode): SgNode[] {
+  const argumentsNode = call.field("arguments");
+  return argumentsNode ? argumentsNode.children().filter((child) => child.isNamed()) : [];
+}
+
+async function rubyProtocolOperations(boundary?: RequestBoundary): Promise<string[]> {
+  const operations = new Set<string>();
+  for (const root of await rubyRoots()) {
+    if (boundary !== "inbound") {
+      for (const call of rubyCalls(root, "send")) {
+        const method = rubyCallArguments(call)[0];
+        if (method?.kind() === "string") operations.add(stringLiteral(method));
+      }
+    }
+    if (boundary !== "outbound") {
+      for (const call of rubyCalls(root, "on_request")) {
+        const method = rubyCallArguments(call)[0];
+        if (method?.kind() === "string") operations.add(stringLiteral(method));
+      }
+    }
+  }
+  return [...operations].sort();
+}
+
+function rubyClassNode(root: SgNode, typeName: string): SgNode | undefined {
+  return root
+    .findAll({ rule: { kind: "class" } })
+    .find((node) => namedChildren(node)[0]?.text() === typeName);
+}
+
+// Walks the class body tracking `private`/`public` section markers and
+// aliases. `?`/`!` suffixes map to the alias name when one exists (Ruby's
+// `visible?` + `alias is_visible visible?` present the `is_visible` surface),
+// otherwise they are stripped.
+function rubyClassMethods(classNode: SgNode): {
+  methods: RubyClassMethod[];
+  attrReaders: string[];
+} {
+  const body = namedChildren(classNode).find((child) => child.kind() === "body_statement");
+  if (!body) return { methods: [], attrReaders: [] };
+
+  const entries: Array<{ name: string; node: SgNode; isPublic: boolean }> = [];
+  const aliases = new Map<string, string>();
+  const attrReaders: string[] = [];
+  let visibility: "public" | "private" | "protected" = "public";
+
+  for (const child of namedChildren(body)) {
+    if (child.kind() === "identifier") {
+      const marker = child.text();
+      if (marker === "public" || marker === "private" || marker === "protected") {
+        visibility = marker;
+      }
+      continue;
+    }
+    if (child.kind() === "method") {
+      const name = namedChildren(child).find((nested) => nested.kind() === "identifier");
+      if (name) entries.push({ name: name.text(), node: child, isPublic: visibility === "public" });
+      continue;
+    }
+    if (child.kind() === "alias") {
+      const [newName, oldName] = namedChildren(child);
+      if (newName && oldName) aliases.set(oldName.text(), newName.text());
+      continue;
+    }
+    if (child.kind() !== "call") continue;
+    const callMethod = child.field("method")?.text();
+    if (callMethod === "attr_reader" || callMethod === "attr_accessor") {
+      if (visibility === "public") {
+        for (const symbol of rubyCallArguments(child)) {
+          if (symbol.kind() === "simple_symbol") attrReaders.push(symbol.text().slice(1));
+        }
+      }
+      continue;
+    }
+    // `public def x` / `private def x` inline visibility.
+    if (callMethod === "public" || callMethod === "private") {
+      const method = child.findAll({ rule: { kind: "method" } })[0];
+      const name = method && namedChildren(method).find((nested) => nested.kind() === "identifier");
+      if (method && name) {
+        entries.push({ name: name.text(), node: method, isPublic: callMethod === "public" });
+      }
+    }
+  }
+
+  return {
+    methods: entries.map(({ name, node, isPublic }) => ({
+      name,
+      mappedName: aliases.get(name) ?? name.replace(/[?!]$/u, ""),
+      node,
+      isPublic,
+    })),
+    attrReaders,
+  };
+}
+
+async function rubyClassMethodsFor(
+  className: string,
+): Promise<{ methods: RubyClassMethod[]; attrReaders: string[] }> {
+  const { file, typeName } = rubyObjects[className] ?? {};
+  if (!file || !typeName) throw new Error(`Unknown Ruby SDK object: ${className}`);
+  const root = parse("ruby", await readFile(new URL(file, rubySource), "utf8")).root();
+  const classNode = rubyClassNode(root, typeName);
+  expect(classNode, `${typeName} must exist in ${file}`).toBeDefined();
+  return classNode ? rubyClassMethods(classNode) : { methods: [], attrReaders: [] };
+}
+
+function rubyPublicSurface(methods: RubyClassMethod[], className: string): RubyClassMethod[] {
+  return methods.filter(
+    (method) =>
+      method.isPublic &&
+      method.name !== "initialize" && // Ruby constructors are implicitly private
+      !method.name.startsWith("_") &&
+      !rubyAccessorNames[className]?.has(method.mappedName) &&
+      participatesInSurfaceParity(className, "python", method.mappedName),
+  );
+}
+
+async function rubyPublicCallableMethods(className: string): Promise<string[]> {
+  const { methods } = await rubyClassMethodsFor(className);
+  return [
+    ...new Set(rubyPublicSurface(methods, className).map((method) => method.mappedName)),
+  ].sort();
+}
+
+async function rubyPublicOperations(
+  className: string,
+): Promise<Array<{ publicMethod: string; wireMethod: string }>> {
+  const { methods } = await rubyClassMethodsFor(className);
+  return rubyPublicSurface(methods, className)
+    .flatMap((method) =>
+      rubyCalls(method.node, "send").flatMap((call) => {
+        const wireMethod = rubyCallArguments(call)[0];
+        return wireMethod?.kind() === "string"
+          ? [{ publicMethod: method.mappedName, wireMethod: stringLiteral(wireMethod) }]
+          : [];
+      }),
+    )
+    .sort((left, right) =>
+      `${left.publicMethod}:${left.wireMethod}`.localeCompare(
+        `${right.publicMethod}:${right.wireMethod}`,
+      ),
+    );
+}
+
+async function rubyPublicAccessors(className: string): Promise<string[]> {
+  const { methods, attrReaders } = await rubyClassMethodsFor(className);
+  const predicateAccessors = methods
+    .filter(
+      (method) =>
+        method.isPublic &&
+        !method.name.startsWith("_") &&
+        rubyAccessorNames[className]?.has(method.mappedName) === true,
+    )
+    .map((method) => method.mappedName);
+  return [...new Set([...attrReaders, ...predicateAccessors])].sort();
+}
+
+function rubyModelName(expression: SgNode): string | undefined {
+  if (expression.kind() !== "call" || expression.field("method")?.text() !== "new") {
+    return undefined;
+  }
+  const receiver = expression.field("receiver")?.text();
+  return receiver?.split("::").at(-1);
+}
 
 async function publicOperations(
   language: SdkLanguage,
