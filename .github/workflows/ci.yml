@@ -493,6 +493,45 @@ jobs:
         with:
           name: coverage/integration/${{ matrix.test.safe_name }}
 
+  ruby-windows:
+    name: Ruby (Windows launcher + gem smoke)
+    needs: [build, determine-changes]
+    if: >-
+      needs.determine-changes.outputs.sdk-ruby == 'true' &&
+      needs.determine-changes.outputs.is_internal_head == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "true"
+
+      - uses: ruby/setup-ruby@3ff19f5e2baf30647122352b96108b1fbe250c64 # v1.299.0
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: packages/sdk-ruby
+
+      - name: Unit tests
+        run: bundle exec rake test
+        working-directory: packages/sdk-ruby
+
+      - run: pnpm --filter ./packages/extension build
+      - run: ruby packages/sdk-ruby/scripts/build.rb
+
+      # Windows runners ship Chrome, so this exercises the Windows launcher
+      # (chrome.exe discovery, new_pgroup spawn, TerminateProcess shutdown)
+      # against a real browser.
+      - name: Smoke test installed gem
+        shell: bash
+        run: |
+          export GEM_HOME="$RUNNER_TEMP/stagehand-gem-smoke"
+          export GEM_PATH="$GEM_HOME"
+          gem install --no-document packages/sdk-ruby/dist/*.gem
+          ruby packages/sdk-ruby/scripts/smoke.rb
+
   go-windows:
     name: Go (Windows process management)
     needs: [determine-changes]
