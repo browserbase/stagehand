@@ -16,34 +16,34 @@ Python and Go SDKs are built.
 
 ## What the spike proved (de-risked)
 
-| Risk | Outcome |
-|---|---|
-| No JSON-Schema→Ruby codegen exists | Custom stdlib-only generator, 274 LOC, covers all 234 defs + method registries, `--check` drift mode wired into `just generate`/`just check` |
-| Wire casing | Free — the schema is already snake_case; opaque containers pass through verbatim (fixture round-trip tested) |
-| Sync Ruby ↔ bidirectional RPC | Background-reader-thread model (Go-style) works; `websocket-driver` + own TCP/SSL socket, no reactor framework needed |
-| Chrome without Playwright | Hand-rolled launcher ported from Python's `browser.py` works headless + headed on macOS |
-| Extension packaging | Ruby zip is **byte-identical** to the Python SDK's deterministic archive (same SHA-256) |
-| No Browserbase Ruby SDK exists | Hand-rolled 4-endpoint REST client (~130 LOC) suffices, mirroring Go |
-| End-to-end | `goto → observe → act → extract` verified live on a local Chrome (transport) and on a Browserbase session (full AI loop incl. extension upload + Model Gateway + session release) |
+| Risk                               | Outcome                                                                                                                                                                           |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| No JSON-Schema→Ruby codegen exists | Custom stdlib-only generator, 274 LOC, covers all 234 defs + method registries, `--check` drift mode wired into `just generate`/`just check`                                      |
+| Wire casing                        | Free — the schema is already snake_case; opaque containers pass through verbatim (fixture round-trip tested)                                                                      |
+| Sync Ruby ↔ bidirectional RPC      | Background-reader-thread model (Go-style) works; `websocket-driver` + own TCP/SSL socket, no reactor framework needed                                                             |
+| Chrome without Playwright          | Hand-rolled launcher ported from Python's `browser.py` works headless + headed on macOS                                                                                           |
+| Extension packaging                | Ruby zip is **byte-identical** to the Python SDK's deterministic archive (same SHA-256)                                                                                           |
+| No Browserbase Ruby SDK exists     | Hand-rolled 4-endpoint REST client (~130 LOC) suffices, mirroring Go                                                                                                              |
+| End-to-end                         | `goto → observe → act → extract` verified live on a local Chrome (transport) and on a Browserbase session (full AI loop incl. extension upload + Model Gateway + session release) |
 
 Spike size: ~2,400 hand-written LOC + ~2,000 generated + ~800 tests. Python comparison:
 ~4,900 hand-written + ~3,600 generated — a fair proxy for the finished Ruby size.
 
 ## Work breakdown to production parity
 
-| # | Item | Weeks |
-|---|---|---|
-| A | Walking skeleton (this spike) | 2.5–3 *(sunk)* |
-| B | Full method surface (~62 remaining: context 14, page ~26, locator 17, response 6, clipboard, webmcp, file upload, callback_batch passthrough) — mechanical wrapper + tests per method, batched by namespace | 3–4 |
-| C | Client-side LLM (`llm.generate` inbound handler, message/tool unions, custom-LLM example) | 1 |
-| D | Validation hardening: strict unions, input ergonomics, RBS signatures, thread-safety soak | 1–1.5 |
-| E | 11-example set + `example-parity` compliance | 0.5–1 |
-| F | Parity tooling: ast-grep Ruby lane (`@ast-grep/lang-ruby` availability is the biggest unknown; prism-based fallback +0.5–1 wk) + extend `rules/ast-grep/*` | 1–1.5 |
-| G | Docs: Ruby tabs across `docs/v4/reference/*` + guides + `sdk-reference.test.ts` | 1 |
-| H | Release + CI: turbo task, changesets version proxy, `sync-ruby-version.ts`, extension embedding in the gem, RubyGems trusted publishing + alpha lane, CI matrix (Ruby 3.2–3.4 × macOS/Linux), **Windows launcher** | 1.5–2 |
-| I | Beta hardening buffer (real-world sites, large payloads, memory/soak) | 1–1.5 |
-| | **Total beyond spike** | **10–13.5** |
-| | **Total including spike** | **~12.5–16.5** |
+| #   | Item                                                                                                                                                                                                               | Weeks          |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| A   | Walking skeleton (this spike)                                                                                                                                                                                      | 2.5–3 _(sunk)_ |
+| B   | Full method surface (~62 remaining: context 14, page ~26, locator 17, response 6, clipboard, webmcp, file upload, callback_batch passthrough) — mechanical wrapper + tests per method, batched by namespace        | 3–4            |
+| C   | Client-side LLM (`llm.generate` inbound handler, message/tool unions, custom-LLM example)                                                                                                                          | 1              |
+| D   | Validation hardening: strict unions, input ergonomics, RBS signatures, thread-safety soak                                                                                                                          | 1–1.5          |
+| E   | 11-example set + `example-parity` compliance                                                                                                                                                                       | 0.5–1          |
+| F   | Parity tooling: ast-grep Ruby lane (`@ast-grep/lang-ruby` availability is the biggest unknown; prism-based fallback +0.5–1 wk) + extend `rules/ast-grep/*`                                                         | 1–1.5          |
+| G   | Docs: Ruby tabs across `docs/v4/reference/*` + guides + `sdk-reference.test.ts`                                                                                                                                    | 1              |
+| H   | Release + CI: turbo task, changesets version proxy, `sync-ruby-version.ts`, extension embedding in the gem, RubyGems trusted publishing + alpha lane, CI matrix (Ruby 3.2–3.4 × macOS/Linux), **Windows launcher** | 1.5–2          |
+| I   | Beta hardening buffer (real-world sites, large payloads, memory/soak)                                                                                                                                              | 1–1.5          |
+|     | **Total beyond spike**                                                                                                                                                                                             | **10–13.5**    |
+|     | **Total including spike**                                                                                                                                                                                          | **~12.5–16.5** |
 
 ## Ongoing cost
 
