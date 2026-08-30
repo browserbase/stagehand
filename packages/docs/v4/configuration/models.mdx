@@ -1373,7 +1373,8 @@ def message_content(message)
   blocks.map { |block| content_part(block) }
 end
 
-# The llm.generate handler. Runs synchronously on the SDK's dispatcher thread.
+# The llm.generate handler. Each request runs on its own SDK thread, so
+# concurrent generations are possible.
 def generate_with_openai(params)
   response_format = params.response_format
   text_format = {
@@ -1579,8 +1580,8 @@ func generateWithYourProvider(
 <Tab title="Ruby">
 ```ruby
 # The callback receives a decoded Models::LLMStructuredGenerateParams or
-# Models::LLMMessageGenerateParams and runs synchronously on the SDK's
-# dispatcher thread.
+# Models::LLMMessageGenerateParams; each request runs on its own SDK
+# thread, so concurrent generations are possible.
 def generate_with_your_provider(params)
   # params.messages         Conversation so far
   # params.system_prompt    System instructions

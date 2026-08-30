@@ -60,9 +60,14 @@ module Stagehand
 
   module LocalBrowser
     def self?.launch: (
-      ?headless: bool?, ?devtools: bool?, ?chromium_sandbox: bool?,
       ?args: Array[String]?, ?executable_path: String?, ?port: Integer?,
-      ?user_data_dir: String?, ?viewport_width: Integer, ?viewport_height: Integer
+      ?user_data_dir: String?, ?preserve_user_data_dir: bool?,
+      ?headless: bool?, ?devtools: bool?, ?chromium_sandbox: bool?,
+      ?ignore_default_args: (true | Array[String])?,
+      ?proxy: Hash[Symbol | String, String]?, ?locale: String?,
+      ?viewport: Hash[Symbol | String, Integer]?, ?device_scale_factor: Numeric?,
+      ?has_touch: bool?, ?ignore_https_errors: bool?,
+      ?downloads_path: String?, ?accept_downloads: bool?, ?keep_alive: bool?
     ) -> StagehandBrowser
     def self?.connect: (cdp_url: String, ?extension_id: String?) -> StagehandBrowser
   end

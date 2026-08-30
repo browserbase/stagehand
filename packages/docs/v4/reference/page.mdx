@@ -2476,8 +2476,8 @@ subscription.unsubscribe
 
 <ParamField path="listener" type="Proc">
   A required block that receives each `Models::PageCDPEvent` with the event method, raw
-  parameters, session ID, target ID, and page ID. The block runs on the SDK's dispatcher
-  thread, so a slow block delays other inbound work.
+  parameters, session ID, target ID, and page ID. Each delivery runs on its own SDK
+  thread and deliveries can be concurrent, so synchronize any shared state.
 </ParamField>
 
 <ResponseField name="result" type="CDPSubscription">

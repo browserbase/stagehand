@@ -197,9 +197,9 @@ module Stagehand
     # -- events -----------------------------------------------------------
 
     # Subscribes to a page event ("console", ...); the block receives each
-    # Models::PageCDPEvent. Returns a CDPSubscription. The block runs on the
-    # RPC dispatcher thread and may issue RPC calls, but a slow block delays
-    # other inbound work (later events, llm.generate requests).
+    # Models::PageCDPEvent. Returns a CDPSubscription. Each delivery runs on
+    # its own SDK thread — the block may issue RPC calls, and deliveries for
+    # a busy page can run concurrently, so synchronize any shared state.
     def on(event, &listener)
       raise ArgumentError, "a listener block is required" if listener.nil?
 

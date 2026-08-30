@@ -16,6 +16,9 @@ type Concept = {
   go: () => Promise<string[]>;
   name: string;
   python: () => Promise<string[]>;
+  // Ruby flattens these option objects into keyword arguments; absent for
+  // intentional language adapters (e.g. logging's flat log_level/on_log).
+  ruby?: () => Promise<string[]>;
   typescript: ObjectSchema;
 };
 
@@ -35,18 +38,21 @@ const concepts: readonly Concept[] = [
     typescript: ClientSchemas.LocalBrowserLaunchOptionsSchema,
     python: () => pythonClassFields("client_types.py", "LocalBrowserLaunchOptions"),
     go: () => goStructFields("browser_factories.go", "LocalBrowserLaunchOptions"),
+    ruby: () => rubyModuleMethodParameters("browser.rb", "LocalBrowser", "launch"),
   },
   {
     name: "LocalBrowserConnectOptions",
     typescript: ClientSchemas.LocalBrowserConnectOptionsSchema,
     python: () => pythonClassFields("client_types.py", "LocalBrowserConnectOptions"),
     go: () => goStructFields("browser_factories.go", "LocalBrowserConnectOptions"),
+    ruby: () => rubyModuleMethodParameters("browser.rb", "LocalBrowser", "connect"),
   },
   {
     name: "BrowserbaseConnectOptions",
     typescript: ClientSchemas.BrowserbaseConnectOptionsSchema,
     python: () => pythonClassFields("client_types.py", "BrowserbaseConnectOptions"),
     go: () => goStructFields("browser_factories.go", "BrowserbaseConnectOptions"),
+    ruby: () => rubyModuleMethodParameters("browser.rb", "Browserbase", "connect"),
   },
   {
     name: "StagehandClientLoggingConfig",
@@ -81,7 +87,11 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
 
     for (const concept of concepts) {
       const expected = schemaFields(concept.typescript);
-      const [pythonFields, goFields] = await Promise.all([concept.python(), concept.go()]);
+      const [pythonFields, goFields, rubyFields] = await Promise.all([
+        concept.python(),
+        concept.go(),
+        concept.ruby?.() ?? Promise.resolve(undefined),
+      ]);
       if (!arraysEqual(pythonFields, expected)) {
         differences.push(
           `${concept.name} Python: expected [${expected.join(", ")}], received [${pythonFields.join(", ")}]`,
@@ -90,6 +100,11 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
       if (!arraysEqual(goFields, expected)) {
         differences.push(
           `${concept.name} Go: expected [${expected.join(", ")}], received [${goFields.join(", ")}]`,
+        );
+      }
+      if (rubyFields && !arraysEqual(rubyFields, expected)) {
+        differences.push(
+          `${concept.name} Ruby: expected [${expected.join(", ")}], received [${rubyFields.join(", ")}]`,
         );
       }
     }
@@ -410,6 +425,45 @@ async function rubyCreateParameters(): Promise<string[]> {
     );
   if (!create) throw new Error("Stagehand::Client.create was not found in client.rb");
   const parameters = create.field("parameters");
+  if (!parameters) return [];
+  return parameters
+    .children()
+    .filter((parameter) => parameter.isNamed())
+    .flatMap((parameter) => {
+      if (parameter.kind() === "identifier") return [parameter.text()];
+      const name = parameter
+        .children()
+        .find((child) => child.isNamed() && child.kind() === "identifier");
+      return name ? [name.text()] : [];
+    })
+    .sort();
+}
+
+// Keyword/positional parameter names of a `module_function` method inside a
+// Ruby module (LocalBrowser.launch etc.).
+async function rubyModuleMethodParameters(
+  file: string,
+  moduleName: string,
+  methodName: string,
+): Promise<string[]> {
+  const root = parse("ruby", await readFile(new URL(file, rubySource), "utf8")).root();
+  const moduleNode = root.findAll({ rule: { kind: "module" } }).find(
+    (node) =>
+      node
+        .children()
+        .find((child) => child.isNamed() && child.kind() === "constant")
+        ?.text() === moduleName,
+  );
+  if (!moduleNode) throw new Error(`${moduleName} was not found in ${file}`);
+  const method = moduleNode.findAll({ rule: { kind: "method" } }).find(
+    (candidate) =>
+      candidate
+        .children()
+        .find((child) => child.isNamed() && child.kind() === "identifier")
+        ?.text() === methodName,
+  );
+  if (!method) throw new Error(`${moduleName}.${methodName} was not found in ${file}`);
+  const parameters = method.field("parameters");
   if (!parameters) return [];
   return parameters
     .children()

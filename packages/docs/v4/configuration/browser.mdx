@@ -877,26 +877,36 @@ require "stagehand"
 browser = Stagehand::LocalBrowser.launch(
   headless: false, # Show browser window
   devtools: true, # Open developer tools
-  viewport_width: 1280,
-  viewport_height: 720,
+  viewport: { width: 1280, height: 720 },
   executable_path: "/opt/google/chrome/chrome", # Custom Chrome path
   port: 9222, # Fixed CDP debugging port
+  ignore_default_args: ["--disable-sync"], # Remove specific default launch args
   args: [
     "--disable-web-security",
     "--allow-running-insecure-content",
   ],
-  user_data_dir: "./chrome-user-data", # Persist browser data (kept after close)
+  user_data_dir: "./chrome-user-data", # Persist browser data
+  preserve_user_data_dir: true, # Keep data after closing
   chromium_sandbox: false, # Disable sandbox (adds --no-sandbox)
+  ignore_https_errors: true, # Ignore certificate errors
+  locale: "en-US", # Set browser language
+  device_scale_factor: 1.0, # Display scaling
+  has_touch: false, # Emulate touch input
+  proxy: {
+    server: "http://proxy.example.com:8080",
+    username: "user",
+    password: "pass",
+  },
+  downloads_path: "./downloads", # Download directory
+  accept_downloads: true, # Allow downloads
 )
 stagehand = Stagehand.create(browser: browser)
 ```
-
-The Ruby launcher supports this subset of options. It does not take the ignore-default-args, preserve-user-data-dir, HTTPS-error, locale, device-scale-factor, touch, proxy, or downloads options the other SDKs document. A `user_data_dir` you pass is always preserved; only the temporary profile Stagehand creates for you is deleted on close. When `executable_path` is not set, Stagehand looks for Chrome in the standard install locations and honors the `CHROME_PATH` environment variable.
 </Tab>
 </Tabs>
 
 <Note>
-Authenticated local proxies are not supported yet. Setting a proxy `username` or `password` raises in all three SDKs; a proxy `server` and `bypass` list work everywhere.
+Authenticated local proxies are not supported yet. Setting a proxy `username` or `password` raises in every SDK; a proxy `server` and `bypass` list work everywhere.
 </Note>
 
 #### Default local launch arguments
@@ -946,8 +956,6 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
   "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
-
-In Ruby, `--window-size` follows the `viewport_width` and `viewport_height` options and defaults to `1280,800`.
 </Tab>
 </Tabs>
 
@@ -1006,6 +1014,7 @@ stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 <Tab title="Ruby">
 ```ruby
 browser = Stagehand::LocalBrowser.launch(
+  ignore_default_args: ["--disable-sync"],
   args: [
     "--disable-features=site-per-process,IsolateOrigins",
     "--renderer-process-limit=6",
@@ -1014,8 +1023,6 @@ browser = Stagehand::LocalBrowser.launch(
 
 stagehand = Stagehand.create(browser: browser)
 ```
-
-The Ruby launcher does not have an ignore-default-args option yet: the default flags always apply, and `args` only appends additional flags.
 </Tab>
 </Tabs>
 
@@ -1236,15 +1243,17 @@ return errors.Join(client.Close(ctx), browser.Close(ctx))
 </Tab>
 
 <Tab title="Ruby">
-The Ruby launcher does not have a keep-alive option yet: `browser.close` always terminates a Chrome that `Stagehand::LocalBrowser.launch` started. To keep a local browser running across scripts, start Chrome yourself with a fixed debugging port and attach over CDP — Stagehand never closes a browser it did not launch:
-
 ```ruby
-browser = Stagehand::LocalBrowser.connect(cdp_url: "http://127.0.0.1:9222")
+browser = Stagehand::LocalBrowser.launch(
+  keep_alive: true,
+  headless: false,
+  port: 9222,
+)
 stagehand = Stagehand.create(browser: browser)
 page = browser.context.pages.first
 page.goto("https://example.com")
 
-# Stagehand disconnects and leaves the browser running
+# Browser window stays open after the script exits
 stagehand.close
 browser.close
 ```

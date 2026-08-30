@@ -17,9 +17,10 @@ example set, eval-task ports, docs tabs, and cross-language parity lanes.
   attach (with wake nudge), `__stagehandSendToHost` binding, runtime marker + semver
   negotiation, `Runtime.evaluate` double-JSON envelope delivery.
 - **JSON-RPC client** (`rpc_client.rb`) — strict envelopes, per-method timeout table,
-  notification buffering (`stagehand.log` → stderr), an inbound dispatcher thread
-  serving server→client requests (`on_request`, used for `llm.generate`) and
-  notification listeners, deterministic shutdown.
+  notification buffering (`stagehand.log` → stderr), inbound server→client
+  requests (`on_request`, used for `llm.generate`) and notification listeners
+  each running on their own tracked thread (like Python's per-item tasks),
+  deterministic shutdown.
 - **Local Chrome** (`browser.rb`) — hand-rolled launcher (no Playwright): Chrome
   discovery, temp profile, the Stagehand flag set, `Extensions.loadUnpacked`.
 - **Browserbase** (`browserbase_client.rb`, `browserbase_session.rb`,
@@ -126,18 +127,24 @@ SOAK=20 bundle exec rake test # scale up the thread-safety soak suite
 ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 ```
 
-## Known deviations from the sibling SDKs
+## Parity status
 
 - All 77 protocol methods are wrapped — the complete method surface,
   including inbound `llm.generate` (client-side LLMs).
-- No strict scalar validation inside wire models (field types are not
-  checked; the extension re-validates everything server-side). Union and
-  structural mismatches do raise.
-- No OpenTelemetry trace propagation (`traceparent` is simply omitted).
-- `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
-- Inbound work (request handlers, notification listeners including `page.on`
-  blocks) runs on one dispatcher thread: handlers may issue RPC calls, but a
-  slow handler delays later inbound work (Python runs these concurrently).
+- `LocalBrowser.launch` carries the full sibling option set (proxy, locale,
+  viewport, downloads, keep_alive, ignore_default_args, …); the
+  `sdk-client-schema-parity` lane holds the kwargs equal to the TS schemas.
+- Wire models validate strictly: scalar and enum fields check types on
+  decode and construction; union and structural mismatches raise.
+- Outbound requests carry W3C `traceparent`/`tracestate` when an
+  OpenTelemetry span is current (`opentelemetry-api` is a runtime
+  dependency, like the sibling SDKs).
+- Inbound requests and notification deliveries each run on their own
+  thread, like Python's per-item tasks. One retained deviation: a
+  notification listener that raises is logged and skipped rather than
+  tearing down the client.
+- `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash
+  (matches the TS open schema).
 - Wired into every ast-grep parity lane (`rpc`, `cdp`, `example`, `sdk`,
   `sdk-field-pipeline`, `sdk-client-schema-parity`), the docs reference
   validation (`packages/docs/tests`), CI, and the release tooling. Ruby tabs

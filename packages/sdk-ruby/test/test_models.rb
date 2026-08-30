@@ -92,6 +92,44 @@ class TestModels < Minitest::Test
     assert_instance_of Models::CookieRegex, regex
   end
 
+  def test_scalar_fields_validate_on_decode
+    assert_raises(Stagehand::WireError) do
+      Models::PageGotoParams.from_wire("page_id" => "p", "url" => 42)
+    end
+    error = assert_raises(Stagehand::WireError) do
+      Stagehand::Wire.decode(true, :integer)
+    end
+    assert_match(/expected integer/, error.message)
+    # :number accepts Integer and Float, never booleans; nil passes (nullable).
+    assert_equal 1, Stagehand::Wire.decode(1, :number)
+    assert_equal 1.5, Stagehand::Wire.decode(1.5, :number)
+    assert_raises(Stagehand::WireError) { Stagehand::Wire.decode(true, :number) }
+    assert_nil Stagehand::Wire.decode(nil, :string)
+  end
+
+  def test_scalar_fields_validate_on_construction
+    error = assert_raises(ArgumentError) { Models::PageGotoParams.new(page_id: "p", url: 42) }
+    assert_match(/url: expected string/, error.message)
+    assert_raises(ArgumentError) { Models::PageClickParams.new(page_id: "p", x: "ten", y: 2) }
+    # Valid construction still works, including nullable omissions.
+    assert_equal "https://x.test", Models::PageGotoParams.new(page_id: "p", url: "https://x.test").url
+  end
+
+  def test_enum_fields_validate_membership
+    message = Models::LLMMessage.from_wire("role" => "user", "content" => { "type" => "text", "text" => "hi" })
+    assert_equal "user", message.role
+    assert_raises(Stagehand::WireError) do
+      Models::LLMMessage.from_wire("role" => "narrator", "content" => { "type" => "text", "text" => "hi" })
+    end
+    assert_raises(ArgumentError) { Models::LLMMessage.new(role: "narrator", content: []) }
+  end
+
+  def test_scalar_union_variants_are_strict
+    # CookieFilter is string | CookieRegex: numbers no longer pass through.
+    assert_equal "session", Stagehand::Wire.decode("session", "CookieFilter")
+    assert_raises(Stagehand::WireError) { Stagehand::Wire.decode(42, "CookieFilter") }
+  end
+
   def test_structural_mismatches_raise
     assert_raises(Stagehand::WireError) { Stagehand::Wire.decode("nope", Models::ActResult) }
     assert_raises(Stagehand::WireError) { Stagehand::Wire.decode({ "a" => 1 }, [:array, "PageRef"]) }

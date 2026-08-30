@@ -109,8 +109,9 @@ class Generator
     end
   end
 
-  # Compiles a schema node to a wire descriptor: nil (raw JSON), a definition
-  # name, [:array, d], [:map, d], or [:union, [d, ...]].
+  # Compiles a schema node to a wire descriptor: nil (raw JSON), a scalar
+  # marker (:string/:integer/:number/:boolean/:null), a definition name,
+  # [:array, d], [:map, d], or [:union, [d, ...]].
   def compile(node)
     return nil unless node.is_a?(Hash)
 
@@ -143,21 +144,28 @@ class Generator
       return nil unless items.is_a?(Hash)
       inner = compile(items)
       inner.nil? ? nil : [:array, inner]
+    when "string" then :string
+    when "integer" then :integer
+    when "number" then :number
+    when "boolean" then :boolean
+    when "null" then :null
     else
+      # Untyped schemas and multi-type arrays stay raw (open).
       nil
     end
   end
 
-  # A descriptor is trivial when it can never reach a generated class, so
-  # decoding it is the identity. Cycles (recursive JSON values) are trivial.
+  # A descriptor is trivial when decoding it is the identity — it can never
+  # reach a generated class, enum, or scalar check. Cycles (recursive JSON
+  # values) are trivial.
   def trivial?(descriptor, seen = {})
     case descriptor
     when nil then true
+    when Symbol then false
     when String
       return true if seen[descriptor]
       seen[descriptor] = true
-      return false if @kinds[descriptor] == :class
-      return true if @kinds[descriptor] == :enum
+      return false if @kinds[descriptor] != :descriptor
       trivial?(@compiled.fetch(descriptor), seen)
     when Array
       kind, inner = descriptor
@@ -172,6 +180,7 @@ class Generator
   def literal(descriptor)
     case descriptor
     when nil then "nil"
+    when Symbol then descriptor.inspect
     when String then descriptor.inspect
     when Array
       kind, inner = descriptor
@@ -226,7 +235,7 @@ class Generator
       value =
         case @kinds.fetch(name)
         when :class then name
-        when :enum then "nil"
+        when :enum then "[:enum, #{name.inspect}].freeze"
         else literal(simplify(@compiled.fetch(name)))
         end
       lines << "      #{name.inspect} => #{value},"
