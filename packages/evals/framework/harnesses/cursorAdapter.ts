@@ -78,6 +78,15 @@ export class CursorTrajectoryAdapter implements TrajectoryAdapter<CursorRunResul
       }
     }
 
+    // A 'started' call with no 'completed' envelope (stream aborted, CLI
+    // killed mid-call) must not read as a successful step — mirror the
+    // deepagents adapter's unmatched-call handling.
+    for (const open of openCalls.values()) {
+      open.ok = false;
+      open.result = "no tool result";
+      open.error = "no tool result";
+    }
+
     attachStepObservations(toolCalls, result);
     const trailing = trailingTextParts.join("\n").trim();
     const finalAnswer =

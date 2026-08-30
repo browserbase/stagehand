@@ -88,6 +88,9 @@ export async function runCursorAgent({
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "Cursor did not report success",
+    // Cursor often emits the result as fenced/prose JSON without the marker;
+    // the lenient retry only runs after the strict parse fails.
+    parseResult: parseCursorResult,
     runSession: async (prompt) => {
       const sessionResult = await runCursorAgentSession({
         prompt,
