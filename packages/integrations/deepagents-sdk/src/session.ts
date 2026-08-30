@@ -234,8 +234,14 @@ export async function runDeepagentsSession(input: {
           tokenUsage = extractDeepagentsTokenUsage(event);
         }
         if (event.type === "error") {
-          errorKind = typeof event.kind === "string" ? event.kind : "exception";
-          stopReason = typeof event.message === "string" ? event.message : "deepagents error";
+          // A terminal stop classification (budget/recursion) must not be
+          // overwritten by a later generic exception (e.g. from teardown).
+          const isTerminalKind =
+            errorKind === "tool_step_budget" || errorKind === "recursion_limit";
+          if (!isTerminalKind) {
+            errorKind = typeof event.kind === "string" ? event.kind : "exception";
+            stopReason = typeof event.message === "string" ? event.message : "deepagents error";
+          }
         }
         if (event.type === "tool_result" && typeof event.name === "string") {
           await input.onToolResult?.(

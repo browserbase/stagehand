@@ -336,3 +336,27 @@ def test_content_blocks_and_usage_helpers() -> None:
         "reasoning_output_tokens": 5,
         "total_tokens": 14,
     }
+
+
+async def test_flaky_teardown_after_completion_keeps_exit_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raising exit-stack close after the stream finished must stay exit 0
+    and must not emit an error event that overwrites the stop classification."""
+    import run_eval as run_eval_module
+
+    class FlakyExitStack:
+        async def enter_async_context(self, _cm: Any) -> Any:  # pragma: no cover
+            raise AssertionError("no MCP contexts expected in this test")
+
+        async def aclose(self) -> None:
+            raise RuntimeError("stdio server already exited")
+
+    monkeypatch.setattr(run_eval_module, "AsyncExitStack", FlakyExitStack)
+    messages = iter([AIMessage(content="done", usage_metadata=usage(5, 4, 2, 2))])
+    events: list[dict[str, Any]] = []
+
+    exit_code = await run(config(), build_agent=fake_builder(messages), emit=events.append)
+
+    assert exit_code == 0
+    assert all(event["type"] != "error" for event in events)
