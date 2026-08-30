@@ -31,6 +31,10 @@ export const CdpTreeSchema = z.object({
     }),
   ),
   focusBackendNodeId: z.number().optional(),
+  /** backendNodeIds resolved from options.ignoreLocators; the server prunes
+   * these subtrees (in every frame) before hashing. May be empty when the
+   * locators matched nothing. */
+  ignoredBackendNodeIds: z.array(z.number()).optional(),
 });
 
 export const CacheMethodSchema = z.enum(["act", "observe", "extract"]);

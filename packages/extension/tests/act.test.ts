@@ -17,6 +17,25 @@ vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
   waitForDomNetworkQuiet: vi.fn(),
 }));
 
+// The cache path resolves locator scope to backendNodeIds through
+// FrameSelectorResolver, which needs a live locator-world execution context;
+// tests fake the resolver and answer DOM.describeNode from the frame's fake
+// session instead.
+const resolver = vi.hoisted(() => ({
+  resolveAtIndex: vi.fn(),
+  resolveAll: vi.fn(),
+}));
+
+vi.mock("../understudy/selectorResolver.js", () => ({
+  FrameSelectorResolver: class {
+    static parseSelector(raw: string) {
+      return { kind: "css", value: raw };
+    }
+    resolveAtIndex = resolver.resolveAtIndex;
+    resolveAll = resolver.resolveAll;
+  },
+}));
+
 const performAction = vi.mocked(performUnderstudyMethod);
 const waitForQuiet = vi.mocked(waitForDomNetworkQuiet);
 
@@ -567,10 +586,20 @@ describe("act service", () => {
     expect(clientLLMGenerate).not.toHaveBeenCalled();
   });
 
-  it("bypasses cache reads and writes for locator-scoped instruction acts", async () => {
+  it("caches locator-scoped instruction acts and replays them by stored selector", async () => {
+    resolver.resolveAtIndex.mockImplementation(async (query: { value: string }) =>
+      query.value === "main"
+        ? { objectId: "obj-main", nodeId: null }
+        : { objectId: "obj-promo", nodeId: null },
+    );
     const frame = {
       frameId: "frame-1",
       getAccessibilityTree: vi.fn(async () => []),
+      session: {
+        send: vi.fn(async (_method: string, params: { objectId: string }) => ({
+          node: { backendNodeId: params.objectId === "obj-main" ? 42 : 7 },
+        })),
+      },
     };
     const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/main/button"));
     const page = {
@@ -578,8 +607,10 @@ describe("act service", () => {
       url: () => "https://example.com",
       frames: () => [frame],
     } as unknown as Page;
-    const get = vi.fn();
-    const set = vi.fn();
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({ hit: false, cacheKey: "key", missReason: "not_found" });
+    const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
     const clientLLMGenerate = vi.fn(
       async (): Promise<LLMGenerateResult> =>
         actGeneration({
@@ -589,8 +620,7 @@ describe("act service", () => {
           arguments: [],
         }),
     );
-
-    const result = await actService.act({
+    const actParams = {
       params: {
         pageId: "page-1",
         instruction: "Click checkout",
@@ -601,25 +631,53 @@ describe("act service", () => {
         },
       },
       page,
-      model: { source: "client" },
+      model: { source: "client" as const },
       clientLLMGenerate,
       logger: testLogger(),
       cache: {
         sessionId: "session-1",
         client: { get, set } as unknown as CacheClient,
-        defaultCaching: true,
+        defaultCaching: true as const,
       },
-    });
+    };
 
-    expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
+    const miss = await actService.act(actParams);
+
+    expect(miss.metadata.cache).toStrictEqual({ status: "MISS", missReason: "not_found" });
     expect(captureSnapshot).toHaveBeenCalledWith({
       focusLocator: { selector: "main", nth: 1 },
       ignoreLocators: [{ selector: ".promo", nth: 0 }],
     });
-    expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
-    expect(get).not.toHaveBeenCalled();
-    expect(set).not.toHaveBeenCalled();
-    expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+    // The locator index resolves the focus node; the nth-scoped ignore
+    // locator resolves that single match.
+    expect(resolver.resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: "main" }, 1);
+    expect(resolver.resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: ".promo" }, 0);
+    expect(get).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          options: expect.objectContaining({
+            locator: { selector: "main", nth: 1 },
+            ignoreLocators: [{ selector: ".promo", nth: 0 }],
+          }),
+        }),
+        cdpTree: expect.objectContaining({
+          focusBackendNodeId: 42,
+          ignoredBackendNodeIds: [7],
+        }),
+      }),
+    );
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: miss.data.actions }));
+
+    // Replay is untouched by locator scoping: the cached actions carry their
+    // own xpath selectors and never consult the locator.
+    get.mockResolvedValueOnce({ hit: true, value: miss.data.actions, cacheKey: "key" });
+    clientLLMGenerate.mockClear();
+
+    const hit = await actService.act(actParams);
+
+    expect(hit.metadata.cache.status).toBe("HIT");
+    expect(hit.data.actions).toStrictEqual(miss.data.actions);
+    expect(clientLLMGenerate).not.toHaveBeenCalled();
   });
 
   it("respects the act timeout across page preparation", async () => {

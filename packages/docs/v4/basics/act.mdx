@@ -352,7 +352,7 @@ Target locators only affect instruction-based `act()` calls. When you pass an `A
 
 When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
-Instruction-based `act()` calls with a target locator or ignored locators bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
+Instruction-based `act()` calls with a target locator or ignored locators are cached too: `locator` and `ignoreLocators` (including `nth` indices) are part of the cache key, and the page fingerprint is scoped to the locator's subtree with ignored subtrees excluded.
 
 <Tabs>
 <Tab title="TypeScript">
