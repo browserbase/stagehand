@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/agent.ts",
-    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations && vitest run",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-codex-sdk && vitest run",
     "test:unit": "vitest run",
     "typecheck": "tsc --noEmit"
   },

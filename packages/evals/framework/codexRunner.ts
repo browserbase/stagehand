@@ -183,8 +183,14 @@ export async function runCodexAgent({
           usage: {
             input_tokens: tokenUsage.input_tokens,
             output_tokens: tokenUsage.output_tokens,
-            reasoning_tokens: tokenUsage.reasoning_output_tokens,
-            cached_input_tokens: tokenUsage.cached_input_tokens,
+            // Unreported usage stays absent so trajectory consumers can
+            // distinguish "not measured" from a measured zero.
+            ...(tokenUsage.reasoning_output_tokens !== undefined && {
+              reasoning_tokens: tokenUsage.reasoning_output_tokens,
+            }),
+            ...(tokenUsage.cached_input_tokens !== undefined && {
+              cached_input_tokens: tokenUsage.cached_input_tokens,
+            }),
           },
         },
         verifier.taskSpec,
@@ -216,7 +222,10 @@ function readCodexMaxToolSteps(): number {
     const parsed = Number.parseInt(process.env[key] ?? "", 10);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
   }
-  return 50;
+  // Codex budgets individual tool steps while Claude budgets turns (which can
+  // span several tool calls); 100 steps ≈ 50 Claude turns keeps the harnesses
+  // roughly comparable.
+  return 100;
 }
 
 function readBooleanEnv(key: string, fallback: boolean): boolean {

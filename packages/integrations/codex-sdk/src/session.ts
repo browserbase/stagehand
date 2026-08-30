@@ -28,15 +28,17 @@ export type CodexThreadConfig = {
 
 export type CodexTokenUsage = {
   input_tokens: number;
-  cached_input_tokens: number;
+  /** Absent when the SDK did not report it — never synthesized as 0. */
+  cached_input_tokens?: number;
   output_tokens: number;
-  reasoning_output_tokens: number;
+  /** Absent when the SDK did not report it — never synthesized as 0. */
+  reasoning_output_tokens?: number;
 };
 
 export type CodexSessionResult = {
   events: CodexEvent[];
   finalMessage: string;
-  status: "completed" | "sdk_error";
+  status: "completed" | "max_turns" | "sdk_error";
   stopReason?: string;
   tokenUsage: CodexTokenUsage;
   iterationError?: unknown;
@@ -100,7 +102,8 @@ export function validateCodexSandboxMode(
   if (value === "read-only" || value === "workspace-write" || value === "danger-full-access") {
     return value;
   }
-  return "workspace-write";
+  // Fail closed: an unset or unrecognized mode must not grant disk writes.
+  return "read-only";
 }
 
 export function validateCodexApprovalPolicy(
@@ -142,6 +145,7 @@ export async function runCodexSession(input: {
     else input.signal.addEventListener("abort", forwardAbort, { once: true });
   }
   let toolStepCount = 0;
+  let budgetExhausted = false;
 
   try {
     const thread = sdk.startThread({
@@ -186,6 +190,7 @@ export async function runCodexSession(input: {
         toolStepCount += 1;
         if (toolStepCount >= maxToolSteps && !budgetController.signal.aborted) {
           stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
+          budgetExhausted = true;
           budgetController.abort(new Error(stopReason));
         }
         if (item.type === "mcp_tool_call") await input.onToolStep?.();
@@ -206,7 +211,7 @@ export async function runCodexSession(input: {
   return {
     events,
     finalMessage,
-    status: resolveCodexStatus(iterationError, stopReason),
+    status: resolveCodexStatus(iterationError, stopReason, budgetExhausted),
     ...(stopReason && { stopReason: sanitizeErrorMessage(stopReason) }),
     tokenUsage,
     ...(iterationError !== undefined && { iterationError }),
@@ -216,7 +221,11 @@ export async function runCodexSession(input: {
 export function resolveCodexStatus(
   iterationError: unknown,
   stopReason?: string,
-): "completed" | "sdk_error" {
+  budgetExhausted = false,
+): "completed" | "max_turns" | "sdk_error" {
+  // Tool-step budget exhaustion is the same class of stop as Claude's
+  // max_turns, not an SDK failure; callers decide how to score it.
+  if (budgetExhausted) return "max_turns";
   return iterationError || stopReason ? "sdk_error" : "completed";
 }
 
@@ -225,9 +234,13 @@ export function extractCodexTokenUsage(
 ): CodexTokenUsage {
   return {
     input_tokens: toFiniteNumber(usage?.input_tokens),
-    cached_input_tokens: toFiniteNumber(usage?.cached_input_tokens),
     output_tokens: toFiniteNumber(usage?.output_tokens),
-    reasoning_output_tokens: toFiniteNumber(usage?.reasoning_output_tokens),
+    ...(usage?.cached_input_tokens !== undefined && {
+      cached_input_tokens: toFiniteNumber(usage.cached_input_tokens),
+    }),
+    ...(usage?.reasoning_output_tokens !== undefined && {
+      reasoning_output_tokens: toFiniteNumber(usage.reasoning_output_tokens),
+    }),
   };
 }
 

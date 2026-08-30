@@ -2,9 +2,6 @@ import { loadCodexSdk, runCodexSession } from "@browserbasehq/stagehand-integrat
 import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
 
-const serverPath = fileURLToPath(
-  import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
-);
 
 /**
  * codex-sdk has no in-process MCP mounting; MCP servers are supplied through
@@ -12,6 +9,11 @@ const serverPath = fileURLToPath(
  * harness uses.
  */
 export function buildCodexConfig(): Record<string, unknown> {
+  // Resolved here (not at module load) so a missing build surfaces through
+  // handleFailure instead of an uncaught module error.
+  const serverPath = fileURLToPath(
+    import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
+  );
   return {
     // Required for headless MCP calls on machines without a global
     // approvals_reviewer: without it, tool calls die with "user cancelled
@@ -69,9 +71,14 @@ async function main(): Promise<void> {
     },
   });
   if (result.status !== "completed") {
+    // Surface any answer the agent produced before the abnormal stop; a
+    // budget/max-turns stop usually still carries a useful final message.
     throw (
       result.iterationError ??
-      new Error(`Agent did not finish: ${result.stopReason ?? result.status}`)
+      new Error(
+        `Agent did not finish: ${result.stopReason ?? result.status}` +
+          (result.finalMessage ? `\nLast agent message: ${result.finalMessage}` : ""),
+      )
     );
   }
   // oxlint-disable-next-line no-console -- CLI example prints the agent result.

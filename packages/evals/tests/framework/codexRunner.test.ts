@@ -110,7 +110,7 @@ describe("codex runner helpers", () => {
       model: "gpt-5.4-mini",
       workingDirectory: "/tmp/stagehand-evals-test",
       skipGitRepoCheck: true,
-      sandboxMode: "workspace-write",
+      sandboxMode: "read-only",
       approvalPolicy: "never",
       networkAccessEnabled: true,
     });

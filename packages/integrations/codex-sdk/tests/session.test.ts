@@ -49,7 +49,7 @@ describe("Codex SDK session", () => {
     expect(threadOptions).toMatchObject({
       model: "gpt-5.4-mini",
       workingDirectory: "/tmp/work",
-      sandboxMode: "workspace-write",
+      sandboxMode: "read-only",
       approvalPolicy: "never",
       networkAccessEnabled: true,
       webSearchMode: "disabled",
@@ -103,7 +103,50 @@ describe("Codex SDK session", () => {
       maxToolSteps: 1,
     });
     expect(signal?.aborted).toBe(true);
-    expect(result.status).toBe("sdk_error");
+    expect(result.status).toBe("max_turns");
     expect(result.stopReason).toBe("tool step budget exhausted (1 steps)");
+  });
+
+  it("fails closed to read-only for unknown sandbox modes", async () => {
+    let capturedSandbox: unknown;
+    const sdk: CodexSdk = {
+      startThread: (options) => {
+        capturedSandbox = (options as Record<string, unknown>)?.sandboxMode;
+        return {
+          runStreamed: async () => ({ events: (async function* () {})() }),
+        };
+      },
+    };
+    await runCodexSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      sdk,
+      thread: { sandboxMode: "yolo" as never },
+    });
+    expect(capturedSandbox).toBe("read-only");
+  });
+
+  it("leaves unreported usage fields absent instead of zero-filling", async () => {
+    const sdk: CodexSdk = {
+      startThread: () => ({
+        runStreamed: async () => ({
+          events: (async function* () {
+            yield { type: "turn.completed", usage: { input_tokens: 7, output_tokens: 3 } };
+          })(),
+        }),
+      }),
+    };
+    const result = await runCodexSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      sdk,
+      thread: {},
+    });
+    expect(result.tokenUsage.input_tokens).toBe(7);
+    expect(result.tokenUsage.output_tokens).toBe(3);
+    expect("reasoning_output_tokens" in result.tokenUsage).toBe(false);
+    expect("cached_input_tokens" in result.tokenUsage).toBe(false);
   });
 });
