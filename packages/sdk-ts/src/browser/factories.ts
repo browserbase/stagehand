@@ -66,7 +66,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           throw new Error("downloadsPath is required when acceptDownloads is true");
         }
         return await withStagehandInitDeadline(async (signal) => {
-          const launchPromise = launchLocal(options);
+          const launchPromise = launchLocal(options, signal);
           let launched: Awaited<typeof launchPromise>;
           try {
             launched = await abortable(launchPromise, signal);

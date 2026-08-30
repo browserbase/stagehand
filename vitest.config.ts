@@ -11,6 +11,8 @@ export default defineConfig({
       "packages/docs/tests/**/*.test.ts",
       "packages/evals/tests/**/*.test.ts",
       "packages/integrations/core/tests/**/*.test.ts",
+      "packages/integrations/claude-agent-sdk/tests/**/*.test.ts",
+      "packages/integrations/codex-sdk/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
       "packages/extension/llm/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
