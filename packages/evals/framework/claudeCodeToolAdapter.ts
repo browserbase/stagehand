@@ -178,7 +178,8 @@ export async function prepareClaudeCodeToolAdapter(
     case "cdp_code":
     case "stagehand_code":
     case "playwright_mcp":
-    case "chrome_devtools_mcp": {
+    case "chrome_devtools_mcp":
+    case "stagehand_facade": {
       return prepareMountedCoreToolAdapter({
         ...input,
         toolSurface,
@@ -187,7 +188,7 @@ export async function prepareClaudeCodeToolAdapter(
     }
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp, with stagehand_facade also available; received "${toolSurface}".`,
       );
   }
 }
@@ -200,12 +201,13 @@ export function resolveClaudeCodeToolSurface(requested?: ToolSurface): ToolSurfa
     requested === "cdp_code" ||
     requested === "stagehand_code" ||
     requested === "playwright_mcp" ||
-    requested === "chrome_devtools_mcp"
+    requested === "chrome_devtools_mcp" ||
+    requested === "stagehand_facade"
   ) {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp, with stagehand_facade also available; received "${requested}".`,
   );
 }
 
@@ -216,14 +218,17 @@ export function resolveClaudeCodeStartupProfile(
 ): StartupProfile {
   if (requested) return requested;
 
-  // browse_cli and stagehand_code own their browser (the Stagehand SDK launches or
-  // creates it via the extension stack), so no runner-provided CDP endpoint.
-  if (toolSurface === "browse_cli" || toolSurface === "stagehand_code") {
+  // browse_cli, stagehand_code, and stagehand_facade own their browser (the
+  // Stagehand SDK launches or creates it), so no runner-provided CDP endpoint.
+  if (
+    toolSurface === "browse_cli" ||
+    toolSurface === "stagehand_code" ||
+    toolSurface === "stagehand_facade"
+  ) {
     return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
   }
-  // The MCP surfaces need a runner-provided endpoint so the harness-side
-  // session (evidence capture) and the agent's own server instance attach to
-  // the same browser.
+  // The attachable surfaces need a runner-provided endpoint so the harness-side
+  // session (evidence capture) and the agent's server instance share a browser.
   if (
     toolSurface === "playwright_code" ||
     toolSurface === "cdp_code" ||

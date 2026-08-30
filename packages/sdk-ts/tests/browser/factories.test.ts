@@ -40,9 +40,12 @@ describe("Stagehand browser factories", () => {
     const browser = await localBrowser.launch({ headless: true });
 
     expect(browser).toMatchObject({ provider: "local", origin: "launched", closed: false });
-    expect(launchLocalBrowser).toHaveBeenCalledWith({
-      headless: true,
-    });
+    expect(launchLocalBrowser).toHaveBeenCalledWith(
+      {
+        headless: true,
+      },
+      expect.any(AbortSignal),
+    );
     expect(connectCdp).toHaveBeenCalledWith(
       expect.objectContaining({
         cdpUrl: "http://127.0.0.1:9222",

@@ -28,7 +28,6 @@ catalog:
   vitest: 4.1.9
   zod: 4.4.3
   devtools-protocol: ^0.0.1657692
-  chrome-launcher: ^1.2.1
   ai: ^7.0.16
   "@openai/codex-sdk": 0.147.0
   "@anthropic-ai/claude-agent-sdk": 0.3.224

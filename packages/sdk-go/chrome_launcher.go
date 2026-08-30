@@ -23,18 +23,8 @@ const (
 	defaultChromeWidth  = 1280
 	defaultChromeHeight = 800
 	chromePollInterval  = 100 * time.Millisecond
-	webMCPChromeFlag    = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 )
 
-// Copyright 2017 Google Inc. All Rights Reserved.
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// https://www.apache.org/licenses/LICENSE-2.0.
-//
-// defaultChromeFlags tracks chrome-launcher 1.2.1's DEFAULT_FLAGS, excluding
-// --disable-extensions so Stagehand can load its unpacked extension. The
-// TypeScript and Python SDKs use the same list.
 var defaultChromeFlags = []string{
 	"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
 		"CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
@@ -61,6 +51,9 @@ var defaultChromeFlags = []string{
 	"--disable-prompt-on-repost",
 	"--disable-domain-reliability",
 	"--propagate-iph-for-testing",
+	"--enable-unsafe-extension-debugging",
+	"--remote-allow-origins=*",
+	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 }
 
 type launchedChrome struct {
@@ -210,12 +203,12 @@ func buildChromeArgs(options LocalBrowserLaunchOptions, port int, userDataDir st
 		width, height = options.Viewport.Width, options.Viewport.Height
 	}
 	args := selectedDefaultChromeFlags(options.IgnoreDefaultArgs)
-	args = append(args, selectedChromeFlags([]string{
-		"--enable-unsafe-extension-debugging",
-		"--remote-allow-origins=*",
-		fmt.Sprintf("--window-size=%d,%d", width, height),
-		webMCPChromeFlag,
-	}, options.IgnoreDefaultArgs)...)
+	windowSizeFlag := fmt.Sprintf("--window-size=%d,%d", width, height)
+	if options.Viewport != nil {
+		args = append(args, windowSizeFlag)
+	} else {
+		args = append(args, selectedChromeFlags([]string{windowSizeFlag}, options.IgnoreDefaultArgs)...)
+	}
 	args = append(args,
 		fmt.Sprintf("--remote-debugging-port=%d", port),
 		"--user-data-dir="+userDataDir,
