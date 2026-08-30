@@ -2,7 +2,6 @@ import { loadCodexSdk, runCodexSession } from "@browserbasehq/stagehand-integrat
 import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
 
-
 /**
  * codex-sdk has no in-process MCP mounting; MCP servers are supplied through
  * the config override (config.toml shape), the same mechanism the evals codex
