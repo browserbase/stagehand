@@ -447,21 +447,21 @@ async function rubyModuleMethodParameters(
   methodName: string,
 ): Promise<string[]> {
   const root = parse("ruby", await readFile(new URL(file, rubySource), "utf8")).root();
-  const moduleNode = root
-    .findAll({ rule: { kind: "module" } })
-    .find(
-      (node) =>
-        node.children().find((child) => child.isNamed() && child.kind() === "constant")?.text() ===
-        moduleName,
-    );
+  const moduleNode = root.findAll({ rule: { kind: "module" } }).find(
+    (node) =>
+      node
+        .children()
+        .find((child) => child.isNamed() && child.kind() === "constant")
+        ?.text() === moduleName,
+  );
   if (!moduleNode) throw new Error(`${moduleName} was not found in ${file}`);
-  const method = moduleNode
-    .findAll({ rule: { kind: "method" } })
-    .find(
-      (candidate) =>
-        candidate.children().find((child) => child.isNamed() && child.kind() === "identifier")
-          ?.text() === methodName,
-    );
+  const method = moduleNode.findAll({ rule: { kind: "method" } }).find(
+    (candidate) =>
+      candidate
+        .children()
+        .find((child) => child.isNamed() && child.kind() === "identifier")
+        ?.text() === methodName,
+  );
   if (!method) throw new Error(`${moduleName}.${methodName} was not found in ${file}`);
   const parameters = method.field("parameters");
   if (!parameters) return [];
