@@ -104,10 +104,10 @@ each runnable as `bundle exec ruby examples/<name>.rb [--browserbase]`:
 | `page_events.rb` | mirrors the Python example; page.on console events + AI extract |
 | `context_and_response.rb` | Response/cookies/clipboard/viewport/snapshot tour; no LLM needed |
 | `custom_llm.rb` | mirrors the Python example; bring-your-own-LLM via `llm.generate` (OPENAI_API_KEY or AI_GATEWAY_API_KEY) |
+| `webmcp.rb` | mirrors the Python example; page-registered tools via `page.tools` → invoke → result; no LLM needed |
 | `demo.rb`, `arctic_observe.rb` | spike walkthroughs (not part of the canonical set) |
 
-The one remaining canonical example is `webmcp`, which needs a WebMCP-enabled
-target page (the `page.webmcp_*` methods themselves are wrapped and tested).
+That completes the canonical example set from `packages/sdk-{ts,python,go}/examples`.
 
 ## Development
 
