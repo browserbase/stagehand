@@ -498,7 +498,7 @@ TypeScript now requires Zod 4.2.0 or newer, imported from `zod/v4`. Zod 3 schema
 + import { z } from "zod/v4";
 ```
 
-Pass the Zod schema as the second argument, same as the positional-args change above. ArkType works the same way. A raw JSON Schema object does not; wrap it with `jsonSchema()`. Valibot, Effect, and TypeBox need the adapters in [supported TypeScript schema implementations](/v4/reference/stagehand#supported-typescript-schema-implementations).
+Pass the Zod schema as the second argument, same as the positional-args change above. ArkType works the same way. A raw JSON Schema object does not; wrap a plain Draft 2020-12 document with `jsonSchema()`. Valibot and Effect need the adapters in [supported TypeScript schema implementations](/v4/reference/stagehand#supported-typescript-schema-implementations).
 
 Object schemas that omit `additionalProperties` are sent with `additionalProperties: false`. Extra keys that used to slip through now fail validation.
 

@@ -5,7 +5,7 @@
 
 require extract() schemas that both validate and convert to JSON Schema
 
-`extract()` now takes schemas that validate values and produce Draft 2020-12 JSON Schema. Zod 4.2.0+ and ArkType pass through. Wrap Valibot with `toStandardJsonSchema()`, Effect with both of its Standard Schema adapters, and TypeBox or raw JSON Schema with `jsonSchema()`.
+`extract()` now takes schemas that validate values and produce Draft 2020-12 JSON Schema. Zod 4.2.0+ and ArkType pass through. Wrap Valibot with `toStandardJsonSchema()`, Effect with both of its Standard Schema adapters, and plain Draft 2020-12 documents with `jsonSchema()`.
 
 Breaking for TypeScript:
 

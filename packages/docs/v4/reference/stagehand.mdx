@@ -728,9 +728,9 @@ console.log(product.data, product.metadata.cache.status);
 
 <ParamField path="schema" type="StagehandSchema | StagehandClientExtractOptions" optional>
   The schema used to validate extracted data. Pass a Zod 4.2+ or ArkType schema, wrap Valibot with
-  `toStandardJsonSchema()`, wrap Effect with both of its Standard Schema adapters, or wrap TypeBox
-  and Draft 2020-12 documents with `jsonSchema()`. Defaults to an object with a string `extraction`
-  field when omitted. See [supported TypeScript schema implementations](#supported-typescript-schema-implementations).
+  `toStandardJsonSchema()`, wrap Effect with both of its Standard Schema adapters, or wrap a plain
+  Draft 2020-12 document with `jsonSchema()`. Defaults to an object with a string `extraction` field
+  when omitted. See [supported TypeScript schema implementations](#supported-typescript-schema-implementations).
 </ParamField>
 
 <ParamField path="options" type="StagehandClientExtractOptions" optional>
@@ -860,8 +860,8 @@ console.log(product.data, product.metadata.cache.status);
 
 ### Supported TypeScript schema implementations
 
-`extract()` needs a schema that can validate values and produce Draft 2020-12 JSON Schema. Zod 4.2+
-and ArkType do both. The others need an adapter.
+`extract()` accepts Standard Schema implementations that validate values and produce Draft 2020-12
+JSON Schema. Use `jsonSchema<T>()` when the schema is already a plain Draft 2020-12 document.
 
 | Library | How to pass it to `extract()` | Minimum version |
 | --- | --- | --- |
@@ -869,7 +869,6 @@ and ArkType do both. The others need an adapter.
 | ArkType | Pass the type directly | ArkType 2.1.28+ |
 | Valibot | Wrap it with `toStandardJsonSchema()` | Valibot 1.2.0+ and `@valibot/to-json-schema` 1.5.0+ |
 | Effect | Add both Effect Standard Schema adapters | Effect 4 API |
-| TypeBox | Pass the complete schema to `jsonSchema<T>()` | TypeBox 1.3.7 |
 | Plain JSON Schema | Pass the complete document to `jsonSchema<T>()` | Draft 2020-12 |
 
 <Tabs>
@@ -935,23 +934,6 @@ Apply both `Schema.toStandardSchemaV1()` and `Schema.toStandardJSONSchemaV1()` b
 schema in. The Effect 3 Standard Schema adapter only adds validation, so it is not enough on its own.
 </Tab>
 
-<Tab title="TypeBox">
-```typescript
-import Type, { type Static } from "typebox";
-import { jsonSchema } from "@browserbasehq/stagehand";
-
-const ProductJsonSchema = Type.Object({
-  name: Type.String(),
-  price: Type.Number(),
-});
-const schema = jsonSchema<Static<typeof ProductJsonSchema>>(ProductJsonSchema);
-const { data } = await stagehand.extract("extract product", schema);
-```
-
-Pass the complete schema to `jsonSchema()`. The generic keeps TypeBox's static type, including
-optional properties. TypeBox is not a Stagehand dependency.
-</Tab>
-
 <Tab title="Plain JSON Schema">
 ```typescript
 import { jsonSchema } from "@browserbasehq/stagehand";
@@ -975,19 +957,21 @@ const { data } = await stagehand.extract("extract product", schema);
 ```
 
 Pass a complete Draft 2020-12 document to `jsonSchema()`. JSON Schema cannot infer a TypeScript type,
-so supply one with `jsonSchema<T>()` or omit the generic when the type is unknown. The adapter does
-not coerce values, run transforms, or apply `default` annotations.
+so supply one with `jsonSchema<T>()` or omit the generic when the type is unknown. The wrapper does
+not add validation callbacks, coerce values, run transforms, or apply `default` annotations. The
+browser extension validates extracted data against the document before returning it.
 </Tab>
 
 </Tabs>
 
 #### Errors and JSON Schema
 
-Do not pass a TypeBox object or a raw JSON Schema document to `extract()`. Wrap it with
-`jsonSchema()` first.
+Do not pass a raw JSON Schema document directly to `extract()`. Wrap it with `jsonSchema()` first.
 
-A schema Stagehand cannot convert throws `StagehandSchemaError` before the browser call. Data that
-fails the schema throws `StagehandValidationError`.
+A Standard Schema implementation that Stagehand cannot convert throws `StagehandSchemaError` before
+the browser call. Data that fails its original Standard Schema validation throws
+`StagehandValidationError`. Data that fails a plain JSON Schema document fails extraction inside the
+browser extension.
 
 Object schemas that omit `additionalProperties` are sent with `additionalProperties: false`. Set
 `additionalProperties: true` when extra keys should pass.
