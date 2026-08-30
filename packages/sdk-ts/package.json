@@ -45,7 +45,6 @@
     "@browserbasehq/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
-    "chrome-launcher": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

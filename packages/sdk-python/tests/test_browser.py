@@ -15,7 +15,6 @@ from stagehand._generated.models import (
 )
 from stagehand.browser import (
     _DEFAULT_CHROME_FLAGS,
-    _WEBMCP_CHROME_FLAG,
     StagehandBrowser,
     _attach_browser_context,
     _claim_browser,
@@ -824,7 +823,6 @@ def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: P
     )
 
     assert "--window-size=1440,900" in flags
-    assert _WEBMCP_CHROME_FLAG not in flags
     assert set(_DEFAULT_CHROME_FLAGS).isdisjoint(flags)
 
 
