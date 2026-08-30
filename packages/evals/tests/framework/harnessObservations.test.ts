@@ -4,6 +4,7 @@ import { AGENT_RUN_TOOL_NAME } from "../../core/contracts/tool.js";
 import { claudeCodeAdapter } from "../../framework/harnesses/claudeCodeAdapter.js";
 import { codexAdapter } from "../../framework/harnesses/codexAdapter.js";
 import {
+  createObservationRecorder,
   harnessObservationsEnabled,
   ObservationRecorder,
 } from "../../framework/observationRecorder.js";
@@ -26,6 +27,13 @@ describe("observation recorder", () => {
     expect(harnessObservationsEnabled()).toBe(true);
     process.env.EVAL_HARNESS_OBSERVATIONS = "none";
     expect(harnessObservationsEnabled()).toBe(false);
+  });
+
+  it("does not construct a recorder when observations are disabled", () => {
+    expect(createObservationRecorder(async () => ({ url: "https://example.com" }))).toBeDefined();
+
+    process.env.EVAL_HARNESS_OBSERVATIONS = "none";
+    expect(createObservationRecorder(async () => ({ url: "https://example.com" }))).toBeUndefined();
   });
 
   it("indexes observations by run and leaves gaps on capture failure", async () => {
