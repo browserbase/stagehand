@@ -17,10 +17,10 @@ inputs:
 runs:
   using: composite
   steps:
-    # Corepack ignores devEngines.packageManager, so pnpm 11.10.0 must be explicit to protect the lockfile.
+    # Corepack ignores devEngines.packageManager, so pnpm 12.1.0 must be explicit to protect the lockfile.
     - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       with:
-        version: "11.10.0"
+        version: "12.1.0"
         run_install: false
 
     - name: Set up Node.js
