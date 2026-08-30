@@ -375,6 +375,11 @@ export async function runFxSession(input: {
     }).finally(() => {
       processSettled = true;
     });
+    // Keep the rejection observed while the poll loop below is suspended in
+    // delay()/waitForSessionDir — otherwise a spawn failure during the sleep
+    // fires unhandledRejection and kills the worker. The real error still
+    // surfaces at the `await processPromise` after the loop.
+    processPromise.catch(() => {});
 
     if (input.onToolStep) {
       // fx does not stream tool events. Tail its recovery checkpoints only
@@ -588,25 +593,32 @@ export function resolveFxStatus(input: {
     (value): value is string =>
       typeof value === "string" && /agent step limit reached/iu.test(value),
   );
-  const reachedConfiguredStepLimit =
-    positiveInteger(input.maxAgentSteps) &&
-    typeof input.observedToolSteps === "number" &&
-    input.observedToolSteps >= input.maxAgentSteps;
   if (
     stepLimitNotice ||
-    reachedConfiguredStepLimit ||
     input.terminalReason === "step_limit" ||
     input.terminalReason === "step_limit_reached" ||
     (error && /step.?limit/iu.test(error))
   ) {
     return {
       status: "max_turns",
-      stopReason:
-        stepLimitNotice ??
-        error ??
-        (reachedConfiguredStepLimit
-          ? `fx reached the configured agent step limit (${input.maxAgentSteps} steps)`
-          : input.terminalReason),
+      stopReason: stepLimitNotice ?? error ?? input.terminalReason,
+    };
+  }
+  // Bare step-count heuristic: only a fallback for silent stops (fx reports
+  // terminal_reason "completed" even when it halts at its budget). A run
+  // that succeeded outright — exit 0 on both the process and the ask, no
+  // error — must not be fabricated into a budget failure just because it
+  // finished on exactly its last allowed step.
+  const succeededOutright =
+    input.exitCode === 0 && !error && (input.ask?.exit_code === 0 || input.ask?.exit_code == null);
+  const reachedConfiguredStepLimit =
+    positiveInteger(input.maxAgentSteps) &&
+    typeof input.observedToolSteps === "number" &&
+    input.observedToolSteps >= input.maxAgentSteps;
+  if (reachedConfiguredStepLimit && !succeededOutright) {
+    return {
+      status: "max_turns",
+      stopReason: `fx reached the configured agent step limit (${input.maxAgentSteps} steps)`,
     };
   }
   if (!input.ask) {

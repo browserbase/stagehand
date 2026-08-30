@@ -6,6 +6,7 @@ import {
   buildFxTranscript,
   createFxProcessRunner,
   normalizeFxModel,
+  resolveFxStatus,
   runFxSession,
   type FxProcessRunner,
   type FxSessionStore,
@@ -167,6 +168,19 @@ describe("fx CLI session", () => {
     });
     expect(result.status).toBe("max_turns");
     expect(result.stopReason).toBe(notice);
+  });
+
+  it("does not fabricate a budget failure for a clean run at exactly the step budget", () => {
+    expect(
+      resolveFxStatus({
+        exitCode: 0,
+        signal: null,
+        ask: { output: "done", exit_code: 0 },
+        terminalReason: "completed",
+        observedToolSteps: 5,
+        maxAgentSteps: 5,
+      }),
+    ).toEqual({ status: "completed" });
   });
 
   it("maps the configured observed step count to max_turns", async () => {
