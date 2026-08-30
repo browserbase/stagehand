@@ -2148,4 +2148,661 @@ if err := locator.Click(ctx, nil); err != nil {
 </ResponseField>
 
 </Tab>
+
+<Tab title="Ruby">
+
+## Quick start
+
+```ruby
+page = browser.context.new_page
+response = page.goto("https://example.com")
+```
+
+## goto()
+
+Navigate the page to a URL.
+
+```ruby
+response = page.goto("https://example.com")
+```
+
+<ParamField path="url" type="String">
+  The destination URL.
+</ParamField>
+
+<ParamField
+  path="wait_until"
+  type='"load" | "domcontentloaded" | "networkidle"'
+  optional
+>
+  The load state to wait for. Defaults to `"domcontentloaded"`.
+</ParamField>
+
+<ParamField path="timeout" type="Integer" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="Response?">
+  The final main-document response, or `nil` when no network response was produced.
+</ResponseField>
+
+## reload()
+
+Reload the current page.
+
+```ruby
+page.reload
+```
+
+<ParamField
+  path="wait_until"
+  type='"load" | "domcontentloaded" | "networkidle"'
+  optional
+>
+  The load state to wait for. Defaults to `"domcontentloaded"`.
+</ParamField>
+
+<ParamField path="timeout" type="Integer" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="ignore_cache" type="bool" optional>
+  Whether to bypass the browser cache.
+</ParamField>
+
+<ResponseField name="result" type="Response?">
+  The final main-document response, or `nil` when no network response was produced.
+</ResponseField>
+
+## go_back()
+
+Navigate backward in the page history.
+
+```ruby
+page.go_back
+```
+
+<ParamField
+  path="wait_until"
+  type='"load" | "domcontentloaded" | "networkidle"'
+  optional
+>
+  The load state to wait for. Defaults to `"domcontentloaded"`.
+</ParamField>
+
+<ParamField path="timeout" type="Integer" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="Response?">
+  The final main-document response, or `nil` when no history navigation occurred or no network response was produced.
+</ResponseField>
+
+## go_forward()
+
+Navigate forward in the page history.
+
+```ruby
+page.go_forward
+```
+
+<ParamField
+  path="wait_until"
+  type='"load" | "domcontentloaded" | "networkidle"'
+  optional
+>
+  The load state to wait for. Defaults to `"domcontentloaded"`.
+</ParamField>
+
+<ParamField path="timeout" type="Integer" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="Response?">
+  The final main-document response, or `nil` when no history navigation occurred or no network response was produced.
+</ResponseField>
+
+## click()
+
+Click at page coordinates.
+
+```ruby
+page.click(240, 320)
+```
+
+<ParamField path="x" type="Numeric">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="Numeric">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="button" type='"left" | "right" | "middle"' optional>
+  The mouse button to use.
+</ParamField>
+
+<ParamField path="click_count" type="Integer" optional>
+  The number of clicks to dispatch.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## hover()
+
+Move the pointer to page coordinates.
+
+```ruby
+page.hover(240, 320)
+```
+
+<ParamField path="x" type="Numeric">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="Numeric">
+  The vertical page coordinate.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## scroll()
+
+Scroll from page coordinates by the supplied deltas.
+
+```ruby
+page.scroll(240, 320, 0, 600)
+```
+
+<ParamField path="x" type="Numeric">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="Numeric">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="delta_x" type="Numeric">
+  Horizontal scroll distance.
+</ParamField>
+
+<ParamField path="delta_y" type="Numeric">
+  Vertical scroll distance.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## drag_and_drop()
+
+Drag from one page coordinate to another.
+
+```ruby
+page.drag_and_drop(100, 100, 400, 400)
+```
+
+<ParamField path="from_x" type="Numeric">
+  The drag origin's horizontal coordinate.
+</ParamField>
+
+<ParamField path="from_y" type="Numeric">
+  The drag origin's vertical coordinate.
+</ParamField>
+
+<ParamField path="to_x" type="Numeric">
+  The drop target's horizontal coordinate.
+</ParamField>
+
+<ParamField path="to_y" type="Numeric">
+  The drop target's vertical coordinate.
+</ParamField>
+
+<ParamField path="button" type='"left" | "right" | "middle"' optional>
+  The mouse button to use.
+</ParamField>
+
+<ParamField path="steps" type="Integer" optional>
+  The number of intermediate pointer moves.
+</ParamField>
+
+<ParamField path="delay" type="Numeric" optional>
+  An optional input delay in milliseconds.
+</ParamField>
+
+<ParamField
+  path="route"
+  type="Array[PageDragAndDropRoutePoint | Hash]"
+  optional
+>
+  An ordered mouse route to follow instead of generating linear intermediate moves. Each point is a
+  `Models::PageDragAndDropRoutePoint` or a `{x:, y:}` Hash. The explicit `to_x` and `to_y`
+  coordinates remain the final point.
+
+  <ParamField path="route.x" type="Numeric">
+    A route point's horizontal coordinate.
+  </ParamField>
+
+  <ParamField path="route.y" type="Numeric">
+    A route point's vertical coordinate.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## type()
+
+Type text at the current input target.
+
+```ruby
+page.type("Browserbase")
+```
+
+<ParamField path="text" type="String">
+  The text to type.
+</ParamField>
+
+<ParamField path="delay" type="Numeric" optional>
+  An optional input delay in milliseconds.
+</ParamField>
+
+<ParamField path="with_mistakes" type="bool" optional>
+  Whether to simulate occasional typing mistakes.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## key_press()
+
+Send a keyboard key press to the page.
+
+```ruby
+page.key_press("Enter")
+```
+
+<ParamField path="key" type="String">
+  The keyboard key to send.
+</ParamField>
+
+<ParamField path="delay" type="Numeric" optional>
+  An optional input delay in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## evaluate()
+
+Evaluate JavaScript in the page and return its result.
+
+```ruby
+title = page.evaluate("document.title")
+```
+
+<ParamField path="expression" type="String">
+  The JavaScript expression to evaluate.
+</ParamField>
+
+<ResponseField name="result" type="untyped">
+  The evaluated expression's JSON value.
+</ResponseField>
+
+## on()
+
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+
+```ruby
+subscription = page.on("console") do |event|
+  puts "#{event.method} #{event.params}"
+end
+
+page.evaluate('console.log("ready")')
+subscription.unsubscribe
+```
+
+<ParamField path="event" type='"console"'>
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="Proc">
+  A required block that receives each `Models::PageCDPEvent` with the event method, raw
+  parameters, session ID, target ID, and page ID. The block runs on the SDK's dispatcher
+  thread, so a slow block delays other inbound work.
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe` method stops delivery.
+</ResponseField>
+
+### CDPSubscription
+
+```ruby
+subscription.unsubscribe() -> nil
+```
+
+`subscription.unsubscribe` removes the listener locally and from the Stagehand runtime.
+Repeated calls are safe and return after the first successful cleanup.
+
+## add_init_script()
+
+Run a script before other scripts whenever the page navigates.
+
+```ruby
+page.add_init_script("window.localStorage.clear()")
+```
+
+<ParamField path="source" type="String | Pathname">
+  JavaScript source, or a `Pathname` to a JavaScript file on the SDK caller's machine.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## set_extra_http_headers()
+
+Set additional HTTP headers for this page.
+
+```ruby
+page.set_extra_http_headers({ "x-test" => "true" })
+```
+
+<ParamField path="headers" type="Hash[String, String]">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## set_viewport_size()
+
+Set the page viewport dimensions.
+
+```ruby
+page.set_viewport_size(1440, 900)
+```
+
+<ParamField path="width" type="Integer">
+  Viewport width in CSS pixels.
+</ParamField>
+
+<ParamField path="height" type="Integer">
+  Viewport height in CSS pixels.
+</ParamField>
+
+<ParamField path="device_scale_factor" type="Numeric" optional>
+  The device scale factor.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## wait_for_load_state()
+
+Wait until the page reaches a load state.
+
+```ruby
+page.wait_for_load_state("networkidle", timeout: 10_000)
+```
+
+<ParamField path="state" type='"load" | "domcontentloaded" | "networkidle"'>
+  The state to wait for: `"load"`, `"domcontentloaded"`, or `"networkidle"`.
+</ParamField>
+
+<ParamField path="timeout" type="Integer" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## wait_for_timeout()
+
+Wait for a fixed number of milliseconds.
+
+```ruby
+page.wait_for_timeout(500)
+```
+
+<ParamField path="ms" type="Integer">
+  The number of milliseconds to wait.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## wait_for_selector()
+
+Wait for a selector to reach the requested state.
+
+```ruby
+matched = page.wait_for_selector("main", state: "visible")
+```
+
+<ParamField path="selector" type="String">
+  The selector to target.
+</ParamField>
+
+<ParamField
+  path="state"
+  type='"attached" | "detached" | "visible" | "hidden"'
+  optional
+>
+  The state to wait for: `"attached"`, `"detached"`, `"visible"`, or `"hidden"`.
+</ParamField>
+
+<ParamField path="timeout" type="Integer" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="pierce_shadow" type="bool" optional>
+  Whether to traverse shadow roots. Closed roots require a navigated page; see the [locator reference](/v4/reference/locator).
+</ParamField>
+
+<ResponseField name="result" type="bool">
+  `true` when the selector reached the requested state.
+</ResponseField>
+
+## screenshot()
+
+Capture a screenshot of the page.
+
+```ruby
+image = page.screenshot(full_page: true)
+```
+
+<ParamField path="path" type="String | Pathname" optional>
+  A path where the image is also written.
+</ParamField>
+
+<ParamField path="animations" type='"disabled" | "allow"' optional>
+  How to handle CSS animations: `"disabled"` or `"allow"`.
+</ParamField>
+
+<ParamField path="caret" type='"hide" | "initial"' optional>
+  How to render the text caret: `"hide"` or `"initial"`.
+</ParamField>
+
+<ParamField path="clip" type="PageScreenshotClip | Hash" optional>
+  The region to capture, as a `Models::PageScreenshotClip` or a Hash with the same keys.
+
+  <ParamField path="clip.height" type="Numeric">
+    The positive height in CSS pixels.
+  </ParamField>
+
+  <ParamField path="clip.width" type="Numeric">
+    The positive width in CSS pixels.
+  </ParamField>
+
+  <ParamField path="clip.x" type="Numeric">
+    The horizontal coordinate.
+  </ParamField>
+
+  <ParamField path="clip.y" type="Numeric">
+    The vertical coordinate.
+  </ParamField>
+</ParamField>
+
+<ParamField path="full_page" type="bool" optional>
+  Whether to capture the full scrollable page. Cannot be combined with `clip`.
+</ParamField>
+
+<ParamField path="mask" type="Array[Locator]" optional>
+  Page-created locators for elements to obscure. Every locator must belong to this page.
+</ParamField>
+
+<ParamField path="mask_color" type="String" optional>
+  The CSS color used for masks.
+</ParamField>
+
+<ParamField path="omit_background" type="bool" optional>
+  Whether to use a transparent background.
+</ParamField>
+
+<ParamField path="quality" type="Integer" optional>
+  JPEG quality as an integer from 0 to 100. Valid only when `type` is `"jpeg"`.
+</ParamField>
+
+<ParamField path="scale" type='"css" | "device"' optional>
+  Whether to use `"css"` or `"device"` pixel scale.
+</ParamField>
+
+<ParamField path="style" type="String" optional>
+  CSS applied while taking the screenshot.
+</ParamField>
+
+<ParamField path="timeout" type="Numeric" optional>
+  Maximum non-negative wait time in milliseconds.
+</ParamField>
+
+<ParamField path="type" type='"png" | "jpeg"' optional>
+  The image format: `"png"` or `"jpeg"`.
+</ParamField>
+
+<ResponseField name="result" type="String">
+  The image bytes as a binary-encoded String. When `path:` is given, the image is also
+  written to that file.
+</ResponseField>
+
+## snapshot()
+
+Capture the page's accessibility-oriented DOM snapshot.
+
+```ruby
+snapshot = page.snapshot
+```
+
+<ParamField path="include_iframes" type="bool" optional>
+  Whether to include iframe content.
+</ParamField>
+
+<ResponseField name="result" type="SnapshotResult">
+  The operation result.
+
+  <ResponseField name="result.formatted_tree" type="String">
+    The formatted page tree.
+  </ResponseField>
+
+  <ResponseField name="result.url_map" type="Hash[String, String]">
+    The snapshot URL lookup.
+  </ResponseField>
+
+  <ResponseField name="result.xpath_map" type="Hash[String, String]">
+    The snapshot XPath lookup.
+  </ResponseField>
+</ResponseField>
+
+## tools()
+
+Return the WebMCP tools registered on the page.
+
+```ruby
+tools = page.tools
+
+search_tool = tools.find { |tool| tool.name == "search" }
+raise "Search tool is unavailable" if search_tool.nil?
+
+puts search_tool.input_schema
+
+invocation = search_tool.invoke(input: { "query" => "Stagehand" })
+result = invocation.result
+puts "#{result.status} #{result.output}"
+```
+
+<ParamField path="timeout" type="Numeric" optional>
+  Maximum time in milliseconds to wait for registered tools.
+</ParamField>
+
+<ResponseField name="result" type="Array[WebMCPTool]">
+  The callable WebMCP tools registered on the page. See the
+  [WebMCP reference](/v4/reference/webmcp).
+</ResponseField>
+
+## url()
+
+Return the page's current URL.
+
+```ruby
+url = page.url
+```
+
+<ResponseField name="result" type="String">
+  The operation result.
+</ResponseField>
+
+## title()
+
+Return the page's current document title.
+
+```ruby
+title = page.title
+```
+
+<ResponseField name="result" type="String">
+  The operation result.
+</ResponseField>
+
+## close()
+
+Close the page. Any `page.on` subscriptions are unsubscribed first.
+
+```ruby
+page.close
+```
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## locator()
+
+Create a locator for a CSS selector on this page.
+
+```ruby
+locator = page.locator("button[type=submit]")
+```
+
+<ParamField path="selector" type="String">
+  The selector to target.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+</Tab>
 </Tabs>

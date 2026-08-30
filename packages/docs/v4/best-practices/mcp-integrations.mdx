@@ -103,6 +103,41 @@ for _, t := range extracted.Data.Pricing {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Your MCP client, your credentials, your control flow
+search_results = mcp_client.call_tool(
+  "web_search", { "query" => "browserbase pricing" }
+)
+
+# Hand the result to Stagehand as an ordinary instruction
+page.goto(search_results["top_url"])
+
+PRICING = {
+  "type" => "object",
+  "properties" => {
+    "pricing" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "tier" => { "type" => "string" },
+          "price" => { "type" => "string" },
+        },
+        "required" => %w[tier price],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["pricing"],
+  "additionalProperties" => false,
+}.freeze
+
+result = stagehand.extract("extract the pricing tiers", schema: PRICING)
+pricing = result.data
+```
+</Tab>
 </Tabs>
 
 <Tip>

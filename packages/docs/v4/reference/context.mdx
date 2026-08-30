@@ -955,4 +955,297 @@ if err := browserContext.ClearCookies(ctx, &stagehand.ClearCookieOptions{Domain:
 </ResponseField>
 
 </Tab>
+
+<Tab title="Ruby">
+
+## Quick start
+
+```ruby
+context = browser.context
+page = context.new_page
+```
+
+## Properties
+
+Read-only accessors on the context.
+
+```ruby
+clipboard = browser.context.clipboard
+```
+
+<ResponseField name="context.clipboard" type="BrowserClipboard">
+  The clipboard helper for this context. See the [clipboard reference](/v4/reference/clipboard) for its methods.
+</ResponseField>
+
+## pages()
+
+Return every open page in the browser context.
+
+```ruby
+pages = browser.context.pages
+```
+
+<ResponseField name="result" type="Array[Page]">
+  The operation result.
+</ResponseField>
+
+## new_page()
+
+Create a new page in the browser context.
+
+```ruby
+page = browser.context.new_page("https://example.com")
+```
+
+<ParamField path="url" type="String?" optional>
+  The initial URL for the new page. Omit it to create a blank page.
+</ParamField>
+
+<ResponseField name="result" type="Page">
+  The operation result.
+</ResponseField>
+
+## active_page()
+
+Return the page that is currently active.
+
+```ruby
+page = browser.context.active_page
+```
+
+<ResponseField name="result" type="Page?">
+  The operation result. Returns `nil` when no page is active.
+</ResponseField>
+
+## set_active_page()
+
+Make a page the active page in the browser context.
+
+```ruby
+browser.context.set_active_page(page)
+```
+
+<ParamField path="page" type="Page">
+  The page to make active.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the remote browser context.
+
+```ruby
+browser.context.close
+```
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## add_init_script()
+
+Run a script before scripts on every newly created page.
+
+```ruby
+browser.context.add_init_script("window.localStorage.clear()")
+```
+
+<ParamField path="source" type="String | Pathname">
+  JavaScript source, or a `Pathname` to a JavaScript file on the SDK caller's machine whose contents are read and sent.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## set_extra_http_headers()
+
+Set additional HTTP headers for every page in the context.
+
+```ruby
+browser.context.set_extra_http_headers({ "x-test" => "true" })
+```
+
+<ParamField path="headers" type="Hash[String, String]">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## get_domain_policy()
+
+Return the context's current domain policy.
+
+```ruby
+policy = browser.context.get_domain_policy
+```
+
+<ResponseField name="result" type="Models::DomainPolicy?">
+  The operation result. Returns `nil` when no policy is set.
+
+<ResponseField name="result.allowed_domains" type="Array[String]" optional>
+  Domains that the context may access.
+</ResponseField>
+
+  <ResponseField name="result.blocked_domains" type="Array[String]" optional>
+    Domains that the context must reject.
+  </ResponseField>
+</ResponseField>
+
+## set_domain_policy()
+
+Set or clear the context's domain policy.
+
+```ruby
+browser.context.set_domain_policy(nil)
+```
+
+<ParamField path="policy" type="Models::DomainPolicy | Hash | nil">
+  The policy to apply: a `Models::DomainPolicy`, a `Hash` with `allowed_domains` and `blocked_domains` keys, or `nil` to clear it.
+
+<ParamField path="policy.allowed_domains" type="Array[String]" optional>
+  Domains that the context may access.
+</ParamField>
+
+  <ParamField path="policy.blocked_domains" type="Array[String]" optional>
+    Domains that the context must reject.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## cookies()
+
+Return cookies, optionally filtered to one or more URLs.
+
+```ruby
+cookies = browser.context.cookies("https://example.com")
+```
+
+<ParamField path="urls" type="String | Array[String]" optional>
+  A URL or collection of URLs used to filter cookies. Omit it to return every cookie.
+</ParamField>
+
+<ResponseField name="result" type="Array[Models::Cookie]">
+  The operation result.
+
+<ResponseField name="result.name" type="String">
+  The cookie name.
+</ResponseField>
+
+<ResponseField name="result.value" type="String">
+  The cookie value.
+</ResponseField>
+
+<ResponseField name="result.domain" type="String">
+  The cookie domain.
+</ResponseField>
+
+<ResponseField name="result.path" type="String">
+  The cookie path.
+</ResponseField>
+
+<ResponseField name="result.expires" type="Float">
+  The Unix expiration time in seconds, or `-1` for a session cookie.
+</ResponseField>
+
+<ResponseField name="result.http_only" type="bool">
+  Whether the cookie is restricted to HTTP requests.
+</ResponseField>
+
+<ResponseField name="result.secure" type="bool">
+  Whether the cookie requires HTTPS.
+</ResponseField>
+
+  <ResponseField name="result.same_site" type='"Strict" | "Lax" | "None"'>
+    The cookie SameSite policy: `"Strict"`, `"Lax"`, or `"None"`.
+  </ResponseField>
+</ResponseField>
+
+## add_cookies()
+
+Add cookies to the browser context.
+
+```ruby
+cookie = { name: "session", value: "abc123", url: "https://example.com" }
+browser.context.add_cookies([cookie])
+```
+
+<ParamField path="cookies" type="Array[Models::CookieParam | Hash]">
+  The cookies to add, each a `Models::CookieParam` or a `Hash` with the same keys. Each requires `name`, `value`, and either `url` or both `domain` and `path`.
+  Do not combine `url` with `domain` or `path`.
+
+<ParamField path="cookies.domain" type="String" optional>
+  The cookie domain.
+</ParamField>
+
+<ParamField path="cookies.expires" type="Float" optional>
+  `-1` for a session cookie or a non-negative Unix timestamp in seconds.
+</ParamField>
+
+<ParamField path="cookies.http_only" type="bool" optional>
+  Whether the cookie is restricted to HTTP requests.
+</ParamField>
+
+<ParamField path="cookies.name" type="String">
+  The cookie name.
+</ParamField>
+
+<ParamField path="cookies.path" type="String" optional>
+  The cookie path.
+</ParamField>
+
+<ParamField path="cookies.same_site" type='"Strict" | "Lax" | "None"' optional>
+  The cookie SameSite policy: `"Strict"`, `"Lax"`, or `"None"`. `"None"` requires a secure cookie.
+</ParamField>
+
+<ParamField path="cookies.secure" type="bool" optional>
+  Whether the cookie requires HTTPS.
+</ParamField>
+
+<ParamField path="cookies.url" type="String" optional>
+  The URL scope. Cannot be `about:blank` or a `data:` URL.
+</ParamField>
+
+  <ParamField path="cookies.value" type="String">
+    The cookie value.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## clear_cookies()
+
+Clear cookies that match optional name, domain, and path filters. Each filter is an exact-match `String` or a Ruby `Regexp`; a prebuilt `Models::CookieRegex` is also accepted. A `Regexp`'s `IGNORECASE` and `MULTILINE` options map to the JavaScript `i` and `s` flags on the wire (Ruby's `MULTILINE` is JavaScript's dotall); an `EXTENDED` `Regexp` raises `ArgumentError`.
+
+```ruby
+browser.context.clear_cookies(domain: "example.com")
+```
+
+<ParamField path="name" type="String | Regexp" optional>
+  A cookie name or regular-expression filter.
+</ParamField>
+
+<ParamField path="domain" type="String | Regexp" optional>
+  A cookie domain or regular-expression filter.
+</ParamField>
+
+<ParamField path="path" type="String | Regexp" optional>
+  A cookie path or regular-expression filter.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+</Tab>
 </Tabs>

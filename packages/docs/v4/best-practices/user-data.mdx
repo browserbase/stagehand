@@ -48,6 +48,16 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::LocalBrowser.launch(user_data_dir: "./browser-data")
+
+stagehand = Stagehand.create(browser: browser)
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -67,6 +77,10 @@ The preserve flag governs only that generated temporary profile, never a directo
 
 <Tab title="Go">
 `PreserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
+</Tab>
+
+<Tab title="Ruby">
+The Ruby SDK has no preserve flag: the generated temporary directory is always deleted on shutdown, while a `user_data_dir:` you pass yourself is always kept.
 </Tab>
 </Tabs>
 
@@ -139,6 +153,26 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+# browser_settings is passed to the Browserbase API verbatim,
+# so its keys are camelCase
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  browser_settings: {
+    "context" => {
+      "id" => "my-context-id",
+      "persist" => true,
+    },
+  },
+)
+
+stagehand = Stagehand.create(browser: browser)
 ```
 </Tab>
 </Tabs>

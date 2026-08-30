@@ -47,6 +47,16 @@ stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
 })
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+cloud = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+local = Stagehand::LocalBrowser.launch(headless: true)
+connected = Stagehand::LocalBrowser.connect(cdp_url: "http://127.0.0.1:9222")
+
+Stagehand.create(browser: cloud)
+```
+</Tab>
 </Tabs>
 
 ## Browserbase environment
@@ -108,6 +118,18 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  region: "eu-central-1", # Browser runs in Frankfurt
+)
+stagehand = Stagehand.create(browser: browser)
 ```
 </Tab>
 </Tabs>
@@ -174,6 +196,20 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  base_url: "https://api.dev.browserbase.com",
+)
+
+stagehand = Stagehand.create(
+  browser: browser,
+  api_url: "https://api.stagehand.dev.browserbase.com",
+)
+```
+</Tab>
 </Tabs>
 
 The Browserbase URL controls extension, session, and connection requests that `browserbase.launch()` and `browserbase.connect()` make. The Stagehand URL controls Model Gateway and managed-cache requests that the browser runtime makes.
@@ -237,6 +273,17 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+stagehand = Stagehand.create(browser: browser)
 ```
 </Tab>
 </Tabs>
@@ -311,6 +358,25 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  proxies: true,
+  region: "us-west-2",
+  browser_settings: {
+    "viewport" => { "width" => 1920, "height" => 1080 },
+    "blockAds" => true,
+  },
+)
+stagehand = Stagehand.create(browser: browser)
+```
+
+`browser_settings` is passed to the Browserbase session API verbatim, so use a Hash with camelCase keys.
 </Tab>
 </Tabs>
 
@@ -416,6 +482,33 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  proxies: true,
+  region: "us-west-2",
+  timeout: 3600, # 1 hour session timeout
+  keep_alive: true, # Available on Startup plan
+  # browser_settings goes to the Browserbase session API verbatim: camelCase keys
+  browser_settings: {
+    # verified is a Scale Plan feature: contact support@browserbase.com to enable
+    "verified" => false,
+    "blockAds" => true,
+    "solveCaptchas" => true,
+    "recordSession" => false,
+    "viewport" => { "width" => 1920, "height" => 1080 },
+  },
+  user_metadata: {
+    "user_id" => "automation-user-123",
+    "environment" => "production",
+  },
+)
+
+stagehand = Stagehand.create(browser: browser)
+```
+</Tab>
 </Tabs>
 </Accordion>
 
@@ -509,6 +602,21 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Create the session with your Browserbase client of choice, including the
+# uploaded Stagehand extension, then attach by session ID.
+session_id = create_browserbase_session(ENV.fetch("BROWSERBASE_STAGEHAND_EXTENSION_ID"))
+
+# Attach by session ID so the browser keeps its Browserbase identity
+browser = Stagehand::Browserbase.connect(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  session_id: session_id,
+)
+stagehand = Stagehand.create(browser: browser)
+```
+</Tab>
 </Tabs>
 
 #### Connecting over CDP
@@ -553,6 +661,17 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::LocalBrowser.connect(
+  cdp_url: "http://127.0.0.1:9222",
+)
+stagehand = Stagehand.create(browser: browser)
 ```
 </Tab>
 </Tabs>
@@ -616,6 +735,15 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::LocalBrowser.launch
+stagehand = Stagehand.create(browser: browser)
 ```
 </Tab>
 </Tabs>
@@ -741,6 +869,30 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::LocalBrowser.launch(
+  headless: false, # Show browser window
+  devtools: true, # Open developer tools
+  viewport_width: 1280,
+  viewport_height: 720,
+  executable_path: "/opt/google/chrome/chrome", # Custom Chrome path
+  port: 9222, # Fixed CDP debugging port
+  args: [
+    "--disable-web-security",
+    "--allow-running-insecure-content",
+  ],
+  user_data_dir: "./chrome-user-data", # Persist browser data (kept after close)
+  chromium_sandbox: false, # Disable sandbox (adds --no-sandbox)
+)
+stagehand = Stagehand.create(browser: browser)
+```
+
+The Ruby launcher supports this subset of options. It does not take the ignore-default-args, preserve-user-data-dir, HTTPS-error, locale, device-scale-factor, touch, proxy, or downloads options the other SDKs document. A `user_data_dir` you pass is always preserved; only the temporary profile Stagehand creates for you is deleted on close. When `executable_path` is not set, Stagehand looks for Chrome in the standard install locations and honors the `CHROME_PATH` environment variable.
+</Tab>
 </Tabs>
 
 <Note>
@@ -783,6 +935,19 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 }
 ```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+[
+  "--enable-unsafe-extension-debugging",
+  "--remote-allow-origins=*",
+  "--window-size=1280,800",
+  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
+]
+```
+
+In Ruby, `--window-size` follows the `viewport_width` and `viewport_height` options and defaults to `1280,800`.
 </Tab>
 </Tabs>
 
@@ -836,6 +1001,21 @@ if err != nil {
 
 stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 ```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::LocalBrowser.launch(
+  args: [
+    "--disable-features=site-per-process,IsolateOrigins",
+    "--renderer-process-limit=6",
+  ],
+)
+
+stagehand = Stagehand.create(browser: browser)
+```
+
+The Ruby launcher does not have an ignore-default-args option yet: the default flags always apply, and `args` only appends additional flags.
 </Tab>
 </Tabs>
 
@@ -945,6 +1125,31 @@ if err != nil {
 defer func() { err = errors.Join(err, client2.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  keep_alive: true,
+)
+stagehand = Stagehand.create(browser: browser)
+session_id = browser.session_id
+raise "Browserbase session ID missing" if session_id.nil?
+
+# The browser session continues running after close
+stagehand.close
+browser.close
+
+# Later, reconnect to the same Browserbase session
+browser2 = Stagehand::Browserbase.connect(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  session_id: session_id,
+)
+stagehand2 = Stagehand.create(browser: browser2)
+```
+</Tab>
 </Tabs>
 
 #### Behavior by environment
@@ -1029,6 +1234,21 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 return errors.Join(client.Close(ctx), browser.Close(ctx))
 ```
 </Tab>
+
+<Tab title="Ruby">
+The Ruby launcher does not have a keep-alive option yet: `browser.close` always terminates a Chrome that `Stagehand::LocalBrowser.launch` started. To keep a local browser running across scripts, start Chrome yourself with a fixed debugging port and attach over CDP — Stagehand never closes a browser it did not launch:
+
+```ruby
+browser = Stagehand::LocalBrowser.connect(cdp_url: "http://127.0.0.1:9222")
+stagehand = Stagehand.create(browser: browser)
+page = browser.context.pages.first
+page.goto("https://example.com")
+
+# Stagehand disconnects and leaves the browser running
+stagehand.close
+browser.close
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -1082,6 +1302,15 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::LocalBrowser.launch(port: 9222)
+stagehand = Stagehand.create(browser: browser)
+```
+</Tab>
 </Tabs>
 
 <Tip>
@@ -1131,6 +1360,16 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+stagehand = Stagehand.create(
+  browser: browser,
+  dom_settle_timeout_ms: 3000, # Wait up to 3 seconds for DOM to settle
+)
 ```
 </Tab>
 </Tabs>
@@ -1208,6 +1447,24 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# For fast, static pages
+fast_browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+fast = Stagehand.create(
+  browser: fast_browser,
+  dom_settle_timeout_ms: 500, # Minimal wait
+)
+
+# For dynamic, animated pages
+dynamic_browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+dynamic = Stagehand.create(
+  browser: dynamic_browser,
+  dom_settle_timeout_ms: 5000, # Longer wait for stability
+)
 ```
 </Tab>
 </Tabs>

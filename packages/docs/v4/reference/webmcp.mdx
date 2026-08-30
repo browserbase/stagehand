@@ -209,4 +209,68 @@ Requests cancellation from Chrome. It does not synthesize or overwrite a termina
 `Result()` for the authoritative final status.
 
 </Tab>
+
+<Tab title="Ruby">
+
+## WebMCPTool
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `name` | `String` | Tool name used for invocation. |
+| `description` | `String` | Human-readable tool description. |
+| `input_schema` | `Hash?` | Optional JSON input schema. |
+| `annotations` | `Models::WebMCPAnnotation?` | Optional `read_only`, `untrusted_content`, and `autosubmit` flags. |
+| `frame_id` | `String` | Frame that published the tool. |
+| `backend_node_id` | `Integer?` | Optional non-negative backend node identifier. |
+
+### invoke()
+
+```ruby
+tool.invoke(input: nil) -> WebMCPInvocation
+```
+
+`input` is a JSON-compatible Hash and defaults to an empty Hash. The helper supplies its own page,
+frame, and tool name.
+
+## WebMCPInvocation
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `invocation_id` | `String` | Stable invocation identifier. |
+| `tool_name` | `String` | Name of the invoked tool. |
+| `frame_id` | `String` | Frame handling the invocation. |
+| `input` | `Hash` | JSON input sent to the tool. |
+
+### result()
+
+```ruby
+invocation.result(timeout: nil) -> Models::WebMCPToolResponse
+```
+
+`timeout` is an optional non-negative timeout in milliseconds. A successful terminal response is
+cached on the invocation; timeout and transport failures raise, are not cached, and can be
+retried.
+
+| Response field | Type | Description |
+| --- | --- | --- |
+| `invocation_id` | `String` | Invocation that produced the response. |
+| `status` | `"Completed" \| "Canceled" \| "Error"` | Terminal status. |
+| `output` | `untyped` | Optional JSON output. |
+| `error_text` | `String?` | Optional error message. |
+| `exception` | `Hash?` | Optional structured exception data. |
+
+### cancel()
+
+```ruby
+invocation.cancel() -> nil
+```
+
+Requests cancellation from Chrome. It does not synthesize or overwrite a terminal response; call
+`result` for the authoritative final status.
+
+</Tab>
 </Tabs>

@@ -26,6 +26,12 @@ if _, err := client.Observe(ctx, &instruction, nil); err != nil {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+stagehand.observe("find the login button")
+```
+</Tab>
 </Tabs>
 
 `observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting. Use it to explore pages, plan multi-step workflows, cache actions, and validate elements before acting.
@@ -94,6 +100,15 @@ if err != nil {
 fmt.Println("found", len(result.Data), "actions")
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+page = browser.context.pages.first
+raise "Stagehand initialized without an active page" if page.nil?
+page.goto("https://example.com")
+result = stagehand.observe("find the learn more button")
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -160,6 +175,19 @@ actions := []stagehand.Action{
 fmt.Println(actions[0].Description, *actions[0].Method, actions[0].Selector)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+[
+  Stagehand::Models::Action.new(
+    description: "Learn more button",
+    method: "click",
+    arguments: [],
+    selector: "xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]",
+  )
+]
+```
+</Tab>
 </Tabs>
 
 <Tabs>
@@ -206,6 +234,15 @@ if _, err := client.Observe(ctx, &deleteButton, nil); err != nil {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Clear and specific
+stagehand.observe("find the primary call-to-action button in the hero section")
+stagehand.observe("find all input fields in the checkout form")
+stagehand.observe("find the delete account button in settings")
+```
+</Tab>
 </Tabs>
 </Tab>
 
@@ -246,6 +283,16 @@ title := "what is the page title?"
 if _, err := client.Observe(ctx, &title, nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Too vague
+stagehand.observe("find buttons")
+
+# Use extract() for data instead
+stagehand.observe("what is the page title?")
 ```
 </Tab>
 </Tabs>
@@ -317,6 +364,23 @@ if err != nil {
 fmt.Println("found", len(result.Data), "navigation links")
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+page = stagehand.browser.context.active_page
+
+# Custom model configuration
+result = stagehand.observe(
+  "find navigation links",
+  model: Stagehand::Models::ModelConfig.new(
+    model_name: "openai/gpt-5.4-mini",
+    api_key: ENV.fetch("OPENAI_API_KEY"),
+  ),
+  timeout: 30_000,
+  locator: page.locator("xpath=//header"), # Focus on specific area
+)
+```
+</Tab>
 </Tabs>
 
 You can also exclude specific nodes, including their descendant nodes, with ignored locators.
@@ -366,6 +430,21 @@ if err != nil {
 	return err
 }
 fmt.Println("found", len(result.Data), "call-to-action buttons")
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+page = stagehand.browser.context.active_page
+
+result = stagehand.observe(
+  "find the main call-to-action buttons",
+  ignore_locators: [
+    page.locator("xpath=//aside[contains(@class, 'promo-rail')]"),
+    page.locator("xpath=//div[@id='floating-chat-launcher']"),
+    page.locator("xpath=//section[@aria-label='recommended articles']"),
+  ],
+)
 ```
 </Tab>
 </Tabs>
@@ -487,6 +566,27 @@ if emailField != nil && passwordField != nil {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+observed = stagehand.observe(
+  "find the login form fields",
+  variables: {
+    username: { value: "user@example.com", description: "The login email" },
+    password: { value: ENV.fetch("USER_PASSWORD"), description: "The login password" },
+  },
+)
+
+email_field = observed.data.find { |action| (action.arguments || []).include?("%username%") }
+password_field = observed.data.find { |action| (action.arguments || []).include?("%password%") }
+
+if email_field && password_field
+  # Replay the observed actions, resolving placeholders locally
+  stagehand.act(email_field, variables: { username: "user@example.com" })
+  stagehand.act(password_field, variables: { password: ENV.fetch("USER_PASSWORD") })
+end
+```
+</Tab>
 </Tabs>
 
 <Tip>
@@ -569,6 +669,19 @@ if err != nil {
 fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+# Enable server-side caching for the entire instance
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+stagehand = Stagehand.create(browser: browser, cache: true)
+
+# Or disable it for a single call
+result = stagehand.observe("find the login button", cache: false)
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -649,6 +762,19 @@ if err != nil {
 fmt.Println("found", len(result.Data), "product cards")
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+stagehand = Stagehand.create(browser: browser)
+
+# Open a second page in the same browser context
+products_page = browser.context.new_page("https://www.example.com/products")
+
+# Use observe with that specific page
+result = stagehand.observe("find all product cards", page: products_page)
+```
+</Tab>
 </Tabs>
 
 This works with:
@@ -703,6 +829,17 @@ for _, field := range observed.Data {
 		return err
 	}
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+observed = stagehand.observe("find all form input fields")
+
+observed.data.each do |field|
+  # No LLM call: Stagehand replays the observed action
+  stagehand.act(field)
+end
 ```
 </Tab>
 </Tabs>
@@ -807,6 +944,43 @@ for _, tier := range pricing.Data.Tiers {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+pricing_schema = {
+  "type" => "object",
+  "properties" => {
+    "tiers" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "name" => { "type" => "string" },
+          "price" => { "type" => "string" },
+        },
+        "required" => %w[name price],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["tiers"],
+  "additionalProperties" => false,
+}
+
+observed = stagehand.observe("find the pricing table")
+page = stagehand.browser.context.active_page
+
+pricing = stagehand.extract(
+  "extract all pricing tiers",
+  schema: pricing_schema,
+  locator: page.locator(observed.data.first.selector),
+).data
+
+pricing["tiers"].each do |tier|
+  puts "#{tier["name"]} #{tier["price"]}"
+end
+```
+</Tab>
 </Tabs>
 
 <Card title="Extract structured data" icon="table" href="/v4/basics/extract">
@@ -858,6 +1032,19 @@ if len(observed.Data) == 0 || observed.Data[0].Method == nil || *observed.Data[0
 if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+observed = stagehand.observe("find the delete account button")
+delete_button = observed.data.first
+
+if delete_button && delete_button.method == "click"
+  stagehand.act(delete_button)
+else
+  raise "Delete button not found"
+end
 ```
 </Tab>
 </Tabs>
@@ -918,6 +1105,16 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 	actionCache[instruction] = observed.Data
 	return observed.Data, nil
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+action_cache = {}
+
+cached_observe = lambda do |instruction|
+  action_cache[instruction] ||= stagehand.observe(instruction).data
+end
 ```
 </Tab>
 </Tabs>
@@ -1005,6 +1202,22 @@ if len(observed.Data) == 0 {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Check page state before observing
+page = browser.context.pages.first
+raise "Stagehand initialized without an active page" if page.nil?
+page.wait_for_load_state("domcontentloaded")
+
+observed = stagehand.observe("find the submit button")
+
+if observed.data.empty?
+  puts "No elements found, trying alternative instruction"
+  alt = stagehand.observe("find the button at the bottom of the form")
+end
+```
+</Tab>
 </Tabs>
 </Accordion>
 
@@ -1055,6 +1268,17 @@ specific := "find the red 'Delete' button in the user settings panel"
 if _, err := client.Observe(ctx, &specific, nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# More specific instructions improve accuracy
+# Instead of:
+stagehand.observe("find the button")
+
+# Use context:
+stagehand.observe("find the red 'Delete' button in the user settings panel")
 ```
 </Tab>
 </Tabs>
@@ -1125,6 +1349,21 @@ if action != nil && slices.Contains(validMethods, method) {
 } else {
 	fmt.Println("Unexpected method:", method)
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+observed = stagehand.observe("find the submit button")
+action = observed.data.first
+
+# Validate method before acting
+valid_methods = %w[click fill type press]
+if action && valid_methods.include?(action.method)
+  stagehand.act(action)
+else
+  puts "Unexpected method: #{action&.method}"
+end
 ```
 </Tab>
 </Tabs>

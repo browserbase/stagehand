@@ -58,6 +58,16 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(browser: browser)
+```
+</Tab>
 </Tabs>
 
 When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. Selection happens server-side on every call, so your code never pins a model name and picks up new models as Browserbase adds them.
@@ -135,6 +145,17 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "openai/gpt-5",
+)
+```
+</Tab>
 </Tabs>
 </Tab>
 <Tab title="Anthropic">
@@ -184,6 +205,17 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "anthropic/claude-sonnet-4-6",
+)
+```
+</Tab>
 </Tabs>
 </Tab>
 <Tab title="Google">
@@ -231,6 +263,17 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "google/gemini-3-flash-preview",
+)
 ```
 </Tab>
 </Tabs>
@@ -325,6 +368,20 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "google/gemini-2.5-flash",
+  model_api_key: ENV.fetch("GOOGLE_GENERATIVE_AI_API_KEY"),
+)
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -397,6 +454,20 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "google/gemini-2.5-flash",
+  model_api_key: ENV.fetch("GOOGLE_GENERATIVE_AI_API_KEY"),
+)
+```
+</Tab>
 </Tabs>
 
 Commonly used: `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`, `google/gemini-3.5-flash`, `google/gemini-2.5-flash`, `google/gemini-flash-latest`.
@@ -462,6 +533,20 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "anthropic/claude-haiku-4-5",
+  model_api_key: ENV.fetch("ANTHROPIC_API_KEY"),
+)
+```
+</Tab>
 </Tabs>
 
 Commonly used: `anthropic/claude-sonnet-5`, `anthropic/claude-fable-5`, `anthropic/claude-opus-4-8`, `anthropic/claude-sonnet-4-6`, `anthropic/claude-haiku-4-5`.
@@ -525,6 +610,20 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "openai/gpt-5",
+  model_api_key: ENV.fetch("OPENAI_API_KEY"),
+)
 ```
 </Tab>
 </Tabs>
@@ -596,6 +695,20 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "groq/llama-3.3-70b-versatile",
+  model_api_key: ENV.fetch("GROQ_API_KEY"),
+)
+```
+</Tab>
 </Tabs>
 
 Commonly used: `groq/llama-3.3-70b-versatile`, `groq/openai/gpt-oss-120b`, `groq/moonshotai/kimi-k2-instruct-0905`, `groq/qwen/qwen3-32b`.
@@ -661,6 +774,20 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "cerebras/gpt-oss-120b",
+  model_api_key: ENV.fetch("CEREBRAS_API_KEY"),
+)
+```
+</Tab>
 </Tabs>
 
 Commonly used: `cerebras/gpt-oss-120b`, `cerebras/qwen-3-235b-a22b-instruct-2507`, `cerebras/zai-glm-4.7`, `cerebras/llama3.1-8b`.
@@ -704,6 +831,13 @@ pip install boto3
 <Tab title="Go">
 ```bash
 go get github.com/aws/aws-sdk-go-v2/service/bedrockruntime
+```
+</Tab>
+
+<Tab title="Ruby">
+```bash
+gem install aws-sdk-bedrockruntime
+# or add to your Gemfile: gem "aws-sdk-bedrockruntime"
 ```
 </Tab>
 </Tabs>
@@ -894,6 +1028,56 @@ func generateWithBedrock(
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "base64"
+require "json"
+
+require "aws-sdk-bedrockruntime"
+require "stagehand"
+
+BEDROCK = Aws::BedrockRuntime::Client.new(region: "us-east-1")
+
+# Each block is a Models::LLMTextContent or Models::LLMImageContent. Converse
+# takes its own content blocks, so map text to a text block and images (which
+# `extract(screenshot: true)` sends) to Converse's image block.
+def content_block(block)
+  return { text: block.text } if block.type == "text"
+  {
+    image: {
+      format: block.mime_type.delete_prefix("image/"),
+      source: { bytes: Base64.decode64(block.data) },
+    },
+  }
+end
+
+def message_content(message)
+  # A message's content is one block or an array of them.
+  content = message.content
+  blocks = content.is_a?(Array) ? content : [content]
+  blocks.map { |block| content_block(block) }
+end
+
+def generate_with_bedrock(params)
+  response = BEDROCK.converse(
+    model_id: "amazon.nova-pro-v1:0",
+    system: params.system_prompt.nil? ? [] : [{ text: params.system_prompt }],
+    messages: params.messages.map do |message|
+      { role: message.role, content: message_content(message) }
+    end,
+  )
+
+  text = response.output.message.content.first.text
+  Stagehand::Models::LLMStructuredGenerateResult.new(
+    role: "assistant",
+    content: Stagehand::Models::LLMTextContent.new(type: "text", text: text),
+    output_format: "json_schema",
+    structured_content: JSON.parse(text),
+  )
+end
+```
+</Tab>
 </Tabs>
 </Step>
 
@@ -941,6 +1125,17 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: method(:generate_with_bedrock),
+)
+```
+</Tab>
 </Tabs>
 
 </Step>
@@ -971,6 +1166,13 @@ pip install openai
 <Tab title="Go">
 ```bash
 go get github.com/openai/openai-go
+```
+</Tab>
+
+<Tab title="Ruby">
+```bash
+# Nothing to install: the callback below calls the provider's HTTP API
+# with Ruby's standard-library net/http.
 ```
 </Tab>
 </Tabs>
@@ -1141,6 +1343,81 @@ func generateWithOpenAI(
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "json"
+require "net/http"
+require "uri"
+
+require "stagehand"
+
+LLM_URL = URI("https://api.openai.com/v1/responses")
+LLM_API_KEY = ENV.fetch("OPENAI_API_KEY")
+
+# Each block is a Models::LLMTextContent or Models::LLMImageContent. The
+# Responses API takes input parts, so map text to an input_text part and
+# images (which `extract(screenshot: true)` sends) to an input_image part.
+def content_part(block)
+  return { "type" => "input_text", "text" => block.text } if block.type == "text"
+  {
+    "type" => "input_image",
+    "image_url" => "data:#{block.mime_type};base64,#{block.data}",
+  }
+end
+
+def message_content(message)
+  # A message's content is one block or an array of them.
+  content = message.content
+  blocks = content.is_a?(Array) ? content : [content]
+  blocks.map { |block| content_part(block) }
+end
+
+# The llm.generate handler. Runs synchronously on the SDK's dispatcher thread.
+def generate_with_openai(params)
+  response_format = params.response_format
+  text_format = {
+    "type" => "json_schema",
+    "name" => response_format.name,
+    "schema" => response_format.schema,
+    "strict" => true,
+  }
+
+  body = {
+    "model" => "gpt-5.4-mini",
+    "input" => params.messages.map do |message|
+      { "role" => message.role, "content" => message_content(message) }
+    end,
+    "text" => { "format" => text_format },
+  }
+  body["instructions"] = params.system_prompt unless params.system_prompt.nil?
+  body["temperature"] = params.temperature unless params.temperature.nil?
+
+  http_response = Net::HTTP.post(
+    LLM_URL,
+    JSON.generate(body),
+    "Authorization" => "Bearer #{LLM_API_KEY}",
+    "Content-Type" => "application/json",
+  )
+  raise "LLM request failed: #{http_response.code}" unless http_response.code == "200"
+
+  output_text = JSON.parse(http_response.body)
+                    .fetch("output", [])
+                    .select { |item| item["type"] == "message" }
+                    .flat_map { |item| item.fetch("content", []) }
+                    .select { |block| block["type"] == "output_text" }
+                    .map { |block| block["text"] }
+                    .join
+
+  Stagehand::Models::LLMStructuredGenerateResult.new(
+    role: "assistant",
+    content: Stagehand::Models::LLMTextContent.new(type: "text", text: output_text),
+    output_format: "json_schema",
+    structured_content: JSON.parse(output_text),
+  )
+end
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -1190,6 +1467,17 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: method(:generate_with_openai),
+)
 ```
 </Tab>
 </Tabs>
@@ -1287,6 +1575,29 @@ func generateWithYourProvider(
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# The callback receives a decoded Models::LLMStructuredGenerateParams or
+# Models::LLMMessageGenerateParams and runs synchronously on the SDK's
+# dispatcher thread.
+def generate_with_your_provider(params)
+  # params.messages         Conversation so far
+  # params.system_prompt    System instructions
+  # params.temperature      Sampling temperature, when set
+  # params.response_format  JSON schema request for act/observe/extract
+
+  text = call_your_provider(params)
+
+  Stagehand::Models::LLMStructuredGenerateResult.new(
+    role: "assistant",
+    content: Stagehand::Models::LLMTextContent.new(type: "text", text: text),
+    output_format: "json_schema",
+    structured_content: JSON.parse(text),
+  )
+end
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -1335,6 +1646,17 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: method(:generate_with_your_provider),
+)
 ```
 </Tab>
 </Tabs>
@@ -1497,6 +1819,41 @@ if err != nil {
 fmt.Println(extracted.Data.Summary)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+PRICING_SCHEMA = {
+  "type" => "object",
+  "properties" => { "summary" => { "type" => "string" } },
+  "required" => ["summary"],
+}.freeze
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "google/gemini-2.5-flash",
+  model_api_key: ENV.fetch("GOOGLE_GENERATIVE_AI_API_KEY"),
+)
+
+# Uses the instance model
+stagehand.act("click the login button")
+
+# Uses a stronger model for one hard extraction
+data = stagehand.extract(
+  "summarize the pricing table",
+  schema: PRICING_SCHEMA,
+  model: Stagehand::Models::ModelConfig.new(
+    model_name: "anthropic/claude-sonnet-4-6",
+    api_key: ENV.fetch("ANTHROPIC_API_KEY"),
+  ),
+).data
+
+puts data["summary"]
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -1565,6 +1922,21 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "openai/gpt-5",
+  model_api_key: ENV.fetch("OPENAI_API_KEY"),
+  model_headers: { "x-tenant-id" => "acme" },
+)
 ```
 </Tab>
 </Tabs>
@@ -1677,6 +2049,33 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+def with_retries(generate, attempts: 3)
+  lambda do |params|
+    attempt = 0
+    begin
+      attempt += 1
+      generate.call(params)
+    rescue StandardError
+      raise if attempt == attempts
+      sleep attempt
+      retry
+    end
+  end
+end
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: with_retries(method(:generate_with_openai)),
+)
 ```
 </Tab>
 </Tabs>

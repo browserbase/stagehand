@@ -111,6 +111,33 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+Ruby takes flat `log_level:` and `on_log:` keyword arguments instead of a nested logging object, and has no format option: console output is always the human-readable line.
+
+```ruby
+require "stagehand"
+
+# Development: full debug output
+development = { log_level: "debug" }
+
+# Production: standard logging, forwarded to your platform
+production = {
+  log_level: "info",
+  on_log: your_production_logger, # Send to Sentry, DataDog, or similar
+}
+
+# Testing: warnings and errors only, no console noise
+testing = { log_level: "warn", on_log: your_test_logger }
+
+# Create one instance with the configuration for this environment
+stagehand = Stagehand.create(
+  browser: Stagehand::LocalBrowser.launch,
+  **development,
+  # rest_of_your_configuration...
+)
+```
+</Tab>
 </Tabs>
 
 ---
@@ -162,6 +189,16 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+stagehand = Stagehand.create(
+  browser: browser,
+  log_level: "debug", # Maximum detail
+  # rest_of_your_configuration...
+)
 ```
 </Tab>
 </Tabs>
@@ -217,6 +254,16 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+stagehand = Stagehand.create(
+  browser: browser,
+  log_level: "info", # Default level
+  # rest_of_your_configuration...
+)
 ```
 </Tab>
 </Tabs>
@@ -293,6 +340,19 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+errors_only = { log_level: "error" } # Errors only
+silent = { log_level: "off" } # Nothing at all
+
+stagehand = Stagehand.create(
+  browser: browser,
+  **errors_only,
+  # rest_of_your_configuration...
+)
+```
+</Tab>
 </Tabs>
 
 <Accordion title="Example output">
@@ -362,6 +422,18 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Enabled by default: log_level "info". Ruby has no format option;
+# console output is always the human-readable line.
+stagehand = Stagehand.create(
+  browser: browser,
+  log_level: "info",
+  # rest_of_your_configuration...
+)
+```
+</Tab>
 </Tabs>
 
 <Accordion title="Output shape">
@@ -410,6 +482,19 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Ruby has no format option. For JSON lines, serialize each record
+# yourself in on_log: log.to_wire is a JSON-ready Hash.
+stagehand = Stagehand.create(
+  browser: browser,
+  log_level: "info",
+  on_log: ->(log) { $stdout.puts(JSON.generate(log.to_wire)) },
+  # rest_of_your_configuration...
+)
 ```
 </Tab>
 </Tabs>
@@ -478,6 +563,19 @@ func simpleLogger(entry stagehand.StagehandLog) {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Simple logger without parsing (for basic console output)
+# The proc receives a Stagehand::Models::StagehandLog; see the reference below for the shape.
+simple_logger = lambda do |log|
+  puts "[#{log.level}] #{log.message}"
+
+  # Optional: log raw structured data
+  puts "  Context: #{log.data}" unless log.data.nil? || log.data.empty?
+end
+```
+</Tab>
 </Tabs>
 </Step>
 
@@ -529,6 +627,17 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+stagehand = Stagehand.create(
+  browser: Stagehand::LocalBrowser.launch,
+  log_level: "info",
+  on_log: simple_logger,
+  # rest_of_your_configuration...
+)
 ```
 </Tab>
 </Tabs>
@@ -611,6 +720,19 @@ func productionLogger(entry stagehand.StagehandLog) {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "sentry-ruby"
+
+production_logger = lambda do |log|
+  # Send errors to Sentry
+  if log.level == "error"
+    Sentry.capture_message(log.message, level: :error, extra: log.data)
+  end
+end
+```
+</Tab>
 </Tabs>
 
 </Step>
@@ -669,6 +791,17 @@ if err != nil {
 }
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+stagehand = Stagehand.create(
+  browser: Stagehand::LocalBrowser.launch,
+  log_level: "info",
+  on_log: production_logger,
+  # rest_of_your_configuration...
+)
 ```
 </Tab>
 </Tabs>
@@ -742,6 +875,27 @@ func productionLogger(entry stagehand.StagehandLog) {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "datadog_api_client"
+
+logs_api = DatadogAPIClient::V2::LogsAPI.new
+
+production_logger = lambda do |log|
+  # Send all logs to DataDog
+  logs_api.submit_log([
+    DatadogAPIClient::V2::HTTPLogItem.new(
+      message: log.message,
+      service: "stagehand-automation",
+      additional_properties: {
+        "status" => log.level == "error" ? "error" : "info",
+      }.merge(log.data),
+    ),
+  ])
+end
+```
+</Tab>
 </Tabs>
 
 </Step>
@@ -802,6 +956,17 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+stagehand = Stagehand.create(
+  browser: Stagehand::LocalBrowser.launch,
+  log_level: "info",
+  on_log: production_logger,
+  # rest_of_your_configuration...
+)
+```
+</Tab>
 </Tabs>
 
 </Step>
@@ -860,6 +1025,17 @@ if err != nil {
 	return err
 }
 fmt.Fprintf(os.Stderr, "writing Stagehand logs to %s\n", logFile.Name())
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "fileutils"
+require "time"
+
+FileUtils.mkdir_p("./stagehand-logs")
+session_id = Time.now.utc.iso8601(3).tr(":.", "-")
+log_file = File.open("./stagehand-logs/#{session_id}.jsonl", "a", encoding: "utf-8")
 ```
 </Tab>
 </Tabs>
@@ -941,6 +1117,26 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 // ... your automation
 ```
 
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "json"
+require "stagehand"
+
+stagehand = Stagehand.create(
+  browser: Stagehand::LocalBrowser.launch,
+  log_level: "debug",
+  on_log: ->(log) { log_file.puts(JSON.generate(log.to_wire)) },
+)
+
+begin
+  # ... your automation
+ensure
+  stagehand.close
+  log_file.close
+end
+```
 </Tab>
 </Tabs>
 
@@ -1079,6 +1275,23 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+capture_inference = lambda do |log|
+  # Persist only the LLM records for offline analysis
+  if log.data["category"] == "llm"
+    inference_file.puts(JSON.generate(log.to_wire))
+  end
+end
+
+stagehand = Stagehand.create(
+  browser: Stagehand::LocalBrowser.launch,
+  log_level: "debug",
+  on_log: capture_inference,
+)
+```
+</Tab>
 </Tabs>
 
 Debug-level records include:
@@ -1192,6 +1405,19 @@ if err != nil {
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
+
+<Tab title="Ruby">
+Ruby passes the logging options as flat keyword arguments rather than a nested object, and has no `format` option: console output is always the human-readable line on standard error.
+
+```ruby
+stagehand = Stagehand.create(
+  browser: browser,
+  # ... your other configurations (browser, model, etc.)
+  log_level: "info", # "off" | "error" | "warn" | "info" | "debug"
+  on_log: nil,       # a proc receiving each Stagehand::Models::StagehandLog
+)
+```
+</Tab>
 </Tabs>
 
 | Option | Default | Description |
@@ -1237,6 +1463,16 @@ type StagehandLog struct {
 	Message string            // "act completed successfully"
 	Data    StagehandLogData  // map[string]json.RawMessage
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Stagehand::Models::StagehandLog
+log.level   # "debug" | "info" | "warn" | "error"
+log.message # "act completed successfully"
+log.data    # Hash of structured metadata, JSON-serializable
+log.to_wire # the whole record as a JSON-ready Hash
 ```
 </Tab>
 </Tabs>

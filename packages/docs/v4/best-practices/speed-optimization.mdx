@@ -68,6 +68,23 @@ for _, field := range observed.Data {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Instead of sequential operations with multiple LLM calls
+stagehand.act("Fill name field")          # LLM call #1
+stagehand.act("Fill email field")         # LLM call #2
+stagehand.act("Select country dropdown")  # LLM call #3
+
+# Use a single observe to plan all form fields: one LLM call
+form_fields = stagehand.observe("Find all form fields to fill").data
+
+# Replay each observed action: no further LLM inference
+form_fields.each do |field|
+  stagehand.act(field)
+end
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -158,6 +175,31 @@ if _, err := page.Evaluate(ctx, `
 }
 
 // Then continue with other Stagehand operations
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Scope the snapshot to the region you care about
+stagehand.act(
+  "Click the submit button",
+  locator: page.locator("#checkout"),
+  ignore_locators: [
+    page.locator("nav"),
+    page.locator(".cookie-banner"),
+    page.locator("#sidebar-ads"),
+  ],
+)
+
+# Or strip heavy elements before Stagehand reads the page
+page.evaluate(<<~JS)
+  document.querySelectorAll('video, iframe').forEach(el => el.remove());
+  document.querySelectorAll('[style*="animation"]').forEach(el => {
+    el.style.animation = 'none';
+  });
+JS
+
+# Then continue with other Stagehand operations
 ```
 </Tab>
 </Tabs>
@@ -269,6 +311,29 @@ if _, err := page.Goto(ctx, "https://heavy-spa.com", &stagehand.PageNavigationOp
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Stable pages: shorten the settle wait (default is 5000ms)
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  dom_settle_timeout_ms: 1000,
+)
+
+# Simple actions: reduce the action timeout
+stagehand.act("Click the login button", timeout: 5000)
+
+# Complex page loads: optimize navigation
+page = browser.context.active_page
+page.goto(
+  "https://heavy-spa.com",
+  wait_until: "domcontentloaded", # Don't wait for all resources
+  timeout: 15_000,
+)
+```
+</Tab>
 </Tabs>
 
 ## Performance monitoring and benchmarking
@@ -375,6 +440,34 @@ func (t *performanceTracker) getAverageTime(prompt string) time.Duration {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+class PerformanceTracker
+  def initialize
+    @speed_metrics = Hash.new { |hash, key| hash[key] = [] }
+  end
+
+  def timed_act(stagehand, prompt)
+    start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    result = stagehand.act(prompt)
+    duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+
+    @speed_metrics[prompt] << duration_ms
+
+    puts "Action \"#{prompt}\" took #{duration_ms}ms"
+    result
+  end
+
+  def average_time(prompt)
+    times = @speed_metrics[prompt]
+    return 0 if times.empty?
+
+    times.sum.fdiv(times.length)
+  end
+end
+```
+</Tab>
 </Tabs>
 
 Example Output:
@@ -462,6 +555,29 @@ for _, action := range observed.Data {
 	}
 }
 fmt.Printf("workflow-optimized: %dms\n", time.Since(start).Milliseconds()) // 500ms
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+elapsed_ms = ->(start) { ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round }
+
+# Before optimization
+start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+stagehand.act("Fill form")
+stagehand.act("Click submit")
+stagehand.act("Confirm submission")
+puts "workflow: #{elapsed_ms.call(start)}ms" # 8000ms
+
+# After optimization with observe planning
+start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+workflow_actions = stagehand.observe("Find form, submit, and confirm elements").data
+
+# Replay actions sequentially to avoid conflicts
+workflow_actions.each do |action|
+  stagehand.act(action)
+end
+puts "workflow-optimized: #{elapsed_ms.call(start)}ms" # 500ms
 ```
 </Tab>
 </Tabs>

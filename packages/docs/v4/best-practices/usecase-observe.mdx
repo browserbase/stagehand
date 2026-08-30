@@ -87,6 +87,23 @@ if len(cartButtons) > 0 {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Discover product interaction elements
+product_actions = stagehand.observe(
+  "Find add to cart buttons, size selectors, and product images",
+).data
+
+# Categorize actions by type
+cart_buttons = product_actions.select { |a| a.description.downcase.include?("cart") }
+size_options = product_actions.select { |a| a.description.downcase.include?("size") }
+
+# Execute purchase workflow
+page.locator(size_options.first.selector).click if size_options.any? # Select size first
+page.locator(cart_buttons.first.selector).click if cart_buttons.any? # Then add to cart
+```
+</Tab>
 </Tabs>
 
 ### Form handling & validation
@@ -160,6 +177,27 @@ for _, field := range requiredFields {
 		return err
 	}
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Analyze form structure before filling
+form_elements = stagehand.observe(
+  "Find form fields, validation messages, and submit buttons",
+).data
+
+# Check for required fields
+required_fields = form_elements.select do |e|
+  e.description.include?("required") || e.description.include?("*")
+end
+
+puts "Found #{required_fields.length} required fields to complete"
+
+# Fill form systematically
+required_fields.each do |field|
+  page.locator(field.selector).fill(value_for(field.description))
+end
 ```
 </Tab>
 </Tabs>
@@ -250,6 +288,29 @@ if len(scrollTriggers) > 0 {
 		return err
 	}
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Wait for and discover dynamically loaded content
+page.wait_for_load_state("networkidle")
+
+dynamic_elements = stagehand.observe(
+  "Find newly loaded content, infinite scroll triggers, or loading indicators",
+  timeout: 15_000, # Allow longer for dynamic content
+).data
+
+# Handle infinite scroll
+scroll_triggers = dynamic_elements.select do |e|
+  e.description.downcase.include?("load more") || e.description.downcase.include?("scroll")
+end
+
+if scroll_triggers.any?
+  page.locator(scroll_triggers.first.selector).click
+  # Recursively observe new content
+  new_content = stagehand.observe("Find additional items").data
+end
 ```
 </Tab>
 </Tabs>
@@ -396,6 +457,35 @@ func planCheckoutWorkflow(
 // Execute planned workflow
 plan, err := planCheckoutWorkflow(ctx, client, page)
 // Fill shipping, then payment, then submit
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Plan entire checkout flow upfront
+def plan_checkout_workflow(stagehand, page)
+  # Step 1: Cart page analysis
+  page.goto("/cart")
+  cart_actions = stagehand.observe("Find checkout and cart modification options").data
+
+  # Step 2: Checkout page analysis. Descriptions are model-generated, so
+  # lowercase them before matching.
+  checkout_button = cart_actions.find { |a| a.description.downcase.include?("checkout") }
+  page.locator(checkout_button.selector).click unless checkout_button.nil?
+
+  checkout_actions = stagehand.observe("Find payment forms and shipping options").data
+
+  # Step 3: Plan execution order
+  shipping_fields = checkout_actions.select { |a| a.description.downcase.include?("shipping") }
+  payment_fields = checkout_actions.select { |a| a.description.downcase.include?("payment") }
+  submit_button = checkout_actions.find { |a| a.description.downcase.include?("complete order") }
+
+  [shipping_fields, payment_fields, submit_button]
+end
+
+# Execute planned workflow
+workflow = plan_checkout_workflow(stagehand, page)
+# Fill shipping, then payment, then submit
 ```
 </Tab>
 </Tabs>

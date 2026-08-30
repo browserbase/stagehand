@@ -41,6 +41,10 @@ module Stagehand
   # -- generated wire models (opaque here) ----------------------------------
 
   module Models
+    # Generated wire models are untyped as a family; the ones named by public
+    # method signatures are declared so those signatures can reference them.
+    class WebMCPToolResponse
+    end
   end
 
   # -- browsers ---------------------------------------------------------------
@@ -243,7 +247,7 @@ module Stagehand
     attr_reader tool_name: String
     attr_reader frame_id: String?
     attr_reader input: untyped
-    def result: (?timeout: Numeric?) -> untyped
+    def result: (?timeout: Numeric?) -> Models::WebMCPToolResponse
     def cancel: () -> nil
   end
 

@@ -45,7 +45,7 @@ module Stagehand
     alias from_service_worker from_service_worker?
 
     def all_headers
-      result = @rpc_client.send("response.all_headers", params, "ResponseAllHeadersResult")
+      result = @rpc_client.send("response.all_headers", Models::ResponseIdParams.new(response_id: @descriptor.response_id), "ResponseAllHeadersResult")
       (result.headers || {}).dup
     end
 
@@ -62,23 +62,23 @@ module Stagehand
 
     # All headers as [{ "name" => ..., "value" => ... }], duplicates preserved.
     def headers_array
-      result = @rpc_client.send("response.headers_array", params, "ResponseHeadersArrayResult")
+      result = @rpc_client.send("response.headers_array", Models::ResponseIdParams.new(response_id: @descriptor.response_id), "ResponseHeadersArrayResult")
       result.headers.map { |header| { "name" => header.name, "value" => header.value } }
     end
 
     # Models::NavigationSecurityDetails or nil for non-TLS responses.
     def security_details
-      @rpc_client.send("response.security_details", params, "ResponseSecurityDetailsResult").value
+      @rpc_client.send("response.security_details", Models::ResponseIdParams.new(response_id: @descriptor.response_id), "ResponseSecurityDetailsResult").value
     end
 
     # Models::NavigationServerAddr or nil when unavailable.
     def server_addr
-      @rpc_client.send("response.server_addr", params, "ResponseServerAddrResult").value
+      @rpc_client.send("response.server_addr", Models::ResponseIdParams.new(response_id: @descriptor.response_id), "ResponseServerAddrResult").value
     end
 
     # The response body as a binary String.
     def body
-      result = @rpc_client.send("response.body", params, "ResponseBodyResult")
+      result = @rpc_client.send("response.body", Models::ResponseIdParams.new(response_id: @descriptor.response_id), "ResponseBodyResult")
       decoded =
         begin
           Base64.strict_decode64(result.body)
@@ -102,14 +102,9 @@ module Stagehand
     # Waits for the response to finish; returns nil on success or an
     # (unraised) StagehandError describing the network failure.
     def finished
-      result = @rpc_client.send("response.finished", params, "ResponseFinishedResult")
+      result = @rpc_client.send("response.finished", Models::ResponseIdParams.new(response_id: @descriptor.response_id), "ResponseFinishedResult")
       result.error.nil? ? nil : StagehandError.new(result.error.message)
     end
 
-    private
-
-    def params
-      Models::ResponseIdParams.new(response_id: @descriptor.response_id)
-    end
   end
 end

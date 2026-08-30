@@ -1,11 +1,12 @@
 import { readFile } from "node:fs/promises";
 import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
+import ruby from "@ast-grep/lang-ruby";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 import * as ClientSchemas from "../../packages/sdk-ts/src/clientSchemas.js";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ go, python, ruby });
 
 type ObjectSchema = {
   shape: Record<string, unknown>;
@@ -19,6 +20,7 @@ type Concept = {
 };
 
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
+const rubySource = new URL("../../packages/sdk-ruby/lib/stagehand/", import.meta.url);
 const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const docsSource = new URL("../../packages/docs/v4/", import.meta.url);
 // These legacy Chrome extension ID overrides are not user-actionable and are pending deprecation.
@@ -199,6 +201,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
       Go: (await goStructFieldSpellings("client_options.go", "CreateOptions"))
         .map((field) => `options.${field}`)
         .sort(),
+      Ruby: await rubyCreateParameters(),
     } as const;
     const differences: string[] = [];
 
@@ -387,6 +390,37 @@ async function goStructFieldSpellings(file: string, structName: string): Promise
   return body
     .split("\n")
     .flatMap((line) => line.match(/^\s*([A-Z][A-Za-z0-9_]*)\s+/u)?.[1] ?? [])
+    .sort();
+}
+
+// The Ruby SDK flattens create options into `Stagehand::Client.create`
+// keyword arguments (class << self); the documented ParamFields must match
+// them exactly.
+async function rubyCreateParameters(): Promise<string[]> {
+  const root = parse("ruby", await readFile(new URL("client.rb", rubySource), "utf8")).root();
+  const create = root
+    .findAll({ rule: { kind: "singleton_class" } })
+    .flatMap((singleton) => singleton.findAll({ rule: { kind: "method" } }))
+    .find(
+      (method) =>
+        method
+          .children()
+          .find((child) => child.isNamed() && child.kind() === "identifier")
+          ?.text() === "create",
+    );
+  if (!create) throw new Error("Stagehand::Client.create was not found in client.rb");
+  const parameters = create.field("parameters");
+  if (!parameters) return [];
+  return parameters
+    .children()
+    .filter((parameter) => parameter.isNamed())
+    .flatMap((parameter) => {
+      if (parameter.kind() === "identifier") return [parameter.text()];
+      const name = parameter
+        .children()
+        .find((child) => child.isNamed() && child.kind() === "identifier");
+      return name ? [name.text()] : [];
+    })
     .sort();
 }
 

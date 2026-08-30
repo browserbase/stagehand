@@ -7,8 +7,8 @@
 # matching *GenerateResult.
 #
 # Provider: OPENAI_API_KEY (api.openai.com) or AI_GATEWAY_API_KEY (Vercel AI
-# Gateway, OpenAI-compatible). Both use the chat completions JSON-schema
-# response format.
+# Gateway, OpenAI-compatible). Both use the OpenAI Responses API with the
+# JSON-schema text format, like the TS and Python custom-LLM examples.
 #
 #   ruby examples/custom_llm.rb                # local Chrome
 #   ruby examples/custom_llm.rb --browserbase  # Browserbase session
@@ -20,11 +20,11 @@ require "uri"
 require_relative "../lib/stagehand"
 
 if !ENV.fetch("OPENAI_API_KEY", "").empty?
-  LLM_URL = URI("https://api.openai.com/v1/chat/completions")
+  LLM_URL = URI("https://api.openai.com/v1/responses")
   LLM_API_KEY = ENV.fetch("OPENAI_API_KEY")
   LLM_MODEL = "gpt-5.4-mini"
 elsif !ENV.fetch("AI_GATEWAY_API_KEY", "").empty?
-  LLM_URL = URI("https://ai-gateway.vercel.sh/v1/chat/completions")
+  LLM_URL = URI("https://ai-gateway.vercel.sh/v1/responses")
   LLM_API_KEY = ENV.fetch("AI_GATEWAY_API_KEY")
   LLM_MODEL = "openai/gpt-5.4-mini"
 else
@@ -54,16 +54,19 @@ def generate_with_openai(params)
   raise ArgumentError, "OpenAI structured output requires a JSON Schema" unless response_format.schema.is_a?(Hash)
 
   GENERATION_NAMES << response_format.name
-  json_schema = { "name" => response_format.name, "schema" => response_format.schema, "strict" => true }
-  json_schema["description"] = response_format.description unless response_format.description.nil?
-  messages = []
-  messages << { "role" => "system", "content" => params.system_prompt } unless params.system_prompt.nil?
-  params.messages.each { |message| messages << { "role" => message.role, "content" => message_text(message.content) } }
+  text_format = {
+    "type" => "json_schema",
+    "name" => response_format.name,
+    "schema" => response_format.schema,
+    "strict" => true,
+  }
+  text_format["description"] = response_format.description unless response_format.description.nil?
   body = {
     "model" => LLM_MODEL,
-    "messages" => messages,
-    "response_format" => { "type" => "json_schema", "json_schema" => json_schema },
+    "input" => params.messages.map { |message| { "role" => message.role, "content" => message_text(message.content) } },
+    "text" => { "format" => text_format },
   }
+  body["instructions"] = params.system_prompt unless params.system_prompt.nil?
   body["temperature"] = params.temperature unless params.temperature.nil?
 
   http_response = Net::HTTP.post(
@@ -75,9 +78,13 @@ def generate_with_openai(params)
   raise "LLM request failed: #{http_response.code} #{http_response.body[0, 300]}" unless http_response.code == "200"
 
   payload = JSON.parse(http_response.body)
-  choice = payload.fetch("choices").first
-  output_text = choice.dig("message", "content")
-  raise "LLM returned no output text" if output_text.nil? || output_text.empty?
+  output_text = payload.fetch("output", [])
+                       .select { |item| item["type"] == "message" }
+                       .flat_map { |item| item.fetch("content", []) }
+                       .select { |block| block["type"] == "output_text" }
+                       .map { |block| block["text"] }
+                       .join
+  raise "LLM returned no output text" if output_text.empty?
 
   usage = payload["usage"]
   values = {
@@ -86,15 +93,15 @@ def generate_with_openai(params)
     output_format: "json_schema",
     structured_content: JSON.parse(output_text),
   }
-  values[:stop_reason] = choice["finish_reason"] unless choice["finish_reason"].nil?
+  values[:stop_reason] = payload["status"] unless payload["status"].nil?
   unless usage.nil?
     usage_values = {
-      input_tokens: usage["prompt_tokens"],
-      output_tokens: usage["completion_tokens"],
+      input_tokens: usage["input_tokens"],
+      output_tokens: usage["output_tokens"],
       total_tokens: usage["total_tokens"],
     }
-    reasoning = usage.dig("completion_tokens_details", "reasoning_tokens")
-    cached = usage.dig("prompt_tokens_details", "cached_tokens")
+    reasoning = usage.dig("output_tokens_details", "reasoning_tokens")
+    cached = usage.dig("input_tokens_details", "cached_tokens")
     usage_values[:reasoning_tokens] = reasoning unless reasoning.nil?
     usage_values[:cached_input_tokens] = cached unless cached.nil?
     values[:usage] = Stagehand::Models::LLMUsage.new(**usage_values)

@@ -127,6 +127,28 @@ fmt.Println("Memory usage:", info.MemoryUsage)
 fmt.Println("Proxy bytes:", info.ProxyBytes)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+# Browserbase.launch creates the session; the browser exposes the session ID.
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+stagehand = Stagehand.create(browser: browser)
+
+# Retrieve session details from the Browserbase HTTP API with your client of
+# choice, using the session ID Stagehand holds.
+session_info = retrieve_browserbase_session(browser.session_id)
+
+puts "Session status: #{session_info["status"]}"
+puts "Session region: #{session_info["region"]}"
+puts "CPU usage: #{session_info["avgCpuUsage"]}"
+puts "Memory usage: #{session_info["memoryUsage"]}"
+puts "Proxy bytes: #{session_info["proxyBytes"]}"
+```
+</Tab>
 </Tabs>
 
 ### Session analytics & insights
@@ -281,6 +303,35 @@ func getFilteredSessions(ctx context.Context) ([]sessionSummary, error) {
 func querySessionsByMetadata(ctx context.Context, query string) ([]browserbaseSession, error) {
 	return listBrowserbaseSessions(ctx, listOptions{Query: query})
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# List sessions with filtering (query the Browserbase HTTP API with your
+# client of choice)
+def filtered_sessions
+  sessions = list_browserbase_sessions(status: "RUNNING")
+
+  sessions.map do |session|
+    {
+      "id" => session["id"],
+      "status" => session["status"], # RUNNING, COMPLETED, ERROR, TIMED_OUT
+      "started_at" => session["startedAt"],
+      "ended_at" => session["endedAt"],
+      "region" => session["region"],
+      "avg_cpu_usage" => session["avgCpuUsage"],
+      "memory_usage" => session["memoryUsage"],
+      "proxy_bytes" => session["proxyBytes"],
+      "user_metadata" => session["userMetadata"],
+    }
+  end
+end
+
+# Query sessions by metadata
+def sessions_by_metadata(query)
+  list_browserbase_sessions(q: query)
+end
 ```
 </Tab>
 </Tabs>
@@ -452,6 +503,49 @@ fmt.Printf(
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+data_schema = {
+  "type" => "object",
+  "properties" => { "title" => { "type" => "string" } },
+  "required" => ["title"],
+}
+
+browser = Stagehand::LocalBrowser.launch
+stagehand = Stagehand.create(
+  browser: browser,
+  log_level: "info", # Monitor performance without debug noise
+)
+
+# Track local automation metrics
+start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+initial_metrics = stagehand.metrics
+
+# ... perform automation tasks
+page = browser.context.pages.first
+page.goto("https://example.com")
+stagehand.act("click button")
+stagehand.extract("get data", schema: data_schema)
+
+final_metrics = stagehand.metrics
+execution_time = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000
+
+# Metrics are cumulative for the session, so subtract the baseline
+tokens_used =
+  final_metrics.total_prompt_tokens + final_metrics.total_completion_tokens -
+  initial_metrics.total_prompt_tokens - initial_metrics.total_completion_tokens
+
+puts "Local Performance Summary: " + {
+  "execution_time" => "#{execution_time.round}ms",
+  "tokens_used" => tokens_used,
+  "total_inference_time" => "#{final_metrics.total_inference_time_ms}ms",
+  "tokens_per_second" => format("%.2f", tokens_used / (execution_time / 1000)),
+}.to_s
+```
+</Tab>
 </Tabs>
 
 ## Resource usage monitoring
@@ -611,6 +705,57 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 
 stopMonitor()
 fmt.Println("Resource Usage:", monitor.getResourceSummary())
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+class LocalResourceMonitor
+  def initialize
+    @cpu_usage = []
+    @memory_usage = []
+  end
+
+  def start_monitoring
+    @thread = Thread.new do
+      loop do
+        # Track system resources
+        rss_kb = Integer(`ps -o rss= -p #{Process.pid}`)
+        @memory_usage << rss_kb / 1024.0 # MB
+
+        # Track CPU (simplified)
+        @cpu_usage << Thread.list.length.to_f
+        sleep 1
+      end
+    end
+  end
+
+  def stop_monitoring
+    @thread&.kill
+  end
+
+  def resource_summary
+    {
+      "avg_memory_usage" => @memory_usage.sum / @memory_usage.length,
+      "peak_memory_usage" => @memory_usage.max,
+      "avg_cpu_load" => @cpu_usage.sum / @cpu_usage.length,
+      "total_data_points" => @cpu_usage.length,
+    }
+  end
+end
+
+monitor = LocalResourceMonitor.new
+monitor.start_monitoring
+
+browser = Stagehand::LocalBrowser.launch
+stagehand = Stagehand.create(browser: browser)
+
+# ... run automation
+
+monitor.stop_monitoring
+puts "Resource Usage: #{monitor.resource_summary}"
 ```
 </Tab>
 </Tabs>
@@ -799,6 +944,56 @@ fmt.Printf(
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "json"
+require "stagehand"
+
+user_schema = {
+  "type" => "object",
+  "properties" => {
+    "name" => { "type" => "string" },
+    "email" => { "type" => "string" },
+  },
+  "required" => %w[name email],
+}
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+stagehand = Stagehand.create(browser: browser)
+
+# Metrics are fetched from the runtime on every call
+metrics = stagehand.metrics
+puts JSON.pretty_generate(metrics.to_wire)
+
+# Monitor during automation
+start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+initial_metrics = stagehand.metrics
+
+# ... perform automation tasks
+page = browser.context.pages.first
+page.goto("https://example.com")
+stagehand.act("click the login button")
+data = stagehand.extract("extract user info", schema: user_schema).data
+puts "Extracted #{data["name"]} <#{data["email"]}>"
+
+final_metrics = stagehand.metrics
+execution_time = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time) * 1000
+
+# Metrics are cumulative for the session, so subtract the baseline
+tokens_used =
+  final_metrics.total_prompt_tokens + final_metrics.total_completion_tokens -
+  initial_metrics.total_prompt_tokens - initial_metrics.total_completion_tokens
+
+puts "Automation Summary: " + {
+  "tokens_used" => tokens_used,
+  "execution_time" => "#{execution_time.round}ms",
+  "avg_inference_time" => "#{final_metrics.total_inference_time_ms / 3}ms",
+}.to_s
+```
+</Tab>
 </Tabs>
 
 ### Understanding metrics data
@@ -906,6 +1101,36 @@ type StagehandMetrics struct {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+module Stagehand
+  module Models
+    class StagehandMetrics
+      # Act operation metrics
+      attr_reader :act_prompt_tokens, :act_completion_tokens,
+                  :act_reasoning_tokens, :act_cached_input_tokens,
+                  :act_inference_time_ms
+
+      # Extract operation metrics
+      attr_reader :extract_prompt_tokens, :extract_completion_tokens,
+                  :extract_reasoning_tokens, :extract_cached_input_tokens,
+                  :extract_inference_time_ms
+
+      # Observe operation metrics
+      attr_reader :observe_prompt_tokens, :observe_completion_tokens,
+                  :observe_reasoning_tokens, :observe_cached_input_tokens,
+                  :observe_inference_time_ms
+
+      # Cumulative totals
+      attr_reader :total_prompt_tokens, :total_completion_tokens,
+                  :total_reasoning_tokens, :total_cached_input_tokens,
+                  :total_inference_time_ms
+    end
+  end
+end
+```
+</Tab>
 </Tabs>
 
 **Example metrics output:**
@@ -1001,6 +1226,36 @@ fmt.Printf("%+v\n", metrics)
 //     TotalCachedInputTokens:   0,
 //     TotalInferenceTimeMs:     6888,
 // }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+metrics = stagehand.metrics
+puts JSON.pretty_generate(metrics.to_wire)
+
+# {
+#   "act_prompt_tokens": 4011,
+#   "act_completion_tokens": 51,
+#   "act_reasoning_tokens": 12,
+#   "act_cached_input_tokens": 0,
+#   "act_inference_time_ms": 1688,
+#   "extract_prompt_tokens": 4200,
+#   "extract_completion_tokens": 243,
+#   "extract_reasoning_tokens": 18,
+#   "extract_cached_input_tokens": 0,
+#   "extract_inference_time_ms": 4297,
+#   "observe_prompt_tokens": 347,
+#   "observe_completion_tokens": 43,
+#   "observe_reasoning_tokens": 5,
+#   "observe_cached_input_tokens": 0,
+#   "observe_inference_time_ms": 903,
+#   "total_prompt_tokens": 8558,
+#   "total_completion_tokens": 337,
+#   "total_reasoning_tokens": 35,
+#   "total_cached_input_tokens": 0,
+#   "total_inference_time_ms": 6888
+# }
 ```
 </Tab>
 </Tabs>
@@ -1125,6 +1380,45 @@ if err != nil {
 fmt.Printf("%+v\n", metrics)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "time"
+
+require "stagehand"
+
+# Record each log entry with the time you receive it. Ruby's client takes the
+# flat log_level and on_log options instead of a logging config object; on_log
+# receives each Models::StagehandLog.
+history = []
+history_mutex = Mutex.new
+
+record = lambda do |log|
+  entry = log.to_wire
+  entry["timestamp"] = Time.now.utc.iso8601
+  history_mutex.synchronize { history << entry }
+end
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+
+stagehand = Stagehand.create(
+  browser: browser,
+  log_level: "debug",
+  on_log: record,
+)
+
+# ... run your automation
+
+# Inspect what happened, or write it to disk alongside the metrics.
+# Copy under the mutex: on_log runs on the SDK's dispatcher thread, so
+# iterating over `history` directly would race with an incoming log.
+captured = history_mutex.synchronize { history.dup }
+pp captured.select { |entry| entry["level"] == "error" }
+pp stagehand.metrics.to_wire
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -1203,6 +1497,27 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+stagehand = Stagehand.create(
+  browser: browser,
+  telemetry: {
+    traces: {
+      endpoint: "https://otlp.example.com/v1/traces",
+      headers: { "authorization" => "Bearer #{ENV.fetch("OTLP_TOKEN")}" },
+    },
+  },
+)
+```
+
+`telemetry:` also accepts a `Stagehand::Models::TelemetryConfig` built from `Stagehand::Models::TelemetryTraces.new(endpoint:, headers:)`.
 </Tab>
 </Tabs>
 

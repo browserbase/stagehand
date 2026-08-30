@@ -36,6 +36,17 @@ pip install stagehand
 go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
 ```
 </Tab>
+
+<Tab title="Ruby">
+```bash
+gem install stagehand
+# or add to your Gemfile:
+#   gem "stagehand", "~> 4.0"
+# then run: bundle install
+```
+
+Stagehand requires Ruby 3.2 or later. The gem ships the browser extension embedded, so there is nothing else to download.
+</Tab>
 </Tabs>
 
 <Tip>
@@ -94,6 +105,17 @@ if err != nil {
 	return err
 }
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+stagehand = Stagehand.create(browser: browser)
 ```
 </Tab>
 </Tabs>
@@ -264,6 +286,46 @@ func run(ctx context.Context) (err error) {
 	fmt.Println(extracted.Data.Description)
 	return nil
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+DESCRIPTION_SCHEMA = {
+  "type" => "object",
+  "properties" => { "description" => { "type" => "string" } },
+  "required" => ["description"],
+  "additionalProperties" => false,
+}.freeze
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+begin
+  stagehand = Stagehand.create(browser: browser)
+  begin
+    page = browser.context.pages.first
+
+    page.goto("https://example.com")
+
+    # Act on the page
+    stagehand.act("Click the learn more button")
+
+    # Extract structured data
+    result = stagehand.extract(
+      "extract the description",
+      schema: DESCRIPTION_SCHEMA,
+    )
+
+    puts result.data["description"]
+  ensure
+    stagehand.close
+  end
+ensure
+  browser.close
+end
 ```
 </Tab>
 </Tabs>

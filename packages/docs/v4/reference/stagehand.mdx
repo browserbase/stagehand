@@ -2580,4 +2580,808 @@ func Extract[T any](ctx context.Context, client *Stagehand, instruction string, 
 </ResponseField>
 
 </Tab>
+
+<Tab title="Ruby">
+
+## Quick start
+
+```ruby
+require "stagehand"
+
+browser = Stagehand::LocalBrowser.launch
+begin
+  stagehand = Stagehand.create(browser: browser)
+  begin
+    page = browser.context.active_page
+    page.goto("https://example.com")
+  ensure
+    stagehand.close
+  end
+ensure
+  browser.close
+end
+```
+
+## create()
+
+Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
+
+```ruby
+browser = Stagehand::LocalBrowser.launch
+stagehand = Stagehand.create(browser: browser)
+```
+
+<ParamField path="browser" type="StagehandBrowser" required>
+  A browser handle from `Stagehand::LocalBrowser.launch`, `Stagehand::LocalBrowser.connect`, `Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))`, or `Stagehand::Browserbase.connect`. Each handle can back only one Stagehand instance.
+</ParamField>
+
+<ParamField path="api_key" type="String" optional>
+  Browserbase API key used by managed services such as Model Gateway and server-side caching.
+</ParamField>
+
+<ParamField path="api_url" type="String" optional>
+  Stagehand API origin override for managed services. Use the service origin without `/v1`.
+</ParamField>
+
+<ParamField path="model" type="String | Proc" optional>
+  Default provider-prefixed model name, or a client-provided generation callback (anything responding to `call`) that receives decoded `llm.generate` params and returns a matching generate result. Browserbase selects a model automatically for Gateway sessions when omitted.
+</ParamField>
+
+<ParamField path="model_api_key" type="String" optional>
+  Provider API key for the model named by `model`. It cannot be used with a generation callback.
+</ParamField>
+
+<ParamField path="model_headers" type="Hash[String, String]" optional>
+  Custom provider headers for the model named by `model`. They cannot be used with a generation callback.
+</ParamField>
+
+<ParamField path="telemetry" type="TelemetryConfig | Hash" optional>
+  OpenTelemetry trace export configuration. Accepts a `Stagehand::Models::TelemetryConfig` or an equivalent Hash.
+</ParamField>
+
+<ParamField path="system_prompt" type="String" optional>
+  Additional system instructions included in model calls.
+</ParamField>
+
+<ParamField path="self_heal" type="bool" optional>
+  Whether Stagehand re-infers and retries a cached action when its recorded selector no longer resolves.
+</ParamField>
+
+<ParamField path="dom_settle_timeout_ms" type="Integer" optional>
+  Maximum time in milliseconds to wait for the DOM to settle before an operation.
+</ParamField>
+
+<ParamField path="cache" type="bool | Hash" optional>
+  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`. Accepts `true`/`false` or a Hash such as `{threshold: Integer}`.
+</ParamField>
+
+<ParamField path="log_level" type='"debug" | "info" | "warn" | "error" | "off"' optional>
+  Client-side log level. Defaults to `"info"`; `"off"` silences client-side log output.
+</ParamField>
+
+<ParamField path="on_log" type="Proc" optional>
+  Callback invoked with each `StagehandLog` that passes the `log_level` filter. Each log exposes `level`, `message`, and `data`.
+</ParamField>
+
+<ResponseField name="result" type="Stagehand::Client">
+  An initialized Stagehand instance.
+</ResponseField>
+
+## Properties
+
+Read-only accessors on an instance.
+
+```ruby
+page = stagehand.browser.context.active_page
+```
+
+<ResponseField name="stagehand.browser" type="StagehandBrowser">
+  The browser handle you passed to `Stagehand.create()`. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
+</ResponseField>
+
+<ResponseField name="stagehand.initialized?" type="bool">
+  Whether the instance is connected and able to serve calls. This is `false` after `close()`.
+</ResponseField>
+
+## close()
+
+Close the Stagehand runtime and release its resources. The browser handle stays open; close it separately with `browser.close`.
+
+```ruby
+stagehand.close
+browser.close
+```
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## experimental_batch()
+
+Run trusted, self-contained JavaScript source inside the Stagehand extension service worker.
+Operations made through the supplied batch context route directly through the worker, avoiding a
+Ruby-to-browser round trip for every command. Ruby source is not translated to JavaScript;
+this method accepts an explicit JavaScript function string.
+
+<Note>
+  This API is experimental and can change in patch releases.
+
+  Batch callbacks execute in the Stagehand service worker, not the webpage. Treat callback source
+  as application code rather than untrusted input.
+</Note>
+
+```ruby
+result = stagehand.experimental_batch(<<~JS, { "url" => "https://example.com" })
+  async (batch, input) => {
+    await batch.page.goto(input.url);
+    await batch.act("Click More information");
+    return { title: await batch.page.title() };
+  }
+JS
+```
+
+Stagehand evaluates the function in the service worker and calls it with two JavaScript arguments:
+
+1. a worker-local batch context containing `page`, `context`, `act`, `observe`, `extract`, and
+   `metrics`;
+2. the decoded JSON value passed as the Ruby method's `input` argument.
+
+JavaScript destructuring such as `async ({ page, act }, input) => { ... }` only creates local
+variables from that context. It does not select a page or tell Stagehand which values to inject.
+
+<ParamField path="source" type="String">
+  Self-contained JavaScript function source executed in the extension service worker. Ruby
+  variables and closures are not captured.
+</ParamField>
+
+<ParamField path="input" type="untyped" optional>
+  JSON-serializable input passed as the JavaScript callback's second argument. When omitted, the
+  callback receives JavaScript `undefined`; explicitly passing `nil` produces JavaScript `null`.
+</ParamField>
+
+<ParamField path="timeout" type="Integer" optional>
+  The overall callback deadline in milliseconds. Defaults to 30,000.
+</ParamField>
+
+<ParamField path="page" type="Page?" optional>
+  The page exposed as the callback context's `page`. The active page at batch startup is used when
+  omitted. This does not change the default target of `act()`, `observe()`, or `extract()`; those
+  methods use their own `page` option or the active page when called.
+</ParamField>
+
+<ResponseField name="result" type="untyped">
+  The callback's decoded JSON return value.
+</ResponseField>
+
+### Batch callback context
+
+The first JavaScript argument is a batch context, not the outer Ruby `Stagehand` object:
+
+- `batch.page`: the worker-local page selected when the batch starts;
+- `batch.context`: a worker-local browser context facade;
+- `batch.act()`, `batch.observe()`, and `batch.extract()`: Stagehand AI operations;
+- `batch.metrics()`: Stagehand metrics.
+
+The context does not expose `context.close()`, Stagehand lifecycle methods, nested batches, or page
+event subscriptions. Node.js APIs, local filesystem paths, screenshot output paths, and other
+host-only behavior are unavailable in the browser service worker.
+
+### Passing input instead of capturing variables
+
+The JavaScript source cannot reference Ruby variables. Transfer values explicitly through the
+method's second argument:
+
+```ruby
+selector = "button[type=submit]"
+
+result = stagehand.experimental_batch(<<~JS, { "selector" => selector })
+  async (batch, input) => {
+    await batch.page.locator(input.selector).click();
+    return { title: await batch.page.title() };
+  }
+JS
+```
+
+Both input and output must be JSON-serializable.
+
+### Selecting and targeting pages
+
+Passing `page: my_page` transfers the Ruby page's ID. The service worker reconstructs it as
+`batch.page`; the Ruby `Page` object itself is not available inside the JavaScript source.
+
+```ruby
+my_page = stagehand.browser.context.pages.first
+
+result = stagehand.experimental_batch(<<~JS, { "url" => "https://example.com" }, page: my_page)
+  async (batch, input) => {
+    await batch.page.goto(input.url);
+    return { title: await batch.page.title() };
+  }
+JS
+```
+
+`batch.page` is fixed at batch startup. It represents the supplied page, or the active page at
+startup when `page` is omitted. `batch.act()`, `batch.observe()`, and `batch.extract()` instead use
+their own operation-level `page` option or resolve the active page when called, matching ordinary
+Stagehand behavior.
+
+Timeout cancellation prevents later Stagehand operations from starting, but an operation already
+running at the deadline may still finish. Callback batches are not atomic transactions.
+
+## metrics()
+
+Return token usage and inference timing metrics for this session.
+Each Stagehand instance starts at zero. Every successful operation returns `metadata.usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that raise before returning a result are not recorded. Reading metrics does not reset them.
+
+```ruby
+metrics = stagehand.metrics
+```
+
+<ResponseField name="result" type="StagehandMetrics">
+  The operation result.
+
+<ResponseField name="result.act_prompt_tokens" type="Numeric">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_completion_tokens" type="Numeric">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_reasoning_tokens" type="Numeric">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_cached_input_tokens" type="Numeric">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_inference_time_ms" type="Numeric">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.extract_prompt_tokens" type="Numeric">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_completion_tokens" type="Numeric">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_reasoning_tokens" type="Numeric">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_cached_input_tokens" type="Numeric">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_inference_time_ms" type="Numeric">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.observe_prompt_tokens" type="Numeric">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_completion_tokens" type="Numeric">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_reasoning_tokens" type="Numeric">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_cached_input_tokens" type="Numeric">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_inference_time_ms" type="Numeric">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.total_prompt_tokens" type="Numeric">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_completion_tokens" type="Numeric">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_reasoning_tokens" type="Numeric">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_cached_input_tokens" type="Numeric">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.total_inference_time_ms" type="Numeric">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+## act()
+
+Perform an action described in natural language.
+
+```ruby
+result = stagehand.act("Click the sign in button")
+```
+
+<ParamField path="instruction" type="String | Action | Hash">
+  A natural-language action to perform, or an action returned by `observe()` (a `Stagehand::Models::Action` or an equivalent Hash).
+
+  <ParamField path="instruction.selector" type="String">
+    The CSS selector or XPath for the action target.
+  </ParamField>
+
+  <ParamField path="instruction.description" type="String">
+    A human-readable description of the action.
+  </ParamField>
+
+  <ParamField path="instruction.method" type="String" optional>
+    The action method to execute.
+  </ParamField>
+
+  <ParamField path="instruction.arguments" type="Array[String]" optional>
+    Arguments to pass to the action method.
+  </ParamField>
+</ParamField>
+
+<ParamField path="page" type="Page?" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="String | ModelConfig" optional>
+  Model configuration for this call: a provider-prefixed model name String or a `Stagehand::Models::ModelConfig`. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+<ParamField path="model.api_key" type="String" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.headers" type="Hash[String, String]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="String">
+    A supported provider-prefixed [model identifier](/v4/configuration/models).
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Hash[String, untyped]" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="Numeric" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="locator" type="Locator" optional>
+  The page locator that identifies the action target. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+</ParamField>
+
+<ParamField path="ignore_locators" type="Array[Locator]" optional>
+  Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+</ParamField>
+
+<ParamField path="cache" type="bool | Hash" optional>
+  Override server-side caching with `true`/`false` or a Hash such as `{threshold: Integer}`.
+
+  <ParamField path="cache.threshold" type="Integer" optional>
+    The positive identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ActResult">
+  The operation result.
+
+<ResponseField name="result.data" type="ActResultData">
+  The action outcome.
+
+<ResponseField name="result.data.action_description" type="String">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.data.actions" type="Array[Action]">
+    The actions that were performed.
+
+    <ResponseField name="result.data.actions.arguments" type="Array[String]" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.description" type="String">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.method" type="String" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.selector" type="String">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.data.message" type="String">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.data.success" type="bool">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type='"HIT" | "MISS" | "DISABLED"'>
+      `"HIT"` when a cached result was served, `"MISS"` when the result was computed, or
+      `"DISABLED"` when no cache lookup ran.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="Integer" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="Integer" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.miss_reason" type="String" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokens_saved.input_tokens" type="Integer">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.output_tokens" type="Integer">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.total_tokens" type="Integer">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.action_id" type="String" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="Integer">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="Integer">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="Integer">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="Integer">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="Integer">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```ruby
+actions = stagehand.observe("Find the sign in button")
+```
+
+<ParamField path="instruction" type="String" optional>
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="page" type="Page?" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="String | ModelConfig" optional>
+  Model configuration for this call: a provider-prefixed model name String or a `Stagehand::Models::ModelConfig`. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+<ParamField path="model.api_key" type="String" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.headers" type="Hash[String, String]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="String">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Hash[String, untyped]" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="Numeric" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="locator" type="Locator" optional>
+  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for observe snapshot scoping.
+</ParamField>
+
+<ParamField path="ignore_locators" type="Array[Locator]" optional>
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for observe snapshot scoping.
+</ParamField>
+
+<ParamField path="cache" type="bool | Hash" optional>
+  Override server-side caching for this request. Requests with `locator` or `ignore_locators` bypass server-side caching and return `metadata.cache.status` as `DISABLED`.
+
+  <ParamField path="cache.threshold" type="Integer" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ObserveResult">
+  The operation result.
+
+<ResponseField name="result.data" type="Array[Action]">
+  Candidate actions found on the page.
+
+<ResponseField name="result.data.arguments" type="Array[String]" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.data.description" type="String">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.data.method" type="String" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.data.selector" type="String">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type='"HIT" | "MISS" | "DISABLED"'>
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="Integer" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="Integer" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.miss_reason" type="String" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokens_saved.input_tokens" type="Integer">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.output_tokens" type="Integer">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.total_tokens" type="Integer">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.action_id" type="String" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="Integer">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="Integer">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="Integer">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="Integer">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="Integer">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page.
+
+```ruby
+product_schema = {
+  "type" => "object",
+  "properties" => {
+    "name" => { "type" => "string" },
+    "price" => { "type" => "string" },
+  },
+  "required" => %w[name price],
+}
+
+product = stagehand.extract("Extract the product", schema: product_schema)
+puts product.data["name"], product.metadata.cache.status
+```
+
+<ParamField path="instruction" type="String">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="Hash" optional>
+  A plain JSON Schema Hash with string keys (`"type" => "object"`, ...) used to shape the extracted data. Defaults to a schema with a string `extraction` field.
+</ParamField>
+
+<ParamField path="page" type="Page?" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="String | ModelConfig" optional>
+  Model configuration for this call: a provider-prefixed model name String or a `Stagehand::Models::ModelConfig`. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+<ParamField path="model.api_key" type="String" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.headers" type="Hash[String, String]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="String">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="Numeric" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="screenshot" type="bool" optional>
+  Whether extraction may use a screenshot.
+</ParamField>
+
+<ParamField path="locator" type="Locator" optional>
+  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for extract snapshot scoping.
+</ParamField>
+
+<ParamField path="ignore_locators" type="Array[Locator]" optional>
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for extract snapshot scoping.
+</ParamField>
+
+<ParamField path="cache" type="bool | Hash" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="Integer" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ExtractResult">
+  The extraction result.
+
+  <ResponseField name="result.data" type="Hash">
+    The extracted data as a plain Hash matching the supplied JSON Schema.
+  </ResponseField>
+
+  <ResponseField name="result.metadata" type="StagehandResultMetadata">
+    Metadata associated with the extraction.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type='"HIT" | "MISS" | "DISABLED"'>
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="Integer" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="Integer" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.miss_reason" type="String" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokens_saved.input_tokens" type="Integer">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.output_tokens" type="Integer">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.total_tokens" type="Integer">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.action_id" type="String" optional>
+    The action ID associated with the extraction.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="Integer">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="Integer">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="Integer">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="Integer">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="Integer">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+</Tab>
 </Tabs>

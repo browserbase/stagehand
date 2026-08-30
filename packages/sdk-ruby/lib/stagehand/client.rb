@@ -110,7 +110,8 @@ module Stagehand
     def act(instruction, page: nil, model: nil, variables: nil, timeout: nil,
             locator: nil, ignore_locators: nil, cache: nil)
       page_id = target_page_id(page)
-      params = { page_id: page_id, instruction: encode_instruction(instruction) }
+      instruction = encode_instruction(instruction)
+      params = { page_id: page_id, instruction: instruction }
       options = call_options(model: model, variables: variables, timeout: timeout, cache: cache,
                              locator: serialize_locator(locator, page_id, "act"),
                              ignore_locators: serialize_locators(ignore_locators, page_id, "act"))
