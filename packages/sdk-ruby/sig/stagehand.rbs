@@ -102,9 +102,9 @@ module Stagehand
 
     attr_reader browser: StagehandBrowser
     def initialized?: () -> bool
-    def act: (untyped instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?cache: cache_input?) -> untyped
-    def observe: (?String? instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?cache: cache_input?) -> untyped
-    def extract: (String instruction, ?schema: Hash[String, untyped]?, ?page: Page?, ?model: untyped, ?timeout: Numeric?, ?screenshot: bool?, ?cache: cache_input?) -> untyped
+    def act: (untyped instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?locator: Locator?, ?ignore_locators: Array[Locator]?, ?cache: cache_input?) -> untyped
+    def observe: (?String? instruction, ?page: Page?, ?model: untyped, ?variables: Hash[Symbol | String, untyped]?, ?timeout: Numeric?, ?locator: Locator?, ?ignore_locators: Array[Locator]?, ?cache: cache_input?) -> untyped
+    def extract: (String instruction, ?schema: Hash[String, untyped]?, ?page: Page?, ?model: untyped, ?timeout: Numeric?, ?screenshot: bool?, ?locator: Locator?, ?ignore_locators: Array[Locator]?, ?cache: cache_input?) -> untyped
     def metrics: () -> untyped
     def experimental_batch: (String source, ?untyped input, ?timeout: Integer, ?page: Page?) -> untyped
     def close: () -> nil

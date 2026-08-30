@@ -4,3 +4,4 @@ dist/
 *.gem
 lib/stagehand/_extension/
 stagehand.jsonl
+evals/results/

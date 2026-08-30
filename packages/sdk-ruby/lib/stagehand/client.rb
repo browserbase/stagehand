@@ -107,28 +107,40 @@ module Stagehand
       @initialized
     end
 
-    def act(instruction, page: nil, model: nil, variables: nil, timeout: nil, cache: nil)
-      params = { page_id: target_page_id(page), instruction: encode_instruction(instruction) }
-      options = call_options(model: model, variables: variables, timeout: timeout, cache: cache)
-      params[:options] = options unless options.nil?
+    def act(instruction, page: nil, model: nil, variables: nil, timeout: nil,
+            locator: nil, ignore_locators: nil, cache: nil)
+      page_id = target_page_id(page)
+      params = { page_id: page_id, instruction: encode_instruction(instruction) }
+      options = call_options(model: model, variables: variables, timeout: timeout, cache: cache,
+                             locator: serialize_locator(locator, page_id, "act"),
+                             ignore_locators: serialize_locators(ignore_locators, page_id, "act"))
+      params[:options] = Models::ActOptions.new(**options) unless options.nil?
       connected_rpc_client.send("stagehand.act", Models::StagehandActParams.new(**params), "ActResult")
     end
 
-    def observe(instruction = nil, page: nil, model: nil, variables: nil, timeout: nil, cache: nil)
-      params = { page_id: target_page_id(page) }
+    def observe(instruction = nil, page: nil, model: nil, variables: nil, timeout: nil,
+                locator: nil, ignore_locators: nil, cache: nil)
+      page_id = target_page_id(page)
+      params = { page_id: page_id }
       params[:instruction] = instruction unless instruction.nil?
-      options = call_options(model: model, variables: variables, timeout: timeout, cache: cache)
-      params[:options] = options unless options.nil?
+      options = call_options(model: model, variables: variables, timeout: timeout, cache: cache,
+                             locator: serialize_locator(locator, page_id, "observe"),
+                             ignore_locators: serialize_locators(ignore_locators, page_id, "observe"))
+      params[:options] = Models::ObserveOptions.new(**options) unless options.nil?
       connected_rpc_client.send("stagehand.observe", Models::StagehandObserveParams.new(**params), "ObserveResult")
     end
 
     # schema is a plain JSON Schema Hash; the extracted data comes back as raw
     # JSON matching it. Defaults to { extraction: string }.
-    def extract(instruction, schema: nil, page: nil, model: nil, timeout: nil, screenshot: nil, cache: nil)
-      params = { page_id: target_page_id(page), instruction: instruction }
+    def extract(instruction, schema: nil, page: nil, model: nil, timeout: nil, screenshot: nil,
+                locator: nil, ignore_locators: nil, cache: nil)
+      page_id = target_page_id(page)
+      params = { page_id: page_id, instruction: instruction }
       params[:schema] = schema unless schema.nil?
-      options = call_options(model: model, timeout: timeout, screenshot: screenshot, cache: cache)
-      params[:options] = options unless options.nil?
+      options = call_options(model: model, timeout: timeout, screenshot: screenshot, cache: cache,
+                             locator: serialize_locator(locator, page_id, "extract"),
+                             ignore_locators: serialize_locators(ignore_locators, page_id, "extract"))
+      params[:options] = Models::ExtractOptions.new(**options) unless options.nil?
       connected_rpc_client.send("stagehand.extract", Models::StagehandExtractParams.new(**params), "ExtractResult")
     end
 
@@ -240,14 +252,34 @@ module Stagehand
       end
     end
 
-    def call_options(model: nil, variables: nil, timeout: nil, screenshot: nil, cache: nil)
+    def call_options(model: nil, variables: nil, timeout: nil, screenshot: nil,
+                     locator: nil, ignore_locators: nil, cache: nil)
       values = {}
       values[:model] = model.is_a?(String) ? Models::ModelConfig.new(model_name: model) : model unless model.nil?
       values[:variables] = variables unless variables.nil?
       values[:timeout] = timeout unless timeout.nil?
       values[:screenshot] = screenshot unless screenshot.nil?
+      values[:locator] = locator unless locator.nil?
+      values[:ignore_locators] = ignore_locators unless ignore_locators.nil?
       values[:cache] = Validation.cache_config(cache) unless cache.nil?
       values.empty? ? nil : values
+    end
+
+    # Locator targets must belong to the page the operation runs on (port of
+    # Python's _serialize_locator).
+    def serialize_locator(locator, page_id, method)
+      return nil if locator.nil?
+      unless locator.is_a?(Locator) && locator.page_id == page_id
+        raise ArgumentError, "#{method}() locator must belong to the target page"
+      end
+      values = { selector: locator.selector }
+      values[:nth] = locator.nth_index unless locator.nth_index.nil?
+      Models::Locator.new(**values)
+    end
+
+    def serialize_locators(locators, page_id, method)
+      return nil if locators.nil?
+      locators.map { |locator| serialize_locator(locator, page_id, method) }
     end
 
     def worker_init_values
