@@ -129,7 +129,6 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
   structural mismatches do raise.
 - No OpenTelemetry trace propagation (`traceparent` is simply omitted).
 - `Browserbase.launch(browser_settings:)` is a camelCase passthrough hash.
-- Windows Chrome launching is not implemented.
 - Inbound work (request handlers, notification listeners including `page.on`
   blocks) runs on one dispatcher thread: handlers may issue RPC calls, but a
   slow handler delays later inbound work (Python runs these concurrently).

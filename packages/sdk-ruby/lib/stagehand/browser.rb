@@ -140,7 +140,11 @@ module Stagehand
         "about:blank",
       ]
 
-      pid = Process.spawn(chrome_path, *flags, in: File::NULL, out: File::NULL, err: File::NULL, pgroup: true)
+      # POSIX gets a process group so the whole Chrome tree can be signalled;
+      # Windows has no process groups — new_pgroup detaches from Ctrl-C.
+      spawn_options = { in: File::NULL, out: File::NULL, err: File::NULL }
+      spawn_options[Gem.win_platform? ? :new_pgroup : :pgroup] = true
+      pid = Process.spawn(chrome_path, *flags, **spawn_options)
       waiter = Process.detach(pid)
       close_chrome = lambda do
         stop_process(pid, waiter)
@@ -206,8 +210,11 @@ module Stagehand
       return configured if configured && File.file?(configured)
 
       candidates =
-        case RUBY_PLATFORM
-        when /darwin/
+        if Gem.win_platform?
+          [ENV.fetch("LOCALAPPDATA", nil), ENV.fetch("PROGRAMFILES", nil), ENV.fetch("PROGRAMFILES(X86)", nil)]
+            .compact
+            .map { |root| File.join(root, "Google", "Chrome", "Application", "chrome.exe") }
+        elsif RUBY_PLATFORM.match?(/darwin/)
           [
             "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
@@ -231,6 +238,17 @@ module Stagehand
 
     def stop_process(pid, waiter)
       return unless waiter.alive?
+      if Gem.win_platform?
+        # No process groups or graceful SIGTERM on Windows: KILL maps to
+        # TerminateProcess, mirroring the Python SDK's terminate()/kill().
+        begin
+          Process.kill("KILL", pid)
+        rescue Errno::ESRCH, Errno::EPERM
+          nil
+        end
+        waiter.join(3)
+        return nil
+      end
       begin
         Process.kill("TERM", -pid)
       rescue Errno::ESRCH, Errno::EPERM
