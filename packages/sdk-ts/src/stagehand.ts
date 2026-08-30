@@ -32,7 +32,12 @@ import {
   type StagehandClientObserveOptions,
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
-import { isExtractSchemaIntent, resolveExtractSchema, type StagehandSchema } from "./schema.js";
+import {
+  isExtractSchemaIntent,
+  resolveExtractSchema,
+  type StagehandJsonSchema,
+  type StagehandSchema,
+} from "./schema.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 import {
   claimStagehandBrowser,
@@ -61,9 +66,11 @@ export type ExtractResult<T = DefaultExtractData> = T extends {
   };
 }
   ? ExtractResultData<Output>
-  : T extends z.ZodType<infer Output, infer _In>
+  : T extends StagehandJsonSchema<infer Output>
     ? ExtractResultData<Output>
-    : ExtractResultData<T>;
+    : T extends z.ZodType<infer Output, infer _In>
+      ? ExtractResultData<Output>
+      : ExtractResultData<T>;
 
 const nativeFunctionSourcePattern =
   /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
