@@ -146,6 +146,8 @@ export interface RunExternalHarnessTaskInput<TRaw> {
   verifier?: ExternalHarnessVerifierConfig;
   resultContract: EvalResultContract;
   fallbackErrorMessage: string;
+  /** Harness-specific result parser; defaults to the strict parseEvalResult. */
+  parseResult?: (raw: string) => ParsedEvalResult;
   runSession: (prompt: string) => Promise<ExternalHarnessSessionOutcome<TRaw>>;
   toTrajectory: (input: ExternalHarnessTrajectoryInput<TRaw>, taskSpec: TaskSpec) => Trajectory;
 }
@@ -163,6 +165,7 @@ export async function runExternalHarnessTask<TRaw>({
   verifier,
   resultContract,
   fallbackErrorMessage,
+  parseResult,
   runSession,
   toTrajectory,
 }: RunExternalHarnessTaskInput<TRaw>): Promise<TaskResult> {
@@ -179,7 +182,7 @@ export async function runExternalHarnessTask<TRaw>({
   const trustedResultText = outcome.resultText.trim()
     ? outcome.resultText
     : stripToolResultBlocks(outcome.transcriptText);
-  const parsed = { ...parseEvalResult(trustedResultText), raw: rawResult };
+  const parsed = { ...(parseResult ?? parseEvalResult)(trustedResultText), raw: rawResult };
   const sanitizedStopReason = outcome.stopReason
     ? sanitizeErrorMessage(outcome.stopReason)
     : undefined;
