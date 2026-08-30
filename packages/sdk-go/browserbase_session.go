@@ -90,13 +90,20 @@ func (client *browserbaseSessionClient) createSession(
 				err,
 			)
 		}
+		if extension.ID != nil {
+			extensionID = strings.TrimSpace(*extension.ID)
+		}
 		if err := extension.validate(); err != nil {
-			return resolvedBrowserSource{}, fmt.Errorf(
-				"validate Browserbase extension upload: %w",
-				err,
+			return resolvedBrowserSource{}, errors.Join(
+				fmt.Errorf("validate Browserbase extension upload: %w", err),
+				client.deleteExtensionBestEffort(
+					context.WithoutCancel(ctx),
+					extensionID,
+					ownsExtension,
+					"failed to delete the Browserbase extension after upload validation failed",
+				),
 			)
 		}
-		extensionID = strings.TrimSpace(*extension.ID)
 		if extensionID == "" {
 			return resolvedBrowserSource{}, errors.New(
 				"Browserbase extension upload returned an empty extension ID",
@@ -112,6 +119,7 @@ func (client *browserbaseSessionClient) createSession(
 				context.WithoutCancel(ctx),
 				extensionID,
 				ownsExtension,
+				"failed to delete the Browserbase extension after a session failure",
 			),
 		)
 	}
@@ -252,14 +260,13 @@ func (client *browserbaseSessionClient) deleteExtensionBestEffort(
 	ctx context.Context,
 	extensionID string,
 	ownsExtension bool,
+	cleanupError string,
 ) error {
-	if !ownsExtension {
+	if !ownsExtension || extensionID == "" {
 		return nil
 	}
 	if err := client.api.deleteExtension(ctx, extensionID); err != nil {
-		return errors.New(
-			"failed to delete the Browserbase extension after a session failure",
-		)
+		return errors.New(cleanupError)
 	}
 	return nil
 }
