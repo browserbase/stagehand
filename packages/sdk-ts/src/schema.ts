@@ -7,9 +7,19 @@ export type { StandardJSONSchemaV1, StandardSchemaV1 };
 /** A JSON object passed to jsonSchema(). The extension hardens Draft 2020-12 before interpretation. */
 export type JsonSchemaDocument = { readonly [key: string]: JsonValue };
 
+const stagehandJsonSchemaSymbol = Symbol.for("@browserbasehq/stagehand/json-schema");
+
+/** A typed wrapper around a plain Draft 2020-12 JSON Schema document. */
+export interface StagehandJsonSchema<Output = unknown> {
+  readonly [stagehandJsonSchemaSymbol]: true;
+  readonly jsonSchema: JsonSchemaDocument;
+  readonly _output?: Output;
+}
+
 /** A schema that validates values and describes its accepted input as JSON Schema. */
 export type StagehandSchema<Input = unknown, Output = Input> =
   | (StandardSchemaV1<Input, Output> & StandardJSONSchemaV1<Input, Output>)
+  | StagehandJsonSchema<Output>
   | z.ZodType<Output, Input>;
 
 export type StagehandSchemaOutput<Schema extends StagehandSchema> = ExtractSchemaData<Schema>;
@@ -18,9 +28,11 @@ export type StagehandSchemaOutput<Schema extends StagehandSchema> = ExtractSchem
 export type ExtractSchemaData<T> =
   T extends z.ZodType<infer Output, infer _In>
     ? Output
-    : T extends StandardSchemaV1<infer _In, infer Out>
-      ? Out
-      : T;
+    : T extends StagehandJsonSchema<infer Output>
+      ? Output
+      : T extends StandardSchemaV1<infer _In, infer Out>
+        ? Out
+        : T;
 
 export class StagehandValidationError extends TypeError {
   readonly issues: readonly StandardSchemaV1.Issue[];
@@ -64,34 +76,12 @@ export interface ResolvedExtractSchema<Output = unknown> {
 }
 
 const JSON_SCHEMA_TARGET = "draft-2020-12" as const;
-const RAW_SCHEMA_VENDOR = "stagehand-json-schema";
 
-/**
- * Adapts a complete Draft 2020-12 document for extraction.
- * The generic supplies a static type; Stagehand cannot infer it from JSON Schema.
- * The object input permits schema-library metadata; cloning enforces the JSON-safe boundary.
- * The extension hardens and interprets the document; this helper does not validate values.
- */
-export function jsonSchema<T = unknown>(document: object): StagehandSchema<T, T> {
-  const stored = cloneJsonDocument(document, RAW_SCHEMA_VENDOR);
-  const convert = (options: StandardJSONSchemaV1.Options): Record<string, unknown> => {
-    if (options.target !== JSON_SCHEMA_TARGET) {
-      throw new StagehandSchemaError(
-        `Raw JSON Schema adapters only support the "${JSON_SCHEMA_TARGET}" target.`,
-        { target: options.target, vendor: RAW_SCHEMA_VENDOR },
-      );
-    }
-    return cloneJsonDocument(stored, RAW_SCHEMA_VENDOR);
-  };
-
+/** Wraps a plain Draft 2020-12 document and supplies its static output type. */
+export function jsonSchema<T = unknown>(document: JsonSchemaDocument): StagehandJsonSchema<T> {
   return {
-    "~standard": {
-      version: 1,
-      vendor: RAW_SCHEMA_VENDOR,
-      types: undefined,
-      jsonSchema: { input: convert, output: convert },
-      validate: (value) => ({ value: value as T }),
-    },
+    [stagehandJsonSchemaSymbol]: true,
+    jsonSchema: document,
   };
 }
 
@@ -143,7 +133,7 @@ export async function validateStandardSchema<S extends StandardSchemaV1>(
 
 /** Internal argument discriminator. Partial standard implementations count as schema intent. */
 export function isExtractSchemaIntent(value: unknown): boolean {
-  return isRecordLike(value) && "~standard" in value;
+  return isStagehandJsonSchema(value) || (isRecordLike(value) && "~standard" in value);
 }
 
 /** Internal choke point for every custom schema accepted by extract(). */
@@ -152,6 +142,13 @@ export function resolveExtractSchema<Schema extends StagehandSchema>(
 ): ResolvedExtractSchema<StagehandSchemaOutput<Schema>>;
 export function resolveExtractSchema(value: unknown): ResolvedExtractSchema;
 export function resolveExtractSchema(value: unknown): ResolvedExtractSchema {
+  if (isStagehandJsonSchema(value)) {
+    return {
+      jsonSchema: value.jsonSchema,
+      validate: async (candidate) => candidate,
+    };
+  }
+
   const standard = standardProperties(value);
   if (!standard) {
     const guidance = isJsonObject(value) ? " Use jsonSchema() for raw Draft 2020-12 schemas." : "";
@@ -171,6 +168,10 @@ export function resolveExtractSchema(value: unknown): ResolvedExtractSchema {
     jsonSchema: standardSchemaToJsonSchema(schema, "input"),
     validate: (candidate) => validateStandardSchema(schema, candidate),
   };
+}
+
+function isStagehandJsonSchema(value: unknown): value is StagehandJsonSchema {
+  return isRecordLike(value) && value[stagehandJsonSchemaSymbol] === true;
 }
 
 interface StandardProperties {
