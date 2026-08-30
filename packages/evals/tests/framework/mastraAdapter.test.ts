@@ -28,6 +28,26 @@ function toolError(id: string, name: string, error: unknown) {
 }
 
 describe("Mastra trajectory adapter", () => {
+  it("concatenates streamed token deltas without inserting newlines", () => {
+    const trajectory = mastraAdapter.fromHarnessResult(
+      {
+        events: [
+          reasoningDelta("I will"),
+          reasoningDelta(" click"),
+          reasoningDelta(" checkout"),
+          textDelta("Proceeding"),
+          textDelta(" now"),
+          toolCall("1", "stagehand_run", {}),
+          toolResult("1", "stagehand_run", "ok"),
+        ],
+      },
+      TASK_SPEC,
+    );
+    // Fragments of one block join directly; only the reasoning → text block
+    // boundary gets a newline.
+    expect(trajectory.steps[0]?.reasoning).toBe("I will click checkout\nProceeding now");
+  });
+
   it("maps arguments, results, and success", () => {
     const trajectory = mastraAdapter.fromHarnessResult(
       {

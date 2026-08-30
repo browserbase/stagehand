@@ -34,16 +34,23 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
     const callsById = new Map<string, PendingCall>();
     const trailingTextParts: string[] = [];
     let pendingReasoning = "";
+    let lastDeltaType: "reasoning" | "text" | undefined;
 
     for (const event of result.events) {
       const type = String(event.type ?? "");
       const payload = isRecord(event.payload) ? event.payload : {};
       if (type === "reasoning-delta" && typeof payload.text === "string") {
-        pendingReasoning = appendText(pendingReasoning, payload.text);
+        pendingReasoning = appendDelta(
+          pendingReasoning,
+          payload.text,
+          lastDeltaType !== "reasoning",
+        );
+        lastDeltaType = "reasoning";
         continue;
       }
       if (type === "text-delta" && typeof payload.text === "string") {
-        pendingReasoning = appendText(pendingReasoning, payload.text);
+        pendingReasoning = appendDelta(pendingReasoning, payload.text, lastDeltaType !== "text");
+        lastDeltaType = "text";
         trailingTextParts.push(payload.text);
         continue;
       }
@@ -65,6 +72,7 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
         calls.push(pending);
         callsById.set(id, pending);
         pendingReasoning = "";
+        lastDeltaType = undefined;
         trailingTextParts.length = 0;
         continue;
       }
@@ -173,9 +181,14 @@ function normalizeResult(value: unknown): {
   return { result: images.length > 0 ? text : value.content, text, images };
 }
 
-function appendText(buffer: string, addition: string): string {
+/**
+ * Streamed deltas are token fragments of one contiguous block — concatenate
+ * them directly; a newline is inserted only when a new block type starts
+ * (reasoning → text), never between fragments.
+ */
+function appendDelta(buffer: string, addition: string, startsNewBlock: boolean): string {
   if (!buffer) return addition;
-  return `${buffer}\n${addition}`;
+  return startsNewBlock ? `${buffer}\n${addition}` : buffer + addition;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
