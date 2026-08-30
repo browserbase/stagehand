@@ -2,12 +2,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import go from "@ast-grep/lang-go";
 import python from "@ast-grep/lang-python";
+import ruby from "@ast-grep/lang-ruby";
 import { parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ go, python });
+registerDynamicLanguage({ go, python, ruby });
 
-type Language = "go" | "python" | "typescript";
+type Language = "go" | "python" | "ruby" | "typescript";
 
 type JsonSchema = {
   $ref?: string;
@@ -47,6 +48,7 @@ type RpcCall = {
 const sources = {
   typescript: new URL("../../packages/sdk-ts/src/", import.meta.url),
   python: new URL("../../packages/sdk-python/src/stagehand/", import.meta.url),
+  ruby: new URL("../../packages/sdk-ruby/lib/stagehand/", import.meta.url),
   go: new URL("../../packages/sdk-go/", import.meta.url),
 } as const;
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
@@ -215,7 +217,14 @@ function nestedFieldNames(protocol: ProtocolDocument, schema: JsonSchema): strin
 }
 
 async function sdkSourceFiles(source: URL, language: Language): Promise<string[]> {
-  const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
+  const extension =
+    language === "typescript"
+      ? ".ts"
+      : language === "python"
+        ? ".py"
+        : language === "ruby"
+          ? ".rb"
+          : ".go";
   return (await readdir(source, { recursive: true }))
     .filter(
       (file) =>
@@ -223,7 +232,8 @@ async function sdkSourceFiles(source: URL, language: Language): Promise<string[]
         !file.endsWith(`_test${extension}`) &&
         !file.endsWith(`.test${extension}`) &&
         !file.split("/").includes("tests") &&
-        !file.split("/").includes("_generated"),
+        !file.split("/").includes("_generated") &&
+        !file.split("/").includes("generated"),
     )
     .sort();
 }
@@ -241,13 +251,18 @@ async function publicRpcCalls(): Promise<RpcCall[]> {
       for (const file of files) {
         if (language === "typescript" && !exportedTypescriptModules.has(file)) continue;
         const module = parse(language, await readFile(new URL(file, source), "utf8")).root();
-        const callKind = language === "python" ? "call" : "call_expression";
+        const callKind = language === "python" || language === "ruby" ? "call" : "call_expression";
         for (const call of module.findAll({ rule: { kind: callKind } })) {
-          const called = namedChildren(call)[0]?.text();
+          const called =
+            language === "ruby"
+              ? `${call.field("receiver")?.text() ?? ""}.${call.field("method")?.text() ?? ""}`
+              : namedChildren(call)[0]?.text();
           const isOutbound =
             language === "go"
               ? called?.endsWith(".call") === true
-              : called?.endsWith(".send") === true || called?.endsWith("?.send") === true;
+              : language === "ruby"
+                ? /rpc_client\.send$/u.test(called ?? "")
+                : called?.endsWith(".send") === true || called?.endsWith("?.send") === true;
           if (!isOutbound) continue;
           const arguments_ = callArguments(call);
           const methodNode = language === "go" ? arguments_[1] : arguments_[0];
@@ -305,7 +320,8 @@ function wireMethodName(
     if (!method.text().startsWith("StagehandMethods.")) return undefined;
     return registry.get(method.text().slice("StagehandMethods.".length));
   }
-  const expectedKind = language === "python" ? "string" : "interpreted_string_literal";
+  const expectedKind =
+    language === "python" || language === "ruby" ? "string" : "interpreted_string_literal";
   return method.kind() === expectedKind ? stringLiteral(method) : undefined;
 }
 
@@ -315,7 +331,9 @@ function enclosingScope(call: SgNode, language: Language): SgNode | undefined {
       ? new Set<string>(["method_definition", "function_declaration"])
       : language === "python"
         ? new Set<string>(["function_definition"])
-        : new Set<string>(["method_declaration", "function_declaration"]);
+        : language === "ruby"
+          ? new Set<string>(["method"])
+          : new Set<string>(["method_declaration", "function_declaration"]);
   const scopes = call.ancestors().filter((ancestor) => kinds.has(String(ancestor.kind())));
   return language === "python" ? scopes.at(-1) : scopes[0];
 }
@@ -323,7 +341,7 @@ function enclosingScope(call: SgNode, language: Language): SgNode | undefined {
 function isPublicScope(scope: SgNode, language: Language): boolean {
   const name = scope.field("name")?.text() ?? firstNamedIdentifier(scope)?.text();
   if (!name) return false;
-  if (language === "python") return !name.startsWith("_");
+  if (language === "python" || language === "ruby") return !name.startsWith("_");
   if (language === "go") return /^[A-Z]/u.test(name);
   if (name === "constructor" || name.startsWith("#")) return false;
   const prefix = scope.text().slice(0, scope.text().indexOf(name));
@@ -383,7 +401,7 @@ function resultBinding(call: RpcCall): string | undefined {
       .match(/[A-Za-z_][A-Za-z0-9_]*/u)?.[0];
   }
   const assignmentKinds =
-    call.language === "python"
+    call.language === "python" || call.language === "ruby"
       ? new Set<string>(["assignment"])
       : new Set<string>(["variable_declarator", "assignment_expression"]);
   const assignment = call.call
@@ -395,6 +413,9 @@ function resultBinding(call: RpcCall): string | undefined {
     );
   if (!assignment) return undefined;
   const left = assignment.field("name") ?? assignment.field("left") ?? namedChildren(assignment)[0];
+  // A direct store into Ruby object state (`@response = …`) keeps the result
+  // whole, like `this.response = result` in the other languages.
+  if (call.language === "ruby" && left?.text().startsWith("@")) return undefined;
   return left?.text().match(/[A-Za-z_][A-Za-z0-9_]*/u)?.[0];
 }
 
@@ -412,7 +433,8 @@ function usesResultField(scopeText: string, resultName: string, field: string): 
 }
 
 function passesResultWhole(call: RpcCall, resultName: string): boolean {
-  const callKind = call.language === "python" ? "call" : "call_expression";
+  const callKind =
+    call.language === "python" || call.language === "ruby" ? "call" : "call_expression";
   const calls = [
     ...call.scope.findAll({ rule: { kind: callKind } }),
     ...(call.language === "typescript"
@@ -421,7 +443,10 @@ function passesResultWhole(call: RpcCall, resultName: string): boolean {
   ];
   return calls.some((candidate) => {
     if (candidate.range().start.index === call.call.range().start.index) return false;
-    const called = namedChildren(candidate)[0]?.text();
+    const called =
+      call.language === "ruby"
+        ? `${candidate.field("receiver")?.text() ?? ""}.${candidate.field("method")?.text() ?? ""}`
+        : namedChildren(candidate)[0]?.text();
     return (
       called?.startsWith(`${resultName}.`) === true ||
       callArguments(candidate).some(
@@ -433,16 +458,17 @@ function passesResultWhole(call: RpcCall, resultName: string): boolean {
 
 function assignsResultWhole(call: RpcCall, resultName: string): boolean {
   const text = call.scope.text();
+  // `.field =` (TS), `self.field =` / `#field` (Python/Go), `@field =` (Ruby ivars).
   if (
     new RegExp(
-      `(?:[.#][A-Za-z_$][A-Za-z0-9_$]*[^\\n=]*?(?:\\?\\?=|=)|\\b[A-Za-z_$][A-Za-z0-9_$]*\\s*:)\\s*[&*]?${resultName}\\b`,
+      `(?:[.#@][A-Za-z_$][A-Za-z0-9_$]*[^\\n=]*?(?:\\?\\?=|=)|\\b[A-Za-z_$][A-Za-z0-9_$]*\\s*:)\\s*[&*]?${resultName}\\b`,
       "u",
     ).test(text)
   ) {
     return true;
   }
   const assignmentKinds =
-    call.language === "python"
+    call.language === "python" || call.language === "ruby"
       ? ["assignment"]
       : call.language === "go"
         ? ["assignment_statement"]
@@ -469,7 +495,9 @@ async function callableBodies(): Promise<Map<Language, Map<string, string>>> {
             ? ["function_declaration", "method_definition"]
             : language === "python"
               ? ["function_definition"]
-              : ["function_declaration", "method_declaration"];
+              : language === "ruby"
+                ? ["method"]
+                : ["function_declaration", "method_declaration"];
         for (const kind of kinds) {
           for (const callable of root.findAll({ rule: { kind } })) {
             const name = callable.field("name")?.text() ?? firstNamedIdentifier(callable)?.text();
@@ -490,11 +518,14 @@ function relatedHelperBodies(
 ): string {
   const bodies = helperBodies.get(language);
   if (!bodies) return "";
-  const callKind = language === "python" ? "call" : "call_expression";
+  const callKind = language === "python" || language === "ruby" ? "call" : "call_expression";
   return scope
     .findAll({ rule: { kind: callKind } })
     .flatMap((call) => {
-      const called = namedChildren(call)[0]?.text().split(".").at(-1)?.replace(/^\?\./u, "");
+      const called =
+        language === "ruby"
+          ? call.field("method")?.text()
+          : namedChildren(call)[0]?.text().split(".").at(-1)?.replace(/^\?\./u, "");
       const body = called && bodies.get(called);
       return body ? [body] : [];
     })

@@ -1126,6 +1126,344 @@ func run(ctx context.Context) (err error) {
 ``````
 
 </Tab>
+
+<Tab title="Ruby">
+
+``````md
+# Stagehand Ruby Project
+
+This is a project that uses Stagehand v4 for Ruby, which provides AI-powered browser automation with `act`, `extract`, and `observe` methods.
+
+Require the gem with `require "stagehand"`.
+
+**Key Classes:**
+
+- `Stagehand.create`: Builds the main client, which provides the `act`, `extract`, and `observe` methods
+- `browser.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
+- `page`: Individual page objects accessed via `browser.context.active_page`, `browser.context.pages`, or created with `browser.context.new_page`
+
+There is no `agent` API in v4. Compose `observe`, `act`, and `extract` in your own control flow instead.
+
+All Stagehand methods are synchronous; never write `async` or `await`. `act`, `observe`, and
+`extract` take the instruction positionally; every other argument (including `extract`'s
+`schema:`) is a keyword argument. Schemas are plain JSON Schema Hashes; Ruby has no
+Pydantic or zod equivalent.
+
+## Initialize
+
+```ruby
+require "stagehand"
+
+browser = Stagehand::LocalBrowser.launch(headless: true)
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "openai/gpt-5.4-mini",
+  model_api_key: ENV.fetch("OPENAI_API_KEY"),
+  log_level: "info",
+)
+
+# Access the browser context and pages
+page = browser.context.pages.first
+context = browser.context
+
+# Create new pages if needed
+page2 = browser.context.new_page
+```
+
+For Browserbase cloud browsers, pass a Browserbase API key:
+
+```ruby
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+stagehand = Stagehand.create(browser: browser)
+```
+
+With no model configured, Browserbase Model Gateway selects one automatically for each inference call.
+
+Stagehand never reads environment variables for you. Always pass keys explicitly.
+
+## Act
+
+Actions are called on the `stagehand` instance (not the page). `act` takes either a string instruction or an `Action` from `observe`. Use atomic, specific instructions:
+
+```ruby
+# Act on the current active page
+stagehand.act("click the sign in button")
+
+# Act on a specific page (when you need to target a page that isn't currently active)
+stagehand.act("click the sign in button", page: page2)
+```
+
+**Important:** Act instructions should be atomic and specific:
+
+- Good: "Click the sign in button" or "Type 'hello' into the search input"
+- Bad: "Order me pizza" or "Type in the search bar and hit enter" (multi-step)
+
+Use `variables` for secrets. Values are substituted locally and never sent to the model:
+
+```ruby
+stagehand.act(
+  "type %password% into the password field",
+  variables: { "password" => ENV.fetch("USER_PASSWORD") },
+)
+```
+
+### Observe Then Act Pattern (Recommended)
+
+`act` accepts either a string instruction or an `Action` returned by `observe`. Use `observe` to inspect the candidate action, then pass it back to `act` for deterministic replay with no inference:
+
+```ruby
+result = stagehand.observe("Click the sign in button")
+action = result.data.first
+
+stagehand.act(action) if action && action.method == "click"
+```
+
+To target a specific page:
+
+```ruby
+result = stagehand.observe(
+  "select blue as the favorite color",
+  page: page2,
+)
+stagehand.act(result.data.first, page: page2)
+```
+
+## Extract
+
+Extract data from pages using natural language instructions. The `extract` method is called on the `stagehand` instance and takes an instruction plus a JSON Schema Hash as the `schema:` keyword argument.
+
+Every primitive returns a result with `data` and `metadata`. Your extracted value is on `data` as a Hash with String keys; `metadata` carries the action ID and server-side cache status.
+
+### Basic Extraction (with schema)
+
+```ruby
+listings_schema = {
+  "type" => "object",
+  "properties" => {
+    "listings" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "price" => { "type" => "string" },
+          "address" => { "type" => "string" },
+        },
+        "required" => %w[price address],
+      },
+    },
+  },
+  "required" => ["listings"],
+}
+
+result = stagehand.extract(
+  "extract all apartment listings with prices and addresses",
+  schema: listings_schema,
+)
+
+puts result.data["listings"]
+```
+
+### Simple Extraction
+
+Wrap single values in an object schema:
+
+```ruby
+button_text_schema = {
+  "type" => "object",
+  "properties" => { "button_text" => { "type" => "string" } },
+  "required" => ["button_text"],
+}
+
+result = stagehand.extract(
+  "extract the sign in button text",
+  schema: button_text_schema,
+)
+
+puts result.data["button_text"]  # "Sign in"
+```
+
+### Targeted Extraction
+
+Scope extraction to a specific element with `locator`, and prune noise with `ignore_locators`:
+
+```ruby
+reason_schema = {
+  "type" => "object",
+  "properties" => { "reason" => { "type" => "string" } },
+  "required" => ["reason"],
+}
+
+result = stagehand.extract(
+  "extract the reason why script injection fails",
+  schema: reason_schema,
+  locator: page.locator("#main-content"),
+  ignore_locators: [page.locator("nav"), page.locator(".cookie-banner")],
+)
+```
+
+### URL Extraction
+
+When extracting links or URLs, add a `format` constraint to the schema:
+
+```ruby
+links_schema = {
+  "type" => "object",
+  "properties" => {
+    "links" => {
+      "type" => "array",
+      "items" => { "type" => "string", "format" => "uri" },
+    },
+  },
+  "required" => ["links"],
+}
+
+result = stagehand.extract(
+  "extract all navigation links",
+  schema: links_schema,
+)
+```
+
+### Extracting from a Specific Page
+
+```ruby
+placeholder_schema = {
+  "type" => "object",
+  "properties" => { "placeholder" => { "type" => "string" } },
+  "required" => ["placeholder"],
+}
+
+result = stagehand.extract(
+  "extract the placeholder text on the name field",
+  schema: placeholder_schema,
+  page: page2,
+)
+```
+
+### Inspecting Metadata
+
+```ruby
+title_schema = {
+  "type" => "object",
+  "properties" => { "title" => { "type" => "string" } },
+  "required" => ["title"],
+}
+
+result = stagehand.extract(
+  "extract the page title",
+  schema: title_schema,
+)
+
+puts result.data["title"]
+puts result.metadata.action_id  # Action ID for tracing this call
+puts result.metadata.cache.status  # "HIT", "MISS", or "DISABLED"
+```
+
+## Observe
+
+Plan actions before executing them. Candidate actions are returned on `data`:
+
+```ruby
+result = stagehand.observe("Click the sign in button")
+action = result.data.first
+
+puts "#{action.selector} #{action.method} #{action.arguments}" if action
+```
+
+Observing on a specific page:
+
+```ruby
+result = stagehand.observe(
+  "find the next page button",
+  page: page2,
+)
+stagehand.act(result.data.first, page: page2)
+```
+
+## Advanced Features
+
+### Locators
+
+Use `page.locator(selector)` for deterministic, non-AI interactions. Selectors returned by `observe` are XPath strings prefixed with `xpath=`:
+
+```ruby
+page.locator("xpath=/html/body/div[2]/button").click
+page.locator("#email").fill("user@example.com")
+count = page.locator("li.result").count
+```
+
+### Multi-Page Workflows
+
+```ruby
+page1 = browser.context.new_page("https://example.com")
+
+page2 = browser.context.new_page("https://example2.com")
+
+# Act/extract/observe operate on the current active page by default
+# Pass page: to target a specific page
+stagehand.act("click button", page: page1)
+stagehand.extract("get title", schema: title_schema, page: page2)
+```
+
+### Caching
+
+Server-side caching requires a Browserbase browser and a Browserbase API key:
+
+```ruby
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+stagehand = Stagehand.create(
+  browser: browser,
+  cache: true, # or { threshold: 1 }
+)
+```
+
+## Cleanup
+
+Close Stagehand before closing its browser:
+
+```ruby
+browser = Stagehand::LocalBrowser.launch(headless: true)
+begin
+  stagehand = Stagehand.create(browser: browser)
+  begin
+    # ...
+  ensure
+    stagehand.close
+  end
+ensure
+  browser.close
+end
+```
+
+## Project Structure Best Practices
+
+- Read configuration from `ENV` and pass it explicitly as keyword arguments to `Stagehand.create`
+- Write synchronous code; never use `async`/`await`, and drop parentheses on zero-argument calls
+- Use snake_case for every method and keyword argument
+- Define extraction shapes as frozen JSON Schema Hash constants next to the code that consumes them
+- Wrap every workflow in `begin`/`ensure` so `close` runs even when a step raises
+- Prefer narrow, atomic instructions over one instruction that describes a whole workflow
+
+## Security Notes
+
+- Never hard-code API keys. Read them with `ENV.fetch` and pass them explicitly; Stagehand reads no environment variables for you
+- Pass secrets through `variables` so they are substituted locally and never sent to the model provider
+- Set `log_level: "off"` when handling sensitive data so nothing sensitive reaches your logs
+- Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
+
+## Resources/References
+
+- Ruby SDK: `stagehand` on RubyGems
+- Stagehand documentation: https://docs.stagehand.dev
+- Stagehand Docs MCP (Mintlify): https://docs.stagehand.dev/mcp
+- Context7 MCP (Upstash): https://github.com/upstash/context7
+- DeepWiki MCP: https://mcp.deepwiki.com/
+``````
+
+</Tab>
 </Tabs>
 
 ## Security notes

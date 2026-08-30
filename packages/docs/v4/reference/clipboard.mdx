@@ -425,4 +425,122 @@ if err := browser.Context().Clipboard().Cut(ctx, nil); err != nil {
 </ResponseField>
 
 </Tab>
+<Tab title="Ruby">
+
+## Quick start
+
+```ruby
+clipboard = browser.context.clipboard
+clipboard.write_text("Hello")
+```
+
+## read_text()
+
+Read plain text from the browser clipboard.
+
+```ruby
+text = browser.context.clipboard.read_text
+```
+
+<ParamField path="page" type="Page?" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="String">
+  The clipboard text.
+</ResponseField>
+
+## write_text()
+
+Write plain text to the browser clipboard.
+
+```ruby
+browser.context.clipboard.write_text("Hello")
+```
+
+<ParamField path="text" type="String">
+  The plain text to write.
+</ParamField>
+
+<ParamField path="page" type="Page?" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the clipboard operation completes.
+</ResponseField>
+
+## clear()
+
+Clear the browser clipboard.
+
+```ruby
+browser.context.clipboard.clear
+```
+
+<ParamField path="page" type="Page?" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the clipboard operation completes.
+</ResponseField>
+
+## paste()
+
+Paste the clipboard contents into the active element.
+
+```ruby
+browser.context.clipboard.paste
+```
+
+<ParamField path="page" type="Page?" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ParamField
+  path="shortcut"
+  type='"ControlOrMeta+V" | "Meta+V" | "Control+V"'
+  optional
+>
+  The keyboard shortcut used to paste.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the clipboard operation completes.
+</ResponseField>
+
+## copy()
+
+Copy the current selection to the browser clipboard.
+
+```ruby
+browser.context.clipboard.copy
+```
+
+<ParamField path="page" type="Page?" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the clipboard operation completes.
+</ResponseField>
+
+## cut()
+
+Cut the current selection to the browser clipboard.
+
+```ruby
+browser.context.clipboard.cut
+```
+
+<ParamField path="page" type="Page?" optional>
+  The page to target. Defaults to the active page.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the clipboard operation completes.
+</ResponseField>
+
+</Tab>
 </Tabs>

@@ -53,6 +53,18 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("login with credentials an
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Single, specific actions
+stagehand.act("click the 'Add to Cart' button")
+stagehand.act("type 'user@example.com' into the email field")
+
+# Bad - Multiple actions combined
+stagehand.act("fill out the form and submit it")
+stagehand.act("login with credentials and navigate to dashboard")
+```
+</Tab>
 </Tabs>
 
 ### Use element types, not colors
@@ -103,6 +115,18 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type into the white input
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Element types and descriptive text
+stagehand.act("click the 'Sign In' button")
+stagehand.act("type into the email input field")
+
+# Bad - Color-based descriptions
+stagehand.act("click the blue button")
+stagehand.act("type into the white input")
+```
+</Tab>
 </Tabs>
 
 ### Use descriptive language
@@ -149,6 +173,18 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click next"), nil); err !
 if _, err := client.Act(ctx, stagehand.ActInstruction("type into search"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Clear element identification
+stagehand.act("click the 'Next' button at the bottom of the form")
+stagehand.act("type into the search bar at the top of the page")
+
+# Bad - Vague descriptions
+stagehand.act("click next")
+stagehand.act("type into search")
 ```
 </Tab>
 </Tabs>
@@ -203,6 +239,18 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click submit"), nil); err
 if _, err := client.Act(ctx, stagehand.ActInstruction("choose option 1"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good
+stagehand.act("click the submit button")
+stagehand.act("select 'Option 1' from dropdown")
+
+# Bad
+stagehand.act("click submit")
+stagehand.act("choose option 1")
 ```
 </Tab>
 </Tabs>
@@ -271,6 +319,22 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the 
 }); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Use variables for sensitive data
+stagehand.act(
+  "type %username% into the email field",
+  variables: { "username" => "user@example.com" },
+)
+
+# v4 reads no environment variables, so read the secret yourself
+stagehand.act(
+  "type %password% into the password field",
+  variables: { "password" => ENV.fetch("USER_PASSWORD") },
+)
 ```
 </Tab>
 </Tabs>
@@ -360,6 +424,48 @@ type data struct {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Descriptive names, correct types, and helpful descriptions
+# (schemas are plain JSON Schema Hashes)
+PRODUCT_DATA = {
+  "type" => "object",
+  "properties" => {
+    "product_title" => {
+      "type" => "string",
+      "description" => "The main product name displayed on the page",
+    },
+    "price_in_dollars" => {
+      "type" => "number",
+      "description" => "Current selling price as a number, without currency symbol",
+    },
+    "is_in_stock" => {
+      "type" => "boolean",
+      "description" => "Whether the product is available for purchase",
+    },
+  },
+  "required" => %w[product_title price_in_dollars is_in_stock],
+  "additionalProperties" => false,
+}.freeze
+
+product_data = stagehand.extract("Extract product information", schema: PRODUCT_DATA).data
+
+# Bad - Generic names, wrong types, no descriptions
+DATA = {
+  "type" => "object",
+  "properties" => {
+    "name" => { "type" => "string" },  # Too generic, no context
+    "price" => { "type" => "string" }, # Should be a number
+    "stock" => { "type" => "string" }, # Should be a boolean, no context
+  },
+  "required" => %w[name price stock],
+  "additionalProperties" => false,
+}.freeze
+
+data = stagehand.extract("Get product details", schema: DATA).data
+```
+</Tab>
 </Tabs>
 
 ### Use proper URL types
@@ -443,6 +549,45 @@ for _, l := range extracted.Data.Links {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Tells Stagehand to extract URLs
+LINKS = {
+  "type" => "object",
+  "properties" => {
+    "links" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "text" => { "type" => "string" },
+          "url" => { "type" => "string", "format" => "uri" }, # Required for URL extraction
+        },
+        "required" => %w[text url],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["links"],
+  "additionalProperties" => false,
+}.freeze
+
+result = stagehand.extract("Extract navigation links", schema: LINKS).data
+
+# Single URL extraction
+CONTACT_URL = {
+  "type" => "object",
+  "properties" => {
+    "contact_url" => { "type" => "string", "format" => "uri" },
+  },
+  "required" => ["contact_url"],
+  "additionalProperties" => false,
+}.freeze
+
+contact = stagehand.extract("extract the contact page URL", schema: CONTACT_URL).data
+```
+</Tab>
 </Tabs>
 
 ## Observe method
@@ -495,6 +640,19 @@ if len(observed.Data) > 0 {
 } else {
 	fmt.Println("No login button found")
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Check for elements first
+login_buttons = stagehand.observe("Find the login button").data
+
+if login_buttons.any?
+  page.locator(login_buttons.first.selector).click
+else
+  puts "No login button found"
+end
 ```
 </Tab>
 </Tabs>
@@ -555,6 +713,18 @@ if _, err := client.Observe(ctx, &alsoVague, nil); err != nil {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Specific element types
+submit_buttons = stagehand.observe("Find submit button in the form").data
+dropdowns = stagehand.observe("Find the state dropdown menu").data
+
+# Bad - Too vague
+elements = stagehand.observe("Find submit stuff").data
+things = stagehand.observe("Find state selection").data
+```
+</Tab>
 </Tabs>
 
 ## Sequencing multi-step work
@@ -602,6 +772,17 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type 'wireless headphones
 if _, err := client.Act(ctx, stagehand.ActInstruction("go to Amazon and search for headphones"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Navigate first, then act
+page.goto("https://amazon.com")
+stagehand.act("type 'wireless headphones' into the search box")
+
+# Bad - Navigation inside the instruction
+stagehand.act("go to Amazon and search for headphones")
 ```
 </Tab>
 </Tabs>
@@ -702,6 +883,43 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("search for wireless headp
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Explicit, ordered steps
+stagehand.act("type 'wireless headphones' into the search box")
+stagehand.act("press Enter in the search box")
+stagehand.act("click the 4 stars and up filter")
+
+PRODUCTS = {
+  "type" => "object",
+  "properties" => {
+    "products" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "name" => { "type" => "string" },
+          "price" => { "type" => "string" },
+        },
+        "required" => %w[name price],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["products"],
+  "additionalProperties" => false,
+}.freeze
+
+result = stagehand.extract(
+  "Extract the first three results with name and price",
+  schema: PRODUCTS,
+).data
+
+# Bad - One instruction carrying a whole workflow
+stagehand.act("search for wireless headphones under $100 and add the best rated one to cart")
+```
+</Tab>
 </Tabs>
 
 ### Include success criteria
@@ -781,6 +999,32 @@ if result.Data.ItemCount != 1 {
 if _, err := client.Act(ctx, stagehand.ActInstruction("add some items to cart"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good - Verify the outcome
+stagehand.act("click the add to cart button")
+
+CART = {
+  "type" => "object",
+  "properties" => {
+    "item_count" => { "type" => "integer" },
+  },
+  "required" => ["item_count"],
+  "additionalProperties" => false,
+}.freeze
+
+cart = stagehand.extract(
+  "Extract the number of items shown in the cart badge",
+  schema: CART,
+).data
+
+raise "Expected 1 item in cart, found #{cart["item_count"]}" unless cart["item_count"] == 1
+
+# Bad - No validation
+stagehand.act("add some items to cart")
 ```
 </Tab>
 </Tabs>

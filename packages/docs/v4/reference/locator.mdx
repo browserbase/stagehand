@@ -1199,4 +1199,364 @@ if err := third.Click(ctx, nil); err != nil {
 </ResponseField>
 
 </Tab>
+
+<Tab title="Ruby">
+
+## Quick start
+
+```ruby
+locator = page.locator("button[type=submit]")
+locator.click
+```
+
+## click()
+
+Click the element matched by this locator.
+
+```ruby
+locator.click
+```
+
+<ParamField path="button" type='"left" | "middle" | "right"' optional>
+  The mouse button to use: `"left"`, `"middle"`, or `"right"`.
+</ParamField>
+
+<ParamField path="click_count" type="Integer" optional>
+  The number of clicks to dispatch.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## hover()
+
+Move the pointer over the matched element.
+
+```ruby
+locator.hover
+```
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## fill()
+
+Replace the matched input's value.
+
+```ruby
+locator.fill("Browserbase")
+```
+
+<ParamField path="value" type="String">
+  The value to set.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## count()
+
+Count the elements matched by this locator.
+
+```ruby
+count = locator.count
+```
+
+<ResponseField name="result" type="Integer">
+  The operation result.
+</ResponseField>
+
+## is_checked()
+
+Check whether the matched control is checked. `checked?` is the idiomatic alias for `is_checked`.
+
+```ruby
+checked = locator.checked?
+```
+
+<ResponseField name="result" type="bool">
+  The operation result.
+</ResponseField>
+
+## input_value()
+
+Return the current value of the matched input.
+
+```ruby
+value = locator.input_value
+```
+
+<ResponseField name="result" type="String">
+  The operation result.
+</ResponseField>
+
+## is_visible()
+
+Check whether the matched element is visible. `visible?` is the idiomatic alias for `is_visible`.
+
+```ruby
+visible = locator.visible?
+```
+
+<ResponseField name="result" type="bool">
+  The operation result.
+</ResponseField>
+
+## inner_text()
+
+Return the rendered text inside the matched element.
+
+```ruby
+text = locator.inner_text
+```
+
+<ResponseField name="result" type="String">
+  The operation result.
+</ResponseField>
+
+## inner_html()
+
+Return the HTML inside the matched element.
+
+```ruby
+html = locator.inner_html
+```
+
+<ResponseField name="result" type="String">
+  The operation result.
+</ResponseField>
+
+## text_content()
+
+Return the text content of the matched element.
+
+```ruby
+text = locator.text_content
+```
+
+<ResponseField name="result" type="String">
+  The operation result.
+</ResponseField>
+
+## scroll_to()
+
+Scroll the matched element to a percentage of its range.
+
+```ruby
+locator.scroll_to(50)
+```
+
+<ParamField path="percent" type="Numeric | String">
+  A percentage from 0 to 100, optionally expressed as a percentage String such as `"75%"`.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## centroid()
+
+Return the center point of the matched element.
+
+```ruby
+point = locator.centroid
+puts "#{point.x}, #{point.y}"
+```
+
+<ResponseField name="result" type="Models::LocatorCentroidResult">
+  The operation result.
+
+  <ResponseField name="result.x" type="Numeric">
+    The horizontal center coordinate.
+  </ResponseField>
+
+  <ResponseField name="result.y" type="Numeric">
+    The vertical center coordinate.
+  </ResponseField>
+</ResponseField>
+
+## highlight()
+
+Temporarily highlight the matched element. Colors are `{r:, g:, b:, a:}` Hashes or `Models::RgbaColor` instances.
+
+```ruby
+locator.highlight(duration_ms: 1000, border_color: { r: 255, g: 0, b: 0, a: 1 })
+```
+
+<ParamField path="duration_ms" type="Integer" optional>
+  How long to display the highlight.
+</ParamField>
+
+<ParamField path="border_color" type="Hash | Models::RgbaColor" optional>
+  The highlight border color.
+
+  <ParamField path="border_color.a" type="Numeric" optional>
+    The alpha channel.
+  </ParamField>
+
+  <ParamField path="border_color.b" type="Numeric">
+    The blue channel.
+  </ParamField>
+
+  <ParamField path="border_color.g" type="Numeric">
+    The green channel.
+  </ParamField>
+
+  <ParamField path="border_color.r" type="Numeric">
+    The red channel.
+  </ParamField>
+</ParamField>
+
+<ParamField path="content_color" type="Hash | Models::RgbaColor" optional>
+  The highlight fill color.
+
+  <ParamField path="content_color.a" type="Numeric" optional>
+    The alpha channel.
+  </ParamField>
+
+  <ParamField path="content_color.b" type="Numeric">
+    The blue channel.
+  </ParamField>
+
+  <ParamField path="content_color.g" type="Numeric">
+    The green channel.
+  </ParamField>
+
+  <ParamField path="content_color.r" type="Numeric">
+    The red channel.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## send_click_event()
+
+Dispatch a DOM click event on the matched element.
+
+```ruby
+locator.send_click_event
+```
+
+<ParamField path="bubbles" type="bool" optional>
+  Whether the event bubbles.
+</ParamField>
+
+<ParamField path="cancelable" type="bool" optional>
+  Whether the event can be canceled.
+</ParamField>
+
+<ParamField path="composed" type="bool" optional>
+  Whether the event crosses shadow DOM boundaries.
+</ParamField>
+
+<ParamField path="detail" type="Numeric" optional>
+  Event-specific click detail.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## type()
+
+Type text into the matched element.
+
+```ruby
+locator.type("Browserbase")
+```
+
+<ParamField path="text" type="String">
+  The text to type.
+</ParamField>
+
+<ParamField path="delay" type="Numeric" optional>
+  Delay between keystrokes, in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the operation completes.
+</ResponseField>
+
+## select_option()
+
+Select one or more values in the matched select element.
+
+```ruby
+values = locator.select_option("us")
+```
+
+<ParamField path="values" type="String | Array[String]">
+  The value or values to select.
+</ParamField>
+
+<ResponseField name="result" type="Array[String]">
+  The selected values.
+</ResponseField>
+
+## set_input_files()
+
+Set one or more local files or in-memory payloads on the matched `<input type="file">`. The SDK resolves relative paths on the caller's machine. Pass an empty Array to clear the selection.
+
+```ruby
+page.locator('input[type="file"]').set_input_files("./resume.pdf")
+```
+
+<ParamField path="files" type="String | Pathname | Stagehand::FilePayload | Array[String | Pathname | Stagehand::FilePayload]">
+  Local file path(s) or in-memory payload(s) to upload. The SDK serializes each file in memory and limits it to 50 MiB.
+
+  <ParamField path="files.name" type="String">
+    The filename exposed to the page.
+  </ParamField>
+
+  <ParamField path="files.buffer" type="String">
+    The in-memory file content to upload (binary or text String). The SDK base64-encodes it for transport.
+  </ParamField>
+
+  <ParamField path="files.mime_type" type="String" optional>
+    The file's MIME type.
+  </ParamField>
+
+  <ParamField path="files.last_modified" type="Integer" optional>
+    The file's last-modified time in Unix milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="nil">
+  Returns after the files are attached.
+</ResponseField>
+
+## first()
+
+Create a locator for the first matching element.
+
+```ruby
+first = locator.first
+```
+
+<ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+## nth()
+
+Create a locator for a matching element at a zero-based index.
+
+```ruby
+third = locator.nth(2)
+```
+
+<ParamField path="index" type="Integer">
+  The zero-based match index.
+</ParamField>
+
+<ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+</Tab>
 </Tabs>

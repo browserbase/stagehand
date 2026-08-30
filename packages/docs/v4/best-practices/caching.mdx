@@ -105,6 +105,26 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"),
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  cache: true,
+)
+
+page = browser.context.active_page
+
+page.goto("https://example.com")
+
+# Cached after the hit-count threshold is met
+stagehand.act("click the login button")
+```
+</Tab>
 </Tabs>
 
 ### Disabling per call
@@ -190,6 +210,28 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"),
 if _, err := client.Act(ctx, stagehand.ActInstruction("submit the form"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  cache: true,
+)
+
+page = browser.context.active_page
+page.goto("https://example.com")
+
+# This call skips the cache
+stagehand.act("click the login button", cache: false)
+
+# This call uses the cache as normal
+stagehand.act("submit the form")
 ```
 </Tab>
 </Tabs>
@@ -292,6 +334,34 @@ if err != nil {
 fmt.Println(result.Data.Companies)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  cache: { threshold: 2 }, # Serve hits after two identical results
+)
+
+COMPANIES = {
+  "type" => "object",
+  "properties" => {
+    "companies" => { "type" => "array", "items" => { "type" => "string" } },
+  },
+  "required" => ["companies"],
+  "additionalProperties" => false,
+}.freeze
+
+# Prime this one step aggressively: the second call is a hit
+result = stagehand.extract(
+  "Extract the names of the first five companies listed on the page",
+  schema: COMPANIES,
+  cache: { threshold: 1 },
+)
+puts result.data["companies"]
+```
+</Tab>
 </Tabs>
 
 ### Inspecting cache status
@@ -321,6 +391,13 @@ if err != nil {
 }
 
 fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+result = stagehand.act("click the login button")
+puts result.metadata.cache.status # "HIT", "MISS", or "DISABLED"
 ```
 </Tab>
 </Tabs>
@@ -402,6 +479,24 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+def example(stagehand)
+  page = stagehand.browser.context.active_page
+  page.goto("https://www.google.com/search?q=browserbase")
+
+  page.wait_for_load_state("networkidle")
+
+  result = stagehand.observe(
+    "click the first search result",
+    # Scope to the search results container so surrounding content
+    # stays out of the snapshot sent to the model.
+    locator: page.locator("#rcnt"),
+  )
+end
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -476,6 +571,24 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+def example(stagehand)
+  page = stagehand.browser.context.active_page
+  page.goto("https://example.com/login")
+
+  page.wait_for_load_state("networkidle")
+
+  # The model only ever sees %email%, and the logged action keeps the placeholder
+  # A different email value travels with the request, so expect a MISS
+  stagehand.act(
+    "type %email% into the Email address field",
+    variables: { "email" => "alice@example.com" },
+  )
+end
+```
+</Tab>
 </Tabs>
 </Accordion>
 
@@ -542,6 +655,20 @@ if err := browserContext.SetDomainPolicy(ctx, &stagehand.DomainPolicy{
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+page = browser.context.active_page
+
+# Lock the viewport so the layout is identical across runs
+page.set_viewport_size(1280, 720)
+
+# Block third-party noise that pollutes the accessibility tree
+browser.context.set_domain_policy(
+  { blocked_domains: ["*.google-analytics.com", "*.doubleclick.net"] },
+)
+```
+</Tab>
 </Tabs>
 </Accordion>
 
@@ -584,6 +711,16 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the Sign in button"
 if _, err := client.Act(ctx, stagehand.ActInstruction(fmt.Sprintf("type %s into the Email address field", email)), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Good: anchored to the visible label, no variance
+stagehand.act("click the Sign in button")
+
+# Bad: inline dynamic value creates a new cache key every time
+stagehand.act("type #{email} into the Email address field")
 ```
 </Tab>
 </Tabs>
@@ -640,6 +777,18 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "openai/gpt-5", # Routed through Model Gateway
+  cache: true,           # Served by Browserbase Cache
+)
 ```
 </Tab>
 </Tabs>

@@ -77,6 +77,25 @@ if err != nil {
 fmt.Println(extracted.Data.Value)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+page = browser.context.active_page
+page.goto("https://example.com")
+stagehand.act("click the button that opens a new tab")
+
+DATA = {
+  "type" => "object",
+  "properties" => { "value" => { "type" => "string" } },
+  "required" => ["value"],
+  "additionalProperties" => false,
+}.freeze
+
+# Stagehand now operates on the new tab automatically
+result = stagehand.extract("get data from new tab", schema: DATA)
+puts result.data["value"]
+```
+</Tab>
 </Tabs>
 
 <Warning>
@@ -208,6 +227,47 @@ fmt.Printf("Stagehand-Python stars: %d\n", stagehandPythonStars.Stars)
 if err := browserContext.SetActivePage(ctx, githubPage); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+STARS = {
+  "type" => "object",
+  "properties" => { "stars" => { "type" => "integer" } },
+  "required" => ["stars"],
+  "additionalProperties" => false,
+}.freeze
+
+# Create a second page
+browser.context.new_page
+pages = browser.context.pages
+
+github_page = pages[0]
+python_page = pages[1]
+
+# Navigate each page to different repositories
+github_page.goto("https://github.com/browserbase/stagehand")
+python_page.goto("https://github.com/browserbase/stagehand-python")
+
+# Extract data from each page by targeting it explicitly
+# (the Ruby SDK is synchronous, so the calls run one after the other)
+stagehand_stars = stagehand.extract(
+  "extract the repository stars",
+  schema: STARS,
+  page: github_page,
+)
+stagehand_python_stars = stagehand.extract(
+  "extract the repository stars",
+  schema: STARS,
+  page: python_page,
+)
+
+puts "Stagehand stars: #{stagehand_stars.data["stars"]}"
+puts "Stagehand-Python stars: #{stagehand_python_stars.data["stars"]}"
+
+# Make one of them the default target for later calls
+browser.context.set_active_page(github_page)
 ```
 </Tab>
 </Tabs>

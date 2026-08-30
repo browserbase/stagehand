@@ -113,6 +113,35 @@ if err != nil {
 fmt.Println(result.Data.Summary)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  model: "google/gemini-2.5-flash",
+  model_api_key: ENV.fetch("GOOGLE_GENERATIVE_AI_API_KEY"),
+)
+
+TERMS = {
+  "type" => "object",
+  "properties" => { "summary" => { "type" => "string" } },
+  "required" => ["summary"],
+  "additionalProperties" => false,
+}.freeze
+
+# One hard extraction gets the expensive model, everything else stays cheap
+stagehand.extract(
+  "summarize the contract terms",
+  schema: TERMS,
+  model: Stagehand::Models::ModelConfig.new(
+    model_name: "anthropic/claude-sonnet-4-6",
+    api_key: ENV.fetch("ANTHROPIC_API_KEY"),
+  ),
+)
+```
+</Tab>
 </Tabs>
 
 <CardGroup cols={2}>
@@ -188,6 +217,21 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("Click the sign in button"
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(
+  browser: browser,
+  cache: { threshold: 1 }, # Serve hits after one identical result
+)
+
+# First run: uses LLM inference and records the action
+# Subsequent runs: reuses the cached action (no LLM cost)
+stagehand.act("Click the sign in button")
+```
+</Tab>
 </Tabs>
 
 <CardGroup cols={1}>
@@ -247,6 +291,18 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+  timeout: 1800,    # 30 minutes instead of default 1 hour
+  keep_alive: true, # Keep session alive between tasks
+)
+
+stagehand = Stagehand.create(browser: browser)
 ```
 </Tab>
 </Tabs>
@@ -362,6 +418,46 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 
 	return stagehand.ActResult{}, fmt.Errorf("no model could complete: %s", prompt)
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Use models from least to most expensive based on task complexity
+# See stagehand.dev/evals for performance comparisons
+def smart_act(stagehand, prompt)
+  models = [
+    Stagehand::Models::ModelConfig.new(
+      model_name: "google/gemini-2.5-flash",
+      api_key: ENV.fetch("GOOGLE_GENERATIVE_AI_API_KEY"),
+    ),
+    Stagehand::Models::ModelConfig.new(
+      model_name: "openai/gpt-5.4",
+      api_key: ENV.fetch("OPENAI_API_KEY"),
+    ),
+  ]
+
+  models.each do |model|
+    # Planning is side-effect free, so escalating here is safe to repeat
+    plan =
+      begin
+        stagehand.observe(prompt, model: model)
+      rescue Stagehand::StagehandError
+        nil
+      end
+
+    # An empty plan means the model found no matching action, so escalate too
+    if plan.nil? || plan.data.empty?
+      puts "#{model.model_name} failed, escalating..."
+      next
+    end
+
+    # The page is touched once, by the first model that produced a plan
+    return stagehand.act(plan.data.first, model: model)
+  end
+
+  raise "No model could complete: #{prompt}"
+end
 ```
 </Tab>
 </Tabs>
@@ -507,6 +603,48 @@ func (m *sessionManager) closeAll(ctx context.Context) error {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+class SessionManager
+  def initialize
+    @sessions = {}
+    # The lock spans create so two threads racing on the same task type cannot
+    # each start a session and leak one
+    @mutex = Mutex.new
+  end
+
+  def session(task_type)
+    @mutex.synchronize do
+      # A failed launch stores nothing, so the next caller retries
+      @sessions[task_type] ||= open_session
+    end
+  end
+
+  def close_all
+    @mutex.synchronize do
+      sessions = @sessions.values
+      @sessions.clear
+      # Close every session even when one close raises
+      errors = []
+      sessions.each do |stagehand|
+        stagehand.close
+      rescue Stagehand::StagehandError => error
+        errors << error
+      end
+      raise errors.first unless errors.empty?
+    end
+  end
+
+  private
+
+  def open_session
+    browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+    Stagehand.create(browser: browser)
+  end
+end
+```
+</Tab>
 </Tabs>
 
 ## Cost monitoring
@@ -552,6 +690,18 @@ fmt.Printf("Completion tokens: %.0f\n", metrics.TotalCompletionTokens)
 
 // Tokens served from your provider's prompt cache cost less
 fmt.Printf("Cached input tokens: %.0f\n", metrics.TotalCachedInputTokens)
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Monitor token usage
+metrics = stagehand.metrics
+puts "Prompt tokens: #{metrics.total_prompt_tokens}"
+puts "Completion tokens: #{metrics.total_completion_tokens}"
+
+# Tokens served from your provider's prompt cache cost less
+puts "Cached input tokens: #{metrics.total_cached_input_tokens}"
 ```
 </Tab>
 </Tabs>
@@ -656,6 +806,36 @@ func (g *budgetGuard) checkBudget(estimatedCost float64) error {
 	g.dailySpend += estimatedCost
 	return nil
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+require "date"
+
+class BudgetGuard
+  def initialize(max_daily_budget = 25.0)
+    @daily_spend = 0.0
+    @spend_day = Date.today
+    @max_daily_budget = max_daily_budget
+  end
+
+  def check_budget(estimated_cost)
+    # Roll the window when the calendar day changes, otherwise the first day's
+    # total blocks the process for the rest of its life
+    today = Date.today
+    if today != @spend_day
+      @spend_day = today
+      @daily_spend = 0.0
+    end
+
+    if @daily_spend + estimated_cost > @max_daily_budget
+      raise "Daily budget exceeded: $#{@max_daily_budget}"
+    end
+
+    @daily_spend += estimated_cost
+  end
+end
 ```
 </Tab>
 </Tabs>

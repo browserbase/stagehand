@@ -225,4 +225,73 @@ func (r *Response) Finished(ctx context.Context) error
 Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. `JSON()` decodes into the supplied destination. `Finished()` returns the loading failure or an RPC error, and returns `nil` after success.
 
 </Tab>
+
+<Tab title="Ruby">
+
+## Navigation
+
+```ruby
+response = page.goto("https://example.com")
+
+unless response.nil?
+  puts "#{response.status} #{response.url}"
+  puts response.text
+end
+```
+
+The navigation signatures are:
+
+```ruby
+page.goto(url, ...) -> Response?
+page.reload(...) -> Response?
+page.go_back(...) -> Response?
+page.go_forward(...) -> Response?
+```
+
+Navigation now returns `Response` or `nil`, rather than returning the `Page`. The page's internal reference and `page.url` are still updated before the method returns. If you do not need the response, continue to ignore the return value:
+
+```ruby
+page.goto("https://example.com")
+```
+
+## Immediate metadata
+
+These methods read metadata included with the navigation result and do not make another RPC call:
+
+```ruby
+response.url() -> String
+response.status() -> Integer
+response.status_text() -> String
+response.ok?() -> bool
+response.headers() -> Hash[String, String]
+response.from_service_worker?() -> bool
+```
+
+`ok?` is `true` for status codes from 200 through 299 (`ok` is an alias). `headers` contains normalized lowercase names and returns a new Hash on every call.
+
+## Headers and connection metadata
+
+```ruby
+response.all_headers() -> Hash[String, String]
+response.header_value(name) -> String?
+response.header_values(name) -> Array[String]
+response.headers_array() -> Array[Hash[String, String]]
+response.security_details() -> untyped
+response.server_addr() -> untyped
+```
+
+Header lookup is case-insensitive. `header_value` joins duplicate values with `, `, while `header_values` keeps them separate. `headers_array` preserves order, casing, and duplicates. `all_headers` includes extra-info headers, such as `set-cookie`, when Chrome provides them. `security_details` and `server_addr` return the wire models or `nil`.
+
+## Body and completion
+
+```ruby
+response.body() -> String
+response.text() -> String
+response.json() -> untyped
+response.finished() -> StagehandError?
+```
+
+Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. `body` returns a binary-encoded String; `text` enforces valid UTF-8. `finished` returns `nil` after success or an unraised `StagehandError` describing the loading failure.
+
+</Tab>
 </Tabs>

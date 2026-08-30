@@ -33,6 +33,13 @@ go mod init example.com/my-stagehand-app
 go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
 ```
 </Tab>
+
+<Tab title="Ruby">
+```bash
+mkdir my-stagehand-app && cd my-stagehand-app
+gem install stagehand
+```
+</Tab>
 </Tabs>
 
 </Step>
@@ -213,6 +220,48 @@ func run(ctx context.Context) (err error) {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "json"
+require "stagehand"
+
+VALUE_PROPOSITION_SCHEMA = {
+  "type" => "object",
+  "properties" => { "value_proposition" => { "type" => "string" } },
+  "required" => ["value_proposition"],
+  "additionalProperties" => false,
+}.freeze
+
+browser = Stagehand::Browserbase.launch(
+  api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+)
+begin
+  stagehand = Stagehand.create(browser: browser)
+  puts "Stagehand session started"
+  begin
+    page = browser.context.pages.first
+
+    page.goto("https://stagehand.dev")
+
+    extract_result = stagehand.extract(
+      "Extract the value proposition from the page.",
+      schema: VALUE_PROPOSITION_SCHEMA,
+    )
+    puts "Extract result:\n#{JSON.pretty_generate(extract_result.data)}"
+
+    stagehand.act("Click the 'Evals' button.")
+
+    observe_result = stagehand.observe("What can I click on this page?")
+    puts "Observe result:\n#{JSON.pretty_generate(observe_result.data.map(&:to_wire))}"
+  ensure
+    stagehand.close
+  end
+ensure
+  browser.close
+end
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -244,6 +293,13 @@ python main.py                           # Run the example script
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
 go run .                                 # Run the example script
+```
+</Tab>
+
+<Tab title="Ruby">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+ruby main.rb                             # Run the example script
 ```
 </Tab>
 </Tabs>

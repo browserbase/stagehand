@@ -1,8 +1,9 @@
-# Stagehand Ruby SDK — spike (AP-2857)
+# Stagehand Ruby SDK
 
-A **walking-skeleton** Ruby client for Stagehand v4, built to scope the effort of a
-production Ruby SDK (see [`ESTIMATE.md`](./ESTIMATE.md)). It proves every risky layer
-end to end but deliberately implements only a sliver of the API surface.
+The Ruby client for Stagehand v4: all 77 protocol methods, the canonical
+example set, eval-task ports, docs tabs, and cross-language parity lanes.
+(It began as the AP-2857 scoping spike — the effort breakdown lives in
+[`ESTIMATE.md`](./ESTIMATE.md).)
 
 ## What works
 
@@ -125,7 +126,7 @@ SOAK=20 bundle exec rake test # scale up the thread-safety soak suite
 ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 ```
 
-## Spike shortcuts (not production behavior)
+## Known deviations from the sibling SDKs
 
 - All 77 protocol methods are wrapped — the complete method surface,
   including inbound `llm.generate` (client-side LLMs).
@@ -137,7 +138,7 @@ ruby scripts/generate.rb      # regenerate models (also part of `just generate`)
 - Inbound work (request handlers, notification listeners including `page.on`
   blocks) runs on one dispatcher thread: handlers may issue RPC calls, but a
   slow handler delays later inbound work (Python runs these concurrently).
-- Wired into the ast-grep parity lanes (`rules/ast-grep/{rpc,cdp,example,sdk}-parity`);
-  the `sdk-field-pipeline` and `sdk-client-schema-parity` Ruby lanes land with
-  the docs tabs. Docs, CI, and release tooling are still pending (priced in
-  `ESTIMATE.md`).
+- Wired into every ast-grep parity lane (`rpc`, `cdp`, `example`, `sdk`,
+  `sdk-field-pipeline`, `sdk-client-schema-parity`), the docs reference
+  validation (`packages/docs/tests`), CI, and the release tooling. Ruby tabs
+  cover all `packages/docs/v4` language tab groups.

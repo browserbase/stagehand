@@ -43,6 +43,19 @@ extracted, err := stagehand.Extract[repository](
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+repository = {
+  "type" => "object",
+  "properties" => { "name" => { "type" => "string" } },
+  "required" => ["name"],
+  "additionalProperties" => false,
+}
+
+stagehand.extract("extract the name of the repository", schema: repository)
+```
+</Tab>
 </Tabs>
 
 `extract()` grabs structured data from a webpage. Every call takes an instruction and an output shape: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a Go type parameter whose JSON Schema Stagehand derives automatically. Stagehand validates the result against that shape before returning it, so what you get back is already typed.
@@ -112,6 +125,23 @@ extracted, err := stagehand.Extract[product](
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+product = {
+  "type" => "object",
+  "properties" => {
+    "name" => { "type" => "string" },
+    "price" => { "type" => "number" },
+    "in_stock" => { "type" => "boolean" },
+  },
+  "required" => %w[name price in_stock],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract("extract product details", schema: product)
+```
+</Tab>
 </Tabs>
 
 **Example result:**
@@ -137,6 +167,12 @@ Product(name="Wireless Mouse", price=29.99, in_stock=True)
 ```go
 result := product{Name: "Wireless Mouse", Price: 29.99, InStock: true}
 fmt.Println(result.Name, result.Price, result.InStock)
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+{ "name" => "Wireless Mouse", "price" => 29.99, "in_stock" => true }
 ```
 </Tab>
 </Tabs>
@@ -204,6 +240,33 @@ extracted, err := stagehand.Extract[apartments](
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+apartments = {
+  "type" => "object",
+  "properties" => {
+    "apartments" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "address" => { "type" => "string" },
+          "price" => { "type" => "string" },
+          "sqft" => { "type" => "number" },
+        },
+        "required" => %w[address price sqft],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["apartments"],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract("extract all apartment listings", schema: apartments)
+```
+</Tab>
 </Tabs>
 
 **Example result:**
@@ -244,6 +307,17 @@ result := apartments{Apartments: []apartment{
 	{Address: "456 Oak Ave", Price: "$1,500/mo", Sqft: 900},
 }}
 fmt.Println(result.Apartments[0].Address, result.Apartments[0].Sqft)
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+{
+  "apartments" => [
+    { "address" => "123 Main St", "price" => "$1,200/mo", "sqft" => 750 },
+    { "address" => "456 Oak Ave", "price" => "$1,500/mo", "sqft" => 900 },
+  ]
+}
 ```
 </Tab>
 </Tabs>
@@ -291,6 +365,19 @@ extracted, err := stagehand.Extract[price](
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+price = {
+  "type" => "object",
+  "properties" => { "price" => { "type" => "number" } },
+  "required" => ["price"],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract("extract the price", schema: price)
+```
+</Tab>
 </Tabs>
 
 **Example result:**
@@ -314,6 +401,12 @@ Price(price=19.99)
 ```go
 result := price{Price: 19.99}
 fmt.Println(result.Price)
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+{ "price" => 19.99 }
 ```
 </Tab>
 </Tabs>
@@ -359,6 +452,19 @@ extracted, err := stagehand.Extract[contactLink](
 	"extract the contact page link",
 	nil,
 )
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+contact_link = {
+  "type" => "object",
+  "properties" => { "url" => { "type" => "string", "format" => "uri" } },
+  "required" => ["url"],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract("extract the contact page link", schema: contact_link)
 ```
 </Tab>
 </Tabs>
@@ -432,6 +538,23 @@ if err != nil {
 }
 
 fmt.Println(result.Data.Name)
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+page = stagehand.browser.context.active_page
+
+result = stagehand.extract(
+  "extract the repository name",
+  schema: repository,
+  model: Stagehand::Models::ModelConfig.new(
+    model_name: "anthropic/claude-sonnet-4-6",
+    api_key: ENV.fetch("ANTHROPIC_API_KEY"),
+  ),
+  timeout: 30_000,
+  locator: page.locator("xpath=//header"), # Focus on specific area
+)
 ```
 </Tab>
 </Tabs>
@@ -532,6 +655,27 @@ if err != nil {
 fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+# Enable server-side caching for the entire instance
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+
+stagehand = Stagehand.create(browser: browser, cache: true)
+
+# Or disable it for a single call
+result = stagehand.extract(
+  "extract the repository name",
+  schema: repository,
+  cache: false,
+)
+
+# Cache status travels on the result metadata
+puts result.metadata.cache.status # "HIT", "MISS", or "DISABLED"
+```
+</Tab>
 </Tabs>
 
 ### Targeted extract
@@ -589,6 +733,27 @@ tableData, err := stagehand.Extract[tableRow](
 		Locator: page.Locator("xpath=/html/body/div/table/"),
 	},
 )
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+table_row = {
+  "type" => "object",
+  "properties" => {
+    "values" => { "type" => "array", "items" => { "type" => "string" } },
+  },
+  "required" => ["values"],
+  "additionalProperties" => false,
+}
+
+page = stagehand.browser.context.active_page
+
+table_data = stagehand.extract(
+  "Extract the values of the third row",
+  schema: table_row,
+  locator: page.locator("xpath=/html/body/div/table/"),
+).data
 ```
 </Tab>
 </Tabs>
@@ -661,6 +826,32 @@ extracted, err := stagehand.Extract[article](
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+article = {
+  "type" => "object",
+  "properties" => {
+    "title" => { "type" => "string" },
+    "body" => { "type" => "string" },
+  },
+  "required" => %w[title body],
+  "additionalProperties" => false,
+}
+
+page = stagehand.browser.context.active_page
+
+article_data = stagehand.extract(
+  "extract the article title and body",
+  schema: article,
+  ignore_locators: [
+    page.locator(".ad"),
+    page.locator(".newsletter-modal"),
+    page.locator("nav.related-posts"),
+  ],
+).data
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -718,6 +909,23 @@ saleBadgeData, err := stagehand.Extract[saleBadge](
 		ExtractOptions: stagehand.ExtractOptions{Screenshot: &screenshot},
 	},
 )
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+sale_badge = {
+  "type" => "object",
+  "properties" => { "text" => { "type" => "string" } },
+  "required" => ["text"],
+  "additionalProperties" => false,
+}
+
+badge = stagehand.extract(
+  "extract the text shown in the visible sale badge",
+  schema: sale_badge,
+  screenshot: true,
+).data
 ```
 </Tab>
 </Tabs>
@@ -799,6 +1007,37 @@ extracted, err := stagehand.Extract[apartments](
 )
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Optional JSON Schema context lives in "description" entries.
+apartments = {
+  "type" => "object",
+  "properties" => {
+    "apartments" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "address" => { "type" => "string", "description" => "the address of the apartment" },
+          "price" => { "type" => "string", "description" => "the price of the apartment" },
+          "square_feet" => { "type" => "string", "description" => "the square footage of the apartment" },
+        },
+        "required" => %w[address price square_feet],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["apartments"],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract(
+  "Extract ALL the apartment listings and their details, including address, price, and square feet.",
+  schema: apartments,
+)
+```
+</Tab>
 </Tabs>
 
 ### Link extraction
@@ -859,6 +1098,27 @@ if err != nil {
 }
 
 fmt.Println("the link to the contact us page is: ", extracted.Data.ContactLink)
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+contact_link = {
+  "type" => "object",
+  "properties" => {
+    # note the usage of "format" => "uri" for URL validation
+    "contact_link" => { "type" => "string", "format" => "uri" },
+  },
+  "required" => ["contact_link"],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract(
+  "extract the link to the 'contact us' page",
+  schema: contact_link,
+)
+
+puts "the link to the contact us page is: #{result.data["contact_link"]}"
 ```
 </Tab>
 </Tabs>
@@ -962,6 +1222,37 @@ if err != nil {
 fmt.Println("extracted", len(extracted.Data.Products), "products")
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# wait_for_selector reports whether the selector matched, so check it
+# before extracting: a timeout returns false without raising.
+listing_ready = page.wait_for_selector(".product-listing")
+raise "timed out waiting for .product-listing" unless listing_ready
+
+products = {
+  "type" => "object",
+  "properties" => {
+    "products" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "name" => { "type" => "string" },
+          "price" => { "type" => "string" },
+        },
+        "required" => %w[name price],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["products"],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract("extract all product names and prices", schema: products)
+```
+</Tab>
 </Tabs>
 </Accordion>
 
@@ -1004,6 +1295,22 @@ type productDetails struct {
 	Rating       *float64 `json:"rating,omitempty"`
 }
 
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Optional fields stay out of "required"; descriptions guide the model
+product_details = {
+  "type" => "object",
+  "properties" => {
+    "price" => { "type" => "string", "description" => "price including currency symbol, e.g., '$19.99'" },
+    "availability" => { "type" => "string", "description" => "stock status if available" },
+    "rating" => { "type" => "number" },
+  },
+  "required" => ["price"],
+  "additionalProperties" => false,
+}
 ```
 </Tab>
 </Tabs>
@@ -1101,6 +1408,40 @@ for _, item := range extracted.Data.Products {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# First observe to understand the page structure
+observed = stagehand.observe("find all product listings")
+puts "Found elements: #{observed.data.map(&:description)}"
+
+# Then extract with specific targeting
+products = {
+  "type" => "object",
+  "properties" => {
+    "products" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "name" => { "type" => "string", "description" => "the product title or name" },
+          "price" => { "type" => "string", "description" => "the price as displayed, including currency" },
+        },
+        "required" => %w[name price],
+        "additionalProperties" => false,
+      },
+    },
+  },
+  "required" => ["products"],
+  "additionalProperties" => false,
+}
+
+result = stagehand.extract(
+  "extract name and price from each product listing shown on the page",
+  schema: products,
+)
+```
+</Tab>
 </Tabs>
 </Accordion>
 
@@ -1195,6 +1536,25 @@ for pageNum := 1; pageNum <= 5; pageNum++ {
 
 	allData = append(allData, extracted.Data.Products...)
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Instead of extracting everything at once
+all_data = []
+
+(1..5).each do |page_num|
+  stagehand.act("navigate to page #{page_num}")
+
+  result = stagehand.extract(
+    "extract product data from the current page only",
+    schema: products,
+    timeout: 60_000, # 60 second timeout
+  )
+
+  all_data.concat(result.data["products"])
+end
 ```
 </Tab>
 </Tabs>

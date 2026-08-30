@@ -63,6 +63,16 @@ your-project/
   vercel.json
 ```
 </Tab>
+
+<Tab title="Ruby">
+```text
+your-project/
+  api/
+    run.rb
+  Gemfile
+  vercel.json
+```
+</Tab>
 </Tabs>
 
 Create the structure with:
@@ -87,6 +97,13 @@ touch api/run.py requirements.txt vercel.json
 mkdir -p api
 touch api/run.go vercel.json
 go mod init example.com/bb-stagehand-on-vercel
+```
+</Tab>
+
+<Tab title="Ruby">
+```bash
+mkdir -p api
+touch api/run.rb Gemfile vercel.json
 ```
 </Tab>
 </Tabs>
@@ -343,6 +360,69 @@ func main() {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# api/run.rb
+require "json"
+require "stagehand"
+
+FASTEST_MODEL = {
+  "type" => "object",
+  "properties" => { "fastest_model" => { "type" => "string" } },
+  "required" => ["fastest_model"],
+  "additionalProperties" => false,
+}.freeze
+
+def run
+  # browser_settings is passed to the Browserbase API verbatim (camelCase keys)
+  browser = Stagehand::Browserbase.launch(
+    api_key: ENV.fetch("BROWSERBASE_API_KEY"),
+    region: "us-west-2",
+    browser_settings: { "blockAds" => true },
+  )
+
+  stagehand = Stagehand.create(
+    browser: browser,
+    model: "google/gemini-2.5-flash",
+    model_api_key: ENV.fetch("GOOGLE_API_KEY"),
+    log_level: "warn",
+  )
+
+  begin
+    page = browser.context.active_page
+    raise "Stagehand initialized without an active page" if page.nil?
+
+    page.goto("https://www.stagehand.dev/")
+    stagehand.act("click the evals button")
+
+    result = stagehand.extract("extract the fastest model", schema: FASTEST_MODEL)
+    result.data["fastest_model"]
+  ensure
+    stagehand.close
+  end
+end
+
+Handler = Proc.new do |request, response|
+  response["Content-Type"] = "application/json"
+
+  secret = ENV["CRON_SECRET"]
+  if secret.nil? || secret.empty? || request["Authorization"] != "Bearer #{secret}"
+    response.status = 401
+    response.body = JSON.generate({ ok: false, error: "unauthorized" })
+  else
+    begin
+      data = run
+      response.status = 200
+      response.body = JSON.generate({ ok: true, data: data })
+    rescue StandardError => error
+      response.status = 500
+      response.body = JSON.generate({ ok: false, error: error.message })
+    end
+  end
+end
+```
+</Tab>
 </Tabs>
 
 </Step>
@@ -388,6 +468,15 @@ go 1.26.0
 require github.com/browserbase/stagehand/packages/sdk-go/v4 v4.0.0
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Gemfile
+source "https://rubygems.org"
+
+gem "stagehand"
+```
+</Tab>
 </Tabs>
 
 </Step>
@@ -424,6 +513,13 @@ declare your dependencies in requirements.txt instead.
 ```text
 Not applicable. Go functions on Vercel need no compiler configuration;
 declare your dependencies in go.mod instead.
+```
+</Tab>
+
+<Tab title="Ruby">
+```text
+Not applicable. Ruby functions on Vercel need no compiler configuration;
+declare your dependencies in a Gemfile instead.
 ```
 </Tab>
 </Tabs>
@@ -465,6 +561,19 @@ declare your dependencies in go.mod instead.
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/run.go": {
+      "maxDuration": 60
+    }
+  }
+}
+```
+</Tab>
+
+<Tab title="Ruby">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.rb": {
       "maxDuration": 60
     }
   }
@@ -542,6 +651,16 @@ vercel dev --listen 5005
 ```bash
 # ensure dependencies are installed
 go mod tidy
+
+# start the local Vercel dev server
+vercel dev --listen 5005
+```
+</Tab>
+
+<Tab title="Ruby">
+```bash
+# ensure dependencies are installed
+bundle install
 
 # start the local Vercel dev server
 vercel dev --listen 5005
@@ -629,6 +748,22 @@ Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/run.go": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    { "path": "/api/run", "schedule": "0 * * * *" }
+  ]
+}
+```
+</Tab>
+
+<Tab title="Ruby">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.rb": {
       "maxDuration": 60
     }
   },

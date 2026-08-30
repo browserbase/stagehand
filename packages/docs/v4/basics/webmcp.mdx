@@ -58,6 +58,18 @@ if err != nil {
 fmt.Println(response.Status, response.Output)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+tools = page.tools
+checkout = tools.first
+
+invocation = checkout.invoke(input: { quantity: 2 })
+response = invocation.result
+
+puts "#{response.status} #{response.output}"
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -124,6 +136,20 @@ for _, tool := range tools {
 	fmt.Println(descriptor.Annotations)  // ReadOnly / UntrustedContent / Autosubmit
 	fmt.Println(descriptor.FrameID)      // the frame that registered the tool
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Wait up to 3 seconds for the page to register its tools
+tools = page.tools(timeout: 3_000)
+
+tools.each do |tool|
+  puts "#{tool.name} #{tool.description}"
+  puts tool.input_schema.inspect  # JSON Schema for invoke input
+  puts tool.annotations.inspect   # read_only / untrusted_content / autosubmit
+  puts tool.frame_id              # the frame that registered the tool
+end
 ```
 </Tab>
 </Tabs>
@@ -202,6 +228,21 @@ if err != nil {
 fmt.Println(response.Status, response.Output)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+tools = page.tools
+search = tools.first
+
+# Returns as soon as Chrome accepts the invocation
+invocation = search.invoke(input: { query: "wireless mouse" })
+
+puts "#{invocation.invocation_id} #{invocation.tool_name} #{invocation.input}"
+
+# Blocks until the tool reaches a terminal state
+response = invocation.result(timeout: 30_000)
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -275,6 +316,21 @@ case stagehand.WebMCPInvocationStatusError:
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+response = invocation.result
+
+case response.status
+when "Completed"
+  puts "output: #{response.output}"
+when "Canceled"
+  puts "canceled before it finished"
+else
+  puts "#{response.error_text} #{response.exception}"
+end
+```
+</Tab>
 </Tabs>
 
 `result()` caches the terminal response, so calling it twice is cheap and returns the same value. A timeout or transport failure is not cached and can be retried.
@@ -323,6 +379,18 @@ if err != nil {
 	return err
 }
 fmt.Println(response.Status) // often "Canceled", but the tool may have finished first
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+invocation = slow_tool.invoke(input: {})
+
+# Ask the page to stop. The terminal status is still whatever Chrome reports.
+invocation.cancel
+
+response = invocation.result
+puts response.status # often "Canceled", but the tool may have finished first
 ```
 </Tab>
 </Tabs>
@@ -406,6 +474,22 @@ if addToCart != nil {
 		return err
 	}
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+tools = page.tools
+add_to_cart = tools.find { |tool| tool.name == "addToCart" }
+
+if add_to_cart
+  # Deterministic, typed, no model call
+  invocation = add_to_cart.invoke(input: { sku: "ABC-123", quantity: 1 })
+  invocation.result
+else
+  # The page publishes no tool for this, so drive the UI
+  stagehand.act("add the item to the cart")
+end
 ```
 </Tab>
 </Tabs>

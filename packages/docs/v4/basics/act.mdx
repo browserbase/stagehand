@@ -25,6 +25,12 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click on add to cart"), n
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+stagehand.act("click on add to cart")
+```
+</Tab>
 </Tabs>
 
 `act` performs one action on a web page. Chain single-step calls to build automations that survive website changes.
@@ -76,6 +82,13 @@ if _, err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the add to cart button"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+page.goto("https://example-store.com")
+stagehand.act("click the add to cart button")
 ```
 </Tab>
 </Tabs>
@@ -204,6 +217,36 @@ result := stagehand.ActResult{
 fmt.Println(result.Data.Message, result.Metadata.Cache.Status)
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+Stagehand::Models::ActResult.new(
+  data: Stagehand::Models::ActResultData.new(
+    success: true,
+    message: "Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1]",
+    action_description: "Favorite Colour",
+    actions: [
+      Stagehand::Models::Action.new(
+        selector: "xpath=/html[1]/body[1]/div[1]/span[1]",
+        description: "Favorite Colour",
+        method: "click",
+        arguments: [],
+      ),
+      Stagehand::Models::Action.new(
+        selector: "xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]",
+        description: "Peach",
+        method: "click",
+        arguments: [],
+      ),
+    ],
+  ),
+  metadata: Stagehand::Models::StagehandResultMetadata.new(
+    action_id: "act_01HZY...",
+    cache: Stagehand::Models::CacheMetadata.new(status: "MISS", miss_reason: "not_found"),
+  ),
+)
+```
+</Tab>
 </Tabs>
 
 
@@ -244,6 +287,15 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the apply button"),
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Break it into single-step actions
+stagehand.act("open the filters panel")
+stagehand.act("choose 4-star rating")
+stagehand.act("click the apply button")
+```
+</Tab>
 </Tabs>
 </Tab>
 
@@ -271,6 +323,13 @@ await stagehand.act("open the filters panel, choose 4-star rating, and click app
 if _, err := client.Act(ctx, stagehand.ActInstruction("open the filters panel, choose 4-star rating, and click apply"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Too complex - trying to do multiple things at once
+stagehand.act("open the filters panel, choose 4-star rating, and click apply")
 ```
 </Tab>
 </Tabs>
@@ -338,6 +397,22 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("choose 'Peach' from the f
 }); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Custom model configuration
+stagehand.act(
+  "choose 'Peach' from the favorite color dropdown",
+  model: Stagehand::Models::ModelConfig.new(
+    model_name: "google/gemini-2.5-flash",
+    api_key: ENV.fetch("GOOGLE_API_KEY"),
+  ),
+  timeout: 10_000,
+  locator: page.locator("form"),
+  ignore_locators: [page.locator(".promo-modal")],
+)
 ```
 </Tab>
 </Tabs>
@@ -445,6 +520,26 @@ if err != nil {
 fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+# Enable server-side caching for the entire instance
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+stagehand = Stagehand.create(browser: browser, cache: true)
+
+# Or disable it for a single call
+stagehand.act("click the login button", cache: false)
+
+# Or lower the hit-count threshold for a single call
+stagehand.act("click the login button", cache: { threshold: 1 })
+
+# Check whether a result was served from cache
+result = stagehand.act("click the login button")
+puts result.metadata.cache.status # "HIT", "MISS", or "DISABLED"
+```
+</Tab>
 </Tabs>
 
 <Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v4/best-practices/caching">
@@ -517,6 +612,19 @@ _, err = client.Act(ctx, stagehand.ActInstruction("click the next page button"),
 })
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+stagehand = Stagehand.create(browser: browser)
+
+# Open a second page in the same browser context
+blog_page = browser.context.new_page("https://www.example.com/blog")
+
+# Use act with that specific page
+stagehand.act("click the next page button", page: blog_page)
+```
+</Tab>
 </Tabs>
 
 This works with:
@@ -575,6 +683,18 @@ if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0]
 		return err
 	}
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+result = stagehand.observe("click the login button")
+action = result.data.first
+
+if action && action.method == "click"
+  # No inference: Stagehand replays the observed action
+  stagehand.act(action)
+end
 ```
 </Tab>
 </Tabs>
@@ -659,6 +779,24 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"),
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+stagehand = Stagehand.create(
+  browser: browser,
+  cache: { threshold: 1 }, # Actions are cached after one identical result
+)
+
+# First run makes an LLM call and records the action
+stagehand.act("click the login button")
+
+# Second run is served from the cache
+stagehand.act("click the login button")
+```
+</Tab>
 </Tabs>
 
 <Note>
@@ -733,6 +871,23 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the 
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Variables use %variable_name% syntax in the instruction
+stagehand.act(
+  "type %username% into the email field",
+  variables: { username: "user@example.com" },
+)
+
+stagehand.act(
+  "type %password% into the password field",
+  variables: { password: ENV.fetch("USER_PASSWORD") },
+)
+
+stagehand.act("click the login button")
 ```
 </Tab>
 </Tabs>
@@ -840,6 +995,29 @@ if _, err := client.Act(ctx, stagehand.ActInstruction(prompt), nil); err != nil 
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+prompt = "click the submit button"
+expected_method = "click"
+
+begin
+  stagehand.act(prompt)
+rescue Stagehand::StagehandError => error
+  raise unless error.message.include?("method not supported")
+
+  # Observe the same prompt to get the planned action
+  observed = stagehand.observe(prompt)
+  action = observed.data.first
+
+  if action && action.method == expected_method
+    stagehand.act(action)
+  else
+    raise "Unsupported method: expected \"#{expected_method}\", got \"#{action&.method}\""
+  end
+end
+```
+</Tab>
 </Tabs>
 
 **Solution 2: Retry with exponential backoff**
@@ -920,6 +1098,28 @@ for attempt := 0; attempt <= maxRetries; attempt++ {
 	case <-time.After(delay):
 	}
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Retry with exponential backoff for intermittent issues
+prompt = "click the submit button"
+max_retries = 3
+
+(0..max_retries).each do |attempt|
+  begin
+    stagehand.act(prompt, timeout: 10_000 + (attempt * 5_000))
+    break # Success, exit retry loop
+  rescue Stagehand::StagehandError => error
+    raise unless error.message.include?("method not supported") && attempt < max_retries
+
+    # Exponential backoff: wait 2**attempt seconds
+    delay = 2**attempt
+    puts "Retry #{attempt + 1}/#{max_retries} after #{delay * 1000}ms"
+    sleep(delay)
+  end
+end
 ```
 </Tab>
 </Tabs>
@@ -1013,6 +1213,29 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the submit button")
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Handle timeout and element not found issues
+begin
+  stagehand.act("click the submit button", timeout: 30_000)
+rescue Stagehand::StagehandError
+  # Check if page is fully loaded
+  page.wait_for_load_state("domcontentloaded")
+
+  # Use observe to check element state
+  observed = stagehand.observe("find the submit button")
+
+  if observed.data.any?
+    puts "Element found, trying more specific instruction"
+    stagehand.act("click the submit button at the bottom of the form")
+  else
+    puts "Element not found, trying alternative selector"
+    stagehand.act("click the button with text 'Submit'")
+  end
+end
+```
+</Tab>
 </Tabs>
 </Accordion>
 
@@ -1082,6 +1305,22 @@ if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "che
 		return err
 	}
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# More precise element targeting
+# Instead of:
+stagehand.act("click the button")
+
+# Use specific context:
+stagehand.act("click the red 'Delete' button next to the user John Smith")
+
+# Or preview with observe first:
+observed = stagehand.observe("click the submit button in the checkout form")
+action = observed.data.first
+stagehand.act(action) if action && action.description.include?("checkout")
 ```
 </Tab>
 </Tabs>

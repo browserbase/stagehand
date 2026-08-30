@@ -2,13 +2,14 @@ import { readdir, readFile } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import python from "@ast-grep/lang-python";
+import ruby from "@ast-grep/lang-ruby";
 import { Lang, parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
 import { createProcessor } from "@mdx-js/mdx";
 import { describe, expect, it } from "vitest";
 
-registerDynamicLanguage({ python });
+registerDynamicLanguage({ python, ruby });
 
-type Language = "Go" | "Python" | "TypeScript";
+type Language = "Go" | "Python" | "Ruby" | "TypeScript";
 
 type MdxAttribute = {
   name?: string;
@@ -124,6 +125,8 @@ type SdkObject = {
   classSlug: string;
   goClassName: string;
   pythonFile: string;
+  rubyClassName: string;
+  rubyFile: string;
   typescriptFile: string;
 };
 
@@ -145,12 +148,14 @@ const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
 const GO_ROOT = fileURLToPath(new URL("../../sdk-go", import.meta.url));
+const RUBY_ROOT = fileURLToPath(new URL("../../sdk-ruby/lib/stagehand", import.meta.url));
+const RUBY_SIGNATURES = fileURLToPath(new URL("../../sdk-ruby/sig/stagehand.rbs", import.meta.url));
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
 const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
 const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
-const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Language[];
+const LANGUAGES = ["TypeScript", "Python", "Go", "Ruby"] as const satisfies readonly Language[];
 // Language tabs are the selector; every other <Tab> on a page is a different axis
 // (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
@@ -180,6 +185,8 @@ const SDK_OBJECTS = [
     goClassName: "Stagehand",
     typescriptFile: "stagehand.ts",
     pythonFile: "stagehand.py",
+    rubyClassName: "Client",
+    rubyFile: "client.rb",
   },
   {
     className: "BrowserContext",
@@ -187,6 +194,8 @@ const SDK_OBJECTS = [
     goClassName: "BrowserContext",
     typescriptFile: "browserContext.ts",
     pythonFile: "browser_context.py",
+    rubyClassName: "BrowserContext",
+    rubyFile: "browser_context.rb",
   },
   {
     className: "BrowserClipboard",
@@ -194,6 +203,8 @@ const SDK_OBJECTS = [
     goClassName: "BrowserClipboard",
     typescriptFile: "browserClipboard.ts",
     pythonFile: "browser_clipboard.py",
+    rubyClassName: "BrowserClipboard",
+    rubyFile: "browser_clipboard.rb",
   },
   {
     className: "Page",
@@ -201,6 +212,8 @@ const SDK_OBJECTS = [
     goClassName: "Page",
     typescriptFile: "page.ts",
     pythonFile: "page.py",
+    rubyClassName: "Page",
+    rubyFile: "page.rb",
   },
   {
     className: "Locator",
@@ -208,6 +221,8 @@ const SDK_OBJECTS = [
     goClassName: "PageLocator",
     typescriptFile: "locator.ts",
     pythonFile: "locator.py",
+    rubyClassName: "Locator",
+    rubyFile: "locator.rb",
   },
 ] as const satisfies readonly SdkObject[];
 
@@ -217,17 +232,23 @@ const TYPESCRIPT_FIELD_SPELLINGS = uniqueSpellingsByWireName(
 
 describe("SDK reference surface", () => {
   it("keeps every public callable in sync across TypeScript, Python, Go, and reference pages", async () => {
-    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
-      readTypescriptMethods(),
-      readPythonMethods(),
-      readGoMethods(),
-      readReferencePages(),
-    ]);
+    const [typescriptMethods, pythonMethods, goMethods, rubyMethods, referencePages] =
+      await Promise.all([
+        readTypescriptMethods(),
+        readPythonMethods(),
+        readGoMethods(),
+        readRubyMethods(),
+        readReferencePages(),
+      ]);
 
     const expected = methodKeys(typescriptMethods);
     expect(
       methodKeys(pythonMethods),
       "Python public callables must match the TypeScript SDK surface",
+    ).toStrictEqual(expected);
+    expect(
+      methodKeys(rubyMethods),
+      "Ruby public callables must match the TypeScript SDK surface",
     ).toStrictEqual(expected);
     expect(
       operationBindings(pythonMethods),
@@ -263,16 +284,18 @@ describe("SDK reference surface", () => {
     const views = new Map(
       findLanguageTabs(tree).map((view) => [stringAttribute(view, "title"), view]),
     );
-    const [typescriptMembers, pythonMembers, goMembers] = await Promise.all([
+    const [typescriptMembers, pythonMembers, goMembers, rubyMembers] = await Promise.all([
       readTypescriptResponseMembers(),
       readPythonResponseMembers(),
       readGoResponseMembers(),
+      readRubySignatureMembers("Response"),
     ]);
 
     for (const [language, expected] of [
       ["TypeScript", typescriptMembers],
       ["Python", pythonMembers],
       ["Go", goMembers],
+      ["Ruby", rubyMembers],
     ] as const satisfies ReadonlyArray<readonly [Language, ResponseReferenceMember[]]>) {
       const view = views.get(language);
       expect(view, `response.mdx must contain one ${language} tab`).toBeDefined();
@@ -342,12 +365,15 @@ describe("SDK reference surface", () => {
     const cases = [
       ["page", "TypeScript", '"load"', '"domcontentloaded"', '"networkidle"'],
       ["page", "Python", '"load"', '"domcontentloaded"', '"networkidle"'],
+      ["page", "Ruby", '"load"', '"domcontentloaded"', '"networkidle"'],
       ["page", "Go", "LoadStateLoad", "LoadStateDOMContentLoaded", "LoadStateNetworkIdle"],
       ["locator", "TypeScript", '"left"', '"middle"', '"right"'],
       ["locator", "Python", '"left"', '"middle"', '"right"'],
+      ["locator", "Ruby", '"left"', '"middle"', '"right"'],
       ["locator", "Go", "MouseButtonLeft", "MouseButtonMiddle", "MouseButtonRight"],
       ["page", "TypeScript", '"attached"', '"detached"', '"visible"', '"hidden"'],
       ["page", "Python", '"attached"', '"detached"', '"visible"', '"hidden"'],
+      ["page", "Ruby", '"attached"', '"detached"', '"visible"', '"hidden"'],
       [
         "page",
         "Go",
@@ -382,6 +408,18 @@ describe("SDK reference surface", () => {
       ],
       [
         "page",
+        "Ruby",
+        '"disabled"',
+        '"allow"',
+        '"hide"',
+        '"initial"',
+        '"css"',
+        '"device"',
+        '"png"',
+        '"jpeg"',
+      ],
+      [
+        "page",
         "Go",
         "PageScreenshotOptionsAnimationsDisabled",
         "PageScreenshotOptionsAnimationsAllow",
@@ -394,6 +432,7 @@ describe("SDK reference surface", () => {
       ],
       ["context", "TypeScript", '"Strict"', '"Lax"', '"None"'],
       ["context", "Python", '"Strict"', '"Lax"', '"None"'],
+      ["context", "Ruby", '"Strict"', '"Lax"', '"None"'],
       [
         "context",
         "Go",
@@ -403,9 +442,11 @@ describe("SDK reference surface", () => {
       ],
       ["stagehand", "TypeScript", '"HIT"', '"MISS"', '"DISABLED"'],
       ["stagehand", "Python", '"HIT"', '"MISS"', '"DISABLED"'],
+      ["stagehand", "Ruby", '"HIT"', '"MISS"', '"DISABLED"'],
       ["stagehand", "Go", "CacheStatusHIT", "CacheStatusMISS", "CacheStatusDISABLED"],
       ["webmcp", "TypeScript", '"Completed"', '"Canceled"', '"Error"'],
       ["webmcp", "Python", '"Completed"', '"Canceled"', '"Error"'],
+      ["webmcp", "Ruby", '"Completed"', '"Canceled"', '"Error"'],
       [
         "webmcp",
         "Go",
@@ -502,6 +543,13 @@ describe("SDK reference surface", () => {
             returnType,
           })),
       ],
+      [
+        "Ruby",
+        [
+          ...(await readRubySignatureMembers("WebMCPTool")),
+          ...(await readRubySignatureMembers("WebMCPInvocation")),
+        ],
+      ],
     ]);
     const problems: string[] = [];
     for (const [language, members] of surfaces) {
@@ -561,6 +609,10 @@ describe("SDK reference surface", () => {
             returnType,
           })),
       ],
+      [
+        "Ruby",
+        (await readRubySignatureMembers("CDPSubscription")).filter(({ isProperty }) => !isProperty),
+      ],
     ]);
     for (const [language, members] of cdpMembers) {
       const tab = languageTabSource(pageDocs, language);
@@ -577,18 +629,21 @@ describe("SDK reference surface", () => {
   });
 
   it("uses the exact language-specific public method names as headings", async () => {
-    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
-      readTypescriptMethods(),
-      readPythonMethods(),
-      readGoMethods(),
-      readReferencePages(),
-    ]);
+    const [typescriptMethods, pythonMethods, goMethods, rubyMethods, referencePages] =
+      await Promise.all([
+        readTypescriptMethods(),
+        readPythonMethods(),
+        readGoMethods(),
+        readRubyMethods(),
+        readReferencePages(),
+      ]);
     const differences: string[] = [];
 
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
       ["Go", sharedSurfaceMethods(goMethods, methodKeys(typescriptMethods))],
+      ["Ruby", rubyMethods],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
@@ -622,18 +677,21 @@ describe("SDK reference surface", () => {
   });
 
   it("documents the exact direct signature parameters inside each language tab", async () => {
-    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
-      readTypescriptMethods(),
-      readPythonMethods(),
-      readGoMethods(),
-      readReferencePages(),
-    ]);
+    const [typescriptMethods, pythonMethods, goMethods, rubyMethods, referencePages] =
+      await Promise.all([
+        readTypescriptMethods(),
+        readPythonMethods(),
+        readGoMethods(),
+        readRubyMethods(),
+        readReferencePages(),
+      ]);
     const differences: string[] = [];
 
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
       ["Go", goMethods],
+      ["Ruby", rubyMethods],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documentedByMethod = documentedMethodMap(referencePages, language);
       for (const method of methods) {
@@ -1569,6 +1627,131 @@ function callArguments(call: SgNode): SgNode[] {
   return argumentsNode ? namedChildren(argumentsNode) : [];
 }
 
+// ---------------------------------------------------------------------------
+// Ruby SDK extraction. Ruby has no in-source type annotations (they live in
+// sig/stagehand.rbs), so parameter names come from the source and member
+// signatures from the RBS file. Predicate methods (`visible?`) present their
+// `is_` aliases as the documented surface, mirroring rules/ast-grep.
+// ---------------------------------------------------------------------------
+
+const RUBY_ACCESSOR_METHODS: Readonly<Record<string, ReadonlySet<string>>> = {
+  stagehand: new Set(["initialized"]),
+  context: new Set(["clipboard"]),
+};
+
+async function readRubyMethods(): Promise<SdkMethod[]> {
+  const methods = await Promise.all(
+    SDK_OBJECTS.map(async ({ classSlug, rubyClassName, rubyFile }) => {
+      const filePath = resolve(RUBY_ROOT, rubyFile);
+      const root = parse("ruby", await readFile(filePath, "utf8")).root();
+      const classNode = root
+        .findAll({ rule: { kind: "class" } })
+        .find((node) => namedChildren(node)[0]?.text() === rubyClassName);
+      if (!classNode) throw new Error(`${rubyClassName} not found in ${filePath}`);
+
+      const body = namedChildren(classNode).find((child) => child.kind() === "body_statement");
+      const entries: Array<{ isPublic: boolean; name: string; node: SgNode }> = [];
+      const aliases = new Map<string, string>();
+      let visibility = "public";
+      for (const child of body ? namedChildren(body) : []) {
+        if (child.kind() === "identifier") {
+          const marker = child.text();
+          if (marker === "public" || marker === "private" || marker === "protected") {
+            visibility = marker;
+          }
+          continue;
+        }
+        if (child.kind() === "method") {
+          const name = namedChildren(child).find((nested) => nested.kind() === "identifier");
+          if (name) {
+            entries.push({ isPublic: visibility === "public", name: name.text(), node: child });
+          }
+          continue;
+        }
+        if (child.kind() === "alias") {
+          const [newName, oldName] = namedChildren(child);
+          if (newName && oldName) aliases.set(oldName.text(), newName.text());
+          continue;
+        }
+        if (child.kind() === "singleton_class") {
+          // `class << self` holds class-level lifecycle methods such as create.
+          for (const method of child.findAll({ rule: { kind: "method" } })) {
+            const name = namedChildren(method).find((nested) => nested.kind() === "identifier");
+            if (name) entries.push({ isPublic: true, name: name.text(), node: method });
+          }
+        }
+      }
+
+      return entries.flatMap((entry): SdkMethod[] => {
+        if (!entry.isPublic || entry.name === "initialize" || entry.name.startsWith("_")) return [];
+        const mappedName = aliases.get(entry.name) ?? entry.name.replace(/[?!]$/u, "");
+        if (RUBY_ACCESSOR_METHODS[classSlug]?.has(mappedName)) return [];
+        return [sdkMethod(classSlug, mappedName, rubyParameterNames(entry.node))];
+      });
+    }),
+  );
+  return deduplicateMethods(methods.flat(), "Ruby").filter(participatesInReferenceParity);
+}
+
+function rubyParameterNames(method: SgNode): string[] {
+  const parameters = method.field("parameters");
+  if (!parameters) return [];
+  return namedChildren(parameters).flatMap((parameter) => {
+    if (parameter.kind() === "identifier") return [parameter.text()];
+    const name = namedChildren(parameter).find((child) => child.kind() === "identifier");
+    return name ? [name.text()] : [];
+  });
+}
+
+// Reads a class's public member signatures from sig/stagehand.rbs.
+async function readRubySignatureMembers(className: string): Promise<ResponseReferenceMember[]> {
+  const source = await readFile(RUBY_SIGNATURES, "utf8");
+  const heading = source.match(new RegExp(`^  class ${className}\\b.*$`, "mu"));
+  if (heading?.index === undefined) {
+    throw new Error(`${className} not found in sig/stagehand.rbs`);
+  }
+  const start = heading.index;
+  const end = source.indexOf("\n  end", start);
+  const section = source.slice(start, end < 0 ? undefined : end);
+  const members: ResponseReferenceMember[] = [];
+  for (const line of section.split("\n")) {
+    const trimmed = line.trim();
+    const property = trimmed.match(/^attr_reader ([A-Za-z_][A-Za-z\d_]*[?!]?): (.+)$/u);
+    if (property) {
+      members.push({
+        isProperty: true,
+        name: property[1] as string,
+        parameters: [],
+        returnType: property[2] as string,
+      });
+      continue;
+    }
+    const method = trimmed.match(
+      /^def ([A-Za-z_][A-Za-z\d_]*[?!]?): \(([^)]*)\)(?: \{[^}]*\})? -> (.+)$/u,
+    );
+    if (method) {
+      members.push({
+        isProperty: false,
+        name: method[1] as string,
+        parameters: rubySignatureParameterNames(method[2] as string),
+        returnType: method[3] as string,
+      });
+    }
+  }
+  return members;
+}
+
+function rubySignatureParameterNames(value: string): string[] {
+  if (!value.trim()) return [];
+  return signatureParameterNames(value).flatMap((parameter) => {
+    const trimmed = parameter.trim().replace(/^\?/u, "");
+    const keyword = trimmed.match(/^([A-Za-z_][A-Za-z\d_]*):/u);
+    if (keyword) return [keyword[1] as string];
+    const positional = trimmed.split(/\s+/u).at(-1);
+    return positional ? [positional] : [];
+  });
+}
+
 async function readPythonMethods(): Promise<SdkMethod[]> {
   const localTypes = await readPythonLocalTypeFields();
   const methods = await Promise.all(
@@ -2013,6 +2196,19 @@ function readDocumentedResponseMembers(
   const members: ResponseReferenceMember[] = [];
   for (const line of findNodeValues(view, "code").flatMap((value) => value.split("\n"))) {
     const trimmed = line.trim();
+    if (language === "Ruby") {
+      const match = trimmed.match(
+        /^response\.([A-Za-z_][A-Za-z\d_]*[?!]?)\(([^)]*)\)\s*->\s*(.+)$/u,
+      );
+      if (!match) continue;
+      members.push({
+        isProperty: false,
+        name: match[1] as string,
+        parameters: responseSignatureParameters(match[2] as string),
+        returnType: match[3] as string,
+      });
+      continue;
+    }
     if (language === "TypeScript") {
       const match = trimmed.match(
         /^response\.([A-Za-z_$][A-Za-z\d_$]*)(?:<[^>]+>)?\(([^)]*)\):\s*(.+)$/u,
@@ -2122,6 +2318,16 @@ function readDocumentedHelperMethods(tab: string, language: Language): ResponseR
       name: match[1] as string,
       parameters: responseSignatureParameters(match[2] as string),
       returnType: match[3] as string,
+    }));
+  }
+  if (language === "Ruby") {
+    return [
+      ...tab.matchAll(/^[a-z_]+\.([A-Za-z_][A-Za-z\d_]*[?!]?)\(([^)]*)\)\s*->\s*([^\n]+)$/gmu),
+    ].map((match) => ({
+      isProperty: false,
+      name: match[1] as string,
+      parameters: responseSignatureParameters(match[2] as string),
+      returnType: (match[3] as string).trim(),
     }));
   }
   return [

@@ -69,13 +69,13 @@ module Stagehand
     # policy: Models::DomainPolicy, a Hash with allowed_domains/blocked_domains,
     # or nil to clear the policy.
     def set_domain_policy(policy)
-      encoded =
+      policy =
         case policy
         when nil, Models::DomainPolicy then policy
         when Hash then Models::DomainPolicy.new(**policy.transform_keys(&:to_sym))
         else raise ArgumentError, "policy must be a Models::DomainPolicy, a Hash, or nil"
         end
-      @rpc_client.send("context.set_domain_policy", Models::ContextSetDomainPolicyParams.new(policy: encoded), "ContextVoidResult")
+      @rpc_client.send("context.set_domain_policy", Models::ContextSetDomainPolicyParams.new(policy: policy), "ContextVoidResult")
       nil
     end
 

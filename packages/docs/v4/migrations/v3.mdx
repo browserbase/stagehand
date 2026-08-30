@@ -189,6 +189,53 @@ func run(ctx context.Context) (err error) {
 }
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+require "stagehand"
+
+comments_schema = {
+  "type" => "object",
+  "properties" => {
+    "comments" => {
+      "type" => "array",
+      "items" => {
+        "type" => "object",
+        "properties" => {
+          "author" => { "type" => "string" },
+          "body" => { "type" => "string" },
+        },
+        "required" => %w[author body],
+      },
+    },
+  },
+  "required" => ["comments"],
+}
+
+browser = Stagehand::Browserbase.launch(api_key: ENV.fetch("BROWSERBASE_API_KEY"))
+stagehand = Stagehand.create(browser: browser)
+
+begin
+  page = browser.context.new_page("https://news.ycombinator.com")
+
+  # Deterministic where the page allows it: no inference, no variance.
+  page.locator("a.morelink").first.click
+  page.wait_for_load_state("domcontentloaded")
+
+  # A model call where the page needs judgement.
+  stagehand.act("Open the comments for the story with the most comments")
+
+  result = stagehand.extract(
+    "Extract the top five comments, with each author and body",
+    schema: comments_schema,
+  )
+  puts result.data["comments"]
+ensure
+  stagehand.close
+  browser.close
+end
+```
+</Tab>
 </Tabs>
 
 Generated code should use `page.locator()` and `page.goto()` wherever a selector is stable, and spend a model call only where the page needs judgement. `agent()` couldn't make that split, because every step it ran was an inference call.
@@ -347,6 +394,46 @@ func actTool(ctx context.Context, client *stagehand.Stagehand, instruction strin
 		return "", err
 	}
 	return result.Data.Message, nil
+}
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+# Lambdas close over the page and stagehand locals. Register these with
+# your agent framework's tool API.
+tools = {
+  "goto" => {
+    description: "Navigate to a URL",
+    execute: lambda { |url|
+      page.goto(url)
+      page.url
+    },
+  },
+  "snapshot" => {
+    description: "Read the accessibility tree of the current page",
+    execute: -> { page.snapshot.formatted_tree },
+  },
+  "click" => {
+    description: "Click the element matching a selector from the snapshot",
+    execute: ->(selector) { page.locator(selector).click },
+  },
+  "fill" => {
+    description: "Fill the input matching a selector",
+    execute: ->(selector, value) { page.locator(selector).fill(value) },
+  },
+  "read_text" => {
+    description: "Read the text of the element matching a selector",
+    execute: ->(selector) { page.locator(selector).text_content },
+  },
+  "act" => {
+    description: "Perform one action in natural language when no selector is known",
+    execute: ->(instruction) { stagehand.act(instruction).data.message },
+  },
+  "extract" => {
+    description: "Read structured data off the current page",
+    execute: ->(instruction) { stagehand.extract(instruction).data["extraction"] },
+  },
 }
 ```
 </Tab>

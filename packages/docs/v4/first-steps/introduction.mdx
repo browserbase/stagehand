@@ -104,6 +104,27 @@ if err != nil {
 fmt.Println(len(observed.Data), "candidate actions")
 ```
 </Tab>
+
+<Tab title="Ruby">
+```ruby
+# Act: execute natural language actions
+stagehand.act("click the login button")
+
+# Extract: pull structured data
+result = stagehand.extract(
+  "extract the price",
+  schema: {
+    "type" => "object",
+    "properties" => { "price" => { "type" => "number" } },
+    "required" => ["price"],
+  },
+)
+price = result.data["price"]
+
+# Observe: discover available actions
+actions = stagehand.observe("find submit buttons").data
+```
+</Tab>
 </Tabs>
 
 ### Playwright-style APIs
@@ -149,6 +170,17 @@ if err := page.KeyPress(ctx, "Enter", nil); err != nil {
 if _, err := page.Screenshot(ctx, nil); err != nil {
 	return err
 }
+```
+</Tab>
+
+<Tab title="Ruby">
+```ruby
+page = stagehand.browser.context.active_page
+
+page.goto("https://example.com")
+page.locator('textarea[name="q"]').fill("Browserbase")
+page.key_press("Enter")
+page.screenshot
 ```
 </Tab>
 </Tabs>
