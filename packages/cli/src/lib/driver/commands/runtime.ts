@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 
 import { z } from "zod";
 
+import { CURSOR_OVERLAY_SCRIPT } from "../cursor-overlay.js";
 import type { DriverCommandHandlers } from "./types.js";
 
 const CURSOR_OVERLAY_SCRIPT = `(() => {

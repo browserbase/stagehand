@@ -427,8 +427,8 @@ describe("driver commands", () => {
     }
   });
 
-  it("enables sidecar network capture and installs the CLI-owned cursor overlay", async () => {
-    const page = { evaluate: vi.fn() };
+  it("enables sidecar network capture", async () => {
+    const page = {};
     const network = {
       enable: vi.fn(async () => ({ enabled: true, path: "/tmp/network" })),
     };
@@ -444,10 +444,20 @@ describe("driver commands", () => {
       enabled: true,
       path: "/tmp/network",
     });
+    expect(network.enable).toHaveBeenCalledWith(page, "ws://sidecar.test");
+  });
+
+  it("installs the CLI-owned cursor overlay", async () => {
+    const page = { evaluate: vi.fn() };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof runtimeHandlers)["cursor"]>
+    >[0];
+
     await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
       enabled: true,
     });
-    expect(network.enable).toHaveBeenCalledWith(page, "ws://sidecar.test");
     expect(page.evaluate).toHaveBeenCalledOnce();
     const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
     expect(cursorInstaller).toEqual(expect.any(String));
