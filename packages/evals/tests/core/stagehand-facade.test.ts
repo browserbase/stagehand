@@ -119,12 +119,13 @@ describe("stagehand facade tool surface", () => {
     expect(buildCodexMcpServers("stagehand_facade", { stagehand: server })).toEqual({
       stagehand: {
         ...server,
+        default_tools_approval_mode: "approve",
         startup_timeout_sec: 60,
         tool_timeout_sec: 300,
       },
     });
     expect(buildCodexMcpServers("playwright_mcp", { playwright: server })).toEqual({
-      playwright: server,
+      playwright: { ...server, default_tools_approval_mode: "approve" },
     });
   });
 
