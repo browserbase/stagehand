@@ -10,6 +10,7 @@ import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
+import { openAiReasoningProviderOptions } from "./reasoningSummary.js";
 
 export interface EveToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -102,14 +103,31 @@ export function resolveEveModelProvider(model: string): EveModelProvider {
   );
 }
 
-export function buildEveAgentDefinitionSource(model: string): string {
+export function buildEveAgentDefinitionSource(
+  model: string,
+  options: { providerOptions?: Record<string, Record<string, unknown>> } = {},
+): string {
   const provider = resolveEveModelProvider(model);
+  const baseModel = `${provider.factory}(${JSON.stringify(provider.modelId)})`;
+  // Eve's public agent definition takes a model handle, not call settings, so
+  // per-call provider options (reasoning summaries) ride on an AI SDK
+  // middleware wrapped around the model.
+  const wrapped = options.providerOptions !== undefined;
+  const modelExpression = wrapped
+    ? [
+        "wrapLanguageModel({",
+        `    model: ${baseModel},`,
+        `    middleware: defaultSettingsMiddleware({ settings: { providerOptions: ${JSON.stringify(options.providerOptions)} } }),`,
+        "  })",
+      ].join("\n")
+    : baseModel;
   return [
     `import { ${provider.factory} } from ${JSON.stringify(provider.pkg)};`,
+    ...(wrapped ? ['import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";'] : []),
     'import { defineAgent } from "eve";',
     "",
     "export default defineAgent({",
-    `  model: ${provider.factory}(${JSON.stringify(provider.modelId)}),`,
+    `  model: ${modelExpression},`,
     "  limits: { maxInputTokensPerSession: false, maxOutputTokensPerSession: false },",
     "});",
     "",
@@ -186,7 +204,12 @@ export async function writeEveAgentApp(options: {
 export async function writeEveAgentDefinition(appRoot: string, model: string): Promise<void> {
   const destination = path.join(appRoot, "agent", "agent.ts");
   await fsp.mkdir(path.dirname(destination), { recursive: true });
-  await fsp.writeFile(destination, buildEveAgentDefinitionSource(model), "utf8");
+  const providerOptions = openAiReasoningProviderOptions(model);
+  await fsp.writeFile(
+    destination,
+    buildEveAgentDefinitionSource(model, { ...(providerOptions && { providerOptions }) }),
+    "utf8",
+  );
 }
 
 export async function listMcpServerTools(

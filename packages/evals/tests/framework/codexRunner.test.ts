@@ -5,6 +5,7 @@ import {
   parseCodexResult,
   runCodexAgent,
   type CodexSdk,
+  buildEvalCodexConfig,
 } from "../../framework/codexRunner.js";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
@@ -17,6 +18,20 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("codex runner helpers", () => {
+  it("requests reasoning summaries unless disabled, letting the tool adapter's config win", () => {
+    expect(buildEvalCodexConfig({ mcp_servers: {} }, {})).toEqual({
+      model_reasoning_summary: "detailed",
+      mcp_servers: {},
+    });
+    expect(buildEvalCodexConfig(undefined, { EVAL_REASONING_SUMMARY: "auto" })).toEqual({
+      model_reasoning_summary: "auto",
+    });
+    expect(buildEvalCodexConfig({}, { EVAL_REASONING_SUMMARY: "off" })).toEqual({});
+    expect(
+      buildEvalCodexConfig({ model_reasoning_summary: "concise" }, {}).model_reasoning_summary,
+    ).toBe("concise");
+  });
+
   it("builds a browser task prompt with structured result instructions", () => {
     const prompt = buildCodexPrompt(plan, "Use browse only. Discover usage with browse -h.");
 

@@ -20,6 +20,7 @@ import {
   type ExternalHarnessUsage,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { isOpenAiModel, readReasoningSummary } from "./reasoningSummary.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -110,6 +111,7 @@ export async function runDeepagentsAgent({
           ...(toolAdapter?.env && { env: toolAdapter.env }),
           ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
           systemPrompt: buildDeepagentsSystemPrompt(toolAdapter?.toolSurface),
+          ...(isOpenAiModel(model) && { reasoningSummary: readReasoningSummary() }),
           recursionLimit: readDeepagentsRecursionLimit(),
           maxToolSteps: readDeepagentsMaxToolSteps(),
         },

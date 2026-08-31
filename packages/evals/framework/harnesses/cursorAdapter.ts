@@ -37,10 +37,22 @@ export class CursorTrajectoryAdapter implements TrajectoryAdapter<CursorRunResul
     const openCalls = new Map<string, NormalizedToolCall>();
     const trailingTextParts: string[] = [];
     let pendingReasoning = "";
+    let pendingThinking = "";
     let resultMessageText: string | undefined;
 
     for (const event of result.events) {
       const type = String(event.type ?? "");
+      // stream-json carries the model's thinking text only on the deltas; the
+      // "completed" envelope is a boundary marker with no text of its own.
+      if (type === "thinking") {
+        if (event.subtype === "delta" && typeof event.text === "string") {
+          pendingThinking += event.text;
+        } else if (event.subtype === "completed" && pendingThinking.trim()) {
+          pendingReasoning = appendText(pendingReasoning, pendingThinking.trim());
+          pendingThinking = "";
+        }
+        continue;
+      }
       if (type === "assistant") {
         for (const text of extractAssistantText(event)) {
           pendingReasoning = appendText(pendingReasoning, text);
@@ -58,6 +70,10 @@ export class CursorTrajectoryAdapter implements TrajectoryAdapter<CursorRunResul
       const view = extractCursorToolCall(event);
       if (!view) continue;
       if (view.subtype === "started") {
+        if (pendingThinking.trim()) {
+          pendingReasoning = appendText(pendingReasoning, pendingThinking.trim());
+          pendingThinking = "";
+        }
         const call = normalizeToolCall(view, pendingReasoning);
         toolCalls.push(call);
         if (view.callId) openCalls.set(view.callId, call);

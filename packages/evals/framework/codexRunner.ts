@@ -26,6 +26,7 @@ import {
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { readReasoningSummary } from "./reasoningSummary.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -160,6 +161,22 @@ export async function runCodexAgent({
   });
 }
 
+/**
+ * Codex config overrides for an eval session. Codex requests no reasoning
+ * summaries for models outside its own catalog, so reasoning items never
+ * arrive unless `model_reasoning_summary` is set explicitly.
+ */
+export function buildEvalCodexConfig(
+  extraConfig?: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, unknown> {
+  const reasoningSummary = readReasoningSummary(env);
+  return {
+    ...(reasoningSummary && { model_reasoning_summary: reasoningSummary }),
+    ...extraConfig,
+  };
+}
+
 async function loadEvalCodexSdk(
   env?: Record<string, string>,
   extraConfig?: Record<string, unknown>,
@@ -170,7 +187,7 @@ async function loadEvalCodexSdk(
     baseUrl: process.env.EVAL_CODEX_BASE_URL,
     apiKey: process.env.OPENAI_API_KEY,
     rawReasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
-    extraConfig,
+    extraConfig: buildEvalCodexConfig(extraConfig),
   });
 }
 

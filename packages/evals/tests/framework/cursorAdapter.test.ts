@@ -26,6 +26,28 @@ describe("cursor trajectory adapter", () => {
     expect(trajectory.finalAnswer).toBe("finished");
   });
 
+  it("folds stream-json thinking deltas into the next call's reasoning, never the answer", () => {
+    const trajectory = cursorAdapter.fromHarnessResult(
+      {
+        events: [
+          { type: "thinking", subtype: "delta", text: "The page needs " },
+          { type: "thinking", subtype: "delta", text: "a snapshot first." },
+          { type: "thinking", subtype: "completed" },
+          assistant("Taking a snapshot."),
+          toolCall("started", "c1", "readToolCall", { path: "file.txt" }),
+          toolCall("completed", "c1", "readToolCall", { path: "file.txt" }, { success: "ok" }),
+          { type: "thinking", subtype: "delta", text: "That settles it." },
+          assistant("finished"),
+        ],
+      },
+      taskSpec,
+    );
+    expect(trajectory.steps[0]?.reasoning).toBe(
+      "The page needs a snapshot first.\nTaking a snapshot.",
+    );
+    expect(trajectory.finalAnswer).toBe("finished");
+  });
+
   it("decodes MCP content images and uses the last image as final observation", () => {
     const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
     const args = {

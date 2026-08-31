@@ -22,6 +22,7 @@ import {
 } from "./harnesses/externalRunner.js";
 import { mastraAdapter } from "./harnesses/mastraAdapter.js";
 import type { PreparedMastraToolAdapter } from "./mastraToolAdapter.js";
+import { openAiReasoningProviderOptions } from "./reasoningSummary.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -96,6 +97,7 @@ export async function runMastraAgent({
           mcpServers: toolAdapter?.mcpServers,
           tools: toolAdapter?.tools,
           mcpTimeoutMs: readPositiveIntEnv("EVAL_MASTRA_MCP_TIMEOUT_MS"),
+          providerOptions: openAiReasoningProviderOptions(model),
         },
         onToolResult: toolAdapter?.onToolResult,
       });

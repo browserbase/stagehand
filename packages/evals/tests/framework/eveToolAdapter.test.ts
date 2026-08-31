@@ -49,6 +49,18 @@ describe("Eve tool adapter helpers", () => {
     expect(source).toContain("maxOutputTokensPerSession: false");
   });
 
+  it("wraps the model in a reasoning-summary middleware when provider options are given", () => {
+    const source = buildEveAgentDefinitionSource("openai/gpt-5.6-luna", {
+      providerOptions: { openai: { reasoningSummary: "detailed" } },
+    });
+    expect(source).toContain('import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";');
+    expect(source).toContain('model: openai("gpt-5.6-luna")');
+    expect(source).toContain(
+      'defaultSettingsMiddleware({ settings: { providerOptions: {"openai":{"reasoningSummary":"detailed"}} } })',
+    );
+    expect(buildEveAgentDefinitionSource("openai/gpt-5.6-luna")).not.toContain("wrapLanguageModel");
+  });
+
   it("builds authored MCP tools, bridge, instructions, and disabled built-ins", () => {
     const files = buildEveAgentAppFiles({
       instructions: "Use the mounted browser.",

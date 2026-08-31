@@ -18,9 +18,12 @@ from run_eval import (  # noqa: E402
     RunnerConfig,
     _default_build_agent,
     aggregate_usage,
+    build_eval_model,
     extract_images,
     flatten_text,
     message_events,
+    parse_config,
+    reasoning_text,
     run,
     sanitize_error,
 )
@@ -341,7 +344,8 @@ def test_content_blocks_and_usage_helpers() -> None:
 
 def test_flatten_text_skips_openai_responses_tool_call_blocks() -> None:
     """langchain_openai (Responses API) puts function_call and reasoning blocks
-    in AIMessage.content; only prose and reasoning summaries are assistant text."""
+    in AIMessage.content; only prose is assistant text, reasoning summaries are
+    reported on their own."""
     content = [
         {
             "id": "rs_0a1b",
@@ -364,9 +368,8 @@ def test_flatten_text_skips_openai_responses_tool_call_blocks() -> None:
         {"type": "tool_call", "id": "call_2", "name": "run", "args": {"code": "2"}},
         {"type": "reasoning", "summary": []},
     ]
-    assert flatten_text(content) == (
-        "Need the results page.\nThen read the table.\nOpening the results page."
-    )
+    assert flatten_text(content) == "Opening the results page."
+    assert reasoning_text(content) == "Need the results page.\nThen read the table."
 
     message = AIMessage(
         content=content,
@@ -374,6 +377,8 @@ def test_flatten_text_skips_openai_responses_tool_call_blocks() -> None:
     )
     event, tool_call = message_events(message, {})
     assert event["type"] == "assistant"
+    assert event["reasoning"] == "Need the results page.\nThen read the table."
+    assert event["text"] == "Opening the results page."
     assert "function_call" not in event["text"]
     assert "call_vUBhdpiS" not in event["text"]
     assert event["tool_calls"] == [{"id": "call_vUBhdpiS", "name": "run", "args": {"code": "1"}}]
@@ -402,3 +407,49 @@ async def test_flaky_teardown_after_completion_keeps_exit_zero(
 
     assert exit_code == 0
     assert all(event["type"] != "error" for event in events)
+
+
+def test_reasoning_text_accepts_standard_content_blocks() -> None:
+    """langchain's v1 content blocks carry the summary under `reasoning`."""
+    content = [
+        {"type": "reasoning", "reasoning": "Check the price first."},
+        {"type": "text", "text": "Checking."},
+    ]
+    assert reasoning_text(content) == "Check the price first."
+    assert flatten_text(content) == "Checking."
+
+
+def _config(model: str, reasoning_summary: str | None) -> RunnerConfig:
+    return parse_config(
+        {
+            "prompt": "task",
+            "system_prompt": None,
+            "model": model,
+            "mcp_servers": {},
+            "recursion_limit": 10,
+            "max_tool_steps": 5,
+            "reasoning_summary": reasoning_summary,
+        }
+    )
+
+
+def test_build_eval_model_requests_openai_reasoning_summaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    model = build_eval_model(_config("openai:gpt-5.6-luna", "detailed"))
+    assert not isinstance(model, str)
+    payload = model._get_request_payload([("human", "hi")])  # type: ignore[attr-defined]
+    assert payload["model"] == "gpt-5.6-luna"
+    assert payload["reasoning"] == {"summary": "detailed"}
+    # deepagents must still derive its harness profile key from the prebuilt model.
+    _default_build_agent(_config("openai:gpt-5.6-luna", "detailed"), [])
+
+
+def test_build_eval_model_leaves_other_providers_and_off_alone() -> None:
+    assert build_eval_model(_config("openai:gpt-5.6-luna", None)) == "openai:gpt-5.6-luna"
+    assert build_eval_model(_config("anthropic:claude-sonnet-4", "detailed")) == (
+        "anthropic:claude-sonnet-4"
+    )
+    with pytest.raises(ValueError, match="reasoning_summary"):
+        _config("openai:gpt-5.6-luna", "verbose")

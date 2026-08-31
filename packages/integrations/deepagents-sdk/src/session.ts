@@ -24,6 +24,8 @@ export type DeepagentsSessionConfig = {
   env?: Record<string, string>;
   mcpServers?: Record<string, DeepagentsMcpServerConfig>;
   systemPrompt?: string;
+  /** OpenAI reasoning summary mode requested from the model (omit for none). */
+  reasoningSummary?: "auto" | "concise" | "detailed";
   recursionLimit?: number;
   maxToolSteps?: number;
   killGraceMs?: number;
@@ -190,6 +192,7 @@ export async function runDeepagentsSession(input: {
         prompt: input.prompt,
         system_prompt: input.session.systemPrompt ?? null,
         model: normalizeDeepagentsModel(input.model),
+        reasoning_summary: input.session.reasoningSummary ?? null,
         mcp_servers: input.session.mcpServers ?? {},
         recursion_limit: positiveInteger(input.session.recursionLimit, 100),
         max_tool_steps: positiveInteger(input.session.maxToolSteps, 50),
@@ -442,9 +445,11 @@ export function summarizeDeepagentsEvent(event: DeepagentsEvent): {
 } {
   const type = String(event.type ?? "unknown");
   if (type === "assistant" && typeof event.text === "string") {
+    const reasoning = typeof event.reasoning === "string" ? event.reasoning : "";
+    const text = reasoning ? `${reasoning}\n${event.text}`.trim() : event.text;
     return {
-      message: `assistant: ${clip(sanitizeErrorMessage(event.text), 500)}`,
-      detail: event.text,
+      message: `assistant: ${clip(sanitizeErrorMessage(text), 500)}`,
+      detail: text,
     };
   }
   if (type === "tool_result") {

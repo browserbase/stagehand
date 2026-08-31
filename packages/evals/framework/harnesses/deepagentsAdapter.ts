@@ -36,7 +36,13 @@ export class DeepagentsTrajectoryAdapter implements TrajectoryAdapter<Deepagents
     for (const event of result.events) {
       const type = String(event.type ?? "");
       if (type === "assistant" && typeof event.text === "string") {
-        pendingReasoning = pendingReasoning ? `${pendingReasoning}\n${event.text}` : event.text;
+        // The runner reports the model's reasoning summary apart from its
+        // visible text; both explain the next tool call, only the text can
+        // be an answer.
+        for (const part of [event.reasoning, event.text]) {
+          if (typeof part !== "string" || !part) continue;
+          pendingReasoning = pendingReasoning ? `${pendingReasoning}\n${part}` : part;
+        }
         latestAssistant = event.text;
         continue;
       }
