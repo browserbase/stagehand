@@ -17,7 +17,9 @@ import (
 	"time"
 )
 
-func TestDefaultChromeFlagsMatchChromeLauncher(t *testing.T) {
+const testWebMCPChromeFlag = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
+
+func TestDefaultChromeFlags(t *testing.T) {
 	want := []string{
 		"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
 			"CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
@@ -44,6 +46,9 @@ func TestDefaultChromeFlagsMatchChromeLauncher(t *testing.T) {
 		"--disable-prompt-on-repost",
 		"--disable-domain-reliability",
 		"--propagate-iph-for-testing",
+		"--enable-unsafe-extension-debugging",
+		"--remote-allow-origins=*",
+		testWebMCPChromeFlag,
 	}
 	if !reflect.DeepEqual(defaultChromeFlags, want) {
 		t.Fatalf("defaultChromeFlags = %#v, want %#v", defaultChromeFlags, want)
@@ -75,7 +80,7 @@ func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 		"--enable-unsafe-extension-debugging",
 		"--remote-allow-origins=*",
 		"--window-size=1440,900",
-		webMCPChromeFlag,
+		testWebMCPChromeFlag,
 		"--remote-debugging-port=9222",
 		"--user-data-dir=/tmp/stagehand profile",
 		"--custom-flag=value",
@@ -123,12 +128,7 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 				t.Fatalf("buildChromeArgs() contains ignored default %q", defaultArg)
 			}
 		}
-		for _, stagehandDefault := range []string{
-			"--enable-unsafe-extension-debugging",
-			"--remote-allow-origins=*",
-			"--window-size=1280,800",
-			webMCPChromeFlag,
-		} {
+		for _, stagehandDefault := range []string{"--window-size=1280,800"} {
 			if slices.Contains(got, stagehandDefault) {
 				t.Fatalf("buildChromeArgs() contains ignored Stagehand default %q", stagehandDefault)
 			}
@@ -155,13 +155,13 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 	t.Run("WebMCP", func(t *testing.T) {
 		got := buildChromeArgs(
 			LocalBrowserLaunchOptions{
-				IgnoreDefaultArgs: &IgnoreDefaultArgs{Args: []string{webMCPChromeFlag}},
+				IgnoreDefaultArgs: &IgnoreDefaultArgs{Args: []string{testWebMCPChromeFlag}},
 			},
 			9_222,
 			"/tmp/profile",
 		)
-		if slices.Contains(got, webMCPChromeFlag) {
-			t.Fatalf("buildChromeArgs() contains ignored default %q", webMCPChromeFlag)
+		if slices.Contains(got, testWebMCPChromeFlag) {
+			t.Fatalf("buildChromeArgs() contains ignored default %q", testWebMCPChromeFlag)
 		}
 		if !slices.Contains(got, "--enable-unsafe-extension-debugging") {
 			t.Fatal("buildChromeArgs() omitted non-ignored Stagehand defaults")
