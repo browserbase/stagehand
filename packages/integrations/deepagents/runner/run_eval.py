@@ -107,6 +107,27 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
     )
 
 
+# Content blocks that are tool invocations rather than model prose. Providers
+# such as OpenAI's Responses API surface them inside AIMessage.content next to
+# the text blocks; they are already reported through message.tool_calls.
+_TOOL_CALL_BLOCK_TYPES = frozenset({"function_call", "tool_call", "tool_use", "tool_call_chunk"})
+
+
+def _reasoning_text(block: Mapping[str, object]) -> str:
+    """Text of a provider reasoning block (OpenAI `summary`, Anthropic `thinking`)."""
+    summary = block.get("summary")
+    if isinstance(summary, list):
+        return "\n".join(
+            item["text"]
+            for item in summary
+            if isinstance(item, dict) and isinstance(item.get("text"), str)
+        )
+    for key in ("reasoning", "thinking", "text"):
+        if isinstance(block.get(key), str):
+            return block[key]  # type: ignore[return-value]
+    return ""
+
+
 def flatten_text(content: object) -> str:
     if isinstance(content, str):
         return content
@@ -122,6 +143,11 @@ def flatten_text(content: object) -> str:
             and isinstance(block.get("text"), str)
         ):
             parts.append(block["text"])
+        elif isinstance(block, dict) and block.get("type") in _TOOL_CALL_BLOCK_TYPES:
+            continue
+        elif isinstance(block, dict) and block.get("type") == "reasoning":
+            if text := _reasoning_text(block):
+                parts.append(text)
         elif isinstance(block, dict) and _image_from_block(block) is not None:
             continue
         else:

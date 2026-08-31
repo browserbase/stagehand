@@ -20,6 +20,7 @@ from run_eval import (  # noqa: E402
     aggregate_usage,
     extract_images,
     flatten_text,
+    message_events,
     run,
     sanitize_error,
 )
@@ -336,6 +337,47 @@ def test_content_blocks_and_usage_helpers() -> None:
         "reasoning_output_tokens": 5,
         "total_tokens": 14,
     }
+
+
+def test_flatten_text_skips_openai_responses_tool_call_blocks() -> None:
+    """langchain_openai (Responses API) puts function_call and reasoning blocks
+    in AIMessage.content; only prose and reasoning summaries are assistant text."""
+    content = [
+        {
+            "id": "rs_0a1b",
+            "type": "reasoning",
+            "summary": [
+                {"type": "summary_text", "text": "Need the results page."},
+                {"type": "summary_text", "text": "Then read the table."},
+            ],
+        },
+        {"type": "text", "text": "Opening the results page.", "annotations": []},
+        {
+            "type": "function_call",
+            "id": "fc_05236bef",
+            "call_id": "call_vUBhdpiS",
+            "name": "run",
+            "arguments": '{"code":"await page.goto(\'https://example.com\')"}',
+            "status": "completed",
+        },
+        {"type": "tool_use", "id": "toolu_1", "name": "run", "input": {"code": "1"}},
+        {"type": "tool_call", "id": "call_2", "name": "run", "args": {"code": "2"}},
+        {"type": "reasoning", "summary": []},
+    ]
+    assert flatten_text(content) == (
+        "Need the results page.\nThen read the table.\nOpening the results page."
+    )
+
+    message = AIMessage(
+        content=content,
+        tool_calls=[{"id": "call_vUBhdpiS", "name": "run", "args": {"code": "1"}}],
+    )
+    event, tool_call = message_events(message, {})
+    assert event["type"] == "assistant"
+    assert "function_call" not in event["text"]
+    assert "call_vUBhdpiS" not in event["text"]
+    assert event["tool_calls"] == [{"id": "call_vUBhdpiS", "name": "run", "args": {"code": "1"}}]
+    assert tool_call["type"] == "tool_call"
 
 
 async def test_flaky_teardown_after_completion_keeps_exit_zero(
