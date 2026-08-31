@@ -180,15 +180,26 @@ export class StagehandFacadeTools {
     }
 
     const hydrated = parsed.map((action) => {
-      const xpath = trimTrailingTextNode(snapshot.xpathById[action.id]);
+      const xpath = trimTrailingTextNode(resolveSnapshotXPath(snapshot.xpathById, action.id));
       if (!xpath) throw new Error(staleSnapshotIdError(action.id));
       return { ...action, selector: `xpath=${xpath}` };
     });
-    const result = await this.stagehand.experimentalBatch(
-      actionRunner,
-      { actions: hydrated },
-      { page, timeout: 60_000 },
-    );
+    const runBatch = () =>
+      this.stagehand.experimentalBatch(
+        actionRunner,
+        { actions: hydrated },
+        { page, timeout: 60_000 },
+      );
+    let result: ActionResult | undefined;
+    try {
+      result = await runBatch();
+    } catch (error) {
+      // A freshly hydrated element with no layout box is usually mid-render
+      // (menus, lazy lists); give it one beat before reporting.
+      if (!isLayoutError(error)) throw error;
+      await page.waitForTimeout(250);
+      result = await runBatch();
+    }
     return { completed: result?.completed ?? hydrated.length, url: await page.url() };
   }
 
@@ -276,4 +287,22 @@ export class StagehandFacadeTools {
 
 function trimTrailingTextNode(path: string | undefined): string | undefined {
   return path?.replace(/\/text\(\)(\[\d+\])?$/iu, "");
+}
+
+/**
+ * Snapshot IDs are `<frameOrdinal>-<backendNodeId>` (e.g. "0-7812"). Models
+ * regularly copy only the backend id; accept that when it is unambiguous.
+ */
+function resolveSnapshotXPath(xpathById: Record<string, string>, id: string): string | undefined {
+  const exact = xpathById[id];
+  if (exact !== undefined) return exact;
+  if (id.includes("-")) return undefined;
+  const suffix = `-${id}`;
+  const matches = Object.keys(xpathById).filter((key) => key.endsWith(suffix));
+  return matches.length === 1 ? xpathById[matches[0]!] : undefined;
+}
+
+function isLayoutError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /layout object|box model/iu.test(message);
 }

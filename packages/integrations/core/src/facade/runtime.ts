@@ -53,6 +53,15 @@ type RawLocator = {
   type(text: string, options?: { delay?: number }): Promise<void>;
   selectOption(values: string | string[]): Promise<string[]>;
   setInputFiles(files: unknown): Promise<void>;
+  count(): Promise<number>;
+  nth(index: number): RawLocator;
+  isVisible(): Promise<boolean>;
+  isChecked(): Promise<boolean>;
+  inputValue(): Promise<string>;
+  innerText(): Promise<string>;
+  innerHtml(): Promise<string>;
+  textContent(): Promise<string>;
+  scrollTo(percent: number): Promise<void>;
 };
 
 type CompatSelectOption =
@@ -312,6 +321,7 @@ export async function createPlaywrightCompatRuntime(
     plan?: QueryStep[];
     operation:
       | "inspect"
+      | "describe"
       | "tag"
       | "tagAll"
       | "untag"
@@ -740,6 +750,20 @@ export async function createPlaywrightCompatRuntime(
     if (input.operation === "inspect") {
       return { count: elements.length, visible: first ? visible(first) : false };
     }
+    if (input.operation === "describe") {
+      const describe = (element: Element): string => {
+        const id = element.id ? `#${element.id}` : "";
+        const classes = element.classList.length
+          ? `.${[...element.classList].slice(0, 2).join(".")}`
+          : "";
+        const text = ((element as HTMLElement).innerText ?? element.textContent ?? "")
+          .replace(/\s+/gu, " ")
+          .trim();
+        const snippet = text.length > 40 ? `${text.slice(0, 40)}…` : text;
+        return `<${element.localName}${id}${classes}>${snippet ? ` "${snippet}"` : ""} (${visible(element) ? "visible" : "hidden"})`;
+      };
+      return { count: elements.length, values: elements.slice(0, 5).map(describe) };
+    }
     if (input.operation === "untag") {
       document
         .querySelectorAll(`[data-stagehand-pw-compat="${CSS.escape(input.token ?? "")}"]`)
@@ -908,6 +932,30 @@ export async function createPlaywrightCompatRuntime(
     closed: boolean;
   };
 
+  const strictModeMessage = (method: string, count: number, candidates: string[]): string => {
+    const listing = candidates.length
+      ? ` Candidates: ${candidates.map((candidate, index) => `[${index}] ${candidate}`).join("; ")}${count > candidates.length ? "; …" : ""}.`
+      : "";
+    return `${method}: strict mode violation: ${count} elements matched.${listing} Narrow the locator (e.g. .filter({ hasText }), .getByRole(...), a more specific selector) or pick one with .first()/.nth(i).`;
+  };
+
+  const LAYOUT_ERROR_RE = /layout object|box model|not rendered/iu;
+
+  /**
+   * Stagehand's CDP layer reports a matched-but-unrendered element as a bare
+   * "-32000 Node does not have a layout object". After the retry window that
+   * is what the agent saw; say what it means instead.
+   */
+  const describeActionFailure = (method: string, error: unknown, timeout: number): Error => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!LAYOUT_ERROR_RE.test(message)) return error instanceof Error ? error : new Error(message);
+    const described = new Error(
+      `${method}: element matched but is not rendered (no layout box: display:none, zero size, or detached) after ${timeout}ms. Wait for it to become visible, or target the visible element instead. Original: ${message}`,
+    );
+    described.name = error instanceof Error ? error.name : "Error";
+    return described;
+  };
+
   class CompatLocator {
     constructor(
       readonly plan: QueryStep[],
@@ -990,6 +1038,26 @@ export async function createPlaywrightCompatRuntime(
         ...(hasNot ? { hasNot } : {}),
         ...(typeof options.visible === "boolean" ? { visible: options.visible } : {}),
       });
+    }
+
+    frameLocator(selector: string): CompatFrameLocator {
+      record("calls", "locator.frameLocator");
+      return this.contentFrame().frameLocator(selector);
+    }
+
+    /** The iframe element this locator points at, entered as a frame. Only css-selector plans map onto a hop selector. */
+    contentFrame(): CompatFrameLocator {
+      record("calls", "locator.contentFrame");
+      if (this.plan.length === 0 || this.plan.some((step) => step.kind !== "selector")) {
+        return frameUnsupported(
+          "contentFrame",
+          "only css-selector locators can be entered as frames; use page.frameLocator(cssSelector)",
+        );
+      }
+      const hop = this.plan
+        .map((step) => (step as { kind: "selector"; value: string }).value.trim())
+        .join(" ");
+      return frameLocatorProxy(new CompatFrameLocator([hop], this.state));
     }
 
     first(): CompatLocator {
@@ -1208,9 +1276,7 @@ export async function createPlaywrightCompatRuntime(
       let lastActionError: unknown;
       while (Date.now() <= deadline) {
         result = await this.state.execute(this.plan, "inspect");
-        if (result.count > 1) {
-          throw new Error(`${method}: strict mode violation: ${result.count} elements matched`);
-        }
+        if (result.count > 1) throw await this.strictModeViolation(method, result.count);
         if (result.count === 1) {
           // Playwright actions scroll their target into view. Do this before tagging so
           // Stagehand receives a unique, attached selector without imposing a viewport-
@@ -1240,24 +1306,39 @@ export async function createPlaywrightCompatRuntime(
         }
         if (Date.now() < deadline) await this.state.rawPage.waitForTimeout(50);
       }
-      if (lastActionError) throw lastActionError;
+      if (lastActionError) throw describeActionFailure(method, lastActionError, timeout);
       throw new Error(`${method}: no element matched within ${timeout}ms`);
     }
 
+    /**
+     * Playwright lists the competing elements on a strict-mode violation; the
+     * bare count left agents re-issuing the same selector. Describe up to five
+     * candidates so the next attempt can disambiguate.
+     */
+    private async strictModeViolation(method: string, count: number): Promise<Error> {
+      const candidates = await this.state
+        .execute(this.plan, "describe")
+        .then((result) => (result.values as string[] | undefined) ?? [])
+        .catch((): string[] => []);
+      return new Error(strictModeMessage(method, count, candidates));
+    }
+
     async click(options: Record<string, unknown> = {}): Promise<void> {
+      return this.clickAs("locator.click", options);
+    }
+
+    private async clickAs(method: string, options: Record<string, unknown>): Promise<void> {
       if (options.force === true) {
         record("calls", "locator.click");
         const result = await this.state.execute(this.plan, "inspect");
-        if (result.count === 0) throw new Error("locator.click: no element matched");
-        if (result.count > 1) {
-          throw new Error(`locator.click: strict mode violation: ${result.count} elements matched`);
-        }
+        if (result.count === 0) throw new Error(`${method}: no element matched`);
+        if (result.count > 1) throw await this.strictModeViolation(method, result.count);
         await this.state.execute(this.plan, "domClick");
         await this.state.refreshUrl();
         return;
       }
       await this.withTaggedTarget(
-        "locator.click",
+        method,
         (locator) =>
           locator.click({
             ...(typeof options.button === "string"
@@ -1361,12 +1442,12 @@ export async function createPlaywrightCompatRuntime(
 
     async check(options: Record<string, unknown> = {}): Promise<void> {
       record("calls", "locator.check");
-      if (!(await this.isChecked())) await this.click(options);
+      if (!(await this.isChecked())) await this.clickAs("locator.check", options);
     }
 
     async uncheck(options: Record<string, unknown> = {}): Promise<void> {
       record("calls", "locator.uncheck");
-      if (await this.isChecked()) await this.click(options);
+      if (await this.isChecked()) await this.clickAs("locator.uncheck", options);
     }
 
     async clear(options: Record<string, unknown> = {}): Promise<void> {
@@ -1407,6 +1488,631 @@ export async function createPlaywrightCompatRuntime(
   }
 
   const locatorProxy = (locator: CompatLocator): CompatLocator => guard("locator", locator);
+
+  // ---------------------------------------------------------------------------
+  // page.frameLocator(): locators scoped to an <iframe>'s document.
+  //
+  // The in-page query engine above evaluates in the main frame, so it cannot
+  // see into cross-origin frames. Frame-scoped locators instead compile to a
+  // Stagehand selector the extension resolves across frames:
+  //   - css / xpath / text= tails ride on `hop >> hop >> tail` hop notation;
+  //   - role / label / exact-text queries resolve through the accessibility
+  //     snapshot (includeIframes), whose deep XPaths cross iframe boundaries,
+  //     scoped to the nodes under the first hop's <iframe> element.
+  // ---------------------------------------------------------------------------
+
+  type FrameQuery =
+    | { kind: "selector"; value: string }
+    | { kind: "text"; matcher: JsonMatcher }
+    | { kind: "attribute"; name: string; matcher: JsonMatcher }
+    | { kind: "label"; matcher: JsonMatcher }
+    | { kind: "role"; role: string; name?: JsonMatcher };
+
+  const LABEL_ROLES = new Set([
+    "textbox",
+    "searchbox",
+    "combobox",
+    "checkbox",
+    "radio",
+    "slider",
+    "spinbutton",
+    "switch",
+    "listbox",
+    "button",
+    "menuitem",
+    "option",
+    "link",
+  ]);
+
+  const frameUnsupported = (method: string, reason: string): never => {
+    record("misses", `frameLocator.${method}`);
+    throw new Error(
+      `Playwright compatibility facade: ${method} is not supported inside frameLocator(): ${reason}`,
+    );
+  };
+
+  const cssAttributeSelector = (name: string, value: JsonMatcher): string | null => {
+    if (value.kind === "regexp") return null;
+    const escaped = value.value.replace(/\\/gu, "\\\\").replace(/"/gu, '\\"');
+    return value.exact ? `[${name}="${escaped}"]` : `[${name}*="${escaped}" i]`;
+  };
+
+  /** Absolute, snapshot-style XPath (`/html[1]/body[1]/div[2]/iframe[1]`) of the first hop's iframe element. */
+  const iframeHostXPath = async (state: PageState, hop: string): Promise<string | null> => {
+    const expression = `(() => {
+      const selector = ${JSON.stringify(hop)};
+      let element = null;
+      if (/^xpath=/iu.test(selector) || selector.startsWith("/") || selector.startsWith("(")) {
+        const path = selector.replace(/^xpath=/iu, "");
+        const result = document.evaluate(path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        element = result.singleNodeValue;
+      } else {
+        element = document.querySelector(selector);
+      }
+      if (!(element instanceof Element)) return null;
+      const parts = [];
+      let node = element;
+      while (node && node.nodeType === Node.ELEMENT_NODE) {
+        let index = 1;
+        for (let sibling = node.previousElementSibling; sibling; sibling = sibling.previousElementSibling) {
+          if (sibling.localName === node.localName) index += 1;
+        }
+        parts.unshift(node.localName + "[" + index + "]");
+        const parent = node.parentNode;
+        if (parent && parent.nodeType === Node.DOCUMENT_FRAGMENT_NODE && parent.host) {
+          parts.unshift("");
+          node = parent.host;
+        } else {
+          node = parent;
+        }
+      }
+      return "/" + parts.join("/");
+    })()`;
+    const value = await state.rawPage.evaluate<string | null>(expression);
+    return typeof value === "string" ? value : null;
+  };
+
+  class CompatFrameLocator {
+    constructor(
+      readonly hops: string[],
+      private readonly state: PageState,
+    ) {}
+
+    private scoped(query: FrameQuery): CompatFrameScopedLocator {
+      return frameScopedProxy(new CompatFrameScopedLocator(this.hops, [query], this.state));
+    }
+
+    frameLocator(selector: string): CompatFrameLocator {
+      record("calls", "frameLocator.frameLocator");
+      return frameLocatorProxy(new CompatFrameLocator([...this.hops, selector], this.state));
+    }
+
+    first(): CompatFrameLocator {
+      record("calls", "frameLocator.first");
+      return frameLocatorProxy(this);
+    }
+
+    nth(index: number): CompatFrameLocator {
+      record("calls", "frameLocator.nth");
+      if (index === 0) return frameLocatorProxy(this);
+      return frameUnsupported(
+        "nth",
+        "only the first matching iframe can be entered; use a more specific iframe selector",
+      );
+    }
+
+    last(): CompatFrameLocator {
+      return frameUnsupported(
+        "last",
+        "only the first matching iframe can be entered; use a more specific iframe selector",
+      );
+    }
+
+    owner(): CompatLocator {
+      record("calls", "frameLocator.owner");
+      if (this.hops.length !== 1) {
+        return frameUnsupported(
+          "owner",
+          "nested frame owners cannot be located from the main document",
+        );
+      }
+      return locatorProxy(
+        new CompatLocator([{ kind: "selector", value: this.hops[0]! }], this.state),
+      );
+    }
+
+    locator(selector: string, options: Record<string, unknown> = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.locator");
+      const located = this.scoped({ kind: "selector", value: selector });
+      return Object.keys(options).length > 0 ? located.filter(options) : located;
+    }
+
+    getByText(value: unknown, options: { exact?: boolean } = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.getByText");
+      return this.scoped({ kind: "text", matcher: matcher(value, options.exact) });
+    }
+
+    getByRole(role: string, options: Record<string, unknown> = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.getByRole");
+      return this.scoped({
+        kind: "role",
+        role,
+        ...(options.name === undefined
+          ? {}
+          : { name: matcher(options.name, options.exact === true) }),
+      });
+    }
+
+    getByLabel(value: unknown, options: { exact?: boolean } = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.getByLabel");
+      return this.scoped({ kind: "label", matcher: matcher(value, options.exact) });
+    }
+
+    getByPlaceholder(value: unknown, options: { exact?: boolean } = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.getByPlaceholder");
+      return this.scoped({
+        kind: "attribute",
+        name: "placeholder",
+        matcher: matcher(value, options.exact),
+      });
+    }
+
+    getByAltText(value: unknown, options: { exact?: boolean } = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.getByAltText");
+      return this.scoped({
+        kind: "attribute",
+        name: "alt",
+        matcher: matcher(value, options.exact),
+      });
+    }
+
+    getByTitle(value: unknown, options: { exact?: boolean } = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.getByTitle");
+      return this.scoped({
+        kind: "attribute",
+        name: "title",
+        matcher: matcher(value, options.exact),
+      });
+    }
+
+    getByTestId(value: unknown): CompatFrameScopedLocator {
+      record("calls", "frameLocator.getByTestId");
+      return this.scoped({ kind: "attribute", name: "data-testid", matcher: matcher(value, true) });
+    }
+  }
+
+  type FrameResolution = { raw: RawLocator; count: number; candidates: string[] };
+
+  class CompatFrameScopedLocator {
+    constructor(
+      readonly hops: string[],
+      readonly queries: FrameQuery[],
+      private readonly state: PageState,
+      readonly nthIndex?: number,
+    ) {}
+
+    private derived(queries: FrameQuery[], nthIndex = this.nthIndex): CompatFrameScopedLocator {
+      return frameScopedProxy(
+        new CompatFrameScopedLocator(this.hops, queries, this.state, nthIndex),
+      );
+    }
+
+    locator(selector: string, options: Record<string, unknown> = {}): CompatFrameScopedLocator {
+      record("calls", "frameLocator.locator.locator");
+      if (this.nthIndex !== undefined || this.queries.some((query) => query.kind !== "selector")) {
+        return frameUnsupported(
+          "locator.locator",
+          "chaining is only supported under css selectors; combine them into one selector",
+        );
+      }
+      const located = this.derived([...this.queries, { kind: "selector", value: selector }]);
+      return Object.keys(options).length > 0 ? located.filter(options) : located;
+    }
+
+    filter(_options: Record<string, unknown>): CompatFrameScopedLocator {
+      return frameUnsupported(
+        "locator.filter",
+        "use getByRole/getByText or a more specific css selector instead",
+      );
+    }
+
+    first(): CompatFrameScopedLocator {
+      record("calls", "frameLocator.locator.first");
+      return this.derived(this.queries, 0);
+    }
+
+    last(): CompatFrameScopedLocator {
+      record("calls", "frameLocator.locator.last");
+      return this.derived(this.queries, -1);
+    }
+
+    nth(index: number): CompatFrameScopedLocator {
+      record("calls", "frameLocator.locator.nth");
+      return this.derived(this.queries, index);
+    }
+
+    /** Stagehand selector tail when every query compiles to css/xpath/text=; null when the a11y route is needed. */
+    private selectorTail(): string | null {
+      const pieces: string[] = [];
+      for (const query of this.queries) {
+        if (query.kind === "selector") {
+          pieces.push(query.value.trim());
+        } else if (query.kind === "attribute") {
+          const css = cssAttributeSelector(query.name, query.matcher);
+          if (css === null) return null;
+          pieces.push(css);
+        } else if (
+          query.kind === "text" &&
+          query.matcher.kind === "string" &&
+          !query.matcher.exact
+        ) {
+          if (pieces.length > 0) return null;
+          pieces.push(`text=${query.matcher.value}`);
+        } else {
+          return null;
+        }
+      }
+      if (pieces.length === 0) return null;
+      if (pieces.length === 1) return pieces[0]!;
+      const nonCss = pieces.some(
+        (piece) => /^(?:xpath=|text=|\/|\()/iu.test(piece) || piece.includes(">>"),
+      );
+      if (nonCss) return null;
+      return pieces.join(" ");
+    }
+
+    private matchesAccessibilityNode(node: { role: string; name: string }): boolean {
+      for (const query of this.queries) {
+        if (query.kind === "role") {
+          const roles = new Set(ACCESSIBILITY_ROLE_ALIASES[query.role] ?? [query.role]);
+          if (!roles.has(node.role)) return false;
+          if (query.name && !matchesAccessibleName(node.name, query.name)) return false;
+        } else if (query.kind === "label") {
+          if (!LABEL_ROLES.has(node.role) || !matchesAccessibleName(node.name, query.matcher)) {
+            return false;
+          }
+        } else if (query.kind === "text") {
+          if (!matchesAccessibleName(node.name, query.matcher)) return false;
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    private async resolveThroughAccessibilityTree(): Promise<{
+      xpaths: string[];
+      names: string[];
+    }> {
+      const prefix = await iframeHostXPath(this.state, this.hops[0]!);
+      if (!prefix) return { xpaths: [], names: [] };
+      const snapshot = (await this.state.rawPage.snapshot({ includeIframes: true })) as {
+        formattedTree?: unknown;
+        xpathMap?: unknown;
+      } | null;
+      if (
+        !snapshot ||
+        typeof snapshot.formattedTree !== "string" ||
+        !snapshot.xpathMap ||
+        typeof snapshot.xpathMap !== "object"
+      ) {
+        return { xpaths: [], names: [] };
+      }
+      const xpathMap = snapshot.xpathMap as Record<string, string>;
+      const xpaths: string[] = [];
+      const names: string[] = [];
+      for (const node of parseAccessibilityTree(snapshot.formattedTree)) {
+        const xpath = xpathMap[node.id];
+        if (!xpath || !xpath.startsWith(`${prefix}/`)) continue;
+        if (!this.matchesAccessibilityNode(node)) continue;
+        xpaths.push(xpath.replace(/\/text\(\)(\[\d+\])?$/iu, ""));
+        names.push(`${node.role}${node.name ? ` "${node.name}"` : ""}`);
+      }
+      return { xpaths, names };
+    }
+
+    private async resolve(): Promise<FrameResolution> {
+      const tail = this.selectorTail();
+      if (tail !== null) {
+        const raw = this.state.rawPage.locator([...this.hops, tail].join(" >> "));
+        const count = await raw.count();
+        if (this.nthIndex === undefined) return { raw, count, candidates: [] };
+        const index = this.nthIndex < 0 ? count + this.nthIndex : this.nthIndex;
+        const within = index >= 0 && index < count;
+        return { raw: within ? raw.nth(index) : raw, count: within ? 1 : 0, candidates: [] };
+      }
+      const { xpaths, names } = await this.resolveThroughAccessibilityTree();
+      if (xpaths.length > 0) record("calls", "frameLocator.accessibilityTree");
+      let picked = xpaths;
+      let candidates = names;
+      if (this.nthIndex !== undefined) {
+        const index = this.nthIndex < 0 ? xpaths.length + this.nthIndex : this.nthIndex;
+        picked = index >= 0 && index < xpaths.length ? [xpaths[index]!] : [];
+        candidates = [];
+      }
+      const raw = this.state.rawPage.locator(
+        `xpath=${picked[0] ?? "/html[1]/__stagehand_no_match__"}`,
+      );
+      return { raw, count: picked.length, candidates: candidates.slice(0, 5) };
+    }
+
+    private async single(method: string, timeout = 10_000): Promise<RawLocator> {
+      const deadline = Date.now() + timeout;
+      let resolution: FrameResolution = {
+        raw: this.state.rawPage.locator("__none__"),
+        count: 0,
+        candidates: [],
+      };
+      while (Date.now() <= deadline) {
+        resolution = await this.resolve();
+        if (resolution.count > 1) {
+          throw new Error(strictModeMessage(method, resolution.count, resolution.candidates));
+        }
+        if (resolution.count === 1) return resolution.raw;
+        if (Date.now() < deadline) await this.state.rawPage.waitForTimeout(100);
+      }
+      throw new Error(
+        `${method}: no element matched inside frame ${this.hops.join(" >> ")} within ${timeout}ms`,
+      );
+    }
+
+    private async act(
+      method: string,
+      action: (raw: RawLocator) => Promise<void>,
+      options: Record<string, unknown> = {},
+    ): Promise<void> {
+      record("calls", method);
+      const timeout = typeof options.timeout === "number" ? options.timeout : 10_000;
+      const deadline = Date.now() + timeout;
+      let lastError: unknown;
+      while (Date.now() <= deadline) {
+        const raw = await this.single(method, Math.max(1, deadline - Date.now()));
+        try {
+          await action(raw);
+          await this.state.refreshUrl();
+          return;
+        } catch (error) {
+          lastError = error;
+          const message = error instanceof Error ? error.message : String(error);
+          const retryable =
+            LAYOUT_ERROR_RE.test(message) ||
+            /(?:not found|could not find|no (?:element|node)|detached|not visible|execution context|content frame)/iu.test(
+              message,
+            );
+          if (!retryable || Date.now() >= deadline)
+            throw describeActionFailure(method, error, timeout);
+          await this.state.rawPage.waitForTimeout(250);
+        }
+      }
+      throw describeActionFailure(method, lastError ?? new Error(`${method}: timed out`), timeout);
+    }
+
+    async click(options: Record<string, unknown> = {}): Promise<void> {
+      await this.act(
+        "frameLocator.locator.click",
+        (raw) =>
+          raw.click({
+            ...(typeof options.button === "string"
+              ? { button: options.button as "left" | "right" | "middle" }
+              : {}),
+            ...(typeof options.clickCount === "number" ? { clickCount: options.clickCount } : {}),
+          }),
+        options,
+      );
+    }
+
+    async dblclick(options: Record<string, unknown> = {}): Promise<void> {
+      await this.click({ ...options, clickCount: 2 });
+    }
+
+    async hover(options: Record<string, unknown> = {}): Promise<void> {
+      await this.act("frameLocator.locator.hover", (raw) => raw.hover(), options);
+    }
+
+    async fill(value: string, options: Record<string, unknown> = {}): Promise<void> {
+      await this.act("frameLocator.locator.fill", (raw) => raw.fill(value), options);
+    }
+
+    async clear(options: Record<string, unknown> = {}): Promise<void> {
+      await this.fill("", options);
+    }
+
+    async type(value: string, options: Record<string, unknown> = {}): Promise<void> {
+      await this.act(
+        "frameLocator.locator.type",
+        (raw) =>
+          raw.type(value, typeof options.delay === "number" ? { delay: options.delay } : undefined),
+        options,
+      );
+    }
+
+    pressSequentially(value: string, options: Record<string, unknown> = {}): Promise<void> {
+      return this.type(value, options);
+    }
+
+    async press(key: string, options: Record<string, unknown> = {}): Promise<void> {
+      await this.act(
+        "frameLocator.locator.press",
+        async (raw) => {
+          await raw.click();
+          await this.state.rawPage.keyPress(
+            key,
+            typeof options.delay === "number" ? { delay: options.delay } : undefined,
+          );
+        },
+        options,
+      );
+    }
+
+    async selectOption(
+      values: CompatSelectOption,
+      options: Record<string, unknown> = {},
+    ): Promise<string[]> {
+      const requested = Array.isArray(values) ? values : [values];
+      const normalized = requested.map((value) => {
+        if (typeof value === "string") return value;
+        if (typeof value.value === "string") return value.value;
+        if (typeof value.label === "string") return value.label;
+        return frameUnsupported(
+          "locator.selectOption",
+          "index-based options are not supported inside frames",
+        );
+      });
+      let selected: string[] = [];
+      await this.act(
+        "frameLocator.locator.selectOption",
+        async (raw) => {
+          selected = await raw.selectOption(Array.isArray(values) ? normalized : normalized[0]!);
+        },
+        options,
+      );
+      return selected;
+    }
+
+    async setInputFiles(files: unknown, options: Record<string, unknown> = {}): Promise<void> {
+      await this.act(
+        "frameLocator.locator.setInputFiles",
+        (raw) => raw.setInputFiles(files),
+        options,
+      );
+    }
+
+    async check(options: Record<string, unknown> = {}): Promise<void> {
+      if (!(await this.isChecked()))
+        await this.act("frameLocator.locator.check", (raw) => raw.click(), options);
+    }
+
+    async uncheck(options: Record<string, unknown> = {}): Promise<void> {
+      if (await this.isChecked())
+        await this.act("frameLocator.locator.uncheck", (raw) => raw.click(), options);
+    }
+
+    async scrollIntoViewIfNeeded(options: Record<string, unknown> = {}): Promise<void> {
+      await this.act(
+        "frameLocator.locator.scrollIntoViewIfNeeded",
+        (raw) => raw.scrollTo(0),
+        options,
+      );
+    }
+
+    async focus(options: Record<string, unknown> = {}): Promise<void> {
+      await this.act("frameLocator.locator.focus", (raw) => raw.click(), options);
+    }
+
+    async count(): Promise<number> {
+      record("calls", "frameLocator.locator.count");
+      return (await this.resolve()).count;
+    }
+
+    async all(): Promise<CompatFrameScopedLocator[]> {
+      record("calls", "frameLocator.locator.all");
+      const count = await this.count();
+      return Array.from({ length: count }, (_, index) => this.nth(index));
+    }
+
+    async isVisible(): Promise<boolean> {
+      record("calls", "frameLocator.locator.isVisible");
+      const resolution = await this.resolve();
+      if (resolution.count === 0) return false;
+      const raw = resolution.count === 1 ? resolution.raw : resolution.raw.nth(0);
+      return await raw.isVisible();
+    }
+
+    async isHidden(): Promise<boolean> {
+      return !(await this.isVisible());
+    }
+
+    async waitFor(options: Record<string, unknown> = {}): Promise<void> {
+      record("calls", "frameLocator.locator.waitFor");
+      const state = typeof options.state === "string" ? options.state : "visible";
+      const timeout = typeof options.timeout === "number" ? options.timeout : 10_000;
+      const deadline = Date.now() + timeout;
+      while (Date.now() <= deadline) {
+        const resolution = await this.resolve();
+        const attached = resolution.count > 0;
+        const visible =
+          attached &&
+          (await (resolution.count === 1 ? resolution.raw : resolution.raw.nth(0)).isVisible());
+        if (
+          (state === "attached" && attached) ||
+          (state === "detached" && !attached) ||
+          (state === "visible" && visible) ||
+          (state === "hidden" && !visible)
+        ) {
+          return;
+        }
+        await this.state.rawPage.waitForTimeout(100);
+      }
+      throw new Error(
+        `frameLocator.locator.waitFor: element did not become ${state} within ${timeout}ms`,
+      );
+    }
+
+    async textContent(): Promise<string | null> {
+      record("calls", "frameLocator.locator.textContent");
+      return (await this.single("frameLocator.locator.textContent")).textContent();
+    }
+
+    async innerText(): Promise<string> {
+      record("calls", "frameLocator.locator.innerText");
+      return (await this.single("frameLocator.locator.innerText")).innerText();
+    }
+
+    async innerHTML(): Promise<string> {
+      record("calls", "frameLocator.locator.innerHTML");
+      return (await this.single("frameLocator.locator.innerHTML")).innerHtml();
+    }
+
+    async inputValue(): Promise<string> {
+      record("calls", "frameLocator.locator.inputValue");
+      return (await this.single("frameLocator.locator.inputValue")).inputValue();
+    }
+
+    async isChecked(): Promise<boolean> {
+      record("calls", "frameLocator.locator.isChecked");
+      return (await this.single("frameLocator.locator.isChecked")).isChecked();
+    }
+
+    async allTextContents(): Promise<string[]> {
+      record("calls", "frameLocator.locator.allTextContents");
+      const results: string[] = [];
+      for (const locator of await this.all()) results.push((await locator.textContent()) ?? "");
+      return results;
+    }
+
+    async allInnerTexts(): Promise<string[]> {
+      record("calls", "frameLocator.locator.allInnerTexts");
+      const results: string[] = [];
+      for (const locator of await this.all()) results.push(await locator.innerText());
+      return results;
+    }
+
+    evaluate(): never {
+      return frameUnsupported(
+        "locator.evaluate",
+        "page functions cannot run inside a cross-origin frame from the facade; use textContent/inputValue/isVisible or page.screenshot",
+      );
+    }
+
+    evaluateAll(): never {
+      return frameUnsupported(
+        "locator.evaluateAll",
+        "page functions cannot run inside a cross-origin frame from the facade",
+      );
+    }
+
+    boundingBox(): never {
+      return frameUnsupported(
+        "locator.boundingBox",
+        "use page.screenshot to inspect the frame visually",
+      );
+    }
+  }
+
+  const frameLocatorProxy = (locator: CompatFrameLocator): CompatFrameLocator =>
+    guard("frameLocator", locator);
+  const frameScopedProxy = (locator: CompatFrameScopedLocator): CompatFrameScopedLocator =>
+    guard("frameLocator.locator", locator);
 
   const handleMetadata = new WeakMap<
     object,
@@ -1873,6 +2579,10 @@ export async function createPlaywrightCompatRuntime(
           }),
           state,
         );
+      },
+      frameLocator: (selector: string) => {
+        record("calls", "page.frameLocator");
+        return frameLocatorProxy(new CompatFrameLocator([selector], state));
       },
       locator: (selector: string, options: Record<string, unknown> = {}) => {
         record("calls", "page.locator");

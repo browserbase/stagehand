@@ -7,10 +7,82 @@ import { StagehandFacadeTools, type StagehandFacadeRunReport } from "../src/faca
 
 type FakePage = ReturnType<typeof createFakePage>;
 
-function createFakePage(initialUrl = "about:blank") {
+type FakeRawLocator = {
+  selector: string;
+  nthIndex?: number;
+  click: ReturnType<typeof vi.fn>;
+  hover: ReturnType<typeof vi.fn>;
+  fill: ReturnType<typeof vi.fn>;
+  type: ReturnType<typeof vi.fn>;
+  selectOption: ReturnType<typeof vi.fn>;
+  setInputFiles: ReturnType<typeof vi.fn>;
+  count: ReturnType<typeof vi.fn>;
+  nth: (index: number) => FakeRawLocator;
+  isVisible: ReturnType<typeof vi.fn>;
+  isChecked: ReturnType<typeof vi.fn>;
+  inputValue: ReturnType<typeof vi.fn>;
+  innerText: ReturnType<typeof vi.fn>;
+  innerHtml: ReturnType<typeof vi.fn>;
+  textContent: ReturnType<typeof vi.fn>;
+  scrollTo: ReturnType<typeof vi.fn>;
+};
+
+type FakeFrameWorld = {
+  /** Match count per raw selector (default 1). */
+  counts: Record<string, number>;
+  /** Error thrown by click() per raw selector. */
+  clickErrors: Record<string, Error>;
+  /** Absolute XPath returned for the first-hop iframe host. */
+  iframeXPath: string | null;
+  snapshot: { formattedTree: string; xpathMap: Record<string, string> };
+  locators: FakeRawLocator[];
+};
+
+function createFakeWorld(): FakeFrameWorld {
+  return {
+    counts: {},
+    clickErrors: {},
+    iframeXPath: "/html[1]/body[1]/div[2]/iframe[1]",
+    snapshot: { formattedTree: "", xpathMap: {} },
+    locators: [],
+  };
+}
+
+function createFakePage(initialUrl = "about:blank", world: FakeFrameWorld = createFakeWorld()) {
   let currentUrl = initialUrl;
+  const makeLocator = (selector: string, nthIndex?: number): FakeRawLocator => {
+    const locator: FakeRawLocator = {
+      selector,
+      ...(nthIndex === undefined ? {} : { nthIndex }),
+      click: vi.fn(async () => {
+        const error = world.clickErrors[selector];
+        if (error) throw error;
+      }),
+      hover: vi.fn(async () => undefined),
+      fill: vi.fn(async () => undefined),
+      type: vi.fn(async () => undefined),
+      selectOption: vi.fn(async (values: string | string[]) =>
+        Array.isArray(values) ? values : [values],
+      ),
+      setInputFiles: vi.fn(async () => undefined),
+      count: vi.fn(async () => world.counts[selector] ?? 1),
+      nth: (index: number) => makeLocator(selector, index),
+      isVisible: vi.fn(async () => true),
+      isChecked: vi.fn(async () => false),
+      inputValue: vi.fn(async () => "value"),
+      innerText: vi.fn(async () => "inner"),
+      innerHtml: vi.fn(async () => "<b>inner</b>"),
+      textContent: vi.fn(async () => "text"),
+      scrollTo: vi.fn(async () => undefined),
+    };
+    world.locators.push(locator);
+    return locator;
+  };
   return {
     pageId: "page-1",
+    locator: vi.fn((selector: string) => makeLocator(selector)),
+    keyPress: vi.fn(async () => undefined),
+    waitForTimeout: vi.fn(async () => undefined),
     goto: vi.fn(async (url: string) => {
       currentUrl = url;
       return null;
@@ -21,6 +93,9 @@ function createFakePage(initialUrl = "about:blank") {
       if (typeof expression === "string" && expression.includes("innerWidth")) {
         return { width: 1280, height: 720 };
       }
+      if (typeof expression === "string" && expression.includes("previousElementSibling")) {
+        return world.iframeXPath;
+      }
       return undefined;
     }),
     screenshot: vi.fn(async () => Uint8Array.from([0x89, 0x50, 0x4e, 0x47])),
@@ -28,7 +103,7 @@ function createFakePage(initialUrl = "about:blank") {
     on: vi.fn(async () => ({ unsubscribe: async () => undefined })),
     onCDP: vi.fn(async () => ({ unsubscribe: async () => undefined })),
     sendCDP: vi.fn(async () => ({})),
-    snapshot: vi.fn(async () => ({ formattedTree: "", xpathMap: {} })),
+    snapshot: vi.fn(async () => world.snapshot),
   };
 }
 
@@ -176,5 +251,208 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
 
     await expect(tools.run(`return 1;`)).rejects.toThrow("extension disconnected");
     expect(context.newPage).not.toHaveBeenCalled();
+  });
+});
+
+describe("StagehandFacadeTools.run frameLocator", () => {
+  function setup(world = createFakeWorld()) {
+    const page = createFakePage("https://imgur.com/memegen", world);
+    const { stagehand } = createFakeStagehand(page);
+    return { page, world, tools: new StagehandFacadeTools(stagehand) };
+  }
+
+  it("compiles css tails onto iframe hop selectors", async () => {
+    const { page, world, tools } = setup();
+    await tools.run(`
+      const frame = page.frameLocator('iframe[src*="picsart"]');
+      await frame.locator("button.background").click();
+      await frame.getByPlaceholder("Search").fill("frog");
+      await frame.getByTestId("apply").hover();
+      return "ok";
+    `);
+    const selectors = page.locator.mock.calls.map(([selector]) => selector);
+    expect(selectors).toContain('iframe[src*="picsart"] >> button.background');
+    expect(selectors).toContain('iframe[src*="picsart"] >> [placeholder*="Search" i]');
+    expect(selectors).toContain('iframe[src*="picsart"] >> [data-testid="apply"]');
+    const clicked = world.locators.find((l) => l.selector.endsWith("button.background"));
+    expect(clicked?.click).toHaveBeenCalledTimes(1);
+    const filled = world.locators.find((l) => l.selector.includes("placeholder"));
+    expect(filled?.fill).toHaveBeenCalledWith("frog");
+  });
+
+  it("chains nested frameLocator hops and descendant selectors", async () => {
+    const { page, tools } = setup();
+    await tools.run(`
+      await page.frameLocator("#outer").frameLocator("#inner").locator("form").locator("input[name=q]").fill("x");
+      await page.locator("iframe.editor").contentFrame().getByText("Add text").click();
+      return await page.frameLocator("#outer").locator("li").count();
+    `);
+    const selectors = page.locator.mock.calls.map(([selector]) => selector);
+    expect(selectors).toContain("#outer >> #inner >> form input[name=q]");
+    expect(selectors).toContain("iframe.editor >> text=Add text");
+    expect(selectors).toContain("#outer >> li");
+  });
+
+  it("applies first()/nth()/last() through the raw locator", async () => {
+    const world = createFakeWorld();
+    world.counts["#editor >> button"] = 3;
+    const { world: w, tools } = setup(world);
+    await tools
+      .run(`
+      const buttons = page.frameLocator("#editor").locator("button");
+      await buttons.first().click();
+      await buttons.last().hover();
+      await buttons.nth(1).click();
+      return await buttons.count();
+    `)
+      .then((count) => expect(count).toBe(3));
+    const used = w.locators.filter((l) => l.nthIndex !== undefined);
+    expect(used.map((l) => l.nthIndex).sort()).toStrictEqual([0, 1, 2]);
+  });
+
+  it("resolves getByRole inside a cross-origin frame through the accessibility snapshot", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: [
+        "[0-1] RootWebArea: imgur",
+        "  [0-9] button: Upload",
+        "  [1-4] button: Background",
+        "  [1-5] textbox: Meme text",
+        "  [1-6] StaticText: Enjoy your life",
+      ].join("\n"),
+      xpathMap: {
+        "0-9": "/html[1]/body[1]/div[1]/button[1]",
+        "1-4": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/button[2]",
+        "1-5": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/input[1]",
+        "1-6": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/p[1]/text()[1]",
+      },
+    };
+    const { page, world: w, tools } = setup(world);
+    const result = await tools.run(`
+      const frame = page.frameLocator("iframe");
+      await frame.getByRole("button", { name: "Background" }).click();
+      await frame.getByLabel("Meme text").fill("Enjoy your life");
+      return {
+        exact: await frame.getByText("Enjoy your life", { exact: true }).count(),
+        uploadInsideFrame: await frame.getByRole("button", { name: "Upload" }).count(),
+      };
+    `);
+    expect(result).toStrictEqual({ exact: 1, uploadInsideFrame: 0 });
+    const selectors = page.locator.mock.calls.map(([selector]) => selector);
+    expect(selectors).toContain(
+      "xpath=/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/button[2]",
+    );
+    expect(selectors).toContain(
+      "xpath=/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/input[1]",
+    );
+    expect(w.locators.find((l) => l.selector.endsWith("button[2]"))?.click).toHaveBeenCalled();
+    expect(page.snapshot).toHaveBeenCalledWith({ includeIframes: true });
+  });
+
+  it("reports strict-mode violations inside frames with candidate names", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: ["[1-4] button: Save", "[1-7] button: Save draft"].join("\n"),
+      xpathMap: {
+        "1-4": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/button[1]",
+        "1-7": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/button[2]",
+      },
+    };
+    const { tools } = setup(world);
+    await expect(
+      tools.run(`await page.frameLocator("iframe").getByRole("button", { name: "Save" }).click();`),
+    ).rejects.toThrow(
+      /strict mode violation: 2 elements matched\. Candidates: \[0\] button "Save"; \[1\] button "Save draft"\..*\.first\(\)/u,
+    );
+  });
+
+  it("explains layout-object failures instead of surfacing the CDP code", async () => {
+    const world = createFakeWorld();
+    world.clickErrors["#editor >> .hidden"] = new Error(
+      "-32000 Node does not have a layout object",
+    );
+    const { tools } = setup(world);
+    await expect(
+      tools.run(`await page.frameLocator("#editor").locator(".hidden").click({ timeout: 200 });`),
+    ).rejects.toThrow(
+      /not rendered \(no layout box.*Original: -32000 Node does not have a layout object/u,
+    );
+  });
+
+  it("rejects operations that cannot cross the frame boundary with guidance", async () => {
+    const { tools } = setup();
+    await expect(
+      tools.run(
+        `await page.frameLocator("#editor").locator("div").filter({ hasText: "x" }).click();`,
+      ),
+    ).rejects.toThrow(/locator\.filter is not supported inside frameLocator\(\)/u);
+    await expect(
+      tools.run(`await page.frameLocator("#editor").locator("div").evaluate(() => 1);`),
+    ).rejects.toThrow(/locator\.evaluate is not supported inside frameLocator\(\)/u);
+    await expect(tools.run(`page.frameLocator("#editor").nth(2);`)).rejects.toThrow(
+      /nth is not supported inside frameLocator/u,
+    );
+  });
+});
+
+describe("StagehandFacadeTools.runActions", () => {
+  it("accepts a snapshot id without its frame-ordinal prefix when unambiguous", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "[0-7812] textbox: Location\n[0-9000] button: Go",
+      xpathMap: { "0-7812": "/html[1]/body[1]/input[1]", "0-9000": "/html[1]/body[1]/button[1]" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    await expect(tools.runActions([{ op: "click", id: "7812" }])).resolves.toStrictEqual({
+      completed: 1,
+      url: "https://example.com",
+    });
+    expect(experimentalBatch.mock.calls.at(-1)?.[1]).toStrictEqual({
+      actions: [{ op: "click", id: "7812", selector: "xpath=/html[1]/body[1]/input[1]" }],
+    });
+  });
+
+  it("still rejects ids that are missing or ambiguous", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "[0-12] button: A\n[1-12] button: B",
+      xpathMap: {
+        "0-12": "/html[1]/body[1]/button[1]",
+        "1-12": "/html[1]/body[1]/iframe[1]/html[1]/body[1]/button[1]",
+      },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    await expect(tools.runActions([{ op: "click", id: "12" }])).rejects.toThrow(
+      'Snapshot ID "12" is stale or not actionable',
+    );
+    await expect(tools.runActions([{ op: "click", id: "99" }])).rejects.toThrow(
+      'Snapshot ID "99" is stale or not actionable',
+    );
+  });
+
+  it("retries a snapshot action once when the node has no layout box yet", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: "[0-1] button: Go",
+      xpathMap: { "0-1": "/html[1]/body[1]/button[1]" },
+    };
+    const page = createFakePage("https://example.com", world);
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    experimentalBatch.mockRejectedValueOnce(new Error("-32000 Node does not have a layout object"));
+    experimentalBatch.mockResolvedValueOnce({ completed: 1 });
+    await expect(tools.runActions([{ op: "click", id: "0-1" }])).resolves.toStrictEqual({
+      completed: 1,
+      url: "https://example.com",
+    });
+    expect(page.waitForTimeout).toHaveBeenCalledWith(250);
+    expect(experimentalBatch).toHaveBeenCalledTimes(2);
   });
 });
