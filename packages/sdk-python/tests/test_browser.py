@@ -830,25 +830,30 @@ async def test_local_browser_close_ignores_vanished_process_and_removes_profile(
         returncode = None
         pid = 123
 
-        def terminate(self) -> None:
-            raise ProcessLookupError
-
         async def wait(self) -> int:
             return 0
 
     async def create_subprocess_exec(*_args: object, **_kwargs: object) -> FakeProcess:
         return FakeProcess()
 
+    taskkill_calls: list[tuple[int, bool]] = []
+
+    async def taskkill(pid: int, *, force: bool) -> None:
+        taskkill_calls.append((pid, force))
+        raise browser._TaskkillError(128)
+
     monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
     monkeypatch.setattr(browser, "_available_port", lambda: 9222)
     monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
     monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
     monkeypatch.setattr(browser, "_wait_for_chrome", _ready_chrome)
+    monkeypatch.setattr(browser, "_run_taskkill", taskkill)
     monkeypatch.setattr(browser.sys, "platform", "win32")
 
     source = await _launch_local_browser(LocalBrowserLaunchOptions())
     await source.close()
 
+    assert taskkill_calls == [(123, False)]
     assert not profile.exists()
 
 
