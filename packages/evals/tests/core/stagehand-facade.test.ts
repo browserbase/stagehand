@@ -43,6 +43,44 @@ process.stdin.on("data", (chunk) => {
 process.stdin.on("end", () => process.exit(0));
 `;
 
+/** Answers session_info like the shipped server; records every tools/call name on stderr. */
+const SESSION_AWARE_FACADE_SOURCE = String.raw`
+let carry = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  carry += chunk;
+  const lines = carry.split("\n");
+  carry = lines.pop() || "";
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const request = JSON.parse(line);
+    const reply = (result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }) + "\n");
+    if (request.method === "initialize") {
+      reply({ protocolVersion: request.params.protocolVersion, capabilities: {}, serverInfo: { name: "fake" } });
+    } else if (request.method === "tools/call") {
+      process.stderr.write("fake tools/call " + request.params.name + "\n");
+      if (request.params.name === "session_info") {
+        const provider = process.env.STAGEHAND_BROWSER === "browserbase" ? "browserbase" : "local";
+        reply({ content: [{ type: "text", text: JSON.stringify(provider === "browserbase" ? { provider, sessionId: "fake-session-1" } : { provider }) }] });
+      } else {
+        reply({ content: [{ type: "text", text: "Unknown tool: " + request.params.name }], isError: true });
+      }
+    }
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+`;
+
+function recordingLogger(): EvalLogger & { lines: Array<{ level?: number; message: string }> } {
+  const lines: Array<{ level?: number; message: string }> = [];
+  return {
+    lines,
+    log: (line: { level?: number; message: string }) => void lines.push(line),
+    warn: (line: { level?: number; message: string }) => void lines.push(line),
+    error: (line: { level?: number; message: string }) => void lines.push(line),
+  } as unknown as EvalLogger & { lines: Array<{ level?: number; message: string }> };
+}
+
 beforeEach(() => {
   for (const key of Object.keys(process.env)) {
     if (/^(STAGEHAND_|BROWSERBASE_)/u.test(key)) delete process.env[key];
@@ -169,6 +207,58 @@ describe("stagehand facade tool surface", () => {
       expect(running.captureEvidence).toBeTypeOf("function");
       await expect(running.captureEvidence?.()).resolves.toEqual({});
       expect(running.metadata.facadeBridgePort).toEqual(expect.any(Number));
+    } finally {
+      await running.cleanup();
+    }
+  });
+
+  it("resolves the Browserbase session before the agent starts and publishes it on metadata", async () => {
+    process.env.BROWSERBASE_API_KEY = "browserbase-secret";
+    const logger = recordingLogger();
+    const running = await new StagehandFacadeTool({
+      serverSpec: (environment) => ({
+        command: process.execPath,
+        args: ["-e", SESSION_AWARE_FACADE_SOURCE],
+        env: buildStagehandFacadeEnv(environment),
+      }),
+    }).start({
+      logger,
+      environment: "BROWSERBASE",
+      startupProfile: "tool_create_browserbase",
+    });
+    try {
+      expect(running.metadata).toMatchObject({
+        browserbaseSessionId: "fake-session-1",
+        browserbaseSessionUrl: "https://www.browserbase.com/sessions/fake-session-1",
+      });
+      // Bridge setup chatter is debug-only so the session pointer can head the row logs.
+      expect(
+        logger.lines.find((line) => line.message.startsWith("Started runner-owned"))?.level,
+      ).toBe(2);
+      expect(logger.lines.some((line) => line.message === "fake tools/call session_info")).toBe(
+        true,
+      );
+    } finally {
+      await running.cleanup();
+    }
+  });
+
+  it("keeps the lazy browser launch for local runs", async () => {
+    const logger = recordingLogger();
+    const running = await new StagehandFacadeTool({
+      serverSpec: (environment) => ({
+        command: process.execPath,
+        args: ["-e", SESSION_AWARE_FACADE_SOURCE],
+        env: buildStagehandFacadeEnv(environment),
+      }),
+    }).start({
+      logger,
+      environment: "LOCAL",
+      startupProfile: "tool_launch_local",
+    });
+    try {
+      expect(running.metadata).not.toHaveProperty("browserbaseSessionId");
+      expect(logger.lines.some((line) => line.message.includes("tools/call"))).toBe(false);
     } finally {
       await running.cleanup();
     }

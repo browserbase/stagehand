@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import net, { type AddressInfo, type Socket } from "node:net";
 import type { ProbeEvidence } from "stagehand-v3";
+import { SESSION_INFO_TOOL_NAME } from "@browserbasehq/stagehand-integrations/facade";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../../logger.js";
 
@@ -8,6 +9,7 @@ export const STAGEHAND_FACADE_BRIDGE_PORT_ENV = "STAGEHAND_EVALS_FACADE_BRIDGE_P
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
+const SESSION_INFO_TIMEOUT_MS = 60_000;
 const HOST_ENV_KEYS = [
   "PATH",
   "HOME",
@@ -29,6 +31,11 @@ export interface StagehandFacadeBridgeInput {
   requestTimeoutMs?: number;
 }
 
+export interface FacadeBrowserSessionInfo {
+  provider: "browserbase" | "local";
+  sessionId?: string;
+}
+
 export interface StagehandFacadeBridge {
   /** Loopback port the relay connects to. */
   port: number;
@@ -39,9 +46,18 @@ export interface StagehandFacadeBridge {
   /** Whether any agent tools/call request has passed through. */
   sawAgentToolCall(): boolean;
   /** Raw JSON-RPC request from the runner side. */
-  call(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  call(
+    method: string,
+    params?: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ): Promise<unknown>;
   /** Best-effort terminal/step evidence from the shared browser. */
   captureEvidence(): Promise<ProbeEvidence>;
+  /**
+   * Launches the facade browser if it has not started yet and reports where it
+   * lives. Runner-side only; the agent never sees this tool.
+   */
+  sessionInfo(): Promise<FacadeBrowserSessionInfo>;
   /** Idempotently closes the relay and facade process. */
   close(): Promise<void>;
 }
@@ -319,7 +335,12 @@ export async function startStagehandFacadeBridge(
   }
   const port = (server.address() as AddressInfo).port;
 
-  const call = (method: string, params?: Record<string, unknown>): Promise<unknown> => {
+  const call = (
+    method: string,
+    params?: Record<string, unknown>,
+    options: { timeoutMs?: number } = {},
+  ): Promise<unknown> => {
+    const timeoutMs = options.timeoutMs ?? requestTimeoutMs;
     if (closed) return Promise.reject(new Error("Stagehand facade bridge is closed"));
     if (exited) {
       return Promise.reject(
@@ -330,10 +351,8 @@ export async function startStagehandFacadeBridge(
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(
-          new Error(`Stagehand facade request "${method}" timed out after ${requestTimeoutMs}ms`),
-        );
-      }, requestTimeoutMs);
+        reject(new Error(`Stagehand facade request "${method}" timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
       const request = {
         jsonrpc: "2.0",
@@ -401,6 +420,28 @@ export async function startStagehandFacadeBridge(
     return evidence;
   };
 
+  const sessionInfo = async (): Promise<FacadeBrowserSessionInfo> => {
+    // A cold Browserbase launch can outlast the per-request default.
+    const result = await call(
+      "tools/call",
+      { name: SESSION_INFO_TOOL_NAME, arguments: {} },
+      { timeoutMs: Math.max(requestTimeoutMs, SESSION_INFO_TIMEOUT_MS) },
+    );
+    if (isToolError(result)) {
+      const text = contentBlocks(result).find((block) => typeof block.text === "string")?.text;
+      throw new Error(sanitizeErrorMessage(`Stagehand facade session_info failed: ${text ?? ""}`));
+    }
+    const text = contentBlocks(result).find(
+      (block) => block.type === "text" && typeof block.text === "string",
+    )?.text;
+    const parsed = JSON.parse(String(text ?? "{}")) as Record<string, unknown>;
+    return {
+      provider: parsed.provider === "browserbase" ? "browserbase" : "local",
+      ...(typeof parsed.sessionId === "string" &&
+        parsed.sessionId && { sessionId: parsed.sessionId }),
+    };
+  };
+
   const close = (): Promise<void> => {
     closePromise ??= (async () => {
       closed = true;
@@ -433,6 +474,7 @@ export async function startStagehandFacadeBridge(
     sawAgentToolCall: () => toolCallSeen,
     call,
     captureEvidence,
+    sessionInfo,
     close,
   };
 

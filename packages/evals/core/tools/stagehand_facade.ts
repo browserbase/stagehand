@@ -167,9 +167,32 @@ export class StagehandFacadeTool implements CoreTool {
     if (typeof input.logger?.log === "function") {
       input.logger.log({
         category: "stagehand_facade",
-        level: 1,
+        level: 2,
         message: `Started runner-owned ${this.id} bridge on 127.0.0.1:${bridge.port}.`,
       });
+    }
+    // Launch the Browserbase browser now rather than on the agent's first call
+    // so the session id is known before the agent starts. Local browsers have
+    // nothing to report and keep their lazy launch.
+    let browserSession: Record<string, unknown> = {};
+    try {
+      const info = input.environment === "BROWSERBASE" ? await bridge.sessionInfo() : undefined;
+      browserSession = info?.sessionId
+        ? {
+            browserbaseSessionId: info.sessionId,
+            browserbaseSessionUrl: `https://www.browserbase.com/sessions/${info.sessionId}`,
+          }
+        : {};
+    } catch (error) {
+      if (typeof input.logger?.warn === "function") {
+        input.logger.warn({
+          category: "stagehand_facade",
+          level: 1,
+          message: `Could not resolve the facade browser session up front: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      }
     }
     return {
       session,
@@ -191,6 +214,7 @@ export class StagehandFacadeTool implements CoreTool {
         connectionMode: connectionModeFromProfile(input.startupProfile),
         startupProfile: input.startupProfile,
         facadeBridgePort: bridge.port,
+        ...browserSession,
       },
     };
   }

@@ -51,6 +51,13 @@ export const LEGACY_RUN_TOOL_DESCRIPTION =
 export const SNAPSHOT_TOOL_DESCRIPTION =
   "Capture the active page's Stagehand accessibility tree and hydrate its displayed IDs for subsequent run actions. Every call replaces the active page's ID map.";
 
+/**
+ * Runner-side tool, deliberately absent from tools/list. Launches the browser
+ * if needed and reports `{ provider, sessionId? }` so the harness can log the
+ * Browserbase session before the agent's first call.
+ */
+export const SESSION_INFO_TOOL_NAME = "session_info";
+
 export const SCREENSHOT_TOOL_DESCRIPTION =
   'Capture a screenshot of the active page. For size-constrained MCP clients, prefer a viewport JPEG: {"type":"jpeg","quality":40,"fullPage":false}.';
 

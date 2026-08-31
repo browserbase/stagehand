@@ -17,6 +17,7 @@ import {
   facadeSurfaceFromArgs,
   facadeToolsForSurface,
   SCREENSHOT_TOOL_DESCRIPTION,
+  SESSION_INFO_TOOL_NAME,
   SNAPSHOT_TOOL_DESCRIPTION,
   ScreenshotInputSchema,
   SnapshotInputSchema,
@@ -102,6 +103,18 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
             },
           ],
         };
+      }
+      case SESSION_INFO_TOOL_NAME: {
+        // Runner-side only (absent from tools/list): launches the browser if
+        // needed and reports where it lives so the harness can log the
+        // Browserbase session URL before the agent's first call.
+        const browser = (await ensureResources()).browser;
+        return textResult(
+          JSON.stringify({
+            provider: browser.provider,
+            ...(browser.sessionId && { sessionId: browser.sessionId }),
+          }),
+        );
       }
       default:
         throw new Error(`Unknown tool: ${request.params.name}`);
