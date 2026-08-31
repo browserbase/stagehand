@@ -56,3 +56,11 @@ Never passed by either model (kept valid — content is present; failures are cr
 ## Rubric shape (check 2)
 
 All 46 rubrics well-formed: non-empty `items`, every item has string `criterion` + `description` and positive `maxPoints`, no duplicate criteria.
+
+## 2026-08-31 luna smoke audit — additional quarantines (n 45 → 42)
+
+| task | check failed | evidence |
+|---|---|---|
+| a0a18ca6a352 (Macy's add-to-cart) | bot-wall | Akamai "Access Denied" on every request across 7/7 harness runs (mastra ×2, pi, eve, deepagents, codex, fx) |
+| 7e6993f2c5cd (imgur meme) | environment / facade | Browser session dies in the Picsart iframe upload flow on 3/3 harnesses this run + 4 prior runs; verifier passed one run with status=error and empty answer (FP) |
+| 7e1047f4803237f319c004f7a7f6bccb (Best Buy trade-in) | task_invalid (date rot) | Two independent audits: the specified device (HP, Intel 7th Gen Core i3, 8 GB) no longer exists in Best Buy's trade-in catalog; every harness silently substitutes another device |
