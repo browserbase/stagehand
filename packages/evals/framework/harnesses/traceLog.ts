@@ -12,7 +12,10 @@ import type { ExternalHarnessSessionOutcome } from "./externalRunner.js";
  *   step 5 · run · ERR · await page.click('#nope')  →  Timeout 30000ms exceeded
  *   summary · <agent's self-reported summary, clipped>
  *   answer · <agent's final answer, clipped>   (or "answer · (none — max_turns)")
- *   result · completed · steps=5 · facade_calls=4 · in=12345 out=678 cached=9000
+ *   result · completed · steps=5 · facade_calls=4 · in=12345 out=678 cached=9000 · agent=42.0s
+ *
+ * The verifier runs after this trace, so its wall-clock lands on a separate
+ * `timing · agent=… evidence=… verifier=… total=…` line once grading is done.
  *
  * Full code and results travel in `auxiliary` so Braintrust / parseLogLine
  * keep the detail expandable without polluting the message text.
@@ -33,6 +36,8 @@ export interface TraceLogSink {
 export interface TrajectoryTraceInput {
   trajectory: Pick<Trajectory, "steps">;
   outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "status" | "stopReason" | "usage">;
+  /** Wall-clock of the agent session alone (ms), excluding evidence capture and grading. */
+  agentWallMs?: number;
   /** Optional per-step wall-clock durations (ms), indexed like `trajectory.steps`. */
   stepDurationsMs?: ReadonlyArray<number | undefined>;
   /** Which action names count as calls into the mounted browser surface. */
@@ -135,11 +140,11 @@ export function buildResultTraceLine(input: TrajectoryTraceInput): LogLine {
   const facadeCalls = input.isFacadeTool
     ? trajectory.steps.filter((step) => input.isFacadeTool!(step.actionName)).length
     : undefined;
-  const usage = outcome.usage;
+  const raw = outcome.usage;
   const tokens = [
-    `in=${usage.inputTokens}`,
-    `out=${usage.outputTokens}`,
-    ...(usage.cachedInputTokens !== undefined ? [`cached=${usage.cachedInputTokens}`] : []),
+    `in=${raw.inputTokens}`,
+    `out=${raw.outputTokens}`,
+    ...(raw.cachedInputTokens !== undefined ? [`cached=${raw.cachedInputTokens}`] : []),
   ].join(" ");
   const message = [
     "result",
@@ -148,13 +153,14 @@ export function buildResultTraceLine(input: TrajectoryTraceInput): LogLine {
     `steps=${trajectory.steps.length}`,
     ...(facadeCalls !== undefined ? [`facade_calls=${facadeCalls}`] : []),
     tokens,
+    ...(input.agentWallMs !== undefined ? [`agent=${(input.agentWallMs / 1000).toFixed(1)}s`] : []),
   ].join(SEPARATOR);
   return {
     category: TRACE_LOG_CATEGORY,
     level: 1,
     message: clip(message, 400),
     auxiliary: {
-      usage: { value: JSON.stringify(usage), type: "object" },
+      usage: { value: JSON.stringify(raw), type: "object" },
     },
   };
 }

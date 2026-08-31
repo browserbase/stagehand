@@ -231,7 +231,9 @@ export async function runExternalHarnessTask<TRaw>({
     toolInstructions: toolAdapter?.promptInstructions,
     resultContract,
   });
+  const startedAt = performance.now();
   const sessionOutcome = await runSession(prompt);
+  const agentWallMs = performance.now() - startedAt;
   // A run that outlived its browser has no trustworthy self-report: the agent
   // was answering terminal "Browser session lost" errors, not the task.
   const browserSessionLoss = toolAdapter?.browserSessionLoss?.();
@@ -279,6 +281,11 @@ export async function runExternalHarnessTask<TRaw>({
   );
   const prefix = legacyHarnessFieldPrefix(harness);
   const terminationReason = deriveTerminationReason(outcome);
+  const baseMetrics: Record<string, MetricValue> = {
+    ...buildNormalizedHarnessMetrics(outcome),
+    ...(stepBudget !== undefined && { step_budget: metricValue(stepBudget) }),
+    agent_wall_ms: metricValue(agentWallMs),
+  };
   const baseResult: TaskResult = {
     _success: outcome.status === "sdk_error" ? false : parsed.success,
     error: outcome.status === "sdk_error" || !parsed.success ? errorMessage : undefined,
@@ -288,27 +295,30 @@ export async function runExternalHarnessTask<TRaw>({
     harnessStatus: outcome.status,
     ...(sanitizedStopReason && { harnessStopReason: sanitizedStopReason }),
     terminationReason,
+    agent_wall_ms: Math.round(agentWallMs),
     // Deprecated compatibility aliases; consumers should use the normalized
     // harnessStatus / harnessStopReason fields for newly registered harnesses.
     [`${prefix}Status`]: outcome.status,
     ...(sanitizedStopReason && { [`${prefix}StopReason`]: sanitizedStopReason }),
     logs: logger.getLogs(),
-    metrics: {
-      ...buildNormalizedHarnessMetrics(outcome),
-      ...(stepBudget !== undefined && { step_budget: metricValue(stepBudget) }),
-    },
+    metrics: baseMetrics,
   };
-  if (!verifier) return baseResult;
+  if (!verifier) {
+    return { ...baseResult, metrics: { ...baseMetrics, total_wall_ms: metricValue(agentWallMs) } };
+  }
 
   const isFacadeTool = toolAdapter?.observedToolMatcher;
   const evidenceTimeoutMs = readPositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000);
+  const evidenceStartedAt = performance.now();
   const finalObservation = toolAdapter?.captureEvidence
     ? await bestEffort(toolAdapter.captureEvidence(), evidenceTimeoutMs)
     : undefined;
   const stepObservations = toolAdapter?.drainStepObservations
     ? await bestEffort(toolAdapter.drainStepObservations(), evidenceTimeoutMs)
     : undefined;
+  const evidenceMs = performance.now() - evidenceStartedAt;
   let trajectory: HarnessTrajectory | undefined;
+  const verifierStartedAt = performance.now();
   const gradedResult = await gradeExternalTrajectory({
     buildTrajectory: () => {
       trajectory = withTerminationReason(
@@ -335,6 +345,7 @@ export async function runExternalHarnessTask<TRaw>({
         emitTrajectoryTrace(logger, {
           trajectory,
           outcome,
+          agentWallMs,
           isFacadeTool,
           report: {
             summary: parsed.summary,
@@ -358,12 +369,25 @@ export async function runExternalHarnessTask<TRaw>({
     logger,
     isFacadeTool,
   });
+  const verifierWallMs = performance.now() - verifierStartedAt;
+  const timing = buildTimingMetrics({ agentWallMs, evidenceMs, verifierWallMs });
+  logger.log({
+    category: "trace",
+    level: 1,
+    message: [
+      "timing",
+      `agent=${formatSeconds(agentWallMs)}`,
+      `evidence=${formatSeconds(evidenceMs)}`,
+      `verifier=${formatSeconds(verifierWallMs)}`,
+      `total=${formatSeconds(timing.total_wall_ms.value)}`,
+    ].join(" · "),
+  });
   const facadeMetrics =
     trajectory && isFacadeTool ? buildFacadeToolCallMetrics(trajectory, isFacadeTool) : {};
   const gradedMetrics = (gradedResult.metrics ?? {}) as Record<string, MetricValue>;
   const result: TaskResult = {
     ...gradedResult,
-    metrics: { ...gradedMetrics, ...facadeMetrics },
+    metrics: { ...gradedMetrics, ...facadeMetrics, ...timing },
     // Re-read so the trace and verifier lines logged after baseResult was
     // built ship with the row.
     logs: logger.getLogs(),
@@ -418,6 +442,24 @@ function isSessionLostToolOutput(
   return [error, result].some(
     (value) => typeof value === "string" && isBrowserSessionLostError(value),
   );
+}
+
+/** Wall-clock split so agent speed is never confounded with verifier speed. */
+export function buildTimingMetrics(timing: {
+  agentWallMs: number;
+  evidenceMs: number;
+  verifierWallMs: number;
+}): Record<"agent_wall_ms" | "evidence_ms" | "verifier_wall_ms" | "total_wall_ms", MetricValue> {
+  return {
+    agent_wall_ms: metricValue(timing.agentWallMs),
+    evidence_ms: metricValue(timing.evidenceMs),
+    verifier_wall_ms: metricValue(timing.verifierWallMs),
+    total_wall_ms: metricValue(timing.agentWallMs + timing.evidenceMs + timing.verifierWallMs),
+  };
+}
+
+export function formatSeconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 /** Convert a registered harness id to its deprecated TaskResult field prefix. */

@@ -170,6 +170,17 @@ describe("trajectory trace log", () => {
     ]);
   });
 
+  it("appends the agent wall-clock to the result line when known", () => {
+    const lines = buildTrajectoryTraceLines({
+      trajectory: threeStepTrajectory(),
+      outcome,
+      agentWallMs: 42_049,
+    });
+    expect(lines.at(-1)!.message).toBe(
+      "result · completed · steps=3 · in=12345 out=678 cached=9000 · agent=42.0s",
+    );
+  });
+
   it("emits through an EvalLogger-compatible sink", () => {
     const logged: string[] = [];
     emitTrajectoryTrace(

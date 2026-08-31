@@ -5,6 +5,7 @@ import {
   buildExternalHarnessPrompt,
   buildFacadeToolCallMetrics,
   buildNormalizedHarnessMetrics,
+  buildTimingMetrics,
   deriveTerminationReason,
   legacyHarnessFieldPrefix,
   parseEvalResult,
@@ -464,8 +465,13 @@ describe("external harness runner", () => {
       "step 2 · bash · ok · echo hi  →  hi",
       "summary · done",
       "answer · ok",
-      "result · completed · steps=2 · facade_calls=1 · in=10 out=5",
+      expect.stringMatching(
+        /^result · completed · steps=2 · facade_calls=1 · in=10 out=5 · agent=\d+\.\ds$/u,
+      ),
       expect.stringContaining("verifier integration failed"),
+      expect.stringMatching(
+        /^timing · agent=\d+\.\ds · evidence=\d+\.\ds · verifier=\d+\.\ds · total=\d+\.\ds$/u,
+      ),
     ]);
     expect(result.metrics).toMatchObject({ facade_tool_calls: { count: 1, value: 1 } });
   });
@@ -529,5 +535,85 @@ describe("external harness runner", () => {
       if (previous === undefined) delete process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS;
       else process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS = previous;
     }
+  });
+
+  it("splits agent, evidence and verifier wall-clock into separate metrics", async () => {
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const result = await runExternalHarnessTask({
+      harness: "codex",
+      plan,
+      logger: new EvalLogger(false),
+      toolAdapter: {
+        captureEvidence: async () => {
+          await delay(30);
+          return { url: "https://example.com" } as never;
+        },
+      },
+      verifier: {
+        v3: {} as never,
+        taskSpec: { id: "wv-1", instruction: plan.instruction, precomputedRubric: {} as never },
+        dataset: "webvoyager",
+      },
+      resultContract: "structured_output",
+      fallbackErrorMessage: "missing result",
+      runSession: async () => {
+        await delay(50);
+        return {
+          raw: {},
+          resultText: '{"success":true,"summary":"done","finalAnswer":"ok"}',
+          transcriptText: "",
+          status: "completed",
+          usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+          metrics: {},
+        };
+      },
+      toTrajectory: (_input, taskSpec) => buildTrajectory({ taskSpec, toolCalls: [] }),
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+
+    expect(metrics.agent_wall_ms.value).toBeGreaterThanOrEqual(45);
+    expect(metrics.evidence_ms.value).toBeGreaterThanOrEqual(25);
+    expect(metrics.evidence_ms.value).toBeLessThan(metrics.agent_wall_ms.value);
+    expect(metrics.verifier_wall_ms.value).toBeGreaterThanOrEqual(0);
+    expect(metrics.total_wall_ms.value).toBeCloseTo(
+      metrics.agent_wall_ms.value + metrics.evidence_ms.value + metrics.verifier_wall_ms.value,
+      3,
+    );
+    expect(result.agent_wall_ms).toBe(Math.round(metrics.agent_wall_ms.value));
+  });
+
+  it("reports total_wall_ms as the agent time alone when no verifier runs", async () => {
+    const result = await runExternalHarnessTask({
+      harness: "codex",
+      plan,
+      logger: new EvalLogger(false),
+      resultContract: "marker",
+      fallbackErrorMessage: "missing result",
+      runSession: async () => ({
+        raw: {},
+        resultText: 'EVAL_RESULT: {"success":true}',
+        transcriptText: "",
+        status: "completed",
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        metrics: {},
+      }),
+      toTrajectory: () => {
+        throw new Error("not called without a verifier");
+      },
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+    expect(metrics.total_wall_ms.value).toBe(metrics.agent_wall_ms.value);
+    expect(metrics.verifier_wall_ms).toBeUndefined();
+  });
+
+  it("sums the timing split into total_wall_ms", () => {
+    expect(buildTimingMetrics({ agentWallMs: 1000, evidenceMs: 200, verifierWallMs: 300 })).toEqual(
+      {
+        agent_wall_ms: { count: 1, value: 1000 },
+        evidence_ms: { count: 1, value: 200 },
+        verifier_wall_ms: { count: 1, value: 300 },
+        total_wall_ms: { count: 1, value: 1500 },
+      },
+    );
   });
 });
