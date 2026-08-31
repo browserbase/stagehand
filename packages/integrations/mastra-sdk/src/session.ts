@@ -208,7 +208,7 @@ export async function runMastraSession(input: {
       });
 
       for await (const event of stream.fullStream) {
-        events.push(event);
+        events.push(compactMastraEvent(event));
         logMastraEvent(input.logger, event);
         const payload = isRecord(event.payload) ? event.payload : {};
         if (event.type === "tool-call") {
@@ -383,17 +383,60 @@ export function summarizeMastraEvent(event: MastraEvent): {
   if (type === "reasoning-delta" && typeof payload.text === "string") {
     return sanitizeMastraSummary(`reasoning: ${clip(payload.text, 500)}`, payload.text);
   }
-  if (type === "finish") {
+  if (type === "finish" || type === "step-finish") {
     const stepResult = isRecord(payload.stepResult) ? payload.stepResult : undefined;
     const reason = String(stepResult?.reason ?? "unknown");
     const output = isRecord(payload.output) ? payload.output : undefined;
-    return sanitizeMastraSummary(`finish: ${reason}`, safeJson(output?.usage));
+    return sanitizeMastraSummary(`${type}: ${reason}`, safeJson(output?.usage));
   }
   if (type === "error") {
     const message = stringifyError(payload.error) || "error";
     return sanitizeMastraSummary(`error: ${clip(message, 500)}`, message);
   }
-  return sanitizeMastraSummary(`${type} event`, safeJson(event));
+  const detail = safeJson(compactMastraEvent(event));
+  return sanitizeMastraSummary(
+    `${type} event`,
+    detail === undefined ? undefined : clip(detail, MAX_EVENT_DETAIL_CHARS),
+  );
+}
+
+const MAX_EVENT_DETAIL_CHARS = 2_000;
+
+/** Chunk types the trajectory adapter and transcript read verbatim. */
+const RETAINED_MASTRA_EVENT_TYPES = new Set([
+  "tool-call",
+  "tool-result",
+  "tool-error",
+  "text-delta",
+  "reasoning-delta",
+  "error",
+  "abort",
+]);
+
+/**
+ * Reduce a fullStream chunk to what the session consumers need. Mastra's
+ * `step-finish`/`finish` payloads carry the whole request body (every prior
+ * message and tool result) under `metadata.request`/`response`, so retaining or
+ * stringifying them per step grows quadratically with the conversation.
+ */
+export function compactMastraEvent(event: MastraEvent): MastraEvent {
+  const type = String(event.type ?? "");
+  if (RETAINED_MASTRA_EVENT_TYPES.has(type)) return event;
+  const payload = isRecord(event.payload) ? event.payload : undefined;
+  const output = isRecord(payload?.output) ? payload.output : undefined;
+  const compactPayload: Record<string, unknown> = {
+    ...(payload?.stepResult !== undefined && { stepResult: payload.stepResult }),
+    ...(payload?.reason !== undefined && { reason: payload.reason }),
+    ...(payload?.toolName !== undefined && { toolName: payload.toolName }),
+    ...(payload?.toolCallId !== undefined && { toolCallId: payload.toolCallId }),
+    ...(output?.usage !== undefined && { output: { usage: output.usage } }),
+  };
+  return {
+    type: event.type,
+    ...(event.runId !== undefined && { runId: event.runId }),
+    ...(event.from !== undefined && { from: event.from }),
+    ...(payload !== undefined && { payload: compactPayload }),
+  };
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
