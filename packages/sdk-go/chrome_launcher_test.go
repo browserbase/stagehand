@@ -116,6 +116,87 @@ func TestBuildChromeArgsPutsCallerArgumentsLast(t *testing.T) {
 	}
 }
 
+// Chrome parses --disable-features and --enable-features as a single value each:
+// a second occurrence replaces the first outright rather than adding to it. Since
+// the defaults are emitted before options.Args, these switches have to be merged
+// or a caller passing one of their own silently drops every default feature name.
+func TestBuildChromeArgsMergesFeatureSwitches(t *testing.T) {
+	featureValues := func(args []string, name string) []string {
+		var found []string
+		for _, arg := range args {
+			if strings.HasPrefix(arg, name+"=") {
+				found = append(found, arg)
+			}
+		}
+		return found
+	}
+
+	t.Run("caller disable-features is added to the defaults", func(t *testing.T) {
+		t.Setenv("CI", "")
+		got := buildChromeArgs(LocalBrowserLaunchOptions{
+			Args: []string{"--disable-features=ExampleFeature"},
+		}, 9_222, "/tmp/profile")
+
+		want := []string{defaultChromeFlags[0] + ",ExampleFeature"}
+		if !slices.Equal(featureValues(got, "--disable-features"), want) {
+			t.Fatalf("buildChromeArgs() --disable-features = %#v, want %#v",
+				featureValues(got, "--disable-features"), want)
+		}
+	})
+
+	t.Run("caller enable-features keeps the WebMCP flag", func(t *testing.T) {
+		t.Setenv("CI", "")
+		got := buildChromeArgs(LocalBrowserLaunchOptions{
+			Args: []string{"--enable-features=ExampleFeature"},
+		}, 9_222, "/tmp/profile")
+
+		want := []string{testWebMCPChromeFlag + ",ExampleFeature"}
+		if !slices.Equal(featureValues(got, "--enable-features"), want) {
+			t.Fatalf("buildChromeArgs() --enable-features = %#v, want %#v",
+				featureValues(got, "--enable-features"), want)
+		}
+	})
+
+	t.Run("repeated switches merge in order without duplicating a value", func(t *testing.T) {
+		t.Setenv("CI", "")
+		got := buildChromeArgs(LocalBrowserLaunchOptions{
+			Args: []string{
+				"--disable-features=Translate,First",
+				"--mute-audio",
+				"--disable-features=Second",
+			},
+		}, 9_222, "/tmp/profile")
+
+		want := defaultChromeFlags[0] + ",First,Second"
+		if got[0] != want {
+			t.Fatalf("buildChromeArgs()[0] = %q, want %q", got[0], want)
+		}
+		if merged := featureValues(got, "--disable-features"); len(merged) != 1 {
+			t.Fatalf("buildChromeArgs() emitted %d --disable-features switches, want 1", len(merged))
+		}
+		if !slices.Contains(got, "--mute-audio") {
+			t.Fatal("buildChromeArgs() dropped an unrelated caller argument")
+		}
+	})
+
+	t.Run("ignoring every default leaves the caller switch alone", func(t *testing.T) {
+		t.Setenv("CI", "")
+		got := buildChromeArgs(LocalBrowserLaunchOptions{
+			IgnoreDefaultArgs: &IgnoreDefaultArgs{All: true},
+			Args:              []string{"--disable-features=ExampleFeature"},
+		}, 9_222, "/tmp/profile")
+
+		want := []string{"--disable-features=ExampleFeature"}
+		if !slices.Equal(featureValues(got, "--disable-features"), want) {
+			t.Fatalf("buildChromeArgs() --disable-features = %#v, want %#v",
+				featureValues(got, "--disable-features"), want)
+		}
+		if enabled := featureValues(got, "--enable-features"); len(enabled) != 0 {
+			t.Fatalf("buildChromeArgs() --enable-features = %#v, want none", enabled)
+		}
+	})
+}
+
 func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 	t.Run("all", func(t *testing.T) {
 		got := buildChromeArgs(
