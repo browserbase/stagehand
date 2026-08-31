@@ -107,7 +107,6 @@ const BLOCKER_EXPLANATION = /uncontrollable|blocker|could not be attempted|block
 const SEARCH_ENGINE_HOST = /(^|\.)(google|bing|duckduckgo|yahoo|scribd|reddit)\./i;
 
 /** Datasets whose rubrics are precomputed and whose answers are factual lookups. */
-const GROUNDED_DATASETS = /hardbench|webtailbench/i;
 
 export function applyVerdictGates({
   evaluation,
@@ -170,7 +169,14 @@ export function resolveRequireGrounding(
   const raw = env.EVAL_REQUIRE_GROUNDING?.trim();
   if (raw === "1" || raw?.toLowerCase() === "true") return true;
   if (raw === "0" || raw?.toLowerCase() === "false") return false;
-  return hasPrecomputedRubric || GROUNDED_DATASETS.test(dataset);
+  // Advisory by default: a factually correct answer sourced from a search
+  // snippet still counts as a pass (owner decision, 2026-08-31 — the F1 race
+  // time answered from Google was ruled a pass). The check still runs and is
+  // recorded as `grounding` + metric answer_grounded so snippet-sourced passes
+  // remain filterable; opt into gating with EVAL_REQUIRE_GROUNDING=1.
+  void dataset;
+  void hasPrecomputedRubric;
+  return false;
 }
 
 /**

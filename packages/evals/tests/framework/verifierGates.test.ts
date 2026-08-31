@@ -374,11 +374,15 @@ describe("resolveRequireGrounding", () => {
     expect(resolveRequireGrounding("custom", false, { EVAL_REQUIRE_GROUNDING: "1" })).toBe(true);
   });
 
-  it("defaults on for precomputed-rubric datasets and off elsewhere", () => {
-    expect(resolveRequireGrounding("hardbenchmark", false, {})).toBe(true);
-    expect(resolveRequireGrounding("webtailbench", false, {})).toBe(true);
-    expect(resolveRequireGrounding("custom", true, {})).toBe(true);
-    expect(resolveRequireGrounding("onlinemind2web", false, {})).toBe(false);
+  it("is advisory by default and gates only with EVAL_REQUIRE_GROUNDING=1", () => {
+    expect(resolveRequireGrounding("hardbenchmark", false, {})).toBe(false);
+    expect(resolveRequireGrounding("custom", true, {})).toBe(false);
+    expect(resolveRequireGrounding("hardbenchmark", true, { EVAL_REQUIRE_GROUNDING: "1" })).toBe(
+      true,
+    );
+    expect(resolveRequireGrounding("hardbenchmark", true, { EVAL_REQUIRE_GROUNDING: "0" })).toBe(
+      false,
+    );
   });
 });
 

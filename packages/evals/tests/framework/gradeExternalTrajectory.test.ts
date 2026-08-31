@@ -158,7 +158,7 @@ describe("gradeExternalTrajectory", () => {
     expect((result.metrics as Record<string, { value: number }>).outcome_gated.value).toBe(1);
   });
 
-  it("gates an ungrounded numeric answer when the dataset ships precomputed rubrics", async () => {
+  it("records grounding as advisory by default and gates only when opted in", async () => {
     const searchOnly = {
       ...trajectory,
       finalAnswer: "The seat costs SGD 5.",
@@ -181,20 +181,21 @@ describe("gradeExternalTrajectory", () => {
         logger: new EvalLogger(false),
       });
 
-    const gated = await run("hardbenchmark");
-    expect(gated.outcomeGates).toEqual(["ungrounded_answer"]);
-    expect(gated._success).toBe(false);
-    expect((gated.metrics as Record<string, { value: number }>).answer_grounded.value).toBe(0);
-    expect((gated.grounding as { ungrounded: Array<{ text: string }> }).ungrounded[0]?.text).toBe(
-      "SGD 5",
-    );
+    // Default: a correct answer sourced from a search snippet still passes;
+    // the grounding result is recorded so snippet-sourced passes stay filterable.
+    const advisory = await run("hardbenchmark");
+    expect(advisory.outcomeGates).toEqual([]);
+    expect(advisory._success).toBe(true);
+    expect((advisory.metrics as Record<string, { value: number }>).answer_grounded.value).toBe(0);
+    expect(
+      (advisory.grounding as { ungrounded: Array<{ text: string }> }).ungrounded[0]?.text,
+    ).toBe("SGD 5");
 
-    process.env.EVAL_REQUIRE_GROUNDING = "0";
+    process.env.EVAL_REQUIRE_GROUNDING = "1";
     try {
-      const advisory = await run("hardbenchmark");
-      expect(advisory.outcomeGates).toEqual([]);
-      expect(advisory._success).toBe(true);
-      expect((advisory.metrics as Record<string, { value: number }>).answer_grounded.value).toBe(0);
+      const gated = await run("hardbenchmark");
+      expect(gated.outcomeGates).toEqual(["ungrounded_answer"]);
+      expect(gated._success).toBe(false);
     } finally {
       delete process.env.EVAL_REQUIRE_GROUNDING;
     }
