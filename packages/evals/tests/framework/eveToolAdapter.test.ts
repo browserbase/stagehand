@@ -37,8 +37,30 @@ describe("Eve tool adapter helpers", () => {
       modelId: "gemini-2.5-pro",
     });
     expect(resolveEveModelProvider("gpt-5.4-mini").factory).toBe("openai");
-    expect(() => resolveEveModelProvider("mistral/x")).toThrow(EvalsError);
-    expect(() => resolveEveModelProvider("mistral/x")).toThrow(/openai\/, anthropic\/, google\//);
+  });
+
+  it("routes other creators through the Vercel AI Gateway with creator-prefixed ids", () => {
+    expect(resolveEveModelProvider("alibaba/qwen3.8-flash")).toEqual({
+      pkg: "ai",
+      factory: "gateway",
+      modelId: "alibaba/qwen3.8-flash",
+    });
+    expect(resolveEveModelProvider("zai/glm-5.3").modelId).toBe("zai/glm-5.3");
+    // Explicit gateway/ forces the gateway even for first-party creators.
+    expect(resolveEveModelProvider("gateway/openai/gpt-5.4-mini")).toEqual({
+      pkg: "ai",
+      factory: "gateway",
+      modelId: "openai/gpt-5.4-mini",
+    });
+    expect(() => resolveEveModelProvider("gateway/gpt-5.4-mini")).toThrow(EvalsError);
+    expect(() => resolveEveModelProvider("alibaba/")).toThrow(EvalsError);
+  });
+
+  it("builds a gateway agent definition without a first-party provider import", () => {
+    const source = buildEveAgentDefinitionSource("alibaba/qwen3.8-flash");
+    expect(source).toContain('import { gateway } from "ai";');
+    expect(source).toContain('gateway("alibaba/qwen3.8-flash")');
+    expect(source).not.toContain("@ai-sdk/");
   });
 
   it("builds an agent definition with the selected model and uncapped token limits", () => {

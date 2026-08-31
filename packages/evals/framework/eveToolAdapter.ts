@@ -79,8 +79,8 @@ export const EVE_DISABLED_FRAMEWORK_TOOLS = [
 ] as const;
 
 export type EveModelProvider = {
-  pkg: "@ai-sdk/openai" | "@ai-sdk/anthropic" | "@ai-sdk/google";
-  factory: "openai" | "anthropic" | "google";
+  pkg: "@ai-sdk/openai" | "@ai-sdk/anthropic" | "@ai-sdk/google" | "ai";
+  factory: "openai" | "anthropic" | "google" | "gateway";
   modelId: string;
 };
 
@@ -89,18 +89,41 @@ export function eveToolSlug(server: string, tool: string): string {
   return `${sanitize(server)}__${sanitize(tool)}`;
 }
 
+/**
+ * openai/, anthropic/ and google/ bind their first-party AI SDK providers.
+ * Every other `creator/model` id (alibaba/qwen…, zai/glm…, deepseek/…, xai/…)
+ * is routed through the Vercel AI Gateway, whose ids use exactly that shape;
+ * an explicit `gateway/creator/model` forces the gateway for any creator.
+ * The gateway needs AI_GATEWAY_API_KEY (or Vercel OIDC) in the agent's env.
+ */
 export function resolveEveModelProvider(model: string): EveModelProvider {
-  const separator = model.indexOf("/");
-  const prefix = separator >= 0 ? model.slice(0, separator) : "openai";
-  const modelId = separator >= 0 ? model.slice(separator + 1) : model;
+  const trimmed = model.trim();
+  if (!trimmed) throw new EvalsError("Eve model id must not be empty.");
+  if (trimmed.startsWith("gateway/")) {
+    const modelId = trimmed.slice("gateway/".length);
+    if (!modelId.includes("/")) {
+      throw new EvalsError(
+        `Eve gateway model "${model}" must be "gateway/<creator>/<model>" (AI Gateway ids are creator-prefixed).`,
+      );
+    }
+    return { pkg: "ai", factory: "gateway", modelId };
+  }
+  const separator = trimmed.indexOf("/");
+  const prefix = separator >= 0 ? trimmed.slice(0, separator) : "openai";
+  const modelId = separator >= 0 ? trimmed.slice(separator + 1) : trimmed;
   if (prefix === "openai") return { pkg: "@ai-sdk/openai", factory: "openai", modelId };
   if (prefix === "anthropic") {
     return { pkg: "@ai-sdk/anthropic", factory: "anthropic", modelId };
   }
   if (prefix === "google") return { pkg: "@ai-sdk/google", factory: "google", modelId };
-  throw new EvalsError(
-    `Eve model "${model}" uses an unsupported provider. Supported prefixes: openai/, anthropic/, google/.`,
-  );
+  if (!modelId) {
+    throw new EvalsError(`Eve model "${model}" is missing a model id after the creator prefix.`);
+  }
+  return { pkg: "ai", factory: "gateway", modelId: trimmed };
+}
+
+export function isEveGatewayModel(model: string): boolean {
+  return resolveEveModelProvider(model).factory === "gateway";
 }
 
 export function buildEveAgentDefinitionSource(
@@ -121,9 +144,15 @@ export function buildEveAgentDefinitionSource(
         "  })",
       ].join("\n")
     : baseModel;
+  const aiImports = [
+    ...(provider.factory === "gateway" ? ["gateway"] : []),
+    ...(wrapped ? ["defaultSettingsMiddleware", "wrapLanguageModel"] : []),
+  ];
   return [
-    `import { ${provider.factory} } from ${JSON.stringify(provider.pkg)};`,
-    ...(wrapped ? ['import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";'] : []),
+    ...(provider.factory === "gateway"
+      ? []
+      : [`import { ${provider.factory} } from ${JSON.stringify(provider.pkg)};`]),
+    ...(aiImports.length ? [`import { ${aiImports.join(", ")} } from "ai";`] : []),
     'import { defineAgent } from "eve";',
     "",
     "export default defineAgent({",
