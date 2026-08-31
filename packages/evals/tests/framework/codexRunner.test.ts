@@ -288,7 +288,8 @@ describe("codex runner helpers", () => {
       expect(metrics.usage_input_total.value).toBe(2_000_000);
       expect(metrics.usage_input_cached.value).toBe(1_900_000);
       expect(metrics.usage_output.value).toBe(40_000);
-      expect(metrics.cost_usd_estimated.value).toBeGreaterThan(0);
+      expect(metrics.cost_usd.value).toBeGreaterThan(0);
+      expect(result.cost_source).toBe("computed");
     } finally {
       if (previous === undefined) delete process.env.EVAL_CODEX_MAX_STEPS;
       else process.env.EVAL_CODEX_MAX_STEPS = previous;
@@ -329,9 +330,10 @@ describe("codex runner helpers", () => {
       const metrics = result.metrics as Record<string, { value: number }>;
 
       expect(result.harnessStatus).toBe("max_turns");
-      expect(result.cost_source).toBe("no_usage");
-      expect(result.cost_usd_estimated).toBeUndefined();
-      expect(metrics.cost_usd_estimated).toBeUndefined();
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.billing_channel).toBe("openai_api");
+      expect(result.cost_usd).toBeUndefined();
+      expect(metrics.cost_usd).toBeUndefined();
       expect(metrics.usage_input_total).toBeUndefined();
       expect(metrics.codex_usage_recovered.value).toBe(0);
     } finally {

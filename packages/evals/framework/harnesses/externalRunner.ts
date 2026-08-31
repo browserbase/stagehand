@@ -10,7 +10,7 @@ import type { StepObservation } from "../observationRecorder.js";
 import type { TaskResult } from "../types.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "../verifierAdapter.js";
 import { emitTrajectoryTrace } from "./traceLog.js";
-import { estimateCost, type CostEstimate } from "../costEstimate.js";
+import { resolveBilledCost, type BilledCost } from "../costEstimate.js";
 import { normalizeUsage, type NormalizedUsage } from "../usageNormalization.js";
 
 export type MetricValue = { count: number; value: number };
@@ -293,17 +293,17 @@ export async function runExternalHarnessTask<TRaw>({
   const prefix = legacyHarnessFieldPrefix(harness);
   const terminationReason = deriveTerminationReason(outcome);
   const usage = normalizeUsage({ harness, raw: outcome.usage });
-  const cost = estimateCost(usage, model);
-  if (cost.cost_source === "unpriced") {
+  const cost = resolveBilledCost({ harness, model, usage, reportedCostUsd: outcome.costUsd });
+  if (cost.cost_source === "unavailable" && usage.convention !== "unreported") {
     logger.log({
       category: "cost",
       level: 1,
-      message: `no price for model ${model ?? "(unknown)"}; cost_usd_estimated omitted (add it to packages/evals/pricing/pricing.json)`,
+      message: `cost unavailable for ${harness} on ${model ?? "(unknown model)"} (channel ${cost.billing_channel}); cost_usd omitted`,
     });
   }
   const baseMetrics: Record<string, MetricValue> = {
     ...buildNormalizedHarnessMetrics(outcome),
-    ...buildUsageCostMetrics(usage, cost, outcome.costUsd),
+    ...buildUsageCostMetrics(usage, cost),
     ...(stepBudget !== undefined && { step_budget: metricValue(stepBudget) }),
     agent_wall_ms: metricValue(agentWallMs),
   };
@@ -318,8 +318,8 @@ export async function runExternalHarnessTask<TRaw>({
     terminationReason,
     agent_wall_ms: Math.round(agentWallMs),
     cost_source: cost.cost_source,
-    ...(cost.cost_usd_estimated !== undefined && { cost_usd_estimated: cost.cost_usd_estimated }),
-    ...(cost.priced_with && { priced_with: cost.priced_with }),
+    billing_channel: cost.billing_channel,
+    ...(cost.cost_usd !== undefined && { cost_usd: cost.cost_usd }),
     // Deprecated compatibility aliases; consumers should use the normalized
     // harnessStatus / harnessStopReason fields for newly registered harnesses.
     [`${prefix}Status`]: outcome.status,
@@ -405,6 +405,7 @@ export async function runExternalHarnessTask<TRaw>({
       `evidence=${formatSeconds(evidenceMs)}`,
       `verifier=${formatSeconds(verifierWallMs)}`,
       `total=${formatSeconds(timing.total_wall_ms.value)}`,
+      ...(cost.cost_usd !== undefined ? [`cost=$${cost.cost_usd} (${cost.cost_source})`] : []),
     ].join(" · "),
   });
   const facadeMetrics =
@@ -488,16 +489,14 @@ export function formatSeconds(ms: number): string {
 }
 
 /**
- * Convention-independent token buckets plus the dollar figures: the estimate
- * from the versioned price map, and whatever the harness itself reported
- * (claude_code total_cost_usd, eve costUsd, pi cost, fx total_cost). An
- * unpriced model gets no `cost_usd_estimated` at all rather than a 0, and
- * unreported usage gets no usage_* metrics rather than zeros.
+ * Convention-independent token buckets (the efficiency axis) plus the single
+ * billed cost column `cost_usd` — reported by the harness's channel, else
+ * computed at provider list price for direct-API harnesses, else absent
+ * rather than zero. Unreported usage gets no usage_* metrics rather than zeros.
  */
 export function buildUsageCostMetrics(
   usage: NormalizedUsage,
-  cost: CostEstimate,
-  reportedCostUsd: number | undefined,
+  cost: BilledCost,
 ): Record<string, MetricValue> {
   return {
     ...(usage.convention !== "unreported" && {
@@ -506,10 +505,7 @@ export function buildUsageCostMetrics(
       usage_output: metricValue(usage.output),
       usage_reasoning: metricValue(usage.reasoning),
     }),
-    ...(cost.cost_usd_estimated !== undefined && {
-      cost_usd_estimated: metricValue(cost.cost_usd_estimated),
-    }),
-    ...(reportedCostUsd !== undefined && { cost_usd_reported: metricValue(reportedCostUsd) }),
+    ...(cost.cost_usd !== undefined && { cost_usd: metricValue(cost.cost_usd) }),
   };
 }
 

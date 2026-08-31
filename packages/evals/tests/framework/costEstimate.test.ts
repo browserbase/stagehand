@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  estimateCost,
+  computeListCost,
   loadPriceMap,
   modelPriceCandidates,
+  providerOf,
+  resolveBilledCost,
   resolveModelPrice,
   type PriceMap,
 } from "../../framework/costEstimate.js";
@@ -45,7 +47,10 @@ const priceMap: PriceMap = {
   },
 };
 
-describe("estimateCost", () => {
+const compute = (usage: ReturnType<typeof normalizeUsage>, model: string) =>
+  computeListCost(usage, model, priceMap);
+
+describe("computeListCost", () => {
   it("prices the OpenAI subset convention: uncached at input, cached at cache rate, reasoning inside output", () => {
     const usage = normalizeUsage({
       harness: "codex",
@@ -58,12 +63,7 @@ describe("estimateCost", () => {
       },
     });
     // 400k·1 + 600k·0.1 + 100k·4 = 0.4 + 0.06 + 0.4
-    expect(estimateCost(usage, "openai/gpt-5.4-mini", priceMap)).toEqual({
-      cost_usd_estimated: 0.86,
-      cost_source: "estimated",
-      priced_with: "openai/gpt-5.4-mini",
-      prices_as_of: "2026-08-31",
-    });
+    expect(compute(usage, "openai/gpt-5.4-mini")).toBe(0.86);
   });
 
   it("prices the Anthropic separate convention with cache writes at the write rate", () => {
@@ -78,10 +78,7 @@ describe("estimateCost", () => {
       },
     });
     // 100k·3 + 1M·0.3 + 200k·3.75 + 50k·15 = 0.3 + 0.3 + 0.75 + 0.75
-    expect(estimateCost(usage, "anthropic/claude-sonnet-4-6", priceMap)).toMatchObject({
-      cost_usd_estimated: 2.1,
-      priced_with: "anthropic/claude-sonnet-4.6",
-    });
+    expect(compute(usage, "anthropic/claude-sonnet-4-6")).toBe(2.1);
   });
 
   it("prices pi's uncached-only input plus its separate cache buckets", () => {
@@ -95,8 +92,7 @@ describe("estimateCost", () => {
         totalTokens: 1_000_040,
       },
     });
-    const estimate = estimateCost(usage, "openai/gpt-5.4-mini", priceMap);
-    expect(estimate.cost_usd_estimated).toBeCloseTo(0.10004, 6);
+    expect(compute(usage, "openai/gpt-5.4-mini")).toBeCloseTo(0.10004, 6);
   });
 
   it("bills reasoning at the output rate only when it is reported outside output", () => {
@@ -109,35 +105,162 @@ describe("estimateCost", () => {
         totalTokens: 0,
       },
     });
-    expect(estimateCost(base, "openai/gpt-5.4-mini", priceMap).cost_usd_estimated).toBe(4);
-    expect(
-      estimateCost({ ...base, reasoning_in_output: false }, "openai/gpt-5.4-mini", priceMap)
-        .cost_usd_estimated,
-    ).toBe(6);
+    expect(compute(base, "openai/gpt-5.4-mini")).toBe(4);
+    expect(compute({ ...base, reasoning_in_output: false }, "openai/gpt-5.4-mini")).toBe(6);
   });
 
-  it("reports unpriced for null-price entries and unknown models without inventing zero", () => {
+  it("returns nothing for null-price entries, unknown models and unreported usage", () => {
     const usage = normalizeUsage({
       harness: "claude_code",
       raw: { inputTokens: 10, outputTokens: 10, totalTokens: 20 },
     });
-    expect(estimateCost(usage, "anthropic/claude-fable-5", priceMap)).toEqual({
-      cost_source: "unpriced",
-    });
-    expect(estimateCost(usage, "anthropic/claude-melon-lp-eap", priceMap)).toEqual({
-      cost_source: "unpriced",
-    });
-    expect(estimateCost(usage, undefined, priceMap)).toEqual({ cost_source: "unpriced" });
-  });
-
-  it("reports no_usage when the harness never reported tokens", () => {
-    const usage = normalizeUsage({
+    expect(compute(usage, "anthropic/claude-fable-5")).toBeUndefined();
+    expect(compute(usage, "anthropic/claude-melon-lp-eap")).toBeUndefined();
+    expect(computeListCost(usage, undefined, priceMap)).toBeUndefined();
+    const unreported = normalizeUsage({
       harness: "cursor",
       raw: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
     });
-    expect(estimateCost(usage, "openai/gpt-5.4-mini", priceMap)).toEqual({
-      cost_source: "no_usage",
+    expect(compute(unreported, "openai/gpt-5.4-mini")).toBeUndefined();
+  });
+});
+
+describe("resolveBilledCost", () => {
+  const usage = normalizeUsage({
+    harness: "codex",
+    raw: { inputTokens: 1_000_000, outputTokens: 0, totalTokens: 1_000_000 },
+  });
+
+  it("takes the harness-reported dollars first, naming the channel", () => {
+    expect(
+      resolveBilledCost({
+        harness: "claude_code",
+        model: "anthropic/claude-sonnet-4-6",
+        usage,
+        reportedCostUsd: 4.2,
+        priceMap,
+      }),
+    ).toEqual({ cost_usd: 4.2, cost_source: "reported", billing_channel: "anthropic_api" });
+    expect(
+      resolveBilledCost({
+        harness: "eve",
+        model: "zai/glm-5.3",
+        usage,
+        reportedCostUsd: 0.01,
+        priceMap,
+      }).billing_channel,
+    ).toBe("ai_gateway");
+    expect(
+      resolveBilledCost({
+        harness: "pi",
+        model: "openai/gpt-5.4-mini",
+        usage,
+        reportedCostUsd: 0.5,
+        priceMap,
+      }).billing_channel,
+    ).toBe("pi_catalog");
+    expect(
+      resolveBilledCost({
+        harness: "fx",
+        model: "zai/glm-5.3",
+        usage,
+        reportedCostUsd: 0.02,
+        priceMap,
+      }).billing_channel,
+    ).toBe("fx_gateway");
+    // A reported figure wins even for a priced model on a direct-API harness.
+    expect(
+      resolveBilledCost({
+        harness: "pi",
+        model: "openai/gpt-5.4-mini",
+        usage,
+        reportedCostUsd: 1.3,
+        priceMap,
+      }),
+    ).toMatchObject({ cost_usd: 1.3, cost_source: "reported" });
+  });
+
+  it("computes direct-provider harnesses at list price when nothing was reported", () => {
+    for (const harness of ["codex", "mastra", "deepagents", "eve", "pi"]) {
+      expect(
+        resolveBilledCost({ harness, model: "openai/gpt-5.4-mini", usage, priceMap }),
+        harness,
+      ).toEqual({
+        cost_usd: 1,
+        cost_source: "computed",
+        billing_channel: "openai_api",
+      });
+    }
+    expect(
+      resolveBilledCost({ harness: "codex", model: "codex/default", usage, priceMap })
+        .billing_channel,
+    ).toBe("openai_api");
+    expect(
+      resolveBilledCost({ harness: "mastra", model: "xai/grok-4.5", usage, priceMap }),
+    ).toMatchObject({
+      cost_usd: 2,
+      cost_source: "computed",
+      billing_channel: "xai_api",
     });
+    expect(
+      resolveBilledCost({
+        harness: "deepagents",
+        model: "anthropic/claude-sonnet-4-6",
+        usage,
+        priceMap,
+      }).billing_channel,
+    ).toBe("anthropic_api");
+  });
+
+  it("is unavailable, never zero, for subscription cells, unpriced models and unreported usage", () => {
+    expect(
+      resolveBilledCost({ harness: "cursor", model: "openai/gpt-5.4-mini", usage, priceMap }),
+    ).toEqual({ cost_source: "unavailable", billing_channel: "subscription" });
+    expect(
+      resolveBilledCost({
+        harness: "claude_code",
+        model: "anthropic/claude-sonnet-4-6",
+        usage,
+        priceMap,
+      }),
+    ).toEqual({ cost_source: "unavailable", billing_channel: "subscription" });
+    expect(resolveBilledCost({ harness: "fx", model: "zai/glm-5.3", usage, priceMap })).toEqual({
+      cost_source: "unavailable",
+      billing_channel: "zai_api",
+    });
+    expect(
+      resolveBilledCost({ harness: "codex", model: "openai/gpt-5.6-luna", usage, priceMap }),
+    ).toEqual({ cost_source: "unavailable", billing_channel: "openai_api" });
+    const unreported = normalizeUsage({
+      harness: "codex",
+      raw: { inputTokens: 0, outputTokens: 0, totalTokens: 0, reported: false },
+    });
+    expect(
+      resolveBilledCost({
+        harness: "codex",
+        model: "openai/gpt-5.4-mini",
+        usage: unreported,
+        priceMap,
+      }),
+    ).toEqual({ cost_source: "unavailable", billing_channel: "openai_api" });
+    // A non-finite report is no report.
+    expect(
+      resolveBilledCost({
+        harness: "pi",
+        model: "openai/gpt-5.4-mini",
+        usage,
+        reportedCostUsd: Number.NaN,
+        priceMap,
+      }).cost_source,
+    ).toBe("computed");
+  });
+
+  it("derives the provider from the configured id", () => {
+    expect(providerOf("gateway/openai/gpt-5.4-mini")).toBe("openai");
+    expect(providerOf("codex/default")).toBe("openai");
+    expect(providerOf("xai/grok-4.5")).toBe("xai");
+    expect(providerOf("gpt-5.4-mini")).toBeUndefined();
+    expect(providerOf(undefined)).toBeUndefined();
   });
 });
 

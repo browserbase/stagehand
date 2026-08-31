@@ -461,7 +461,7 @@ describe("external harness runner", () => {
 
     const messages = (result.logs ?? []).map((line) => line.message);
     expect(messages).toEqual([
-      expect.stringContaining("no price for model (unknown)"),
+      expect.stringContaining("cost unavailable for codex on (unknown model)"),
       "step 1 · think · read the title",
       "step 1 · run · ok · return page.title()  →  Example",
       "step 2 · bash · ok · echo hi  →  hi",
@@ -619,7 +619,7 @@ describe("external harness runner", () => {
     );
   });
 
-  it("emits normalized usage and estimated cost next to the harness-native metrics", async () => {
+  it("emits normalized usage and the harness-reported bill next to the harness-native metrics", async () => {
     const logger = new EvalLogger(false);
     const result = await runExternalHarnessTask({
       harness: "claude_code",
@@ -657,18 +657,46 @@ describe("external harness runner", () => {
     // Legacy metrics stay untouched for existing dashboards.
     expect(metrics.harness_input_tokens.value).toBe(1_000_000);
     expect(metrics.harness_cost_usd.value).toBe(4.2);
-    expect(metrics.cost_usd_reported.value).toBe(4.2);
-    // sonnet-4.6 list price: 1M·$3 + 2M·$0.3 + 0.1M·$15
-    expect(metrics.cost_usd_estimated.value).toBeCloseTo(5.1, 6);
+    // The reported bill is the cost column.
+    expect(metrics.cost_usd.value).toBe(4.2);
     expect(result).toMatchObject({
-      cost_source: "estimated",
-      cost_usd_estimated: metrics.cost_usd_estimated.value,
-      priced_with: "anthropic/claude-sonnet-4.6",
+      cost_source: "reported",
+      billing_channel: "anthropic_api",
+      cost_usd: 4.2,
     });
     expect(logger.getLogs().some((line) => line.category === "cost")).toBe(false);
   });
 
-  it("leaves cost absent and names the model when it is unpriced", async () => {
+  it("computes a direct-API harness's bill at provider list price when nothing was reported", async () => {
+    const logger = new EvalLogger(false);
+    const result = await runExternalHarnessTask({
+      harness: "codex",
+      plan,
+      model: "openai/gpt-5.4-mini",
+      logger,
+      resultContract: "marker",
+      fallbackErrorMessage: "missing result",
+      runSession: async () => ({
+        raw: {},
+        resultText: 'EVAL_RESULT: {"success":true}',
+        transcriptText: "",
+        status: "completed",
+        usage: { inputTokens: 1_000_000, outputTokens: 0, totalTokens: 1_000_000 },
+        metrics: {},
+      }),
+      toTrajectory: () => {
+        throw new Error("not called without a verifier");
+      },
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+
+    // gpt-5.4-mini list price $0.75/M uncached input.
+    expect(metrics.cost_usd.value).toBeCloseTo(0.75, 6);
+    expect(result).toMatchObject({ cost_source: "computed", billing_channel: "openai_api" });
+    expect(logger.getLogs().some((line) => line.category === "cost")).toBe(false);
+  });
+
+  it("leaves cost absent and names the model and channel when the bill is unavailable", async () => {
     const logger = new EvalLogger(false);
     const result = await runExternalHarnessTask({
       harness: "codex",
@@ -693,13 +721,42 @@ describe("external harness runner", () => {
 
     expect(metrics.usage_input_total.value).toBe(100);
     expect(metrics.usage_input_cached.value).toBe(40);
-    expect(metrics.cost_usd_estimated).toBeUndefined();
-    expect(metrics.cost_usd_reported).toBeUndefined();
-    expect(result.cost_source).toBe("unpriced");
-    expect(result.cost_usd_estimated).toBeUndefined();
+    expect(metrics.cost_usd).toBeUndefined();
+    expect(result.cost_source).toBe("unavailable");
+    expect(result.billing_channel).toBe("openai_api");
+    expect(result.cost_usd).toBeUndefined();
     const costLine = logger.getLogs().find((line) => line.category === "cost");
     expect(costLine?.level).toBe(1);
     expect(costLine?.message).toContain("openai/gpt-5.6-luna");
+    expect(costLine?.message).toContain("openai_api");
+  });
+
+  it("shows the billed cost and its source on the timing line", async () => {
+    const logger = new EvalLogger(false);
+    const result = await runExternalHarnessTask({
+      harness: "codex",
+      plan,
+      model: "openai/gpt-5.4-mini",
+      logger,
+      verifier: {
+        v3: {} as never,
+        taskSpec: { id: "wv-1", instruction: plan.instruction, precomputedRubric: {} as never },
+        dataset: "webvoyager",
+      },
+      resultContract: "structured_output",
+      fallbackErrorMessage: "missing result",
+      runSession: async () => ({
+        raw: {},
+        resultText: '{"success":true,"summary":"done","finalAnswer":"ok"}',
+        transcriptText: "",
+        status: "completed",
+        usage: { inputTokens: 1_000_000, outputTokens: 0, totalTokens: 1_000_000 },
+        metrics: {},
+      }),
+      toTrajectory: (_input, taskSpec) => buildTrajectory({ taskSpec, toolCalls: [] }),
+    });
+    const timing = result.logs?.find((line) => line.message.startsWith("timing"));
+    expect(timing?.message).toContain("cost=$0.75 (computed)");
   });
 
   it("builds usage/cost metrics without inventing a zero-dollar estimate", () => {
@@ -713,21 +770,26 @@ describe("external harness runner", () => {
       reasoning_in_output: true,
       convention: "openai_cached_subset" as const,
     };
-    expect(buildUsageCostMetrics(usage, { cost_source: "unpriced" }, undefined)).toEqual({
+    expect(
+      buildUsageCostMetrics(usage, { cost_source: "unavailable", billing_channel: "openai_api" }),
+    ).toEqual({
       usage_input_total: { count: 1, value: 10 },
       usage_input_cached: { count: 1, value: 4 },
       usage_output: { count: 1, value: 2 },
       usage_reasoning: { count: 1, value: 1 },
     });
     expect(
-      buildUsageCostMetrics(
-        usage,
-        { cost_source: "estimated", cost_usd_estimated: 0.5, priced_with: "x/y" },
-        0.4,
-      ),
-    ).toMatchObject({
-      cost_usd_estimated: { count: 1, value: 0.5 },
-      cost_usd_reported: { count: 1, value: 0.4 },
+      buildUsageCostMetrics(usage, {
+        cost_source: "computed",
+        cost_usd: 0.5,
+        billing_channel: "openai_api",
+      }),
+    ).toEqual({
+      usage_input_total: { count: 1, value: 10 },
+      usage_input_cached: { count: 1, value: 4 },
+      usage_output: { count: 1, value: 2 },
+      usage_reasoning: { count: 1, value: 1 },
+      cost_usd: { count: 1, value: 0.5 },
     });
     // Unreported usage carries no usage_* metrics: zeros would read as a free run.
     expect(
@@ -741,8 +803,7 @@ describe("external harness runner", () => {
           reasoning: 0,
           convention: "unreported",
         },
-        { cost_source: "no_usage" },
-        undefined,
+        { cost_source: "unavailable", billing_channel: "subscription" },
       ),
     ).toEqual({});
   });
