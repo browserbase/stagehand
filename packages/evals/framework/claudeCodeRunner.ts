@@ -1,20 +1,25 @@
+import {
+  buildClaudeCodeTranscript,
+  extractClaudeCodeTokenUsage,
+  normalizeClaudeModel,
+  runClaudeAgentSession,
+  stringifyError,
+  type ClaudeAgentSdk,
+  type ClaudeSdkMessage,
+} from "@browserbasehq/stagehand-integrations-claude-agent-sdk";
 import type { AvailableModel } from "stagehand-v3";
-import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { datasetPromptGuidance } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
+import type { TaskResult } from "./types.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
-type ClaudeSdkMessage = Record<string, unknown>;
-type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
-type MetricValue = { count: number; value: number };
+export type { ClaudeAgentSdk };
+export { isClaudeCodeMaxTurnsError } from "@browserbasehq/stagehand-integrations-claude-agent-sdk";
 
-export type ClaudeAgentSdk = {
-  query: (input: { prompt: string; options?: Record<string, unknown> }) => ClaudeQuery;
-};
+type MetricValue = { count: number; value: number };
 
 export interface ClaudeCodeRunnerInput {
   plan: ExternalHarnessTaskPlan;
@@ -23,15 +28,6 @@ export interface ClaudeCodeRunnerInput {
   toolAdapter?: PreparedClaudeCodeToolAdapter;
   signal?: AbortSignal;
   sdk?: ClaudeAgentSdk;
-  /**
-   * Optional verifier integration. When provided, the runner builds a
-   * Trajectory from the SDK message stream (via claudeCodeAdapter), runs
-   * V3Evaluator.verify() against the trajectory's embedded TaskSpec, and folds
-   * the EvaluationResult into the returned TaskResult ({_success} mode follows
-   * EVAL_SUCCESS_MODE).
-   * When omitted, the runner falls back to parsing the legacy EVAL_RESULT
-   * line — preserves current behavior for callers that haven't migrated.
-   */
   verifier?: ExternalHarnessVerifierConfig;
 }
 
@@ -42,10 +38,8 @@ export interface ParsedClaudeCodeResult {
   raw: string;
 }
 
-const CLAUDE_AGENT_SDK_PACKAGE = "@anthropic-ai/claude-agent-sdk";
-
 export function normalizeClaudeCodeModel(model: AvailableModel): string {
-  return model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
+  return normalizeClaudeModel(model);
 }
 
 export function buildClaudeCodePrompt(
@@ -79,52 +73,35 @@ export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
     markerIndex >= 0
       ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
       : [resultText];
-
   for (const candidate of candidates) {
     if (!candidate) continue;
     const parsed = tryParseClaudeCodeJson(candidate);
-    if (parsed) {
-      return {
-        ...parsed,
-        raw,
-      };
-    }
+    if (parsed) return { ...parsed, raw };
   }
-
   return { success: false, raw };
 }
 
 function extractFirstJsonObject(value: string): string | undefined {
   const start = value.indexOf("{");
   if (start < 0) return undefined;
-
   let depth = 0;
   let inString = false;
   let escaped = false;
-
   for (let index = start; index < value.length; index += 1) {
     const character = value[index];
     if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (character === "\\") {
-        escaped = true;
-      } else if (character === '"') {
-        inString = false;
-      }
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
       continue;
     }
-
-    if (character === '"') {
-      inString = true;
-    } else if (character === "{") {
-      depth += 1;
-    } else if (character === "}") {
+    if (character === '"') inString = true;
+    else if (character === "{") depth += 1;
+    else if (character === "}") {
       depth -= 1;
       if (depth === 0) return value.slice(start, index + 1);
     }
   }
-
   return undefined;
 }
 
@@ -147,115 +124,53 @@ function tryParseClaudeCodeJson(
   }
 }
 
-export function isClaudeCodeMaxTurnsError(value: unknown): boolean {
-  const message = stringifyError(value);
-  return /(?:maximum number of turns|max(?:imum)? turns|turn limit)/i.test(message);
-}
-
 export async function runClaudeCodeAgent({
   plan,
   model,
   logger,
   toolAdapter,
   signal,
-  sdk: injectedSdk,
+  sdk,
   verifier,
 }: ClaudeCodeRunnerInput): Promise<TaskResult> {
-  const sdk = injectedSdk ?? (await loadClaudeAgentSdk());
-  const abortController = new AbortController();
-  if (signal) {
-    if (signal.aborted) abortController.abort(signal.reason);
-    signal.addEventListener("abort", () => abortController.abort(signal.reason), { once: true });
-  }
-
-  const messages: ClaudeSdkMessage[] = [];
   const prompt = buildClaudeCodePrompt(plan, toolAdapter?.promptInstructions);
-  const allowedTools =
-    toolAdapter?.allowedTools ??
-    readCsvEnv("EVAL_CLAUDE_CODE_ALLOWED_TOOLS", ["WebFetch", "WebSearch"]);
-  const permissionMode = process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default";
-  const maxTurns = readPositiveIntEnv("EVAL_CLAUDE_CODE_MAX_TURNS", 50);
-  const pathToClaudeCodeExecutable = process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined;
-
-  let resultText = "";
-  let resultMessage: ClaudeSdkMessage | undefined;
-  let iterationError: unknown;
-  // tool_use id -> tool name, so tool_result blocks (which carry only the id)
-  // can be attributed for per-step observation triggers.
-  const toolUseNames = new Map<string, string>();
-
-  try {
-    for await (const message of sdk.query({
-      prompt,
-      options: {
-        abortController,
-        allowedTools,
-        ...(toolAdapter?.canUseTool && {
-          canUseTool: toolAdapter.canUseTool,
-        }),
-        ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
-        ...(toolAdapter?.env && { env: toolAdapter.env }),
-        maxTurns,
-        ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
-        model: normalizeClaudeCodeModel(model),
-        pathToClaudeCodeExecutable,
-        permissionMode,
-        settingSources: toolAdapter?.settingSources ?? [],
-        stderr: (data: string) => {
-          logger.log({
-            category: "claude_code",
-            message: data,
-            level: 1,
-          });
-        },
-        systemPrompt: {
-          type: "preset",
-          preset: "claude_code",
-          append:
-            "You are being evaluated. Do not edit repository files. Complete the browser task and emit the requested EVAL_RESULT line.",
-        },
+  const sessionResult = await runClaudeAgentSession({
+    prompt,
+    model,
+    logger,
+    sdk,
+    signal,
+    session: {
+      allowedTools:
+        toolAdapter?.allowedTools ??
+        readCsvEnv("EVAL_CLAUDE_CODE_ALLOWED_TOOLS", ["WebFetch", "WebSearch"]),
+      permissionMode: process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default",
+      maxTurns: readPositiveIntEnv("EVAL_CLAUDE_CODE_MAX_TURNS", 50),
+      pathToClaudeCodeExecutable: process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined,
+      cwd: toolAdapter?.cwd,
+      env: toolAdapter?.env,
+      mcpServers: toolAdapter?.mcpServers,
+      canUseTool: toolAdapter?.canUseTool,
+      settingSources: toolAdapter?.settingSources ?? [],
+      systemPromptPreset: {
+        preset: "claude_code",
+        append:
+          "You are being evaluated. Do not edit repository files. Complete the browser task and emit the requested EVAL_RESULT line.",
       },
-    })) {
-      messages.push(message);
-      logClaudeCodeMessage(logger, message);
-      notifyToolResults(message, toolUseNames, toolAdapter?.onToolResult);
-      if (message.type === "result") {
-        resultMessage = message;
-        if (typeof message.result === "string") {
-          resultText = message.result;
-        } else if (Array.isArray(message.errors)) {
-          resultText = message.errors.join("\n");
-        }
-      }
-    }
-  } catch (error) {
-    iterationError = error;
-    logger.warn({
-      category: "claude_code",
-      message: `Claude Code stopped before a normal result: ${stringifyError(error)}`,
-      level: 0,
-      auxiliary: {
-        error: {
-          value: stringifyError(error),
-          type: "string",
-        },
-      },
-    });
-  }
-
+    },
+    onToolResult: toolAdapter?.onToolResult,
+  });
+  const { messages, resultMessage, resultText, iterationError, status, stopReason, tokenUsage } =
+    sessionResult;
   const transcriptText = buildClaudeCodeTranscript(messages);
   const rawResult = [resultText, transcriptText, stringifyError(iterationError)]
     .filter(Boolean)
     .join("\n\n");
   const parsed = parseClaudeCodeResult(rawResult);
-  const status = resolveClaudeCodeStatus(resultMessage, iterationError);
-  const stopReason = buildClaudeCodeStopReason(resultMessage, iterationError);
   const errorMessage =
     parsed.summary ??
     stopReason ??
     (resultText || transcriptText || "Claude Code did not report success");
-  const tokenUsage = extractClaudeCodeTokenUsage(resultMessage);
-
   const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
@@ -267,20 +182,10 @@ export async function runClaudeCodeAgent({
     logs: logger.getLogs(),
     metrics: buildClaudeCodeMetrics(resultMessage),
   };
+  if (!verifier) return baseResult;
 
-  if (!verifier) {
-    return baseResult;
-  }
-
-  // Artifact-grounded grading: capture the terminal page state through the
-  // tool surface (harness-observed, independent of the agent's self-report)
-  // before cleanup, and drain the per-step probe observations collected by
-  // the run tool.
   const finalObservation = await toolAdapter?.captureEvidence?.().catch((): undefined => undefined);
   const stepObservations = await toolAdapter?.drainStepObservations?.();
-
-  // Build a Trajectory from the SDK message stream and grade it with the
-  // rubric verifier; any failure in that path folds into `verifierError`.
   return gradeExternalTrajectory({
     buildTrajectory: () =>
       claudeCodeAdapter.fromHarnessResult(
@@ -309,46 +214,10 @@ export async function runClaudeCodeAgent({
   });
 }
 
-/**
- * Surfaces completed tool_results to the tool adapter. Assistant messages
- * register tool_use id -> name; user messages carry the tool_result blocks.
- * onToolResult is called in stream order, so observation indexes assigned at
- * call time line up with tool_use ordinals in the trajectory adapter.
- */
-function notifyToolResults(
-  message: ClaudeSdkMessage,
-  toolUseNames: Map<string, string>,
-  onToolResult?: (toolName: string) => void,
-): void {
-  const type = String((message as Record<string, unknown>).type ?? "");
-  const inner = (message as Record<string, unknown>).message;
-  if (!isRecord(inner) || !Array.isArray(inner.content)) return;
-
-  if (type === "assistant") {
-    for (const block of inner.content) {
-      if (!isRecord(block) || block.type !== "tool_use") continue;
-      if (typeof block.id === "string" && typeof block.name === "string") {
-        toolUseNames.set(block.id, block.name);
-      }
-    }
-    return;
-  }
-
-  if (type === "user" && onToolResult) {
-    for (const block of inner.content) {
-      if (!isRecord(block) || block.type !== "tool_result") continue;
-      const toolUseId = typeof block.tool_use_id === "string" ? block.tool_use_id : "";
-      const name = toolUseNames.get(toolUseId);
-      if (name) onToolResult(name);
-    }
-  }
-}
-
 function buildClaudeCodeMetrics(
   resultMessage: ClaudeSdkMessage | undefined,
 ): Record<string, MetricValue> {
   const tokenUsage = extractClaudeCodeTokenUsage(resultMessage);
-
   return {
     claude_code_turns: metricValue(resultMessage?.num_turns),
     claude_code_duration_ms: metricValue(resultMessage?.duration_ms),
@@ -361,57 +230,8 @@ function buildClaudeCodeMetrics(
   };
 }
 
-function extractClaudeCodeTokenUsage(resultMessage: ClaudeSdkMessage | undefined): {
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationInputTokens: number;
-  cacheReadInputTokens: number;
-  totalTokens: number;
-} {
-  const usage = isRecord(resultMessage?.usage) ? resultMessage.usage : undefined;
-
-  const inputTokens =
-    readNumber(usage, "input_tokens") ?? sumModelUsage(resultMessage, "inputTokens");
-  const outputTokens =
-    readNumber(usage, "output_tokens") ?? sumModelUsage(resultMessage, "outputTokens");
-  const cacheCreationInputTokens =
-    readNumber(usage, "cache_creation_input_tokens") ??
-    sumModelUsage(resultMessage, "cacheCreationInputTokens");
-  const cacheReadInputTokens =
-    readNumber(usage, "cache_read_input_tokens") ??
-    sumModelUsage(resultMessage, "cacheReadInputTokens");
-  const totalTokens = inputTokens + outputTokens + cacheCreationInputTokens + cacheReadInputTokens;
-
-  return {
-    inputTokens,
-    outputTokens,
-    cacheCreationInputTokens,
-    cacheReadInputTokens,
-    totalTokens,
-  };
-}
-
-function sumModelUsage(resultMessage: ClaudeSdkMessage | undefined, key: string): number {
-  if (!isRecord(resultMessage?.modelUsage)) return 0;
-
-  let total = 0;
-  for (const usage of Object.values(resultMessage.modelUsage)) {
-    if (!isRecord(usage)) continue;
-    total += readNumber(usage, key) ?? 0;
-  }
-  return total;
-}
-
 function metricValue(value: unknown): MetricValue {
-  return {
-    count: 1,
-    value: toFiniteNumber(value),
-  };
-}
-
-function readNumber(record: Record<string, unknown> | undefined, key: string): number | undefined {
-  if (!record || !(key in record)) return undefined;
-  return toFiniteNumber(record[key]);
+  return { count: 1, value: toFiniteNumber(value) };
 }
 
 function toFiniteNumber(value: unknown): number {
@@ -421,161 +241,7 @@ function toFiniteNumber(value: unknown): number {
       : typeof value === "string" && value.trim()
         ? Number(value)
         : 0;
-
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function resolveClaudeCodeStatus(
-  resultMessage: ClaudeSdkMessage | undefined,
-  iterationError: unknown,
-): "completed" | "max_turns" | "sdk_error" {
-  if (isClaudeCodeMaxTurnsError(iterationError) || isClaudeCodeMaxTurnsError(resultMessage)) {
-    return "max_turns";
-  }
-  if (iterationError || resultMessage?.is_error === true) {
-    return "sdk_error";
-  }
-  return "completed";
-}
-
-function buildClaudeCodeStopReason(
-  resultMessage: ClaudeSdkMessage | undefined,
-  iterationError: unknown,
-): string | undefined {
-  if (iterationError) return stringifyError(iterationError);
-  if (resultMessage?.is_error === true) {
-    const result = resultMessage.result;
-    if (typeof result === "string" && result.trim()) return result.trim();
-    const errors = resultMessage.errors;
-    if (Array.isArray(errors) && errors.length > 0) {
-      return errors.map((error) => String(error)).join("\n");
-    }
-    return "Claude Code returned an error result";
-  }
-  return undefined;
-}
-
-function buildClaudeCodeTranscript(messages: ClaudeSdkMessage[]): string {
-  return messages
-    .map((message) => summarizeClaudeCodeMessage(message).detail)
-    .filter((detail): detail is string => Boolean(detail))
-    .join("\n");
-}
-
-function logClaudeCodeMessage(logger: EvalLogger, message: ClaudeSdkMessage): void {
-  const summary = summarizeClaudeCodeMessage(message);
-  logger.log({
-    category: "claude_code",
-    message: summary.message,
-    level: 1,
-    auxiliary: {
-      type: {
-        value: String(message.type ?? "unknown"),
-        type: "string",
-      },
-      ...(summary.detail && {
-        detail: {
-          value: summary.detail,
-          type: "string",
-        },
-      }),
-    },
-  });
-}
-
-function summarizeClaudeCodeMessage(message: ClaudeSdkMessage): {
-  message: string;
-  detail?: string;
-} {
-  const type = String(message.type ?? "unknown");
-  if (type === "assistant") {
-    const text = extractText(message);
-    return {
-      message: text ? `assistant: ${clip(text, 500)}` : "assistant message",
-      detail: text,
-    };
-  }
-  if (type === "user") {
-    const text = extractText(message);
-    return {
-      message: text ? `user/tool: ${clip(text, 500)}` : "user/tool message",
-      detail: text,
-    };
-  }
-  if (type === "result") {
-    return {
-      message: `result: ${String(message.subtype ?? "done")}`,
-      detail: typeof message.result === "string" ? message.result : undefined,
-    };
-  }
-  return {
-    message: `${type} message`,
-    detail: safeJson(message),
-  };
-}
-
-function extractText(message: ClaudeSdkMessage): string | undefined {
-  const content = message.message;
-  if (!isRecord(content)) return undefined;
-  const rawContent = content.content;
-  if (typeof rawContent === "string") return rawContent;
-  if (!Array.isArray(rawContent)) return undefined;
-  const parts: string[] = [];
-  for (const block of rawContent) {
-    if (!isRecord(block)) continue;
-    if (typeof block.text === "string") {
-      parts.push(block.text);
-      continue;
-    }
-    if (typeof block.name === "string") {
-      parts.push(`[tool:${block.name}] ${safeJson(block.input) ?? ""}`.trim());
-      continue;
-    }
-    if (typeof block.type === "string") {
-      parts.push(`[${block.type}] ${safeJson(block) ?? ""}`.trim());
-    }
-  }
-  return parts.length > 0 ? parts.join("\n") : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function safeJson(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
-
-function stringifyError(value: unknown): string {
-  if (!value) return "";
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  return safeJson(value) ?? String(value);
-}
-
-function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
-}
-
-async function loadClaudeAgentSdk(): Promise<ClaudeAgentSdk> {
-  try {
-    const specifier = CLAUDE_AGENT_SDK_PACKAGE;
-    const mod = (await import(specifier)) as Partial<ClaudeAgentSdk>;
-    if (typeof mod.query !== "function") {
-      throw new Error("query export missing");
-    }
-    return { query: mod.query };
-  } catch (error) {
-    throw new EvalsError(
-      `Claude Code harness requires ${CLAUDE_AGENT_SDK_PACKAGE}. Install it in packages/evals before running --harness claude_code. ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
 }
 
 function readCsvEnv(key: string, fallback: string[]): string[] {
