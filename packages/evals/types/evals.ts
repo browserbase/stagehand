@@ -86,6 +86,10 @@ export interface Testcase extends EvalCase<
     website?: string;
     difficulty?: string;
     task_category?: string;
+    /** Audited provenance (hardbenchmark): parent suite, failure class, capability axis. */
+    source_suite?: string;
+    failure_mode?: string;
+    capability_axis?: string;
     harness?: string;
     environment?: "LOCAL" | "BROWSERBASE";
     api?: boolean;

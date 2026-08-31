@@ -2,6 +2,7 @@ import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
+import { buildHardBenchmarkTestcases } from "../suites/hardbenchmark.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
 import { buildOdysseysBenchTestcases } from "../suites/odysseysbench.js";
 import { getModelList, type AgentModelEntry } from "../taskConfig.js";
@@ -241,7 +242,7 @@ export function generateBenchTestcases(
         .sort()
         .join(", ");
       throw new EvalsError(
-        `Harness "${harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
+        `Harness "${harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/hardbenchmark, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
       );
     }
     return allTestcases;
@@ -299,6 +300,7 @@ export function generateSuiteTestcases(
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
+    "agent/hardbenchmark": (models) => buildHardBenchmarkTestcases(models),
     "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
 

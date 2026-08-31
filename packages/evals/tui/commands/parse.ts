@@ -83,6 +83,7 @@ const SUPPORTED_BENCHMARKS = new Set([
   "webvoyager",
   "onlineMind2Web",
   "webtailbench",
+  "hardbenchmark",
   "odysseysbench",
 ]);
 

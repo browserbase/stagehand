@@ -18,6 +18,9 @@
     "webtailbench": {
       "limit": 25
     },
+    "hardbenchmark": {
+      "limit": 46
+    },
     "odysseysbench": {
       "limit": 25
     }
