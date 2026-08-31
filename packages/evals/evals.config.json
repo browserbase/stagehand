@@ -24,5 +24,9 @@
     "odysseysbench": {
       "limit": 25
     }
+  },
+  "_meta": {
+    "firstRunCompletedAt": "2026-08-31T07:39:41.460Z",
+    "version": 1
   }
 }

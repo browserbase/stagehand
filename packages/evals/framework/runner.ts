@@ -342,6 +342,57 @@ function formatProgressError(error: unknown): string | undefined {
   }
 }
 
+/**
+ * Experiment-level metadata for Braintrust/LangSmith filtering. Tool surface
+ * and model are always present (derived from the planned rows when not set
+ * globally) so cells can be grouped without opening a row; a single value
+ * is emitted as a scalar, several as a list.
+ */
+export function buildExperimentMetadata(input: {
+  environment: "LOCAL" | "BROWSERBASE";
+  tier: "core" | "bench";
+  coreToolSurface?: string;
+  coreStartupProfile?: string;
+  harness?: Harness;
+  modelOverride?: string;
+  useApi?: boolean;
+  testcases: Testcase[];
+}): Record<string, unknown> {
+  const distinct = (pick: (tc: Testcase) => unknown): string[] => {
+    const values = new Set<string>();
+    for (const tc of input.testcases) {
+      const value = pick(tc);
+      if (typeof value === "string" && value) values.add(value);
+    }
+    return [...values].sort();
+  };
+  const scalarOrList = (values: string[]): string | string[] | undefined =>
+    values.length === 0 ? undefined : values.length === 1 ? values[0] : values;
+
+  const toolSurface =
+    input.coreToolSurface ?? scalarOrList(distinct((tc) => tc.metadata?.toolSurface));
+  const startupProfile =
+    input.coreStartupProfile ?? scalarOrList(distinct((tc) => tc.metadata?.startupProfile));
+  const model =
+    input.modelOverride ??
+    scalarOrList(distinct((tc) => tc.metadata?.model).filter((m) => m !== "none"));
+  const provider = scalarOrList(distinct((tc) => tc.metadata?.provider));
+  const dataset = scalarOrList(distinct((tc) => tc.metadata?.dataset));
+
+  return {
+    environment: input.environment,
+    tier: input.tier,
+    ...(toolSurface && { tool_surface: toolSurface, toolSurface }),
+    ...(startupProfile && { startup_profile: startupProfile, startupProfile }),
+    ...(input.harness && { harness: input.harness }),
+    ...(model && { model }),
+    ...(provider && { provider }),
+    ...(dataset && { dataset }),
+    task_count: input.testcases.length,
+    ...(input.useApi && { api: true }),
+  };
+}
+
 const MAX_SPAN_PAYLOAD_BYTES = 2_000_000;
 
 export function capForSpan(value: Record<string, unknown>): Record<string, unknown> {
@@ -466,19 +517,16 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
         braintrustProjectName,
         {
           experimentName,
-          metadata: {
+          metadata: buildExperimentMetadata({
             environment,
             tier: hasCoreOnly ? "core" : "bench",
-            ...(effectiveCoreToolSurface && {
-              toolSurface: effectiveCoreToolSurface,
-            }),
-            ...(effectiveCoreStartupProfile && {
-              startupProfile: effectiveCoreStartupProfile,
-            }),
-            ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
-            ...(options.modelOverride && { model: options.modelOverride }),
-            ...(options.useApi && { api: true }),
-          },
+            coreToolSurface: effectiveCoreToolSurface,
+            coreStartupProfile: effectiveCoreStartupProfile,
+            harness: effectiveBenchHarness,
+            modelOverride: options.modelOverride,
+            useApi: options.useApi,
+            testcases,
+          }),
           data: () => testcases,
           task: async (input: EvalInput): Promise<TaskResult> => {
             // Cooperative abort: skip any testcase that hasn't started yet

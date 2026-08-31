@@ -113,7 +113,11 @@ describe("external harness runner", () => {
   it("counts facade tool calls and their failures from the trajectory", () => {
     const steps = [
       { actionName: "stagehand.run", actionArgs: {}, toolOutput: { ok: true, result: "x" } },
-      { actionName: "stagehand.run", actionArgs: {}, toolOutput: { ok: false, result: "cancelled" } },
+      {
+        actionName: "stagehand.run",
+        actionArgs: {},
+        toolOutput: { ok: false, result: "cancelled" },
+      },
       { actionName: "node_repl.js", actionArgs: {}, toolOutput: { ok: true, result: "y" } },
       { actionName: "stagehand.snapshot", actionArgs: {} },
     ];

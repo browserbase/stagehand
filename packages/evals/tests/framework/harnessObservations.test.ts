@@ -319,7 +319,11 @@ describe("verifiability gate", () => {
           metrics: { facade_tool_calls: { count: 1, value: 0 } },
         }),
         // No facade metric at all (older rows): not counted either way.
-        row("m", "stagehand_facade", { criterionCount: 3, evidenceInsufficient: [], _success: true }),
+        row("m", "stagehand_facade", {
+          criterionCount: 3,
+          evidenceInsufficient: [],
+          _success: true,
+        }),
       ],
       "codex",
     );
