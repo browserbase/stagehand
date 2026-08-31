@@ -100,6 +100,38 @@ describe("Eve runner helpers", () => {
     expect(metrics.harness_output_tokens.value).toBe(25);
     expect(metrics.harness_total_tokens.value).toBe(139);
     expect(metrics.harness_cost_usd.value).toBe(0.12);
+    expect(metrics.step_budget.value).toBe(50);
+  });
+
+  it("uses the dataset step budget on HardBench and reports it as a metric", async () => {
+    const previous = {
+      EVAL_EVE_MAX_STEPS: process.env.EVAL_EVE_MAX_STEPS,
+      AGENT_EVAL_MAX_STEPS: process.env.AGENT_EVAL_MAX_STEPS,
+    };
+    delete process.env.EVAL_EVE_MAX_STEPS;
+    delete process.env.AGENT_EVAL_MAX_STEPS;
+    try {
+      const result = await runEveAgent({
+        plan: { ...plan, dataset: "hardbenchmark" },
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        client: fakeClient([
+          {
+            type: "message.completed",
+            data: { message: '{"success":true,"summary":"done","finalAnswer":"ok"}' },
+          },
+          { type: "turn.completed" },
+        ]),
+        serverUrl: "http://eve",
+      });
+      const metrics = result.metrics as Record<string, { value: number }>;
+      expect(metrics.step_budget.value).toBe(75);
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 
   it("redacts secrets from tool results before copying the transcript into rawResult", async () => {

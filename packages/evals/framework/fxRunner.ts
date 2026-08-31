@@ -73,6 +73,7 @@ export async function runFxAgent({
     drainStepObservations: toolAdapter.drainStepObservations,
     observedToolMatcher: toolAdapter.observedToolMatcher,
   };
+  const maxAgentSteps = readFxMaxAgentSteps(plan.dataset);
   return runExternalHarnessTask({
     harness: "fx",
     plan,
@@ -81,6 +82,7 @@ export async function runFxAgent({
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "fx did not report success",
+    stepBudget: maxAgentSteps,
     runSession: async (prompt) => {
       const sessionResult = await runFxSession({
         prompt,
@@ -89,7 +91,7 @@ export async function runFxAgent({
         home: toolAdapter.home,
         env: toolAdapter.env,
         permissionMode: process.env.EVAL_FX_PERMISSION_MODE === "yolo" ? "yolo" : "auto",
-        maxAgentSteps: readFxMaxAgentSteps(),
+        maxAgentSteps,
         signal,
         logger,
         runProcess,

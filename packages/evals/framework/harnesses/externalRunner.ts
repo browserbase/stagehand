@@ -180,6 +180,11 @@ export interface RunExternalHarnessTaskInput<TRaw> {
   verifier?: ExternalHarnessVerifierConfig;
   resultContract: EvalResultContract;
   fallbackErrorMessage: string;
+  /**
+   * The step (or turn) budget the session was started with, emitted as the
+   * `step_budget` metric so rows can be grouped by it in Braintrust.
+   */
+  stepBudget?: number;
   /** Harness-specific result parser; defaults to the strict parseEvalResult. */
   parseResult?: (raw: string) => ParsedEvalResult;
   runSession: (prompt: string) => Promise<ExternalHarnessSessionOutcome<TRaw>>;
@@ -199,6 +204,7 @@ export async function runExternalHarnessTask<TRaw>({
   verifier,
   resultContract,
   fallbackErrorMessage,
+  stepBudget,
   parseResult,
   runSession,
   toTrajectory,
@@ -268,7 +274,10 @@ export async function runExternalHarnessTask<TRaw>({
     [`${prefix}Status`]: outcome.status,
     ...(sanitizedStopReason && { [`${prefix}StopReason`]: sanitizedStopReason }),
     logs: logger.getLogs(),
-    metrics: buildNormalizedHarnessMetrics(outcome),
+    metrics: {
+      ...buildNormalizedHarnessMetrics(outcome),
+      ...(stepBudget !== undefined && { step_budget: metricValue(stepBudget) }),
+    },
   };
   if (!verifier) return baseResult;
 

@@ -21,6 +21,7 @@ import {
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
 import { isOpenAiModel, readReasoningSummary } from "./reasoningSummary.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -91,6 +92,11 @@ export async function runDeepagentsAgent({
   spawn,
   verifier,
 }: DeepagentsRunnerInput): Promise<TaskResult> {
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_DEEPAGENTS_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "deepagents",
     plan,
@@ -99,6 +105,7 @@ export async function runDeepagentsAgent({
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "Deep Agents did not report success",
+    stepBudget: maxToolSteps,
     runSession: async (prompt) => {
       const sessionResult = await runDeepagentsSession({
         prompt,
@@ -112,8 +119,8 @@ export async function runDeepagentsAgent({
           ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
           systemPrompt: buildDeepagentsSystemPrompt(toolAdapter?.toolSurface),
           ...(isOpenAiModel(model) && { reasoningSummary: readReasoningSummary() }),
-          recursionLimit: readDeepagentsRecursionLimit(),
-          maxToolSteps: readDeepagentsMaxToolSteps(),
+          recursionLimit: readDeepagentsRecursionLimit(maxToolSteps),
+          maxToolSteps,
         },
         onToolResult: (_name: string, server?: string) => {
           if (server && toolAdapter?.recordObservation) toolAdapter.recordObservation();
@@ -158,18 +165,18 @@ export async function runDeepagentsAgent({
   });
 }
 
-function readDeepagentsMaxToolSteps(): number {
-  for (const key of ["EVAL_DEEPAGENTS_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
-}
-
-function readDeepagentsRecursionLimit(): number {
-  const parsed = Number.parseInt(process.env.EVAL_DEEPAGENTS_RECURSION_LIMIT ?? "", 10);
+/**
+ * LangGraph counts every model and tool node, so a run needs at least
+ * 2 × maxToolSteps + 1 recursion budget to reach the step cap before the graph
+ * gives up; 4× leaves room for the harness's own bookkeeping nodes.
+ */
+export function readDeepagentsRecursionLimit(
+  maxToolSteps: number,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const parsed = Number.parseInt(env.EVAL_DEEPAGENTS_RECURSION_LIMIT ?? "", 10);
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return Math.max(100, readDeepagentsMaxToolSteps() * 4);
+  return Math.max(100, maxToolSteps * 4);
 }
 
 function normalizeDeepagentsUsage(usage: DeepagentsTokenUsage): ExternalHarnessUsage {

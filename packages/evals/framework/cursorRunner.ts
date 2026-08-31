@@ -20,6 +20,7 @@ import {
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -80,6 +81,11 @@ export async function runCursorAgent({
     drainStepObservations: toolAdapter?.drainStepObservations,
     observedToolMatcher: toolAdapter?.observedToolMatcher,
   };
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_CURSOR_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "cursor",
     plan,
@@ -88,6 +94,7 @@ export async function runCursorAgent({
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "Cursor did not report success",
+    stepBudget: maxToolSteps,
     // Cursor often emits the result as fenced/prose JSON without the marker;
     // the lenient retry only runs after the strict parse fails.
     parseResult: parseCursorResult,
@@ -113,7 +120,7 @@ export async function runCursorAgent({
           trust: true,
           approveMcps: true,
         },
-        maxToolSteps: readCursorMaxToolSteps(),
+        maxToolSteps,
         onToolResult: toolAdapter?.onToolResult
           ? (name) => toolAdapter.onToolResult!(name)
           : undefined,
@@ -162,14 +169,6 @@ export async function runCursorAgent({
 
 export function readCursorSandbox(value: unknown): "enabled" | "disabled" | undefined {
   return value === "enabled" || value === "disabled" ? value : undefined;
-}
-
-export function readCursorMaxToolSteps(): number {
-  for (const key of ["EVAL_CURSOR_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
 }
 
 function buildCursorMetrics(

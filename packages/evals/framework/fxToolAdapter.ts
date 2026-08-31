@@ -11,6 +11,7 @@ import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
+import { resolveStepBudget } from "./stepBudget.js";
 
 export interface FxToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -311,7 +312,7 @@ export async function prepareFxToolAdapter(
       ),
       writeJson(path.join(fxHome, "settings.json"), buildFxSettings(mcpToolNames)),
       writeJson(path.join(workspace, ".fx.json"), {
-        max_agent_steps: readFxMaxAgentSteps(),
+        max_agent_steps: readFxMaxAgentSteps(input.plan.dataset),
         max_tool_result_bytes: 262_144,
       }),
       fsp.writeFile(path.join(workspace, "AGENTS.md"), agentsMarkdown),
@@ -438,12 +439,8 @@ function stringifyUnknown(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function readFxMaxAgentSteps(): number {
-  for (const key of ["EVAL_FX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 60;
+export function readFxMaxAgentSteps(dataset: ExternalHarnessTaskPlan["dataset"]): number {
+  return resolveStepBudget({ harnessEnvKey: "EVAL_FX_MAX_STEPS", dataset, harnessDefault: 60 });
 }
 
 function boundedCaptureEvidence(

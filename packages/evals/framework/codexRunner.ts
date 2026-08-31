@@ -27,6 +27,7 @@ import {
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
 import { readReasoningSummary } from "./reasoningSummary.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -80,6 +81,12 @@ export async function runCodexAgent({
     observedToolMatcher:
       "observedToolMatcher" in toolAdapter ? toolAdapter.observedToolMatcher : undefined,
   };
+  // Codex budgets individual tool steps; 100 ≈ 50 Claude turns keeps the harnesses comparable.
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_CODEX_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 100,
+  });
   return runExternalHarnessTask({
     harness: "codex",
     plan,
@@ -88,6 +95,7 @@ export async function runCodexAgent({
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "Codex did not report success",
+    stepBudget: maxToolSteps,
     runSession: async (prompt) => {
       const sessionResult = await runCodexSession({
         prompt,
@@ -109,7 +117,7 @@ export async function runCodexAgent({
           skipGitRepoCheck: true,
         },
         outputSchema: EVAL_RESULT_SCHEMA,
-        maxToolSteps: readCodexMaxToolSteps(),
+        maxToolSteps,
         onToolStep:
           toolAdapter && "recordObservation" in toolAdapter
             ? toolAdapter.recordObservation
@@ -189,17 +197,6 @@ async function loadEvalCodexSdk(
     rawReasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
     extraConfig: buildEvalCodexConfig(extraConfig),
   });
-}
-
-function readCodexMaxToolSteps(): number {
-  for (const key of ["EVAL_CODEX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  // Codex budgets individual tool steps while Claude budgets turns (which can
-  // span several tool calls); 100 steps ≈ 50 Claude turns keeps the harnesses
-  // roughly comparable.
-  return 100;
 }
 
 function readBooleanEnv(key: string, fallback: boolean): boolean {

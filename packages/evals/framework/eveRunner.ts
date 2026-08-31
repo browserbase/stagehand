@@ -16,6 +16,7 @@ import {
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -60,6 +61,11 @@ export async function runEveAgent({
     drainStepObservations: toolAdapter.drainStepObservations,
     observedToolMatcher: toolAdapter.observedToolMatcher,
   };
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_EVE_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "eve",
     plan,
@@ -68,6 +74,7 @@ export async function runEveAgent({
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "Eve did not report success",
+    stepBudget: maxToolSteps,
     runSession: async (prompt) => {
       const { buildEveTranscript, runEveSession, stringifyError } =
         await import("@browserbasehq/stagehand-integrations-eve-sdk");
@@ -88,7 +95,7 @@ export async function runEveAgent({
         signal,
         server,
         client,
-        maxToolSteps: readEveMaxToolSteps(),
+        maxToolSteps,
         onToolResult: (name) => {
           if (toolAdapter?.observedToolMatcher(name)) toolAdapter.recordObservation?.();
         },
@@ -144,14 +151,6 @@ async function prepareGeneratedServer(
     env: stringOnly({ ...process.env, ...toolAdapter.env }),
     readyTimeoutMs: readPositiveIntEnv("EVAL_EVE_READY_TIMEOUT_MS", 120_000),
   };
-}
-
-function readEveMaxToolSteps(): number {
-  for (const key of ["EVAL_EVE_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
 }
 
 function readPositiveIntEnv(key: string, fallback: number): number {
