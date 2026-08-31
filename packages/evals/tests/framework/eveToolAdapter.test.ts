@@ -9,6 +9,7 @@ import {
   buildEveAgentAppFiles,
   buildEveAgentDefinitionSource,
   eveToolSlug,
+  resolveEveModelContextWindowTokens,
   resolveEveModelProvider,
   writeEveAgentApp,
   writeEveAgentDefinition,
@@ -57,10 +58,28 @@ describe("Eve tool adapter helpers", () => {
   });
 
   it("builds a gateway agent definition without a first-party provider import", () => {
-    const source = buildEveAgentDefinitionSource("alibaba/qwen3.8-flash");
+    const source = buildEveAgentDefinitionSource("alibaba/qwen3.8-flash", {
+      modelContextWindowTokens: 128_000,
+    });
     expect(source).toContain('import { gateway } from "ai";');
     expect(source).toContain('gateway("alibaba/qwen3.8-flash")');
+    expect(source).toContain("modelContextWindowTokens: 128000,");
     expect(source).not.toContain("@ai-sdk/");
+  });
+
+  it("pins a context window for gateway models eve's catalog may not know", () => {
+    expect(resolveEveModelContextWindowTokens("alibaba/qwen3.8-flash", {})).toBe(128_000);
+    expect(resolveEveModelContextWindowTokens("openai/gpt-5.4-mini", {})).toBeUndefined();
+    expect(
+      resolveEveModelContextWindowTokens("openai/gpt-5.4-mini", {
+        EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS: "200000",
+      }),
+    ).toBe(200_000);
+    expect(() =>
+      resolveEveModelContextWindowTokens("alibaba/qwen3.8-flash", {
+        EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS: "lots",
+      }),
+    ).toThrow(EvalsError);
   });
 
   it("builds an agent definition with the selected model and uncapped token limits", () => {

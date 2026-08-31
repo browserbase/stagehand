@@ -126,9 +126,40 @@ export function isEveGatewayModel(model: string): boolean {
   return resolveEveModelProvider(model).factory === "gateway";
 }
 
+/**
+ * eve derives its compaction threshold from the model's context window and
+ * looks it up in its bundled AI Gateway catalog; models newer than the eve
+ * release (e.g. alibaba/qwen3.8-flash on 0.29.4) are missing there and fail
+ * to compile. `modelContextWindowTokens` bypasses the lookup. Override with
+ * EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS when a model's window is known to differ.
+ */
+export const DEFAULT_EVE_GATEWAY_CONTEXT_WINDOW_TOKENS = 128_000;
+
+export function resolveEveModelContextWindowTokens(
+  model: string,
+  env: NodeJS.ProcessEnv = process.env,
+): number | undefined {
+  const raw = env.EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS?.trim();
+  if (raw) {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new EvalsError(
+        `EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS must be a positive integer (got "${raw}").`,
+      );
+    }
+    return parsed;
+  }
+  return resolveEveModelProvider(model).factory === "gateway"
+    ? DEFAULT_EVE_GATEWAY_CONTEXT_WINDOW_TOKENS
+    : undefined;
+}
+
 export function buildEveAgentDefinitionSource(
   model: string,
-  options: { providerOptions?: Record<string, Record<string, unknown>> } = {},
+  options: {
+    providerOptions?: Record<string, Record<string, unknown>>;
+    modelContextWindowTokens?: number;
+  } = {},
 ): string {
   const provider = resolveEveModelProvider(model);
   const baseModel = `${provider.factory}(${JSON.stringify(provider.modelId)})`;
@@ -157,6 +188,9 @@ export function buildEveAgentDefinitionSource(
     "",
     "export default defineAgent({",
     `  model: ${modelExpression},`,
+    ...(options.modelContextWindowTokens !== undefined
+      ? [`  modelContextWindowTokens: ${options.modelContextWindowTokens},`]
+      : []),
     "  limits: { maxInputTokensPerSession: false, maxOutputTokensPerSession: false },",
     "});",
     "",
@@ -234,9 +268,13 @@ export async function writeEveAgentDefinition(appRoot: string, model: string): P
   const destination = path.join(appRoot, "agent", "agent.ts");
   await fsp.mkdir(path.dirname(destination), { recursive: true });
   const providerOptions = openAiReasoningProviderOptions(model);
+  const modelContextWindowTokens = resolveEveModelContextWindowTokens(model);
   await fsp.writeFile(
     destination,
-    buildEveAgentDefinitionSource(model, { ...(providerOptions && { providerOptions }) }),
+    buildEveAgentDefinitionSource(model, {
+      ...(providerOptions && { providerOptions }),
+      ...(modelContextWindowTokens !== undefined && { modelContextWindowTokens }),
+    }),
     "utf8",
   );
 }
