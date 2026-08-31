@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import math
 import os
 import shutil
 import signal
 import socket
 import sys
 import tempfile
+import urllib.request
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 if TYPE_CHECKING:
@@ -65,6 +69,8 @@ _DEFAULT_CHROME_FLAGS = (
 )
 
 _BROWSER_TOKEN = object()
+_CHROME_POLL_INTERVAL_SECONDS = 0.1
+_CHROME_REQUEST_TIMEOUT_SECONDS = 0.1
 
 
 @dataclass(frozen=True)
@@ -92,6 +98,12 @@ class ResolvedBrowserSource:
         self._closed = True
         if self._close_callback is not None:
             await self._close_callback()
+
+
+@dataclass(frozen=True)
+class _ChromeProfile:
+    path: Path
+    remove: bool
 
 
 class StagehandBrowser:
@@ -256,6 +268,20 @@ class _LocalBrowserOptions(Protocol):
     downloads_path: str | None
     accept_downloads: bool | None
     keep_alive: bool | None
+
+
+class _WaitableChromeProcess(Protocol):
+    returncode: int | None
+
+    async def wait(self) -> int: ...
+
+
+class _ChromeProcess(_WaitableChromeProcess, Protocol):
+    pid: int
+
+    def terminate(self) -> None: ...
+
+    def kill(self) -> None: ...
 
 
 async def _connect_browser(
@@ -622,60 +648,172 @@ browserbase = BrowserbaseBrowser()
 
 
 async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowserSource:
-    chrome_path = options.executable_path or _find_chrome_path()
+    _validate_local_browser_options(options)
+    chrome_path = _find_chrome_path(options.executable_path)
     port = options.port or _available_port()
-    temporary_profile = options.user_data_dir is None
-    user_data_dir = Path(options.user_data_dir or tempfile.mkdtemp(prefix="stagehand-chrome-"))
+    profile = _resolve_chrome_profile(options)
     flags = _local_browser_flags(
         options,
         port=port,
-        user_data_dir=user_data_dir,
+        user_data_dir=profile.path,
         is_ci=bool(os.environ.get("CI")),
     )
+    process: _ChromeProcess | None = None
     try:
-        process = await asyncio.create_subprocess_exec(
-            chrome_path,
-            *flags,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-            start_new_session=sys.platform != "win32",
-        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                chrome_path,
+                *flags,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                start_new_session=sys.platform != "win32",
+            )
+        except OSError as error:
+            raise RuntimeError(f"Failed to start Chrome: {error}") from error
+        await _wait_for_chrome(f"http://127.0.0.1:{port}", process)
     except BaseException:
-        if temporary_profile and options.preserve_user_data_dir is not True:
-            await asyncio.to_thread(shutil.rmtree, user_data_dir, True)
+        if process is not None:
+            await _close_local_chrome(process, profile)
+        elif profile.remove:
+            await _remove_chrome_profile(profile.path)
         raise
 
     async def close() -> None:
-        try:
-            if process.returncode is None:
-                try:
-                    if sys.platform == "win32":
-                        process.terminate()
-                    else:
-                        os.killpg(process.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                try:
-                    await asyncio.wait_for(process.wait(), timeout=3)
-                except TimeoutError:
-                    try:
-                        if sys.platform == "win32":
-                            process.kill()
-                        else:
-                            os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    await process.wait()
-        finally:
-            if temporary_profile and options.preserve_user_data_dir is not True:
-                await asyncio.to_thread(shutil.rmtree, user_data_dir, True)
+        await _close_local_chrome(process, profile)
 
     return ResolvedBrowserSource(
         cdp_url=f"http://127.0.0.1:{port}",
         keep_alive=options.keep_alive or False,
         _close_callback=close,
     )
+
+
+def _validate_local_browser_options(options: _LocalBrowserOptions) -> None:
+    if options.viewport is not None and (
+        options.viewport.width <= 0 or options.viewport.height <= 0
+    ):
+        raise ValueError("Chrome viewport dimensions must be positive integers")
+    if options.device_scale_factor is not None and (
+        not math.isfinite(options.device_scale_factor) or options.device_scale_factor <= 0
+    ):
+        raise ValueError("Chrome device scale factor must be positive and finite")
+    if options.proxy is not None:
+        if not options.proxy.server:
+            raise ValueError("Chrome proxy server is required")
+        if options.proxy.username is not None or options.proxy.password is not None:
+            raise NotImplementedError("Authenticated local browser proxies are not implemented yet")
+
+
+def _resolve_chrome_profile(options: _LocalBrowserOptions) -> _ChromeProfile:
+    if options.user_data_dir is not None:
+        path = Path(options.user_data_dir)
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        return _ChromeProfile(path=path, remove=False)
+    path = Path(tempfile.mkdtemp(prefix="stagehand-chrome-"))
+    return _ChromeProfile(path=path, remove=options.preserve_user_data_dir is not True)
+
+
+async def _wait_for_chrome(
+    cdp_url: str,
+    process: _WaitableChromeProcess,
+) -> None:
+    exited = asyncio.create_task(process.wait())
+    ready: asyncio.Task[bool] | None = None
+    delay: asyncio.Task[None] | None = None
+    try:
+        while True:
+            if process.returncode is not None:
+                raise _chrome_exited_before_ready_error(process.returncode)
+
+            ready = asyncio.create_task(_chrome_debugging_ready(cdp_url))
+            done, _ = await asyncio.wait((ready, exited), return_when=asyncio.FIRST_COMPLETED)
+            if exited in done:
+                ready.cancel()
+                with suppress(asyncio.CancelledError):
+                    await ready
+                raise _chrome_exited_before_ready_error(exited.result())
+            if ready.result():
+                if process.returncode is not None or exited.done():
+                    raise _chrome_exited_before_ready_error(process.returncode)
+                return
+
+            delay = asyncio.create_task(asyncio.sleep(_CHROME_POLL_INTERVAL_SECONDS))
+            done, _ = await asyncio.wait((delay, exited), return_when=asyncio.FIRST_COMPLETED)
+            if exited in done:
+                delay.cancel()
+                with suppress(asyncio.CancelledError):
+                    await delay
+                raise _chrome_exited_before_ready_error(exited.result())
+    finally:
+        for pending in (ready, delay):
+            if pending is not None and not pending.done():
+                pending.cancel()
+                with suppress(asyncio.CancelledError):
+                    await pending
+        if not exited.done():
+            exited.cancel()
+            with suppress(asyncio.CancelledError):
+                await exited
+
+
+async def _chrome_debugging_ready(cdp_url: str) -> bool:
+    try:
+        version = await asyncio.to_thread(_read_chrome_version, cdp_url)
+    except Exception:
+        return False
+    debugger_url = version.get("webSocketDebuggerUrl")
+    return isinstance(debugger_url, str) and bool(debugger_url.strip())
+
+
+def _read_chrome_version(cdp_url: str) -> dict[str, object]:
+    url = f"{cdp_url.rstrip('/')}/json/version"
+    with urllib.request.urlopen(  # noqa: S310 -- The launcher owns this loopback URL.
+        url,
+        timeout=_CHROME_REQUEST_TIMEOUT_SECONDS,
+    ) as response:
+        value: Any = json.load(response)
+    if not isinstance(value, dict):
+        raise RuntimeError("Chrome version endpoint returned invalid JSON")
+    return value
+
+
+def _chrome_exited_before_ready_error(returncode: int | None) -> RuntimeError:
+    detail = "unknown" if returncode is None else str(returncode)
+    return RuntimeError(f"Chrome exited before its debugging port was ready with code {detail}")
+
+
+async def _close_local_chrome(
+    process: _ChromeProcess,
+    profile: _ChromeProfile,
+) -> None:
+    try:
+        if process.returncode is None:
+            try:
+                if sys.platform == "win32":
+                    process.terminate()
+                else:
+                    os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                await asyncio.wait_for(process.wait(), timeout=3)
+            except TimeoutError:
+                try:
+                    if sys.platform == "win32":
+                        process.kill()
+                    else:
+                        os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                await process.wait()
+    finally:
+        if profile.remove:
+            await _remove_chrome_profile(profile.path)
+
+
+async def _remove_chrome_profile(path: Path) -> None:
+    await asyncio.to_thread(shutil.rmtree, path, True)
 
 
 def _local_browser_flags(
@@ -729,29 +867,52 @@ def _local_browser_flags(
     ]
 
 
-def _find_chrome_path() -> str:
-    configured = os.environ.get("CHROME_PATH")
-    if configured and Path(configured).is_file():
+def _find_chrome_path(
+    explicit_path: str | None = None,
+    *,
+    platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    which: Callable[[str], str | None] = shutil.which,
+    is_executable: Callable[[str, str], bool] | None = None,
+) -> str:
+    platform = sys.platform if platform is None else platform
+    environment = os.environ if environment is None else environment
+    is_executable = _is_executable_file if is_executable is None else is_executable
+
+    if explicit_path is not None:
+        if is_executable(explicit_path, platform):
+            return explicit_path
+        raise RuntimeError(f"Chrome executable {json.dumps(explicit_path)} does not exist")
+
+    configured = environment.get("CHROME_PATH")
+    if configured and is_executable(configured, platform):
         return configured
 
-    if sys.platform == "darwin":
+    if platform == "darwin":
         candidates = (
             "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
         )
-    elif sys.platform == "win32":
+    elif platform == "win32":
         roots = filter(
             None,
             (
-                os.environ.get("LOCALAPPDATA"),
-                os.environ.get("PROGRAMFILES"),
-                os.environ.get("PROGRAMFILES(X86)"),
+                environment.get(name)
+                for name in (
+                    "LOCALAPPDATA",
+                    "PROGRAMFILES",
+                    "PROGRAMFILES(X86)",
+                )
             ),
         )
         candidates = tuple(
-            str(Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe") for root in roots
+            str(PureWindowsPath(root) / "Google" / product / "Application" / "chrome.exe")
+            for root in roots
+            for product in ("Chrome SxS", "Chrome")
         )
-    else:
+    elif platform == "linux":
         candidates = tuple(
             path
             for name in (
@@ -760,13 +921,20 @@ def _find_chrome_path() -> str:
                 "chromium-browser",
                 "chromium",
             )
-            if (path := shutil.which(name)) is not None
+            if (path := which(name)) is not None
         )
+    else:
+        raise RuntimeError(f"Chrome launching is not supported on {platform}")
 
     for candidate in candidates:
-        if Path(candidate).is_file():
+        if is_executable(candidate, platform):
             return candidate
     raise RuntimeError("Chrome installation not found; set CHROME_PATH")
+
+
+def _is_executable_file(path: str, platform: str) -> bool:
+    candidate = Path(path)
+    return candidate.is_file() and (platform == "win32" or os.access(candidate, os.X_OK))
 
 
 def _available_port() -> int:

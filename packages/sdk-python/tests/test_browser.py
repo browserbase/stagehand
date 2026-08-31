@@ -828,10 +828,11 @@ async def test_local_browser_close_ignores_vanished_process_and_removes_profile(
     async def create_subprocess_exec(*_args: object, **_kwargs: object) -> FakeProcess:
         return FakeProcess()
 
-    monkeypatch.setattr(browser, "_find_chrome_path", lambda: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
     monkeypatch.setattr(browser, "_available_port", lambda: 9222)
     monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
     monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(browser, "_wait_for_chrome", _ready_chrome)
     monkeypatch.setattr(browser.sys, "platform", "win32")
 
     source = await _launch_local_browser(LocalBrowserLaunchOptions())
@@ -859,9 +860,10 @@ async def test_local_browser_close_preserves_non_owned_profiles(
     async def create_subprocess_exec(*_args: object, **_kwargs: object) -> FakeProcess:
         return FakeProcess()
 
-    monkeypatch.setattr(browser, "_find_chrome_path", lambda: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
     monkeypatch.setattr(browser, "_available_port", lambda: 9222)
     monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(browser, "_wait_for_chrome", _ready_chrome)
     if uses_temporary_profile:
         monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
         options = LocalBrowserLaunchOptions(preserve_user_data_dir=True)
@@ -872,6 +874,286 @@ async def test_local_browser_close_preserves_non_owned_profiles(
     await source.close()
 
     assert profile.exists()
+
+
+async def _ready_chrome(_cdp_url: str, _process: object) -> None:
+    return None
+
+
+async def test_local_browser_validation_precedes_executable_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def find_chrome(_explicit: str | None) -> str:
+        raise AssertionError("executable discovery should not run")
+
+    monkeypatch.setattr(browser, "_find_chrome_path", find_chrome)
+
+    with pytest.raises(ValueError, match="viewport dimensions"):
+        await _launch_local_browser(
+            LocalBrowserLaunchOptions(viewport=LocalViewport(width=0, height=800))
+        )
+
+
+async def test_invalid_explicit_executable_precedes_profile_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def create_profile(**_kwargs: object) -> str:
+        raise AssertionError("profile creation should not run")
+
+    monkeypatch.setattr(browser.tempfile, "mkdtemp", create_profile)
+
+    with pytest.raises(RuntimeError, match="Chrome executable.*does not exist"):
+        await _launch_local_browser(LocalBrowserLaunchOptions(executable_path="/missing/chrome"))
+
+
+async def test_spawn_failure_removes_sdk_owned_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile = tmp_path / "profile"
+    profile.mkdir()
+
+    async def create_subprocess_exec(*_args: object, **_kwargs: object) -> object:
+        raise OSError("spawn failed")
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_available_port", lambda: 9222)
+    monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+
+    with pytest.raises(RuntimeError, match="Failed to start Chrome: spawn failed"):
+        await _launch_local_browser(LocalBrowserLaunchOptions())
+
+    assert not profile.exists()
+
+
+def test_find_chrome_path_uses_explicit_then_environment() -> None:
+    def executable(path: str, _platform: str) -> bool:
+        return path in {"/explicit", "/configured"}
+
+    assert (
+        browser._find_chrome_path(
+            "/explicit",
+            platform="linux",
+            environment={"CHROME_PATH": "/configured"},
+            is_executable=executable,
+        )
+        == "/explicit"
+    )
+    assert (
+        browser._find_chrome_path(
+            platform="linux",
+            environment={"CHROME_PATH": "/configured"},
+            is_executable=executable,
+        )
+        == "/configured"
+    )
+
+
+@pytest.mark.parametrize(
+    ("platform", "environment", "expected"),
+    [
+        (
+            "darwin",
+            {},
+            [
+                "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
+                "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            ],
+        ),
+        (
+            "win32",
+            {"LOCALAPPDATA": r"C:\Users\me\AppData", "PROGRAMFILES": r"C:\Program Files"},
+            [
+                r"C:\Users\me\AppData\Google\Chrome SxS\Application\chrome.exe",
+                r"C:\Users\me\AppData\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files\Google\Chrome SxS\Application\chrome.exe",
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            ],
+        ),
+    ],
+)
+def test_find_chrome_path_checks_platform_candidates_in_order(
+    platform: str,
+    environment: dict[str, str],
+    expected: list[str],
+) -> None:
+    checked: list[str] = []
+
+    def executable(path: str, _platform: str) -> bool:
+        checked.append(path)
+        return path == expected[-1]
+
+    assert (
+        browser._find_chrome_path(
+            platform=platform,
+            environment=environment,
+            is_executable=executable,
+        )
+        == expected[-1]
+    )
+    assert checked == expected
+
+
+def test_find_chrome_path_checks_linux_candidates_in_order() -> None:
+    names: list[str] = []
+
+    def which(name: str) -> str:
+        names.append(name)
+        return f"/bin/{name}"
+
+    assert (
+        browser._find_chrome_path(
+            platform="linux",
+            environment={},
+            which=which,
+            is_executable=lambda path, _platform: path == "/bin/chromium",
+        )
+        == "/bin/chromium"
+    )
+    assert names == [
+        "google-chrome-stable",
+        "google-chrome",
+        "chromium-browser",
+        "chromium",
+    ]
+
+
+def test_find_chrome_path_rejects_unsupported_platform() -> None:
+    with pytest.raises(RuntimeError, match="not supported on freebsd"):
+        browser._find_chrome_path(
+            platform="freebsd",
+            environment={},
+            is_executable=lambda _path, _platform: False,
+        )
+
+
+async def test_launch_creates_caller_profile_before_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile = tmp_path / "nested" / "profile"
+    spawned = False
+
+    class FakeProcess:
+        returncode = 0
+        pid = 123
+
+    async def create_subprocess_exec(*_args: object, **_kwargs: object) -> FakeProcess:
+        nonlocal spawned
+        spawned = True
+        assert profile.is_dir()
+        return FakeProcess()
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_available_port", lambda: 9222)
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(browser, "_wait_for_chrome", _ready_chrome)
+
+    source = await _launch_local_browser(LocalBrowserLaunchOptions(user_data_dir=str(profile)))
+    await source.close()
+
+    assert spawned
+    assert profile.is_dir()
+
+
+async def test_wait_for_chrome_requires_debugger_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    never_exits = asyncio.Event()
+    responses = iter((False, True))
+
+    class FakeProcess:
+        returncode = None
+
+        async def wait(self) -> int:
+            await never_exits.wait()
+            return 0
+
+    async def debugging_ready(_cdp_url: str) -> bool:
+        return next(responses)
+
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(browser, "_chrome_debugging_ready", debugging_ready)
+    monkeypatch.setattr(browser.asyncio, "sleep", no_delay)
+
+    await browser._wait_for_chrome("http://127.0.0.1:9222", FakeProcess())
+
+
+async def test_wait_for_chrome_reports_early_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeProcess:
+        returncode = None
+
+        async def wait(self) -> int:
+            return 17
+
+    async def never_ready(_cdp_url: str) -> bool:
+        await asyncio.Event().wait()
+        return False
+
+    monkeypatch.setattr(browser, "_chrome_debugging_ready", never_ready)
+
+    with pytest.raises(RuntimeError, match="ready with code 17"):
+        await browser._wait_for_chrome("http://127.0.0.1:9222", FakeProcess())
+
+
+@pytest.mark.parametrize(
+    ("version", "ready"),
+    [
+        ({}, False),
+        ({"webSocketDebuggerUrl": "  "}, False),
+        ({"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/browser/id"}, True),
+    ],
+)
+async def test_chrome_debugging_ready_requires_nonempty_websocket_url(
+    monkeypatch: pytest.MonkeyPatch,
+    version: dict[str, object],
+    ready: bool,
+) -> None:
+    monkeypatch.setattr(browser, "_read_chrome_version", lambda _url: version)
+    assert await browser._chrome_debugging_ready("http://127.0.0.1:9222") is ready
+
+
+async def test_launch_cancellation_closes_process_and_removes_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile = tmp_path / "profile"
+    closed: list[Path] = []
+
+    class FakeProcess:
+        returncode = None
+        pid = 123
+
+    async def create_subprocess_exec(*_args: object, **_kwargs: object) -> FakeProcess:
+        return FakeProcess()
+
+    async def cancel_wait(_cdp_url: str, _process: object) -> None:
+        raise asyncio.CancelledError
+
+    async def close_process(_process: object, chrome_profile: object) -> None:
+        closed.append(cast(browser._ChromeProfile, chrome_profile).path)
+        profile.rmdir()
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_available_port", lambda: 9222)
+    monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(browser, "_wait_for_chrome", cancel_wait)
+    monkeypatch.setattr(browser, "_close_local_chrome", close_process)
+    profile.mkdir()
+
+    with pytest.raises(asyncio.CancelledError):
+        await _launch_local_browser(LocalBrowserLaunchOptions())
+
+    assert closed == [profile]
+    assert not profile.exists()
 
 
 def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: Path) -> None:
