@@ -7,6 +7,7 @@ import { getCoreTool, listCoreRunnableTools, listCoreTools } from "../../core/to
 import {
   buildStagehandFacadeEnv,
   buildStagehandFacadeLegacyServerSpec,
+  evalBrowserbaseSessionTimeoutSeconds,
   buildStagehandFacadeServerSpec,
   StagehandFacadeLegacyTool,
   StagehandFacadeTool,
@@ -120,6 +121,23 @@ describe("stagehand facade tool surface", () => {
     expect(legacy.env).toEqual(playwright.env);
     expect(legacy.args).toEqual([...playwright.args, "--surface=legacy"]);
     expect(playwright.args).not.toContain("--surface=legacy");
+  });
+
+  it("gives Browserbase facade sessions an explicit timeout every harness inherits", () => {
+    expect(buildStagehandFacadeEnv("BROWSERBASE", {})).toMatchObject({
+      STAGEHAND_BROWSER: "browserbase",
+      STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "3600",
+    });
+    expect(
+      buildStagehandFacadeEnv("BROWSERBASE", { EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "900" }),
+    ).toMatchObject({ STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "900" });
+    expect(buildStagehandFacadeEnv("LOCAL", {})).not.toHaveProperty(
+      "STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS",
+    );
+    expect(evalBrowserbaseSessionTimeoutSeconds(" 21600 ")).toBe(21_600);
+    for (const invalid of ["0", "-5", "1.5", "abc", "21601"]) {
+      expect(() => evalBrowserbaseSessionTimeoutSeconds(invalid)).toThrow(StagehandFacadeToolError);
+    }
   });
 
   it("uses typed, sanitized errors for invalid lifecycle operations", async () => {
@@ -316,6 +334,7 @@ describe("stagehand facade tool surface", () => {
     });
     expect(buildStagehandFacadeEnv("BROWSERBASE")).toEqual({
       STAGEHAND_BROWSER: "browserbase",
+      STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "3600",
       STAGEHAND_MODEL_API_KEY: "model-secret",
       BROWSERBASE_PROJECT_ID: "project-id",
     });

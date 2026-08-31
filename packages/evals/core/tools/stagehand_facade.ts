@@ -86,13 +86,44 @@ class StagehandFacadeMountSession implements CoreSession {
   }
 }
 
+/**
+ * Browserbase's project default session timeout (15 min) is shorter than many
+ * benchmark tasks; the facade session must outlive the agent, so every harness
+ * gets an explicit one. Seconds, mirroring the Browserbase API.
+ */
+export const DEFAULT_EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS = 3600;
+const MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS = 21_600;
+
 export function buildStagehandFacadeEnv(
   environment: ToolStartInput["environment"],
+  env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
   return {
     ...buildAllowlistedEnv(),
     STAGEHAND_BROWSER: environment === "BROWSERBASE" ? "browserbase" : "local",
+    ...(environment === "BROWSERBASE" && {
+      STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: String(
+        evalBrowserbaseSessionTimeoutSeconds(env.EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS),
+      ),
+    }),
   };
+}
+
+export function evalBrowserbaseSessionTimeoutSeconds(raw: string | undefined): number {
+  const value = raw?.trim();
+  if (!value) return DEFAULT_EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS;
+  const parsed = Number(value);
+  if (
+    !/^\d+$/u.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS
+  ) {
+    throw new StagehandFacadeToolError(
+      `EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS must be a positive integer of at most ${MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS} seconds (got "${value}").`,
+    );
+  }
+  return parsed;
 }
 
 export function buildStagehandFacadeServerSpec(environment: ToolStartInput["environment"]): {

@@ -11,7 +11,7 @@ import {
   NO_HYDRATED_SNAPSHOT_ERROR,
   STALE_SNAPSHOT_ID_ERROR,
 } from "../src/facade/contract.js";
-import { stagehandFacadeConfigFromEnv } from "../src/facade/config.js";
+import { StagehandFacadeConfigError, stagehandFacadeConfigFromEnv } from "../src/facade/config.js";
 
 describe("Stagehand facade contract", () => {
   it("defaults local browser launches to headed mode", () => {
@@ -19,6 +19,28 @@ describe("Stagehand facade contract", () => {
       type: "local",
       launchOptions: { headless: false },
     });
+  });
+
+  it("creates Browserbase sessions with an explicit timeout and no keep-alive", () => {
+    const env = { BROWSERBASE_API_KEY: "bb-key", BROWSERBASE_PROJECT_ID: "proj" };
+    expect(stagehandFacadeConfigFromEnv(env).browser).toStrictEqual({
+      type: "browserbase",
+      launchOptions: { apiKey: "bb-key", projectId: "proj", timeout: 3600, keepAlive: false },
+    });
+    expect(
+      stagehandFacadeConfigFromEnv({
+        ...env,
+        STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "21600",
+      }).browser.launchOptions,
+    ).toMatchObject({ timeout: 21_600 });
+    for (const invalid of ["0", "-1", "90.5", "soon", "21601"]) {
+      expect(() =>
+        stagehandFacadeConfigFromEnv({
+          ...env,
+          STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: invalid,
+        }),
+      ).toThrow(StagehandFacadeConfigError);
+    }
   });
 
   it("pins the three tool names and descriptions", () => {

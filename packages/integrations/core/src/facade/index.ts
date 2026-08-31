@@ -38,6 +38,8 @@ export {
   type StagehandFacadeToolsOptions,
 } from "./tools.js";
 export {
+  DEFAULT_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
+  MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
   StagehandFacadeConfigError,
   stagehandFacadeConfigFromEnv,
   type StagehandFacadeConfig,

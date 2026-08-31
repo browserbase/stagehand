@@ -9,6 +9,11 @@ export class StagehandFacadeConfigError extends Error {
   override readonly name = "StagehandFacadeConfigError";
 }
 
+/** Browserbase's project default is 15 minutes, shorter than most agent tasks. */
+export const DEFAULT_BROWSERBASE_SESSION_TIMEOUT_SECONDS = 3600;
+/** Browserbase rejects longer sessions (6 hours). */
+export const MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS = 21_600;
+
 export type StagehandFacadeConfig = {
   browser:
     | { type: "local"; launchOptions: LocalBrowserLaunchOptions }
@@ -34,6 +39,9 @@ export function stagehandFacadeConfigFromEnv(
       'BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".',
     );
   }
+  const sessionTimeoutSeconds = browserbaseSessionTimeoutSeconds(
+    env.STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
+  );
 
   const explicitModelName = nonEmpty(env.STAGEHAND_MODEL_NAME);
   const explicitModelApiKey = nonEmpty(env.STAGEHAND_MODEL_API_KEY);
@@ -77,11 +85,31 @@ export function stagehandFacadeConfigFromEnv(
             launchOptions: {
               apiKey: browserbaseApiKey!,
               ...(browserbaseProjectId ? { projectId: browserbaseProjectId } : {}),
+              timeout: sessionTimeoutSeconds,
+              // The facade owns the session for exactly one task; nothing reconnects later.
+              keepAlive: false,
             },
           }
         : { type: "local", launchOptions: { headless: false } },
     stagehand,
   };
+}
+
+function browserbaseSessionTimeoutSeconds(raw: string | undefined): number {
+  const value = nonEmpty(raw);
+  if (value === undefined) return DEFAULT_BROWSERBASE_SESSION_TIMEOUT_SECONDS;
+  const parsed = Number(value);
+  if (
+    !/^\d+$/u.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS
+  ) {
+    throw new StagehandFacadeConfigError(
+      `STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS must be a positive integer of at most ${MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS} seconds (got "${value}").`,
+    );
+  }
+  return parsed;
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
