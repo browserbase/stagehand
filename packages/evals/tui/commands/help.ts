@@ -58,6 +58,7 @@ export function printRunHelp(): void {
       "Benchmark suite shorthand",
     ),
     row(cyan("b:webtailbench"), "WebTailBench benchmark shorthand"),
+    row(cyan("b:hardbenchmark"), "HardBenchmark (WTB+OM2W residual hard core) shorthand"),
     "",
     `  ${bold("Options:")}`,
     "",
