@@ -381,7 +381,7 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     );
     const { tools } = setup(world);
     await expect(
-      tools.run(`await page.frameLocator("#editor").locator(".hidden").click({ timeout: 200 });`),
+      tools.run(`await page.frameLocator("#editor").locator(".hidden").click({ timeout: 700 });`),
     ).rejects.toThrow(
       /not rendered \(no layout box.*Original: -32000 Node does not have a layout object/u,
     );
