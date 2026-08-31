@@ -104,7 +104,9 @@ describe("pi runner", () => {
       cwd: "/tmp/pi-runner",
       customTools: [customTool],
     });
-    expect(String(options?.systemPrompt)).toContain("Do not edit repository files");
+    expect(options?.systemPrompt).toBeUndefined();
+    expect(String(options?.appendSystemPrompt)).toContain("Do not edit repository files");
+    expect(options?.thinkingLevel).toBe("medium");
   });
 
   it("returns a failed task result for SDK failures", async () => {

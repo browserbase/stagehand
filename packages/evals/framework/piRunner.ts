@@ -66,7 +66,9 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
         signal,
         session: {
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
-          systemPrompt:
+          // Appended to pi's stock prompt (same shape as claude_code's
+          // preset+append); replacing the stock prompt made the agent quit early.
+          appendSystemPrompt:
             "You are being evaluated. Do not edit repository files. Complete the browser task with the provided browser tools and emit the requested EVAL_RESULT line.",
           maxTurns: readPiMaxTurns(),
           ...(process.env.EVAL_PI_THINKING && {

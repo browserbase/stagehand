@@ -31,18 +31,34 @@ export type PiAgentSessionLike = {
     state: { errorMessage?: string };
   };
 };
+/**
+ * Reasoning stays on by default. With thinking off, the agent was observed
+ * to take the first plausible answer instead of planning around obstacles.
+ */
+export const DEFAULT_PI_THINKING_LEVEL = "medium";
+
 export type PiSdk = {
   createSession(options: {
     model: string;
     cwd?: string;
     systemPrompt?: string;
+    appendSystemPrompt?: string;
     thinkingLevel?: string;
     customTools: PiToolDefinition[];
   }): Promise<PiAgentSessionLike>;
 };
 export type PiSessionConfig = {
   cwd?: string;
+  /**
+   * Replaces pi's stock system prompt entirely. Prefer `appendSystemPrompt`:
+   * the stock prompt carries the agent's persistence/verification framing,
+   * and replacing it with a two-line brief was observed to make the agent
+   * stop early and report partial results.
+   */
   systemPrompt?: string;
+  /** Appended after pi's stock system prompt (the claude_code preset+append shape). */
+  appendSystemPrompt?: string;
+  /** Defaults to "medium" — reasoning on, like every other harness. */
   thinkingLevel?: string;
   maxTurns?: number;
   customTools?: PiToolDefinition[];
@@ -114,10 +130,11 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
           getPrompts: () => ({ prompts: [], diagnostics: [] }),
           getThemes: () => ({ themes: [], diagnostics: [] }),
           getAgentsFiles: () => ({ agentsFiles: [] }),
-          getSystemPrompt: () =>
-            sessionOptions.systemPrompt ?? "You are a browser automation agent under evaluation.",
+          // undefined keeps pi's stock system prompt; a custom prompt replaces it.
+          getSystemPrompt: () => sessionOptions.systemPrompt,
           getSystemPromptSource: () => undefined,
-          getAppendSystemPrompt: () => [],
+          getAppendSystemPrompt: () =>
+            sessionOptions.appendSystemPrompt ? [sessionOptions.appendSystemPrompt] : [],
           getAppendSystemPromptSources: () => [],
           extendResources: () => {},
           reload: async () => {},
@@ -128,7 +145,7 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
           model: resolved.model,
           thinkingLevel: (sessionOptions.thinkingLevel ??
             resolved.thinkingLevel ??
-            "off") as CreateAgentSessionOptions["thinkingLevel"],
+            DEFAULT_PI_THINKING_LEVEL) as CreateAgentSessionOptions["thinkingLevel"],
           resourceLoader,
           sessionManager: pi.SessionManager.inMemory(cwd),
           settingsManager,
@@ -187,7 +204,10 @@ export async function runPiSession(input: {
       model: input.model,
       ...(input.session.cwd && { cwd: input.session.cwd }),
       ...(input.session.systemPrompt && { systemPrompt: input.session.systemPrompt }),
-      ...(input.session.thinkingLevel && { thinkingLevel: input.session.thinkingLevel }),
+      ...(input.session.appendSystemPrompt && {
+        appendSystemPrompt: input.session.appendSystemPrompt,
+      }),
+      thinkingLevel: input.session.thinkingLevel ?? DEFAULT_PI_THINKING_LEVEL,
       customTools,
     });
     piSession.agent.shouldStopAfterTurn = () => turns >= maxTurns;

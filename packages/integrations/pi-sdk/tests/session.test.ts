@@ -134,9 +134,38 @@ describe("pi SDK session", () => {
     expect(fake.createOptions).toMatchObject({
       cwd: "/tmp/pi-test",
       systemPrompt: "system",
+      thinkingLevel: "medium",
       customTools: [customTool],
     });
     expect(fake.disposeCount).toBe(1);
+  });
+
+  it("keeps pi's stock system prompt and appends evaluation guidance by default", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { appendSystemPrompt: "You are being evaluated." },
+    });
+    expect(fake.createOptions).toMatchObject({
+      appendSystemPrompt: "You are being evaluated.",
+      thinkingLevel: "medium",
+    });
+    expect(fake.createOptions).not.toHaveProperty("systemPrompt");
+  });
+
+  it("honors an explicit thinking level", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { thinkingLevel: "off" },
+    });
+    expect(fake.createOptions).toMatchObject({ thinkingLevel: "off" });
   });
 
   it("stops at the turn budget", async () => {
