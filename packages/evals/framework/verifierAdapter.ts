@@ -21,6 +21,37 @@ import { RubricCache } from "./rubricCache.js";
 import type { TaskResult } from "./types.js";
 import { applyVerdictGates, resolveRequireGrounding, type VerdictGates } from "./verifierGates.js";
 
+/**
+ * What scores/result.json holds: the judge's EvaluationResult shape with the
+ * gated verdict at the top level, so a reader of result.json alone sees the
+ * same outcome as the Braintrust row. The judge's untouched verdict is kept
+ * under `judge` (and as `judgeOutcomeSuccess` / `processScoreLenient`).
+ */
+export interface PersistedEvaluationResult extends EvaluationResult {
+  judgeOutcomeSuccess: boolean;
+  outcomeGates: VerdictGates["outcomeGates"];
+  processScoreStrict: number | undefined;
+  processScoreLenient: number | undefined;
+  judge: EvaluationResult;
+}
+
+export function buildPersistedEvaluationResult(
+  evaluation: EvaluationResult,
+  gates: VerdictGates,
+): PersistedEvaluationResult {
+  return {
+    ...evaluation,
+    outcomeSuccess: gates.outcomeSuccess,
+    processScore: gates.processScore,
+    ...(gates.perCriterion && { perCriterion: gates.perCriterion }),
+    judgeOutcomeSuccess: gates.judgeOutcomeSuccess,
+    outcomeGates: gates.outcomeGates,
+    processScoreStrict: gates.processScoreStrict,
+    processScoreLenient: gates.processScoreLenient,
+    judge: evaluation,
+  };
+}
+
 const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
 /**
@@ -281,7 +312,7 @@ export async function gradeExternalTrajectory({
     const { directory: trajectoryDir, persisted } = await persistAdapterTrajectory({
       trajectory: hydratedTrajectory,
       taskSpec: hydratedSpec,
-      evaluationResult,
+      evaluationResult: buildPersistedEvaluationResult(evaluationResult, gates),
       outputRoot: verifier.trajectoryRoot,
       runId: verifier.runId,
     });

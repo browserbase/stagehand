@@ -5,6 +5,11 @@
  * and returns an EvaluationResult. This command reads the on-disk layout written by
  * `TrajectoryRecorder.persist()` and feeds it through V3Evaluator.verify().
  *
+ * The judge's verdict is then passed through the same deterministic gates the
+ * live run applies (see verifierGates.ts), so the offline result matches what
+ * the row would have scored. The facade gate (`no_browser_use`) needs the live
+ * tool matcher and is not applied offline.
+ *
  * Output: writes a new result file under `scores/result_<label>.json`.
  */
 import fs from "node:fs/promises";
@@ -18,6 +23,11 @@ import {
   type AvailableModel,
 } from "stagehand-v3";
 
+import {
+  buildPersistedEvaluationResult,
+  type PersistedEvaluationResult,
+} from "../../framework/verifierAdapter.js";
+import { applyVerdictGates, resolveRequireGrounding } from "../../framework/verifierGates.js";
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 
 export interface VerifyOptions {
@@ -143,8 +153,16 @@ export async function handleVerify(args: string[]): Promise<void> {
     );
   }
   const startMs = Date.now();
-  const result = await evaluator.verify(trajectory);
+  const judgeResult = await evaluator.verify(trajectory);
   const elapsedMs = Date.now() - startMs;
+  const rubricItemCount = trajectory.task.precomputedRubric?.items.length;
+  const gates = applyVerdictGates({
+    evaluation: judgeResult,
+    trajectory,
+    requireGrounding: resolveRequireGrounding("", Boolean(trajectory.task.precomputedRubric)),
+    ...(rubricItemCount !== undefined && { rubricItemCount }),
+  });
+  const result = buildPersistedEvaluationResult(judgeResult, gates);
 
   if (parsed.json) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -154,10 +172,7 @@ export async function handleVerify(args: string[]): Promise<void> {
   // ── Human summary ──────────────────────────────────────────────────────
   console.log(`  ${green("✓")} verified in ${(elapsedMs / 1000).toFixed(1)}s`);
   console.log();
-  const processScore = result.processScore === undefined ? "n/a" : result.processScore.toFixed(3);
-  console.log(
-    `${bold("Result")}  outcomeSuccess=${result.outcomeSuccess}  processScore=${processScore}`,
-  );
+  console.log(formatVerdictLine(result));
   const perCriterion = result.perCriterion ?? [];
   const evidenceInsufficient = result.evidenceInsufficient ?? [];
   console.log(
@@ -208,6 +223,25 @@ export async function handleVerify(args: string[]): Promise<void> {
   await fs.writeFile(outPath, JSON.stringify(result, null, 2));
   console.log();
   console.log(`${green("✓")} wrote ${cyan(path.relative(process.cwd(), outPath))}`);
+}
+
+/** Gated verdict first, with the judge's own verdict beside it when they differ. */
+export function formatVerdictLine(
+  result: Pick<
+    PersistedEvaluationResult,
+    | "outcomeSuccess"
+    | "judgeOutcomeSuccess"
+    | "outcomeGates"
+    | "processScore"
+    | "processScoreLenient"
+  >,
+): string {
+  const score = (value: number | undefined) => (value === undefined ? "n/a" : value.toFixed(3));
+  const gated = result.outcomeGates.length > 0;
+  const judge = gated
+    ? `  ${yellow(`judge=${result.judgeOutcomeSuccess} gated=${result.outcomeGates.join(",")}`)}`
+    : `  ${dim(`judge=${result.judgeOutcomeSuccess}`)}`;
+  return `${bold("Result")}  outcomeSuccess=${result.outcomeSuccess}${judge}  processScore=${score(result.processScore)} ${dim(`(lenient=${score(result.processScoreLenient)})`)}`;
 }
 
 async function assertTrajectoryDir(dir: string): Promise<void> {
