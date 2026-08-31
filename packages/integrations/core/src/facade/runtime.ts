@@ -2107,6 +2107,13 @@ export async function createPlaywrightCompatRuntime(
         "use page.screenshot to inspect the frame visually",
       );
     }
+
+    getAttribute(): never {
+      return frameUnsupported(
+        "locator.getAttribute",
+        "attributes are not readable across the frame boundary; use the snapshot tool (it lists the frame's elements with roles and names) or inputValue()/textContent()",
+      );
+    }
   }
 
   const frameLocatorProxy = (locator: CompatFrameLocator): CompatFrameLocator =>

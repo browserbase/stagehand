@@ -389,6 +389,11 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     await expect(
       tools.run(`await page.frameLocator("#editor").locator("div").evaluate(() => 1);`),
     ).rejects.toThrow(/locator\.evaluate is not supported inside frameLocator\(\)/u);
+    await expect(
+      tools.run(`await page.frameLocator("#editor").locator("input").getAttribute("placeholder");`),
+    ).rejects.toThrow(
+      /locator\.getAttribute is not supported inside frameLocator\(\).*snapshot tool/u,
+    );
     await expect(tools.run(`page.frameLocator("#editor").nth(2);`)).rejects.toThrow(
       /nth is not supported inside frameLocator/u,
     );
