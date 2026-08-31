@@ -23,6 +23,7 @@ import type { Harness } from "../../framework/benchTypes.js";
 import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
 import {
   armsOverLimit,
+  armsWithPassesWithoutBrowserUse,
   armsWithUngradedRuns,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
@@ -256,9 +257,13 @@ export async function runCommand(
         for (const arm of arms) {
           const ungradedSuffix =
             arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
+          const noBrowserSuffix =
+            arm.passesWithoutBrowserUse > 0
+              ? `, ${arm.passesWithoutBrowserUse} passed without any browser tool call`
+              : "";
           console.log(
             dim(
-              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}`,
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}${noBrowserSuffix}`,
             ),
           );
         }
@@ -277,7 +282,15 @@ export async function runCommand(
               `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
             );
           }
-          if (over.length > 0 || ungraded.length > 0) {
+          // A pass the agent reached without the browser surface is not a
+          // browser-benchmark pass, whatever the rubric said.
+          const noBrowser = armsWithPassesWithoutBrowserUse(arms);
+          for (const arm of noBrowser) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.passesWithoutBrowserUse} passes without any browser tool call`,
+            );
+          }
+          if (over.length > 0 || ungraded.length > 0 || noBrowser.length > 0) {
             process.exitCode = 1;
           }
         }
