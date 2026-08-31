@@ -113,4 +113,86 @@ describe("gradeExternalTrajectory", () => {
     expect(result._success).toBe(true);
     expect(result.processScore).toBe(0.95);
   });
+
+  it("surfaces the judge verdict, gate list and gate metrics on the result", async () => {
+    const result = await grade({ metrics: { harness_total_tokens: { count: 1, value: 10 } } });
+
+    expect(result.judgeOutcomeSuccess).toBe(true);
+    expect(result.outcomeGates).toEqual([]);
+    expect(result.processScoreLenient).toBe(0.92);
+    expect(result.processScoreStrict).toBe(0.92);
+    expect(result.scoringIncomplete).toBe(true);
+    const metrics = result.metrics as Record<string, { count: number; value: number }>;
+    expect(metrics.harness_total_tokens).toEqual({ count: 1, value: 10 });
+    expect(metrics.outcome_gated).toEqual({ count: 1, value: 0 });
+    expect(metrics.scoring_incomplete).toEqual({ count: 1, value: 1 });
+    expect(metrics.answer_grounded).toBeUndefined();
+  });
+
+  it("gates a judge pass that never touched the browser and fails _success", async () => {
+    const result = await gradeExternalTrajectory({
+      buildTrajectory: () =>
+        ({
+          ...trajectory,
+          steps: [
+            { actionName: "web_fetch", actionArgs: {}, toolOutput: { ok: true, result: "" } },
+          ],
+        }) as unknown as Trajectory,
+      verifier: { v3: {} as never, taskSpec, dataset: "test" },
+      baseResult: { _success: true },
+      errorMessage: "agent reported failure",
+      category: "fx",
+      logger: new EvalLogger(false),
+      isFacadeTool: (name) => name.startsWith("stagehand"),
+    });
+
+    expect(result.judgeOutcomeSuccess).toBe(true);
+    expect(result.outcomeSuccess).toBe(false);
+    expect(result.outcomeGates).toEqual(["no_browser_use"]);
+    expect(result._success).toBe(false);
+    expect(result.error).toBe("agent reported failure");
+    expect((result.metrics as Record<string, { value: number }>).outcome_gated.value).toBe(1);
+  });
+
+  it("gates an ungrounded numeric answer when the dataset ships precomputed rubrics", async () => {
+    const searchOnly = {
+      ...trajectory,
+      finalAnswer: "The seat costs SGD 5.",
+      steps: [
+        {
+          actionName: "stagehand__run",
+          actionArgs: { code: "await page.goto('https://www.google.com/search?q=seat')" },
+          probeEvidence: { url: "https://www.google.com/search?q=seat" },
+          toolOutput: { ok: true, result: "AirAsia seat SGD 5" },
+        },
+      ],
+    } as unknown as Trajectory;
+    const run = (dataset: string) =>
+      gradeExternalTrajectory({
+        buildTrajectory: () => searchOnly,
+        verifier: { v3: {} as never, taskSpec, dataset },
+        baseResult: { _success: true },
+        errorMessage: "agent reported failure",
+        category: "eve",
+        logger: new EvalLogger(false),
+      });
+
+    const gated = await run("hardbenchmark");
+    expect(gated.outcomeGates).toEqual(["ungrounded_answer"]);
+    expect(gated._success).toBe(false);
+    expect((gated.metrics as Record<string, { value: number }>).answer_grounded.value).toBe(0);
+    expect((gated.grounding as { ungrounded: Array<{ text: string }> }).ungrounded[0]?.text).toBe(
+      "SGD 5",
+    );
+
+    process.env.EVAL_REQUIRE_GROUNDING = "0";
+    try {
+      const advisory = await run("hardbenchmark");
+      expect(advisory.outcomeGates).toEqual([]);
+      expect(advisory._success).toBe(true);
+      expect((advisory.metrics as Record<string, { value: number }>).answer_grounded.value).toBe(0);
+    } finally {
+      delete process.env.EVAL_REQUIRE_GROUNDING;
+    }
+  });
 });

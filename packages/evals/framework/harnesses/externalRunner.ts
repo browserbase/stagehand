@@ -303,6 +303,7 @@ export async function runExternalHarnessTask<TRaw>({
     errorMessage,
     category: harness,
     logger,
+    isFacadeTool,
   });
   const facadeMetrics =
     trajectory && isFacadeTool ? buildFacadeToolCallMetrics(trajectory, isFacadeTool) : {};

@@ -10,11 +10,15 @@ import {
   type V3,
 } from "stagehand-v3";
 
+import fs from "node:fs/promises";
+import path from "node:path";
+
 import type { EvalLogger } from "../logger.js";
 import { tracedSpan } from "./braintrust.js";
 import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
 import { RubricCache } from "./rubricCache.js";
 import type { TaskResult } from "./types.js";
+import { applyVerdictGates, resolveRequireGrounding, type VerdictGates } from "./verifierGates.js";
 
 const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
@@ -207,6 +211,11 @@ export interface GradeExternalTrajectoryOptions {
   /** Logger category ("claude_code" | "codex"). */
   category: string;
   logger: EvalLogger;
+  /**
+   * Matcher for mounted-browser (facade) tool names. When present, a judge
+   * pass with zero facade steps is gated (`no_browser_use`).
+   */
+  isFacadeTool?: (name: string) => boolean;
 }
 
 /**
@@ -222,6 +231,7 @@ export async function gradeExternalTrajectory({
   errorMessage,
   category,
   logger,
+  isFacadeTool,
 }: GradeExternalTrajectoryOptions): Promise<TaskResult> {
   try {
     const trajectory = buildTrajectory();
@@ -242,20 +252,44 @@ export async function gradeExternalTrajectory({
       taskId: hydratedSpec.id,
       dataset: verifier.dataset,
     });
+    // The judge's verdict is not the final word: deterministic gates fold in
+    // what the trajectory itself proves (an answer exists, the run finished,
+    // the browser was used, the numbers came from the target site) and a
+    // strict process score that does not credit blocker-walled criteria. See
+    // verifierGates.ts for why each exists.
+    const gates = applyVerdictGates({
+      evaluation: evaluationResult,
+      trajectory: hydratedTrajectory,
+      isFacadeTool,
+      requireGrounding: resolveRequireGrounding(
+        verifier.dataset,
+        Boolean(verifier.taskSpec.precomputedRubric),
+      ),
+      rubricItemCount: rubric.items.length,
+    });
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = evaluationResultToSuccess(evaluationResult, successMode);
+    const verifiedSuccess = evaluationResultToSuccess(
+      {
+        ...evaluationResult,
+        outcomeSuccess: gates.outcomeSuccess,
+        processScore: gates.processScore,
+      },
+      successMode,
+    );
 
-    const { directory: trajectoryDir } = await persistAdapterTrajectory({
+    const { directory: trajectoryDir, persisted } = await persistAdapterTrajectory({
       trajectory: hydratedTrajectory,
       taskSpec: hydratedSpec,
       evaluationResult,
       outputRoot: verifier.trajectoryRoot,
       runId: verifier.runId,
     });
+    if (persisted) await writeGatesFile(trajectoryDir, gates);
 
+    const gateSuffix = gates.outcomeGates.length ? ` gated=${gates.outcomeGates.join(",")}` : "";
     logger.log({
       category,
-      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${hydratedTrajectory.steps.length}`,
+      message: `result: outcome=${gates.outcomeSuccess} (judge=${gates.judgeOutcomeSuccess}${gateSuffix}) process=${formatProcessScore(gates.processScore)} (lenient=${formatProcessScore(gates.processScoreLenient)}) steps=${hydratedTrajectory.steps.length}`,
       level: 1,
     });
 
@@ -263,12 +297,23 @@ export async function gradeExternalTrajectory({
       ...baseResult,
       _success: verifiedSuccess,
       error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
-      outcomeSuccess: evaluationResult.outcomeSuccess,
-      processScore: evaluationResult.processScore,
+      outcomeSuccess: gates.outcomeSuccess,
+      judgeOutcomeSuccess: gates.judgeOutcomeSuccess,
+      outcomeGates: gates.outcomeGates,
+      processScore: gates.processScore,
+      processScoreStrict: gates.processScoreStrict,
+      processScoreLenient: gates.processScoreLenient,
+      perCriterion: gates.perCriterion,
       evidenceInsufficient: evaluationResult.evidenceInsufficient,
+      ...(gates.grounding && { grounding: gates.grounding }),
+      scoringIncomplete: gates.scoringIncomplete,
       criterionCount: rubric.items.length,
       stepCount: hydratedTrajectory.steps.length,
       trajectoryDir,
+      metrics: {
+        ...(asRecord(baseResult.metrics) ?? {}),
+        ...gateMetrics(gates),
+      },
     };
   } catch (verifyError) {
     const message = stringifyVerifierError(verifyError);
@@ -289,6 +334,38 @@ export async function gradeExternalTrajectory({
 
 function formatProcessScore(score: number | undefined): string {
   return typeof score === "number" ? score.toFixed(2) : "n/a";
+}
+
+/**
+ * Braintrust-filterable 0/1 metrics for the gates. `answer_grounded` is only
+ * emitted when the answer had numeric datums to check, so its average is not
+ * diluted by rows the check skipped.
+ */
+function gateMetrics(gates: VerdictGates): Record<string, { count: number; value: number }> {
+  const flag = (value: boolean) => ({ count: 1, value: value ? 1 : 0 });
+  return {
+    outcome_gated: flag(gates.outcomeGates.length > 0),
+    scoring_incomplete: flag(gates.scoringIncomplete),
+    blocked_criteria: { count: 1, value: gates.blockedCriteria },
+    ...(typeof gates.processScoreLenient === "number" && {
+      process_score_lenient: { count: 1, value: gates.processScoreLenient },
+    }),
+    ...(gates.grounding && {
+      answer_grounded: flag(!gates.grounding.gatesOutcome),
+    }),
+  };
+}
+
+/** Sidecar next to scores/result.json so audits can diff judge vs gated verdicts. */
+async function writeGatesFile(trajectoryDir: string, gates: VerdictGates): Promise<void> {
+  try {
+    await fs.writeFile(
+      path.join(trajectoryDir, "scores", "gates.json"),
+      JSON.stringify(gates, null, 2),
+    );
+  } catch {
+    // Best-effort: the TaskResult already carries the same data.
+  }
 }
 
 /** Always non-empty, so a set `verifierError` is reliably truthy downstream. */
