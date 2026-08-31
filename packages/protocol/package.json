@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./json-rpc/schemas": "./json-rpc/schemas.ts",
+    "./json-rpc/types": "./json-rpc/types.ts",
+    "./json-rpc/wire-casing": "./json-rpc/wire-casing.ts",
+    "./protocol-version": "./protocol-version.ts",
+    "./schema-registry": "./schema-registry.ts",
+    "./schemas": "./schemas.ts",
+    "./types": "./types.ts"
+  },
   "scripts": {
     "build": "node json-rpc/build-json-rpc-schema.ts && oxfmt --write stagehand.v4.json",
     "test": "vitest run --root ../.. packages/protocol/tests packages/protocol/json-rpc/tests",

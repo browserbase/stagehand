@@ -7,8 +7,11 @@ import {
   ModelConfigSchema,
   ModelNameSchema,
   OpenAIModelIdSchema,
-} from "../../protocol/schemas.js";
-import type { StagehandInitParams, StagehandResultMetadata } from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
+import type {
+  StagehandInitParams,
+  StagehandResultMetadata,
+} from "@browserbasehq/stagehand-protocol/types";
 import { createStagehandController } from "../controllers/stagehandController.js";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";

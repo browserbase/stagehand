@@ -1,9 +1,9 @@
-import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
+import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,
   StagehandSendToHostBindingSchema,
-} from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import { z } from "zod/v4";
 import {
   DEFAULT_RUNTIME_REQUIREMENT,

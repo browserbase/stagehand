@@ -49,6 +49,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/node": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",

@@ -6,7 +6,7 @@ import type {
   StagehandExtractParams,
   StagehandInitParams,
   StagehandObserveParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import {
   CacheClient,
   type CacheGetResponse,
