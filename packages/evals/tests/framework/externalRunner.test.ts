@@ -6,6 +6,7 @@ import {
   buildFacadeToolCallMetrics,
   buildNormalizedHarnessMetrics,
   buildTimingMetrics,
+  buildUsageMetrics,
   deriveTerminationReason,
   legacyHarnessFieldPrefix,
   parseEvalResult,
@@ -466,7 +467,7 @@ describe("external harness runner", () => {
       "summary · done",
       "answer · ok",
       expect.stringMatching(
-        /^result · completed · steps=2 · facade_calls=1 · in=10 out=5 · agent=\d+\.\ds$/u,
+        /^result · completed · steps=2 · facade_calls=1 · in=10 \(cached 0\) out=5 · agent=\d+\.\ds$/u,
       ),
       expect.stringContaining("verifier integration failed"),
       expect.stringMatching(
@@ -615,5 +616,63 @@ describe("external harness runner", () => {
         total_wall_ms: { count: 1, value: 1500 },
       },
     );
+  });
+
+  it("emits normalized usage next to the harness-native metrics", async () => {
+    const result = await runExternalHarnessTask({
+      harness: "claude_code",
+      plan,
+      logger: new EvalLogger(false),
+      resultContract: "marker",
+      fallbackErrorMessage: "missing result",
+      runSession: async () => ({
+        raw: {},
+        resultText: 'EVAL_RESULT: {"success":true}',
+        transcriptText: "",
+        status: "completed",
+        usage: {
+          inputTokens: 1_000_000,
+          cachedInputTokens: 2_000_000,
+          cacheCreationInputTokens: 0,
+          outputTokens: 100_000,
+          totalTokens: 3_100_000,
+        },
+        costUsd: 4.2,
+        metrics: {},
+      }),
+      toTrajectory: () => {
+        throw new Error("not called without a verifier");
+      },
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+
+    // Anthropic convention: cache reads sit outside input_tokens.
+    expect(metrics.usage_input_total.value).toBe(3_000_000);
+    expect(metrics.usage_input_cached.value).toBe(2_000_000);
+    expect(metrics.usage_output.value).toBe(100_000);
+    expect(metrics.usage_reasoning.value).toBe(0);
+    // Legacy metrics stay untouched for existing dashboards.
+    expect(metrics.harness_input_tokens.value).toBe(1_000_000);
+    expect(metrics.harness_cost_usd.value).toBe(4.2);
+  });
+
+  it("builds the four normalized usage metrics", () => {
+    expect(
+      buildUsageMetrics({
+        input_total: 10,
+        input_cached: 4,
+        input_cache_write: 0,
+        input_uncached: 6,
+        output: 2,
+        reasoning: 1,
+        reasoning_in_output: true,
+        convention: "openai_cached_subset",
+      }),
+    ).toEqual({
+      usage_input_total: { count: 1, value: 10 },
+      usage_input_cached: { count: 1, value: 4 },
+      usage_output: { count: 1, value: 2 },
+      usage_reasoning: { count: 1, value: 1 },
+    });
   });
 });

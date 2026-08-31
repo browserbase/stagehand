@@ -170,15 +170,29 @@ describe("trajectory trace log", () => {
     ]);
   });
 
-  it("appends the agent wall-clock to the result line when known", () => {
+  it("prefers the normalized usage and agent wall-clock on the result line", () => {
     const lines = buildTrajectoryTraceLines({
       trajectory: threeStepTrajectory(),
       outcome,
+      usage: {
+        input_total: 21345,
+        input_cached: 9000,
+        input_cache_write: 0,
+        input_uncached: 12345,
+        output: 678,
+        reasoning: 0,
+        reasoning_in_output: true,
+        convention: "anthropic_cache_separate",
+      },
       agentWallMs: 42_049,
     });
-    expect(lines.at(-1)!.message).toBe(
-      "result · completed · steps=3 · in=12345 out=678 cached=9000 · agent=42.0s",
+    const result = lines.at(-1)!;
+    expect(result.message).toBe(
+      "result · completed · steps=3 · in=21345 (cached 9000) out=678 · agent=42.0s",
     );
+    expect(JSON.parse(result.auxiliary!.normalized_usage!.value as string)).toMatchObject({
+      convention: "anthropic_cache_separate",
+    });
   });
 
   it("emits through an EvalLogger-compatible sink", () => {

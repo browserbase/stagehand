@@ -1,5 +1,6 @@
 import type { LogLine, Trajectory, TrajectoryStep } from "stagehand-v3";
 import type { ExternalHarnessSessionOutcome } from "./externalRunner.js";
+import { formatNormalizedUsage, type NormalizedUsage } from "../usageNormalization.js";
 
 /**
  * Readable per-step trace shared by every external harness. It is derived
@@ -12,7 +13,7 @@ import type { ExternalHarnessSessionOutcome } from "./externalRunner.js";
  *   step 5 · run · ERR · await page.click('#nope')  →  Timeout 30000ms exceeded
  *   summary · <agent's self-reported summary, clipped>
  *   answer · <agent's final answer, clipped>   (or "answer · (none — max_turns)")
- *   result · completed · steps=5 · facade_calls=4 · in=12345 out=678 cached=9000 · agent=42.0s
+ *   result · completed · steps=5 · facade_calls=4 · in=12345 (cached 9000) out=678 · agent=42.0s
  *
  * The verifier runs after this trace, so its wall-clock lands on a separate
  * `timing · agent=… evidence=… verifier=… total=…` line once grading is done.
@@ -36,6 +37,8 @@ export interface TraceLogSink {
 export interface TrajectoryTraceInput {
   trajectory: Pick<Trajectory, "steps">;
   outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "status" | "stopReason" | "usage">;
+  /** Convention-normalized token buckets; falls back to the raw SDK usage when absent. */
+  usage?: NormalizedUsage;
   /** Wall-clock of the agent session alone (ms), excluding evidence capture and grading. */
   agentWallMs?: number;
   /** Optional per-step wall-clock durations (ms), indexed like `trajectory.steps`. */
@@ -141,11 +144,13 @@ export function buildResultTraceLine(input: TrajectoryTraceInput): LogLine {
     ? trajectory.steps.filter((step) => input.isFacadeTool!(step.actionName)).length
     : undefined;
   const raw = outcome.usage;
-  const tokens = [
-    `in=${raw.inputTokens}`,
-    `out=${raw.outputTokens}`,
-    ...(raw.cachedInputTokens !== undefined ? [`cached=${raw.cachedInputTokens}`] : []),
-  ].join(" ");
+  const tokens = input.usage
+    ? formatNormalizedUsage(input.usage)
+    : [
+        `in=${raw.inputTokens}`,
+        `out=${raw.outputTokens}`,
+        ...(raw.cachedInputTokens !== undefined ? [`cached=${raw.cachedInputTokens}`] : []),
+      ].join(" ");
   const message = [
     "result",
     outcome.status,
@@ -161,6 +166,9 @@ export function buildResultTraceLine(input: TrajectoryTraceInput): LogLine {
     message: clip(message, 400),
     auxiliary: {
       usage: { value: JSON.stringify(raw), type: "object" },
+      ...(input.usage && {
+        normalized_usage: { value: JSON.stringify(input.usage), type: "object" },
+      }),
     },
   };
 }

@@ -10,6 +10,7 @@ import type { StepObservation } from "../observationRecorder.js";
 import type { TaskResult } from "../types.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "../verifierAdapter.js";
 import { emitTrajectoryTrace } from "./traceLog.js";
+import { normalizeUsage, type NormalizedUsage } from "../usageNormalization.js";
 
 export type MetricValue = { count: number; value: number };
 
@@ -281,8 +282,10 @@ export async function runExternalHarnessTask<TRaw>({
   );
   const prefix = legacyHarnessFieldPrefix(harness);
   const terminationReason = deriveTerminationReason(outcome);
+  const usage = normalizeUsage({ harness, raw: outcome.usage });
   const baseMetrics: Record<string, MetricValue> = {
     ...buildNormalizedHarnessMetrics(outcome),
+    ...buildUsageMetrics(usage),
     ...(stepBudget !== undefined && { step_budget: metricValue(stepBudget) }),
     agent_wall_ms: metricValue(agentWallMs),
   };
@@ -345,6 +348,7 @@ export async function runExternalHarnessTask<TRaw>({
         emitTrajectoryTrace(logger, {
           trajectory,
           outcome,
+          usage,
           agentWallMs,
           isFacadeTool,
           report: {
@@ -460,6 +464,16 @@ export function buildTimingMetrics(timing: {
 
 export function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/** Convention-independent token buckets, alongside the harness-native metrics. */
+export function buildUsageMetrics(usage: NormalizedUsage): Record<string, MetricValue> {
+  return {
+    usage_input_total: metricValue(usage.input_total),
+    usage_input_cached: metricValue(usage.input_cached),
+    usage_output: metricValue(usage.output),
+    usage_reasoning: metricValue(usage.reasoning),
+  };
 }
 
 /** Convert a registered harness id to its deprecated TaskResult field prefix. */
