@@ -3,9 +3,9 @@ title: "Add Stagehand extraction to TanStack AI"
 description: "Wrap a one-shot Stagehand browser task as a typed TanStack AI server tool."
 ---
 
-## Agent brief
+## Agent prompt
 
-Give this brief to your coding agent. It should register the tool in your existing TanStack AI server and use the model adapter that project already has.
+Copy this prompt into your coding agent. Have it register the tool in your existing TanStack AI server and use that project's model adapter.
 
 ```text
 Add a one-shot Stagehand v4 extraction tool to this TanStack AI server.
@@ -135,7 +135,7 @@ export OPENAI_API_KEY="sk-..."
 pnpm dlx tsx index.ts
 ```
 
-## Why this pattern holds up
+## Why this works
 
 TanStack AI validates the tool input and output. Stagehand validates the page extraction. The tool also checks the hostname before opening the URL. Closing both Stagehand and the browser in nested `finally` blocks prevents abandoned sessions when navigation or extraction fails.
 

@@ -3,9 +3,9 @@ title: "Compare pages in parallel"
 description: "Open one tab per source and extract comparable data concurrently."
 ---
 
-## Agent brief
+## Agent prompt
 
-Give this brief to your coding agent. It should use your existing input source and result type rather than hard-code the sample repositories.
+Copy this prompt into your coding agent. Have it use your existing input source and result type instead of the sample repositories.
 
 ```text
 Add a concurrent, multi-page Stagehand v4 comparison to this project.
@@ -111,7 +111,7 @@ export BROWSERBASE_API_KEY="bb_live_..."
 pnpm dlx tsx index.ts
 ```
 
-## Why this pattern holds up
+## Why this works
 
 Stagehand defaults to the active tab, which can change while concurrent work is running. Passing `{ page }` makes the target explicit. `Promise.all()` then overlaps navigation and extraction latency across the tabs.
 

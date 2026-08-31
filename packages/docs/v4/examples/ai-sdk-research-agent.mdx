@@ -3,9 +3,9 @@ title: "Build a typed research agent with the AI SDK"
 description: "Give a Vercel AI SDK tool loop a persistent Stagehand browser and require a typed final report."
 ---
 
-## Agent brief
+## Agent prompt
 
-Give this brief to your coding agent. It should add the tools to your current AI SDK agent and reuse its model, logging, and persistence choices.
+Copy this prompt into your coding agent. Have it add the tools to your current AI SDK agent and keep its model, logging, and persistence choices.
 
 ```text
 Add Stagehand v4 research tools to this Vercel AI SDK agent.
@@ -136,7 +136,7 @@ export OPENAI_API_KEY="sk-..."
 pnpm dlx tsx index.ts
 ```
 
-## Why this pattern holds up
+## Why this works
 
 The model can choose the order of tool calls, but it cannot browse outside `docs.stagehand.dev`. Stagehand owns the page, so each tool call sees the state left by the previous call. `Output.object()` validates the report after the tool loop finishes. The extra step budget accounts for both tool use and final structured output.
 

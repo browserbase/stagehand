@@ -3,9 +3,9 @@ title: "Approve before submitting a form"
 description: "Pause a Vercel AI SDK tool loop before Stagehand performs an external side effect."
 ---
 
-## Agent brief
+## Agent prompt
 
-Give this brief to your coding agent. It should connect the approval request to your existing UI, queue, or API instead of copying the sample CLI prompt into production.
+Copy this prompt into your coding agent. Have it connect the approval request to your existing UI, queue, or API. Keep the CLI prompt for local testing only.
 
 ```text
 Add human approval before this AI SDK agent submits a form with Stagehand v4.
@@ -182,7 +182,7 @@ export OPENAI_API_KEY="sk-..."
 pnpm dlx tsx index.ts
 ```
 
-## Why this pattern holds up
+## Why this works
 
 `needsApproval` stops the tool before `execute()` runs. The first model call returns a `tool-approval-request`; the second receives a `tool-approval-response` and either performs the click or reports the rejection. Filling and submission are separate tools, so the approval covers one clear side effect.
 

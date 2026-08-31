@@ -3,9 +3,9 @@ title: "Extract a paginated catalog"
 description: "Collect typed records across an unknown number of pages with extract, observe, and act."
 ---
 
-## Agent brief
+## Agent prompt
 
-Give this brief to your coding agent. It should adapt the storage layer, schema, and target site to your application instead of creating a second scraper beside it.
+Copy this prompt into your coding agent. Have it adapt the storage layer, schema, and target site to your application.
 
 ```text
 Add a paginated Stagehand v4 extraction job to this project.
@@ -120,7 +120,7 @@ export BROWSERBASE_API_KEY="bb_live_..."
 pnpm dlx tsx index.ts
 ```
 
-## Why this pattern holds up
+## Why this works
 
 The script does not guess how many pages exist. `observe()` returns the concrete next-page action, and `act(nextAction)` replays that exact action. The visited-URL guard turns a broken or cyclic paginator into a clear error instead of an endless job.
 
