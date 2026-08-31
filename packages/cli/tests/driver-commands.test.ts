@@ -447,10 +447,22 @@ describe("driver commands", () => {
     expect(network.enable).toHaveBeenCalledWith(page);
   });
 
-  it("keeps cursor as an explicit capability gap", async () => {
-    await expect(
-      runtimeHandlers.cursor!({} as never, {}),
-    ).rejects.toMatchObject({ code: "cursor_overlay_unavailable" });
+  it("installs the CLI-owned cursor overlay", async () => {
+    const page = { evaluate: vi.fn() };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof runtimeHandlers)["cursor"]>
+    >[0];
+
+    await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
+      enabled: true,
+    });
+    expect(page.evaluate).toHaveBeenCalledOnce();
+    const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
+    expect(cursorInstaller).toEqual(expect.any(String));
+    expect(cursorInstaller).toContain("__browse_cursor_overlay__");
+    expect(cursorInstaller).toContain('"mousemove"');
   });
 
   it("selects a remaining tab after closing the active tab", async () => {
