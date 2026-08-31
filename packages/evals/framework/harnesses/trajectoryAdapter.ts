@@ -8,6 +8,21 @@ import type {
 } from "stagehand-v3";
 
 /**
+ * Why a run stopped. `status` on the Trajectory only says whether it ended
+ * cleanly; this says what ended it, so a budget-exhausted run can be told
+ * apart from a crash offline.
+ */
+export type TerminationReason =
+  | "completed"
+  | "step_budget"
+  | "browser_session_lost"
+  | "sdk_error"
+  | "aborted";
+
+/** A Trajectory as external harnesses persist it. */
+export type HarnessTrajectory = Trajectory & { terminationReason?: TerminationReason };
+
+/**
  * Pure converter from a harness-specific result to a verifier Trajectory.
  * Implementations must be deterministic (no I/O, no mutation of input).
  * Empty `probeEvidence` is allowed — the verifier degrades via the

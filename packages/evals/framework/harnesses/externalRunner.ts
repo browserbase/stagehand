@@ -1,4 +1,5 @@
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import type { HarnessTrajectory, TerminationReason } from "./trajectoryAdapter.js";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { BrowserSessionLoss } from "../../core/contracts/tool.js";
 import { isBrowserSessionLostError } from "../../core/tools/browserSessionLoss.js";
@@ -162,6 +163,22 @@ export interface ExternalHarnessToolAdapterLike {
 /** harnessStopReason recorded when the mounted browser died before the agent finished. */
 export const BROWSER_SESSION_LOST_STOP_REASON = "browser_session_lost";
 
+/**
+ * Collapse a harness's normalized status + stop reason into why the run ended.
+ * Every SDK reports `completed | max_turns | sdk_error`; the stop reason is the
+ * only place aborts and browser loss are distinguishable from other errors.
+ */
+export function deriveTerminationReason(
+  outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "status" | "stopReason">,
+): TerminationReason {
+  if (outcome.status === "completed") return "completed";
+  if (outcome.status === "max_turns") return "step_budget";
+  const stopReason = outcome.stopReason ?? "";
+  if (stopReason === BROWSER_SESSION_LOST_STOP_REASON) return "browser_session_lost";
+  if (/\b(aborted|interrupted)\b/iu.test(stopReason)) return "aborted";
+  return "sdk_error";
+}
+
 export interface ExternalHarnessTrajectoryInput<TRaw> {
   raw: TRaw;
   parsed: ParsedEvalResult;
@@ -261,6 +278,7 @@ export async function runExternalHarnessTask<TRaw>({
           fallbackErrorMessage,
   );
   const prefix = legacyHarnessFieldPrefix(harness);
+  const terminationReason = deriveTerminationReason(outcome);
   const baseResult: TaskResult = {
     _success: outcome.status === "sdk_error" ? false : parsed.success,
     error: outcome.status === "sdk_error" || !parsed.success ? errorMessage : undefined,
@@ -269,6 +287,7 @@ export async function runExternalHarnessTask<TRaw>({
     rawResult: parsed.raw,
     harnessStatus: outcome.status,
     ...(sanitizedStopReason && { harnessStopReason: sanitizedStopReason }),
+    terminationReason,
     // Deprecated compatibility aliases; consumers should use the normalized
     // harnessStatus / harnessStopReason fields for newly registered harnesses.
     [`${prefix}Status`]: outcome.status,
@@ -289,22 +308,25 @@ export async function runExternalHarnessTask<TRaw>({
   const stepObservations = toolAdapter?.drainStepObservations
     ? await bestEffort(toolAdapter.drainStepObservations(), evidenceTimeoutMs)
     : undefined;
-  let trajectory: Trajectory | undefined;
+  let trajectory: HarnessTrajectory | undefined;
   const gradedResult = await gradeExternalTrajectory({
     buildTrajectory: () => {
-      trajectory = toTrajectory(
-        {
-          raw: outcome.raw,
-          parsed,
-          outcome,
-          ...(finalObservation && { finalObservation }),
-          ...(stepObservations?.length && { stepObservations }),
-          ...(toolAdapter?.observedToolMatcher && {
-            observedToolName: toolAdapter.observedToolMatcher,
-          }),
-          status: outcome.status === "completed" ? "complete" : "error",
-        },
-        verifier.taskSpec,
+      trajectory = withTerminationReason(
+        toTrajectory(
+          {
+            raw: outcome.raw,
+            parsed,
+            outcome,
+            ...(finalObservation && { finalObservation }),
+            ...(stepObservations?.length && { stepObservations }),
+            ...(toolAdapter?.observedToolMatcher && {
+              observedToolName: toolAdapter.observedToolMatcher,
+            }),
+            status: outcome.status === "completed" ? "complete" : "error",
+          },
+          verifier.taskSpec,
+        ),
+        terminationReason,
       );
       // The readable step trace is derived from the normalized trajectory so
       // every harness logs the same shape; a formatting bug must never fail
@@ -349,6 +371,13 @@ export async function runExternalHarnessTask<TRaw>({
   return outcome.status === "sdk_error"
     ? { ...result, _success: false, error: errorMessage }
     : result;
+}
+
+function withTerminationReason(
+  trajectory: Trajectory,
+  terminationReason: TerminationReason,
+): HarnessTrajectory {
+  return { ...trajectory, terminationReason };
 }
 
 /**

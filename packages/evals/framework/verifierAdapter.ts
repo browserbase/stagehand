@@ -16,6 +16,7 @@ import path from "node:path";
 import type { EvalLogger } from "../logger.js";
 import { tracedSpan } from "./braintrust.js";
 import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
+import type { HarnessTrajectory } from "./harnesses/trajectoryAdapter.js";
 import { RubricCache } from "./rubricCache.js";
 import type { TaskResult } from "./types.js";
 import { applyVerdictGates, resolveRequireGrounding, type VerdictGates } from "./verifierGates.js";
@@ -202,7 +203,7 @@ export interface ExternalHarnessVerifierConfig {
 
 export interface GradeExternalTrajectoryOptions {
   /** Builds the harness-specific Trajectory; runs inside the guarded block. */
-  buildTrajectory: () => Trajectory;
+  buildTrajectory: () => HarnessTrajectory;
   verifier: ExternalHarnessVerifierConfig;
   /** The agent's self-reported result to fold the verdict into. */
   baseResult: TaskResult;
@@ -246,7 +247,7 @@ export async function gradeExternalTrajectory({
       ...verifier.taskSpec,
       precomputedRubric: rubric,
     };
-    const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
+    const hydratedTrajectory: HarnessTrajectory = { ...trajectory, task: hydratedSpec };
 
     const evaluationResult = await verifyTraced(evaluator, hydratedTrajectory, {
       taskId: hydratedSpec.id,

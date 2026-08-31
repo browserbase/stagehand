@@ -5,6 +5,7 @@ import {
   buildExternalHarnessPrompt,
   buildFacadeToolCallMetrics,
   buildNormalizedHarnessMetrics,
+  deriveTerminationReason,
   legacyHarnessFieldPrefix,
   parseEvalResult,
   resolveFinalAnswer,
@@ -335,6 +336,34 @@ describe("external harness runner", () => {
 
     expect(result._success).toBe(true);
     expect(result.harnessStopReason).toBe("maximum turn budget reached");
+    expect(result.terminationReason).toBe("step_budget");
+  });
+
+  it("derives why a run ended from its status and stop reason", () => {
+    expect(deriveTerminationReason({ status: "completed" })).toBe("completed");
+    expect(
+      deriveTerminationReason({
+        status: "max_turns",
+        stopReason: "tool step budget exhausted (75 steps)",
+      }),
+    ).toBe("step_budget");
+    expect(
+      deriveTerminationReason({ status: "sdk_error", stopReason: "browser_session_lost" }),
+    ).toBe("browser_session_lost");
+    expect(deriveTerminationReason({ status: "sdk_error", stopReason: "aborted" })).toBe("aborted");
+    expect(
+      deriveTerminationReason({
+        status: "sdk_error",
+        stopReason: "This operation was aborted",
+      }),
+    ).toBe("aborted");
+    expect(deriveTerminationReason({ status: "sdk_error", stopReason: "interrupted" })).toBe(
+      "aborted",
+    );
+    expect(deriveTerminationReason({ status: "sdk_error", stopReason: "ECONNRESET" })).toBe(
+      "sdk_error",
+    );
+    expect(deriveTerminationReason({ status: "sdk_error" })).toBe("sdk_error");
   });
 
   it("bounds hanging evidence capture before verifier fallback", async () => {

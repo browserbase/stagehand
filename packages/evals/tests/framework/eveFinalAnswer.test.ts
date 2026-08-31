@@ -111,6 +111,7 @@ describe("eve final answer", () => {
     });
 
     expect(result.harnessStatus).toBe("max_turns");
+    expect(result.terminationReason).toBe("step_budget");
     expect(result.finalAnswer).toBeUndefined();
     expect(result._success).toBe(false);
     expect(result.judgeOutcomeSuccess).toBe(true);
@@ -119,6 +120,16 @@ describe("eve final answer", () => {
     const messages = (result.logs ?? []).map((line) => line.message);
     expect(messages.some((message) => message.startsWith("answer · Got Target"))).toBe(false);
     expect(messages).toContain("step 2 · think · plan 1");
+
+    const trajectoryDir = result.trajectoryDir as string;
+    const persisted = JSON.parse(
+      await fs.readFile(path.join(trajectoryDir, "trajectory.json"), "utf8"),
+    );
+    expect(persisted).toMatchObject({ status: "error", terminationReason: "step_budget" });
+    const metadata = JSON.parse(
+      await fs.readFile(path.join(trajectoryDir, "metadata.json"), "utf8"),
+    );
+    expect(metadata).toMatchObject({ status: "error", terminationReason: "step_budget" });
   });
 
   it("grades a terminal reply, not the narration that preceded it", async () => {
