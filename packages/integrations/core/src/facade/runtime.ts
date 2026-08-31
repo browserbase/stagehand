@@ -27,7 +27,24 @@ type QueryStep =
       hasNot?: QueryStep[];
       visible?: boolean;
     }
-  | { kind: "nth"; index: number };
+  | { kind: "nth"; index: number }
+  /**
+   * A `role` step that was resolved against the browser's accessibility tree.
+   * `values` are document-relative XPaths for the nodes whose role and name
+   * matched; the state filters are carried over from the original role step.
+   */
+  | {
+      kind: "xpaths";
+      values: string[];
+      checked?: boolean;
+      disabled?: boolean;
+      selected?: boolean;
+      expanded?: boolean;
+      pressed?: boolean;
+      level?: number;
+    };
+
+type RoleStep = Extract<QueryStep, { kind: "role" }>;
 
 type RawLocator = {
   click(options?: { button?: "left" | "right" | "middle"; clickCount?: number }): Promise<void>;
@@ -142,6 +159,137 @@ export async function createPlaywrightCompatRuntime(
       ? { kind: "regexp", source: value.source, flags: value.flags }
       : { kind: "string", value: String(value), exact };
 
+  // ---------------------------------------------------------------------------
+  // getByRole fallback through the accessibility tree.
+  //
+  // The in-page role matcher reimplements accessible-name computation and
+  // disagrees with Chrome's on real sites (descendant aria-label / alt / svg
+  // titles, labelledby across shadow roots, custom elements). When a plan that
+  // contains a role step matches nothing in the DOM, resolve the role step
+  // against `page.snapshot()` — the same accessibility tree the `snapshot`
+  // tool shows the agent — and re-run the plan with those nodes' XPaths.
+  // ---------------------------------------------------------------------------
+
+  /** Playwright role → roles as they appear in Stagehand's formatted tree. */
+  const ACCESSIBILITY_ROLE_ALIASES: Record<string, string[]> = {
+    img: ["image", "img"],
+    image: ["image", "img"],
+    textbox: ["textbox", "searchbox"],
+    cell: ["cell", "gridcell"],
+    gridcell: ["gridcell", "cell"],
+  };
+
+  const ACCESSIBILITY_FALLBACK_CACHE_TTL_MS = 750;
+
+  type AccessibilityTreeNode = { id: string; role: string; name: string };
+
+  const parseAccessibilityTree = (formattedTree: string): AccessibilityTreeNode[] => {
+    const nodes: AccessibilityTreeNode[] = [];
+    for (const rawLine of formattedTree.split("\n")) {
+      const line = rawLine.match(/^\s*\[([^\]]+)\]\s+(.*)$/u);
+      if (!line) continue;
+      let rest = line[2] ?? "";
+      // Trailing state flags rendered by formatStateFlags.
+      rest = rest.replace(/(?:\s\[(?:selected|checked)\])+$/u, "");
+      const separator = rest.indexOf(": ");
+      const roleToken = separator === -1 ? rest : rest.slice(0, separator);
+      const name = separator === -1 ? "" : rest.slice(separator + 2);
+      // "scrollable, html" style lines carry the role before the comma.
+      const role = roleToken.split(",")[0]?.trim() ?? "";
+      if (!role) continue;
+      nodes.push({ id: line[1] ?? "", role, name });
+    }
+    return nodes;
+  };
+
+  const matchesAccessibleName = (value: string, expected: JsonMatcher): boolean => {
+    const normalized = value.replace(/\s+/gu, " ").trim();
+    if (expected.kind === "regexp") {
+      return new RegExp(expected.source, expected.flags).test(normalized);
+    }
+    const target = expected.value.replace(/\s+/gu, " ").trim();
+    return expected.exact
+      ? normalized === target
+      : normalized.toLocaleLowerCase().includes(target.toLocaleLowerCase());
+  };
+
+  const planHasRoleStep = (plan: QueryStep[]): boolean =>
+    plan.some(
+      (step) =>
+        step.kind === "role" ||
+        (step.kind === "filter" &&
+          ((step.has && planHasRoleStep(step.has)) ||
+            (step.hasNot && planHasRoleStep(step.hasNot)))),
+    );
+
+  const resolveRoleStepWithTree = (
+    step: RoleStep,
+    nodes: AccessibilityTreeNode[],
+    xpathMap: Record<string, string>,
+  ): QueryStep | null => {
+    const roles = new Set(ACCESSIBILITY_ROLE_ALIASES[step.role] ?? [step.role]);
+    const values = nodes
+      .filter(
+        (node) =>
+          roles.has(node.role) && (!step.name || matchesAccessibleName(node.name, step.name)),
+      )
+      .map((node) => xpathMap[node.id])
+      .filter((xpath): xpath is string => typeof xpath === "string" && xpath.length > 0);
+    if (values.length === 0) return null;
+    const { kind: _kind, role: _role, name: _name, includeHidden: _hidden, ...state } = step;
+    return { kind: "xpaths", values, ...state };
+  };
+
+  /**
+   * Returns a copy of `plan` whose top-level role steps are replaced by
+   * accessibility-tree resolved XPath steps, or null when the tree has no
+   * candidate for at least one of them (or no tree is available).
+   */
+  const resolvePlanWithAccessibilityTree = async (
+    page: RawPage,
+    plan: QueryStep[],
+  ): Promise<QueryStep[] | null> => {
+    if (typeof page.snapshot !== "function") {
+      record("misses", "getByRole.accessibilityTree:snapshotUnavailable");
+      return null;
+    }
+    let snapshot: unknown;
+    try {
+      snapshot = await page.snapshot({ includeIframes: false });
+    } catch {
+      record("misses", "getByRole.accessibilityTree:snapshotError");
+      return null;
+    }
+    const tree = snapshot as { formattedTree?: unknown; xpathMap?: unknown } | null;
+    if (
+      !tree ||
+      typeof tree.formattedTree !== "string" ||
+      !tree.xpathMap ||
+      typeof tree.xpathMap !== "object"
+    ) {
+      record("misses", "getByRole.accessibilityTree:noTree");
+      return null;
+    }
+    const nodes = parseAccessibilityTree(tree.formattedTree);
+    const xpathMap = tree.xpathMap as Record<string, string>;
+    let replaced = false;
+    const resolved: QueryStep[] = [];
+    for (const step of plan) {
+      if (step.kind !== "role") {
+        resolved.push(step);
+        continue;
+      }
+      const fallback = resolveRoleStepWithTree(step, nodes, xpathMap);
+      if (!fallback) {
+        record("misses", "getByRole.accessibilityTree:noCandidates");
+        return null;
+      }
+      resolved.push(fallback);
+      replaced = true;
+    }
+    return replaced ? resolved : null;
+  };
+
   const unsupported = (surface: string, method: PropertyKey): never => {
     const name = `${surface}.${String(method)}`;
     record("misses", name);
@@ -250,6 +398,72 @@ export async function createPlaywrightCompatRuntime(
         if (node instanceof Element) elements.push(node);
       }
       return elements;
+    };
+    /**
+     * Resolve an XPath produced by Stagehand's accessibility snapshot. Those
+     * paths are positional (`/html[1]/body[1]/x-host[1]//div[2]/button[1]`)
+     * and encode a shadow-root boundary as `//`, which native
+     * `document.evaluate` cannot follow. Mirrors the extension's
+     * resolveStagehandShadowHopMatches: child steps walk light-DOM children,
+     * a `//` step after the first walks into the host's (open) shadow root.
+     */
+    const resolveStagehandXPath = (expression: string): Element[] => {
+      const path = expression.trim().replace(/^xpath=/iu, "");
+      if (!path) return [];
+      type Step = { hop: boolean; tag: string; index?: number };
+      const steps: Step[] = [];
+      let cursor = 0;
+      while (cursor < path.length) {
+        let hop = false;
+        if (path.startsWith("//", cursor)) {
+          hop = true;
+          cursor += 2;
+        } else if (path[cursor] === "/") {
+          cursor += 1;
+        }
+        const start = cursor;
+        while (cursor < path.length && path[cursor] !== "/") cursor += 1;
+        const raw = path.slice(start, cursor).trim();
+        if (!raw) continue;
+        const parsed = raw.match(/^([^[]+)(?:\[(\d+)\])?$/u);
+        if (!parsed) return queryXPath(document, path);
+        steps.push({
+          hop,
+          tag: (parsed[1] ?? "*").toLowerCase(),
+          ...(parsed[2] ? { index: Number(parsed[2]) } : {}),
+        });
+      }
+      const hasShadowHop = steps.some((step, position) => step.hop && position > 0);
+      if (!hasShadowHop) {
+        try {
+          return queryXPath(document, path);
+        } catch {
+          return [];
+        }
+      }
+      let current: Array<Document | Element | ShadowRoot> = [document];
+      for (const [position, step] of steps.entries()) {
+        const next: Element[] = [];
+        for (const root of current) {
+          let pool: Element[];
+          if (root instanceof Document) {
+            pool = root.documentElement ? [root.documentElement] : [];
+          } else if (step.hop && position > 0) {
+            pool = root instanceof Element ? [...(root.shadowRoot?.children ?? [])] : [];
+          } else {
+            pool = [...root.children];
+          }
+          const tagged = pool.filter(
+            (element) => step.tag === "*" || element.localName.toLowerCase() === step.tag,
+          );
+          const picked =
+            step.index === undefined ? tagged : [tagged[step.index - 1]!].filter(Boolean);
+          for (const element of picked) if (!next.includes(element)) next.push(element);
+        }
+        if (!next.length) return [];
+        current = next;
+      }
+      return current as Element[];
     };
     const splitSelectorList = (selector: string): string[] => {
       const parts: string[] = [];
@@ -415,6 +629,50 @@ export async function createPlaywrightCompatRuntime(
             if (implicitRole(element) !== step.role) return false;
             if (!step.includeHidden && !visible(element)) return false;
             if (step.name && !matches(accessibleName(element), step.name)) return false;
+            if (
+              step.checked !== undefined &&
+              (element as HTMLInputElement).checked !== step.checked
+            )
+              return false;
+            if (
+              step.disabled !== undefined &&
+              (element as HTMLInputElement).disabled !== step.disabled
+            )
+              return false;
+            if (
+              step.selected !== undefined &&
+              (element as HTMLOptionElement).selected !== step.selected
+            )
+              return false;
+            if (
+              step.expanded !== undefined &&
+              element.getAttribute("aria-expanded") !== String(step.expanded)
+            )
+              return false;
+            if (
+              step.pressed !== undefined &&
+              element.getAttribute("aria-pressed") !== String(step.pressed)
+            )
+              return false;
+            if (step.level !== undefined && Number(element.tagName.slice(1)) !== step.level)
+              return false;
+            return true;
+          });
+        } else if (step.kind === "xpaths") {
+          // Candidates come from the accessibility tree, so role, name, and
+          // visibility are already settled; only scope and state remain.
+          const scoped = dedupe(
+            step.values.flatMap((expression) => {
+              try {
+                return resolveStagehandXPath(expression);
+              } catch {
+                return [];
+              }
+            }),
+          ).filter((element) =>
+            roots.some((root) => root instanceof Document || root.contains(element)),
+          );
+          current = scoped.filter((element) => {
             if (
               step.checked !== undefined &&
               (element as HTMLInputElement).checked !== step.checked
@@ -939,7 +1197,12 @@ export async function createPlaywrightCompatRuntime(
       options: { timeout?: number } = {},
     ): Promise<void> {
       record("calls", method);
-      const timeout = options.timeout ?? 30_000;
+      // Playwright's own default is 30 s, but through this facade a miss is a
+      // dead wait with no call log: eval traces showed 0.65 such misses per
+      // task at 30 s each, with agents treating the silence as "not on the
+      // page". 10 s (the original facade default) bounds that tail; callers
+      // that genuinely need longer pass `timeout` explicitly.
+      const timeout = options.timeout ?? 10_000;
       const deadline = Date.now() + timeout;
       let result: QueryResult = { count: 0 };
       let lastActionError: unknown;
@@ -1212,22 +1475,45 @@ export async function createPlaywrightCompatRuntime(
     const key = pageKey(page);
     const existing = compatPages.get(key);
     if (existing) return existing;
+    const accessibilityFallbacks = new Map<string, { at: number; plan: QueryStep[] | null }>();
     const state: PageState = {
       rawPage: page,
       cachedUrl: await page.url(),
       viewport: await page.evaluate("({ width: innerWidth, height: innerHeight })"),
       closed: false,
       execute: async (plan, operation, extra = {}) => {
-        const result = await page.evaluate<QueryResult>(
-          buildQueryEvaluationExpression({ plan, operation, ...extra }),
-        );
-        if (result.error) {
-          const error = new Error(result.error.message);
-          error.name = result.error.name;
-          if (result.error.stack) error.stack = result.error.stack;
-          throw error;
+        const run = async (steps: QueryStep[]): Promise<QueryResult> => {
+          const result = await page.evaluate<QueryResult>(
+            buildQueryEvaluationExpression({ plan: steps, operation, ...extra }),
+          );
+          if (result.error) {
+            const error = new Error(result.error.message);
+            error.name = result.error.name;
+            if (result.error.stack) error.stack = result.error.stack;
+            throw error;
+          }
+          return result;
+        };
+        const result = await run(plan);
+        if (result.count !== 0 || plan.length === 0 || !planHasRoleStep(plan)) return result;
+
+        // Nothing matched in the DOM; consult the accessibility tree. Cache per
+        // plan briefly so the inspect → tag → action sequence inside one
+        // locator action (and the 50 ms retry loop) reuses a single snapshot.
+        const cacheKey = JSON.stringify(plan);
+        const cached = accessibilityFallbacks.get(cacheKey);
+        let resolved: QueryStep[] | null;
+        if (cached && Date.now() - cached.at < ACCESSIBILITY_FALLBACK_CACHE_TTL_MS) {
+          resolved = cached.plan;
+        } else {
+          resolved = await resolvePlanWithAccessibilityTree(page, plan);
+          accessibilityFallbacks.set(cacheKey, { at: Date.now(), plan: resolved });
         }
-        return result;
+        if (!resolved) return result;
+        const fallbackResult = await run(resolved);
+        if (fallbackResult.count > 0) record("calls", "locator.getByRole.accessibilityTree");
+        else record("misses", "getByRole.accessibilityTree:unresolvedXPath");
+        return fallbackResult;
       },
       refreshUrl: async () => {
         state.cachedUrl = await page.url();
@@ -2006,8 +2292,9 @@ export async function createPlaywrightCompatRuntime(
     contexts: () => [context],
     isConnected: () => !closeRequested,
     // Do not close Chrome from inside experimentalBatch — the callback is
-    // running in that browser. Host-side run() reads closeRequested() and
-    // tears down Stagehand + the keep-alive session after the batch returns.
+    // running in that browser. The host reads closeRequested() from the batch
+    // envelope and tears down Stagehand + the keep-alive session after the
+    // batch returns.
     close: async () => {
       record("calls", "browser.close");
       closeRequested = true;

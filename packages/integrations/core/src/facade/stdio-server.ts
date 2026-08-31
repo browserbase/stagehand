@@ -14,7 +14,8 @@ import { sanitizeErrorMessage } from "../harness/redact.js";
 import { stagehandFacadeConfigFromEnv } from "./config.js";
 import {
   CodeModeRunInputSchema,
-  FACADE_TOOLS,
+  facadeSurfaceFromArgs,
+  facadeToolsForSurface,
   SCREENSHOT_TOOL_DESCRIPTION,
   SNAPSHOT_TOOL_DESCRIPTION,
   ScreenshotInputSchema,
@@ -34,12 +35,13 @@ type FacadeResources = {
 
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
+const facadeTools = facadeToolsForSurface(facadeSurfaceFromArgs(process.argv.slice(2)));
 let resourcesPromise: Promise<FacadeResources> | undefined;
 let closing = false;
 
 server.registerTool(
   "run",
-  { description: FACADE_TOOLS[0].description, inputSchema: CodeModeRunInputSchema },
+  { description: facadeTools[0].description, inputSchema: CodeModeRunInputSchema },
   async () => ({ content: [] }),
 );
 server.registerTool(
@@ -54,7 +56,7 @@ server.registerTool(
 );
 
 server.server.removeRequestHandler("tools/list");
-server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [...FACADE_TOOLS] }));
+server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [...facadeTools] }));
 server.server.removeRequestHandler("tools/call");
 server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
@@ -125,7 +127,11 @@ async function createResources(): Promise<FacadeResources> {
       : await localBrowser.launch(config.browser.launchOptions);
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
-    return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+    const tools = new StagehandFacadeTools(stagehand, {
+      onRunReport: (report) =>
+        process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
+    });
+    return { browser, stagehand, tools };
   } catch (error) {
     await browser.close().catch(() => undefined);
     throw error;

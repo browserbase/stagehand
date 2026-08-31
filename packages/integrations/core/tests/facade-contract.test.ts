@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   CodeModeRunInputSchema,
+  FACADE_AGENT_INSTRUCTIONS,
+  FACADE_LEGACY_TOOLS,
   FACADE_TOOLS,
+  facadeSurfaceFromArgs,
+  facadeToolsForSurface,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   STALE_SNAPSHOT_ID_ERROR,
@@ -31,6 +36,45 @@ describe("Stagehand facade contract", () => {
       '{"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}',
     );
     expect(FACADE_TOOLS[2].description).toContain('{"type":"jpeg","quality":40,"fullPage":false}');
+  });
+
+  it("advertises the Playwright idiom and no Stagehand AI methods", () => {
+    expect(FACADE_TOOLS[0].description).toContain("page, context, and browser in scope");
+    expect(FACADE_TOOLS[0].description).toContain("Playwright-shaped API");
+    expect(FACADE_AGENT_INSTRUCTIONS).toContain("Playwright page, context, and browser");
+    expect(FACADE_AGENT_INSTRUCTIONS).toContain("page.getByRole(");
+    for (const text of [FACADE_TOOLS[0].description, FACADE_AGENT_INSTRUCTIONS]) {
+      expect(text).not.toMatch(/\b(act|extract|observe)\(/u);
+      expect(text).not.toContain("stagehand.");
+    }
+  });
+
+  it("keeps the legacy surface byte-identical except for the run description", () => {
+    expect(FACADE_LEGACY_TOOLS.map((tool) => tool.name)).toStrictEqual([
+      "run",
+      "snapshot",
+      "screenshot",
+    ]);
+    expect(FACADE_LEGACY_TOOLS[0].description).toBe(
+      'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.',
+    );
+    expect(FACADE_LEGACY_TOOLS[0].inputSchema).toBe(FACADE_TOOLS[0].inputSchema);
+    expect(FACADE_LEGACY_TOOLS[1]).toBe(FACADE_TOOLS[1]);
+    expect(FACADE_LEGACY_TOOLS[2]).toBe(FACADE_TOOLS[2]);
+    expect(LEGACY_FACADE_AGENT_INSTRUCTIONS).toContain(
+      "Use snapshot actions for simple interactions",
+    );
+    expect(LEGACY_FACADE_AGENT_INSTRUCTIONS).not.toBe(FACADE_AGENT_INSTRUCTIONS);
+  });
+
+  it("selects the surface from --surface", () => {
+    expect(facadeSurfaceFromArgs([])).toBe("playwright");
+    expect(facadeSurfaceFromArgs(["--max-screenshot-base64-bytes=4096"])).toBe("playwright");
+    expect(facadeSurfaceFromArgs(["--surface=legacy"])).toBe("legacy");
+    expect(facadeSurfaceFromArgs(["--surface=playwright"])).toBe("playwright");
+    expect(() => facadeSurfaceFromArgs(["--surface=codemode"])).toThrow("--surface=");
+    expect(facadeToolsForSurface("legacy")).toBe(FACADE_LEGACY_TOOLS);
+    expect(facadeToolsForSurface("playwright")).toBe(FACADE_TOOLS);
   });
 
   it("pins snapshot error punctuation", () => {

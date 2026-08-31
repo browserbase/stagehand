@@ -1,3 +1,5 @@
+import fsp from "node:fs/promises";
+import path from "node:path";
 import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/stagehand";
 import {
   NAVIGATED_SNAPSHOT_ERROR,
@@ -6,16 +8,39 @@ import {
   staleSnapshotIdError,
   type RefAction,
 } from "./contract.js";
-import { createPlaywrightCompatRuntime } from "./runtime.js";
+import { createPlaywrightCompatRuntime, type PlaywrightCompatTelemetry } from "./runtime.js";
 
 type SnapshotState = { url: string; xpathById: Record<string, string> };
 type HydratedAction = RefAction & { selector: string };
 type ActionResult = { completed: number };
+type ScreenshotArtifact = { path: string; base64: string };
 type RunEnvelope = {
   __stagehandPlaywrightCompat: true;
   value: unknown;
   executionError?: { name: string; message: string; stack?: string };
+  telemetry: PlaywrightCompatTelemetry;
+  artifacts: ScreenshotArtifact[];
+  closeRequested: boolean;
+  batchRuntimeMs: number;
 };
+
+export type StagehandFacadeRunReport = {
+  telemetry: PlaywrightCompatTelemetry;
+  /** Wall-clock time of the whole experimentalBatch round trip. */
+  batchRoundTripMs: number;
+  /** Time the agent's code spent executing inside the batch. */
+  batchRuntimeMs: number;
+  closeRequested: boolean;
+};
+
+export type StagehandFacadeToolsOptions = {
+  /** Directory that relative `page.screenshot({ path })` paths resolve against. Defaults to process.cwd(). */
+  artifactRoot?: string;
+  /** Observes every completed `run` batch (including ones whose code threw). */
+  onRunReport?: (report: StagehandFacadeRunReport) => void;
+};
+
+const RUN_BATCH_TIMEOUT_MS = 60_000;
 
 export type StagehandFacadeScreenshot = {
   data: string;
@@ -60,6 +85,7 @@ const page = runtime.page;
 const context = runtime.context;
 const browser = runtime.browser;
 const console = globalThis.console;
+const __stagehandBatchStartedAt = performance.now();
 let value;
 let executionError;
 try {
@@ -78,13 +104,20 @@ return {
   __stagehandPlaywrightCompat: true,
   value,
   executionError,
+  telemetry: runtime.telemetry(),
+  artifacts: runtime.artifacts(),
+  closeRequested: runtime.closeRequested(),
+  batchRuntimeMs: performance.now() - __stagehandBatchStartedAt,
 };`;
 
 export class StagehandFacadeTools {
   private readonly snapshotsByPage = new Map<string, SnapshotState>();
   private queue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly stagehand: Stagehand) {}
+  constructor(
+    private readonly stagehand: Stagehand,
+    private readonly options: StagehandFacadeToolsOptions = {},
+  ) {}
 
   snapshot(options: { includeIframes?: boolean } = {}): Promise<string> {
     return this.enqueue(() => this.snapshotNow(options));
@@ -166,11 +199,15 @@ export class StagehandFacadeTools {
       "input",
       FACADE_PRELUDE + code + FACADE_EPILOGUE,
     ) as ExperimentalBatchCallback<Record<string, never>, RunEnvelope>;
-    const envelope = await this.stagehand.experimentalBatch(
-      callback,
-      {},
-      { page, timeout: 60_000 },
-    );
+    const startedAt = performance.now();
+    const envelope = await this.runBatchWithActivePageFallback(callback, page);
+    this.options.onRunReport?.({
+      telemetry: envelope.telemetry,
+      batchRoundTripMs: performance.now() - startedAt,
+      batchRuntimeMs: envelope.batchRuntimeMs,
+      closeRequested: envelope.closeRequested,
+    });
+    await this.writeScreenshotArtifacts(envelope.artifacts);
     if (envelope.executionError) {
       const error = new Error(envelope.executionError.message);
       error.name = envelope.executionError.name;
@@ -178,6 +215,47 @@ export class StagehandFacadeTools {
       throw error;
     }
     return envelope.value;
+  }
+
+  /**
+   * The batch controller resolves its target page before invoking the
+   * callback, so when the active page vanished between activePage() and the
+   * batch (tab closed by the previous snippet) this retry cannot replay
+   * partially executed agent code.
+   */
+  private async runBatchWithActivePageFallback(
+    callback: ExperimentalBatchCallback<Record<string, never>, RunEnvelope>,
+    page: Page,
+  ): Promise<RunEnvelope> {
+    try {
+      return await this.stagehand.experimentalBatch(
+        callback,
+        {},
+        { page, timeout: RUN_BATCH_TIMEOUT_MS },
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !/callback batch page was not found/iu.test(error.message)) {
+        throw error;
+      }
+      const context = this.stagehand.browser.context;
+      if (!(await context.activePage())) await context.newPage();
+      return await this.stagehand.experimentalBatch(
+        callback,
+        {},
+        { timeout: RUN_BATCH_TIMEOUT_MS },
+      );
+    }
+  }
+
+  private async writeScreenshotArtifacts(artifacts: ScreenshotArtifact[]): Promise<void> {
+    const root = this.options.artifactRoot ?? process.cwd();
+    for (const artifact of artifacts) {
+      const target = path.isAbsolute(artifact.path)
+        ? artifact.path
+        : path.resolve(root, artifact.path);
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.writeFile(target, Buffer.from(artifact.base64, "base64"));
+    }
   }
 
   private async activePage(): Promise<Page> {

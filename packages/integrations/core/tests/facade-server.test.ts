@@ -3,7 +3,7 @@ import type { Stream } from "node:stream";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FACADE_TOOLS } from "../src/facade/contract.js";
+import { FACADE_LEGACY_TOOLS, FACADE_TOOLS } from "../src/facade/contract.js";
 
 const entrypoint = fileURLToPath(new URL("../dist/facade/stdio-server.mjs", import.meta.url));
 const readyMessage = "Stagehand facade MCP host listening on stdio";
@@ -63,6 +63,28 @@ describe("built Stagehand facade stdio server", () => {
     expect(textContent(boolean)).toContain("expected number");
 
     await expect(client.ping()).resolves.toBeDefined();
+  });
+});
+
+describe("built Stagehand facade stdio server with --surface=legacy", () => {
+  it("lists the legacy run description", async () => {
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [entrypoint, "--surface=legacy"],
+      env: { PATH: process.env.PATH ?? "", STAGEHAND_BROWSER: "invalid" },
+      stderr: "pipe",
+    });
+    if (!transport.stderr) throw new Error("stdio transport did not expose stderr");
+    const ready = waitForOutput(transport.stderr, readyMessage);
+    const client = new Client({ name: "stagehand-facade-test", version: "1.0.0" });
+    await Promise.all([client.connect(transport), ready]);
+    try {
+      const result = await client.listTools();
+      expect(result.tools).toStrictEqual([...FACADE_LEGACY_TOOLS]);
+      expect(result.tools[0].description).not.toBe(FACADE_TOOLS[0].description);
+    } finally {
+      await client.close();
+    }
   });
 });
 

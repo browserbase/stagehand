@@ -1,7 +1,13 @@
 export {
   FACADE_TOOLS,
+  FACADE_LEGACY_TOOLS,
   FACADE_AGENT_INSTRUCTIONS,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
   RUN_TOOL_DESCRIPTION,
+  LEGACY_RUN_TOOL_DESCRIPTION,
+  facadeSurfaceFromArgs,
+  facadeToolsForSurface,
+  type FacadeSurface,
   SNAPSHOT_TOOL_DESCRIPTION,
   SCREENSHOT_TOOL_DESCRIPTION,
   RUN_INPUT_SCHEMA,
@@ -18,7 +24,11 @@ export {
   type RefAction,
   type CodeModeRunInput,
 } from "./contract.js";
-export { StagehandFacadeTools } from "./tools.js";
+export {
+  StagehandFacadeTools,
+  type StagehandFacadeRunReport,
+  type StagehandFacadeToolsOptions,
+} from "./tools.js";
 export {
   StagehandFacadeConfigError,
   stagehandFacadeConfigFromEnv,
