@@ -3,6 +3,7 @@ import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import {
   buildExternalHarnessPrompt,
+  buildFacadeToolCallMetrics,
   buildNormalizedHarnessMetrics,
   legacyHarnessFieldPrefix,
   parseEvalResult,
@@ -107,6 +108,21 @@ describe("external harness runner", () => {
     expect(complete.harness_cache_creation_input_tokens.value).toBe(2);
     expect(complete.harness_reasoning_output_tokens.value).toBe(1);
     expect(complete.harness_cost_usd.value).toBe(0.25);
+  });
+
+  it("counts facade tool calls and their failures from the trajectory", () => {
+    const steps = [
+      { actionName: "stagehand.run", actionArgs: {}, toolOutput: { ok: true, result: "x" } },
+      { actionName: "stagehand.run", actionArgs: {}, toolOutput: { ok: false, result: "cancelled" } },
+      { actionName: "node_repl.js", actionArgs: {}, toolOutput: { ok: true, result: "y" } },
+      { actionName: "stagehand.snapshot", actionArgs: {} },
+    ];
+    expect(
+      buildFacadeToolCallMetrics({ steps } as never, (name) => name.startsWith("stagehand.")),
+    ).toEqual({
+      facade_tool_calls: { count: 1, value: 3 },
+      facade_tool_call_failures: { count: 1, value: 1 },
+    });
   });
 
   it("assembles normalized and deprecated task-result fields", async () => {

@@ -68,23 +68,63 @@ const STAGEHAND_FACADE_MCP_TIMEOUTS = {
   tool_timeout_sec: 300,
 } as const;
 
+/**
+ * Codex treats MCP tools without a `readOnlyHint` annotation as needing
+ * approval under the read-only sandbox. Headless runs have no reviewer, so the
+ * request is dropped and the call fails as "user cancelled MCP tool call"
+ * (verified against codex 0.147). The runner owns every mounted server, so
+ * pre-approving its tools is safe and keeps the filesystem sandbox read-only.
+ */
+export const CODEX_MCP_TOOLS_APPROVAL_MODE = "approve";
+
+/** Name of the per-run Codex home directory created inside the adapter cwd. */
+export const CODEX_HOME_DIRNAME = ".codex-home";
+
 export function buildCodexMcpServers(
   toolSurface: ToolSurface,
   mcpServers: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (toolSurface !== "stagehand_facade" && toolSurface !== "stagehand_facade_legacy") {
-    return mcpServers;
-  }
-
+  const facade = toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy";
   return Object.fromEntries(
     Object.entries(mcpServers).map(([name, config]) => [
       name,
       {
         ...(typeof config === "object" && config !== null ? config : {}),
-        ...STAGEHAND_FACADE_MCP_TIMEOUTS,
+        default_tools_approval_mode: CODEX_MCP_TOOLS_APPROVAL_MODE,
+        ...(facade && STAGEHAND_FACADE_MCP_TIMEOUTS),
       },
     ]),
   );
+}
+
+/**
+ * Build the child env for a Codex session with `CODEX_HOME` pointed at a
+ * per-run directory. Without this the binary loads the operator's
+ * ~/.codex/config.toml — extra mcp_servers, plugins, approvals_reviewer — which
+ * hands the agent browser escape hatches the tool surface never granted.
+ */
+export function buildIsolatedCodexEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  codexHome: string,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (value !== undefined) env[key] = value;
+  }
+  env.CODEX_HOME = codexHome;
+  return env;
+}
+
+async function createIsolatedCodexHome(cwd: string): Promise<string> {
+  const codexHome = path.join(cwd, CODEX_HOME_DIRNAME);
+  await fsp.mkdir(codexHome, { recursive: true });
+  // Every setting the run needs arrives as `--config` overrides from the SDK;
+  // the file exists only so nothing in this home is inherited from elsewhere.
+  await fsp.writeFile(
+    path.join(codexHome, "config.toml"),
+    "# Per-run Codex home created by stagehand-evals; intentionally empty.\n",
+  );
+  return codexHome;
 }
 
 /** Mirrors the claude adapter's bounded, best-effort terminal capture. */
@@ -178,6 +218,7 @@ export async function prepareCodexToolAdapter(
         path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
       );
       const capturedCwd = cwd;
+      const codexHome = await createIsolatedCodexHome(cwd);
       const serverNames = Object.keys(mount.mcpServers);
       const codexMcpServers = buildCodexMcpServers(toolSurface, mount.mcpServers);
 
@@ -195,7 +236,7 @@ export async function prepareCodexToolAdapter(
         toolSurface,
         startupProfile,
         cwd,
-        env: { ...process.env } as Record<string, string>,
+        env: buildIsolatedCodexEnv(process.env, codexHome),
         promptInstructions: mount.promptInstructions,
         codexConfig: { mcp_servers: codexMcpServers },
         ...(runtime.running.captureEvidence && {
@@ -236,6 +277,7 @@ export async function prepareCodexToolAdapter(
       path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
     );
     await fsp.writeFile(path.join(cwd, "browser_run.mjs"), buildBridgeClientScript(bridge.port));
+    const codexHome = await createIsolatedCodexHome(cwd);
 
     input.logger.log({
       category: "codex",
@@ -253,7 +295,7 @@ export async function prepareCodexToolAdapter(
       toolSurface,
       startupProfile,
       cwd,
-      env: { ...process.env } as Record<string, string>,
+      env: buildIsolatedCodexEnv(process.env, codexHome),
       promptInstructions: buildCodexCodePromptInstructions(mount, toolSurface),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),

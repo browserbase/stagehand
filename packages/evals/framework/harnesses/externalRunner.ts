@@ -225,9 +225,10 @@ export async function runExternalHarnessTask<TRaw>({
   const stepObservations = toolAdapter?.drainStepObservations
     ? await bestEffort(toolAdapter.drainStepObservations(), evidenceTimeoutMs)
     : undefined;
+  let trajectory: Trajectory | undefined;
   const gradedResult = await gradeExternalTrajectory({
-    buildTrajectory: () =>
-      toTrajectory(
+    buildTrajectory: () => {
+      trajectory = toTrajectory(
         {
           raw: outcome.raw,
           parsed,
@@ -240,16 +241,49 @@ export async function runExternalHarnessTask<TRaw>({
           status: outcome.status === "completed" ? "complete" : "error",
         },
         verifier.taskSpec,
-      ),
+      );
+      return trajectory;
+    },
     verifier,
     baseResult,
     errorMessage,
     category: harness,
     logger,
   });
+  const facadeMetrics =
+    trajectory && toolAdapter?.observedToolMatcher
+      ? buildFacadeToolCallMetrics(trajectory, toolAdapter.observedToolMatcher)
+      : {};
+  const gradedMetrics = (gradedResult.metrics ?? {}) as Record<string, MetricValue>;
+  const result: TaskResult = {
+    ...gradedResult,
+    metrics: { ...gradedMetrics, ...facadeMetrics },
+  };
   return outcome.status === "sdk_error"
-    ? { ...gradedResult, _success: false, error: errorMessage }
-    : gradedResult;
+    ? { ...result, _success: false, error: errorMessage }
+    : result;
+}
+
+/**
+ * How often the agent actually reached the mounted browser surface. A run that
+ * "passes" with zero facade calls answered from somewhere else (curl, another
+ * MCP server, prior knowledge), which the rubric verifier cannot see.
+ */
+export function buildFacadeToolCallMetrics(
+  trajectory: Pick<Trajectory, "steps">,
+  isFacadeTool: (name: string) => boolean,
+): Record<string, MetricValue> {
+  let calls = 0;
+  let failures = 0;
+  for (const step of trajectory.steps) {
+    if (!isFacadeTool(step.actionName)) continue;
+    calls += 1;
+    if (step.toolOutput?.ok === false) failures += 1;
+  }
+  return {
+    facade_tool_calls: metricValue(calls),
+    facade_tool_call_failures: metricValue(failures),
+  };
 }
 
 /** Convert a registered harness id to its deprecated TaskResult field prefix. */
