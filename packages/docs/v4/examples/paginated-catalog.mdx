@@ -1,0 +1,133 @@
+---
+title: "Extract a paginated catalog"
+description: "Collect typed records across an unknown number of pages with extract, observe, and act."
+---
+
+## Agent brief
+
+Give this brief to your coding agent. It should adapt the storage layer, schema, and target site to your application instead of creating a second scraper beside it.
+
+```text
+Add a paginated Stagehand v4 extraction job to this project.
+
+Requirements:
+- Use @browserbasehq/stagehand and Zod 4.
+- Extract every visible record on the current page into a typed schema.
+- Discover the next-page control with observe(). Pass the returned Action
+  directly to act() so Stagehand does not locate the same control twice.
+- Stop when observe() returns no next-page action.
+- Track visited URLs and fail if pagination cycles.
+- Write each completed page through the project's existing persistence layer.
+- Close Stagehand and the browser in finally blocks.
+
+Do not guess a page count or build selectors from the current HTML.
+
+Verify with a multi-page fixture, a single-page fixture, and a fixture whose
+next link points back to an already visited URL.
+```
+
+**Goal:** Collect a typed catalog when the number and shape of pages can change.
+
+**Outcome:** A bounded loop that extracts each page once, follows the site's own pagination control, and fails clearly on a cycle.
+
+## Stack
+
+- Node.js 24 or newer
+- `@browserbasehq/stagehand`
+- Zod 4
+- Browserbase
+
+## Set up the project
+
+```bash
+mkdir stagehand-pagination && cd stagehand-pagination
+pnpm init -y
+pnpm add @browserbasehq/stagehand zod@4.4.3
+```
+
+Set `BROWSERBASE_API_KEY`, then create `index.ts`:
+
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+const catalogSchema = z.object({
+  books: z.array(
+    z.object({
+      title: z.string(),
+      price: z.string(),
+      availability: z.string(),
+    }),
+  ),
+});
+
+const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
+if (!browserbaseApiKey) throw new Error("BROWSERBASE_API_KEY is required");
+
+const browser = await browserbase.launch({
+  apiKey: browserbaseApiKey,
+});
+
+try {
+  const stagehand = await Stagehand.create({ browser });
+  try {
+    const page = await browser.context.activePage();
+    if (!page) throw new Error("No active page");
+
+    await page.goto(
+      "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
+    );
+
+    const books: z.infer<typeof catalogSchema>["books"] = [];
+    const visited = new Set<string>();
+
+    while (true) {
+      const url = await page.url();
+      if (visited.has(url)) throw new Error(`Pagination loop detected at ${url}`);
+      visited.add(url);
+
+      const result = await stagehand.extract(
+        "Extract every book shown in the product grid. Keep each price exactly as displayed.",
+        catalogSchema,
+        { page },
+      );
+      books.push(...result.data.books);
+
+      const next = await stagehand.observe(
+        "Find the pagination control that opens the next page. Return no actions if it is disabled or absent.",
+        { page },
+      );
+      const nextAction = next.data[0];
+      if (!nextAction) break;
+
+      await stagehand.act(nextAction, { page });
+      await page.waitForLoadState("domcontentloaded");
+    }
+
+    console.log(JSON.stringify({ count: books.length, books }, null, 2));
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+
+Run it:
+
+```bash
+export BROWSERBASE_API_KEY="bb_live_..."
+pnpm dlx tsx index.ts
+```
+
+## Why this pattern holds up
+
+The script does not guess how many pages exist. `observe()` returns the concrete next-page action, and `act(nextAction)` replays that exact action. The visited-URL guard turns a broken or cyclic paginator into a clear error instead of an endless job.
+
+For a large catalog, write each page to your database inside the loop instead of retaining every record in memory.
+
+## Check your work
+
+- The final `count` matches the number of returned book objects.
+- No URL appears twice in the run.
+- The loop stops when the next-page control disappears.

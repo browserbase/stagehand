@@ -97,46 +97,31 @@
           },
           {
             "tab": "Examples",
+            "root": "v4/examples/overview",
             "groups": [
               {
-                "group": "Get Started",
-                "pages": [
-                  "v4/examples/overview",
-                  "v4/examples/get-started/first-automation"
-                ]
+                "group": "Overview",
+                "pages": ["v4/examples/overview"]
               },
               {
-                "group": "Browser Agents",
-                "pages": [
-                  "v4/examples/vercel-ai-sdk/browser-agent",
-                  "v4/examples/eve/browser-agent",
-                  "v4/examples/openrouter/chat-and-browser"
-                ]
+                "group": "Data Extraction",
+                "pages": ["v4/examples/paginated-catalog"]
               },
               {
-                "group": "Coding Agents",
-                "pages": [
-                  "v4/examples/claude-code/coming-soon",
-                  "v4/examples/codex/coming-soon",
-                  "v4/examples/pi/coming-soon"
-                ]
+                "group": "Multi-page Workflows",
+                "pages": ["v4/examples/compare-pages-in-parallel"]
               },
               {
-                "group": "Agent Frameworks",
-                "pages": [
-                  "v4/examples/tanstack-ai/browser-agent",
-                  "v4/examples/cloudflare-agents/durable-browser-agent",
-                  "v4/examples/crewai/coming-soon",
-                  "v4/examples/mastra/coming-soon",
-                  "v4/examples/deep-agents/coming-soon"
-                ]
+                "group": "Vercel AI SDK",
+                "pages": ["v4/examples/ai-sdk-research-agent"]
               },
               {
-                "group": "Code Mode",
-                "pages": [
-                  "v4/examples/vercel-ai-sdk/code-mode",
-                  "v4/examples/code-mode/coming-soon"
-                ]
+                "group": "Human-in-the-Loop",
+                "pages": ["v4/examples/approve-form-submission"]
+              },
+              {
+                "group": "TanStack AI",
+                "pages": ["v4/examples/tanstack-ai-extraction-tool"]
               }
             ]
           }

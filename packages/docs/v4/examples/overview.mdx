@@ -8,71 +8,44 @@ Examples are copy-paste recipes that show Stagehand combined with the stacks you
 
 **Goal for agents:** when Codex, Claude Code, or another coding agent searches Stagehand docs, these pages give concrete Stagehand + stack context — not only API reference.
 
-## Get Started
+These recipes are complete programs with a defined stopping condition, cleanup, and checks you can run after adapting them.
+
+## Data extraction
 
 <CardGroup cols={2}>
-  <Card title="Quickstart: First Automation" href="/v4/examples/get-started/first-automation">
-    Drive stagehand.dev with act, extract, and observe across TypeScript, Python, and Go.
+  <Card title="Extract a paginated catalog" href="/v4/examples/paginated-catalog">
+    Combine extract, observe, and act to collect an unknown number of pages.
   </Card>
 </CardGroup>
 
-## Browser Agents
+## Multi-page workflows
 
 <CardGroup cols={2}>
-  <Card title="Build a Browser Agent with AI SDK" href="/v4/examples/vercel-ai-sdk/browser-agent">
-    Multi-step agent loop over Stagehand MCP tools on stagehand.dev.
-  </Card>
-  <Card title="Run Browser Tools through AI SDK Code Mode" href="/v4/examples/vercel-ai-sdk/code-mode">
-    Model-written TypeScript programs calling Stagehand tools in a sandbox.
-  </Card>
-  <Card title="Build a Browser Agent with Eve" href="/v4/examples/eve/browser-agent">
-    Durable Eve agent with native Stagehand tools for the same multi-step flow.
-  </Card>
-  <Card title="Chat and Browser with OpenRouter" href="/v4/examples/openrouter/chat-and-browser">
-    Illustrative Stagehand + OpenRouter combo for model choice and browser control.
+  <Card title="Compare pages in parallel" href="/v4/examples/compare-pages-in-parallel">
+    Keep each extraction bound to its own tab while the work runs concurrently.
   </Card>
 </CardGroup>
 
-## Agent frameworks
+## Vercel AI SDK
 
 <CardGroup cols={2}>
-  <Card title="Build a Browser Agent with TanStack AI" href="/v4/examples/tanstack-ai/browser-agent">
-    Isomorphic toolDefinitions, approval interrupts, AG-UI streaming over Stagehand.
-  </Card>
-  <Card title="Run a Durable Browser Agent on Cloudflare Workers" href="/v4/examples/cloudflare-agents/durable-browser-agent">
-    One Durable Object per conversation owns the browser, state, and schedules.
+  <Card title="Build a typed AI SDK research agent" href="/v4/examples/ai-sdk-research-agent">
+    Run a persistent Stagehand browser inside an AI SDK tool loop and validate the final report.
   </Card>
 </CardGroup>
 
-## Coming soon
-
-Descriptive recipes that will fill Coding Agents and remaining Agent Frameworks.
+## Human-in-the-loop
 
 <CardGroup cols={2}>
-  <Card title="Claude Code with Stagehand" href="/v4/examples/claude-code/coming-soon">
-    End-to-end Claude Code + Stagehand recipes.
-  </Card>
-  <Card title="Codex with Stagehand" href="/v4/examples/codex/coming-soon">
-    End-to-end Codex + Stagehand recipes.
-  </Card>
-  <Card title="Pi with Stagehand" href="/v4/examples/pi/coming-soon">
-    Pi coding agent + Stagehand recipes.
-  </Card>
-  <Card title="CrewAI with Stagehand" href="/v4/examples/crewai/coming-soon">
-    Python CrewAI agent recipes with Stagehand.
-  </Card>
-  <Card title="Mastra with Stagehand" href="/v4/examples/mastra/coming-soon">
-    Mastra agent recipes with Stagehand.
-  </Card>
-  <Card title="Deep Agents with Stagehand" href="/v4/examples/deep-agents/coming-soon">
-    Local and managed Deep Agents recipes.
+  <Card title="Approve before submitting a form" href="/v4/examples/approve-form-submission">
+    Pause an AI SDK tool call before Stagehand performs the final browser side effect.
   </Card>
 </CardGroup>
 
-## Cloud templates
+## TanStack AI
 
-Need Browserbase-wide templates (Fetch, Search, agents, and more)? Those live on the Browserbase site so this catalog can stay Stagehand-specific.
-
-<Card title="Browserbase templates" href="https://www.browserbase.com/templates">
-  Ready-to-use cloud templates for browser automation, data extraction, and agents.
-</Card>
+<CardGroup cols={2}>
+  <Card title="Add Stagehand extraction to TanStack AI" href="/v4/examples/tanstack-ai-extraction-tool">
+    Wrap a one-shot Browserbase extraction as a typed TanStack AI server tool.
+  </Card>
+</CardGroup>
