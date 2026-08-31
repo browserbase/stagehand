@@ -120,18 +120,11 @@ func launchChromeWithPortResolver(
 		return nil, err
 	}
 
-	userDataDir := options.UserDataDir
-	temporaryProfile := userDataDir == ""
-	if temporaryProfile {
-		userDataDir, err = os.MkdirTemp("", "stagehand-chrome-")
-		if err != nil {
-			return nil, fmt.Errorf("create Chrome profile: %w", err)
-		}
-	} else if err := os.MkdirAll(userDataDir, 0o700); err != nil {
-		return nil, fmt.Errorf("create Chrome profile %q: %w", userDataDir, err)
+	userDataDir, removeDir, err := resolveChromeProfile(options)
+	if err != nil {
+		return nil, err
 	}
 
-	removeDir := temporaryProfile && !options.PreserveUserDataDir
 	cleanupProfile := func() error {
 		if !removeDir {
 			return nil
@@ -177,6 +170,20 @@ func launchChromeWithPortResolver(
 		return nil, errors.Join(err, closeErr)
 	}
 	return launched, nil
+}
+
+func resolveChromeProfile(options LocalBrowserLaunchOptions) (string, bool, error) {
+	if options.UserDataDir != "" {
+		if err := os.MkdirAll(options.UserDataDir, 0o700); err != nil {
+			return "", false, fmt.Errorf("create Chrome profile %q: %w", options.UserDataDir, err)
+		}
+		return options.UserDataDir, false, nil
+	}
+	userDataDir, err := os.MkdirTemp("", "stagehand-chrome-")
+	if err != nil {
+		return "", false, fmt.Errorf("create Chrome profile: %w", err)
+	}
+	return userDataDir, !options.PreserveUserDataDir, nil
 }
 
 func validateLocalBrowserOptions(options LocalBrowserLaunchOptions) error {

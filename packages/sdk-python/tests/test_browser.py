@@ -852,6 +852,36 @@ async def test_local_browser_close_ignores_vanished_process_and_removes_profile(
     assert not profile.exists()
 
 
+async def test_empty_user_data_dir_uses_and_removes_temporary_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    spawned_args: tuple[object, ...] = ()
+
+    class FakeProcess:
+        returncode = 0
+        pid = 123
+
+    async def create_subprocess_exec(*args: object, **_kwargs: object) -> FakeProcess:
+        nonlocal spawned_args
+        spawned_args = args
+        return FakeProcess()
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_available_port", lambda: 9222)
+    monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(browser, "_wait_for_chrome", _ready_chrome)
+
+    source = await _launch_local_browser(LocalBrowserLaunchOptions(user_data_dir=""))
+
+    assert f"--user-data-dir={profile}" in spawned_args
+    await source.close()
+    assert not profile.exists()
+
+
 @pytest.mark.parametrize(
     "uses_temporary_profile",
     [False, True],

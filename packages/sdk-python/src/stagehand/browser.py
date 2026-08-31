@@ -719,7 +719,7 @@ def _validate_local_browser_options(options: _LocalBrowserOptions) -> None:
 
 
 def _resolve_chrome_profile(options: _LocalBrowserOptions) -> _ChromeProfile:
-    if options.user_data_dir is not None:
+    if options.user_data_dir not in (None, ""):
         path = Path(options.user_data_dir)
         path.mkdir(mode=0o700, parents=True, exist_ok=True)
         return _ChromeProfile(path=path, remove=False)

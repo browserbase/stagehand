@@ -214,6 +214,29 @@ describe("local browser launch lifecycle", () => {
     await browser.close();
   });
 
+  it("treats an empty profile path as an SDK-owned temporary profile", async () => {
+    const mkdir = vi.fn(async () => undefined);
+    const mkdtemp = vi.fn(async () => "/tmp/empty-stagehand-chrome-profile");
+    const { launch, removeProfile, spawnChrome } = fakeLauncher({ mkdir, mkdtemp });
+
+    const browser = await launch({
+      executablePath: "/path/to/chrome",
+      userDataDir: "",
+    });
+
+    expect(mkdtemp).toHaveBeenCalledOnce();
+    expect(mkdir).not.toHaveBeenCalled();
+    expect(spawnChrome.mock.calls[0]?.[1]).toContain(
+      "--user-data-dir=/tmp/empty-stagehand-chrome-profile",
+    );
+
+    await browser.close();
+    expect(removeProfile).toHaveBeenCalledWith("/tmp/empty-stagehand-chrome-profile", {
+      force: true,
+      recursive: true,
+    });
+  });
+
   it("uses CHROME_PATH before platform candidates", async () => {
     const checked: string[] = [];
     const { launch, spawnChrome } = fakeLauncher({

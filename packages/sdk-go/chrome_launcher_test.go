@@ -76,6 +76,24 @@ func TestLaunchedChromeProfileOwnership(t *testing.T) {
 	}
 }
 
+func TestResolveChromeProfileTreatsEmptyPathAsTemporary(t *testing.T) {
+	profile, remove, err := resolveChromeProfile(LocalBrowserLaunchOptions{UserDataDir: ""})
+	if err != nil {
+		t.Fatalf("resolveChromeProfile() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(profile); err != nil {
+			t.Errorf("remove temporary Chrome profile: %v", err)
+		}
+	})
+	if !remove {
+		t.Fatal("resolveChromeProfile() remove = false, want true")
+	}
+	if filepath.Base(profile) == "." || !strings.HasPrefix(filepath.Base(profile), "stagehand-chrome-") {
+		t.Fatalf("resolveChromeProfile() path = %q, want Stagehand temporary profile", profile)
+	}
+}
+
 func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 	t.Setenv("CI", "")
 	sandbox := false
