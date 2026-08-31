@@ -3,7 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import type { Stagehand } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { StagehandFacadeTools, type StagehandFacadeRunReport } from "../src/facade/tools.js";
+import {
+  BROWSER_SESSION_LOST_ERROR_PREFIX,
+  type FacadeSessionLoss,
+} from "../src/facade/contract.js";
+import {
+  StagehandFacadeSessionLostError,
+  StagehandFacadeTools,
+  type StagehandFacadeRunReport,
+} from "../src/facade/tools.js";
 
 type FakePage = ReturnType<typeof createFakePage>;
 
@@ -459,5 +467,90 @@ describe("StagehandFacadeTools.runActions", () => {
     });
     expect(page.waitForTimeout).toHaveBeenCalledWith(250);
     expect(experimentalBatch).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("StagehandFacadeTools session loss", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function batchTimeoutError() {
+    const error = new Error("stagehand.experimentalBatch() received no response within 75000ms");
+    error.name = "StagehandBatchTimeoutError";
+    Object.assign(error, { timeout: 60_000, clientTimeout: 75_000 });
+    return error;
+  }
+
+  it("turns a batch client deadline into the terminal error and stays dead", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch, context } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    const losses: FacadeSessionLoss[] = [];
+    const tools = new StagehandFacadeTools(stagehand, {
+      onSessionLost: (loss) => losses.push(loss),
+    });
+
+    const first = tools.run("await page.getByRole('button', { name: 'Search now' }).click();");
+    await expect(first).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
+    await expect(first).rejects.toThrow(
+      "Browser session lost (batch received no response within 75000ms). The task cannot continue; report your final result now.",
+    );
+    expect(losses).toEqual([
+      { cause: "batch received no response within 75000ms", tool: "run", at: expect.any(String) },
+    ]);
+    expect(tools.sessionLoss).toBe(losses[0]);
+
+    // Every later call gets the same terminal answer without touching the browser.
+    const callsBefore = context.activePage.mock.calls.length;
+    await expect(tools.snapshot()).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    await expect(tools.run("return 1;")).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    await expect(tools.screenshot()).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    expect(context.activePage.mock.calls.length).toBe(callsBefore);
+    expect(experimentalBatch).toHaveBeenCalledTimes(1);
+    expect(losses).toHaveLength(1);
+  });
+
+  it("treats a closed RPC/CDP transport as session loss", async () => {
+    const page = createFakePage();
+    const { stagehand, context } = createFakeStagehand(page);
+    context.activePage.mockRejectedValueOnce(new Error("RPC client is closed"));
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.snapshot()).rejects.toThrow("Browser session lost (RPC client closed).");
+    expect(tools.sessionLoss?.tool).toBe("snapshot");
+  });
+
+  it("does not treat an executor-side batch timeout or agent code errors as session loss", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(
+      new Error("Stagehand callback batch timed out after 60000ms"),
+    );
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.run("return 1;")).rejects.toThrow("callback batch timed out");
+    expect(tools.sessionLoss).toBeUndefined();
+    await expect(tools.run("throw new Error('RPC client is closed');")).rejects.toThrow(
+      "RPC client is closed",
+    );
+    expect(tools.sessionLoss).toBeUndefined();
+    await expect(tools.run("return 2;")).resolves.toBe(2);
+  });
+
+  it("bounds a snapshot that never answers and marks the session lost", async () => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    page.snapshot.mockImplementationOnce(() => new Promise(() => undefined));
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+
+    const pending = tools.snapshot();
+    const rejection = expect(pending).rejects.toThrow(
+      "Browser session lost (page.snapshot received no response within 120000ms).",
+    );
+    await vi.advanceTimersByTimeAsync(120_000);
+    await rejection;
+    expect(tools.sessionLoss?.cause).toBe("page.snapshot received no response within 120000ms");
   });
 });

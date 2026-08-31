@@ -18,6 +18,7 @@ import {
   facadeToolsForSurface,
   SCREENSHOT_TOOL_DESCRIPTION,
   SESSION_INFO_TOOL_NAME,
+  SESSION_LOST_TELEMETRY_PREFIX,
   SNAPSHOT_TOOL_DESCRIPTION,
   ScreenshotInputSchema,
   SnapshotInputSchema,
@@ -143,6 +144,13 @@ async function createResources(): Promise<FacadeResources> {
     const tools = new StagehandFacadeTools(stagehand, {
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
+      // The browser is not recreated on purpose: a fresh session would silently
+      // change the evidence trail mid-task. Tools keep answering with the
+      // terminal error and the host decides what to do with the run.
+      onSessionLost: (loss) =>
+        process.stderr.write(
+          `${SESSION_LOST_TELEMETRY_PREFIX}${JSON.stringify({ ...loss, cause: sanitizeErrorMessage(loss.cause) })}\n`,
+        ),
     });
     return { browser, stagehand, tools };
   } catch (error) {

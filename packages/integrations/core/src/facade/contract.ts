@@ -191,6 +191,31 @@ export function staleSnapshotIdError(id: string): string {
   return STALE_SNAPSHOT_ID_ERROR.replace("${id}", id);
 }
 
+/**
+ * Prefix of the terminal error every facade tool returns once the browser
+ * session is gone. Harnesses match on it to tell consequences from agent errors.
+ */
+export const BROWSER_SESSION_LOST_ERROR_PREFIX = "Browser session lost (";
+export const BROWSER_SESSION_LOST_ERROR =
+  "Browser session lost (${cause}). The task cannot continue; report your final result now.";
+/** Stderr telemetry line the stdio server emits once when the session is lost. */
+export const SESSION_LOST_TELEMETRY_PREFIX = "stagehand_facade_session_lost ";
+
+export function browserSessionLostError(cause: string): string {
+  return BROWSER_SESSION_LOST_ERROR.replace("${cause}", cause);
+}
+
+export function isBrowserSessionLostError(message: string): boolean {
+  return message.startsWith(BROWSER_SESSION_LOST_ERROR_PREFIX);
+}
+
+export type FacadeSessionLoss = {
+  cause: string;
+  /** Tool call that first observed the loss. */
+  tool: string;
+  at: string;
+};
+
 export const RefActionSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("click"), id: z.string().min(1) }),
   z.strictObject({ op: z.literal("hover"), id: z.string().min(1) }),

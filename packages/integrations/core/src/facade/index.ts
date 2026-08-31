@@ -18,6 +18,12 @@ export {
   NAVIGATED_SNAPSHOT_ERROR,
   STALE_SNAPSHOT_ID_ERROR,
   staleSnapshotIdError,
+  BROWSER_SESSION_LOST_ERROR,
+  BROWSER_SESSION_LOST_ERROR_PREFIX,
+  SESSION_LOST_TELEMETRY_PREFIX,
+  browserSessionLostError,
+  isBrowserSessionLostError,
+  type FacadeSessionLoss,
   RefActionSchema,
   CodeModeRunInputSchema,
   SnapshotInputSchema,
@@ -27,6 +33,7 @@ export {
 } from "./contract.js";
 export {
   StagehandFacadeTools,
+  StagehandFacadeSessionLostError,
   type StagehandFacadeRunReport,
   type StagehandFacadeToolsOptions,
 } from "./tools.js";
