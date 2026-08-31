@@ -72,6 +72,8 @@ describe("external harness runner", () => {
       summary: "Inspected the meme.",
       finalAnswer: "A cat on a keyboard.",
     });
+    // A report quoted mid-prose, with more prose after it, is not the conclusion.
+    expect(parseEvalResult(`${raw}\nthen I kept going`).success).toBe(false);
   });
 
   it("resolves the final answer from the report, else from the last message minus JSON blobs", () => {

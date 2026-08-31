@@ -49,16 +49,12 @@ export function parseEvalResult(raw: string): ParsedEvalResult {
   const resultText =
     markerIndex >= 0 ? raw.slice(markerIndex + (markerMatch?.[0].length ?? 0)).trim() : raw.trim();
   // Without a marker the report may trail free-form narration ("I'll open
-  // the site...\n\n{...}"), so the last report-shaped object in the text is
-  // the agent's conclusion.
+  // the site...\n\n{...}"): a report-shaped object that ends the message is
+  // the agent's conclusion. One quoted mid-prose is not.
   const candidates =
     markerIndex >= 0
       ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
-      : [
-          resultText,
-          resultText.split(/\r?\n/, 1)[0]?.trim(),
-          extractJsonObjects(resultText).reverse().find(isEvalResultJson),
-        ];
+      : [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), trailingEvalResultJson(resultText)];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -471,6 +467,11 @@ function isRecordJson(candidate: string): boolean {
   } catch {
     return false;
   }
+}
+
+function trailingEvalResultJson(text: string): string | undefined {
+  const last = extractJsonObjects(text).at(-1);
+  return last && text.endsWith(last) && isEvalResultJson(last) ? last : undefined;
 }
 
 function isEvalResultJson(candidate: string): boolean {
