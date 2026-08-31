@@ -296,7 +296,14 @@ export async function gradeExternalTrajectory({
     return {
       ...baseResult,
       _success: verifiedSuccess,
-      error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
+      error: verifiedSuccess
+        ? undefined
+        : gates.outcomeGates.length > 0 && gates.judgeOutcomeSuccess
+          ? // The judge passed this row; a deterministic gate flipped it. Say
+            // so where the row error is read, instead of echoing the agent's
+            // (often confident) self-report.
+            `${describeOutcomeGates(gates)} (judge passed; agent said: ${clipError(String(baseResult.error ?? errorMessage))})`
+          : (baseResult.error ?? errorMessage),
       outcomeSuccess: gates.outcomeSuccess,
       judgeOutcomeSuccess: gates.judgeOutcomeSuccess,
       outcomeGates: gates.outcomeGates,
@@ -424,4 +431,21 @@ export function evaluationResultToSuccess(
     case "both":
       return outcomeOk && processOk;
   }
+}
+
+const GATE_DESCRIPTIONS: Record<string, string> = {
+  no_final_answer: "agent produced no final answer",
+  trajectory_error: "trajectory ended in error",
+  no_browser_use: "no browser tool calls",
+  ungrounded_answer: "answer datums only in search-engine results, never on a target page",
+};
+
+function describeOutcomeGates(gates: { outcomeGates: string[] }): string {
+  const parts = gates.outcomeGates.map((g) => GATE_DESCRIPTIONS[g] ?? g);
+  return `gated: ${gates.outcomeGates.join(",")} — ${parts.join("; ")}`;
+}
+
+function clipError(value: string | undefined): string {
+  const text = (value ?? "").replace(/\s+/g, " ").trim();
+  return text.length > 160 ? `${text.slice(0, 159)}…` : text;
 }

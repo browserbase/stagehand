@@ -150,7 +150,11 @@ describe("gradeExternalTrajectory", () => {
     expect(result.outcomeSuccess).toBe(false);
     expect(result.outcomeGates).toEqual(["no_browser_use"]);
     expect(result._success).toBe(false);
-    expect(result.error).toBe("agent reported failure");
+    // A gate that overrides a judge pass names itself in the row error so the
+    // reason is visible where the row is read, with the agent's claim attached.
+    expect(result.error).toMatch(
+      /^gated: no_browser_use — no browser tool calls \(judge passed; agent said: agent reported failure\)$/,
+    );
     expect((result.metrics as Record<string, { value: number }>).outcome_gated.value).toBe(1);
   });
 
