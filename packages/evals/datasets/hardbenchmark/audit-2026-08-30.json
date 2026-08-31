@@ -174,10 +174,7 @@
       "id": "7e6993f2c5cd72c44809024f0bc85dc1",
       "category": "form_fill_extraction",
       "startUrl": "https://imgur.com/",
-      "probeUrls": [
-        "https://imgur.com/",
-        "https://imgur.com/meme-generator"
-      ],
+      "probeUrls": ["https://imgur.com/", "https://imgur.com/meme-generator"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -307,10 +304,7 @@
       "id": "864244b6969e0f8733b0eb1ca06cd51f",
       "category": "navigation",
       "startUrl": "https://www.espn.com/",
-      "probeUrls": [
-        "https://www.espn.com/",
-        "https://www.espn.com/f1/"
-      ],
+      "probeUrls": ["https://www.espn.com/", "https://www.espn.com/f1/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -679,9 +673,7 @@
       "id": "airasia_88",
       "category": "step_cap_exhaustion",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.airasia.com/en/gb"
-      ],
+      "probeUrls": ["https://www.airasia.com/en/gb"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -730,9 +722,7 @@
       "id": "amazon_7859",
       "category": "premature_termination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.amazon.com/s?k=Storm+Fury+Book+1"
-      ],
+      "probeUrls": ["https://www.amazon.com/s?k=Storm+Fury+Book+1"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -851,9 +841,7 @@
       "id": "apply_apply_2317",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://jobs.thermofisher.com/global/en/search-results"
-      ],
+      "probeUrls": ["https://jobs.thermofisher.com/global/en/search-results"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -909,9 +897,7 @@
       "id": "apply_apply_2864",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.roberthalf.com/us/en/jobs/los-angeles-ca/accounting"
-      ],
+      "probeUrls": ["https://www.roberthalf.com/us/en/jobs/los-angeles-ca/accounting"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -960,10 +946,7 @@
       "id": "b2f4fde2fce122a93c7b578086cb0585",
       "category": "looping",
       "startUrl": "https://www.booking.com/",
-      "probeUrls": [
-        "https://www.booking.com/",
-        "https://www.expedia.com/Vacation-Packages"
-      ],
+      "probeUrls": ["https://www.booking.com/", "https://www.expedia.com/Vacation-Packages"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1163,9 +1146,7 @@
       "id": "c1d6ea6f2196d25782cc3646ff3090db",
       "category": "premature_termination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.target.com/s?searchTerm=drip+coffee+maker"
-      ],
+      "probeUrls": ["https://www.target.com/s?searchTerm=drip+coffee+maker"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1214,9 +1195,7 @@
       "id": "colgate_1",
       "category": "looping",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://shop.colgate.com/"
-      ],
+      "probeUrls": ["https://shop.colgate.com/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1328,9 +1307,7 @@
       "id": "disneyworld.disney.go_plan_a_trip_2",
       "category": "hallucination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://disneyworld.disney.go.com/admission/tickets/"
-      ],
+      "probeUrls": ["https://disneyworld.disney.go.com/admission/tickets/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1386,9 +1363,7 @@
       "id": "eventbrite_tickets_book_51",
       "category": "hallucination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://discoverbaltimorecounty.com/events/"
-      ],
+      "probeUrls": ["https://discoverbaltimorecounty.com/events/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1761,9 +1736,7 @@
       "id": "housebeautiful_2",
       "category": "premature_termination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.amazon.com/s?k=outdoor+smoker"
-      ],
+      "probeUrls": ["https://www.amazon.com/s?k=outdoor+smoker"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1819,9 +1792,7 @@
       "id": "indytoday.6amcity_8",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://yazshindy.com/"
-      ],
+      "probeUrls": ["https://yazshindy.com/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1877,10 +1848,7 @@
       "id": "metmuseum_find_24",
       "category": "looping",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.metmuseum.org/tickets",
-        "https://engage.metmuseum.org/admission/"
-      ],
+      "probeUrls": ["https://www.metmuseum.org/tickets", "https://engage.metmuseum.org/admission/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -1951,9 +1919,7 @@
       "id": "michaels_2250",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.michaels.com/search?q=baby+fabric"
-      ],
+      "probeUrls": ["https://www.michaels.com/search?q=baby+fabric"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2079,9 +2045,7 @@
       "id": "oceanstatejoblot_4",
       "category": "looping",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.oceanstatejoblot.com/search?q=rug"
-      ],
+      "probeUrls": ["https://www.oceanstatejoblot.com/search?q=rug"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2193,9 +2157,7 @@
       "id": "recwatches_1",
       "category": "premature_termination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.recwatches.com/"
-      ],
+      "probeUrls": ["https://www.recwatches.com/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2244,9 +2206,7 @@
       "id": "rockauto_1225",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.rockauto.com/"
-      ],
+      "probeUrls": ["https://www.rockauto.com/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2295,9 +2255,7 @@
       "id": "rockauto_4460",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.rockauto.com/en/catalog/ford,2000,e-450,6.8l+v10,1375848"
-      ],
+      "probeUrls": ["https://www.rockauto.com/en/catalog/ford,2000,e-450,6.8l+v10,1375848"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2346,9 +2304,7 @@
       "id": "simpletire_5",
       "category": "looping",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://simpletire.com/"
-      ],
+      "probeUrls": ["https://simpletire.com/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2397,9 +2353,7 @@
       "id": "tagwoodbbq_1",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://tagwoodbbq.com/"
-      ],
+      "probeUrls": ["https://tagwoodbbq.com/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2511,10 +2465,7 @@
       "id": "tripadvisor_plan_a_trip_118",
       "category": "premature_termination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.tripadvisor.com/",
-        "https://laventanaweb.com/en"
-      ],
+      "probeUrls": ["https://www.tripadvisor.com/", "https://laventanaweb.com/en"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2585,9 +2536,7 @@
       "id": "tripadvisor_question_answering_185",
       "category": "premature_termination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.tripadvisor.com/Search?q=Volcano%20Winery%20Hawaii"
-      ],
+      "probeUrls": ["https://www.tripadvisor.com/Search?q=Volcano%20Winery%20Hawaii"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2647,9 +2596,7 @@
       "id": "underarmour_7483",
       "category": "constraint_handling",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.underarmour.com/en-us/c/mens/accessories/beanies-gloves/"
-      ],
+      "probeUrls": ["https://www.underarmour.com/en-us/c/mens/accessories/beanies-gloves/"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
@@ -2698,9 +2645,7 @@
       "id": "walgreens_10",
       "category": "premature_termination",
       "startUrl": "https://www.google.com",
-      "probeUrls": [
-        "https://www.walgreens.com/search/results.jsp?Ntt=heated+foot+spa"
-      ],
+      "probeUrls": ["https://www.walgreens.com/search/results.jsp?Ntt=heated+foot+spa"],
       "reachability": {
         "classification": "ok",
         "blockedOnBothAttempts": [],
