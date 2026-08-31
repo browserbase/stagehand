@@ -72,6 +72,7 @@ export async function runClaudeCodeAgent({
   return runExternalHarnessTask({
     harness: "claude_code",
     plan,
+    model,
     logger,
     toolAdapter,
     verifier,

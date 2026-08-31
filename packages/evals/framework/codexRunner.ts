@@ -90,6 +90,7 @@ export async function runCodexAgent({
   return runExternalHarnessTask({
     harness: "codex",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,

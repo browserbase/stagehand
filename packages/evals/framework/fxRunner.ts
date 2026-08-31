@@ -77,6 +77,7 @@ export async function runFxAgent({
   return runExternalHarnessTask({
     harness: "fx",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,

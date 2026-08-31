@@ -89,6 +89,7 @@ export async function runCursorAgent({
   return runExternalHarnessTask({
     harness: "cursor",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,

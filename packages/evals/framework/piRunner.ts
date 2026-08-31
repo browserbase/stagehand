@@ -59,6 +59,7 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
   return runExternalHarnessTask({
     harness: "pi",
     plan,
+    model,
     logger,
     toolAdapter,
     verifier,

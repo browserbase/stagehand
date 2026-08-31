@@ -100,6 +100,7 @@ export async function runDeepagentsAgent({
   return runExternalHarnessTask({
     harness: "deepagents",
     plan,
+    model,
     logger,
     toolAdapter,
     verifier,

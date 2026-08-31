@@ -86,6 +86,7 @@ export async function runMastraAgent({
   const result = await runExternalHarnessTask({
     harness: "mastra",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,

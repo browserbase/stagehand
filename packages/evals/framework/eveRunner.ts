@@ -70,6 +70,7 @@ export async function runEveAgent({
   return runExternalHarnessTask({
     harness: "eve",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,

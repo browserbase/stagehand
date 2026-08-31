@@ -10,6 +10,7 @@ import type { StepObservation } from "../observationRecorder.js";
 import type { TaskResult } from "../types.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "../verifierAdapter.js";
 import { emitTrajectoryTrace } from "./traceLog.js";
+import { estimateCost, type CostEstimate } from "../costEstimate.js";
 import { normalizeUsage, type NormalizedUsage } from "../usageNormalization.js";
 
 export type MetricValue = { count: number; value: number };
@@ -193,6 +194,8 @@ export interface ExternalHarnessTrajectoryInput<TRaw> {
 export interface RunExternalHarnessTaskInput<TRaw> {
   harness: string;
   plan: ExternalHarnessTaskPlan;
+  /** Configured model id, used to price the normalized token usage. */
+  model?: string;
   logger: EvalLogger;
   toolAdapter?: ExternalHarnessToolAdapterLike;
   verifier?: ExternalHarnessVerifierConfig;
@@ -217,6 +220,7 @@ export interface RunExternalHarnessTaskInput<TRaw> {
 export async function runExternalHarnessTask<TRaw>({
   harness,
   plan,
+  model,
   logger,
   toolAdapter,
   verifier,
@@ -283,9 +287,17 @@ export async function runExternalHarnessTask<TRaw>({
   const prefix = legacyHarnessFieldPrefix(harness);
   const terminationReason = deriveTerminationReason(outcome);
   const usage = normalizeUsage({ harness, raw: outcome.usage });
+  const cost = estimateCost(usage, model);
+  if (cost.cost_source === "unpriced") {
+    logger.log({
+      category: "cost",
+      level: 1,
+      message: `no price for model ${model ?? "(unknown)"}; cost_usd_estimated omitted (add it to packages/evals/pricing/pricing.json)`,
+    });
+  }
   const baseMetrics: Record<string, MetricValue> = {
     ...buildNormalizedHarnessMetrics(outcome),
-    ...buildUsageMetrics(usage),
+    ...buildUsageCostMetrics(usage, cost, outcome.costUsd),
     ...(stepBudget !== undefined && { step_budget: metricValue(stepBudget) }),
     agent_wall_ms: metricValue(agentWallMs),
   };
@@ -299,6 +311,9 @@ export async function runExternalHarnessTask<TRaw>({
     ...(sanitizedStopReason && { harnessStopReason: sanitizedStopReason }),
     terminationReason,
     agent_wall_ms: Math.round(agentWallMs),
+    cost_source: cost.cost_source,
+    ...(cost.cost_usd_estimated !== undefined && { cost_usd_estimated: cost.cost_usd_estimated }),
+    ...(cost.priced_with && { priced_with: cost.priced_with }),
     // Deprecated compatibility aliases; consumers should use the normalized
     // harnessStatus / harnessStopReason fields for newly registered harnesses.
     [`${prefix}Status`]: outcome.status,
@@ -466,13 +481,26 @@ export function formatSeconds(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-/** Convention-independent token buckets, alongside the harness-native metrics. */
-export function buildUsageMetrics(usage: NormalizedUsage): Record<string, MetricValue> {
+/**
+ * Convention-independent token buckets plus the dollar figures: the estimate
+ * from the versioned price map, and whatever the harness itself reported
+ * (claude_code total_cost_usd, eve costUsd, pi cost, fx total_cost). An
+ * unpriced model gets no `cost_usd_estimated` at all rather than a 0.
+ */
+export function buildUsageCostMetrics(
+  usage: NormalizedUsage,
+  cost: CostEstimate,
+  reportedCostUsd: number | undefined,
+): Record<string, MetricValue> {
   return {
     usage_input_total: metricValue(usage.input_total),
     usage_input_cached: metricValue(usage.input_cached),
     usage_output: metricValue(usage.output),
     usage_reasoning: metricValue(usage.reasoning),
+    ...(cost.cost_usd_estimated !== undefined && {
+      cost_usd_estimated: metricValue(cost.cost_usd_estimated),
+    }),
+    ...(reportedCostUsd !== undefined && { cost_usd_reported: metricValue(reportedCostUsd) }),
   };
 }
 
