@@ -102,6 +102,90 @@ describe("fx runner helpers", () => {
     expect(metrics.harness_cost_usd).toBeUndefined();
   });
 
+  it("grades the agent's conclusion, not its narration, when fx joins every assistant turn", async () => {
+    // Mirrors the observed events.jsonl shape: tool steps carrying opening and
+    // interstitial narration, then a committed turn whose assistant text is
+    // the structured report. fx's `ask --json` output joins all of them.
+    const narration = "I’ll open AirAsia’s booking flow and inspect the seat price.";
+    const interstitial = "No results rendered; retrying with direct flights only.";
+    const report =
+      '{"success":true,"summary":"Searched AirAsia.","finalAnswer":"No direct flights were available."}';
+    const toolStep = (assistant: string, id: string) => ({
+      assistant,
+      tool_calls: [{ id, name: "mcp_stagehand_run", arguments_json: '{"code":"1"}' }],
+      tool_results: [
+        { tool_call_id: id, tool_name: "mcp_stagehand_run", status: "success", output: "{}" },
+      ],
+    });
+    const events = JSON.stringify({
+      kind: "history_turn_committed",
+      payload: {
+        total_input_tokens: 42,
+        total_output_tokens: 8,
+        turn: {
+          kind: "completed",
+          assistant: report,
+          terminal_reason: "completed",
+          execution: {
+            schema_version: 3,
+            tool_steps: [
+              toolStep(narration, "c1"),
+              toolStep("", "c2"),
+              toolStep(interstitial, "c3"),
+            ],
+          },
+        },
+      },
+    });
+    const logger = new EvalLogger(false);
+    const result = await runFxAgent({
+      plan,
+      model: "openai/gpt-5.6-sol" as AvailableModel,
+      logger,
+      toolAdapter: {
+        toolSurface: "stagehand_facade",
+        startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
+        cwd: "/fake/workspace",
+        home: "/fake/home",
+        env: { PATH: "/bin" },
+        promptInstructions: "Use mcp_stagehand_run.",
+        mcpServerNames: ["stagehand"],
+        observedToolMatcher: (name) => name.startsWith("mcp_"),
+        cleanup: async () => {},
+      },
+      // Malformed rubric: the trajectory is still built and traced before the
+      // verifier integration fails, which is what this test inspects.
+      verifier: {
+        v3: {} as never,
+        taskSpec: { id: "wv-fx-1", instruction: plan.instruction, precomputedRubric: {} as never },
+        dataset: "webvoyager",
+      },
+      runProcess: async () => ({
+        stdout: JSON.stringify({
+          output: `${narration}\n\n${interstitial}\n\n${report}`,
+          exit_code: 0,
+          session_id: "fx-2",
+        }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: {
+        waitForSessionDir: async () => "/fake/session",
+        readEventsJsonl: async () => events,
+      },
+    });
+
+    expect(result._success).toBe(true);
+    expect(result.finalAnswer).toBe("No direct flights were available.");
+    expect(result.reasoning).toBe("Searched AirAsia.");
+    const messages = (result.logs ?? []).map((line) => line.message);
+    expect(messages).toContain("step 1 · think · " + narration);
+    expect(messages).toContain("step 3 · think · " + interstitial);
+    expect(messages).toContain("answer · No direct flights were available.");
+    expect(messages.some((message) => message.startsWith("answer · I’ll open"))).toBe(false);
+  });
+
   it("returns a failed task result with sdk_error status when fx cannot start", async () => {
     const result = await runFxAgent({
       plan,

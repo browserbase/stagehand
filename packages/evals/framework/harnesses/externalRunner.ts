@@ -46,10 +46,17 @@ export function parseEvalResult(raw: string): ParsedEvalResult {
   const markerIndex = markerMatch?.index ?? -1;
   const resultText =
     markerIndex >= 0 ? raw.slice(markerIndex + (markerMatch?.[0].length ?? 0)).trim() : raw.trim();
+  // Without a marker the report may trail free-form narration ("I'll open
+  // the site...\n\n{...}"), so the last report-shaped object in the text is
+  // the agent's conclusion.
   const candidates =
     markerIndex >= 0
       ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
-      : [resultText, resultText.split(/\r?\n/, 1)[0]?.trim()];
+      : [
+          resultText,
+          resultText.split(/\r?\n/, 1)[0]?.trim(),
+          extractJsonObjects(resultText).reverse().find(isEvalResultJson),
+        ];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -57,6 +64,30 @@ export function parseEvalResult(raw: string): ParsedEvalResult {
     if (parsed) return { ...parsed, raw };
   }
   return { success: false, raw };
+}
+
+/**
+ * The answer the verifier should grade: the structured report's finalAnswer
+ * when the agent produced one, otherwise its last message with any embedded
+ * JSON report removed so plans and raw blobs are never graded as answers.
+ */
+export function resolveFinalAnswer(
+  parsed: Pick<ParsedEvalResult, "finalAnswer">,
+  lastMessage: string | undefined,
+): string | undefined {
+  if (parsed.finalAnswer !== undefined) return parsed.finalAnswer;
+  if (!lastMessage) return undefined;
+  const stripped = stripEmbeddedJsonObjects(lastMessage).trim();
+  return stripped || undefined;
+}
+
+/** Remove every balanced `{...}` span that parses as a JSON object. */
+export function stripEmbeddedJsonObjects(text: string): string {
+  let output = text;
+  for (const span of extractJsonObjects(text)) {
+    if (isRecordJson(span)) output = output.replace(span, "");
+  }
+  return output.replace(/\n{3,}/gu, "\n\n");
 }
 
 export interface ExternalHarnessPromptInput {
@@ -350,13 +381,25 @@ function toFiniteNumber(value: unknown): number {
 }
 
 function extractFirstJsonObject(value: string): string | undefined {
-  const start = value.indexOf("{");
-  if (start < 0) return undefined;
+  return extractJsonObjects(value)[0];
+}
+
+/** Every top-level balanced `{...}` span in document order (not validated). */
+function extractJsonObjects(value: string): string[] {
+  const spans: string[] = [];
+  let start = -1;
   let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let index = start; index < value.length; index += 1) {
+  for (let index = 0; index < value.length; index += 1) {
     const character = value[index];
+    if (start < 0) {
+      if (character === "{") {
+        start = index;
+        depth = 1;
+      }
+      continue;
+    }
     if (inString) {
       if (escaped) escaped = false;
       else if (character === "\\") escaped = true;
@@ -367,10 +410,35 @@ function extractFirstJsonObject(value: string): string | undefined {
     else if (character === "{") depth += 1;
     else if (character === "}") {
       depth -= 1;
-      if (depth === 0) return value.slice(start, index + 1);
+      if (depth === 0) {
+        spans.push(value.slice(start, index + 1));
+        start = -1;
+      }
     }
   }
-  return undefined;
+  return spans;
+}
+
+function isRecordJson(candidate: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(candidate);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
+function isEvalResultJson(candidate: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(candidate);
+    return (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof (parsed as { success?: unknown }).success === "boolean"
+    );
+  } catch {
+    return false;
+  }
 }
 
 function tryParseEvalJson(candidate: string): Omit<ParsedEvalResult, "raw"> | undefined {

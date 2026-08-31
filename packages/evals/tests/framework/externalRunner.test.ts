@@ -7,7 +7,9 @@ import {
   buildNormalizedHarnessMetrics,
   legacyHarnessFieldPrefix,
   parseEvalResult,
+  resolveFinalAnswer,
   runExternalHarnessTask,
+  stripEmbeddedJsonObjects,
 } from "../../framework/harnesses/externalRunner.js";
 import { buildTrajectory } from "../../framework/harnesses/trajectoryAdapter.js";
 
@@ -57,6 +59,29 @@ describe("external harness runner", () => {
 
   it("falls back to failure for malformed reports", () => {
     expect(parseEvalResult("not json")).toEqual({ success: false, raw: "not json" });
+  });
+
+  it("parses the last report-shaped object trailing free-form narration", () => {
+    const raw = [
+      "I’ll open Imgur, inspect the meme, and report back.",
+      'The tool returned {"url":"https://imgur.com"} so I continued.',
+      '{"success":true,"summary":"Inspected the meme.","finalAnswer":"A cat on a keyboard."}',
+    ].join("\n\n");
+    expect(parseEvalResult(raw)).toMatchObject({
+      success: true,
+      summary: "Inspected the meme.",
+      finalAnswer: "A cat on a keyboard.",
+    });
+  });
+
+  it("resolves the final answer from the report, else from the last message minus JSON blobs", () => {
+    expect(resolveFinalAnswer({ finalAnswer: "42" }, "ignored")).toBe("42");
+    expect(
+      resolveFinalAnswer({}, 'The answer is on the page.\n\n{"malformed":true,"success":"yes"}'),
+    ).toBe("The answer is on the page.");
+    expect(resolveFinalAnswer({}, '{"only":"json"}')).toBeUndefined();
+    expect(resolveFinalAnswer({}, undefined)).toBeUndefined();
+    expect(stripEmbeddedJsonObjects("keep {not json} too")).toBe("keep {not json} too");
   });
 
   it("builds each result-contract tail", () => {

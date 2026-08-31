@@ -16,6 +16,7 @@ import {
   buildExternalHarnessPrompt,
   metricValue,
   parseEvalResult,
+  resolveFinalAnswer,
   runExternalHarnessTask,
   type ExternalHarnessToolAdapterLike,
   type MetricValue,
@@ -129,7 +130,7 @@ export async function runFxAgent({
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
           observedToolCallKeys: raw.observedToolCallKeys,
-          finalAnswer: parsed.finalAnswer ?? raw.finalMessage,
+          finalAnswer: resolveFinalAnswer(parsed, raw.finalMessage),
           status,
           usage: {
             input_tokens: raw.tokenUsage.input_tokens,
