@@ -1,6 +1,24 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const stagehandMocks = vi.hoisted(() => ({
+  launch: vi.fn(),
+}));
+const browserbaseSdkMocks = vi.hoisted(() => ({
+  debug: vi.fn(),
+}));
+
+vi.mock("@browserbasehq/stagehand", () => ({
+  browserbase: { launch: stagehandMocks.launch },
+}));
+vi.mock("@browserbasehq/sdk", () => ({
+  default: class Browserbase {
+    sessions = { debug: browserbaseSdkMocks.debug };
+  },
+}));
 
 import {
+  launchRemoteBrowser,
+  remoteBrowserbaseIdentity,
   remoteStagehandOptions,
   resolveExplicitRemoteTarget,
 } from "../src/lib/driver/remote.js";
@@ -12,6 +30,8 @@ describe("remote.ts (Browserbase capability)", () => {
   const previousApiKey = process.env.BROWSERBASE_API_KEY;
 
   beforeEach(() => {
+    stagehandMocks.launch.mockReset();
+    browserbaseSdkMocks.debug.mockReset();
     process.env.BROWSERBASE_API_KEY = "test-key";
   });
 
@@ -40,9 +60,8 @@ describe("remote.ts (Browserbase capability)", () => {
   // verified by identity-attribution.test.ts; here we assert only that the
   // attribution tag survives and that --verified/--proxies are threaded.
   it("keeps the browse_cli tag and adds no session settings by default", async () => {
-    const params = (await remoteStagehandOptions({ kind: "remote" }))
-      .browserbaseSessionCreateParams;
-    expect((params?.userMetadata as Record<string, string>).browse_cli).toBe(
+    const params = (await remoteStagehandOptions({ kind: "remote" })).browser;
+    expect((params.userMetadata as Record<string, string>).browse_cli).toBe(
       "true",
     );
     expect(params).not.toHaveProperty("proxies");
@@ -52,16 +71,16 @@ describe("remote.ts (Browserbase capability)", () => {
   it("threads proxies alone without touching browserSettings", async () => {
     const params = (
       await remoteStagehandOptions({ kind: "remote", proxies: true })
-    ).browserbaseSessionCreateParams;
-    expect(params?.proxies).toBe(true);
+    ).browser;
+    expect(params.proxies).toBe(true);
     expect(params).not.toHaveProperty("browserSettings");
   });
 
   it("threads verified alone into browserSettings without proxies", async () => {
     const params = (
       await remoteStagehandOptions({ kind: "remote", verified: true })
-    ).browserbaseSessionCreateParams;
-    expect(params?.browserSettings).toEqual({ verified: true });
+    ).browser;
+    expect(params.browserSettings).toEqual({ verified: true });
     expect(params).not.toHaveProperty("proxies");
   });
 
@@ -72,7 +91,7 @@ describe("remote.ts (Browserbase capability)", () => {
         proxies: true,
         verified: true,
       })
-    ).browserbaseSessionCreateParams;
+    ).browser;
     expect(params?.proxies).toBe(true);
     expect(params?.browserSettings).toEqual({ verified: true });
   });
@@ -82,5 +101,48 @@ describe("remote.ts (Browserbase capability)", () => {
     await expect(remoteStagehandOptions({ kind: "remote" })).rejects.toThrow(
       /BROWSERBASE_API_KEY/,
     );
+  });
+
+  it("launches through the V4 Browserbase factory so the extension is provisioned", async () => {
+    const browser = { close: vi.fn(), sessionId: "session-test" };
+    stagehandMocks.launch.mockResolvedValue(browser);
+    browserbaseSdkMocks.debug.mockResolvedValue({
+      debuggerUrl: "https://www.browserbase.com/live/session-test",
+    });
+
+    await expect(
+      launchRemoteBrowser({ kind: "remote", proxies: true, verified: true }),
+    ).resolves.toEqual({
+      browser,
+      identity: {
+        browserbaseDebugUrl: "https://www.browserbase.com/live/session-test",
+        browserbaseSessionId: "session-test",
+        browserbaseSessionUrl:
+          "https://www.browserbase.com/sessions/session-test",
+      },
+    });
+    expect(stagehandMocks.launch).toHaveBeenCalledWith({
+      apiKey: "test-key",
+      browserSettings: { verified: true },
+      proxies: true,
+      userMetadata: expect.objectContaining({ browse_cli: "true" }),
+    });
+  });
+
+  it("preserves remote session and live-view output fields", async () => {
+    const debug = async () => ({
+      debuggerUrl: "https://www.browserbase.com/live/session-test",
+    });
+
+    await expect(
+      remoteBrowserbaseIdentity(" session-test ", undefined, {
+        sessions: { debug },
+      }),
+    ).resolves.toEqual({
+      browserbaseDebugUrl: "https://www.browserbase.com/live/session-test",
+      browserbaseSessionId: "session-test",
+      browserbaseSessionUrl:
+        "https://www.browserbase.com/sessions/session-test",
+    });
   });
 });

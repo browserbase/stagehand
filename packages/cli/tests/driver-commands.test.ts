@@ -5,6 +5,11 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { elementsHandlers } from "../src/lib/driver/commands/elements.js";
+import { keyboardHandlers } from "../src/lib/driver/commands/keyboard.js";
+import { mouseHandlers } from "../src/lib/driver/commands/mouse.js";
+import { navigationHandlers } from "../src/lib/driver/commands/navigation.js";
+import { pageInfoHandlers } from "../src/lib/driver/commands/page-info.js";
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
 import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
@@ -169,34 +174,57 @@ describe("driver commands", () => {
     ).toThrow();
   });
 
-  it("selects a remaining tab after closing the active tab", async () => {
-    const tabs = createFakeTabManager(["tab-1", "tab-2", "tab-3"], 1);
-
-    await expect(tabHandlers["tab.close"]!(tabs.manager, {})).resolves.toEqual({
-      closed: true,
-      index: 1,
-      selectedTargetId: "tab-3",
-      targetId: "tab-2",
-    });
-    expect(tabs.pages[1]!.close).toHaveBeenCalledOnce();
-    expect(tabs.context.setActivePage).toHaveBeenCalledWith(tabs.pages[2]);
-    expect(tabs.active).toBe(tabs.pages[2]);
-  });
-
-  it("preserves the active tab after closing a non-active tab", async () => {
-    const tabs = createFakeTabManager(["tab-1", "tab-2", "tab-3"], 0);
+  it("keeps open available on the V4 foundation", async () => {
+    const page = { goto: vi.fn() };
+    const manager = {
+      openResult: vi.fn(async () => ({ url: "https://example.com" })),
+      pageForOpen: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof navigationHandlers)["open"]>
+    >[0];
 
     await expect(
-      tabHandlers["tab.close"]!(tabs.manager, { tab: "tab-2" }),
-    ).resolves.toEqual({
-      closed: true,
-      index: 1,
-      selectedTargetId: "tab-1",
-      targetId: "tab-2",
+      navigationHandlers.open!(manager, {
+        timeoutMs: 1_234,
+        url: "https://example.com",
+        waitUntil: "networkidle",
+      }),
+    ).resolves.toEqual({ url: "https://example.com" });
+    expect(page.goto).toHaveBeenCalledWith("https://example.com", {
+      timeout: 1_234,
+      waitUntil: "networkidle",
     });
-    expect(tabs.pages[1]!.close).toHaveBeenCalledOnce();
-    expect(tabs.context.setActivePage).not.toHaveBeenCalled();
-    expect(tabs.active).toBe(tabs.pages[0]);
+  });
+
+  it("fails deferred standard commands with one stable result code", async () => {
+    const deferred = [
+      elementsHandlers.click,
+      elementsHandlers.fill,
+      elementsHandlers.select,
+      keyboardHandlers.type,
+      mouseHandlers["mouse.click"],
+      mouseHandlers["mouse.drag"],
+      navigationHandlers.back,
+      navigationHandlers.reload,
+      pageInfoHandlers.get,
+      pageInfoHandlers.is,
+      runtimeHandlers.screenshot,
+      tabHandlers["tab.close"],
+      tabHandlers["tab.new"],
+    ];
+
+    for (const handler of deferred) {
+      await expect(handler!({} as never, {})).rejects.toMatchObject({
+        code: "v4_command_unavailable",
+      });
+    }
+
+    await expect(
+      runtimeHandlers.cursor!({} as never, {}),
+    ).rejects.toMatchObject({ code: "cursor_overlay_unavailable" });
+    await expect(new NetworkCapture("gap").enable({})).rejects.toMatchObject({
+      code: "network_capture_unavailable",
+    });
   });
 
   it("rejects invalid wait timeout values before calling the page", async () => {
@@ -393,171 +421,7 @@ describe("driver commands", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Prefer targetId");
   });
-
-  it("keeps network responses when loading finishes before request file writes", async () => {
-    const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-network-race-"));
-    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
-    process.env.BROWSE_DAEMON_DIR = daemonDir;
-    const cdp = new FakeCdpSession();
-    const capture = new NetworkCapture("race");
-    const originalWriteFile = fs.writeFile.bind(fs);
-    const writeFileSpy = vi
-      .spyOn(fs, "writeFile")
-      .mockImplementation(async (...args) => {
-        if (String(args[0]).endsWith("request.json")) {
-          await new Promise((resolve) => setTimeout(resolve, 25));
-        }
-        return originalWriteFile(...args);
-      });
-
-    try {
-      await capture.enable({ mainFrame: () => ({ session: cdp }) });
-      cdp.emit("Network.requestWillBeSent", {
-        request: {
-          headers: {},
-          method: "GET",
-          url: "https://example.com/fast",
-        },
-        requestId: "req-1",
-        type: "Document",
-      });
-      cdp.emit("Network.responseReceived", {
-        requestId: "req-1",
-        response: {
-          headers: { "content-type": "text/plain" },
-          mimeType: "text/plain",
-          status: 200,
-          statusText: "OK",
-        },
-      });
-      cdp.emit("Network.loadingFinished", { requestId: "req-1" });
-
-      const responsePath = join(
-        daemonDir,
-        "race-network",
-        "000-GET-example.com-fast",
-        "response.json",
-      );
-      await waitForFile(responsePath);
-      if (process.platform !== "win32") {
-        const networkDir = join(daemonDir, "race-network");
-        const requestDir = join(networkDir, "000-GET-example.com-fast");
-        expect(await fileMode(networkDir)).toBe(0o700);
-        expect(await fileMode(requestDir)).toBe(0o700);
-        expect(await fileMode(join(requestDir, "request.json"))).toBe(0o600);
-        expect(await fileMode(responsePath)).toBe(0o600);
-      }
-      const response = JSON.parse(await fs.readFile(responsePath, "utf8")) as {
-        body: string;
-        status: number;
-      };
-      expect(response).toMatchObject({ body: "ok", status: 200 });
-    } finally {
-      writeFileSpy.mockRestore();
-      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
-      await fs.rm(daemonDir, { recursive: true, force: true });
-    }
-  });
 });
-
-class FakeCdpSession {
-  private readonly listeners = new Map<
-    string,
-    Array<(params: unknown) => void>
-  >();
-
-  async send<T = unknown>(method: string): Promise<T> {
-    if (method === "Network.getResponseBody") {
-      return { body: "ok" } as T;
-    }
-    return {} as T;
-  }
-
-  on(event: string, listener: (params: unknown) => void): void {
-    const listeners = this.listeners.get(event) ?? [];
-    listeners.push(listener);
-    this.listeners.set(event, listeners);
-  }
-
-  off(event: string, listener: (params: unknown) => void): void {
-    this.listeners.set(
-      event,
-      (this.listeners.get(event) ?? []).filter(
-        (candidate) => candidate !== listener,
-      ),
-    );
-  }
-
-  emit(event: string, params: unknown): void {
-    for (const listener of this.listeners.get(event) ?? []) {
-      listener(params);
-    }
-  }
-}
-
-type FakeTabPage = {
-  close: ReturnType<typeof vi.fn>;
-  targetId: () => string;
-  title: () => Promise<string>;
-  url: () => string;
-};
-
-function createFakeTabManager(targetIds: string[], activeIndex: number) {
-  let pages: FakeTabPage[] = [];
-  let active: FakeTabPage | null = null;
-  const makePage = (targetId: string): FakeTabPage => {
-    const page: FakeTabPage = {
-      close: vi.fn(async () => {
-        pages = pages.filter((candidate) => candidate !== page);
-      }),
-      targetId: () => targetId,
-      title: async () => targetId,
-      url: () => `https://example.com/${targetId}`,
-    };
-    return page;
-  };
-
-  pages = targetIds.map(makePage);
-  active = pages[activeIndex] ?? null;
-  const context = {
-    activePage: () => active,
-    pages: () => pages,
-    setActivePage: vi.fn((page: FakeTabPage) => {
-      active = page;
-    }),
-  };
-
-  return {
-    get active() {
-      return active;
-    },
-    context,
-    manager: {
-      browserContext: async () => context,
-      safeTitle: async (page: FakeTabPage) => page.title(),
-    } as unknown as Parameters<
-      NonNullable<(typeof tabHandlers)["tab.close"]>
-    >[0],
-    pages,
-  };
-}
-
-async function waitForFile(path: string): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < 1000) {
-    try {
-      await fs.access(path);
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  throw new Error(`Timed out waiting for ${path}`);
-}
-
-async function fileMode(path: string): Promise<number> {
-  return (await fs.stat(path)).mode & 0o777;
-}
 
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) {
