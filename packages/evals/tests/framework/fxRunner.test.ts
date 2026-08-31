@@ -56,6 +56,7 @@ describe("fx runner helpers", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/fake/workspace",
         home: "/fake/home",
         env: { PATH: "/bin" },
@@ -109,6 +110,7 @@ describe("fx runner helpers", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/fake/workspace",
         home: "/fake/home",
         env: { PATH: "/bin" },

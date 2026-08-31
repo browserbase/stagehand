@@ -6,6 +6,7 @@ import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
@@ -40,6 +41,8 @@ export interface PreparedEveToolAdapter {
   appRoot: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   serverNames: string[];
   toolNames: string[];
   captureEvidence?: () => Promise<ProbeEvidence>;
@@ -298,7 +301,7 @@ export async function prepareEveToolAdapter(
     input.logger.log({
       category: "eve",
       message: `Initialized ${toolSurface} MCP mount for Eve (servers: ${serverNames.join(", ")}; tools: ${toolNames.length}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -311,6 +314,7 @@ export async function prepareEveToolAdapter(
       appRoot,
       env: { [EVE_MCP_SERVERS_ENV]: JSON.stringify(mount.mcpServers) },
       promptInstructions: mount.promptInstructions,
+      browserSession: runtime.browserSession,
       serverNames,
       toolNames,
       ...(runtime.running.captureEvidence && {

@@ -18,6 +18,7 @@ import {
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
@@ -46,6 +47,8 @@ export interface PreparedPiToolAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   /** via:"mcp" mounts — bridged in-process by pi-sdk. */
   mcpServers?: Record<string, PiMcpServerSpec>;
   /** via:"handles" mounts — the harness run tool hosted in-process by pi. */
@@ -121,7 +124,7 @@ export function buildPiMountConfig(input: {
           input.logger.log({
             category: "pi",
             message: `run tool completed: ${clip(text, 500)}`,
-            level: 1,
+            level: 2,
           });
           await input.recordObservation?.();
           return text;
@@ -184,7 +187,7 @@ export async function preparePiToolAdapter(
     input.logger.log({
       category: "pi",
       message: `Initialized ${toolSurface} ${mount.via} mount for pi.`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -196,6 +199,7 @@ export async function preparePiToolAdapter(
       cwd,
       env: { ...process.env } as Record<string, string>,
       promptInstructions: config.promptInstructions,
+      browserSession: runtime.browserSession,
       ...(config.mcpServers && { mcpServers: config.mcpServers }),
       ...(config.customTools && { customTools: config.customTools }),
       ...(runtime.running.captureEvidence && {
@@ -291,7 +295,7 @@ function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" |
     logger.log({
       category: "pi",
       message: `run console.${level}: ${values.map(stringifyToolResult).join(" ")}`,
-      level: 1,
+      level: 2,
     });
   };
   return {

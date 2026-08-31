@@ -7,6 +7,7 @@ import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
@@ -30,6 +31,8 @@ export interface PreparedFxToolAdapter {
   home: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   mcpServerNames: string[];
   captureEvidence?: () => Promise<ProbeEvidence>;
   drainStepObservations?: () => Promise<StepObservation[]>;
@@ -281,7 +284,7 @@ export async function prepareFxToolAdapter(
           input.logger.log({
             category: "fx",
             message: `Discovered ${toolNames.length} MCP tools for fx server ${serverName}.`,
-            level: 1,
+            level: 2,
           });
         } catch (error) {
           const message = sanitizeErrorMessage(stringifyUnknown(error));
@@ -320,7 +323,7 @@ export async function prepareFxToolAdapter(
     input.logger.log({
       category: "fx",
       message: `Initialized ${toolSurface} MCP mount for fx (servers: ${serverNames.join(", ")}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -334,6 +337,7 @@ export async function prepareFxToolAdapter(
       home,
       env: definedProcessEnv({ HOME: home }),
       promptInstructions: agentsMarkdown,
+      browserSession: runtime.browserSession,
       mcpServerNames: serverNames,
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),

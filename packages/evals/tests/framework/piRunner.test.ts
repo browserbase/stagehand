@@ -81,6 +81,7 @@ describe("pi runner", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/tmp/pi-runner",
         env: {},
         promptInstructions: "Use browser.",

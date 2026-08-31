@@ -90,6 +90,7 @@ describe("codex runner helpers", () => {
       toolAdapter: {
         toolSurface: "browse_cli",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/tmp/stagehand-evals-test",
         env: { PATH: "/tmp" },
         promptInstructions: "Use browse.",

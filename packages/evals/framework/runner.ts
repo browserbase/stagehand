@@ -573,6 +573,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                           _success: r._success,
                           ...(r.error === undefined ? {} : { error: r.error }),
                           ...(r.metrics === undefined ? {} : { metrics: r.metrics }),
+                          ...(r.sessionUrl === undefined ? {} : { sessionUrl: r.sessionUrl }),
                           ...(r.logs === undefined ? {} : { logs: r.logs }),
                         }),
                         metadata: {
@@ -580,6 +581,9 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                           thread_id: traceThreadId,
                           model: input.modelName,
                           task: input.name,
+                          ...(typeof r.browserbaseSessionId === "string"
+                            ? { browserbase_session_id: r.browserbaseSessionId }
+                            : {}),
                         },
                       });
                       return r;

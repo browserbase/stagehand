@@ -21,6 +21,7 @@ import {
 } from "../core/contracts/tool.js";
 import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
@@ -43,6 +44,8 @@ export interface PreparedClaudeCodeToolAdapter {
   allowedTools: string[];
   settingSources: string[];
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   mcpServers?: Record<string, unknown>;
   canUseTool?: (
     toolName: string,
@@ -68,6 +71,8 @@ export interface PreparedBrowseCliHarnessAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** browse_cli owns its daemon; the Browserbase session id is not reported. */
+  browserSession: BrowserSessionInfo;
   metadata: BrowseCliToolMetadata;
   cleanup: () => Promise<void>;
 }
@@ -286,7 +291,7 @@ export async function prepareBrowseCliHarnessAdapter(
   input.logger.log({
     category: input.logCategory,
     message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
-    level: 1,
+    level: 2,
   });
   const env = {
     ...process.env,
@@ -322,6 +327,7 @@ export async function prepareBrowseCliHarnessAdapter(
     cwd,
     env,
     promptInstructions: buildBrowseCliPromptInstructions(input.plan),
+    browserSession: { provider: input.environment === "BROWSERBASE" ? "browserbase" : "local" },
     metadata: getBrowseCliToolMetadata(),
     cleanup: async () => {
       await runBrowseCommand(wrapperPath, ["stop", "--force"], input.logger, env, cwd).catch(
@@ -344,7 +350,10 @@ async function prepareMountedCoreToolAdapter(
 ): Promise<PreparedClaudeCodeToolAdapter> {
   const runtime = await startAgentToolRuntime(input);
   try {
-    return await prepareAgentMountAdapter(runtime.running, runtime.cleanup, input);
+    return {
+      ...(await prepareAgentMountAdapter(runtime.running, runtime.cleanup, input)),
+      browserSession: runtime.browserSession,
+    };
   } catch (error) {
     // Same bound as normal teardown — a hung cleanup must not wedge the row
     // on the setup-failure path either.
@@ -371,7 +380,7 @@ async function prepareAgentMountAdapter(
     toolSurface: ToolSurface;
     startupProfile: StartupProfile;
   },
-): Promise<PreparedClaudeCodeToolAdapter> {
+): Promise<Omit<PreparedClaudeCodeToolAdapter, "browserSession">> {
   let cwd: string | undefined;
   try {
     const mount = running.agentMount;
@@ -544,7 +553,7 @@ async function executeCodeExposureRunTool(input: {
     input.logger.log({
       category: "claude_code",
       message: `run tool completed: ${clip(text, 500)}`,
-      level: 1,
+      level: 2,
     });
     return {
       content: [{ type: "text", text }],

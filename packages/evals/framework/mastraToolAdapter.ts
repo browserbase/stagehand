@@ -17,6 +17,7 @@ import {
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import { startCodeBridge } from "./codexCodeBridge.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
@@ -49,6 +50,8 @@ export interface PreparedMastraToolAdapter {
   startupProfile: StartupProfile;
   cwd: string;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   mcpServers?: Record<string, MastraStdioServerDefinition>;
   tools?: Record<string, unknown>;
   captureEvidence?: () => Promise<ProbeEvidence>;
@@ -104,7 +107,7 @@ export async function prepareMastraToolAdapter(
       input.logger.log({
         category: "mastra",
         message: `Initialized ${toolSurface} MCP mount for Mastra (servers: ${serverNames.join(", ")}).`,
-        level: 1,
+        level: 2,
         auxiliary: {
           startupProfile: { value: startupProfile, type: "string" },
           environment: { value: input.environment, type: "string" },
@@ -116,6 +119,7 @@ export async function prepareMastraToolAdapter(
         startupProfile,
         cwd,
         promptInstructions: mount.promptInstructions,
+        browserSession: runtime.browserSession,
         mcpServers,
         ...evidenceFields,
         ...(recorder && {
@@ -160,6 +164,7 @@ export async function prepareMastraToolAdapter(
         startupProfile,
         cwd,
         promptInstructions,
+        browserSession: runtime.browserSession,
         tools: { [MASTRA_RUN_TOOL_NAME]: tool },
         ...evidenceFields,
         observedToolMatcher: (name) => name === MASTRA_RUN_TOOL_NAME,

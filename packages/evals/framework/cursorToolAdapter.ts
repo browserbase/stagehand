@@ -6,6 +6,7 @@ import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
@@ -26,6 +27,8 @@ export interface PreparedCursorToolAdapter {
   mcpConfigPath: string;
   mcpServerNames: string[];
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   captureEvidence?: () => Promise<ProbeEvidence>;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
@@ -120,7 +123,7 @@ export async function prepareCursorToolAdapter(
     input.logger.log({
       category: "cursor",
       message: `Initialized ${toolSurface} MCP mount for Cursor (servers: ${mcpServerNames.join(", ")}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -135,6 +138,7 @@ export async function prepareCursorToolAdapter(
       mcpConfigPath,
       mcpServerNames,
       promptInstructions: mount.promptInstructions,
+      browserSession: runtime.browserSession,
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

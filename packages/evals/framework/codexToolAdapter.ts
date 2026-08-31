@@ -10,6 +10,7 @@ import {
 } from "../core/contracts/tool.js";
 import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { buildBridgeClientScript, startCodeBridge } from "./codexCodeBridge.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
@@ -34,6 +35,8 @@ export interface PreparedCodexCodeAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   /** Extra Codex `--config` overrides (e.g. mcp_servers for MCP mounts). */
   codexConfig?: Record<string, unknown>;
   /** Best-effort evidence from the currently running tool surface. */
@@ -225,7 +228,7 @@ export async function prepareCodexToolAdapter(
       input.logger.log({
         category: "codex",
         message: `Initialized ${toolSurface} MCP mount for Codex (servers: ${serverNames.join(", ")}).`,
-        level: 1,
+        level: 2,
         auxiliary: {
           startupProfile: { value: startupProfile, type: "string" },
           environment: { value: input.environment, type: "string" },
@@ -238,6 +241,7 @@ export async function prepareCodexToolAdapter(
         cwd,
         env: buildIsolatedCodexEnv(process.env, codexHome),
         promptInstructions: mount.promptInstructions,
+        browserSession: runtime.browserSession,
         codexConfig: { mcp_servers: codexMcpServers },
         ...(runtime.running.captureEvidence && {
           captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
@@ -282,7 +286,7 @@ export async function prepareCodexToolAdapter(
     input.logger.log({
       category: "codex",
       message: `Initialized ${toolSurface} bridge runtime for Codex (port ${bridge.port}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -297,6 +301,7 @@ export async function prepareCodexToolAdapter(
       cwd,
       env: buildIsolatedCodexEnv(process.env, codexHome),
       promptInstructions: buildCodexCodePromptInstructions(mount, toolSurface),
+      browserSession: runtime.browserSession,
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),
