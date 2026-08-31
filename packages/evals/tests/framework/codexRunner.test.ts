@@ -1,3 +1,6 @@
+import fsp from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import {
@@ -224,5 +227,71 @@ describe("codex runner helpers", () => {
     expect(result.harnessStopReason).toContain("apiKey=[redacted]");
     expect(result.codexStopReason).toContain("apiKey=[redacted]");
     expect(result.error).toContain("apiKey=[redacted]");
+  });
+
+  it("recovers usage from the isolated CODEX_HOME rollout when the step budget aborts the turn", async () => {
+    const codexHome = await fsp.mkdtemp(path.join(os.tmpdir(), "codex-home-"));
+    const sessionsDir = path.join(codexHome, "sessions", "2026", "08", "31");
+    await fsp.mkdir(sessionsDir, { recursive: true });
+    await fsp.writeFile(
+      path.join(sessionsDir, "rollout-2026-08-31T10-00-00-thread-7e1047f4.jsonl"),
+      JSON.stringify({
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: {
+            total_token_usage: {
+              input_tokens: 2_000_000,
+              cached_input_tokens: 1_900_000,
+              output_tokens: 40_000,
+              reasoning_output_tokens: 10_000,
+              total_tokens: 2_040_000,
+            },
+          },
+        },
+      }) + "\n",
+    );
+    const previous = process.env.EVAL_CODEX_MAX_STEPS;
+    process.env.EVAL_CODEX_MAX_STEPS = "1";
+    try {
+      const sdk: CodexSdk = {
+        startThread: () => ({
+          runStreamed: async () => ({
+            events: (async function* () {
+              yield { type: "thread.started", thread_id: "thread-7e1047f4" };
+              yield { type: "item.completed", item: { type: "command_execution", command: "ls" } };
+            })(),
+          }),
+        }),
+      };
+      const result = await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk,
+        toolAdapter: {
+          toolSurface: "browse_cli",
+          startupProfile: "tool_launch_local",
+          browserSession: { provider: "local" },
+          cwd: "/tmp/stagehand-evals-test",
+          env: { PATH: "/tmp", CODEX_HOME: codexHome },
+          promptInstructions: "Use browse.",
+          metadata: { toolCommand: "browse", browseCliEntrypoint: "/tmp/browse" },
+          cleanup: async () => {},
+        },
+      });
+      const metrics = result.metrics as Record<string, { value: number }>;
+
+      expect(result.harnessStatus).toBe("max_turns");
+      expect(metrics.codex_usage_recovered.value).toBe(1);
+      expect(metrics.codex_input_tokens.value).toBe(2_000_000);
+      expect(metrics.usage_input_total.value).toBe(2_000_000);
+      expect(metrics.usage_input_cached.value).toBe(1_900_000);
+      expect(metrics.usage_output.value).toBe(40_000);
+      expect(metrics.cost_usd_estimated.value).toBeGreaterThan(0);
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_CODEX_MAX_STEPS;
+      else process.env.EVAL_CODEX_MAX_STEPS = previous;
+    }
   });
 });
