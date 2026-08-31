@@ -1,5 +1,6 @@
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -256,11 +257,22 @@ export function buildCodexTranscript(events: CodexEvent[]): string {
 }
 
 export function logCodexEvent(logger: HarnessLogger, event: CodexEvent): void {
+  const type = String(event.type ?? "unknown");
+  const item = isRecord(event.item) ? event.item : undefined;
+  const level = harnessEventLogLevel(type, {
+    isError:
+      type === "turn.failed" ||
+      type === "error" ||
+      item?.type === "error" ||
+      (type === "item.completed" && item?.status === "failed"),
+    hasContent: type === "item.completed" || type === "turn.completed",
+  });
+  if (level === undefined) return;
   const summary = summarizeCodexEvent(event);
   logger.log({
     category: "codex",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),

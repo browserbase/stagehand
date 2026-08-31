@@ -4,6 +4,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -658,11 +659,19 @@ export function buildFxTranscript(events: FxEvent[]): string {
 }
 
 export function logFxEvent(logger: HarnessLogger, event: FxEvent): void {
+  const level = harnessEventLogLevel(event.type, {
+    isError:
+      (event.type === "stderr" && /\b(?:error|fatal|failed|panic)\b/iu.test(event.line)) ||
+      (event.type === "tool_step" &&
+        event.tool_results.some((result) => /^(?:error|failed)$/iu.test(result.status ?? ""))),
+    hasContent: true,
+  });
+  if (level === undefined) return;
   const summary = summarizeFxEvent(event);
   logger.log({
     category: "fx",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: event.type, type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),

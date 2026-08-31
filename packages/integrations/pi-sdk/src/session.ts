@@ -1,5 +1,6 @@
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -302,11 +303,17 @@ export function buildPiTranscript(events: PiEvent[]): string {
 }
 
 export function logPiEvent(logger: HarnessLogger, event: PiEvent): void {
+  const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError: type === "error" || (type === "tool_execution_end" && event.isError === true),
+    hasContent: type === "message_end" || type === "tool_execution_end",
+  });
+  if (level === undefined) return;
   const summary = summarizePiEvent(event);
   logger.log({
     category: "pi",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -345,12 +346,17 @@ export function buildMastraTranscript(events: MastraEvent[]): string {
 }
 
 export function logMastraEvent(logger: HarnessLogger, event: MastraEvent): void {
-  const summary = summarizeMastraEvent(event);
   const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError: type === "error" || type === "tool-error",
+    hasContent: type === "tool-call" || type === "tool-result",
+  });
+  if (level === undefined) return;
+  const summary = summarizeMastraEvent(event);
   logger.log({
     category: "mastra",
     message: summary.message,
-    level: type === "text-delta" || type === "reasoning-delta" ? 2 : 1,
+    level,
     auxiliary: {
       type: { value: type, type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
