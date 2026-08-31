@@ -75,9 +75,12 @@
     },
     "//#fmt:check": {},
     "//#lint": {},
+    "//#typecheck": {},
+    "@browserbasehq/stagehand-extension#typecheck": {},
     "@browserbasehq/stagehand-protocol#typecheck": {
       "dependsOn": ["^build"]
     },
+    "@browserbasehq/stagehand#typecheck": {},
     "@browserbasehq/stagehand-evals#typecheck": {
       "dependsOn": ["^build"]
     },
