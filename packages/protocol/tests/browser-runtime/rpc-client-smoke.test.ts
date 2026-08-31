@@ -3,10 +3,10 @@ import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getChromePath, launch, Launcher, type LaunchedChrome } from "chrome-launcher";
 import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
+import { launchLocalBrowser } from "../../../sdk-ts/src/browser/localBrowser.js";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
 import { StagehandMethods } from "../../schema-registry.js";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
@@ -19,19 +19,22 @@ type FixtureServer = {
   close(): Promise<void>;
 };
 
+type LaunchedLocalBrowser = Awaited<ReturnType<typeof launchLocalBrowser>>;
+
 describe("Stagehand service worker RPC client smoke", () => {
   let extensionDir: string | undefined;
   let fixtureServer: FixtureServer | undefined;
-  let chrome: LaunchedChrome | undefined;
+  let chrome: LaunchedLocalBrowser | undefined;
   let rpcClient: RPCClient | undefined;
+  const bufferedInitNotifications: StagehandRpcNotification[] = [];
 
   beforeAll(async () => {
     extensionDir = await createFullGraphSmokeExtension();
     fixtureServer = await startFixtureServer();
-    chrome = await launchChrome(fixtureServer.url);
     const signal = AbortSignal.timeout(60_000);
+    chrome = await launchLocalBrowser({ headless: true }, signal);
     rpcClient = await connectRPCClient({
-      cdpUrl: `http://127.0.0.1:${chrome.port}`,
+      cdpUrl: chrome.cdpUrl,
       extensionDir,
       serviceWorkerUrlIncludes: "service-worker.js",
       signal,
@@ -41,15 +44,27 @@ describe("Stagehand service worker RPC client smoke", () => {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         logLevel: "debug",
-        browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? `http://127.0.0.1:${chrome.port}`,
+        browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? chrome.cdpUrl,
       },
       signal,
+    );
+    const stopCapturingInitNotifications = rpcClient.onNotification((notification) => {
+      bufferedInitNotifications.push(notification);
+    });
+    stopCapturingInitNotifications();
+    const pages = await rpcClient.send(StagehandMethods.contextPages, {}, { signal });
+    const page =
+      pages[0] ?? (await rpcClient.send(StagehandMethods.contextNewPage, {}, { signal }));
+    await rpcClient.send(
+      StagehandMethods.pageGoto,
+      { pageId: page.pageId, url: fixtureServer.url },
+      { signal },
     );
   }, 70_000);
 
   afterAll(async () => {
     rpcClient?.close();
-    chrome?.kill();
+    await chrome?.close();
     await fixtureServer?.close();
     if (extensionDir) await rm(extensionDir, { force: true, recursive: true });
   });
@@ -61,12 +76,7 @@ describe("Stagehand service worker RPC client smoke", () => {
   });
 
   it("buffers Stagehand logs until the SDK notification listener is attached", () => {
-    const notifications: StagehandRpcNotification[] = [];
-    const stopListening = requireRpcClient(rpcClient).onNotification((notification) => {
-      notifications.push(notification);
-    });
-
-    expect(notifications).toContainEqual({
+    expect(bufferedInitNotifications).toContainEqual({
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
@@ -75,7 +85,6 @@ describe("Stagehand service worker RPC client smoke", () => {
         data: {},
       },
     });
-    stopListening();
   });
 
   it("streams validated Stagehand log notifications over the existing CDP connection", async () => {
@@ -575,28 +584,6 @@ function requireFixtureServer(value: FixtureServer | undefined): FixtureServer {
   }
 
   return value;
-}
-
-async function launchChrome(startingUrl: string): Promise<LaunchedChrome> {
-  const chromePath = getChromePath();
-
-  if (!chromePath) {
-    throw new Error("No local Chrome or Chromium installation was found");
-  }
-
-  return launch({
-    chromePath,
-    startingUrl,
-    ignoreDefaultFlags: true,
-    chromeFlags: [
-      ...Launcher.defaultFlags().filter((flag) => flag !== "--disable-extensions"),
-      "--enable-unsafe-extension-debugging",
-      "--remote-allow-origins=*",
-      "--window-size=1280,800",
-      "--headless",
-      ...(process.env.CI ? ["--no-sandbox"] : []),
-    ],
-  });
 }
 
 async function startFixtureServer(): Promise<FixtureServer> {
