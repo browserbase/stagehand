@@ -250,7 +250,9 @@ export async function runEveSession(input: {
       const data = isRecord(event.data) ? event.data : undefined;
 
       if (event.type === "message.completed" && typeof data?.message === "string") {
-        finalMessage = data.message;
+        // Eve emits interim assistant text before tool calls with finishReason
+        // "tool-calls"; only a terminal reply is the agent's final message.
+        if (data.finishReason !== "tool-calls") finalMessage = data.message;
       } else if (event.type === "step.completed") {
         // Usage is aggregated from the complete event list below.
       } else if (event.type === "actions.requested" && Array.isArray(data?.actions)) {

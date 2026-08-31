@@ -324,6 +324,36 @@ describe("Eve SDK session", () => {
     expect(result.stopReason).toContain("budget exhausted");
   });
 
+  it("does not treat tool-call narration as the final message", async () => {
+    const { client } = clientFor([
+      {
+        type: "message.completed",
+        data: { finishReason: "tool-calls", message: "Now let me get Walmart's price..." },
+      },
+      {
+        type: "actions.requested",
+        data: { actions: [{ kind: "tool-call", callId: "1", toolName: "stagehand__run" }] },
+      },
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", callId: "1", toolName: "stagehand__run" },
+        },
+      },
+    ]);
+    const result = await runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      server: { url: "http://eve" },
+      client,
+      maxToolSteps: 1,
+    });
+    expect(result.status).toBe("max_turns");
+    expect(result.finalMessage).toBe("");
+  });
+
   it("cancels and errors when Eve requests human input", async () => {
     const setup = clientFor([
       { type: "input.requested", data: { requests: [{ kind: "question" }] } },
