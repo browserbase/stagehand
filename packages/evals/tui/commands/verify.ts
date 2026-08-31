@@ -48,7 +48,7 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
 
   ${cyan("Options")}
     --model <name>         Override the verifier LLM (default: V3Evaluator's default,
-                           currently google/gemini-2.5-flash).
+                           default google/gemini-3.5-flash).
     --label <text>         Label appended to the output filename
                            (default: rescore-<ISO timestamp>).
                            File written to scores/result_<label>.json.

@@ -18,21 +18,27 @@ import type { TaskResult } from "./types.js";
 
 const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
+/**
+ * V3Evaluator's built-in default (google/gemini-2.5-flash) was retired
+ * 2026-07-09; leaving it in place fails every rubric criterion silently
+ * ("Fused judgment call failed"), which scores whole runs as unscored.
+ */
+export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.5-flash";
 
 /**
- * Build the shared rubric verifier. By default V3Evaluator keeps its existing
- * model selection; EVAL_VERIFIER_MODEL makes the verifier independently
- * selectable for external harnesses and normal Stagehand runs alike.
+ * Build the shared rubric verifier. EVAL_VERIFIER_MODEL makes the verifier
+ * independently selectable for external harnesses and normal Stagehand runs
+ * alike; otherwise DEFAULT_VERIFIER_MODEL applies.
  */
 export function createVerifierEvaluator(v3: V3): V3Evaluator {
-  const modelName = process.env[VERIFIER_MODEL_ENV]?.trim();
-  if (!modelName) {
-    return new V3Evaluator(v3, { backend: "verifier" });
-  }
+  const explicitModel = process.env[VERIFIER_MODEL_ENV]?.trim();
+  const modelName = explicitModel || DEFAULT_VERIFIER_MODEL;
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const apiKey = loadApiKeyFromEnv(provider, () => {});
-  if (!apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
+  // Only an explicit override fails loudly on a missing key; the default lets
+  // V3Evaluator resolve credentials itself (tests and keyless environments).
+  if (explicitModel && !apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
     throw new Error(
       `${VERIFIER_MODEL_ENV} is set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
     );
