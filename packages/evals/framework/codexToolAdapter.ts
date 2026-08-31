@@ -60,6 +60,7 @@ export const CODEX_TOOL_SURFACES: ToolSurface[] = [
   "playwright_mcp",
   "chrome_devtools_mcp",
   "stagehand_facade",
+  "stagehand_facade_legacy",
 ];
 
 const STAGEHAND_FACADE_MCP_TIMEOUTS = {
@@ -71,7 +72,9 @@ export function buildCodexMcpServers(
   toolSurface: ToolSurface,
   mcpServers: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (toolSurface !== "stagehand_facade") return mcpServers;
+  if (toolSurface !== "stagehand_facade" && toolSurface !== "stagehand_facade_legacy") {
+    return mcpServers;
+  }
 
   return Object.fromEntries(
     Object.entries(mcpServers).map(([name, config]) => [

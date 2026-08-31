@@ -51,6 +51,7 @@ export interface PreparedEveToolAdapter {
 
 export const EVE_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
 ];

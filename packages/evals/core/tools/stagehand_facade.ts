@@ -1,4 +1,7 @@
-import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
+import {
+  FACADE_AGENT_INSTRUCTIONS,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
+} from "@browserbasehq/stagehand-integrations/facade";
 import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
 import { EvalsError } from "../../errors.js";
@@ -11,6 +14,7 @@ import type {
   StartupProfile,
   ToolStartInput,
   ToolStartResult,
+  ToolSurface,
 } from "../contracts/tool.js";
 import type { TargetKind } from "../contracts/targets.js";
 import { startStagehandFacadeBridge } from "./stagehandFacadeBridge.js";
@@ -103,12 +107,22 @@ export function buildStagehandFacadeServerSpec(environment: ToolStartInput["envi
   };
 }
 
+/** Same facade server, started with `--surface=legacy` so it advertises the pre-Playwright-idiom run contract. */
+export function buildStagehandFacadeLegacyServerSpec(environment: ToolStartInput["environment"]): {
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+} {
+  const spec = buildStagehandFacadeServerSpec(environment);
+  return { ...spec, args: [...spec.args, "--surface=legacy"] };
+}
+
 function connectionModeFromProfile(startupProfile: StartupProfile): ConnectionMode {
   return startupProfile === "tool_create_browserbase" ? "browserbase_native" : "launch";
 }
 
 export class StagehandFacadeTool implements CoreTool {
-  readonly id = "stagehand_facade";
+  readonly id: ToolSurface = "stagehand_facade";
   readonly surface = "mcp";
   readonly family = "stagehand";
   readonly supportedStartupProfiles: StartupProfile[] = [
@@ -128,30 +142,40 @@ export class StagehandFacadeTool implements CoreTool {
     } = {},
   ) {}
 
+  protected defaultServerSpec(environment: ToolStartInput["environment"]) {
+    return buildStagehandFacadeServerSpec(environment);
+  }
+
+  protected promptInstructions(): string {
+    return FACADE_AGENT_INSTRUCTIONS;
+  }
+
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     const expectedProfile =
       input.environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
     if (input.startupProfile !== expectedProfile) {
       throw new StagehandFacadeToolError(
-        "stagehand_facade received an invalid startup profile for the selected environment.",
+        `${this.id} received an invalid startup profile for the selected environment.`,
       );
     }
 
     const session = new StagehandFacadeMountSession();
-    const spec = (this.options.serverSpec ?? buildStagehandFacadeServerSpec)(input.environment);
+    const spec = this.options.serverSpec
+      ? this.options.serverSpec(input.environment)
+      : this.defaultServerSpec(input.environment);
     const bridge = await startStagehandFacadeBridge({ server: spec, logger: input.logger });
     if (typeof input.logger?.log === "function") {
       input.logger.log({
         category: "stagehand_facade",
         level: 1,
-        message: `Started runner-owned stagehand_facade bridge on 127.0.0.1:${bridge.port}.`,
+        message: `Started runner-owned ${this.id} bridge on 127.0.0.1:${bridge.port}.`,
       });
     }
     return {
       session,
       agentMount: {
         via: "mcp",
-        promptInstructions: FACADE_AGENT_INSTRUCTIONS,
+        promptInstructions: this.promptInstructions(),
         mcpServers: {
           stagehand: bridge.mcpServerSpec,
         },
@@ -169,5 +193,23 @@ export class StagehandFacadeTool implements CoreTool {
         facadeBridgePort: bridge.port,
       },
     };
+  }
+}
+
+/**
+ * The facade surface as it shipped before the Playwright-idiom prompt: same
+ * server, same snapshot/screenshot tools, but the earlier run description and
+ * agent instructions. Kept under its own id so trajectories from the two
+ * prompts are never compared as one surface.
+ */
+export class StagehandFacadeLegacyTool extends StagehandFacadeTool {
+  override readonly id: ToolSurface = "stagehand_facade_legacy";
+
+  protected override defaultServerSpec(environment: ToolStartInput["environment"]) {
+    return buildStagehandFacadeLegacyServerSpec(environment);
+  }
+
+  protected override promptInstructions(): string {
+    return LEGACY_FACADE_AGENT_INSTRUCTIONS;
   }
 }

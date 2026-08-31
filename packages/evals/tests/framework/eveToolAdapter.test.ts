@@ -155,6 +155,6 @@ describe("Eve tool adapter helpers", () => {
         { harness: "eve", supportedToolSurfaces: EVE_TOOL_SURFACES },
         "browse_cli",
       ),
-    ).toThrow(/stagehand_facade, playwright_mcp, or chrome_devtools_mcp/);
+    ).toThrow(/stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp/);
   });
 });

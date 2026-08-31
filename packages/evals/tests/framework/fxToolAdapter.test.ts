@@ -17,11 +17,16 @@ import {
 
 describe("fx tool adapter helpers", () => {
   it("resolves surfaces and startup profiles through the shared registry helpers", () => {
-    expect(FX_TOOL_SURFACES).toEqual(["stagehand_facade", "playwright_mcp", "chrome_devtools_mcp"]);
+    expect(FX_TOOL_SURFACES).toEqual([
+      "stagehand_facade",
+      "stagehand_facade_legacy",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+    ]);
     expect(resolveToolSurface(fxHarness)).toBe("stagehand_facade");
     expect(resolveToolSurface(fxHarness, "playwright_mcp")).toBe("playwright_mcp");
     expect(() => resolveToolSurface(fxHarness, "browse_cli")).toThrow(
-      'Harness "fx" supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "browse_cli".',
+      'Harness "fx" supports --tool stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp; received "browse_cli".',
     );
     expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
     expect(resolveStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(

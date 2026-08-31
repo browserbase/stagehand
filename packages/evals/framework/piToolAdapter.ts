@@ -24,6 +24,7 @@ import { ObservationRecorder, type StepObservation } from "./observationRecorder
 
 export const PI_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
   "stagehand_code",

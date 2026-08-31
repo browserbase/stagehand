@@ -1,9 +1,14 @@
-import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
+import {
+  FACADE_AGENT_INSTRUCTIONS,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
+} from "@browserbasehq/stagehand-integrations/facade";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCoreTool, listCoreRunnableTools, listCoreTools } from "../../core/tools/registry.js";
 import {
   buildStagehandFacadeEnv,
+  buildStagehandFacadeLegacyServerSpec,
   buildStagehandFacadeServerSpec,
+  StagehandFacadeLegacyTool,
   StagehandFacadeTool,
   StagehandFacadeToolError,
 } from "../../core/tools/stagehand_facade.js";
@@ -60,6 +65,25 @@ describe("stagehand facade tool surface", () => {
     expect(getCoreTool("stagehand_facade")).toBeInstanceOf(StagehandFacadeTool);
   });
 
+  it("registers the legacy prompt surface as a distinct agent-mount-only tool", () => {
+    expect(listCoreTools()).toContain("stagehand_facade_legacy");
+    expect(listCoreRunnableTools()).not.toContain("stagehand_facade_legacy");
+    const tool = getCoreTool("stagehand_facade_legacy");
+    expect(tool).toBeInstanceOf(StagehandFacadeLegacyTool);
+    expect(tool.id).toBe("stagehand_facade_legacy");
+    expect(getCoreTool("stagehand_facade")).not.toBeInstanceOf(StagehandFacadeLegacyTool);
+    expect(getCoreTool("stagehand_facade").id).toBe("stagehand_facade");
+  });
+
+  it("starts the legacy surface from the same server with --surface=legacy", () => {
+    const playwright = buildStagehandFacadeServerSpec("LOCAL");
+    const legacy = buildStagehandFacadeLegacyServerSpec("LOCAL");
+    expect(legacy.command).toBe(playwright.command);
+    expect(legacy.env).toEqual(playwright.env);
+    expect(legacy.args).toEqual([...playwright.args, "--surface=legacy"]);
+    expect(playwright.args).not.toContain("--surface=legacy");
+  });
+
   it("uses typed, sanitized errors for invalid lifecycle operations", async () => {
     const tool = new StagehandFacadeTool();
     await expect(
@@ -89,6 +113,9 @@ describe("stagehand facade tool surface", () => {
 
   it("preserves facade MCP timeouts in the Codex config", () => {
     const server = { command: "node", args: ["stdio-server.mjs"] };
+    expect(buildCodexMcpServers("stagehand_facade_legacy", { stagehand: server })).toEqual(
+      buildCodexMcpServers("stagehand_facade", { stagehand: server }),
+    );
     expect(buildCodexMcpServers("stagehand_facade", { stagehand: server })).toEqual({
       stagehand: {
         ...server,
@@ -141,6 +168,28 @@ describe("stagehand facade tool surface", () => {
       expect(running.captureEvidence).toBeTypeOf("function");
       await expect(running.captureEvidence?.()).resolves.toEqual({});
       expect(running.metadata.facadeBridgePort).toEqual(expect.any(Number));
+    } finally {
+      await running.cleanup();
+    }
+  });
+
+  it("mounts the legacy surface with the legacy agent instructions", async () => {
+    const running = await new StagehandFacadeLegacyTool({
+      serverSpec: (environment) => ({
+        command: process.execPath,
+        args: ["-e", MINIMAL_FACADE_SOURCE],
+        env: buildStagehandFacadeEnv(environment),
+      }),
+    }).start({
+      logger: {} as EvalLogger,
+      environment: "LOCAL",
+      startupProfile: "tool_launch_local",
+    });
+    try {
+      if (running.agentMount?.via !== "mcp") throw new Error("expected MCP mount");
+      expect(running.agentMount.promptInstructions).toBe(LEGACY_FACADE_AGENT_INSTRUCTIONS);
+      expect(running.agentMount.promptInstructions).not.toBe(FACADE_AGENT_INSTRUCTIONS);
+      expect(Object.keys(running.agentMount.mcpServers)).toEqual(["stagehand"]);
     } finally {
       await running.cleanup();
     }

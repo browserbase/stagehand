@@ -5,12 +5,13 @@ import { ChromeDevtoolsMcpTool } from "./chrome_devtools_mcp.js";
 import { PlaywrightCodeTool } from "./playwright_code.js";
 import { PlaywrightMcpTool } from "./playwright_mcp.js";
 import { StagehandCodeTool } from "./stagehand_code.js";
-import { StagehandFacadeTool } from "./stagehand_facade.js";
+import { StagehandFacadeLegacyTool, StagehandFacadeTool } from "./stagehand_facade.js";
 import { UnderstudyCodeTool } from "./understudy_code.js";
 
 /** Surfaces that exist only as an agent MCP mount; they have no runner-driven CoreSession (activePage() throws). */
 export const AGENT_MOUNT_ONLY_TOOL_SURFACES: ReadonlySet<ToolSurface> = new Set<ToolSurface>([
   "stagehand_facade",
+  "stagehand_facade_legacy",
 ]);
 
 export function isAgentMountOnlyToolSurface(toolSurface: ToolSurface): boolean {
@@ -28,6 +29,7 @@ export function listCoreTools(): ToolSurface[] {
     // Listed here as part of the full enumeration, but agent-mount-only:
     // core-tier selection must use listCoreRunnableTools, which filters it.
     "stagehand_facade",
+    "stagehand_facade_legacy",
     "browse_cli",
   ];
 }
@@ -53,6 +55,8 @@ export function getCoreTool(toolSurface: ToolSurface): CoreTool {
       return new ChromeDevtoolsMcpTool();
     case "stagehand_facade":
       return new StagehandFacadeTool();
+    case "stagehand_facade_legacy":
+      return new StagehandFacadeLegacyTool();
     case "browse_cli":
       return new BrowseCliTool();
     default:

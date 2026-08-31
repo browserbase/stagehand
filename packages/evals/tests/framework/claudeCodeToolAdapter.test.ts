@@ -46,7 +46,7 @@ describe("claude code tool adapter resolution", () => {
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveToolSurface(claudeCodeHarness, "understudy_code")).toThrow(
-      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
+      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, stagehand_facade, or stagehand_facade_legacy; received "understudy_code"/,
     );
   });
 
@@ -78,7 +78,7 @@ describe("claude code tool adapter resolution", () => {
       "runner_provided_browserbase_cdp",
     );
     expect(() => resolveToolSurface(codexHarness, "understudy_code")).toThrow(
-      /Harness "codex" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
+      /Harness "codex" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, stagehand_facade, or stagehand_facade_legacy; received "understudy_code"/,
     );
     expect(resolveStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
     expect(resolveStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");

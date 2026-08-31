@@ -58,7 +58,7 @@ valid only for the latest snapshot of the active page. Snapshot again after navi
 `;
 
 export function buildDeepagentsSystemPrompt(toolSurface?: ToolSurface): string {
-  if (toolSurface === "stagehand_facade") {
+  if (toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy") {
     return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${DEEPAGENTS_FACADE_SYSTEM_PROMPT}`;
   }
   const toolGuidance =

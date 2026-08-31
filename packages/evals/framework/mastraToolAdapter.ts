@@ -25,6 +25,7 @@ import { ObservationRecorder, type StepObservation } from "./observationRecorder
 export const MASTRA_RUN_TOOL_NAME = "stagehand_browser_run";
 export const MASTRA_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
   "stagehand_code",

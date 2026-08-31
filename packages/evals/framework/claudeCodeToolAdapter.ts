@@ -88,6 +88,7 @@ export const CLAUDE_CODE_TOOL_SURFACES: ToolSurface[] = [
   "playwright_mcp",
   "chrome_devtools_mcp",
   "stagehand_facade",
+  "stagehand_facade_legacy",
 ];
 
 // The CLI skill below is written for interactive use and covers surface
@@ -196,7 +197,8 @@ export async function prepareClaudeCodeToolAdapter(
     case "stagehand_code":
     case "playwright_mcp":
     case "chrome_devtools_mcp":
-    case "stagehand_facade": {
+    case "stagehand_facade":
+    case "stagehand_facade_legacy": {
       return prepareMountedCoreToolAdapter({
         ...input,
         toolSurface,

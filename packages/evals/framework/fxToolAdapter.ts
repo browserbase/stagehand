@@ -46,6 +46,7 @@ type FxMcpServerSpec = {
 
 export const FX_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
 ];
@@ -242,7 +243,7 @@ export async function prepareFxToolAdapter(
     const pathEnv = process.env.PATH ?? "";
     const mcpOptions: FxMcpOptions = { home, pathEnv, parentEnv: process.env };
     const mcpToolNames: Record<string, string[]> = {};
-    if (toolSurface === "stagehand_facade") {
+    if (toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy") {
       mcpToolNames.stagehand = ["run", "snapshot", "screenshot"];
     } else {
       const listMcpToolNames = input.listMcpToolNames ?? defaultListMcpToolNames;
