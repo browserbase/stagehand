@@ -136,6 +136,70 @@ describe("external harness runner", () => {
     expect(complete.harness_cost_usd.value).toBe(0.25);
   });
 
+  it("does not count calls answered with the terminal session-lost error as failures", () => {
+    const lost =
+      "Browser session lost (CDP connection closed). The task cannot continue; report your final result now.";
+    const steps = [
+      { actionName: "stagehand.run", actionArgs: {}, toolOutput: { ok: true, result: "x" } },
+      {
+        actionName: "stagehand.run",
+        actionArgs: {},
+        toolOutput: { ok: false, error: "bad xpath" },
+      },
+      {
+        actionName: "stagehand.run",
+        actionArgs: {},
+        toolOutput: { ok: false, result: lost, error: lost },
+      },
+      { actionName: "stagehand.snapshot", actionArgs: {}, toolOutput: { ok: false, error: lost } },
+    ];
+    expect(
+      buildFacadeToolCallMetrics({ steps } as never, (name) => name.startsWith("stagehand.")),
+    ).toEqual({
+      facade_tool_calls: { count: 1, value: 4 },
+      facade_tool_call_failures: { count: 1, value: 1 },
+      facade_tool_calls_after_session_lost: { count: 1, value: 2 },
+    });
+  });
+
+  it("records browser_session_lost as an SDK error even when the agent self-reports success", async () => {
+    const logger = new EvalLogger(false);
+    const result = await runExternalHarnessTask({
+      harness: "deepagents",
+      plan,
+      logger,
+      resultContract: "structured_output",
+      fallbackErrorMessage: "missing result",
+      toolAdapter: {
+        browserSessionLoss: () => ({ cause: "CDP connection closed", tool: "run" }),
+      },
+      runSession: async () => ({
+        raw: {},
+        resultText: '{"success":true,"summary":"done","finalAnswer":"326 E 110th St"}',
+        transcriptText: "",
+        status: "completed",
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        metrics: {},
+      }),
+      toTrajectory: () => {
+        throw new Error("not called without a verifier");
+      },
+    });
+
+    expect(result).toMatchObject({
+      _success: false,
+      error: "Browser session lost (CDP connection closed)",
+      finalAnswer: "326 E 110th St",
+      harnessStatus: "sdk_error",
+      harnessStopReason: "browser_session_lost",
+      deepagentsStatus: "sdk_error",
+      deepagentsStopReason: "browser_session_lost",
+    });
+    expect(logger.getLogs().some((line) => line.message.includes("browser session lost"))).toBe(
+      true,
+    );
+  });
+
   it("counts facade tool calls and their failures from the trajectory", () => {
     const steps = [
       { actionName: "stagehand.run", actionArgs: {}, toolOutput: { ok: true, result: "x" } },

@@ -10,6 +10,7 @@ import {
 import type { ProbeEvidence } from "stagehand-v3";
 import {
   AGENT_RUN_TOOL_NAME,
+  type BrowserSessionLoss,
   type AgentMount,
   type AgentRunToolSpec,
   type StartupProfile,
@@ -54,6 +55,8 @@ export interface PreparedPiToolAdapter {
   /** via:"handles" mounts — the harness run tool hosted in-process by pi. */
   customTools?: PiToolDefinition[];
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
   observedToolMatcher?: (toolName: string) => boolean;
@@ -202,6 +205,9 @@ export async function preparePiToolAdapter(
       browserSession: runtime.browserSession,
       ...(config.mcpServers && { mcpServers: config.mcpServers }),
       ...(config.customTools && { customTools: config.customTools }),
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

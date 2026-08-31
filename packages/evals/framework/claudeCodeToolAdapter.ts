@@ -14,6 +14,7 @@ import {
 } from "../browseCliPaths.js";
 import {
   AGENT_RUN_TOOL_NAME,
+  type BrowserSessionLoss,
   AGENT_RUN_TOOL_SERVER,
   type AgentRunToolSpec,
   type StartupProfile,
@@ -53,6 +54,8 @@ export interface PreparedClaudeCodeToolAdapter {
   ) => Promise<Record<string, unknown>>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   /**
    * Runner calls this on every completed tool_result with the originating
@@ -453,6 +456,7 @@ async function prepareAgentMountAdapter(
           observedToolMatcher: isMountToolName,
         }),
       promptInstructions: mount.promptInstructions,
+      ...(running.browserSessionLoss && { browserSessionLoss: running.browserSessionLoss }),
       ...(running.captureEvidence && {
         captureEvidence: async (): Promise<ProbeEvidence> => {
           try {

@@ -204,6 +204,7 @@ export class StagehandFacadeTool implements CoreTool {
         },
       },
       captureEvidence: () => bridge.captureEvidence(),
+      browserSessionLoss: () => bridge.browserSessionLoss(),
       cleanup: async () => {
         await bridge.close();
         await session.close();

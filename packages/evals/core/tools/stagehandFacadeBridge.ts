@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import net, { type AddressInfo, type Socket } from "node:net";
 import type { ProbeEvidence } from "stagehand-v3";
 import { SESSION_INFO_TOOL_NAME } from "@browserbasehq/stagehand-integrations/facade";
+import type { BrowserSessionLoss } from "../contracts/tool.js";
+import { browserSessionLostCause, parseSessionLossTelemetry } from "./browserSessionLoss.js";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../../logger.js";
 
@@ -45,6 +47,12 @@ export interface StagehandFacadeBridge {
   agentConnections(): number;
   /** Whether any agent tools/call request has passed through. */
   sawAgentToolCall(): boolean;
+  /**
+   * Set once the facade reported its browser session gone. Every tool call
+   * after that returns the same terminal error, so failures past this point
+   * are consequences of the loss, not agent mistakes.
+   */
+  browserSessionLoss(): BrowserSessionLoss | undefined;
   /** Raw JSON-RPC request from the runner side. */
   call(
     method: string,
@@ -128,6 +136,12 @@ function isToolError(result: unknown): boolean {
   return Boolean(result && typeof result === "object" && (result as { isError?: unknown }).isError);
 }
 
+function sessionLostCauseFromToolResult(result: unknown): string | undefined {
+  if (!isToolError(result)) return undefined;
+  const text = contentBlocks(result).find((block) => typeof block.text === "string")?.text;
+  return typeof text === "string" ? browserSessionLostCause(text) : undefined;
+}
+
 export async function startStagehandFacadeBridge(
   input: StagehandFacadeBridgeInput,
 ): Promise<StagehandFacadeBridge> {
@@ -160,6 +174,13 @@ export async function startStagehandFacadeBridge(
   let exitDescription = "";
   let initializeResult: unknown;
   let closePromise: Promise<void> | undefined;
+  let sessionLoss: BrowserSessionLoss | undefined;
+
+  const noteSessionLoss = (loss: BrowserSessionLoss) => {
+    if (sessionLoss) return;
+    sessionLoss = loss;
+    log(`Facade browser session lost: ${loss.cause}`);
+  };
 
   const rejectPending = (error: Error) => {
     for (const entry of pending.values()) {
@@ -174,6 +195,8 @@ export async function startStagehandFacadeBridge(
     stderrLines.push(line);
     if (stderrLines.length > 20) stderrLines.shift();
     log(line);
+    const loss = parseSessionLossTelemetry(line);
+    if (loss) noteSessionLoss(loss);
   };
 
   child.stderr.on("data", (chunk: Buffer | string) => {
@@ -229,6 +252,10 @@ export async function startStagehandFacadeBridge(
       return;
     }
 
+    // The stderr telemetry line is the primary signal; the terminal tool error
+    // covers a facade build that predates it.
+    const lostCause = sessionLostCauseFromToolResult(message.result);
+    if (lostCause) noteSessionLoss({ cause: lostCause });
     const socket = agentRequests.get(idKey(message.id));
     agentRequests.delete(idKey(message.id));
     if (socket?.writable) socket.write(`${rawLine}\n`);
@@ -472,6 +499,7 @@ export async function startStagehandFacadeBridge(
     },
     agentConnections: () => sockets.size,
     sawAgentToolCall: () => toolCallSeen,
+    browserSessionLoss: () => sessionLoss,
     call,
     captureEvidence,
     sessionInfo,

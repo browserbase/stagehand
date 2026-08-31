@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { connectToMCPServer, type ProbeEvidence } from "stagehand-v3";
-import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
@@ -35,6 +35,8 @@ export interface PreparedFxToolAdapter {
   browserSession: BrowserSessionInfo;
   mcpServerNames: string[];
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
   observedToolMatcher?: (name: string) => boolean;
@@ -339,6 +341,9 @@ export async function prepareFxToolAdapter(
       promptInstructions: agentsMarkdown,
       browserSession: runtime.browserSession,
       mcpServerNames: serverNames,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

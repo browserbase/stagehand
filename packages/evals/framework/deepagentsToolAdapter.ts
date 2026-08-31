@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { DeepagentsMcpServerConfig } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
 import type { ProbeEvidence } from "stagehand-v3";
-import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
@@ -30,6 +30,8 @@ export interface PreparedDeepagentsToolAdapter {
   browserSession: BrowserSessionInfo;
   mcpServers: Record<string, DeepagentsMcpServerConfig>;
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
   observedToolMatcher: (name: string) => boolean;
@@ -134,6 +136,9 @@ export async function prepareDeepagentsToolAdapter(
       promptInstructions: mount.promptInstructions,
       browserSession: runtime.browserSession,
       mcpServers,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

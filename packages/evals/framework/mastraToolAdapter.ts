@@ -11,6 +11,7 @@ import { z } from "zod";
 import type { ProbeEvidence } from "stagehand-v3";
 import {
   AGENT_RUN_TOOL_NAME,
+  type BrowserSessionLoss,
   type StartupProfile,
   type ToolSurface,
 } from "../core/contracts/tool.js";
@@ -55,6 +56,8 @@ export interface PreparedMastraToolAdapter {
   mcpServers?: Record<string, MastraStdioServerDefinition>;
   tools?: Record<string, unknown>;
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
   observedToolMatcher?: (name: string) => boolean;
@@ -121,6 +124,9 @@ export async function prepareMastraToolAdapter(
         promptInstructions: mount.promptInstructions,
         browserSession: runtime.browserSession,
         mcpServers,
+        ...(runtime.running.browserSessionLoss && {
+          browserSessionLoss: runtime.running.browserSessionLoss,
+        }),
         ...evidenceFields,
         ...(recorder && {
           onToolResult: (name: string) => {
@@ -166,6 +172,9 @@ export async function prepareMastraToolAdapter(
         promptInstructions,
         browserSession: runtime.browserSession,
         tools: { [MASTRA_RUN_TOOL_NAME]: tool },
+        ...(runtime.running.browserSessionLoss && {
+          browserSessionLoss: runtime.running.browserSessionLoss,
+        }),
         ...evidenceFields,
         observedToolMatcher: (name) => name === MASTRA_RUN_TOOL_NAME,
         cleanup: async () => {

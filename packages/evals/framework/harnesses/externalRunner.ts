@@ -1,5 +1,7 @@
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+import type { BrowserSessionLoss } from "../../core/contracts/tool.js";
+import { isBrowserSessionLostError } from "../../core/tools/browserSessionLoss.js";
 import type { EvalLogger } from "../../logger.js";
 import { datasetPromptGuidance } from "../externalHarnessPlan.js";
 import type { ExternalHarnessTaskPlan } from "../externalHarnessPlan.js";
@@ -158,7 +160,11 @@ export interface ExternalHarnessToolAdapterLike {
   captureEvidence?: () => Promise<ProbeEvidence>;
   drainStepObservations?: () => Promise<StepObservation[]>;
   observedToolMatcher?: (name: string) => boolean;
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
 }
+
+/** harnessStopReason recorded when the mounted browser died before the agent finished. */
+export const BROWSER_SESSION_LOST_STOP_REASON = "browser_session_lost";
 
 export interface ExternalHarnessTrajectoryInput<TRaw> {
   raw: TRaw;
@@ -206,7 +212,25 @@ export async function runExternalHarnessTask<TRaw>({
     toolInstructions: toolAdapter?.promptInstructions,
     resultContract,
   });
-  const outcome = await runSession(prompt);
+  const sessionOutcome = await runSession(prompt);
+  // A run that outlived its browser has no trustworthy self-report: the agent
+  // was answering terminal "Browser session lost" errors, not the task.
+  const browserSessionLoss = toolAdapter?.browserSessionLoss?.();
+  if (browserSessionLoss) {
+    logger.warn({
+      category: "stagehand_facade",
+      level: 1,
+      message: `browser session lost before the agent finished: ${browserSessionLoss.cause}`,
+    });
+  }
+  const outcome: ExternalHarnessSessionOutcome<TRaw> = browserSessionLoss
+    ? {
+        ...sessionOutcome,
+        status: "sdk_error",
+        stopReason: BROWSER_SESSION_LOST_STOP_REASON,
+        iterationError: `Browser session lost (${browserSessionLoss.cause})`,
+      }
+    : sessionOutcome;
   const iterationErrorMessage = stringifyError(outcome.iterationError);
   const rawResult = [outcome.resultText, outcome.transcriptText, iterationErrorMessage]
     .filter(Boolean)
@@ -221,7 +245,9 @@ export async function runExternalHarnessTask<TRaw>({
   const sanitizedIterationError = iterationErrorMessage
     ? sanitizeErrorMessage(iterationErrorMessage)
     : undefined;
-  const sdkErrorMessage = sanitizedStopReason ?? sanitizedIterationError;
+  const sdkErrorMessage = browserSessionLoss
+    ? sanitizedIterationError
+    : (sanitizedStopReason ?? sanitizedIterationError);
   const errorMessage = sanitizeErrorMessage(
     outcome.status === "sdk_error"
       ? (sdkErrorMessage ?? fallbackErrorMessage)
@@ -324,6 +350,9 @@ export async function runExternalHarnessTask<TRaw>({
  * How often the agent actually reached the mounted browser surface. A run that
  * "passes" with zero facade calls answered from somewhere else (curl, another
  * MCP server, prior knowledge), which the rubric verifier cannot see.
+ *
+ * Calls answered with the terminal "Browser session lost" error are counted
+ * separately: they are consequences of the browser dying, not agent errors.
  */
 export function buildFacadeToolCallMetrics(
   trajectory: Pick<Trajectory, "steps">,
@@ -331,15 +360,30 @@ export function buildFacadeToolCallMetrics(
 ): Record<string, MetricValue> {
   let calls = 0;
   let failures = 0;
+  let afterSessionLost = 0;
   for (const step of trajectory.steps) {
     if (!isFacadeTool(step.actionName)) continue;
     calls += 1;
-    if (step.toolOutput?.ok === false) failures += 1;
+    if (step.toolOutput?.ok !== false) continue;
+    if (isSessionLostToolOutput(step.toolOutput)) afterSessionLost += 1;
+    else failures += 1;
   }
   return {
     facade_tool_calls: metricValue(calls),
     facade_tool_call_failures: metricValue(failures),
+    ...(afterSessionLost > 0 && {
+      facade_tool_calls_after_session_lost: metricValue(afterSessionLost),
+    }),
   };
+}
+
+function isSessionLostToolOutput(
+  toolOutput: NonNullable<Trajectory["steps"][number]["toolOutput"]>,
+): boolean {
+  const { error, result } = toolOutput as { error?: unknown; result?: unknown };
+  return [error, result].some(
+    (value) => typeof value === "string" && isBrowserSessionLostError(value),
+  );
 }
 
 /** Convert a registered harness id to its deprecated TaskResult field prefix. */

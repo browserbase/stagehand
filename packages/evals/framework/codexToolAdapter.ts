@@ -5,6 +5,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import {
   AGENT_RUN_TOOL_NAME,
+  type BrowserSessionLoss,
   type StartupProfile,
   type ToolSurface,
 } from "../core/contracts/tool.js";
@@ -41,6 +42,8 @@ export interface PreparedCodexCodeAdapter {
   codexConfig?: Record<string, unknown>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   /**
    * Runner calls this on every completed mcp_tool_call event; MCP mounts use
@@ -243,6 +246,9 @@ export async function prepareCodexToolAdapter(
         promptInstructions: mount.promptInstructions,
         browserSession: runtime.browserSession,
         codexConfig: { mcp_servers: codexMcpServers },
+        ...(runtime.running.browserSessionLoss && {
+          browserSessionLoss: runtime.running.browserSessionLoss,
+        }),
         ...(runtime.running.captureEvidence && {
           captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
         }),
@@ -302,6 +308,9 @@ export async function prepareCodexToolAdapter(
       env: buildIsolatedCodexEnv(process.env, codexHome),
       promptInstructions: buildCodexCodePromptInstructions(mount, toolSurface),
       browserSession: runtime.browserSession,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),
