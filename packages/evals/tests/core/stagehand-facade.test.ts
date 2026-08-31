@@ -75,9 +75,9 @@ function recordingLogger(): EvalLogger & { lines: Array<{ level?: number; messag
   const lines: Array<{ level?: number; message: string }> = [];
   return {
     lines,
-    log: (line: { level?: number; message: string }) => void lines.push(line),
-    warn: (line: { level?: number; message: string }) => void lines.push(line),
-    error: (line: { level?: number; message: string }) => void lines.push(line),
+    log: (line: { level?: number; message: string }): void => void lines.push(line),
+    warn: (line: { level?: number; message: string }): void => void lines.push(line),
+    error: (line: { level?: number; message: string }): void => void lines.push(line),
   } as unknown as EvalLogger & { lines: Array<{ level?: number; message: string }> };
 }
 

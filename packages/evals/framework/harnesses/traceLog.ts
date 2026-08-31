@@ -10,6 +10,8 @@ import type { ExternalHarnessSessionOutcome } from "./externalRunner.js";
  *   step 3 · run · ok · await page.goto('https://…'); return page.title()  →  "Recreation.gov…"
  *   step 4 · screenshot · ok  →  [image 42 KB]
  *   step 5 · run · ERR · await page.click('#nope')  →  Timeout 30000ms exceeded
+ *   summary · <agent's self-reported summary, clipped>
+ *   answer · <agent's final answer, clipped>   (or "answer · (none — max_turns)")
  *   result · completed · steps=5 · facade_calls=4 · in=12345 out=678 cached=9000
  *
  * Full code and results travel in `auxiliary` so Braintrust / parseLogLine
@@ -35,6 +37,8 @@ export interface TrajectoryTraceInput {
   stepDurationsMs?: ReadonlyArray<number | undefined>;
   /** Which action names count as calls into the mounted browser surface. */
   isFacadeTool?: (name: string) => boolean;
+  /** The agent's parsed self-report (EVAL_RESULT), when available. */
+  report?: { summary?: string; finalAnswer?: string; success?: boolean };
 }
 
 /** Build every trace line for a completed run, in emission order. */
@@ -43,7 +47,44 @@ export function buildTrajectoryTraceLines(input: TrajectoryTraceInput): LogLine[
   input.trajectory.steps.forEach((step, index) => {
     lines.push(...buildStepTraceLines(step, index + 1, input.stepDurationsMs?.[index]));
   });
+  lines.push(...buildAnswerTraceLines(input));
   lines.push(buildResultTraceLine(input));
+  return lines;
+}
+
+/**
+ * What the agent said it did and concluded. A missing answer is stated
+ * explicitly (with the stop status) — silence here hides budget/error stops
+ * where the agent never produced a final message.
+ */
+export function buildAnswerTraceLines(input: TrajectoryTraceInput): LogLine[] {
+  const report = input.report ?? {};
+  const lines: LogLine[] = [];
+  const summary = report.summary?.trim();
+  if (summary) {
+    lines.push({
+      category: TRACE_LOG_CATEGORY,
+      level: 1,
+      message: ["summary", clip(singleLine(summary))].join(SEPARATOR),
+      auxiliary: { summary: { value: capped(summary), type: "string" } },
+    });
+  }
+  const answer = report.finalAnswer?.trim();
+  if (answer) {
+    lines.push({
+      category: TRACE_LOG_CATEGORY,
+      level: 1,
+      message: ["answer", clip(singleLine(answer))].join(SEPARATOR),
+      auxiliary: { answer: { value: capped(answer), type: "string" } },
+    });
+  } else {
+    const why = input.outcome.status === "completed" ? "agent reported none" : input.outcome.status;
+    lines.push({
+      category: TRACE_LOG_CATEGORY,
+      level: input.outcome.status === "completed" ? 1 : 0,
+      message: ["answer", `(none — ${why})`].join(SEPARATOR),
+    });
+  }
   return lines;
 }
 

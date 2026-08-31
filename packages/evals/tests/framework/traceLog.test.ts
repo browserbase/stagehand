@@ -5,6 +5,7 @@ import {
   emitTrajectoryTrace,
   shortToolName,
   TRACE_AUXILIARY_MAX_CHARS,
+  type TrajectoryTraceInput,
 } from "../../framework/harnesses/traceLog.js";
 import { buildTrajectory } from "../../framework/harnesses/trajectoryAdapter.js";
 
@@ -40,7 +41,7 @@ function threeStepTrajectory(): Trajectory {
   });
 }
 
-const outcome = {
+const outcome: TrajectoryTraceInput["outcome"] = {
   status: "completed",
   stopReason: undefined,
   usage: { inputTokens: 12345, outputTokens: 678, cachedInputTokens: 9000, totalTokens: 13023 },
@@ -59,14 +60,44 @@ describe("trajectory trace log", () => {
       "step 1 · run · ok · await page.goto('https://example.com'); return page.title();  →  Example Domain",
       "step 2 · screenshot · ok  →  [image 42 KB]",
       "step 3 · run · ERR · await page.click('#nope')  →  Timeout 30000ms exceeded waiting for #nope",
+      "answer · (none — agent reported none)",
       "result · completed · steps=3 · facade_calls=3 · in=12345 out=678 cached=9000",
     ]);
     expect(lines.every((line) => line.category === "trace")).toBe(true);
-    expect(lines.map((line) => line.level)).toEqual([1, 1, 1, 0, 1]);
+    expect(lines.map((line) => line.level)).toEqual([1, 1, 1, 0, 1, 1]);
+  });
+
+  it("traces the agent's summary and final answer before the result line", () => {
+    const lines = buildTrajectoryTraceLines({
+      trajectory: threeStepTrajectory(),
+      outcome,
+      report: {
+        success: true,
+        summary: "Opened the site and read the title.",
+        finalAnswer: "Example Domain\nsecond line " + "x".repeat(300),
+      },
+    });
+    const tail = lines.slice(-3).map((line) => line.message);
+    expect(tail[0]).toBe("summary · Opened the site and read the title.");
+    expect(tail[1].startsWith("answer · Example Domain second line xxx")).toBe(true);
+    expect(tail[1].length).toBeLessThanOrEqual("answer · ".length + 200 + 1);
+    expect(lines.at(-2)?.auxiliary?.answer?.value).toContain("x".repeat(300));
+    expect(tail[2].startsWith("result · completed")).toBe(true);
+  });
+
+  it("states a missing answer with the stop status, as an error line", () => {
+    const lines = buildTrajectoryTraceLines({
+      trajectory: threeStepTrajectory(),
+      outcome: { ...outcome, status: "max_turns", stopReason: "turn budget exhausted" },
+      report: { success: false, summary: "", finalAnswer: "" },
+    });
+    const answer = lines.at(-2)!;
+    expect(answer.message).toBe("answer · (none — max_turns)");
+    expect(answer.level).toBe(0);
   });
 
   it("keeps the full code and result in auxiliary", () => {
-    const [, run, , failed, result] = buildTrajectoryTraceLines({
+    const [, run, , failed, , result] = buildTrajectoryTraceLines({
       trajectory: threeStepTrajectory(),
       outcome,
     });
@@ -134,6 +165,7 @@ describe("trajectory trace log", () => {
       'step 1 · snapshot · ok · {"includeIframes":true}  →  [snapshot 3 nodes] [1-1] RootWebArea: Example',
       'step 2 · run · ok · return {a: 1}  →  {"a":1}',
       "step 3 · bash · ok · ls -la  →  total 0",
+      "answer · (none — sdk_error)",
       "result · sdk_error · max turns reached · steps=3 · in=12345 out=678 cached=9000",
     ]);
   });
@@ -144,7 +176,7 @@ describe("trajectory trace log", () => {
       { log: (line) => void logged.push(line.message) },
       { trajectory: threeStepTrajectory(), outcome },
     );
-    expect(logged).toHaveLength(5);
+    expect(logged).toHaveLength(6);
     expect(logged.at(-1)).toMatch(/^result · completed/u);
   });
 

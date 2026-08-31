@@ -342,6 +342,8 @@ describe("external harness runner", () => {
       "step 1 · think · read the title",
       "step 1 · run · ok · return page.title()  →  Example",
       "step 2 · bash · ok · echo hi  →  hi",
+      "summary · done",
+      "answer · ok",
       "result · completed · steps=2 · facade_calls=1 · in=10 out=5",
       expect.stringContaining("verifier integration failed"),
     ]);

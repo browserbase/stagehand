@@ -248,7 +248,16 @@ export async function runExternalHarnessTask<TRaw>({
       // every harness logs the same shape; a formatting bug must never fail
       // the grade.
       try {
-        emitTrajectoryTrace(logger, { trajectory, outcome, isFacadeTool });
+        emitTrajectoryTrace(logger, {
+          trajectory,
+          outcome,
+          isFacadeTool,
+          report: {
+            summary: parsed.summary,
+            finalAnswer: parsed.finalAnswer,
+            success: parsed.success,
+          },
+        });
       } catch (traceError) {
         logger.warn({
           category: "trace",
