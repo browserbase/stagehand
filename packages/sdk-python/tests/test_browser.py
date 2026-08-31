@@ -4,7 +4,7 @@ import asyncio
 import errno
 import json
 from pathlib import Path
-from typing import ClassVar, Literal, Self, cast
+from typing import Any, ClassVar, Literal, Self, cast
 
 import pytest
 from pydantic import ValidationError
@@ -552,7 +552,12 @@ async def test_launch_converts_argument_tuples_to_flag_lists(
 
     async def launch(options: LocalBrowserLaunchOptions) -> FakeSource:
         captured_flags.extend(
-            _local_browser_flags(options, port=9222, user_data_dir=tmp_path, is_ci=False)
+            _local_browser_flags(
+                options,
+                port=9222,
+                user_data_dir=tmp_path,
+                disable_sandbox=False,
+            )
         )
         return FakeSource(keep_alive=False)
 
@@ -618,7 +623,12 @@ def test_local_browser_flags_are_unchanged_for_launch_options(tmp_path: Path) ->
         devtools=True,
         args=["--custom-flag"],
     )
-    flags = _local_browser_flags(options, port=9222, user_data_dir=tmp_path, is_ci=True)
+    flags = _local_browser_flags(
+        options,
+        port=9222,
+        user_data_dir=tmp_path,
+        disable_sandbox=True,
+    )
 
     assert flags[-5:] == [
         "--headless",
@@ -636,7 +646,7 @@ def test_local_browser_default_flags_match_shared_fixture(tmp_path: Path) -> Non
         LocalBrowserLaunchOptions(),
         port=9222,
         user_data_dir=tmp_path,
-        is_ci=False,
+        disable_sandbox=False,
     ) == [
         *EXPECTED_DEFAULT_CHROME_FLAGS,
         "--window-size=1280,800",
@@ -1230,6 +1240,247 @@ async def test_launch_cancellation_closes_process_and_removes_profile(
     assert not profile.exists()
 
 
+async def test_resolved_browser_source_concurrent_close_waits_for_shared_task() -> None:
+    started = asyncio.Event()
+    release = asyncio.Event()
+    close_calls = 0
+
+    async def close_callback() -> None:
+        nonlocal close_calls
+        close_calls += 1
+        started.set()
+        await release.wait()
+
+    source = browser.ResolvedBrowserSource(
+        cdp_url="http://127.0.0.1:9222",
+        keep_alive=False,
+        _close_callback=close_callback,
+    )
+    first = asyncio.create_task(source.close())
+    await started.wait()
+    second = asyncio.create_task(source.close())
+    await asyncio.sleep(0)
+
+    assert close_calls == 1
+    assert not first.done()
+    assert not second.done()
+
+    release.set()
+    await asyncio.gather(first, second)
+    await source.close()
+    assert close_calls == 1
+
+
+@pytest.mark.parametrize(
+    ("platform", "environment", "uid", "sandbox_option", "expected"),
+    [
+        ("linux", {}, 0, None, True),
+        ("linux", {}, 1000, None, False),
+        ("darwin", {}, 0, None, False),
+        ("darwin", {"CI": "1"}, 1000, None, True),
+        ("win32", {}, 1000, False, True),
+    ],
+)
+def test_should_disable_chromium_sandbox(
+    platform: str,
+    environment: dict[str, str],
+    uid: int,
+    sandbox_option: bool | None,
+    expected: bool,
+) -> None:
+    assert (
+        browser._should_disable_chromium_sandbox(
+            LocalBrowserLaunchOptions(chromium_sandbox=sandbox_option),
+            platform=platform,
+            environment=environment,
+            getuid=lambda: uid,
+        )
+        is expected
+    )
+
+
+async def test_close_chrome_process_terminates_unix_process_group(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signals: list[tuple[int, int]] = []
+
+    class FakeProcess:
+        returncode = None
+        pid = 123
+
+        async def wait(self) -> int:
+            return 0
+
+    monkeypatch.setattr(browser.sys, "platform", "linux")
+    monkeypatch.setattr(browser.os, "killpg", lambda pid, sig: signals.append((pid, sig)))
+
+    await browser._close_chrome_process(FakeProcess())
+
+    assert signals == [(123, browser.signal.SIGTERM)]
+
+
+async def test_close_chrome_process_force_kills_after_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signals: list[tuple[int, int]] = []
+    waits = 0
+
+    class FakeProcess:
+        returncode = None
+        pid = 123
+
+        async def wait(self) -> int:
+            nonlocal waits
+            waits += 1
+            return 0
+
+    async def timeout_wait(awaitable: object, *, timeout: float) -> int:
+        assert timeout == 3
+        cast(Any, awaitable).close()
+        raise TimeoutError
+
+    monkeypatch.setattr(browser.sys, "platform", "linux")
+    monkeypatch.setattr(browser.os, "killpg", lambda pid, sig: signals.append((pid, sig)))
+    monkeypatch.setattr(browser.asyncio, "wait_for", timeout_wait)
+
+    await browser._close_chrome_process(FakeProcess())
+
+    assert signals == [
+        (123, browser.signal.SIGTERM),
+        (123, browser.signal.SIGKILL),
+    ]
+    assert waits == 1
+
+
+async def test_run_taskkill_terminates_windows_process_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    class FakeTaskkill:
+        async def wait(self) -> int:
+            return 0
+
+    async def create_subprocess_exec(
+        *args: object,
+        **kwargs: object,
+    ) -> FakeTaskkill:
+        calls.append((args, kwargs))
+        return FakeTaskkill()
+
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+
+    await browser._run_taskkill(123, force=False)
+    await browser._run_taskkill(123, force=True)
+
+    assert [args for args, _ in calls] == [
+        ("taskkill", "/PID", "123", "/T"),
+        ("taskkill", "/PID", "123", "/T", "/F"),
+    ]
+    assert all(
+        kwargs
+        == {
+            "stdin": asyncio.subprocess.DEVNULL,
+            "stdout": asyncio.subprocess.DEVNULL,
+            "stderr": asyncio.subprocess.DEVNULL,
+        }
+        for _, kwargs in calls
+    )
+
+
+async def test_close_chrome_process_ignores_finished_windows_tree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeProcess:
+        returncode = None
+        pid = 123
+
+        async def wait(self) -> int:
+            return 0
+
+    async def taskkill(_pid: int, *, force: bool) -> None:
+        assert not force
+        raise browser._TaskkillError(128)
+
+    monkeypatch.setattr(browser.sys, "platform", "win32")
+    monkeypatch.setattr(browser, "_run_taskkill", taskkill)
+
+    await browser._close_chrome_process(FakeProcess())
+
+
+async def test_close_chrome_process_skips_already_exited_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeProcess:
+        returncode: int | None = 0
+        pid = 123
+
+        async def wait(self) -> int:
+            raise AssertionError("already-exited process should not be awaited")
+
+    async def terminate(_pid: int, *, force: bool) -> None:
+        raise AssertionError(f"already-exited process received force={force}")
+
+    monkeypatch.setattr(browser, "_terminate_chrome_process", terminate)
+
+    await browser._close_chrome_process(FakeProcess())
+
+
+async def test_close_local_chrome_combines_shutdown_and_profile_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    termination_error = OSError("termination failed")
+    profile_error = OSError("profile cleanup failed")
+
+    async def close_process(_process: object) -> None:
+        raise termination_error
+
+    async def remove_profile(_path: Path) -> None:
+        raise profile_error
+
+    monkeypatch.setattr(browser, "_close_chrome_process", close_process)
+    monkeypatch.setattr(browser, "_remove_chrome_profile", remove_profile)
+
+    with pytest.raises(ExceptionGroup) as raised:
+        await browser._close_local_chrome(
+            cast(browser._ChromeProcess, object()),
+            browser._ChromeProfile(path=tmp_path, remove=True),
+        )
+
+    assert raised.value.message == "Chrome termination and profile cleanup failed"
+    assert raised.value.exceptions == (termination_error, profile_error)
+
+
+async def test_launch_combines_spawn_and_profile_cleanup_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    profile_error = OSError("profile cleanup failed")
+
+    async def create_subprocess_exec(*_args: object, **_kwargs: object) -> object:
+        raise OSError("spawn failed")
+
+    async def remove_profile(_path: Path) -> None:
+        raise profile_error
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_available_port", lambda: 9222)
+    monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(browser, "_remove_chrome_profile", remove_profile)
+
+    with pytest.raises(ExceptionGroup) as raised:
+        await _launch_local_browser(LocalBrowserLaunchOptions())
+
+    assert raised.value.message == "Chrome launch failed and browser cleanup also failed"
+    assert isinstance(raised.value.exceptions[0], RuntimeError)
+    assert str(raised.value.exceptions[0]) == "Failed to start Chrome: spawn failed"
+    assert raised.value.exceptions[1] is profile_error
+
+
 def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: Path) -> None:
     flags = _local_browser_flags(
         LocalBrowserLaunchOptions(
@@ -1238,7 +1489,7 @@ def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: P
         ),
         port=9222,
         user_data_dir=tmp_path,
-        is_ci=False,
+        disable_sandbox=False,
     )
 
     assert "--window-size=1440,900" in flags
@@ -1253,7 +1504,7 @@ def test_local_browser_flags_keep_ignored_explicit_viewport(tmp_path: Path) -> N
         ),
         port=9222,
         user_data_dir=tmp_path,
-        is_ci=False,
+        disable_sandbox=False,
     )
 
     assert "--window-size=1440,900" in flags
@@ -1264,7 +1515,7 @@ def test_local_browser_flags_can_omit_implicit_default_viewport(tmp_path: Path) 
         LocalBrowserLaunchOptions(ignore_default_args=["--window-size=1280,800"]),
         port=9222,
         user_data_dir=tmp_path,
-        is_ci=False,
+        disable_sandbox=False,
     )
 
     assert "--window-size=1280,800" not in flags

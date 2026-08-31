@@ -91,14 +91,18 @@ class ResolvedBrowserSource:
     cdp_url: str
     keep_alive: bool
     _close_callback: Callable[[], Awaitable[None]] | None = field(default=None, repr=False)
-    _closed: bool = field(default=False, init=False, repr=False)
+    _close_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
 
     async def close(self) -> None:
-        if self._closed:
+        if self._close_callback is None:
             return
-        self._closed = True
-        if self._close_callback is not None:
-            await self._close_callback()
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(_invoke_close(self._close_callback))
+        await asyncio.shield(self._close_task)
+
+
+async def _invoke_close(callback: Callable[[], Awaitable[None]]) -> None:
+    await callback()
 
 
 @dataclass(frozen=True)
@@ -280,9 +284,11 @@ class _WaitableChromeProcess(Protocol):
 class _ChromeProcess(_WaitableChromeProcess, Protocol):
     pid: int
 
-    def terminate(self) -> None: ...
 
-    def kill(self) -> None: ...
+class _TaskkillError(RuntimeError):
+    def __init__(self, returncode: int) -> None:
+        self.returncode = returncode
+        super().__init__(f"taskkill exited with code {returncode}")
 
 
 async def _connect_browser(
@@ -657,7 +663,7 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
         options,
         port=port,
         user_data_dir=profile.path,
-        is_ci=bool(os.environ.get("CI")),
+        disable_sandbox=_should_disable_chromium_sandbox(options),
     )
     process: _ChromeProcess | None = None
     try:
@@ -673,11 +679,17 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
         except OSError as error:
             raise RuntimeError(f"Failed to start Chrome: {error}") from error
         await _wait_for_chrome(f"http://127.0.0.1:{port}", process)
-    except BaseException:
-        if process is not None:
-            await _close_local_chrome(process, profile)
-        elif profile.remove:
-            await _remove_chrome_profile(profile.path)
+    except BaseException as launch_error:
+        try:
+            if process is not None:
+                await _close_local_chrome(process, profile)
+            elif profile.remove:
+                await _remove_chrome_profile(profile.path)
+        except BaseException as cleanup_error:
+            raise _combined_error(
+                "Chrome launch failed and browser cleanup also failed",
+                [launch_error, cleanup_error],
+            ) from launch_error
         raise
 
     async def close() -> None:
@@ -788,33 +800,83 @@ async def _close_local_chrome(
     process: _ChromeProcess,
     profile: _ChromeProfile,
 ) -> None:
+    errors: list[BaseException] = []
     try:
-        if process.returncode is None:
-            try:
-                if sys.platform == "win32":
-                    process.terminate()
-                else:
-                    os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                await asyncio.wait_for(process.wait(), timeout=3)
-            except TimeoutError:
-                try:
-                    if sys.platform == "win32":
-                        process.kill()
-                    else:
-                        os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                await process.wait()
-    finally:
-        if profile.remove:
+        await _close_chrome_process(process)
+    except BaseException as error:
+        errors.append(error)
+    if profile.remove:
+        try:
             await _remove_chrome_profile(profile.path)
+        except BaseException as error:
+            errors.append(error)
+    if errors:
+        raise _combined_error("Chrome termination and profile cleanup failed", errors)
+
+
+async def _close_chrome_process(process: _ChromeProcess) -> None:
+    if process.returncode is not None:
+        return
+    try:
+        await _terminate_chrome_process(process.pid, force=False)
+    except BaseException as error:
+        if not _is_finished_process_error(error):
+            raise
+    try:
+        await asyncio.wait_for(process.wait(), timeout=3)
+        return
+    except TimeoutError:
+        pass
+    try:
+        await _terminate_chrome_process(process.pid, force=True)
+    except BaseException as error:
+        if not _is_finished_process_error(error):
+            raise
+    await process.wait()
+
+
+async def _terminate_chrome_process(pid: int, *, force: bool) -> None:
+    if sys.platform == "win32":
+        await _run_taskkill(pid, force=force)
+        return
+    os.killpg(pid, signal.SIGKILL if force else signal.SIGTERM)
+
+
+async def _run_taskkill(pid: int, *, force: bool) -> None:
+    taskkill = await asyncio.create_subprocess_exec(
+        "taskkill",
+        "/PID",
+        str(pid),
+        "/T",
+        *(["/F"] if force else []),
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    returncode = await taskkill.wait()
+    if returncode != 0:
+        raise _TaskkillError(returncode)
+
+
+def _is_finished_process_error(error: BaseException) -> bool:
+    return isinstance(error, ProcessLookupError) or (
+        isinstance(error, _TaskkillError) and error.returncode == 128
+    )
+
+
+def _combined_error(message: str, errors: list[BaseException]) -> BaseException:
+    if len(errors) == 1:
+        return errors[0]
+    if all(isinstance(error, Exception) for error in errors):
+        return ExceptionGroup(
+            message,
+            [error for error in errors if isinstance(error, Exception)],
+        )
+    return BaseExceptionGroup(message, errors)
 
 
 async def _remove_chrome_profile(path: Path) -> None:
-    await asyncio.to_thread(shutil.rmtree, path, True)
+    await asyncio.to_thread(shutil.rmtree, path)
 
 
 def _local_browser_flags(
@@ -822,7 +884,7 @@ def _local_browser_flags(
     *,
     port: int,
     user_data_dir: Path,
-    is_ci: bool,
+    disable_sandbox: bool,
 ) -> list[str]:
     ignored_default_args = options.ignore_default_args
     ignored_flags = set(ignored_default_args) if isinstance(ignored_default_args, list) else set()
@@ -848,7 +910,7 @@ def _local_browser_flags(
         f"--user-data-dir={user_data_dir}",
         *(["--headless"] if options.headless is True else []),
         *(["--auto-open-devtools-for-tabs"] if options.devtools is True else []),
-        *(["--no-sandbox"] if is_ci or options.chromium_sandbox is False else []),
+        *(["--no-sandbox"] if disable_sandbox else []),
         *([f"--proxy-server={options.proxy.server}"] if options.proxy else []),
         *(
             [f"--proxy-bypass-list={options.proxy.bypass}"]
@@ -866,6 +928,23 @@ def _local_browser_flags(
         *(options.args or []),
         "about:blank",
     ]
+
+
+def _should_disable_chromium_sandbox(
+    options: _LocalBrowserOptions,
+    *,
+    platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    getuid: Callable[[], int] | None = None,
+) -> bool:
+    platform = sys.platform if platform is None else platform
+    environment = os.environ if environment is None else environment
+    getuid = getattr(os, "getuid", None) if getuid is None else getuid
+    return (
+        bool(environment.get("CI"))
+        or options.chromium_sandbox is False
+        or (platform == "linux" and getuid is not None and getuid() == 0)
+    )
 
 
 def _find_chrome_path(
