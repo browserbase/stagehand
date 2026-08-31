@@ -287,6 +287,49 @@ export interface RunEvalsResult {
   }>;
 }
 
+export type SummaryResult = RunEvalsResult["results"][number] & { categories?: string[] };
+
+/**
+ * Normalize one Braintrust Eval result row for the run summary. Braintrust
+ * leaves `output` undefined when the task function threw (or its span failed
+ * after the task returned) and reports the failure in `error`; that row must
+ * still count as a failure so the summary, experiment link, and per-model
+ * table are written for the rest of the run.
+ */
+export function toSummaryResult(result: {
+  input: EvalInput;
+  output?: unknown;
+  error?: unknown;
+  metadata?: Record<string, unknown>;
+}): SummaryResult {
+  const output: SummaryResult["output"] =
+    typeof result.output === "boolean"
+      ? { _success: result.output }
+      : result.output !== null && typeof result.output === "object"
+        ? (result.output as SummaryResult["output"])
+        : {
+            _success: false,
+            error:
+              formatProgressError(result.error) ??
+              (result.output === undefined
+                ? "Braintrust reported no output for this task"
+                : String(result.output)),
+          };
+  const categories = Array.isArray(result.metadata?.categories)
+    ? result.metadata.categories.filter(
+        (category): category is string => typeof category === "string",
+      )
+    : undefined;
+
+  return {
+    input: result.input,
+    output,
+    name: result.input.name,
+    score: output._success ? 1 : 0,
+    ...(categories && { categories }),
+  };
+}
+
 function formatProgressError(error: unknown): string | undefined {
   if (error === undefined || error === null) return undefined;
   if (typeof error === "string") return error;
@@ -526,23 +569,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       await flush();
     }
 
-    const summaryResults = evalResult.results.map((result) => {
-      const output =
-        typeof result.output === "boolean" ? { _success: result.output } : result.output;
-      const categories = Array.isArray(result.metadata?.categories)
-        ? result.metadata.categories.filter(
-            (category): category is string => typeof category === "string",
-          )
-        : undefined;
-
-      return {
-        input: result.input,
-        output,
-        name: result.input.name,
-        score: output._success ? 1 : 0,
-        ...(categories && { categories }),
-      };
-    });
+    const summaryResults = evalResult.results.map((result) => toSummaryResult(result));
 
     const resolvedExperimentName = evalResult.summary?.experimentName ?? experimentName;
     const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
