@@ -45,6 +45,12 @@ import {
  * Expected pass rate at construction time: ~0%. That is the point — this suite
  * is all headroom.
  *
+ * Validity is re-audited before each campaign by scripts/audit-hardbenchmark.ts
+ * (live bot-wall probe, rubric shape, achievability vs. past runs). Rows it
+ * quarantines carry `valid: false` + `invalid_reason` and are skipped here —
+ * never deleted, so the quarantine is reviewable and reversible. Rows with
+ * `verdict_review` are run but their verdicts need a manual look.
+ *
  * Knobs (mirroring the parent suites):
  *   EVAL_MAX_K / EVAL_HARDBENCHMARK_LIMIT   cap the number of cases (default: all 46)
  *   EVAL_HARDBENCHMARK_SAMPLE               random sample of N
@@ -69,6 +75,11 @@ export const buildHardBenchmarkTestcases = (models: string[] | AgentModelEntry[]
     /** The capability the task actually probes. */
     capability_axis?: string;
     audit?: Record<string, unknown>;
+    /** Set to false by scripts/audit-hardbenchmark.ts; quarantined rows stay in the file but never run. */
+    valid?: boolean;
+    invalid_reason?: string;
+    /** Rubric rewards stopping before checkout while the wording says "purchase": verdicts need a manual look. */
+    verdict_review?: string;
     [key: string]: unknown;
   };
 
@@ -78,7 +89,15 @@ export const buildHardBenchmarkTestcases = (models: string[] | AgentModelEntry[]
     return typeof obj.id === "string" && typeof obj.ques === "string";
   }
 
-  const candidates = parseJsonlRows(lines, isHardBenchmarkRow);
+  const allRows = parseJsonlRows(lines, isHardBenchmarkRow);
+  const quarantined = allRows.filter((r) => r.valid === false);
+  const candidates = allRows.filter((r) => r.valid !== false);
+  if (quarantined.length > 0) {
+    console.warn(
+      `[hardbenchmark] skipping ${quarantined.length}/${allRows.length} quarantined task(s) (valid=false): ` +
+        quarantined.map((r) => `${r.id} — ${r.invalid_reason ?? "no reason recorded"}`).join("; "),
+    );
+  }
 
   // Default to the WHOLE suite — it is only 46 tasks and every one of them
   // carries signal, so silently truncating to 25 (as the parent suites do)
@@ -144,6 +163,7 @@ export const buildHardBenchmarkTestcases = (models: string[] | AgentModelEntry[]
           source_suite: row.source_suite,
           failure_mode: row.failure_mode,
           capability_axis: row.capability_axis,
+          ...(row.verdict_review ? { verdict_review: row.verdict_review } : {}),
         },
         expected: true,
       });
