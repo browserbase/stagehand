@@ -9,6 +9,7 @@ import {
   cleanupFxRuntime,
   FX_DENIED_TOOLS,
   FX_TOOL_SURFACES,
+  resolveFxRuntimePaths,
 } from "../../framework/fxToolAdapter.js";
 import {
   resolveStartupProfile,
@@ -114,8 +115,13 @@ describe("fx tool adapter helpers", () => {
       Object.fromEntries(FX_DENIED_TOOLS.map((name) => [name, "deny"])),
     );
     const permission = buildFxSettings({ stagehand: ["run"] }).permission;
+    // A "*" deny hides fx's mcp_search_tools/mcp_select_tool, which makes every
+    // dynamic MCP tool unreachable; fx 0.0.3 then advertised only web_fetch.
+    expect(permission).not.toHaveProperty("*");
+    for (const metaTool of ["mcp_search_tools", "mcp_select_tool", "mcp_features"]) {
+      expect(permission).not.toHaveProperty(metaTool);
+    }
     expect(permission).toMatchObject({
-      "*": "deny",
       grep_files: "deny",
       open_file: "deny",
       file_info: "deny",
@@ -126,6 +132,16 @@ describe("fx tool adapter helpers", () => {
     });
     expect(FX_DENIED_TOOLS).not.toContain("glob" as never);
     expect(FX_DENIED_TOOLS).not.toContain("grep" as never);
+  });
+
+  it("nests the workspace below the throwaway home so fx loads AGENTS.md", () => {
+    const paths = resolveFxRuntimePaths("/tmp/stagehand-evals-fx-abc");
+    expect(paths).toEqual({
+      home: "/tmp/stagehand-evals-fx-abc/home",
+      fxHome: "/tmp/stagehand-evals-fx-abc/home/.fx",
+      workspace: "/tmp/stagehand-evals-fx-abc/home/workspace",
+    });
+    expect(paths.workspace.startsWith(`${paths.home}/`)).toBe(true);
   });
 
   it("redacts cleanup failures before logging", async () => {

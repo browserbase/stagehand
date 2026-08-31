@@ -51,8 +51,12 @@ export const FX_TOOL_SURFACES: ToolSurface[] = [
   "chrome_devtools_mcp",
 ];
 
+// No "*" catch-all: a deny rule hides the tool from the model, and "*" also
+// hides fx's own mcp_search_tools / mcp_select_tool, without which no dynamic
+// MCP tool can ever be selected (fx 0.0.3 advertised only web_fetch). web_fetch
+// itself is not permission-gated in fx 0.0.3; the rule is kept for forward
+// compatibility and the AGENTS.md guidance steers the model off it.
 export const FX_DENIED_TOOLS = [
-  "*",
   "run_command",
   "terminal",
   "write_file",
@@ -152,6 +156,20 @@ export function buildFxMcpConfig(
   return { mcp };
 }
 
+/**
+ * Per-run fx layout. The workspace must sit below the throwaway $HOME: fx
+ * loads AGENTS.md / .fx.json only for workspaces under home and otherwise
+ * traces "project_rules_omitted reason=workspace is not below home".
+ */
+export function resolveFxRuntimePaths(root: string): {
+  home: string;
+  fxHome: string;
+  workspace: string;
+} {
+  const home = path.join(root, "home");
+  return { home, fxHome: path.join(home, ".fx"), workspace: path.join(home, "workspace") };
+}
+
 export function buildFxSettings(mcpToolNames: Record<string, string[]>): {
   permission: Record<string, "allow" | "deny">;
 } {
@@ -186,6 +204,7 @@ export function buildFxAgentsMarkdown(promptInstructions: string, serverNames: s
     `MCP tools use the fx name mcp_<server>_<tool> (configured servers: ${serverNames.join(", ")}; patterns: ${prefixes}).`,
     "Select tools with mcp_select_tool using their exact name. mcp_search_tools may return nothing.",
     "Never invent tool names. Do not use the shell, web search/fetch, or file tools.",
+    "web_fetch is not a browser: it cannot run JavaScript, click, type, or keep a session, and the task is graded only on browser evidence. Do not call it, even to read docs; start with mcp_select_tool.",
     stagehandGuidance,
     "",
     promptInstructions,
@@ -231,9 +250,7 @@ export async function prepareFxToolAdapter(
     root = await fsp.mkdtemp(
       path.join(os.tmpdir(), `stagehand-evals-fx-${toolSurface.replace(/_/gu, "-")}-`),
     );
-    const home = path.join(root, "home");
-    const workspace = path.join(root, "workspace");
-    const fxHome = path.join(home, ".fx");
+    const { home, fxHome, workspace } = resolveFxRuntimePaths(root);
     await Promise.all([
       fsp.mkdir(fxHome, { recursive: true }),
       fsp.mkdir(workspace, { recursive: true }),
