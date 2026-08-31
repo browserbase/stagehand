@@ -112,6 +112,20 @@ describe("normalizeUsage", () => {
     expect(formatNormalizedUsage(usage)).toBe("in=? out=? (usage unreported)");
   });
 
+  it("treats reported:false as unreported even for a harness that normally reports usage", () => {
+    const usage = normalizeUsage({
+      harness: "codex",
+      raw: { inputTokens: 0, outputTokens: 0, totalTokens: 0, reported: false },
+    });
+    expect(usage.convention).toBe("unreported");
+    expect(
+      normalizeUsage({
+        harness: "codex",
+        raw: { inputTokens: 5, outputTokens: 1, totalTokens: 6, reported: true },
+      }).convention,
+    ).toBe("openai_cached_subset");
+  });
+
   it("falls back to the subset convention for unregistered harnesses", () => {
     expect(usageConventionFor("brand_new")).toBe("openai_cached_subset");
   });

@@ -125,7 +125,11 @@ export async function runCodexAgent({
             ? toolAdapter.recordObservation
             : undefined,
       });
-      const usage = normalizeCodexUsage(sessionResult.tokenUsage);
+      const usage = {
+        ...normalizeCodexUsage(sessionResult.tokenUsage),
+        // Zeros after an aborted turn with no rollout are unknown usage, not a free run.
+        reported: sessionResult.usageSource !== "none",
+      };
       return {
         raw: sessionResult,
         resultText: sessionResult.finalMessage,

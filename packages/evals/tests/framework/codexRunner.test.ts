@@ -294,4 +294,49 @@ describe("codex runner helpers", () => {
       else process.env.EVAL_CODEX_MAX_STEPS = previous;
     }
   });
+
+  it("marks usage unreported (never zero) when the aborted turn left no rollout to recover", async () => {
+    const codexHome = await fsp.mkdtemp(path.join(os.tmpdir(), "codex-home-"));
+    const previous = process.env.EVAL_CODEX_MAX_STEPS;
+    process.env.EVAL_CODEX_MAX_STEPS = "1";
+    try {
+      const sdk: CodexSdk = {
+        startThread: () => ({
+          runStreamed: async () => ({
+            events: (async function* () {
+              yield { type: "thread.started", thread_id: "thread-gone" };
+              yield { type: "item.completed", item: { type: "command_execution", command: "ls" } };
+            })(),
+          }),
+        }),
+      };
+      const result = await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk,
+        toolAdapter: {
+          toolSurface: "browse_cli",
+          startupProfile: "tool_launch_local",
+          browserSession: { provider: "local" },
+          cwd: "/tmp/stagehand-evals-test",
+          env: { PATH: "/tmp", CODEX_HOME: codexHome },
+          promptInstructions: "Use browse.",
+          metadata: { toolCommand: "browse", browseCliEntrypoint: "/tmp/browse" },
+          cleanup: async () => {},
+        },
+      });
+      const metrics = result.metrics as Record<string, { value: number }>;
+
+      expect(result.harnessStatus).toBe("max_turns");
+      expect(result.cost_source).toBe("no_usage");
+      expect(result.cost_usd_estimated).toBeUndefined();
+      expect(metrics.cost_usd_estimated).toBeUndefined();
+      expect(metrics.usage_input_total).toBeUndefined();
+      expect(metrics.codex_usage_recovered.value).toBe(0);
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_CODEX_MAX_STEPS;
+      else process.env.EVAL_CODEX_MAX_STEPS = previous;
+    }
+  });
 });

@@ -142,6 +142,7 @@ export async function runCursorAgent({
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           totalTokens: usage.totalTokens,
+          reported: usage.reported,
         },
         metrics: buildCursorMetrics(usage, sessionResult.resultEvent, sessionResult.events),
       };

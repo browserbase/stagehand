@@ -85,7 +85,9 @@ export function usageConventionFor(harness: string): UsageConvention {
 }
 
 export function normalizeUsage({ harness, raw }: NormalizeUsageInput): NormalizedUsage {
-  const convention = usageConventionFor(harness);
+  // A harness that normally reports usage can still come up empty for one run
+  // (codex turn aborted with no rollout on disk); the runner says so explicitly.
+  const convention = raw.reported === false ? "unreported" : usageConventionFor(harness);
   const input = nonNegative(raw.inputTokens);
   const cached = nonNegative(raw.cachedInputTokens);
   const cacheWrite = nonNegative(raw.cacheCreationInputTokens);

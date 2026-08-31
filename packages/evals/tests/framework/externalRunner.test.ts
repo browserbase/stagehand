@@ -729,5 +729,21 @@ describe("external harness runner", () => {
       cost_usd_estimated: { count: 1, value: 0.5 },
       cost_usd_reported: { count: 1, value: 0.4 },
     });
+    // Unreported usage carries no usage_* metrics: zeros would read as a free run.
+    expect(
+      buildUsageCostMetrics(
+        {
+          ...usage,
+          input_total: 0,
+          input_cached: 0,
+          input_uncached: 0,
+          output: 0,
+          reasoning: 0,
+          convention: "unreported",
+        },
+        { cost_source: "no_usage" },
+        undefined,
+      ),
+    ).toEqual({});
   });
 });

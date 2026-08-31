@@ -140,6 +140,12 @@ export interface ExternalHarnessUsage {
   cacheCreationInputTokens?: number;
   reasoningOutputTokens?: number;
   totalTokens: number;
+  /**
+   * `false` when the SDK exposed no usage at all (cursor; codex after an
+   * aborted turn with no rollout to recover from). Zeros with `reported: false`
+   * are treated as unknown, never as a free run.
+   */
+  reported?: boolean;
 }
 
 export interface ExternalHarnessSessionOutcome<TRaw> {
@@ -485,7 +491,8 @@ export function formatSeconds(ms: number): string {
  * Convention-independent token buckets plus the dollar figures: the estimate
  * from the versioned price map, and whatever the harness itself reported
  * (claude_code total_cost_usd, eve costUsd, pi cost, fx total_cost). An
- * unpriced model gets no `cost_usd_estimated` at all rather than a 0.
+ * unpriced model gets no `cost_usd_estimated` at all rather than a 0, and
+ * unreported usage gets no usage_* metrics rather than zeros.
  */
 export function buildUsageCostMetrics(
   usage: NormalizedUsage,
@@ -493,10 +500,12 @@ export function buildUsageCostMetrics(
   reportedCostUsd: number | undefined,
 ): Record<string, MetricValue> {
   return {
-    usage_input_total: metricValue(usage.input_total),
-    usage_input_cached: metricValue(usage.input_cached),
-    usage_output: metricValue(usage.output),
-    usage_reasoning: metricValue(usage.reasoning),
+    ...(usage.convention !== "unreported" && {
+      usage_input_total: metricValue(usage.input_total),
+      usage_input_cached: metricValue(usage.input_cached),
+      usage_output: metricValue(usage.output),
+      usage_reasoning: metricValue(usage.reasoning),
+    }),
     ...(cost.cost_usd_estimated !== undefined && {
       cost_usd_estimated: metricValue(cost.cost_usd_estimated),
     }),
