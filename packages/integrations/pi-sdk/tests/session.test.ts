@@ -333,7 +333,8 @@ describe("pi SDK session", () => {
     expect(toolResult.content[1]).toMatchObject({ data: base64 });
 
     const toolMessage = result.events.find(
-      (event) => event.type === "message_end" && (event.message as { role: string }).role === "toolResult",
+      (event) =>
+        event.type === "message_end" && (event.message as { role: string }).role === "toolResult",
     );
     const serialized = JSON.stringify(result.events, (_key, value) =>
       Buffer.isBuffer(value) ? "<buffer>" : value,
