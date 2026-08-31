@@ -6,6 +6,7 @@ import type { ExternalHarnessTaskPlan } from "../externalHarnessPlan.js";
 import type { StepObservation } from "../observationRecorder.js";
 import type { TaskResult } from "../types.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "../verifierAdapter.js";
+import { emitTrajectoryTrace } from "./traceLog.js";
 
 export type MetricValue = { count: number; value: number };
 
@@ -218,6 +219,7 @@ export async function runExternalHarnessTask<TRaw>({
   };
   if (!verifier) return baseResult;
 
+  const isFacadeTool = toolAdapter?.observedToolMatcher;
   const evidenceTimeoutMs = readPositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000);
   const finalObservation = toolAdapter?.captureEvidence
     ? await bestEffort(toolAdapter.captureEvidence(), evidenceTimeoutMs)
@@ -242,6 +244,18 @@ export async function runExternalHarnessTask<TRaw>({
         },
         verifier.taskSpec,
       );
+      // The readable step trace is derived from the normalized trajectory so
+      // every harness logs the same shape; a formatting bug must never fail
+      // the grade.
+      try {
+        emitTrajectoryTrace(logger, { trajectory, outcome, isFacadeTool });
+      } catch (traceError) {
+        logger.warn({
+          category: "trace",
+          level: 1,
+          message: `step trace failed: ${stringifyError(traceError)}`,
+        });
+      }
       return trajectory;
     },
     verifier,
@@ -251,13 +265,14 @@ export async function runExternalHarnessTask<TRaw>({
     logger,
   });
   const facadeMetrics =
-    trajectory && toolAdapter?.observedToolMatcher
-      ? buildFacadeToolCallMetrics(trajectory, toolAdapter.observedToolMatcher)
-      : {};
+    trajectory && isFacadeTool ? buildFacadeToolCallMetrics(trajectory, isFacadeTool) : {};
   const gradedMetrics = (gradedResult.metrics ?? {}) as Record<string, MetricValue>;
   const result: TaskResult = {
     ...gradedResult,
     metrics: { ...gradedMetrics, ...facadeMetrics },
+    // Re-read so the trace and verifier lines logged after baseResult was
+    // built ship with the row.
+    logs: logger.getLogs(),
   };
   return outcome.status === "sdk_error"
     ? { ...result, _success: false, error: errorMessage }

@@ -9,6 +9,7 @@ import {
   parseEvalResult,
   runExternalHarnessTask,
 } from "../../framework/harnesses/externalRunner.js";
+import { buildTrajectory } from "../../framework/harnesses/trajectoryAdapter.js";
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -295,6 +296,56 @@ describe("external harness runner", () => {
       if (previous === undefined) delete process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS;
       else process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS = previous;
     }
+  });
+
+  it("ships the normalized step trace in the row logs once the trajectory exists", async () => {
+    const logger = new EvalLogger(false);
+    logger.log({ category: "codex", message: "tool-call-delta event", level: 2 });
+    const result = await runExternalHarnessTask({
+      harness: "codex",
+      plan,
+      logger,
+      toolAdapter: { observedToolMatcher: (name) => name.startsWith("stagehand.") },
+      verifier: {
+        v3: {} as never,
+        taskSpec: { id: "wv-1", instruction: plan.instruction, precomputedRubric: {} as never },
+        dataset: "webvoyager",
+      },
+      resultContract: "structured_output",
+      fallbackErrorMessage: "missing result",
+      runSession: async () => ({
+        raw: {},
+        resultText: '{"success":true,"summary":"done","finalAnswer":"ok"}',
+        transcriptText: "",
+        status: "completed",
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        metrics: {},
+      }),
+      toTrajectory: (_input, taskSpec) =>
+        buildTrajectory({
+          taskSpec,
+          toolCalls: [
+            {
+              name: "stagehand.run",
+              args: { code: "return page.title()" },
+              result: "Example",
+              ok: true,
+              reasoning: "read the title",
+            },
+            { name: "bash", args: { command: "echo hi" }, result: "hi", ok: true },
+          ],
+        }),
+    });
+
+    const messages = (result.logs ?? []).map((line) => line.message);
+    expect(messages).toEqual([
+      "step 1 · think · read the title",
+      "step 1 · run · ok · return page.title()  →  Example",
+      "step 2 · bash · ok · echo hi  →  hi",
+      "result · completed · steps=2 · facade_calls=1 · in=10 out=5",
+      expect.stringContaining("verifier integration failed"),
+    ]);
+    expect(result.metrics).toMatchObject({ facade_tool_calls: { count: 1, value: 1 } });
   });
 
   it.each([
