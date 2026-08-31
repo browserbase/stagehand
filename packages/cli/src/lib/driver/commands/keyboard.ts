@@ -1,10 +1,27 @@
 import { z } from "zod";
 
 import type { DriverCommandHandlers } from "./types.js";
-import { unavailableV4Command } from "./unavailable.js";
 
 export const keyboardHandlers: DriverCommandHandlers = {
-  type: unavailableV4Command("type"),
+  async type(manager, params) {
+    const { delay, mistakes, text } = z
+      .object({
+        delay: z.number().int().nonnegative().optional(),
+        mistakes: z.boolean().optional(),
+        text: z.string(),
+      })
+      .parse(params);
+    const page = await manager.activePage();
+    const options = {
+      ...(delay === undefined ? {} : { delay }),
+      ...(mistakes === undefined ? {} : { withMistakes: mistakes }),
+    };
+    await page.type(
+      text,
+      Object.keys(options).length === 0 ? undefined : options,
+    );
+    return { typed: true };
+  },
 
   async key(manager, params) {
     const { key } = z.object({ key: z.string().min(1) }).parse(params);

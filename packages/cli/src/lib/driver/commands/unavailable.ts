@@ -1,16 +1,5 @@
 import { DriverError } from "../errors.js";
-import type { DriverCommandHandler, DriverCommandName } from "./types.js";
-
-export function unavailableV4Command(
-  command: DriverCommandName,
-): DriverCommandHandler {
-  return async () => {
-    throw new DriverError(
-      `The \`${command}\` command has not been migrated to Stagehand V4 in this stack layer.`,
-      { code: "v4_command_unavailable" },
-    );
-  };
-}
+import type { DriverCommandHandler } from "./types.js";
 
 export const unavailableCursorOverlay: DriverCommandHandler = async () => {
   throw new DriverError(

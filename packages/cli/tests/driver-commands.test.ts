@@ -9,7 +9,7 @@ import { elementsHandlers } from "../src/lib/driver/commands/elements.js";
 import { keyboardHandlers } from "../src/lib/driver/commands/keyboard.js";
 import { mouseHandlers } from "../src/lib/driver/commands/mouse.js";
 import { navigationHandlers } from "../src/lib/driver/commands/navigation.js";
-import { pageInfoHandlers } from "../src/lib/driver/commands/page-info.js";
+import { networkHandlers } from "../src/lib/driver/commands/network.js";
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
 import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
@@ -19,7 +19,6 @@ import { DRIVER_COMMAND_NAMES } from "../src/lib/driver/commands/types.js";
 import { hasExplicitDriverTarget } from "../src/lib/driver/command-cli.js";
 import { getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { parseRequest } from "../src/lib/driver/daemon/protocol.js";
-import { NetworkCapture } from "../src/lib/driver/network-capture.js";
 import { runCli } from "./helpers/run-cli.js";
 
 describe("driver commands", () => {
@@ -108,7 +107,9 @@ describe("driver commands", () => {
       });
       await expect(
         resolveTargetForCommand("reuse-local", { remote: true }),
-      ).resolves.toEqual({ kind: "remote" });
+      ).resolves.toEqual({
+        kind: "remote",
+      });
     } finally {
       vi.doUnmock("../src/lib/driver/daemon/client.js");
       vi.resetModules();
@@ -152,7 +153,9 @@ describe("driver commands", () => {
       expect(runDriverCommandViaDaemon).toHaveBeenCalledWith(
         "cdp-state",
         "snapshot",
-        { compact: true },
+        {
+          compact: true,
+        },
       );
       expect(openViaDaemon).not.toHaveBeenCalled();
     } finally {
@@ -174,57 +177,310 @@ describe("driver commands", () => {
     ).toThrow();
   });
 
-  it("keeps open available on the V4 foundation", async () => {
-    const page = { goto: vi.fn() };
+  it("maps the CLI navigation timeout contract to the V4 page option", async () => {
+    const page = { goto: vi.fn().mockResolvedValue(undefined) };
     const manager = {
-      openResult: vi.fn(async () => ({ url: "https://example.com" })),
-      pageForOpen: vi.fn(async () => page),
+      openResult: vi.fn().mockResolvedValue({ url: "https://example.com" }),
+      pageForOpen: vi.fn().mockResolvedValue(page),
     } as unknown as Parameters<
       NonNullable<(typeof navigationHandlers)["open"]>
     >[0];
 
     await expect(
       navigationHandlers.open!(manager, {
-        timeoutMs: 1_234,
+        timeoutMs: 5_000,
         url: "https://example.com",
-        waitUntil: "networkidle",
+        waitUntil: "load",
       }),
     ).resolves.toEqual({ url: "https://example.com" });
     expect(page.goto).toHaveBeenCalledWith("https://example.com", {
-      timeout: 1_234,
-      waitUntil: "networkidle",
+      timeout: 5_000,
+      waitUntil: "load",
     });
   });
 
-  it("fails deferred standard commands with one stable result code", async () => {
-    const deferred = [
-      elementsHandlers.click,
-      elementsHandlers.fill,
-      elementsHandlers.select,
-      keyboardHandlers.type,
-      mouseHandlers["mouse.click"],
-      mouseHandlers["mouse.drag"],
-      navigationHandlers.back,
-      navigationHandlers.reload,
-      pageInfoHandlers.get,
-      pageInfoHandlers.is,
-      runtimeHandlers.screenshot,
-      tabHandlers["tab.close"],
-      tabHandlers["tab.new"],
-    ];
+  it("routes selector click and fill through V4 locators", async () => {
+    const locator = {
+      click: vi.fn(),
+      fill: vi.fn(),
+    };
+    const page = {
+      keyPress: vi.fn(),
+      locator: vi.fn(() => locator),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      resolveSelector: vi.fn((selector: string) =>
+        selector === "@0-1" ? "/html/body/button" : selector,
+      ),
+    } as unknown as Parameters<
+      NonNullable<(typeof elementsHandlers)["click"]>
+    >[0];
 
-    for (const handler of deferred) {
-      await expect(handler!({} as never, {})).rejects.toMatchObject({
-        code: "v4_command_unavailable",
-      });
+    await expect(
+      elementsHandlers.click!(manager, { selector: "@0-1" }),
+    ).resolves.toEqual({
+      clicked: true,
+    });
+    await expect(
+      elementsHandlers.fill!(manager, {
+        pressEnter: true,
+        selector: "#email",
+        value: "user@example.com",
+      }),
+    ).resolves.toEqual({ filled: true, pressedEnter: true });
+
+    expect(page.locator).toHaveBeenNthCalledWith(1, "/html/body/button");
+    expect(page.locator).toHaveBeenNthCalledWith(2, "#email");
+    expect(locator.click).toHaveBeenCalledOnce();
+    expect(locator.fill).toHaveBeenCalledWith("user@example.com");
+    expect(page.keyPress).toHaveBeenCalledWith("Enter");
+  });
+
+  it("keeps select and highlight on V4 locators", async () => {
+    const locator = {
+      highlight: vi.fn(),
+      selectOption: vi.fn().mockResolvedValue(["green", "blue"]),
+    };
+    const page = { locator: vi.fn(() => locator) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      resolveSelector: vi.fn((selector: string) => selector),
+    } as unknown as Parameters<
+      NonNullable<(typeof elementsHandlers)["select"]>
+    >[0];
+
+    await expect(
+      elementsHandlers.select!(manager, {
+        selector: "#colors",
+        values: ["green", "blue"],
+      }),
+    ).resolves.toEqual({ selected: ["green", "blue"] });
+    await expect(
+      elementsHandlers.highlight!(manager, {
+        durationMs: 750,
+        selector: "#colors",
+      }),
+    ).resolves.toEqual({ highlighted: true });
+
+    expect(page.locator).toHaveBeenNthCalledWith(1, "#colors");
+    expect(page.locator).toHaveBeenNthCalledWith(2, "#colors");
+    expect(locator.selectOption).toHaveBeenCalledWith(["green", "blue"]);
+    expect(locator.highlight).toHaveBeenCalledWith({ durationMs: 750 });
+  });
+
+  it("uploads files through the V4 locator API", async () => {
+    const setInputFiles = vi.fn();
+    const manager = {
+      activePage: vi.fn(async () => ({
+        locator: vi.fn(() => ({ setInputFiles })),
+      })),
+      resolveSelector: vi.fn((selector: string) => selector),
+    } as unknown as Parameters<
+      NonNullable<(typeof elementsHandlers)["upload"]>
+    >[0];
+
+    await expect(
+      elementsHandlers.upload!(manager, {
+        files: ["/tmp/file.txt"],
+        selector: "input[type=file]",
+      }),
+    ).resolves.toEqual({ files: ["/tmp/file.txt"], uploaded: true });
+    expect(setInputFiles).toHaveBeenCalledWith(["/tmp/file.txt"]);
+  });
+
+  it("omits undefined typing options from V4 requests", async () => {
+    const page = { type: vi.fn() };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof keyboardHandlers)["type"]>
+    >[0];
+
+    await expect(
+      keyboardHandlers.type!(manager, { text: "plain" }),
+    ).resolves.toEqual({
+      typed: true,
+    });
+    await expect(
+      keyboardHandlers.type!(manager, {
+        delay: 25,
+        mistakes: true,
+        text: "human",
+      }),
+    ).resolves.toEqual({ typed: true });
+
+    expect(page.type).toHaveBeenNthCalledWith(1, "plain", undefined);
+    expect(page.type).toHaveBeenNthCalledWith(2, "human", {
+      delay: 25,
+      withMistakes: true,
+    });
+  });
+
+  it("preserves supported coordinate mouse arguments on V4 pages", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    await expect(
+      mouseHandlers["mouse.click"]!(manager, {
+        button: "right",
+        clickCount: 2,
+        x: 10,
+        y: 20,
+      }),
+    ).resolves.toEqual({ clicked: true });
+    await expect(
+      mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 }),
+    ).resolves.toEqual({
+      hovered: true,
+    });
+    await expect(
+      mouseHandlers["mouse.scroll"]!(manager, {
+        deltaX: 5,
+        deltaY: 500,
+        x: 50,
+        y: 60,
+      }),
+    ).resolves.toEqual({ scrolled: true });
+    await expect(
+      mouseHandlers["mouse.drag"]!(manager, {
+        button: "left",
+        delay: 25,
+        fromX: 70,
+        fromY: 80,
+        steps: 4,
+        toX: 90,
+        toY: 100,
+      }),
+    ).resolves.toEqual({ dragged: true });
+
+    expect(page.click).toHaveBeenCalledWith(10, 20, {
+      button: "right",
+      clickCount: 2,
+    });
+    expect(page.hover).toHaveBeenCalledWith(30, 40);
+    expect(page.scroll).toHaveBeenCalledWith(50, 60, 5, 500);
+    expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {
+      button: "left",
+      delay: 25,
+      steps: 4,
+    });
+  });
+
+  it("omits undefined coordinate options from V4 requests", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    await mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 });
+    await mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 });
+    await mouseHandlers["mouse.scroll"]!(manager, {
+      deltaX: 5,
+      deltaY: 500,
+      x: 50,
+      y: 60,
+    });
+    await mouseHandlers["mouse.drag"]!(manager, {
+      fromX: 70,
+      fromY: 80,
+      toX: 90,
+      toY: 100,
+    });
+
+    expect(page.click).toHaveBeenCalledWith(10, 20, {});
+    expect(page.hover).toHaveBeenCalledWith(30, 40);
+    expect(page.scroll).toHaveBeenCalledWith(50, 60, 5, 500);
+    expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {});
+  });
+
+  it("fails explicitly for the V4 coordinate XPath capability", async () => {
+    const manager = {} as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    for (const [command, params] of [
+      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.hover", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
+      ["mouse.drag", { fromX: 1, fromY: 2, returnXPath: true, toX: 3, toY: 4 }],
+    ] as const) {
+      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
+        "Coordinate XPath lookup is not exposed by Stagehand V4",
+      );
     }
+  });
 
+  it("reports the isolated V4 network-capture gap", async () => {
+    const page = {};
+    const network = {
+      enable: vi.fn(async () => {
+        throw new Error("Network capture is not available");
+      }),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      network,
+    } as unknown as Parameters<
+      NonNullable<(typeof networkHandlers)["network.on"]>
+    >[0];
+
+    await expect(networkHandlers["network.on"]!(manager, {})).rejects.toThrow(
+      "Network capture is not available",
+    );
+    expect(network.enable).toHaveBeenCalledWith(page);
+  });
+
+  it("keeps cursor as an explicit capability gap", async () => {
     await expect(
       runtimeHandlers.cursor!({} as never, {}),
     ).rejects.toMatchObject({ code: "cursor_overlay_unavailable" });
-    await expect(new NetworkCapture("gap").enable({})).rejects.toMatchObject({
-      code: "network_capture_unavailable",
+  });
+
+  it("selects a remaining tab after closing the active tab", async () => {
+    const tabs = createFakeTabManager(["tab-1", "tab-2", "tab-3"], 1);
+
+    await expect(tabHandlers["tab.close"]!(tabs.manager, {})).resolves.toEqual({
+      closed: true,
+      index: 1,
+      selectedTargetId: "tab-3",
+      targetId: "tab-2",
     });
+    expect(tabs.pages[1]!.close).toHaveBeenCalledOnce();
+    expect(tabs.context.setActivePage).toHaveBeenCalledWith(tabs.pages[2]);
+    expect(tabs.active).toBe(tabs.pages[2]);
+  });
+
+  it("preserves the active tab after closing a non-active tab", async () => {
+    const tabs = createFakeTabManager(["tab-1", "tab-2", "tab-3"], 0);
+
+    await expect(
+      tabHandlers["tab.close"]!(tabs.manager, { tab: "tab-2" }),
+    ).resolves.toEqual({
+      closed: true,
+      index: 1,
+      selectedTargetId: "tab-1",
+      targetId: "tab-2",
+    });
+    expect(tabs.pages[1]!.close).toHaveBeenCalledOnce();
+    expect(tabs.context.setActivePage).not.toHaveBeenCalled();
+    expect(tabs.active).toBe(tabs.pages[0]);
   });
 
   it("rejects invalid wait timeout values before calling the page", async () => {
@@ -245,8 +501,44 @@ describe("driver commands", () => {
 
     await expect(
       runtimeHandlers.wait!(manager, { arg: "100", type: "timeout" }),
-    ).resolves.toEqual({ waited: true });
+    ).resolves.toEqual({
+      waited: true,
+    });
     expect(page.waitForTimeout).toHaveBeenCalledWith(100);
+  });
+
+  it("omits undefined screenshot options from V4 wire requests", async () => {
+    const page = {
+      screenshot: vi.fn().mockResolvedValue(Buffer.from("image")),
+    };
+    const manager = {
+      activePage: async () => page,
+    } as unknown as Parameters<
+      NonNullable<(typeof runtimeHandlers)["screenshot"]>
+    >[0];
+
+    await expect(runtimeHandlers.screenshot!(manager, {})).resolves.toEqual({
+      base64: Buffer.from("image").toString("base64"),
+    });
+    expect(page.screenshot).toHaveBeenCalledWith({ timeout: 10_000 });
+
+    await runtimeHandlers.screenshot!(manager, {
+      animations: "disabled",
+      caret: "hide",
+      clip: { height: 200, width: 300, x: 10, y: 20 },
+      fullPage: true,
+      quality: 80,
+      type: "jpeg",
+    });
+    expect(page.screenshot).toHaveBeenLastCalledWith({
+      animations: "disabled",
+      caret: "hide",
+      clip: { height: 200, width: 300, x: 10, y: 20 },
+      fullPage: true,
+      quality: 80,
+      timeout: 10_000,
+      type: "jpeg",
+    });
   });
 
   it("accepts fractional viewport scale values", async () => {
@@ -422,6 +714,53 @@ describe("driver commands", () => {
     expect(result.stdout).toContain("Prefer targetId");
   });
 });
+
+type FakeTabPage = {
+  close: ReturnType<typeof vi.fn>;
+  pageId: string;
+  title: () => Promise<string>;
+  url: () => Promise<string>;
+};
+
+function createFakeTabManager(targetIds: string[], activeIndex: number) {
+  let pages: FakeTabPage[] = [];
+  let active: FakeTabPage | null = null;
+  const makePage = (targetId: string): FakeTabPage => {
+    const page: FakeTabPage = {
+      close: vi.fn(async () => {
+        pages = pages.filter((candidate) => candidate !== page);
+      }),
+      pageId: targetId,
+      title: async () => targetId,
+      url: async () => `https://example.com/${targetId}`,
+    };
+    return page;
+  };
+
+  pages = targetIds.map(makePage);
+  active = pages[activeIndex] ?? null;
+  const context = {
+    activePage: async () => active,
+    pages: async () => pages,
+    setActivePage: vi.fn(async (page: FakeTabPage) => {
+      active = page;
+    }),
+  };
+
+  return {
+    get active() {
+      return active;
+    },
+    context,
+    manager: {
+      browserContext: async () => context,
+      safeTitle: async (page: FakeTabPage) => page.title(),
+    } as unknown as Parameters<
+      NonNullable<(typeof tabHandlers)["tab.close"]>
+    >[0],
+    pages,
+  };
+}
 
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) {

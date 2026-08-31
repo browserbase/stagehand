@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import type { DriverCommandHandlers } from "./types.js";
-import { unavailableV4Command } from "./unavailable.js";
 
 const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
@@ -22,9 +21,27 @@ export const navigationHandlers: DriverCommandHandlers = {
     await page.goto(url, pageNavigationOptions({ timeoutMs, waitUntil }));
     return manager.openResult(page);
   },
-  back: unavailableV4Command("back"),
-  forward: unavailableV4Command("forward"),
-  reload: unavailableV4Command("reload"),
+
+  async reload(manager, params) {
+    const options = NavigationOptionsSchema.parse(params);
+    const page = await manager.activePage();
+    await page.reload(pageNavigationOptions(options));
+    return manager.openResult(page);
+  },
+
+  async back(manager, params) {
+    const options = NavigationOptionsSchema.parse(params);
+    const page = await manager.activePage();
+    await page.goBack(pageNavigationOptions(options));
+    return manager.openResult(page);
+  },
+
+  async forward(manager, params) {
+    const options = NavigationOptionsSchema.parse(params);
+    const page = await manager.activePage();
+    await page.goForward(pageNavigationOptions(options));
+    return manager.openResult(page);
+  },
 };
 
 function pageNavigationOptions({
