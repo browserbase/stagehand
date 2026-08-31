@@ -119,6 +119,7 @@ export async function runCodexAgent({
         },
         outputSchema: EVAL_RESULT_SCHEMA,
         maxToolSteps,
+        ...(toolAdapter?.env?.CODEX_HOME && { codexHome: toolAdapter.env.CODEX_HOME }),
         onToolStep:
           toolAdapter && "recordObservation" in toolAdapter
             ? toolAdapter.recordObservation
@@ -137,7 +138,11 @@ export async function runCodexAgent({
             ? sanitizeErrorMessage(stringifyError(sessionResult.iterationError)) || undefined
             : undefined),
         usage,
-        metrics: buildCodexMetrics(sessionResult.tokenUsage),
+        metrics: {
+          ...buildCodexMetrics(sessionResult.tokenUsage),
+          // 1 when the turn never completed and usage came from the rollout file.
+          codex_usage_recovered: metricValue(sessionResult.usageSource === "rollout" ? 1 : 0),
+        },
       };
     },
     toTrajectory: (

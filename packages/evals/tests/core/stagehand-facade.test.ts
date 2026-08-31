@@ -335,9 +335,27 @@ describe("stagehand facade tool surface", () => {
     expect(buildStagehandFacadeEnv("BROWSERBASE")).toEqual({
       STAGEHAND_BROWSER: "browserbase",
       STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "3600",
+      STAGEHAND_BROWSERBASE_PROXIES: "1",
+      STAGEHAND_BROWSERBASE_VERIFIED: "1",
       STAGEHAND_MODEL_API_KEY: "model-secret",
       BROWSERBASE_PROJECT_ID: "project-id",
     });
+  });
+
+  it("runs Browserbase facade sessions proxied and verified by default (native-path parity)", () => {
+    expect(buildStagehandFacadeEnv("BROWSERBASE", {})).toMatchObject({
+      STAGEHAND_BROWSERBASE_PROXIES: "1",
+      STAGEHAND_BROWSERBASE_VERIFIED: "1",
+    });
+    expect(
+      buildStagehandFacadeEnv("BROWSERBASE", {
+        EVAL_BROWSERBASE_PROXIES: "0",
+        EVAL_BROWSERBASE_VERIFIED: "false",
+      }),
+    ).toMatchObject({ STAGEHAND_BROWSERBASE_PROXIES: "0", STAGEHAND_BROWSERBASE_VERIFIED: "0" });
+    expect(buildStagehandFacadeEnv("LOCAL", {})).not.toHaveProperty(
+      "STAGEHAND_BROWSERBASE_PROXIES",
+    );
   });
 
   it("is supported by both agent harnesses with tool-owned startup profiles", () => {

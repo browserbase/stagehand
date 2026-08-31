@@ -42,6 +42,8 @@ export function stagehandFacadeConfigFromEnv(
   const sessionTimeoutSeconds = browserbaseSessionTimeoutSeconds(
     env.STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
   );
+  const proxies = booleanEnv(env.STAGEHAND_BROWSERBASE_PROXIES, "STAGEHAND_BROWSERBASE_PROXIES");
+  const verified = booleanEnv(env.STAGEHAND_BROWSERBASE_VERIFIED, "STAGEHAND_BROWSERBASE_VERIFIED");
 
   const explicitModelName = nonEmpty(env.STAGEHAND_MODEL_NAME);
   const explicitModelApiKey = nonEmpty(env.STAGEHAND_MODEL_API_KEY);
@@ -88,6 +90,11 @@ export function stagehandFacadeConfigFromEnv(
               timeout: sessionTimeoutSeconds,
               // The facade owns the session for exactly one task; nothing reconnects later.
               keepAlive: false,
+              // Bot-wall parity with Stagehand's native agent path, which runs
+              // proxied + verified sessions; unproxied facade sessions were
+              // blocked (Akamai/PerimeterX) on sites the native path reached.
+              ...(proxies !== undefined ? { proxies } : {}),
+              ...(verified !== undefined ? { browserSettings: { verified } } : {}),
             },
           }
         : { type: "local", launchOptions: { headless: false } },
@@ -140,4 +147,12 @@ function providerApiKey(provider: string | undefined, env: NodeJS.ProcessEnv): s
     default:
       return undefined;
   }
+}
+
+function booleanEnv(value: string | undefined, name: string): boolean | undefined {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed) return undefined;
+  if (trimmed === "1" || trimmed === "true" || trimmed === "yes" || trimmed === "on") return true;
+  if (trimmed === "0" || trimmed === "false" || trimmed === "no" || trimmed === "off") return false;
+  throw new StagehandFacadeConfigError(`${name} must be a boolean (got "${value}").`);
 }

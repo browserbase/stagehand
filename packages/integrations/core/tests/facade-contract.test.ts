@@ -43,6 +43,25 @@ describe("Stagehand facade contract", () => {
     }
   });
 
+  it("passes proxies/verified through to the Browserbase session when configured", () => {
+    const env = { BROWSERBASE_API_KEY: "bb-key" };
+    expect(stagehandFacadeConfigFromEnv(env).browser.launchOptions).not.toHaveProperty("proxies");
+    expect(
+      stagehandFacadeConfigFromEnv({
+        ...env,
+        STAGEHAND_BROWSERBASE_PROXIES: "1",
+        STAGEHAND_BROWSERBASE_VERIFIED: "true",
+      }).browser.launchOptions,
+    ).toMatchObject({ proxies: true, browserSettings: { verified: true } });
+    expect(
+      stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_PROXIES: "off" }).browser
+        .launchOptions,
+    ).toMatchObject({ proxies: false });
+    expect(() =>
+      stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_VERIFIED: "maybe" }),
+    ).toThrow(/STAGEHAND_BROWSERBASE_VERIFIED must be a boolean/);
+  });
+
   it("pins the three tool names and descriptions", () => {
     expect(FACADE_TOOLS.map((tool) => tool.name)).toStrictEqual(["run", "snapshot", "screenshot"]);
     expect(FACADE_TOOLS[0].description).toContain("Browse and automate websites");

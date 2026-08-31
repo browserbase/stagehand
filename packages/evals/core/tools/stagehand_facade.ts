@@ -105,6 +105,12 @@ export function buildStagehandFacadeEnv(
       STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: String(
         evalBrowserbaseSessionTimeoutSeconds(env.EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS),
       ),
+      // Parity with the native Stagehand agent path (proxied + verified
+      // sessions); default on, EVAL_BROWSERBASE_PROXIES / _VERIFIED=0 to disable.
+      STAGEHAND_BROWSERBASE_PROXIES: evalBooleanEnv(env.EVAL_BROWSERBASE_PROXIES, true) ? "1" : "0",
+      STAGEHAND_BROWSERBASE_VERIFIED: evalBooleanEnv(env.EVAL_BROWSERBASE_VERIFIED, true)
+        ? "1"
+        : "0",
     }),
   };
 }
@@ -268,4 +274,12 @@ export class StagehandFacadeLegacyTool extends StagehandFacadeTool {
   protected override promptInstructions(): string {
     return LEGACY_FACADE_AGENT_INSTRUCTIONS;
   }
+}
+
+export function evalBooleanEnv(raw: string | undefined, fallback: boolean): boolean {
+  const v = raw?.trim().toLowerCase();
+  if (!v) return fallback;
+  if (v === "1" || v === "true" || v === "yes" || v === "on") return true;
+  if (v === "0" || v === "false" || v === "no" || v === "off") return false;
+  throw new EvalsError(`Expected a boolean env value, got "${raw}".`);
 }
