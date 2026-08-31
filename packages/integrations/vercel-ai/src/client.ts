@@ -1,21 +1,11 @@
 import { createMCPClient } from "@ai-sdk/mcp";
 import { Experimental_StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
 
 export type FacadeMCPClientOptions = {
   env?: Record<string, string>;
 };
-
-/** Only STAGEHAND_* and BROWSERBASE_* host env vars cross into the server. */
-export function buildAllowlistedEnv(): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(process.env)) {
-    if (/^(STAGEHAND_|BROWSERBASE_)/.test(key) && value) {
-      env[key] = value;
-    }
-  }
-  return env;
-}
 
 /**
  * Starts the stdio facade server as a child process and returns the AI SDK
