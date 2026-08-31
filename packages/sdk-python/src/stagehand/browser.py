@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import math
 import os
@@ -650,7 +651,7 @@ browserbase = BrowserbaseBrowser()
 async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowserSource:
     _validate_local_browser_options(options)
     chrome_path = _find_chrome_path(options.executable_path)
-    port = options.port or _available_port()
+    port = _resolve_chrome_port(options.port)
     profile = _resolve_chrome_profile(options)
     flags = _local_browser_flags(
         options,
@@ -937,7 +938,25 @@ def _is_executable_file(path: str, platform: str) -> bool:
     return candidate.is_file() and (platform == "win32" or os.access(candidate, os.X_OK))
 
 
-def _available_port() -> int:
-    with socket.socket() as candidate:
-        candidate.bind(("127.0.0.1", 0))
+def _resolve_chrome_port(requested_port: int | None) -> int:
+    if requested_port is None:
+        return _available_port()
+    try:
+        _inspect_chrome_port(requested_port)
+    except OSError as error:
+        if error.errno == errno.EADDRINUSE:
+            raise RuntimeError(
+                f"Chrome debugging port {requested_port} is already in use"
+            ) from error
+        raise
+    return requested_port
+
+
+def _inspect_chrome_port(port: int) -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as candidate:
+        candidate.bind(("127.0.0.1", port))
         return int(candidate.getsockname()[1])
+
+
+def _available_port() -> int:
+    return _inspect_chrome_port(0)

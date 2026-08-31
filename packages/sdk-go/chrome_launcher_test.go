@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -466,5 +469,81 @@ func TestAvailablePort(t *testing.T) {
 	}
 	if port < 1 || port > 65_535 {
 		t.Fatalf("availablePort() = %d, want valid TCP port", port)
+	}
+	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)))
+	if err != nil {
+		t.Fatalf("automatic port %d was not released: %v", port, err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close automatic-port listener: %v", err)
+	}
+}
+
+func TestResolveChromePort(t *testing.T) {
+	t.Run("automatic", func(t *testing.T) {
+		got, err := resolveChromePortWith(0, func(port int) (int, error) {
+			if port != 0 {
+				t.Fatalf("inspect port = %d, want 0", port)
+			}
+			return 4567, nil
+		})
+		if err != nil || got != 4567 {
+			t.Fatalf("resolveChromePortWith() = (%d, %v), want (4567, nil)", got, err)
+		}
+	})
+
+	t.Run("explicit available", func(t *testing.T) {
+		got, err := resolveChromePortWith(9222, func(port int) (int, error) {
+			return port, nil
+		})
+		if err != nil || got != 9222 {
+			t.Fatalf("resolveChromePortWith() = (%d, %v), want (9222, nil)", got, err)
+		}
+	})
+
+	t.Run("explicit occupied", func(t *testing.T) {
+		_, err := resolveChromePortWith(9222, func(int) (int, error) {
+			return 0, syscall.EADDRINUSE
+		})
+		if !errors.Is(err, syscall.EADDRINUSE) ||
+			!strings.Contains(err.Error(), "Chrome debugging port 9222 is already in use") {
+			t.Fatalf("resolveChromePortWith() error = %v, want occupied-port error", err)
+		}
+	})
+
+	t.Run("other socket error", func(t *testing.T) {
+		socketErr := errors.New("socket unavailable")
+		_, err := resolveChromePortWith(9222, func(int) (int, error) {
+			return 0, socketErr
+		})
+		if !errors.Is(err, socketErr) || strings.Contains(err.Error(), "already in use") {
+			t.Fatalf("resolveChromePortWith() error = %v, want preserved socket error", err)
+		}
+	})
+}
+
+func TestLaunchChromeRejectsOccupiedPortBeforeProfileCreation(t *testing.T) {
+	profile := filepath.Join(t.TempDir(), "profile")
+	portChecked := false
+
+	_, err := launchChromeWithPortResolver(context.Background(), LocalBrowserLaunchOptions{
+		ExecutablePath: os.Args[0],
+		Port:           9222,
+		UserDataDir:    profile,
+	}, func(port int) (int, error) {
+		portChecked = true
+		if port != 9222 {
+			t.Fatalf("resolve port = %d, want 9222", port)
+		}
+		return 0, fmt.Errorf("Chrome debugging port %d is already in use: %w", port, syscall.EADDRINUSE)
+	})
+	if err == nil || !strings.Contains(err.Error(), "already in use") {
+		t.Fatalf("launchChrome() error = %v, want occupied-port error", err)
+	}
+	if !portChecked {
+		t.Fatal("Chrome port was not checked")
+	}
+	if _, statErr := os.Stat(profile); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("profile was created before occupied-port rejection: %v", statErr)
 	}
 }

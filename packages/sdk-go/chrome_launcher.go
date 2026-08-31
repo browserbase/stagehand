@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -92,6 +93,14 @@ func launchChrome(
 	ctx context.Context,
 	options LocalBrowserLaunchOptions,
 ) (*launchedChrome, error) {
+	return launchChromeWithPortResolver(ctx, options, resolveChromePort)
+}
+
+func launchChromeWithPortResolver(
+	ctx context.Context,
+	options LocalBrowserLaunchOptions,
+	resolvePort func(int) (int, error),
+) (*launchedChrome, error) {
 	if ctx == nil {
 		return nil, errors.New("stagehand Chrome launch context is required")
 	}
@@ -106,12 +115,9 @@ func launchChrome(
 	if err != nil {
 		return nil, err
 	}
-	port := options.Port
-	if port == 0 {
-		port, err = availablePort()
-		if err != nil {
-			return nil, err
-		}
+	port, err := resolvePort(options.Port)
+	if err != nil {
+		return nil, err
 	}
 
 	userDataDir := options.UserDataDir
@@ -356,13 +362,47 @@ func isFile(path string) bool {
 }
 
 func availablePort() (int, error) {
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	port, err := inspectChromePort(0)
 	if err != nil {
 		return 0, fmt.Errorf("select Chrome debugging port: %w", err)
 	}
-	defer listener.Close()
-	port := listener.Addr().(*net.TCPAddr).Port
 	return port, nil
+}
+
+func resolveChromePort(requestedPort int) (int, error) {
+	return resolveChromePortWith(requestedPort, inspectChromePort)
+}
+
+func resolveChromePortWith(
+	requestedPort int,
+	inspect func(int) (int, error),
+) (int, error) {
+	if requestedPort == 0 {
+		port, err := inspect(0)
+		if err != nil {
+			return 0, fmt.Errorf("select Chrome debugging port: %w", err)
+		}
+		return port, nil
+	}
+	if _, err := inspect(requestedPort); err != nil {
+		if errors.Is(err, syscall.EADDRINUSE) {
+			return 0, fmt.Errorf("Chrome debugging port %d is already in use: %w", requestedPort, err)
+		}
+		return 0, fmt.Errorf("inspect Chrome debugging port %d: %w", requestedPort, err)
+	}
+	return requestedPort, nil
+}
+
+func inspectChromePort(port int) (int, error) {
+	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		return 0, err
+	}
+	assignedPort := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		return 0, err
+	}
+	return assignedPort, nil
 }
 
 func waitForChrome(

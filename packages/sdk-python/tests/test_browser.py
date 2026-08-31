@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import ClassVar, Literal, Self, cast
 
 import pytest
 from pydantic import ValidationError
@@ -904,6 +905,79 @@ async def test_invalid_explicit_executable_precedes_profile_creation(
 
     with pytest.raises(RuntimeError, match="Chrome executable.*does not exist"):
         await _launch_local_browser(LocalBrowserLaunchOptions(executable_path="/missing/chrome"))
+
+
+async def test_occupied_explicit_port_precedes_profile_creation_and_spawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile_created = False
+    spawned = False
+
+    def inspect_port(_port: int) -> int:
+        raise OSError(errno.EADDRINUSE, "address already in use")
+
+    def create_profile(**_kwargs: object) -> str:
+        nonlocal profile_created
+        profile_created = True
+        return "/unused"
+
+    async def create_subprocess_exec(*_args: object, **_kwargs: object) -> object:
+        nonlocal spawned
+        spawned = True
+        raise AssertionError("Chrome should not spawn")
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda _explicit: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_inspect_chrome_port", inspect_port)
+    monkeypatch.setattr(browser.tempfile, "mkdtemp", create_profile)
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+
+    with pytest.raises(RuntimeError, match="Chrome debugging port 9222 is already in use"):
+        await _launch_local_browser(LocalBrowserLaunchOptions(port=9222))
+
+    assert not profile_created
+    assert not spawned
+
+
+def test_resolve_chrome_port_preserves_non_occupancy_socket_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    socket_error = OSError(errno.EACCES, "permission denied")
+
+    def inspect_port(_port: int) -> int:
+        raise socket_error
+
+    monkeypatch.setattr(browser, "_inspect_chrome_port", inspect_port)
+
+    with pytest.raises(OSError) as raised:
+        browser._resolve_chrome_port(9222)
+    assert raised.value is socket_error
+
+
+def test_available_port_releases_automatic_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeSocket:
+        closed = False
+
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            self.closed = True
+
+        def bind(self, address: tuple[str, int]) -> None:
+            assert address == ("127.0.0.1", 0)
+
+        def getsockname(self) -> tuple[str, int]:
+            return ("127.0.0.1", 4567)
+
+    reservation = FakeSocket()
+    monkeypatch.setattr(browser.socket, "socket", lambda *_args: reservation)
+
+    port = browser._available_port()
+
+    assert port == 4567
+    assert reservation.closed
 
 
 async def test_spawn_failure_removes_sdk_owned_profile(
