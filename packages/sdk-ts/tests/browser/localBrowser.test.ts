@@ -1,5 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createLocalBrowserLauncherForTest,
@@ -10,36 +11,12 @@ import {
 
 const WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport";
 
-const EXPECTED_DEFAULT_CHROME_FLAGS = [
-  "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
-    "CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
-    "CertificateTransparencyComponentUpdater,AutofillServerCommunication," +
-    "PrivacySandboxSettings4,RenderDocument",
-  "--disable-component-extensions-with-background-pages",
-  "--disable-background-networking",
-  "--disable-component-update",
-  "--disable-client-side-phishing-detection",
-  "--disable-sync",
-  "--metrics-recording-only",
-  "--disable-default-apps",
-  "--mute-audio",
-  "--no-default-browser-check",
-  "--no-first-run",
-  "--disable-backgrounding-occluded-windows",
-  "--disable-renderer-backgrounding",
-  "--disable-background-timer-throttling",
-  "--disable-ipc-flooding-protection",
-  "--password-store=basic",
-  "--use-mock-keychain",
-  "--force-fieldtrials=*BackgroundTracing/default/",
-  "--disable-hang-monitor",
-  "--disable-prompt-on-repost",
-  "--disable-domain-reliability",
-  "--propagate-iph-for-testing",
-  "--enable-unsafe-extension-debugging",
-  "--remote-allow-origins=*",
-  WEBMCP_CHROME_FLAG,
-] as const;
+const EXPECTED_DEFAULT_CHROME_FLAGS = JSON.parse(
+  readFileSync(
+    new URL("../../../../tests/fixtures/local-browser-default-flags.json", import.meta.url),
+    "utf8",
+  ),
+) as string[];
 
 class FakeChromeProcess extends EventEmitter {
   pid = 123;

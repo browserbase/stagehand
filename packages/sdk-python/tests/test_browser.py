@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from typing import ClassVar, Literal, cast
 
@@ -31,6 +32,17 @@ from stagehand.browser import (
 from stagehand.browser_context import BrowserContext
 from stagehand.cdp_client import CDPConnectionClosedError
 from stagehand.client_models import LocalBrowserLaunchOptions, LocalViewport
+
+EXPECTED_DEFAULT_CHROME_FLAGS = tuple(
+    json.loads(
+        (
+            Path(__file__).resolve().parents[3]
+            / "tests"
+            / "fixtures"
+            / "local-browser-default-flags.json"
+        ).read_text()
+    )
+)
 
 
 class FakeCDPClient:
@@ -616,6 +628,23 @@ def test_local_browser_flags_are_unchanged_for_launch_options(tmp_path: Path) ->
     ]
 
 
+def test_local_browser_default_flags_match_shared_fixture(tmp_path: Path) -> None:
+    assert _DEFAULT_CHROME_FLAGS == EXPECTED_DEFAULT_CHROME_FLAGS
+    assert "--disable-extensions" not in _DEFAULT_CHROME_FLAGS
+    assert _local_browser_flags(
+        LocalBrowserLaunchOptions(),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    ) == [
+        *EXPECTED_DEFAULT_CHROME_FLAGS,
+        "--window-size=1280,800",
+        "--remote-debugging-port=9222",
+        f"--user-data-dir={tmp_path}",
+        "about:blank",
+    ]
+
+
 class FakeBrowserbaseSession:
     def __init__(
         self,
@@ -809,6 +838,40 @@ async def test_local_browser_close_ignores_vanished_process_and_removes_profile(
     await source.close()
 
     assert not profile.exists()
+
+
+@pytest.mark.parametrize(
+    "uses_temporary_profile",
+    [False, True],
+)
+async def test_local_browser_close_preserves_non_owned_profiles(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    uses_temporary_profile: bool,
+) -> None:
+    profile = tmp_path / "profile"
+    profile.mkdir()
+
+    class FakeProcess:
+        returncode = 0
+        pid = 123
+
+    async def create_subprocess_exec(*_args: object, **_kwargs: object) -> FakeProcess:
+        return FakeProcess()
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_available_port", lambda: 9222)
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    if uses_temporary_profile:
+        monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
+        options = LocalBrowserLaunchOptions(preserve_user_data_dir=True)
+    else:
+        options = LocalBrowserLaunchOptions(user_data_dir=str(profile))
+
+    source = await _launch_local_browser(options)
+    await source.close()
+
+    assert profile.exists()
 
 
 def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: Path) -> None:

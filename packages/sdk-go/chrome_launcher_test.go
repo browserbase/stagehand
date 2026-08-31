@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -20,41 +19,57 @@ import (
 const testWebMCPChromeFlag = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 
 func TestDefaultChromeFlags(t *testing.T) {
-	want := []string{
-		"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
-			"CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
-			"CertificateTransparencyComponentUpdater,AutofillServerCommunication," +
-			"PrivacySandboxSettings4,RenderDocument",
-		"--disable-component-extensions-with-background-pages",
-		"--disable-background-networking",
-		"--disable-component-update",
-		"--disable-client-side-phishing-detection",
-		"--disable-sync",
-		"--metrics-recording-only",
-		"--disable-default-apps",
-		"--mute-audio",
-		"--no-default-browser-check",
-		"--no-first-run",
-		"--disable-backgrounding-occluded-windows",
-		"--disable-renderer-backgrounding",
-		"--disable-background-timer-throttling",
-		"--disable-ipc-flooding-protection",
-		"--password-store=basic",
-		"--use-mock-keychain",
-		"--force-fieldtrials=*BackgroundTracing/default/",
-		"--disable-hang-monitor",
-		"--disable-prompt-on-repost",
-		"--disable-domain-reliability",
-		"--propagate-iph-for-testing",
-		"--enable-unsafe-extension-debugging",
-		"--remote-allow-origins=*",
-		testWebMCPChromeFlag,
+	fixturePath := filepath.Join("..", "..", "tests", "fixtures", "local-browser-default-flags.json")
+	fixture, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("read default Chrome flags fixture: %v", err)
 	}
-	if !reflect.DeepEqual(defaultChromeFlags, want) {
+	var want []string
+	if err := json.Unmarshal(fixture, &want); err != nil {
+		t.Fatalf("decode default Chrome flags fixture: %v", err)
+	}
+	if !slices.Equal(defaultChromeFlags, want) {
 		t.Fatalf("defaultChromeFlags = %#v, want %#v", defaultChromeFlags, want)
 	}
 	if slices.Contains(defaultChromeFlags, "--disable-extensions") {
 		t.Fatal("defaultChromeFlags contains --disable-extensions")
+	}
+}
+
+func TestLaunchedChromeProfileOwnership(t *testing.T) {
+	tests := []struct {
+		name      string
+		removeDir bool
+		wantExist bool
+	}{
+		{name: "SDK-owned", removeDir: true, wantExist: false},
+		{name: "caller-owned or preserved", removeDir: false, wantExist: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			profile := filepath.Join(t.TempDir(), "profile")
+			if err := os.Mkdir(profile, 0o700); err != nil {
+				t.Fatalf("create profile: %v", err)
+			}
+			done := make(chan struct{})
+			close(done)
+			launched := &launchedChrome{
+				userDataDir: profile,
+				process:     &chromeProcess{done: done},
+				removeDir:   test.removeDir,
+			}
+
+			if err := launched.close(context.Background()); err != nil {
+				t.Fatalf("close launched Chrome: %v", err)
+			}
+			_, err := os.Stat(profile)
+			if test.wantExist && err != nil {
+				t.Fatalf("preserved profile is unavailable: %v", err)
+			}
+			if !test.wantExist && !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("SDK-owned profile still exists: %v", err)
+			}
+		})
 	}
 }
 
