@@ -8,6 +8,7 @@ import {
   toMetadataValue,
 } from "../identity.js";
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
+import { DriverError } from "./errors.js";
 import type { DriverModeFlags } from "./mode.js";
 import type {
   DriverInitHints,
@@ -107,7 +108,12 @@ export async function launchRemoteBrowser(
   // The V4 factory provisions the packaged Stagehand extension before it
   // creates the Browserbase session and owns both resources on browser.close().
   // A raw sessions.create() + browserbase.connect() skips that provisioning.
-  const browser = await browserbase.launch({ apiKey, ...sessionOptions });
+  let browser;
+  try {
+    browser = await browserbase.launch({ apiKey, ...sessionOptions });
+  } catch (error) {
+    throw remoteDriverError(error);
+  }
   return {
     browser,
     identity: browser.sessionId
@@ -156,8 +162,6 @@ export function classifyRemoteInitError(
 ): RemoteInitErrorClassification {
   const status = (error as { status?: unknown } | null | undefined)?.status;
   const httpStatus = typeof status === "number" ? status : undefined;
-  const original = error instanceof Error ? error.message : String(error);
-
   if (httpStatus === StatusCodes.UNAUTHORIZED) {
     return {
       code: "remote_auth_401",
@@ -179,8 +183,14 @@ export function classifyRemoteInitError(
   return {
     code: "remote_session_create_failed",
     ...(httpStatus !== undefined ? { httpStatus } : {}),
-    message: `Failed to start a remote (Browserbase) session: ${original}\nRun browse doctor to diagnose remote connectivity.`,
+    message:
+      "Failed to start a remote (Browserbase) session. Run browse doctor to diagnose remote connectivity.",
   };
+}
+
+function remoteDriverError(error: unknown): DriverError {
+  const { code, httpStatus, message } = classifyRemoteInitError(error);
+  return new DriverError(message, { code, httpStatus });
 }
 
 export function driverInitHints(): DriverInitHints {
