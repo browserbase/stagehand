@@ -485,7 +485,7 @@ export function stringifyError(value: unknown): string {
 }
 
 function shouldSanitizeEvent(event: DeepagentsEvent): boolean {
-  if (event.type === "error") return true;
+  if (event.type === "error" || (event.type === "tool_result" && event.ok === false)) return true;
   return containsSensitiveTextField(event);
 }
 

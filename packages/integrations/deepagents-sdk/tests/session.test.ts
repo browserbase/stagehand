@@ -199,6 +199,32 @@ describe("Deep Agents session", () => {
     });
   });
 
+  it("redacts secrets in failed tool results", async () => {
+    const secret = "sk-abcdef1234567890";
+    const fake = fakeSpawner({
+      lines: [
+        JSON.stringify({
+          type: "tool_result",
+          name: "run",
+          ok: false,
+          text: `failed with ${secret}`,
+        }),
+        JSON.stringify({ type: "final", text: "done" }),
+        JSON.stringify({ type: "usage" }),
+      ],
+    });
+    const result = await runDeepagentsSession({
+      prompt: "task",
+      model: "model",
+      logger,
+      spawn: fake.spawn,
+      session: {},
+    });
+
+    expect(JSON.stringify(result.events)).toContain("sk-abcdef[redacted]");
+    expect(JSON.stringify(result.events)).not.toContain(secret);
+  });
+
   it("deep-redacts events carrying error text even when their type is not error", async () => {
     const secret = "bb_live_abcd1234567890";
     const fake = fakeSpawner({

@@ -155,6 +155,28 @@ class FailedToolAgent:
         }
 
 
+class ParallelToolResultsAgent:
+    async def astream(self, *_args: object, **_kwargs: object) -> AsyncIterator[object]:
+        yield {
+            "tools": {
+                "messages": [
+                    ToolMessage(
+                        content="first",
+                        name="snapshot",
+                        tool_call_id="call-1",
+                        id="tool-1",
+                    ),
+                    ToolMessage(
+                        content="second",
+                        name="snapshot",
+                        tool_call_id="call-2",
+                        id="tool-2",
+                    ),
+                ]
+            }
+        }
+
+
 class FailingAfterAssistantAgent:
     async def astream(self, *_args: object, **_kwargs: object) -> AsyncIterator[object]:
         yield {
@@ -272,6 +294,26 @@ async def test_tool_step_budget_stops_after_result() -> None:
     assert events[3]["kind"] == "tool_step_budget"
 
 
+@pytest.mark.asyncio
+async def test_tool_step_budget_records_the_complete_parallel_result_batch() -> None:
+    events: list[dict[str, Any]] = []
+
+    await run(
+        config(max_tool_steps=1),
+        build_agent=lambda _config, _tools: ParallelToolResultsAgent(),
+        emit=events.append,
+    )
+
+    assert [event["type"] for event in events] == [
+        "tool_result",
+        "tool_result",
+        "error",
+        "final",
+        "usage",
+    ]
+    assert [event["text"] for event in events[:2]] == ["first", "second"]
+
+
 @pytest.mark.parametrize(
     ("message", "expected"),
     [
@@ -280,6 +322,9 @@ async def test_tool_step_budget_stops_after_result() -> None:
         ("bb_live_abcd1234567890", "bb_live_abcd[redacted]"),
         (f"AIza{'A' * 30}", "AIza[redacted]"),
         ("Bearer abcdefghijklmnop", "Bearer [redacted]"),
+        ("wss://user:password@connect.example.com/devtools", "wss://[redacted]@"),
+        ("https://example.com?client_secret=supersecret", "?client_secret=[redacted]"),
+        ("ghp_abcdefghijklmno", "ghp_abcd[redacted]"),
     ],
 )
 def test_sanitize_error_ports_all_harness_patterns(message: str, expected: str) -> None:
@@ -287,6 +332,16 @@ def test_sanitize_error_ports_all_harness_patterns(message: str, expected: str) 
 
     assert expected in sanitized
     assert message not in sanitized
+
+
+def test_sanitize_error_redacts_sensitive_environment_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CUSTOM_PROVIDER_SECRET", "environment-secret-value")
+
+    sanitized = sanitize_error("provider failed: environment-secret-value")
+
+    assert sanitized == "provider failed: [redacted]"
 
 
 @pytest.mark.asyncio

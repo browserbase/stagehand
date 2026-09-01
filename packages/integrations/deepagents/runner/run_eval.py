@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import signal
 import sys
@@ -237,8 +238,27 @@ def _integer(value: object) -> int:
 
 
 def sanitize_error(message: str) -> str:
+    for name, value in os.environ.items():
+        if (
+            len(value) >= 6
+            and re.search(
+                r"(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)",
+                name,
+                flags=re.IGNORECASE,
+            )
+        ):
+            message = message.replace(value, "[redacted]")
     message = re.sub(
-        r"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s\"']+",
+        r"\b((?:https?|wss?)://)[^/@\s:]+:[^/@\s]+@",
+        r"\1[redacted]@",
+        message,
+        flags=re.IGNORECASE,
+    )
+    message = re.sub(
+        (
+            r"([?&](?:signingKey|apiKey|api_key|access_token|auth|authorization|"
+            r"client_secret|credential|password|secret|token|key)=)[^&\s\"']+"
+        ),
         r"\1[redacted]",
         message,
         flags=re.IGNORECASE,
@@ -252,6 +272,15 @@ def sanitize_error(message: str) -> str:
         message,
     )
     message = re.sub(r"\bAIza[0-9A-Za-z_-]{30,}", "AIza[redacted]", message)
+    message = re.sub(
+        (
+            r"\b((?:(?:gh[pousr]|github_pat)_[A-Za-z0-9]{4}|"
+            r"(?:xox[baprs]|sk-ant)-[A-Za-z0-9]{4}))[A-Za-z0-9_-]+"
+        ),
+        r"\1[redacted]",
+        message,
+        flags=re.IGNORECASE,
+    )
     return re.sub(
         r"\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}",
         r"\1[redacted]",
@@ -387,7 +416,7 @@ async def run(
         async for chunk in stream:
             if not isinstance(chunk, dict):
                 continue
-            should_stop = False
+            budget_reached = False
             for update in chunk.values():
                 if not isinstance(update, dict) or not isinstance(update.get("messages"), list):
                     continue
@@ -411,23 +440,18 @@ async def run(
                         if event["type"] == "tool_result":
                             tool_result_count += 1
                             if tool_result_count >= config.max_tool_steps:
-                                emit_event(
-                                    {
-                                        "type": "error",
-                                        "kind": "tool_step_budget",
-                                        "message": (
-                                            "tool step budget exhausted "
-                                            f"({config.max_tool_steps} steps)"
-                                        ),
-                                    }
-                                )
-                                should_stop = True
-                                break
-                    if should_stop:
-                        break
-                if should_stop:
-                    break
-            if should_stop:
+                                budget_reached = True
+            if budget_reached:
+                emit_event(
+                    {
+                        "type": "error",
+                        "kind": "tool_step_budget",
+                        "message": (
+                            "tool step budget exhausted "
+                            f"({config.max_tool_steps} steps)"
+                        ),
+                    }
+                )
                 await stream.aclose()
                 break
     except GraphRecursionError as error:
