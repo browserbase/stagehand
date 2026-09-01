@@ -33,7 +33,7 @@
     "@opentelemetry/sdk-trace-node": "^2.9.0",
     "ai": "^5.0.133",
     "braintrust": "^3.21.0",
-    "browse": "0.9.5",
+    "browse": "workspace:*",
     "dotenv": "^17.3.1",
     "langsmith": "^0.5.16",
     "openai": "^4.104.0",
