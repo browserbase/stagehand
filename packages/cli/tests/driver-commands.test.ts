@@ -412,6 +412,34 @@ describe("driver commands", () => {
     expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {});
   });
 
+  it("keeps a successful drag successful when navigation races the final cursor update", async () => {
+    const page = {
+      dragAndDrop: vi.fn(),
+      evaluate: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("Execution context was destroyed")),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      isCursorOverlayEnabled: vi.fn(() => true),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.drag"]>
+    >[0];
+
+    await expect(
+      mouseHandlers["mouse.drag"]!(manager, {
+        fromX: 10,
+        fromY: 20,
+        toX: 30,
+        toY: 40,
+      }),
+    ).resolves.toEqual({ dragged: true });
+
+    expect(page.dragAndDrop).toHaveBeenCalledWith(10, 20, 30, 40, {});
+    expect(page.evaluate).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects removed coordinate XPath fields at the driver boundary", async () => {
     const manager = {} as Parameters<
       NonNullable<(typeof mouseHandlers)["mouse.click"]>
