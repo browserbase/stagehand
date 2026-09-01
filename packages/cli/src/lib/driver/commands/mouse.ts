@@ -76,7 +76,10 @@ export const mouseHandlers: DriverCommandHandlers = {
       ...(delay === undefined ? {} : { delay }),
       ...(steps === undefined ? {} : { steps }),
     });
-    await positionCursorOverlay(manager, page, toX, toY);
+    // A successful drag may navigate and destroy the old execution context.
+    // The final marker position is visual-only, so do not turn that race into a
+    // reported drag failure.
+    await positionCursorOverlay(manager, page, toX, toY).catch(() => undefined);
     return { dragged: true };
   },
 };
