@@ -18,7 +18,12 @@
     },
     "@browserbasehq/stagehand-extension#build": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "!dist/**",
+        "!artifacts/stagehand-extension.zip"
+      ],
       "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
     },
     "@browserbasehq/stagehand#build": {
@@ -80,7 +85,7 @@
       "inputs": ["tsconfig.tooling.json", "rules/ast-grep/**/*.ts", "scripts/release/**/*.ts"]
     },
     "@browserbasehq/stagehand-extension#typecheck": {
-      "dependsOn": ["^typecheck"]
+      "dependsOn": ["^typecheck", "@browserbasehq/stagehand#typecheck"]
     },
     "@browserbasehq/stagehand-protocol#typecheck": {},
     "@browserbasehq/stagehand#typecheck": {
