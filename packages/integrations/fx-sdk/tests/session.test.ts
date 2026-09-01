@@ -2,14 +2,17 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import type { ChildProcess } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
+import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
   buildFxTranscript,
   createFxProcessRunner,
   normalizeFxModel,
   resolveFxStatus,
   runFxSession,
+  summarizeFxEvent,
   type FxProcessRunner,
   type FxSessionStore,
+  type FxToolCallRecord,
 } from "../src/index.js";
 
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
@@ -144,6 +147,30 @@ describe("fx CLI session", () => {
     });
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("MissingCredentials");
+    expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
+  });
+
+  it("clamps fractional step budgets to one", async () => {
+    let capturedEnv: Record<string, string> | undefined;
+    await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      maxAgentSteps: 0.5,
+      logger,
+      runProcess: async ({ env }) => {
+        capturedEnv = env;
+        return {
+          stdout: JSON.stringify({ output: "done", exit_code: 0 }),
+          stderr: "",
+          exitCode: 0,
+        };
+      },
+      store: fakeStore(""),
+    });
+
+    expect(capturedEnv?.FX_MAX_AGENT_STEPS).toBe("1");
   });
 
   it("maps a committed step limit to max_turns", async () => {
@@ -269,8 +296,11 @@ describe("fx CLI session", () => {
   });
 
   it("records only MCP tool calls observed from a live recovery checkpoint", async () => {
-    const onToolStep = vi.fn();
-    let processExited = false;
+    let releaseProcess: (() => void) | undefined;
+    const polled = new Promise<void>((resolve) => {
+      releaseProcess = resolve;
+    });
+    const onToolStep = vi.fn((_call: FxToolCallRecord) => releaseProcess?.());
     const recovery = {
       kind: "recovery_checkpoint_set",
       payload: {
@@ -306,13 +336,16 @@ describe("fx CLI session", () => {
       pollIntervalMs: 1,
       onToolStep,
       runProcess: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        processExited = true;
+        await polled;
         return { stdout: JSON.stringify({ output: "done" }), stderr: "", exitCode: 0 };
       },
       store: {
         waitForSessionDir: async () => "/fake/session",
-        readEventsJsonl: async () => jsonl(recovery, ...(processExited ? [committed] : [])),
+        readEventsJsonl: async () => "",
+        readEventsJsonlChunk: vi.fn(async (_sessionDir, offset) => {
+          const text = offset === 0 ? `${jsonl(recovery)}\n` : jsonl(committed);
+          return { text, nextOffset: offset + Buffer.byteLength(text) };
+        }),
       },
     });
     expect(result.status).toBe("completed");
@@ -324,6 +357,10 @@ describe("fx CLI session", () => {
   it("does not synthesize observations from a committed turn after exit", async () => {
     const onToolStep = vi.fn();
     let processExited = false;
+    let releaseProcess: (() => void) | undefined;
+    const polled = new Promise<void>((resolve) => {
+      releaseProcess = resolve;
+    });
     const committed = committedEvent();
     const toolCalls = committed.payload.turn.execution.tool_steps[0]?.tool_calls;
     toolCalls?.push(
@@ -344,13 +381,16 @@ describe("fx CLI session", () => {
       pollIntervalMs: 1,
       onToolStep,
       runProcess: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await polled;
         processExited = true;
         return { stdout: JSON.stringify({ output: "done" }), stderr: "", exitCode: 0 };
       },
       store: {
         waitForSessionDir: async () => "/fake/session",
-        readEventsJsonl: async () => (processExited ? jsonl(committed) : ""),
+        readEventsJsonl: async () => {
+          releaseProcess?.();
+          return processExited ? jsonl(committed) : "";
+        },
       },
     });
     expect(onToolStep).not.toHaveBeenCalled();
@@ -404,6 +444,25 @@ describe("fx CLI session", () => {
     });
     expect(result.stopReason).not.toContain("1234567890");
     expect(result.stopReason).toContain("[redacted]");
+  });
+
+  it("sanitizes complete stderr and assistant text before clipping", async () => {
+    const boundarySecret = `${"x".repeat(490)} sk-abcdef1234567890`;
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger,
+      runProcess: async () => ({ stdout: "", stderr: boundarySecret, exitCode: 1 }),
+      store: fakeStore(""),
+    });
+
+    expect(result.stopReason).not.toContain("sk-abcdef1");
+    expect(result.stopReason).not.toContain("1234567890");
+    expect(summarizeFxEvent({ type: "assistant", text: boundarySecret }).message).not.toContain(
+      "sk-abcdef1",
+    );
   });
 
   it("treats successful exits without JSON output as SDK errors", async () => {

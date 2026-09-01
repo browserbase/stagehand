@@ -106,6 +106,10 @@ export type FxProcessRunnerOptions = {
 export type FxSessionStore = {
   waitForSessionDir(home: string, signal: AbortSignal): Promise<string | undefined>;
   readEventsJsonl(sessionDir: string): Promise<string>;
+  readEventsJsonlChunk?(
+    sessionDir: string,
+    offset: number,
+  ): Promise<{ text: string; nextOffset: number }>;
   readUsageSnapshot?(sessionDir: string): Promise<Record<string, unknown> | undefined>;
 };
 
@@ -282,6 +286,24 @@ const defaultSessionStore: FxSessionStore = {
       return "";
     }
   },
+  async readEventsJsonlChunk(sessionDir, offset) {
+    let file: fsp.FileHandle | undefined;
+    try {
+      file = await fsp.open(path.join(sessionDir, "events.jsonl"), "r");
+      const { size } = await file.stat();
+      if (size <= offset) return { text: "", nextOffset: offset };
+      const buffer = Buffer.alloc(size - offset);
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, offset);
+      return {
+        text: buffer.subarray(0, bytesRead).toString("utf8"),
+        nextOffset: offset + bytesRead,
+      };
+    } catch {
+      return { text: "", nextOffset: offset };
+    } finally {
+      await file?.close().catch((): undefined => undefined);
+    }
+  },
   async readUsageSnapshot(sessionDir) {
     try {
       const text = await fsp.readFile(path.join(sessionDir, "usage-v2.json"), "utf8");
@@ -322,7 +344,7 @@ export async function runFxSession(input: {
     HOME: input.home,
     ...(model && { FX_MODEL: model }),
     ...(positiveInteger(input.maxAgentSteps) && {
-      FX_MAX_AGENT_STEPS: String(Math.floor(input.maxAgentSteps!)),
+      FX_MAX_AGENT_STEPS: String(Math.max(1, Math.floor(input.maxAgentSteps!))),
     }),
     FX_PERMISSION_MODE: permissionMode,
     FX_SKIP_ONBOARDING: "1",
@@ -342,6 +364,9 @@ export async function runFxSession(input: {
   const observedToolCallKeys: string[] = [];
   const observedTool = input.observedTool ?? ((name: string) => name.startsWith("mcp_"));
   let sessionDir: string | undefined;
+  let eventsReadOffset = 0;
+  let eventsLineRemainder = "";
+  const incrementalLogEvents: FxLogEvent[] = [];
   let processSettled = false;
   let processResult: Awaited<ReturnType<FxProcessRunner>>;
 
@@ -362,6 +387,28 @@ export async function runFxSession(input: {
         }
       }
     }
+  };
+
+  const readNewLogEvents = async (final = false): Promise<FxLogEvent[]> => {
+    if (!sessionDir) return [];
+    const chunk = store.readEventsJsonlChunk
+      ? await store.readEventsJsonlChunk(sessionDir, eventsReadOffset).catch(() => ({
+          text: "",
+          nextOffset: eventsReadOffset,
+        }))
+      : await store
+          .readEventsJsonl(sessionDir)
+          .then((text) => ({ text: text.slice(eventsReadOffset), nextOffset: text.length }))
+          .catch(() => ({ text: "", nextOffset: eventsReadOffset }));
+    eventsReadOffset = chunk.nextOffset;
+    const combined = `${eventsLineRemainder}${chunk.text}`;
+    const lastNewline = combined.lastIndexOf("\n");
+    const completeText =
+      final || lastNewline < 0 ? (final ? combined : "") : combined.slice(0, lastNewline + 1);
+    eventsLineRemainder = final ? "" : lastNewline < 0 ? combined : combined.slice(lastNewline + 1);
+    const parsed = parseFxEventsJsonl(completeText);
+    incrementalLogEvents.push(...parsed);
+    return parsed;
   };
 
   try {
@@ -389,8 +436,7 @@ export async function runFxSession(input: {
           .waitForSessionDir(input.home, controller.signal)
           .catch(() => undefined);
         if (sessionDir) {
-          const liveText = await store.readEventsJsonl(sessionDir).catch(() => "");
-          await notifyCalls(extractFxToolSteps(parseFxEventsJsonl(liveText)));
+          await notifyCalls(extractFxToolSteps(await readNewLogEvents()));
         }
         if (!processSettled) {
           await delay(input.pollIntervalMs ?? 500, controller.signal);
@@ -416,9 +462,8 @@ export async function runFxSession(input: {
   sessionDir ??= await store
     .waitForSessionDir(input.home, controller.signal)
     .catch(() => undefined);
-  const logEvents = sessionDir
-    ? parseFxEventsJsonl(await store.readEventsJsonl(sessionDir).catch(() => ""))
-    : [];
+  if (sessionDir) await readNewLogEvents(true);
+  const logEvents = incrementalLogEvents;
   const toolSteps = extractFxToolSteps(logEvents);
   for (const step of toolSteps) {
     const event: FxEvent = { type: "tool_step", ...step };
@@ -481,7 +526,7 @@ export async function runFxSession(input: {
     : undefined;
   let iterationError: unknown;
   if (resolution.status !== "completed") {
-    iterationError = new Error(stopReason ?? "fx stopped before a normal result");
+    iterationError = new HarnessAdapterError(stopReason ?? "fx stopped before a normal result");
     input.logger.warn({
       category: "fx",
       message: `fx stopped before a normal result: ${stopReason ?? "unknown error"}`,
@@ -625,7 +670,7 @@ export function resolveFxStatus(input: {
     const stderr = input.stderr?.trim();
     return {
       status: "sdk_error",
-      stopReason: `fx produced no JSON output${stderr ? `: ${clip(stderr, 500)}` : ""}`,
+      stopReason: `fx produced no JSON output${stderr ? `: ${clip(sanitizeErrorMessage(stderr), 500)}` : ""}`,
     };
   }
   if (error) return { status: "sdk_error", stopReason: error };
@@ -673,12 +718,18 @@ export function logFxEvent(logger: HarnessLogger, event: FxEvent): void {
 export function summarizeFxEvent(event: FxEvent): { message: string; detail?: string } {
   let summary: { message: string; detail?: string };
   if (event.type === "assistant") {
-    summary = { message: `assistant: ${clip(event.text, 500)}`, detail: event.text };
+    summary = {
+      message: `assistant: ${clip(sanitizeErrorMessage(event.text), 500)}`,
+      detail: event.text,
+    };
   } else if (event.type === "tool_step") {
     const names = event.tool_calls.map((call) => String(call.name ?? "tool")).join(", ");
     summary = { message: `tools: ${names}`, detail: safeJson(event) };
   } else if (event.type === "stderr") {
-    summary = { message: `stderr: ${clip(event.line, 500)}`, detail: event.line };
+    summary = {
+      message: `stderr: ${clip(sanitizeErrorMessage(event.line), 500)}`,
+      detail: event.line,
+    };
   } else if (event.type === "turn_committed") {
     summary = {
       message: `turn committed: ${event.terminal_reason ?? event.turn_kind ?? "unknown"}`,

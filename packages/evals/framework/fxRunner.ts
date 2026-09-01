@@ -101,7 +101,7 @@ export async function runFxAgent({
       const usage = normalizeFxUsage(sessionResult.tokenUsage);
       return {
         raw: sessionResult,
-        resultText: sessionResult.finalMessage,
+        resultText: sessionResult.status === "completed" ? sessionResult.finalMessage : "",
         transcriptText: buildFxTranscript(sessionResult.events),
         iterationError: sessionResult.iterationError,
         status: sessionResult.status,

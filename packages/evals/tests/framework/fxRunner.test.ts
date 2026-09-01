@@ -131,4 +131,39 @@ describe("fx runner helpers", () => {
     expect(result.harnessStopReason).toBeDefined();
     expect(String(result.error)).not.toBe("");
   });
+
+  it("does not trust structured success output from a failed fx session", async () => {
+    const result = await runFxAgent({
+      plan,
+      model: "openai/gpt-5.6-sol" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter: {
+        toolSurface: "stagehand_facade",
+        startupProfile: "tool_launch_local",
+        cwd: "/fake/workspace",
+        home: "/fake/home",
+        env: { PATH: "/bin" },
+        promptInstructions: "Use mcp_stagehand_snapshot.",
+        mcpServerNames: ["stagehand"],
+        cleanup: async () => {},
+      },
+      runProcess: async () => ({
+        stdout: JSON.stringify({
+          output: '{"success":true,"summary":"untrusted"}',
+          error: "provider failed",
+          exit_code: 1,
+        }),
+        stderr: "",
+        exitCode: 1,
+      }),
+      store: {
+        waitForSessionDir: async () => undefined,
+        readEventsJsonl: async () => "",
+      },
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.harnessStatus).toBe("sdk_error");
+    expect(result.reasoning).toBeUndefined();
+  });
 });
