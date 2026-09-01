@@ -288,6 +288,25 @@ describe("Mastra SDK session", () => {
     }
   });
 
+  it("sanitizes the returned final text", async () => {
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      sdk: fakeSdk({
+        events: [
+          {
+            type: "text-delta",
+            payload: { text: "done https://x.test?apiKey=secret123" },
+          },
+        ],
+      }),
+      session: {},
+    });
+
+    expect(result.finalText).toBe("done https://x.test?apiKey=[redacted]");
+  });
+
   it("aborts MCP discovery and disconnects without creating an agent", async () => {
     const caller = new AbortController();
     caller.abort("cancelled");
@@ -341,7 +360,9 @@ describe("Mastra SDK session", () => {
       session: {},
     });
     caller.abort("stop");
-    await pending;
+    const result = await pending;
     expect(streamSignal?.aborted).toBe(true);
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("stop");
   });
 });

@@ -184,6 +184,29 @@ describe("Mastra trajectory adapter", () => {
     expect(explicit.finalAnswer).toBe("explicit");
   });
 
+  it("sanitizes reasoning and explicit or trailing final answers", () => {
+    const secretUrl = "https://x.test?apiKey=secret123";
+    const trailing = mastraAdapter.fromHarnessResult(
+      {
+        events: [
+          reasoningDelta(`reason ${secretUrl}`),
+          toolCall("1", "run", {}),
+          toolResult("1", "run", "ok"),
+          textDelta(`finished ${secretUrl}`),
+        ],
+      },
+      TASK_SPEC,
+    );
+    const explicit = mastraAdapter.fromHarnessResult(
+      { events: [], finalAnswer: `explicit ${secretUrl}` },
+      TASK_SPEC,
+    );
+
+    expect(trailing.steps[0]?.reasoning).toBe("reason https://x.test?apiKey=[redacted]");
+    expect(trailing.finalAnswer).toBe("finished https://x.test?apiKey=[redacted]");
+    expect(explicit.finalAnswer).toBe("explicit https://x.test?apiKey=[redacted]");
+  });
+
   it("attaches observations only to matching tool ordinals", () => {
     const trajectory = mastraAdapter.fromHarnessResult(
       {

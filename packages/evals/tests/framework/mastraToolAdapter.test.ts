@@ -240,6 +240,22 @@ describe("Mastra tool adapter", () => {
     expect(cleanup).toHaveBeenCalledOnce();
   });
 
+  it("wraps runtime startup failures in a sanitized EvalsError", async () => {
+    await expect(
+      prepareMastraToolAdapter({
+        environment: "LOCAL",
+        plan,
+        logger: new EvalLogger(false),
+        startRuntime: async () => {
+          throw new Error("failed https://x.test?apiKey=secret123");
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "EvalsError",
+      message: "mastra tool adapter setup failed: failed https://x.test?apiKey=[redacted]",
+    });
+  });
+
   it("returns a structured error when the bridge port is closed", async () => {
     await expect(executeViaCodeBridge(1, "return 1")).resolves.toMatchObject({
       ok: false,

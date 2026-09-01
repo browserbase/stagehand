@@ -236,6 +236,11 @@ export async function runMastraSession(input: {
           stopReason = sanitizeErrorMessage(stringifyError(input.signal?.reason) || "aborted");
         }
       }
+      if (controller.signal.aborted && !stopReason) {
+        stopReason = sanitizeErrorMessage(
+          stringifyError(controller.signal.reason) || "Mastra session aborted",
+        );
+      }
       finalText = textBuffer;
       if (!finalText && stream.text) {
         try {
@@ -291,7 +296,7 @@ export async function runMastraSession(input: {
   if (status === "max_turns") stopReason ??= `step budget exhausted (${maxSteps} steps)`;
   return {
     events,
-    finalText,
+    finalText: sanitizeErrorMessage(finalText),
     status,
     ...(stopReason && { stopReason: sanitizeErrorMessage(stopReason) }),
     ...(finishReason && { finishReason }),

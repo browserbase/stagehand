@@ -73,16 +73,17 @@ export async function prepareMastraToolAdapter(
     input.startupProfile,
   );
   const startRuntime = input.startRuntime ?? startAgentToolRuntime;
-  const runtime = await startRuntime({
-    toolSurface,
-    startupProfile,
-    environment: input.environment,
-    logger: input.logger,
-  });
+  let runtime: Awaited<ReturnType<typeof startAgentToolRuntime>> | undefined;
   let cwd: string | undefined;
   let bridge: Awaited<ReturnType<typeof startCodeBridge>> | undefined;
 
   try {
+    runtime = await startRuntime({
+      toolSurface,
+      startupProfile,
+      environment: input.environment,
+      logger: input.logger,
+    });
     const mount = runtime.running.agentMount;
     if (!mount) {
       throw new EvalsError(`Tool surface "${toolSurface}" does not provide an agent mount.`);
@@ -179,10 +180,12 @@ export async function prepareMastraToolAdapter(
     throw new EvalsError(`Mastra does not support agent mounts delivered via "${mount.via}" yet.`);
   } catch (error) {
     await bridge?.close().catch((): undefined => undefined);
-    await withCaptureTimeout(
-      runtime.cleanup(),
-      readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
-    ).catch((): undefined => undefined);
+    if (runtime) {
+      await withCaptureTimeout(
+        runtime.cleanup(),
+        readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
+      ).catch((): undefined => undefined);
+    }
     if (cwd) await fsp.rm(cwd, { recursive: true, force: true });
     throw new EvalsError(
       `mastra tool adapter setup failed: ${sanitizeErrorMessage(stringifyError(error))}`,

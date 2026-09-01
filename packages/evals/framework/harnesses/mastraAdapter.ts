@@ -65,7 +65,7 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
             args: deepSanitize(args) as Record<string, unknown>,
             result: "",
             ok: true,
-            reasoning: pendingReasoning.trim() || undefined,
+            reasoning: sanitizeErrorMessage(pendingReasoning.trim()) || undefined,
           },
           images: [],
         };
@@ -136,7 +136,12 @@ export class MastraTrajectoryAdapter implements TrajectoryAdapter<MastraRunResul
     return buildTrajectory({
       taskSpec,
       toolCalls: calls.map(({ call }) => call),
-      finalAnswer: result.finalAnswer ?? (trailing || undefined),
+      finalAnswer:
+        result.finalAnswer !== undefined
+          ? sanitizeErrorMessage(result.finalAnswer)
+          : trailing
+            ? sanitizeErrorMessage(trailing)
+            : undefined,
       status: result.status ?? "complete",
       usage: result.usage,
       ...(finalObservation && { finalObservation }),
