@@ -27,8 +27,12 @@
       "outputs": ["dist/**"]
     },
     "browse#build": {
+      "dependsOn": ["@browserbasehq/stagehand#build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!oclif.manifest.json"],
       "outputs": ["dist/**", "oclif.manifest.json"]
+    },
+    "browse#lint": {
+      "dependsOn": ["@browserbasehq/stagehand#build"]
     },
     "@browserbasehq/stagehand-integrations#build": {
       "dependsOn": ["^build"],

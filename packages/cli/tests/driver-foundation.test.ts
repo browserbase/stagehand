@@ -29,6 +29,7 @@ import {
   sanitizeSessionName,
 } from "../src/lib/driver/daemon/paths.js";
 import {
+  daemonRequestTimeoutMs,
   ensureDriverDaemon,
   getDriverStatus,
   openViaDaemon,
@@ -124,7 +125,9 @@ describe("driver foundation", () => {
     });
     await expect(
       resolveConnectionTarget({ "auto-connect": true }),
-    ).resolves.toEqual({ kind: "auto-connect" });
+    ).resolves.toEqual({
+      kind: "auto-connect",
+    });
     await expect(
       resolveConnectionTarget({
         cdp: "ws://127.0.0.1:9222/devtools/browser/test",
@@ -237,10 +240,16 @@ describe("driver foundation", () => {
     });
     await expect(
       resolveConnectionTarget({ remote: true, verified: true }),
-    ).resolves.toEqual({ kind: "remote", verified: true });
+    ).resolves.toEqual({
+      kind: "remote",
+      verified: true,
+    });
     await expect(
       resolveConnectionTarget({ proxies: true, remote: true }),
-    ).resolves.toEqual({ kind: "remote", proxies: true });
+    ).resolves.toEqual({
+      kind: "remote",
+      proxies: true,
+    });
     await expect(
       resolveConnectionTarget({ proxies: true, remote: true, verified: true }),
     ).resolves.toEqual({ kind: "remote", proxies: true, verified: true });
@@ -969,20 +978,89 @@ describe("driver foundation", () => {
     }
   });
 
-  it("closes Stagehand when initialization fails", async () => {
-    const init = vi.fn().mockRejectedValue(new Error("init failed"));
-    const close = vi.fn().mockResolvedValue(undefined);
-    const Stagehand = vi.fn(function () {
-      return {
-        close,
-        context: {},
-        init,
-      };
+  it("keeps open requests alive through browser initialization and navigation", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "slow-open";
+    const sockets = new Set<net.Socket>();
+    let requestReceived: (() => void) | undefined;
+    const received = new Promise<void>((resolve) => {
+      requestReceived = resolve;
     });
+    const server = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+        };
+        requestReceived?.();
+        setTimeout(() => {
+          socket.end(
+            `${JSON.stringify({
+              data: { url: "https://example.com" },
+              id: request.id,
+              type: "success",
+            })}\n`,
+          );
+        }, 36_000);
+      });
+    });
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(getSocketPath(session), resolve);
+      });
+      const open = openViaDaemon(session, "https://example.com", {
+        timeoutMs: 1_000,
+      });
+      await received;
+      await vi.advanceTimersByTimeAsync(36_000);
+
+      await expect(open).resolves.toEqual({ url: "https://example.com" });
+    } finally {
+      vi.useRealTimers();
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+
+  it("caps open transport timeouts at Node's maximum timer delay", () => {
+    expect(
+      daemonRequestTimeoutMs({
+        id: "large-timeout",
+        timeoutMs: Number.MAX_SAFE_INTEGER,
+        type: "open",
+        url: "https://example.com",
+      }),
+    ).toBe(2_147_483_647);
+  });
+
+  it("closes the browser when Stagehand.create fails", async () => {
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {}, origin: "launched" };
+    const launch = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockRejectedValue(new Error("init failed"));
 
     vi.resetModules();
     vi.doMock("@browserbasehq/stagehand", () => ({
-      Stagehand,
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
     }));
 
     try {
@@ -1000,9 +1078,77 @@ describe("driver foundation", () => {
       await expect(manager.open("https://example.com")).rejects.toThrow(
         "init failed",
       );
-      expect(Stagehand).toHaveBeenCalledTimes(1);
-      expect(init).toHaveBeenCalledTimes(1);
-      expect(close).toHaveBeenCalledTimes(1);
+      expect(launch).toHaveBeenCalledTimes(1);
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(closeBrowser).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("leaves a connected browser open when Stagehand.create fails", async () => {
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {}, origin: "connected" };
+    const connect = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockRejectedValue(new Error("init failed"));
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect, launch: vi.fn() },
+      Stagehand: { create },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("connected-init-failure", {
+        endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
+        kind: "cdp",
+      });
+
+      await expect(manager.open("https://example.com")).rejects.toThrow(
+        "init failed",
+      );
+      expect(connect).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledOnce();
+      expect(closeBrowser).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("leaves a connected browser open when the manager closes", async () => {
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {}, origin: "connected" };
+    const connect = vi.fn().mockResolvedValue(browser);
+    const closeStagehand = vi.fn().mockResolvedValue(undefined);
+    const create = vi.fn().mockResolvedValue({
+      browser,
+      close: closeStagehand,
+    });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect, launch: vi.fn() },
+      Stagehand: { create },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("connected-close", {
+        endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
+        kind: "cdp",
+      });
+
+      await manager.stagehandInstance();
+      await manager.close();
+      expect(closeStagehand).toHaveBeenCalledOnce();
+      expect(closeBrowser).not.toHaveBeenCalled();
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
@@ -1010,18 +1156,17 @@ describe("driver foundation", () => {
   });
 
   it("passes Chrome args to managed local Stagehand launches", async () => {
-    const init = vi.fn().mockResolvedValue(undefined);
-    const Stagehand = vi.fn(function () {
-      return {
-        close: vi.fn().mockResolvedValue(undefined),
-        context: {},
-        init,
-      };
-    });
+    const browser = {
+      close: vi.fn().mockResolvedValue(undefined),
+      context: {},
+    };
+    const launch = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockResolvedValue({ browser, close: vi.fn() });
 
     vi.resetModules();
     vi.doMock("@browserbasehq/stagehand", () => ({
-      Stagehand,
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
     }));
 
     try {
@@ -1036,15 +1181,14 @@ describe("driver foundation", () => {
 
       await manager.stagehandInstance();
 
-      expect(Stagehand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          env: "LOCAL",
-          localBrowserLaunchOptions: {
-            args: ["--no-focus-on-navigate"],
-            headless: false,
-          },
-        }),
-      );
+      expect(launch).toHaveBeenCalledWith({
+        args: ["--no-focus-on-navigate"],
+        headless: false,
+      });
+      expect(create).toHaveBeenCalledWith({
+        browser,
+        logging: { level: "off" },
+      });
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
@@ -1052,18 +1196,17 @@ describe("driver foundation", () => {
   });
 
   it("passes ignored default Chrome args to managed local Stagehand launches", async () => {
-    const init = vi.fn().mockResolvedValue(undefined);
-    const Stagehand = vi.fn(function () {
-      return {
-        close: vi.fn().mockResolvedValue(undefined),
-        context: {},
-        init,
-      };
-    });
+    const browser = {
+      close: vi.fn().mockResolvedValue(undefined),
+      context: {},
+    };
+    const launch = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockResolvedValue({ browser, close: vi.fn() });
 
     vi.resetModules();
     vi.doMock("@browserbasehq/stagehand", () => ({
-      Stagehand,
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
     }));
 
     try {
@@ -1078,15 +1221,14 @@ describe("driver foundation", () => {
 
       await manager.stagehandInstance();
 
-      expect(Stagehand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          env: "LOCAL",
-          localBrowserLaunchOptions: {
-            headless: true,
-            ignoreDefaultArgs: ["--enable-automation"],
-          },
-        }),
-      );
+      expect(launch).toHaveBeenCalledWith({
+        headless: true,
+        ignoreDefaultArgs: ["--enable-automation"],
+      });
+      expect(create).toHaveBeenCalledWith({
+        browser,
+        logging: { level: "off" },
+      });
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
@@ -1099,18 +1241,17 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     const page = {
-      targetId: () => "created-target",
+      pageId: "created-target",
     };
     const pages: (typeof page)[] = [];
     const context = {
-      activePage: vi.fn(() => undefined),
-      awaitActivePage: vi.fn(),
+      activePage: vi.fn(async () => undefined),
       newPage: vi.fn(async () => {
         pages.push(page);
         return page;
       }),
-      pages: vi.fn(() => pages),
-      setActivePage: vi.fn(),
+      pages: vi.fn(async () => pages),
+      setActivePage: vi.fn(async () => undefined),
     };
 
     vi.spyOn(
@@ -1120,7 +1261,6 @@ describe("driver foundation", () => {
     Object.assign(manager, { context });
 
     await expect(manager.pageForOpen()).resolves.toBe(page);
-    expect(context.awaitActivePage).not.toHaveBeenCalled();
     expect(context.newPage).toHaveBeenCalledOnce();
     expect(context.setActivePage).toHaveBeenCalledWith(page);
   });
@@ -1131,13 +1271,12 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     const page = {
-      targetId: () => "existing-target",
+      pageId: "existing-target",
     };
     const context = {
-      activePage: vi.fn(() => undefined),
-      awaitActivePage: vi.fn(),
-      pages: vi.fn(() => [page]),
-      setActivePage: vi.fn(),
+      activePage: vi.fn(async () => undefined),
+      pages: vi.fn(async () => [page]),
+      setActivePage: vi.fn(async () => undefined),
     };
 
     vi.spyOn(
@@ -1147,7 +1286,6 @@ describe("driver foundation", () => {
     Object.assign(manager, { context });
 
     await expect(manager.activePage()).resolves.toBe(page);
-    expect(context.awaitActivePage).not.toHaveBeenCalled();
     expect(context.setActivePage).toHaveBeenCalledWith(page);
   });
 
@@ -1157,15 +1295,15 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     const page = {
-      targetId: () => "page-1",
+      pageId: "page-1",
       title: vi.fn(async () => "Example"),
-      url: () => "https://example.com",
+      url: async () => "https://example.com",
     };
     const context = {
-      activePage: vi.fn(() => {
+      activePage: vi.fn(async () => {
         throw new Error("No Page found for awaitActivePage: no page available");
       }),
-      pages: vi.fn(() => [page]),
+      pages: vi.fn(async () => [page]),
     };
 
     Object.assign(manager, { context, stagehand: {} });
@@ -1195,9 +1333,9 @@ describe("driver foundation", () => {
     ).mockResolvedValue();
     Object.assign(manager, {
       context: {
-        pages: () => [
+        pages: async () => [
           {
-            targetId: () => "different-target",
+            pageId: "different-target",
           },
         ],
       },

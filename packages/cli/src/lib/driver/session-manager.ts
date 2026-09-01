@@ -1,4 +1,8 @@
-import { Stagehand } from "@browserbasehq/stagehand";
+import {
+  localBrowser,
+  Stagehand,
+  type StagehandBrowser,
+} from "@browserbasehq/stagehand";
 
 import {
   emptyRefMaps,
@@ -23,8 +27,10 @@ import type {
   PageSummary,
 } from "./types.js";
 
-export type DriverContext = Stagehand["context"];
-export type DriverPage = Awaited<ReturnType<DriverContext["awaitActivePage"]>>;
+export type DriverContext = Stagehand["browser"]["context"];
+export type DriverPage = NonNullable<
+  Awaited<ReturnType<DriverContext["activePage"]>>
+>;
 
 const INIT_FAILURE_RETRY_MS = 5_000;
 const INIT_FAILURE_RETRY_MAX_MS = 60_000;
@@ -69,6 +75,8 @@ export function isChromeNotFoundError(error: unknown): boolean {
 export class DriverSessionManager {
   readonly network: NetworkCapture;
 
+  private browser: StagehandBrowser | null = null;
+  private browserbaseIdentityValue: BrowserbaseIdentity = {};
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
   private lastForwardedEnvSignature: string | null = null;
@@ -165,7 +173,7 @@ export class DriverSessionManager {
       };
     }
 
-    const page = this.activePageIfPresent();
+    const page = await this.activePageIfPresent();
     const pages = await this.pageSummaries();
     return {
       ...this.browserbaseIdentity(),
@@ -174,11 +182,11 @@ export class DriverSessionManager {
       mode: this.target.kind,
       pages,
       pid: process.pid,
-      selectedTargetId: page?.targetId() ?? this.selectedTargetId,
+      selectedTargetId: page?.pageId ?? this.selectedTargetId,
       session: this.session,
       target: this.target,
       title: page ? await safeTitle(page) : undefined,
-      url: page?.url(),
+      url: page ? await page.url() : undefined,
     };
   }
 
@@ -189,32 +197,24 @@ export class DriverSessionManager {
    * non-remote targets or before the driver has initialized.
    */
   private browserbaseIdentity(): BrowserbaseIdentity {
-    if (this.target.kind !== "remote" || !this.stagehand) return {};
-    const { browserbaseSessionID, browserbaseSessionURL, browserbaseDebugURL } =
-      this.stagehand;
-
-    const identity: BrowserbaseIdentity = {};
-    if (browserbaseSessionID) {
-      identity.browserbaseSessionId = browserbaseSessionID;
-    }
-    if (browserbaseSessionURL) {
-      identity.browserbaseSessionUrl = browserbaseSessionURL;
-    }
-    if (browserbaseDebugURL) {
-      identity.browserbaseDebugUrl = browserbaseDebugURL;
-    }
-    return identity;
+    return this.target.kind === "remote" ? this.browserbaseIdentityValue : {};
   }
 
   async close(): Promise<void> {
     const stagehand = this.stagehand;
+    const browser = this.browser;
     this.stagehand = null;
+    this.browser = null;
     this.context = null;
+    this.browserbaseIdentityValue = {};
     this.initFailure = null;
     this.consecutiveInitFailures = 0;
     await this.network.disable().catch(() => undefined);
     if (stagehand) {
       await stagehand.close().catch(() => undefined);
+    }
+    if (browser?.origin === "launched") {
+      await browser.close().catch(() => undefined);
     }
   }
 
@@ -231,21 +231,21 @@ export class DriverSessionManager {
       ...this.browserbaseIdentity(),
       mode: this.target.kind,
       pages: await this.pageSummaries(),
-      selectedTargetId: page.targetId(),
+      selectedTargetId: page.pageId,
       session: this.session,
       title: await this.safeTitle(page),
-      url: page.url(),
+      url: await page.url(),
     };
   }
 
   async pageSummaries(): Promise<PageSummary[]> {
-    const pages = this.context?.pages() ?? [];
+    const pages = this.context ? await this.context.pages() : [];
     return Promise.all(
       pages.map(async (page, index) => ({
         index,
-        targetId: page.targetId(),
+        targetId: page.pageId,
         title: await this.safeTitle(page),
-        url: page.url(),
+        url: await page.url(),
       })),
     );
   }
@@ -264,30 +264,31 @@ export class DriverSessionManager {
 
     const target = this.target;
     if (target.kind === "cdp" && target.targetId) {
-      const page = this.context
-        .pages()
-        .find((candidate) => candidate.targetId() === target.targetId);
+      const page = (await this.context.pages()).find(
+        (candidate) => candidate.pageId === target.targetId,
+      );
       if (!page) {
         throw new Error(
           `Target ${target.targetId} was not found in the attached browser.`,
         );
       }
-      this.activateIfNeeded(page);
-      this.selectedTargetId = page.targetId();
+      await this.activateIfNeeded(page);
+      this.selectedTargetId = page.pageId;
       return page;
     }
 
-    const existingPage = this.activePageIfPresent() ?? this.context.pages()[0];
+    const existingPage =
+      (await this.activePageIfPresent()) ?? (await this.context.pages())[0];
     if (existingPage) {
-      this.activateIfNeeded(existingPage);
-      this.selectedTargetId = existingPage.targetId();
+      await this.activateIfNeeded(existingPage);
+      this.selectedTargetId = existingPage.pageId;
       return existingPage;
     }
 
     if (options.createIfMissing) {
       const page = await this.context.newPage();
-      this.activateIfNeeded(page);
-      this.selectedTargetId = page.targetId();
+      await this.activateIfNeeded(page);
+      this.selectedTargetId = page.pageId;
       return page;
     }
 
@@ -297,9 +298,9 @@ export class DriverSessionManager {
     );
   }
 
-  private activePageIfPresent(): DriverPage | undefined {
+  private async activePageIfPresent(): Promise<DriverPage | undefined> {
     try {
-      return this.context?.activePage() ?? undefined;
+      return (await this.context?.activePage()) ?? undefined;
     } catch {
       return undefined;
     }
@@ -315,9 +316,9 @@ export class DriverSessionManager {
    * command in headed local mode. Skipping the redundant re-activation keeps a
    * headed session usable alongside a coding agent.
    */
-  private activateIfNeeded(page: DriverPage): void {
-    if (page !== this.activePageIfPresent()) {
-      this.context?.setActivePage(page);
+  private async activateIfNeeded(page: DriverPage): Promise<void> {
+    if (page.pageId !== (await this.activePageIfPresent())?.pageId) {
+      await this.context?.setActivePage(page);
     }
   }
 
@@ -366,17 +367,47 @@ export class DriverSessionManager {
 
   private async initialize(): Promise<void> {
     const resolvedTarget = await this.resolveTarget();
-    const options = await this.stagehandOptions(resolvedTarget);
-    const stagehand = new Stagehand(options);
+    let browser: StagehandBrowser | undefined;
 
     try {
-      await stagehand.init();
+      if (resolvedTarget.kind === "remote") {
+        const remote = await (
+          await getRemote()
+        ).launchRemoteBrowser(resolvedTarget, this.pendingEnv);
+        browser = remote.browser;
+        this.browserbaseIdentityValue = remote.identity;
+      } else if (resolvedTarget.kind === "managed-local") {
+        browser = await localBrowser.launch({
+          ...(resolvedTarget.chromeArgs?.length
+            ? { args: resolvedTarget.chromeArgs }
+            : {}),
+          ...(resolvedTarget.ignoreDefaultArgs === undefined
+            ? {}
+            : { ignoreDefaultArgs: resolvedTarget.ignoreDefaultArgs }),
+          headless: resolvedTarget.headless,
+        });
+      } else if (resolvedTarget.kind === "cdp") {
+        browser = await localBrowser.connect({
+          cdpUrl: resolvedTarget.endpoint,
+        });
+      } else {
+        throw new Error(`Unsupported target kind: ${resolvedTarget.kind}`);
+      }
+
+      const stagehand = await Stagehand.create({
+        browser,
+        logging: { level: "off" },
+      });
+      this.browser = browser;
+      this.stagehand = stagehand;
+      this.context = stagehand.browser.context;
     } catch (error) {
-      await stagehand.close().catch(() => undefined);
+      if (browser?.origin === "launched") {
+        await browser.close().catch(() => undefined);
+      }
+      this.browserbaseIdentityValue = {};
       throw await describeInitError(error, resolvedTarget);
     }
-    this.stagehand = stagehand;
-    this.context = stagehand.context;
   }
 
   private async resolveTarget(): Promise<ConnectionTarget> {
@@ -390,44 +421,6 @@ export class DriverSessionManager {
     }
 
     return { kind: "cdp", endpoint: discovered.wsUrl };
-  }
-
-  private async stagehandOptions(
-    target: ConnectionTarget,
-  ): Promise<ConstructorParameters<typeof Stagehand>[0]> {
-    if (target.kind === "remote") {
-      return await (
-        await getRemote()
-      ).remoteStagehandOptions(target, this.pendingEnv);
-    }
-
-    if (target.kind === "managed-local") {
-      return {
-        disablePino: true,
-        env: "LOCAL",
-        localBrowserLaunchOptions: {
-          ...(target.chromeArgs?.length ? { args: target.chromeArgs } : {}),
-          ...(target.ignoreDefaultArgs !== undefined
-            ? { ignoreDefaultArgs: target.ignoreDefaultArgs }
-            : {}),
-          headless: target.headless,
-        },
-        verbose: 0,
-      };
-    }
-
-    if (target.kind === "cdp") {
-      return {
-        disablePino: true,
-        env: "LOCAL",
-        localBrowserLaunchOptions: {
-          cdpUrl: target.endpoint,
-        },
-        verbose: 0,
-      };
-    }
-
-    throw new Error(`Unsupported target kind: ${target.kind}`);
   }
 }
 
@@ -455,7 +448,7 @@ async function describeInitError(
     const { code, httpStatus, message } = (
       await getRemote()
     ).classifyRemoteInitError(error);
-    return new DriverError(message, { cause: error, code, httpStatus });
+    return new DriverError(message, { code, httpStatus });
   }
 
   if (target.kind === "managed-local" && isChromeNotFoundError(error)) {
