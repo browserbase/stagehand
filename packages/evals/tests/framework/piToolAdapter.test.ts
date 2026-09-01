@@ -38,8 +38,14 @@ afterEach(() => {
 
 describe("pi tool adapter", () => {
   it("publishes the supported surfaces in default order", () => {
-    expect(PI_TOOL_SURFACES[0]).toBe("stagehand_facade");
-    expect(PI_TOOL_SURFACES).not.toContain("browse_cli");
+    expect(PI_TOOL_SURFACES).toEqual([
+      "stagehand_facade",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+      "stagehand_code",
+      "playwright_code",
+      "cdp_code",
+    ]);
   });
 
   it("maps and validates MCP mounts", () => {
@@ -169,11 +175,29 @@ describe("pi tool adapter", () => {
           undefined,
           {} as never,
         ),
-      ).rejects.toThrow(/timed out/);
+      ).rejects.toThrow("pi adapter operation timed out after 20ms");
     } finally {
       if (previous === undefined) delete process.env.EVAL_PI_RUN_TOOL_TIMEOUT_MS;
       else process.env.EVAL_PI_RUN_TOOL_TIMEOUT_MS = previous;
     }
+  });
+
+  it("stringifies values that JSON.stringify cannot represent", async () => {
+    const config = buildPiMountConfig({
+      mount: handlesMount({ page: {} }),
+      plan,
+      logger,
+    });
+
+    await expect(
+      config.customTools![0].execute(
+        "id",
+        { code: "return Symbol('result');" },
+        undefined,
+        undefined,
+        {} as never,
+      ),
+    ).resolves.toMatchObject({ content: [{ type: "text", text: "Symbol(result)" }] });
   });
 
   it("rejects CLI mounts", () => {

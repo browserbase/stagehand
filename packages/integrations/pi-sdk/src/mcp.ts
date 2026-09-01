@@ -1,4 +1,5 @@
 import {
+  HarnessAdapterError,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -142,7 +143,7 @@ export async function connectPiMcpServers(
               result as { content?: unknown; structuredContent?: unknown; isError?: unknown },
             );
             if (mapped.isError) {
-              throw new Error(piToolResultText(mapped) || "MCP tool failed");
+              throw new HarnessAdapterError("Pi MCP tool failed.");
             }
             return mapped;
           },
@@ -157,7 +158,7 @@ export async function connectPiMcpServers(
       level: 0,
     });
     await close();
-    throw error;
+    throw new HarnessAdapterError("Failed to connect pi MCP servers.");
   }
 }
 

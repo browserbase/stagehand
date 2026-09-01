@@ -108,4 +108,29 @@ describe("pi trajectory adapter", () => {
     );
     expect(misaligned.steps[0].probeEvidence).toEqual({});
   });
+
+  it("prefers non-empty structured details over display text", () => {
+    const trajectory = piAdapter.fromHarnessResult(
+      {
+        events: [
+          { type: "tool_execution_start", toolCallId: "1", args: {} },
+          {
+            type: "tool_execution_end",
+            toolCallId: "1",
+            toolName: "mcp__s__verify",
+            result: {
+              content: [{ type: "text", text: "human-readable summary" }],
+              details: { passed: false, score: 0 },
+            },
+          },
+        ],
+      },
+      taskSpec,
+    );
+
+    expect(trajectory.steps[0].toolOutput).toEqual({
+      ok: true,
+      result: { passed: false, score: 0 },
+    });
+  });
 });

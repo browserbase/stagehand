@@ -143,8 +143,11 @@ function normalizeResult(value: unknown): {
     }
   }
   const joined = text.join("\n");
+  const hasStructuredDetails =
+    value.details !== undefined &&
+    (!isRecord(value.details) || Object.keys(value.details).length > 0);
   return {
-    result: joined || (value.details !== undefined ? value.details : value),
+    result: hasStructuredDetails ? value.details : joined || value,
     text: joined,
     images,
   };

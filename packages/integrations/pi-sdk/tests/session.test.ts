@@ -15,7 +15,10 @@ import {
 
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
 
-function scriptedSdk(events: PiEvent[], options?: { createError?: Error }) {
+function scriptedSdk(
+  events: PiEvent[],
+  options?: { createError?: Error; promptUntilAbort?: boolean },
+) {
   let disposeCount = 0;
   let abortCount = 0;
   let createOptions: Record<string, unknown> | undefined;
@@ -24,6 +27,7 @@ function scriptedSdk(events: PiEvent[], options?: { createError?: Error }) {
       createOptions = input;
       if (options?.createError) throw options.createError;
       const listeners = new Set<(event: PiEvent) => void>();
+      let resolvePrompt: (() => void) | undefined;
       const session: PiAgentSessionLike = {
         agent: { state: {} },
         subscribe(listener) {
@@ -31,6 +35,11 @@ function scriptedSdk(events: PiEvent[], options?: { createError?: Error }) {
           return () => listeners.delete(listener);
         },
         async prompt() {
+          if (options?.promptUntilAbort) {
+            await new Promise<void>((resolve) => {
+              resolvePrompt = resolve;
+            });
+          }
           for (const event of events) {
             for (const listener of listeners) listener(event);
             if (event.type === "turn_end" && (await session.agent.shouldStopAfterTurn?.())) break;
@@ -38,6 +47,7 @@ function scriptedSdk(events: PiEvent[], options?: { createError?: Error }) {
         },
         async abort() {
           abortCount += 1;
+          resolvePrompt?.();
         },
         dispose() {
           disposeCount += 1;
@@ -276,6 +286,29 @@ describe("pi SDK session", () => {
     expect(fake.disposeCount).toBe(1);
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("cancelled");
+  });
+
+  it("forwards an active abort and removes the signal listener", async () => {
+    const fake = scriptedSdk([], { promptUntilAbort: true });
+    const controller = new AbortController();
+    const removeListener = vi.spyOn(controller.signal, "removeEventListener");
+    const execution = runPiSession({
+      prompt: "task",
+      model: "model",
+      sdk: fake.sdk,
+      signal: controller.signal,
+      logger,
+      session: {},
+    });
+    await vi.waitFor(() => expect(fake.createOptions).toBeDefined());
+
+    controller.abort(new Error("active cancellation"));
+    const result = await execution;
+
+    expect(fake.abortCount).toBe(1);
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("active cancellation");
+    expect(removeListener).toHaveBeenCalledWith("abort", expect.any(Function));
   });
 
   it("normalizes models, MCP names/results, code tools, and statuses", async () => {
