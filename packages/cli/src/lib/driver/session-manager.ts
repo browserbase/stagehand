@@ -160,6 +160,18 @@ export class DriverSessionManager {
     return this.stagehand;
   }
 
+  async networkWebSocketDebuggerUrl(): Promise<string> {
+    const stagehand = await this.stagehandInstance();
+    const websocketUrl = stagehand.rpcClient?.browserWebSocketDebuggerUrl;
+    if (!websocketUrl) {
+      throw new DriverError(
+        "Stagehand did not expose the browser CDP endpoint required for network capture.",
+        { code: "network_sidecar_endpoint_unavailable" },
+      );
+    }
+    return websocketUrl;
+  }
+
   async status(): Promise<DriverStatus> {
     if (!this.stagehand || !this.context) {
       return {
@@ -211,7 +223,7 @@ export class DriverSessionManager {
     this.browserbaseIdentityValue = {};
     this.initFailure = null;
     this.consecutiveInitFailures = 0;
-    await this.network.disable().catch(() => undefined);
+    await this.network.close().catch(() => undefined);
     if (stagehand) {
       await stagehand.close().catch(() => undefined);
     }
