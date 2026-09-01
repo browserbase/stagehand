@@ -213,7 +213,7 @@ export class DriverSessionManager {
     if (stagehand) {
       await stagehand.close().catch(() => undefined);
     }
-    if (browser) {
+    if (browser?.origin === "launched") {
       await browser.close().catch(() => undefined);
     }
   }
@@ -402,7 +402,9 @@ export class DriverSessionManager {
       this.stagehand = stagehand;
       this.context = stagehand.browser.context;
     } catch (error) {
-      await browser?.close().catch(() => undefined);
+      if (browser?.origin === "launched") {
+        await browser.close().catch(() => undefined);
+      }
       this.browserbaseIdentityValue = {};
       throw await describeInitError(error, resolvedTarget);
     }
@@ -446,7 +448,7 @@ async function describeInitError(
     const { code, httpStatus, message } = (
       await getRemote()
     ).classifyRemoteInitError(error);
-    return new DriverError(message, { cause: error, code, httpStatus });
+    return new DriverError(message, { code, httpStatus });
   }
 
   if (target.kind === "managed-local" && isChromeNotFoundError(error)) {
