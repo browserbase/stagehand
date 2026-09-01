@@ -33,6 +33,7 @@ const DEFAULT_NAVIGATION_TIMEOUT_MS = 30_000;
 // Stagehand gives browser/extension initialization 60 seconds. The daemon
 // transport must cover that work before the page navigation timeout begins.
 const OPEN_INITIALIZATION_ALLOWANCE_MS = 65_000;
+const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 
 export async function ensureDriverDaemon({
   session,
@@ -258,11 +259,12 @@ async function sendDriverRequest<T>(
   });
 }
 
-function daemonRequestTimeoutMs(request: DriverRequest): number {
+export function daemonRequestTimeoutMs(request: DriverRequest): number {
   if (request.type !== "open") return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
-  return (
+  return Math.min(
     OPEN_INITIALIZATION_ALLOWANCE_MS +
-    (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS)
+      (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS),
+    MAX_NODE_TIMER_DELAY_MS,
   );
 }
 
