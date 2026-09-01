@@ -15,6 +15,7 @@ export const mouseHandlers: DriverCommandHandlers = {
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, x, y);
@@ -31,6 +32,7 @@ export const mouseHandlers: DriverCommandHandlers = {
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, x, y);
@@ -46,6 +48,7 @@ export const mouseHandlers: DriverCommandHandlers = {
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, x, y);
@@ -64,6 +67,7 @@ export const mouseHandlers: DriverCommandHandlers = {
         toX: z.number(),
         toY: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, fromX, fromY);

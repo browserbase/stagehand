@@ -412,6 +412,26 @@ describe("driver commands", () => {
     expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {});
   });
 
+  it("rejects removed coordinate XPath fields at the driver boundary", async () => {
+    const manager = {} as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    for (const [command, params] of [
+      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.hover", { returnXPath: false, x: 1, y: 2 }],
+      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
+      [
+        "mouse.drag",
+        { fromX: 1, fromY: 2, returnXPath: false, toX: 3, toY: 4 },
+      ],
+    ] as const) {
+      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
+        /returnXPath/,
+      );
+    }
+  });
+
   it("enables sidecar network capture", async () => {
     const page = {};
     const network = {
