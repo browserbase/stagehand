@@ -79,6 +79,7 @@ export class DriverSessionManager {
   private browserbaseIdentityValue: BrowserbaseIdentity = {};
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
+  private cursorOverlayPageIds = new Set<string>();
   private lastForwardedEnvSignature: string | null = null;
   private pendingEnv: ForwardedEnv | undefined;
   private initFailure: InitFailure | null = null;
@@ -218,6 +219,7 @@ export class DriverSessionManager {
     this.stagehand = null;
     this.browser = null;
     this.context = null;
+    this.cursorOverlayPageIds.clear();
     this.browserbaseIdentityValue = {};
     this.initFailure = null;
     this.consecutiveInitFailures = 0;
@@ -225,13 +227,21 @@ export class DriverSessionManager {
     if (stagehand) {
       await stagehand.close().catch(() => undefined);
     }
-    if (browser) {
+    if (browser?.origin === "launched") {
       await browser.close().catch(() => undefined);
     }
   }
 
   resolveSelector(selector: string): string {
     return resolveCachedSelector(selector, this.refMaps);
+  }
+
+  markCursorOverlayEnabled(page: DriverPage): void {
+    this.cursorOverlayPageIds.add(page.pageId);
+  }
+
+  isCursorOverlayEnabled(page: DriverPage): boolean {
+    return this.cursorOverlayPageIds.has(page.pageId);
   }
 
   setRefMaps(refMaps: RefMaps): void {
@@ -414,7 +424,9 @@ export class DriverSessionManager {
       this.stagehand = stagehand;
       this.context = stagehand.browser.context;
     } catch (error) {
-      await browser?.close().catch(() => undefined);
+      if (browser?.origin === "launched") {
+        await browser.close().catch(() => undefined);
+      }
       this.browserbaseIdentityValue = {};
       throw await describeInitError(error, resolvedTarget);
     }
@@ -458,7 +470,7 @@ async function describeInitError(
     const { code, httpStatus, message } = (
       await getRemote()
     ).classifyRemoteInitError(error);
-    return new DriverError(message, { cause: error, code, httpStatus });
+    return new DriverError(message, { code, httpStatus });
   }
 
   if (target.kind === "managed-local" && isChromeNotFoundError(error)) {

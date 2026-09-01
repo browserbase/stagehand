@@ -326,6 +326,7 @@ describe("driver commands", () => {
     };
     const manager = {
       activePage: vi.fn(async () => page),
+      isCursorOverlayEnabled: vi.fn(() => false),
     } as unknown as Parameters<
       NonNullable<(typeof mouseHandlers)["mouse.click"]>
     >[0];
@@ -385,6 +386,7 @@ describe("driver commands", () => {
     };
     const manager = {
       activePage: vi.fn(async () => page),
+      isCursorOverlayEnabled: vi.fn(() => false),
     } as unknown as Parameters<
       NonNullable<(typeof mouseHandlers)["mouse.click"]>
     >[0];
@@ -410,6 +412,26 @@ describe("driver commands", () => {
     expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {});
   });
 
+  it("rejects removed coordinate XPath fields at the driver boundary", async () => {
+    const manager = {} as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    for (const [command, params] of [
+      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.hover", { returnXPath: false, x: 1, y: 2 }],
+      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
+      [
+        "mouse.drag",
+        { fromX: 1, fromY: 2, returnXPath: false, toX: 3, toY: 4 },
+      ],
+    ] as const) {
+      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
+        /returnXPath/,
+      );
+    }
+  });
+
   it("enables sidecar network capture", async () => {
     const page = {};
     const network = {
@@ -431,9 +453,14 @@ describe("driver commands", () => {
   });
 
   it("installs the CLI-owned cursor overlay", async () => {
-    const page = { evaluate: vi.fn() };
+    const page = {
+      addInitScript: vi.fn(),
+      evaluate: vi.fn(),
+      pageId: "page-1",
+    };
     const manager = {
       activePage: vi.fn(async () => page),
+      markCursorOverlayEnabled: vi.fn(),
     } as unknown as Parameters<
       NonNullable<(typeof runtimeHandlers)["cursor"]>
     >[0];
@@ -441,11 +468,42 @@ describe("driver commands", () => {
     await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
       enabled: true,
     });
+    expect(page.addInitScript).toHaveBeenCalledOnce();
     expect(page.evaluate).toHaveBeenCalledOnce();
+    expect(page.addInitScript).toHaveBeenCalledWith(
+      page.evaluate.mock.calls[0]?.[0],
+    );
+    expect(manager.markCursorOverlayEnabled).toHaveBeenCalledWith(page);
     const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
     expect(cursorInstaller).toEqual(expect.any(String));
     expect(cursorInstaller).toContain("__browse_cursor_overlay__");
     expect(cursorInstaller).toContain('"mousemove"');
+  });
+
+  it("moves an enabled overlay from coordinate input before iframe-targeted actions", async () => {
+    const page = {
+      evaluate: vi.fn(),
+      hover: vi.fn(),
+      pageId: "page-1",
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      isCursorOverlayEnabled: vi.fn(() => true),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.hover"]>
+    >[0];
+
+    await expect(
+      mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 }),
+    ).resolves.toEqual({ hovered: true });
+
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), {
+      x: 30,
+      y: 40,
+    });
+    expect(page.evaluate.mock.invocationCallOrder[0]).toBeLessThan(
+      page.hover.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
   });
 
   it("selects a remaining tab after closing the active tab", async () => {

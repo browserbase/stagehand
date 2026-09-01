@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { updateCursorOverlayPosition } from "../cursor-overlay.js";
+import type { DriverPage, DriverSessionManager } from "../session-manager.js";
 import type { DriverCommandHandlers } from "./types.js";
 
 const ButtonSchema = z.enum(["left", "right", "middle"]).optional();
@@ -13,8 +15,10 @@ export const mouseHandlers: DriverCommandHandlers = {
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
+    await positionCursorOverlay(manager, page, x, y);
     await page.click(x, y, {
       ...(button === undefined ? {} : { button }),
       ...(clickCount === undefined ? {} : { clickCount }),
@@ -28,8 +32,10 @@ export const mouseHandlers: DriverCommandHandlers = {
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
+    await positionCursorOverlay(manager, page, x, y);
     await page.hover(x, y);
     return { hovered: true };
   },
@@ -42,8 +48,10 @@ export const mouseHandlers: DriverCommandHandlers = {
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
+    await positionCursorOverlay(manager, page, x, y);
     await page.scroll(x, y, deltaX, deltaY);
     return { scrolled: true };
   },
@@ -59,13 +67,26 @@ export const mouseHandlers: DriverCommandHandlers = {
         toX: z.number(),
         toY: z.number(),
       })
+      .strict()
       .parse(params);
     const page = await manager.activePage();
+    await positionCursorOverlay(manager, page, fromX, fromY);
     await page.dragAndDrop(fromX, fromY, toX, toY, {
       ...(button === undefined ? {} : { button }),
       ...(delay === undefined ? {} : { delay }),
       ...(steps === undefined ? {} : { steps }),
     });
+    await positionCursorOverlay(manager, page, toX, toY);
     return { dragged: true };
   },
 };
+
+async function positionCursorOverlay(
+  manager: DriverSessionManager,
+  page: DriverPage,
+  x: number,
+  y: number,
+): Promise<void> {
+  if (!manager.isCursorOverlayEnabled(page)) return;
+  await page.evaluate(updateCursorOverlayPosition, { x, y });
+}
