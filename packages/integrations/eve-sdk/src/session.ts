@@ -145,6 +145,7 @@ export async function startEveDevServer(input: {
       };
       const onLine = (line: string): void => {
         const sanitized = sanitizeErrorMessage(line);
+        if (outputLines.length >= 20) outputLines.shift();
         outputLines.push(sanitized);
         input.logger.log({ category: "eve", message: sanitized, level: 2 });
         const serverUrl = parseEveDevServerUrl(line);
@@ -262,13 +263,15 @@ export async function runEveSession(input: {
         const result = isRecord(data?.result) ? data.result : undefined;
         if (result?.kind === "tool-result" && typeof result.toolName === "string") {
           await input.onToolResult?.(result.toolName);
-          toolStepCount += 1;
-          if (toolStepCount >= maxToolSteps && !maxTurns) {
-            maxTurns = true;
-            stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
-            await cancelSession();
-            controller.abort(new Error(stopReason));
-            break;
+          if (data?.status === "completed" && result.isError !== true) {
+            toolStepCount += 1;
+            if (toolStepCount >= maxToolSteps && !maxTurns) {
+              maxTurns = true;
+              stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
+              await cancelSession();
+              controller.abort(new Error(stopReason));
+              break;
+            }
           }
         }
       } else if (event.type === "input.requested") {
@@ -294,7 +297,7 @@ export async function runEveSession(input: {
       stopReason = "eve stream ended without a turn boundary";
     }
   } catch (error) {
-    iterationError = error;
+    iterationError = new HarnessAdapterError("Eve session failed.");
     input.logger.warn({
       category: "eve",
       message: `Eve stopped before a normal result: ${sanitizeErrorMessage(stringifyError(error))}`,
@@ -303,6 +306,7 @@ export async function runEveSession(input: {
         error: { value: sanitizeErrorMessage(stringifyError(error)), type: "string" },
       },
     });
+    await cancelSession();
   } finally {
     input.signal?.removeEventListener("abort", forwardAbort);
     await serverHandle?.close();

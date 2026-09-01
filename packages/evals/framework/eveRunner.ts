@@ -1,5 +1,10 @@
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
-import type { EveClientLike, EveTokenUsage } from "@browserbasehq/stagehand-integrations-eve-sdk";
+import type {
+  EveClientLike,
+  EveEvent,
+  EveSessionResult,
+  EveTokenUsage,
+} from "@browserbasehq/stagehand-integrations-eve-sdk";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
@@ -95,9 +100,10 @@ export async function runEveAgent({
       });
       const usage = normalizeEveUsage(sessionResult.tokenUsage);
       const iterationError = sanitizeErrorMessage(stringifyError(sessionResult.iterationError));
+      const sanitizedSessionResult = sanitizeEveSessionResult(sessionResult, iterationError);
       return {
-        raw: sessionResult,
-        resultText: sessionResult.finalMessage,
+        raw: sanitizedSessionResult,
+        resultText: sanitizedSessionResult.finalMessage,
         transcriptText: sanitizeErrorMessage(buildEveTranscript(sessionResult.events)),
         ...(iterationError && { iterationError }),
         status: sessionResult.status,
@@ -132,6 +138,32 @@ export async function runEveAgent({
         taskSpec,
       ),
   });
+}
+
+export function sanitizeEveSessionResult(
+  result: EveSessionResult,
+  sanitizedIterationError = sanitizeErrorMessage(String(result.iterationError ?? "")),
+): EveSessionResult {
+  return {
+    ...result,
+    events: sanitizeEveValue(result.events) as EveEvent[],
+    finalMessage: sanitizeErrorMessage(result.finalMessage),
+    ...(result.stopReason && { stopReason: sanitizeErrorMessage(result.stopReason) }),
+    ...(result.iterationError !== undefined && {
+      iterationError: sanitizedIterationError || "Eve session failed.",
+    }),
+  };
+}
+
+function sanitizeEveValue(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeErrorMessage(value);
+  if (Array.isArray(value)) return value.map(sanitizeEveValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, sanitizeEveValue(entry)]),
+    );
+  }
+  return value;
 }
 
 async function prepareGeneratedServer(

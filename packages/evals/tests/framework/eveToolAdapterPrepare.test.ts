@@ -280,10 +280,15 @@ describe("listMcpServerTools", () => {
   type Connect = NonNullable<Options["connect"]>;
 
   it("times out a connection that never resolves", async () => {
-    const connect = vi.fn(() => new Promise<never>(() => undefined)) as unknown as Connect;
+    let receivedSignal: AbortSignal | undefined;
+    const connect = vi.fn((_spec, signal) => {
+      receivedSignal = signal;
+      return new Promise<never>(() => undefined);
+    }) as unknown as Connect;
     await expect(
       listMcpServerTools({ command: "stuck-server" }, { connect, timeoutMs: 20 }),
     ).rejects.toThrow(/stuck-server.*timed out/);
+    expect(receivedSignal?.aborted).toBe(true);
   });
 
   it("closes a client that finishes connecting after the timeout", async () => {

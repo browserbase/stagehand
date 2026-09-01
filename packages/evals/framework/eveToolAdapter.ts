@@ -1,7 +1,9 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { connectToMCPServer, type ProbeEvidence } from "stagehand-v3";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { ProbeEvidence } from "stagehand-v3";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
@@ -32,6 +34,12 @@ export interface EveMcpToolDescriptor {
   description?: string;
   inputSchema: Record<string, unknown>;
 }
+
+type EveMcpClient = Pick<Client, "listTools" | "close">;
+type EveMcpConnect = (
+  spec: EveMcpServerSpec & { env: Record<string, string> },
+  signal?: AbortSignal,
+) => Promise<EveMcpClient>;
 
 export interface PreparedEveToolAdapter {
   toolSurface: ToolSurface;
@@ -185,21 +193,26 @@ export async function writeEveAgentDefinition(appRoot: string, model: string): P
 
 export async function listMcpServerTools(
   spec: EveMcpServerSpec,
-  options?: { connect?: typeof connectToMCPServer; timeoutMs?: number },
+  options?: { connect?: EveMcpConnect; timeoutMs?: number },
 ): Promise<EveMcpToolDescriptor[]> {
   const timeoutMs =
     options?.timeoutMs ?? readPositiveIntEnv("EVAL_EVE_MCP_LIST_TOOLS_TIMEOUT_MS", 60_000);
-  const connect = options?.connect ?? connectToMCPServer;
-  const connectPromise = connect({
-    command: spec.command,
-    args: spec.args ?? [],
-    env: stringOnly({ ...process.env, ...spec.env }),
-  });
+  const connect = options?.connect ?? connectEveMcpServer;
+  const connectController = new AbortController();
+  const connectPromise = connect(
+    {
+      command: spec.command,
+      args: spec.args ?? [],
+      env: stringOnly({ ...process.env, ...spec.env }),
+    },
+    connectController.signal,
+  );
   let connectTimedOut = false;
-  let client: Awaited<ReturnType<typeof connectToMCPServer>>;
+  let client: EveMcpClient;
   try {
     client = await withCaptureTimeout(connectPromise, timeoutMs, () => {
       connectTimedOut = true;
+      connectController.abort(new Error("Eve MCP connection timed out."));
       return new EvalsError(
         `Eve MCP server command "${spec.command}" timed out after ${timeoutMs}ms while connecting.`,
       );
@@ -228,6 +241,22 @@ export async function listMcpServerTools(
     }));
   } finally {
     await withCaptureTimeout(client.close(), timeoutMs).catch((): undefined => undefined);
+  }
+}
+
+async function connectEveMcpServer(
+  spec: EveMcpServerSpec & { env: Record<string, string> },
+  signal?: AbortSignal,
+): Promise<EveMcpClient> {
+  const client = new Client({ name: "stagehand-evals-eve", version: "1.0.0" });
+  const transport = new StdioClientTransport(spec);
+  try {
+    await client.connect(transport, signal ? { signal } : undefined);
+    await client.ping(signal ? { signal } : undefined);
+    return client;
+  } catch (error) {
+    await client.close().catch((): undefined => undefined);
+    throw error;
   }
 }
 

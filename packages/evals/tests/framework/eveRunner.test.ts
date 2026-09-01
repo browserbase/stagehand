@@ -2,7 +2,12 @@
 import { describe, expect, it } from "vitest";
 import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-sdk";
 import type { AvailableModel } from "stagehand-v3";
-import { buildEvePrompt, parseEveResult, runEveAgent } from "../../framework/eveRunner.js";
+import {
+  buildEvePrompt,
+  parseEveResult,
+  runEveAgent,
+  sanitizeEveSessionResult,
+} from "../../framework/eveRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import { EvalLogger } from "../../logger.js";
 
@@ -134,6 +139,34 @@ describe("Eve runner helpers", () => {
     expect(result.rawResult).not.toContain("SUPERSECRET");
   });
 
+  it("redacts structured event payloads before trajectory conversion", () => {
+    const sanitized = sanitizeEveSessionResult({
+      events: [
+        {
+          type: "action.result",
+          data: {
+            result: {
+              kind: "tool-result",
+              output: { token: "sk-abc123SUPERSECRET" },
+            },
+          },
+        },
+      ],
+      finalMessage: "done sk-abc123SUPERSECRET",
+      status: "completed",
+      tokenUsage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: 0,
+      },
+    });
+
+    expect(JSON.stringify(sanitized)).toContain("sk-abc123[redacted]");
+    expect(JSON.stringify(sanitized)).not.toContain("SUPERSECRET");
+  });
+
   it("returns a failed task result when Eve send throws", async () => {
     const client: EveClientLike = {
       health: async () => ({}),
@@ -155,7 +188,7 @@ describe("Eve runner helpers", () => {
     expect(result.eveStatus).toBe("sdk_error");
     expect(result.harnessStatus).toBe("sdk_error");
     expect(result.harnessStopReason).toBeDefined();
-    expect(result.error).toEqual(expect.stringContaining("eve send failed"));
+    expect(result.error).toBe("Eve session failed.");
     expect(JSON.stringify(result)).toContain("sk-abc123[redacted]");
     expect(JSON.stringify(result)).not.toContain("SUPERSECRET");
   });

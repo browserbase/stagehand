@@ -105,6 +105,25 @@ describe("Eve SDK session", () => {
     expect(String(error.message)).not.toContain("SUPERSECRET");
   });
 
+  it("keeps only the last 20 dev-server output lines in startup errors", async () => {
+    const child = fakeChild();
+    const pending = startEveDevServer({
+      appRoot: "/tmp/eve-app",
+      env: {},
+      logger,
+      eveBinPath: "/tmp/eve.js",
+      spawn: (() => child) as unknown as Parameters<typeof startEveDevServer>[0]["spawn"],
+    });
+    for (let index = 1; index <= 25; index += 1) child.stderr.write(`output-${index}\n`);
+    child.exitCode = 1;
+    child.emit("exit", 1, null);
+
+    const error = await pending.catch((value) => value);
+    expect(String(error.message)).not.toContain("output-5\n");
+    expect(String(error.message)).toContain("output-6\n");
+    expect(String(error.message)).toContain("output-25");
+  });
+
   it("closes the dev server with SIGTERM and waits for exit", async () => {
     const child = fakeChild();
     const pending = startEveDevServer({
@@ -324,6 +343,44 @@ describe("Eve SDK session", () => {
     expect(result.stopReason).toContain("budget exhausted");
   });
 
+  it("does not count failed tool results against the completed-step budget", async () => {
+    const setup = clientFor([
+      {
+        type: "action.result",
+        data: {
+          status: "failed",
+          result: {
+            kind: "tool-result",
+            toolName: "stagehand__run",
+            isError: true,
+          },
+        },
+      },
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", toolName: "stagehand__run" },
+        },
+      },
+    ]);
+    const onToolResult = vi.fn();
+    const result = await runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      server: { url: "http://eve" },
+      client: setup.client,
+      maxToolSteps: 1,
+      onToolResult,
+    });
+
+    expect(onToolResult).toHaveBeenCalledTimes(2);
+    expect(result.events).toHaveLength(2);
+    expect(setup.cancel).toHaveBeenCalledOnce();
+    expect(result.status).toBe("max_turns");
+  });
+
   it("cancels and errors when Eve requests human input", async () => {
     const setup = clientFor([
       { type: "input.requested", data: { requests: [{ kind: "question" }] } },
@@ -530,7 +587,7 @@ describe("Eve SDK session", () => {
     expect(result.stopReason).toContain("without a turn boundary");
   });
 
-  it("reports health failures as iteration errors", async () => {
+  it("reports health failures as fixed typed iteration errors", async () => {
     const client: EveClientLike = {
       health: vi.fn(async () => {
         throw new Error("health failed");
@@ -545,6 +602,34 @@ describe("Eve SDK session", () => {
       client,
     });
     expect(result.status).toBe("sdk_error");
-    expect(String(result.iterationError)).toContain("health failed");
+    expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
+    expect(String(result.iterationError)).toBe("HarnessAdapterError: Eve session failed.");
+    expect(JSON.stringify(result.iterationError)).not.toContain("health failed");
+  });
+
+  it("cancels the Eve session when a tool callback throws", async () => {
+    const setup = clientFor([
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", toolName: "stagehand__run" },
+        },
+      },
+    ]);
+    const result = await runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      server: { url: "http://eve" },
+      client: setup.client,
+      onToolResult: () => {
+        throw new Error("callback leaked sk-abc123SUPERSECRET");
+      },
+    });
+
+    expect(setup.cancel).toHaveBeenCalledOnce();
+    expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
+    expect(JSON.stringify(result)).not.toContain("SUPERSECRET");
   });
 });

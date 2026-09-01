@@ -278,6 +278,9 @@ importers:
       '@browserbasehq/stagehand-integrations-pi-sdk':
         specifier: workspace:*
         version: link:../integrations/pi-sdk
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.29.0(zod@4.4.3)
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
