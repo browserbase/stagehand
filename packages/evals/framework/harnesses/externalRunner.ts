@@ -176,9 +176,7 @@ export async function runExternalHarnessTask<TRaw>({
   const rawResult = [outcome.resultText, outcome.transcriptText, iterationErrorMessage]
     .filter(Boolean)
     .join("\n\n");
-  const trustedResultText = outcome.resultText.trim()
-    ? outcome.resultText
-    : stripToolResultBlocks(outcome.transcriptText);
+  const trustedResultText = outcome.resultText.trim();
   const parsed = { ...parseEvalResult(trustedResultText), raw: rawResult };
   const sanitizedStopReason = outcome.stopReason
     ? sanitizeErrorMessage(outcome.stopReason)
@@ -327,13 +325,6 @@ function tryParseEvalJson(candidate: string): Omit<ParsedEvalResult, "raw"> | un
   } catch {
     return undefined;
   }
-}
-
-function stripToolResultBlocks(transcript: string): string {
-  return transcript.replace(
-    /<tool(?:_use|_result)?\b[^>]*>[\s\S]*?<\/tool(?:_use|_result)\s*>/giu,
-    "",
-  );
 }
 
 /** Matches the integration packages while avoiding a runner-specific dependency. */

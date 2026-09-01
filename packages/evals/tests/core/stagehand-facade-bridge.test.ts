@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   FACADE_RELAY_SCRIPT,
+  StagehandFacadeBridgeError,
   STAGEHAND_FACADE_BRIDGE_PORT_ENV,
   startStagehandFacadeBridge,
   type StagehandFacadeBridge,
@@ -293,6 +294,36 @@ describe("stagehand facade bridge", () => {
     await waitForExit(relay);
   });
 
+  it("isolates identical request IDs from concurrent agent relays", async () => {
+    const bridge = await startBridge();
+    const firstRelay = startRelay(bridge);
+    const secondRelay = startRelay(bridge);
+    const firstOutput = collectResponses(firstRelay);
+    const secondOutput = collectResponses(secondRelay);
+    await waitFor(() => bridge.agentConnections() === 2);
+
+    firstRelay.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", id: 42, method: "tools/call", params: { name: "screenshot", arguments: {} } })}\n`,
+    );
+    secondRelay.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", id: 42, method: "tools/call", params: { name: "run", arguments: { code: "x" } } })}\n`,
+    );
+
+    await expect(firstOutput.response(42)).resolves.toMatchObject({
+      id: 42,
+      result: { content: expect.arrayContaining([expect.objectContaining({ type: "image" })]) },
+    });
+    await expect(secondOutput.response(42)).resolves.toEqual({
+      jsonrpc: "2.0",
+      id: 42,
+      result: { content: [{ type: "text", text: "ok" }] },
+    });
+
+    firstRelay.stdin.end();
+    secondRelay.stdin.end();
+    await Promise.all([waitForExit(firstRelay), waitForExit(secondRelay)]);
+  });
+
   it("treats child stdin backpressure as a successful write", async () => {
     const bridge = await startBridge();
 
@@ -304,12 +335,12 @@ describe("stagehand facade bridge", () => {
   it("redacts remote JSON-RPC error messages", async () => {
     const bridge = await startBridge();
 
-    await expect(
-      bridge.call("tools/call", {
-        name: "https://x.test?apiKey=secret123",
-        arguments: {},
-      }),
-    ).rejects.toThrow("apiKey=[redacted]");
+    const request = bridge.call("tools/call", {
+      name: "https://x.test?apiKey=secret123",
+      arguments: {},
+    });
+    await expect(request).rejects.toBeInstanceOf(StagehandFacadeBridgeError);
+    await expect(request).rejects.toThrow("apiKey=[redacted]");
   });
 
   it("closes an agent relay when the facade has exited", async () => {
@@ -321,7 +352,7 @@ describe("stagehand facade bridge", () => {
     relay.stdin.write(
       `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "__exit", arguments: {} } })}\n`,
     );
-    const firstResponse = output.response(1);
+    const firstResponse = expect(output.response(1)).rejects.toThrow(/stdout ended/iu);
     const deadline = Date.now() + 2_000;
     while (true) {
       try {
@@ -333,10 +364,9 @@ describe("stagehand facade bridge", () => {
       if (Date.now() >= deadline) throw new Error("Timed out waiting for facade exit");
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    relay.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" })}\n`);
-
-    await expect(firstResponse).rejects.toThrow(/stdout ended/iu);
+    await firstResponse;
     await waitForExit(relay);
+    await waitFor(() => bridge.agentConnections() === 0);
   });
 
   it("closes the facade child and is idempotent", async () => {

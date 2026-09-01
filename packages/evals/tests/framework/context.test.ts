@@ -18,17 +18,22 @@ describe("resolveDefaultCoreStartupProfile", () => {
   });
 
   it("derives agent-mount guidance from the harness registry", () => {
-    registerBenchHarness({
+    const unregister = registerBenchHarness({
       harness: "context_facade_harness",
       supportedTaskKinds: ["suite"],
       supportsApi: false,
       supportedToolSurfaces: ["stagehand_facade"],
       defaultModels: ["openai/x" as AvailableModel],
+      execute: async () => ({ _success: true }),
     });
 
-    expect(() => rejectAgentMountOnlyCoreTool("stagehand_facade")).toThrow(
-      /--harness claude_code, --harness codex, or --harness context_facade_harness/,
-    );
+    try {
+      expect(() => rejectAgentMountOnlyCoreTool("stagehand_facade")).toThrow(
+        /--harness claude_code, --harness codex, or --harness context_facade_harness/,
+      );
+    } finally {
+      unregister();
+    }
   });
 
   it("uses runner-provided local CDP for code surfaces in LOCAL", () => {

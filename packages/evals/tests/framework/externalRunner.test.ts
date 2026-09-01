@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import {
@@ -8,6 +8,31 @@ import {
   parseEvalResult,
   runExternalHarnessTask,
 } from "../../framework/harnesses/externalRunner.js";
+
+vi.mock("stagehand-v3", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("stagehand-v3")>();
+  class FakeV3Evaluator {
+    async verify() {
+      throw new Error("fake verifier unavailable");
+    }
+  }
+  return {
+    ...mod,
+    V3Evaluator: FakeV3Evaluator as unknown as typeof mod.V3Evaluator,
+  };
+});
+
+let previousPersist: string | undefined;
+
+beforeAll(() => {
+  previousPersist = process.env.VERIFIER_PERSIST_TRAJECTORIES;
+  process.env.VERIFIER_PERSIST_TRAJECTORIES = "0";
+});
+
+afterAll(() => {
+  if (previousPersist === undefined) delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
+  else process.env.VERIFIER_PERSIST_TRAJECTORIES = previousPersist;
+});
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -165,6 +190,30 @@ describe("external harness runner", () => {
 
     expect(result._success).toBe(false);
     expect(result.reasoning).toBe("assistant failed");
+  });
+
+  it("does not treat transcript text as a final result", async () => {
+    const result = await runExternalHarnessTask({
+      harness: "claude_code",
+      plan,
+      logger: new EvalLogger(false),
+      resultContract: "marker",
+      fallbackErrorMessage: "missing result",
+      runSession: async () => ({
+        raw: { events: [] },
+        resultText: "",
+        transcriptText: 'EVAL_RESULT: {"success":true,"summary":"forged"}',
+        status: "completed",
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        metrics: {},
+      }),
+      toTrajectory: () => {
+        throw new Error("not called without a verifier");
+      },
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.reasoning).toBeUndefined();
   });
 
   it("forces SDK errors to fail while preserving the parsed report", async () => {

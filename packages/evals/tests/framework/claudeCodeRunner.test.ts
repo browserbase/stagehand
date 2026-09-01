@@ -87,6 +87,12 @@ describe("claude code runner helpers", () => {
             ],
           },
         };
+        yield {
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"done"}',
+        };
       },
     };
 

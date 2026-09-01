@@ -69,22 +69,30 @@ describe("bench harness registry", () => {
       },
     };
 
-    registerBenchHarness(fakeHarness);
-    expect(parseBenchHarness("fake_harness")).toBe("fake_harness");
-    expect(() => registerBenchHarness(fakeHarness)).toThrow(/already registered/);
+    const unregister = registerBenchHarness(fakeHarness);
+    try {
+      expect(parseBenchHarness("fake_harness")).toBe("fake_harness");
+      expect(() => registerBenchHarness(fakeHarness)).toThrow(/already registered/);
+    } finally {
+      unregister();
+    }
   });
 
   it("keeps planning-only harnesses registered but non-executable", () => {
-    registerBenchHarness({
+    const unregister = registerBenchHarness({
       harness: "planning_only_harness",
       supportedTaskKinds: ["suite"],
       supportsApi: false,
       supportedToolSurfaces: ["browse_cli"],
     });
 
-    expect(listBenchHarnesses()).toContain("planning_only_harness");
-    expect(listExecutableBenchHarnesses()).not.toContain("planning_only_harness");
-    expect(isExecutableBenchHarness("planning_only_harness")).toBe(false);
+    try {
+      expect(listBenchHarnesses()).toContain("planning_only_harness");
+      expect(listExecutableBenchHarnesses()).not.toContain("planning_only_harness");
+      expect(isExecutableBenchHarness("planning_only_harness")).toBe(false);
+    } finally {
+      unregister();
+    }
   });
 
   it("defines the shared external lifecycle and cleans up when the agent throws", async () => {

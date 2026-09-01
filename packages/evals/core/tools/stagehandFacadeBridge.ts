@@ -2,9 +2,17 @@ import { spawn } from "node:child_process";
 import net, { type AddressInfo, type Socket } from "node:net";
 import type { ProbeEvidence } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+import { EvalsError } from "../../errors.js";
 import type { EvalLogger } from "../../logger.js";
 
 export const STAGEHAND_FACADE_BRIDGE_PORT_ENV = "STAGEHAND_EVALS_FACADE_BRIDGE_PORT";
+
+export class StagehandFacadeBridgeError extends EvalsError {
+  constructor(message: string) {
+    super(sanitizeErrorMessage(message));
+    this.name = "StagehandFacadeBridgeError";
+  }
+}
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -66,6 +74,11 @@ type PendingCall = {
   timer: NodeJS.Timeout;
 };
 
+type AgentRequest = {
+  socket: Socket;
+  originalId: unknown;
+};
+
 function positiveInt(value: string | undefined): number | undefined {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
@@ -87,14 +100,14 @@ function hasOwnId(message: JsonRpcMessage): boolean {
   return Object.prototype.hasOwnProperty.call(message, "id");
 }
 
-function rpcError(error: unknown): Error {
+function rpcError(error: unknown): StagehandFacadeBridgeError {
   if (error && typeof error === "object" && "message" in error) {
-    return new Error(sanitizeErrorMessage(String((error as { message: unknown }).message)));
+    return new StagehandFacadeBridgeError(String((error as { message: unknown }).message));
   }
   try {
-    return new Error(sanitizeErrorMessage(JSON.stringify(error) ?? String(error)));
+    return new StagehandFacadeBridgeError(JSON.stringify(error) ?? String(error));
   } catch {
-    return new Error(sanitizeErrorMessage(String(error)));
+    return new StagehandFacadeBridgeError(String(error));
   }
 }
 
@@ -132,12 +145,13 @@ export async function startStagehandFacadeBridge(
     env: { ...pickHostEnv(process.env), ...input.server.env },
   });
   const sockets = new Set<Socket>();
-  const agentRequests = new Map<string, Socket>();
+  const agentRequests = new Map<string, AgentRequest>();
   const pending = new Map<string, PendingCall>();
   const stderrLines: string[] = [];
   let stderrCarry = "";
   let stdoutCarry = "";
   let counter = 0;
+  let agentCounter = 0;
   let toolCallSeen = false;
   let closed = false;
   let exited = false;
@@ -213,9 +227,11 @@ export async function startStagehandFacadeBridge(
       return;
     }
 
-    const socket = agentRequests.get(idKey(message.id));
+    const request = agentRequests.get(idKey(message.id));
     agentRequests.delete(idKey(message.id));
-    if (socket?.writable) socket.write(`${rawLine}\n`);
+    if (request?.socket.writable) {
+      request.socket.write(`${JSON.stringify({ ...message, id: request.originalId })}\n`);
+    }
   };
 
   child.stdout.on("data", (chunk: Buffer | string) => {
@@ -232,7 +248,9 @@ export async function startStagehandFacadeBridge(
     child.once("error", (error) => {
       exited = true;
       exitDescription = sanitizeErrorMessage(`spawn error: ${error.message}`);
-      rejectPending(new Error(`Stagehand facade ${exitDescription}`));
+      rejectPending(new StagehandFacadeBridgeError(`Stagehand facade ${exitDescription}`));
+      for (const socket of sockets) socket.destroy();
+      agentRequests.clear();
       resolve();
     });
     child.once("exit", (code, signal) => {
@@ -240,8 +258,10 @@ export async function startStagehandFacadeBridge(
       exitDescription = code === null ? `signal ${signal ?? "unknown"}` : `exit code ${code}`;
       const detail = stderrLines.length > 0 ? `: ${stderrLines.join("\n")}` : "";
       rejectPending(
-        new Error(sanitizeErrorMessage(`Stagehand facade exited with ${exitDescription}${detail}`)),
+        new StagehandFacadeBridgeError(`Stagehand facade exited with ${exitDescription}${detail}`),
       );
+      for (const socket of sockets) socket.destroy();
+      agentRequests.clear();
       resolve();
     });
   });
@@ -282,20 +302,23 @@ export async function startStagehandFacadeBridge(
           continue;
         }
         if (message.method === "notifications/initialized") continue;
+        let childLine = line;
         if (hasOwnId(message) && typeof message.method === "string") {
-          agentRequests.set(idKey(message.id), socket);
+          const rewrittenId = `agent-facade-${agentCounter++}`;
+          agentRequests.set(idKey(rewrittenId), { socket, originalId: message.id });
+          childLine = JSON.stringify({ ...message, id: rewrittenId });
           if (message.method === "tools/call") toolCallSeen = true;
         }
-        if (!writeChild(`${line}\n`) && (closed || exited || child.stdin.destroyed)) {
-          socket.destroy(new Error("Stagehand facade bridge is closed"));
+        if (!writeChild(`${childLine}\n`) && (closed || exited || child.stdin.destroyed)) {
+          socket.destroy(new StagehandFacadeBridgeError("Stagehand facade bridge is closed"));
         }
       }
     });
     socket.on("error", () => undefined);
     socket.once("close", () => {
       sockets.delete(socket);
-      for (const [key, requestSocket] of agentRequests) {
-        if (requestSocket === socket) agentRequests.delete(key);
+      for (const [key, request] of agentRequests) {
+        if (request.socket === socket) agentRequests.delete(key);
       }
     });
   });
@@ -315,15 +338,19 @@ export async function startStagehandFacadeBridge(
     if (!exited) child.kill("SIGTERM");
     await waitForChildExit(1_000);
     if (!exited) child.kill("SIGKILL");
-    throw error;
+    throw new StagehandFacadeBridgeError(
+      `Failed to start Stagehand facade bridge: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   const port = (server.address() as AddressInfo).port;
 
   const call = (method: string, params?: Record<string, unknown>): Promise<unknown> => {
-    if (closed) return Promise.reject(new Error("Stagehand facade bridge is closed"));
+    if (closed) {
+      return Promise.reject(new StagehandFacadeBridgeError("Stagehand facade bridge is closed"));
+    }
     if (exited) {
       return Promise.reject(
-        new Error(sanitizeErrorMessage(`Stagehand facade exited with ${exitDescription}`)),
+        new StagehandFacadeBridgeError(`Stagehand facade exited with ${exitDescription}`),
       );
     }
     const id = `evals-facade-${counter++}`;
@@ -331,7 +358,9 @@ export async function startStagehandFacadeBridge(
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(
-          new Error(`Stagehand facade request "${method}" timed out after ${requestTimeoutMs}ms`),
+          new StagehandFacadeBridgeError(
+            `Stagehand facade request "${method}" timed out after ${requestTimeoutMs}ms`,
+          ),
         );
       }, requestTimeoutMs);
       pending.set(id, { resolve, reject, timer });
@@ -344,7 +373,7 @@ export async function startStagehandFacadeBridge(
       if (!writeChild(`${JSON.stringify(request)}\n`)) {
         pending.delete(id);
         clearTimeout(timer);
-        reject(new Error("Stagehand facade bridge is closed"));
+        reject(new StagehandFacadeBridgeError("Stagehand facade bridge is closed"));
       }
     });
   };
@@ -404,7 +433,7 @@ export async function startStagehandFacadeBridge(
   const close = (): Promise<void> => {
     closePromise ??= (async () => {
       closed = true;
-      rejectPending(new Error("Stagehand facade bridge is closed"));
+      rejectPending(new StagehandFacadeBridgeError("Stagehand facade bridge is closed"));
       for (const socket of sockets) socket.destroy();
       const serverClosed = new Promise<void>((resolve) => server.close(() => resolve()));
       if (!exited && !child.stdin.destroyed) child.stdin.end();

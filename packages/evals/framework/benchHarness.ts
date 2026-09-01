@@ -292,11 +292,16 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["codex", codexHarness],
 ]);
 
-export function registerBenchHarness(harness: BenchHarness): void {
+export function registerBenchHarness(harness: BenchHarness): () => void {
   if (harnessRegistry.has(harness.harness)) {
     throw new EvalsError(`Harness "${harness.harness}" is already registered.`);
   }
   harnessRegistry.set(harness.harness, harness);
+  return () => {
+    if (harnessRegistry.get(harness.harness) === harness) {
+      harnessRegistry.delete(harness.harness);
+    }
+  };
 }
 
 export function listBenchHarnesses(): Harness[] {
@@ -304,7 +309,7 @@ export function listBenchHarnesses(): Harness[] {
 }
 
 export function listBenchHarnessesForToolSurface(toolSurface: ToolSurface): Harness[] {
-  return listBenchHarnesses().filter((harness) =>
+  return listExecutableBenchHarnesses().filter((harness) =>
     harnessRegistry.get(harness)?.supportedToolSurfaces.includes(toolSurface),
   );
 }
