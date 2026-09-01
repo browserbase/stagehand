@@ -14,6 +14,7 @@ else, never restated.
 | `claude-code/` | Claude Agent SDK example (programmatic MCP mount) plus a `.mcp.json` for connecting a running Claude Code CLI.                                                               |
 | `codex/`       | Codex SDK example (config-override MCP mount) plus a `config.toml` template for the codex CLI.                                                                               |
 | `crewai/`      | Python CrewAI example over MCP/stdio (uv project).                                                                                                                           |
+| `cursor/`      | Cursor SDK example over MCP/stdio via the Cursor Agent SDK.                                                                                                                  |
 | `deepagents/`  | Python LangChain Deep Agents integrations: a local stdio MCP server and a Managed Deep Agents project with native tools.                                                     |
 | `eve/`         | Eve example with the tools bound natively via `defineTool` (Eve has no external-process tool mounting).                                                                      |
 | `fx/`          | fx configuration templates and skill — fx consumes the facade via its user-global MCP config.                                                                                |

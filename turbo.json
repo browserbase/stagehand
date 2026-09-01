@@ -148,6 +148,9 @@
     "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
       "dependsOn": ["^build"]
     },
+    "@browserbasehq/stagehand-integrations-example-cursor-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {
       "dependsOn": ["^build"],
