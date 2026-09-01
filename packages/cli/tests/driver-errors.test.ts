@@ -33,20 +33,20 @@ describe("classifyRemoteInitError", () => {
     expect(classified.message).toContain("browse doctor");
   });
 
-  it("preserves the original message for other failures", () => {
+  it("hides provider details for other failures", () => {
     const classified = classifyRemoteInitError(
-      new Error("session quota exceeded"),
+      new Error("sensitive provider detail"),
     );
     expect(classified.code).toBe("remote_session_create_failed");
     expect(classified.httpStatus).toBeUndefined();
-    expect(classified.message).toContain("session quota exceeded");
+    expect(classified.message).not.toContain("sensitive provider detail");
     expect(classified.message).toContain("browse doctor");
   });
 
   it("handles non-Error values and non-numeric statuses", () => {
     const classified = classifyRemoteInitError("boom");
     expect(classified.code).toBe("remote_session_create_failed");
-    expect(classified.message).toContain("boom");
+    expect(classified.message).not.toContain("boom");
   });
 });
 
