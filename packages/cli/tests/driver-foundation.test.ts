@@ -29,6 +29,7 @@ import {
   sanitizeSessionName,
 } from "../src/lib/driver/daemon/paths.js";
 import {
+  daemonRequestTimeoutMs,
   ensureDriverDaemon,
   getDriverStatus,
   openViaDaemon,
@@ -1039,9 +1040,20 @@ describe("driver foundation", () => {
     }
   });
 
+  it("caps open transport timeouts at Node's maximum timer delay", () => {
+    expect(
+      daemonRequestTimeoutMs({
+        id: "large-timeout",
+        timeoutMs: Number.MAX_SAFE_INTEGER,
+        type: "open",
+        url: "https://example.com",
+      }),
+    ).toBe(2_147_483_647);
+  });
+
   it("closes the browser when Stagehand.create fails", async () => {
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
-    const browser = { close: closeBrowser, context: {} };
+    const browser = { close: closeBrowser, context: {}, origin: "launched" };
     const launch = vi.fn().mockResolvedValue(browser);
     const create = vi.fn().mockRejectedValue(new Error("init failed"));
 
@@ -1069,6 +1081,74 @@ describe("driver foundation", () => {
       expect(launch).toHaveBeenCalledTimes(1);
       expect(create).toHaveBeenCalledTimes(1);
       expect(closeBrowser).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("leaves a connected browser open when Stagehand.create fails", async () => {
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {}, origin: "connected" };
+    const connect = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockRejectedValue(new Error("init failed"));
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect, launch: vi.fn() },
+      Stagehand: { create },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("connected-init-failure", {
+        endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
+        kind: "cdp",
+      });
+
+      await expect(manager.open("https://example.com")).rejects.toThrow(
+        "init failed",
+      );
+      expect(connect).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledOnce();
+      expect(closeBrowser).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("leaves a connected browser open when the manager closes", async () => {
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {}, origin: "connected" };
+    const connect = vi.fn().mockResolvedValue(browser);
+    const closeStagehand = vi.fn().mockResolvedValue(undefined);
+    const create = vi.fn().mockResolvedValue({
+      browser,
+      close: closeStagehand,
+    });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect, launch: vi.fn() },
+      Stagehand: { create },
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("connected-close", {
+        endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
+        kind: "cdp",
+      });
+
+      await manager.stagehandInstance();
+      await manager.close();
+      expect(closeStagehand).toHaveBeenCalledOnce();
+      expect(closeBrowser).not.toHaveBeenCalled();
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();

@@ -29,18 +29,35 @@ export const CURSOR_OVERLAY_SCRIPT = `(() => {
     return cursor;
   };
 
+  const moveCursor = (x, y) => {
+    const cursor = ensureCursor();
+    if (!cursor) return;
+    cursor.style.left = Math.max(0, x) + "px";
+    cursor.style.top = Math.max(0, y) + "px";
+  };
+
+  globalThis.__browseMoveCursorOverlay__ = moveCursor;
   ensureCursor();
   if (!globalThis.__browseCursorOverlayListenerInstalled__) {
     document.addEventListener(
       "mousemove",
       (event) => {
-        const cursor = ensureCursor();
-        if (!cursor) return;
-        cursor.style.left = Math.max(0, event.clientX) + "px";
-        cursor.style.top = Math.max(0, event.clientY) + "px";
+        moveCursor(event.clientX, event.clientY);
       },
       { capture: true },
     );
     globalThis.__browseCursorOverlayListenerInstalled__ = true;
   }
 })()`;
+
+export function updateCursorOverlayPosition(position: {
+  x: number;
+  y: number;
+}): void {
+  const moveCursor = (
+    globalThis as typeof globalThis & {
+      __browseMoveCursorOverlay__?: (x: number, y: number) => void;
+    }
+  ).__browseMoveCursorOverlay__;
+  moveCursor?.(position.x, position.y);
+}
