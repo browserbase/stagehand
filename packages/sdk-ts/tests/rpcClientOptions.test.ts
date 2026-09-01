@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { connectRPCClient, RPCClientOptionsSchema } from "../../../sdk-ts/src/rpcClient.ts";
+import { connectRPCClient, RPCClientOptionsSchema } from "../src/rpcClient.js";
 
 describe("RPCClientOptionsSchema", () => {
   const signal = new AbortController().signal;

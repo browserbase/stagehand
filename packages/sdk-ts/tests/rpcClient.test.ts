@@ -1,12 +1,15 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
-import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+import {
+  JSONRPCErrorCodes,
+  type RPCMethod,
+} from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import {
   MAX_CALLBACK_BATCH_TIMEOUT_MS,
   STAGEHAND_PROTOCOL_VERSION,
-} from "../../protocol/schemas.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
 import {
   RPCClient,
   RPCClientOptionsSchema,

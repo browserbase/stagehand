@@ -1,11 +1,10 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "./tsconfig.json",
   "compilerOptions": {
     "noImplicitAny": false,
     "strictNullChecks": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["rules/ast-grep/**/*.ts", "scripts/release/**/*.ts"]
 }

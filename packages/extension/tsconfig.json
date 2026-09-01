@@ -4,8 +4,8 @@
     "noImplicitAny": false,
     "strictNullChecks": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node", "chrome"]
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["artifacts", "dist", "node_modules"]
 }

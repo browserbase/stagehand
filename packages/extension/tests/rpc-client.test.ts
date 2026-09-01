@@ -1,8 +1,8 @@
 import { ROOT_CONTEXT, TraceFlags, context, trace } from "@opentelemetry/api";
 import { StackContextManager } from "@opentelemetry/sdk-trace-web";
 import { describe, expect, it, vi } from "vitest";
-import { JSONRPCRequestSchema } from "../../protocol/json-rpc/schemas.ts";
-import { StagehandMethods } from "../../protocol/schema-registry.ts";
+import { JSONRPCRequestSchema } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.ts";
 import { RPCClient } from "../clients/rpcClient.ts";
 import { createStagehandRuntime } from "../runtime.ts";

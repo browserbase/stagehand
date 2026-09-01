@@ -89,7 +89,7 @@ export type {
   WebMCPInvocationStatus,
   WebMCPRemoteObject,
   WebMCPToolResponse,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 export {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseLaunchOptionsSchema,

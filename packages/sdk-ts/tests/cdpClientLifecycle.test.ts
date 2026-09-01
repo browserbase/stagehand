@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   discoverInstalledStagehandExtensionId,
   loadUnpackedExtension,
@@ -7,7 +7,7 @@ import {
   StagehandRuntimeIncompatibleError,
   waitForRuntimeReady,
   waitForServiceWorker,
-} from "../../../sdk-ts/src/cdpClient.ts";
+} from "../src/cdpClient.js";
 
 type CdpCall = {
   method: string;

@@ -18,7 +18,12 @@
     },
     "@browserbasehq/stagehand-extension#build": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "!dist/**",
+        "!artifacts/stagehand-extension.zip"
+      ],
       "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
     },
     "@browserbasehq/stagehand#build": {
@@ -75,8 +80,16 @@
     },
     "//#fmt:check": {},
     "//#lint": {},
-    "@browserbasehq/stagehand-protocol#typecheck": {
-      "dependsOn": ["^build"]
+    "//#typecheck": {
+      "dependsOn": ["@browserbasehq/stagehand#typecheck"],
+      "inputs": ["tsconfig.tooling.json", "rules/ast-grep/**/*.ts", "scripts/release/**/*.ts"]
+    },
+    "@browserbasehq/stagehand-extension#typecheck": {
+      "dependsOn": ["^typecheck", "@browserbasehq/stagehand#typecheck"]
+    },
+    "@browserbasehq/stagehand-protocol#typecheck": {},
+    "@browserbasehq/stagehand#typecheck": {
+      "dependsOn": ["^typecheck"]
     },
     "@browserbasehq/stagehand-evals#typecheck": {
       "dependsOn": ["^build"]
@@ -153,7 +166,6 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/packages/protocol/**",
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
@@ -168,7 +180,6 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/packages/protocol/**",
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
@@ -179,22 +190,6 @@
     "//#test:unit": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts", "vitest.config.ts"]
-    },
-    "@browserbasehq/stagehand-protocol#test:browser": {
-      "dependsOn": ["^build"],
-      "cache": false,
-      "passThroughEnv": [
-        "CHROME_PATH",
-        "BROWSERBASE_API_KEY",
-        "BROWSERBASE_PROJECT_ID",
-        "BROWSERBASE_SMOKE"
-      ],
-      "inputs": [
-        "$TURBO_DEFAULT$",
-        "tests/browser-runtime/**",
-        "src/**",
-        "$TURBO_ROOT$/vitest.config.ts"
-      ]
     },
     "@browserbasehq/stagehand#test:browser": {
       "dependsOn": ["^build", "@browserbasehq/stagehand#build"],
@@ -239,12 +234,9 @@
         "tests/**",
         "json-rpc/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/packages/sdk-ts/src/**",
-        "$TURBO_ROOT$/packages/extension/**",
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },

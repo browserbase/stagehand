@@ -6,6 +6,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "examples/**/*.ts", "tsdown.config.ts"],
+  "exclude": ["dist", "node_modules"]
 }
