@@ -1,4 +1,6 @@
 export const CURSOR_OVERLAY_SCRIPT = `(() => {
+  if (globalThis !== globalThis.top) return;
+
   const cursorId = "__browse_cursor_overlay__";
   const ensureCursor = () => {
     const existing = document.getElementById(cursorId);

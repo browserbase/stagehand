@@ -477,6 +477,7 @@ describe("driver commands", () => {
     const cursorInstaller = page.evaluate.mock.calls[0]?.[0];
     expect(cursorInstaller).toEqual(expect.any(String));
     expect(cursorInstaller).toContain("__browse_cursor_overlay__");
+    expect(cursorInstaller).toContain("globalThis !== globalThis.top");
     expect(cursorInstaller).toContain('"mousemove"');
   });
 
