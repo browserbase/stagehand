@@ -24,8 +24,24 @@ export interface EveRunResult {
 
 export class EveTrajectoryAdapter implements TrajectoryAdapter<EveRunResult> {
   fromHarnessResult(result: EveRunResult, taskSpec: TaskSpec): Trajectory {
-    const requests = new Map<string, { toolName: string; input: Record<string, unknown> }>();
+    const requests = new Map<
+      string,
+      { toolName: string; input: Record<string, unknown>; stepIndex?: number }
+    >();
     const toolCalls: NormalizedToolCall[] = [];
+    // Eve finalizes a step's reasoning block independently of when the step's
+    // tool results stream, so reasoning is paired to tool calls by stepIndex
+    // rather than by arrival order. Events without a stepIndex fall back to
+    // "the reasoning emitted since the last tool result".
+    const reasoningByStep = new Map<number, string>();
+    for (const event of result.events) {
+      const data = isRecord(event.data) ? event.data : undefined;
+      if (event.type !== "reasoning.completed" || typeof data?.reasoning !== "string") continue;
+      const stepIndex = finiteIndex(data.stepIndex);
+      if (stepIndex === undefined) continue;
+      const previous = reasoningByStep.get(stepIndex);
+      reasoningByStep.set(stepIndex, previous ? `${previous}\n${data.reasoning}` : data.reasoning);
+    }
     let pendingReasoning = "";
     let latestAgentMessage: string | undefined;
     const fallbackUsage = { input_tokens: 0, output_tokens: 0, cached_input_tokens: 0 };
@@ -34,17 +50,20 @@ export class EveTrajectoryAdapter implements TrajectoryAdapter<EveRunResult> {
     for (const event of result.events) {
       const data = isRecord(event.data) ? event.data : undefined;
       if (event.type === "actions.requested" && Array.isArray(data?.actions)) {
+        const stepIndex = finiteIndex(data.stepIndex);
         for (const action of data.actions) {
           if (!isRecord(action) || action.kind !== "tool-call") continue;
           if (typeof action.callId !== "string" || typeof action.toolName !== "string") continue;
           requests.set(action.callId, {
             toolName: action.toolName,
             input: isRecord(action.input) ? action.input : {},
+            ...(stepIndex !== undefined && { stepIndex }),
           });
         }
         continue;
       }
       if (event.type === "reasoning.completed" && typeof data?.reasoning === "string") {
+        if (finiteIndex(data.stepIndex) !== undefined) continue;
         pendingReasoning = pendingReasoning
           ? `${pendingReasoning}\n${data.reasoning}`
           : data.reasoning;
@@ -66,13 +85,19 @@ export class EveTrajectoryAdapter implements TrajectoryAdapter<EveRunResult> {
             ? data.error.message
             : undefined;
         const normalized = normalizeOutput(actionResult.output);
+        const stepIndex = finiteIndex(data?.stepIndex) ?? request?.stepIndex;
+        const stepReasoning = stepIndex !== undefined ? reasoningByStep.get(stepIndex) : undefined;
+        // The first tool call of a step carries the step's reasoning; sibling
+        // calls from the same step were chosen by that same reasoning.
+        if (stepIndex !== undefined) reasoningByStep.delete(stepIndex);
+        const reasoning = stepReasoning ?? pendingReasoning;
         toolCalls.push({
           name: toolName,
           args: request?.input ?? {},
           result: normalized.result,
           ok,
           ...(!ok && { error: errorMessage ?? `tool ${status}` }),
-          ...(pendingReasoning && { reasoning: pendingReasoning }),
+          ...(reasoning && { reasoning }),
           ...(normalized.images.length > 0 && { images: normalized.images }),
         });
         pendingReasoning = "";
@@ -81,7 +106,9 @@ export class EveTrajectoryAdapter implements TrajectoryAdapter<EveRunResult> {
       }
       if (event.type === "message.completed" && typeof data?.message === "string") {
         pendingReasoning = "";
-        latestAgentMessage = data.message;
+        // Narration before a tool call (finishReason "tool-calls") is not the
+        // agent's conclusion; only a terminal reply can stand in as the answer.
+        if (data.finishReason !== "tool-calls") latestAgentMessage = data.message;
         continue;
       }
       if (event.type === "step.completed") {
@@ -159,6 +186,10 @@ function pairStepObservations(
     const observation = byRunIndex.get(ordinal);
     if (observation) call.probeEvidence = observation;
   });
+}
+
+function finiteIndex(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 }
 
 function finiteNumber(value: unknown): number {

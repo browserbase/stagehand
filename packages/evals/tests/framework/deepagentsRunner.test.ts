@@ -96,6 +96,7 @@ describe("Deep Agents runner", () => {
         env: {},
         promptInstructions: "Use mounted tools.",
         mcpServers: {},
+        browserSession: { provider: "local" },
         observedToolMatcher: () => false,
         cleanup: async () => {},
       }) satisfies PreparedDeepagentsToolAdapter;

@@ -39,10 +39,24 @@ const actionSchema = (op: string, extra: Record<string, Record<string, unknown>>
 });
 
 export const RUN_TOOL_DESCRIPTION =
+  'Browse and automate websites in the persistent browser by executing JavaScript against a Playwright-shaped API. The code runs inside an async function with page, context, and browser in scope (Playwright Page, BrowserContext, and Browser); use await directly and return a JSON-serializable value when useful. Navigate with await page.goto("https://example.com"); there is no separate navigate or start tool. Alternatively, provide a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
+
+/**
+ * Run-tool description of the pre-Playwright-idiom facade surface, kept
+ * byte-identical so `--surface=legacy` hosts reproduce the earlier contract.
+ */
+export const LEGACY_RUN_TOOL_DESCRIPTION =
   'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.';
 
 export const SNAPSHOT_TOOL_DESCRIPTION =
   "Capture the active page's Stagehand accessibility tree and hydrate its displayed IDs for subsequent run actions. Every call replaces the active page's ID map.";
+
+/**
+ * Runner-side tool, deliberately absent from tools/list. Launches the browser
+ * if needed and reports `{ provider, sessionId? }` so the harness can log the
+ * Browserbase session before the agent's first call.
+ */
+export const SESSION_INFO_TOOL_NAME = "session_info";
 
 export const SCREENSHOT_TOOL_DESCRIPTION =
   'Capture a screenshot of the active page. For size-constrained MCP clients, prefer a viewport JPEG: {"type":"jpeg","quality":40,"fullPage":false}.';
@@ -117,12 +131,49 @@ export const FACADE_TOOLS = [
   },
 ] as const;
 
+export const FACADE_LEGACY_TOOLS = [
+  { name: "run", description: LEGACY_RUN_TOOL_DESCRIPTION, inputSchema: RUN_INPUT_SCHEMA },
+  FACADE_TOOLS[1],
+  FACADE_TOOLS[2],
+] as const;
+
+export type FacadeSurface = "playwright" | "legacy";
+
+const SURFACE_FLAG = "--surface=";
+
+/** `--surface=legacy` selects the pre-Playwright-idiom run description; default is "playwright". */
+export function facadeSurfaceFromArgs(args: string[]): FacadeSurface {
+  const value = args.find((arg) => arg.startsWith(SURFACE_FLAG));
+  if (value === undefined) return "playwright";
+  const surface = value.slice(SURFACE_FLAG.length);
+  if (surface !== "playwright" && surface !== "legacy") {
+    throw new Error(`${SURFACE_FLAG} must be "playwright" or "legacy".`);
+  }
+  return surface;
+}
+
+export function facadeToolsForSurface(surface: FacadeSurface) {
+  return surface === "legacy" ? FACADE_LEGACY_TOOLS : FACADE_TOOLS;
+}
+
 /**
  * Canonical agent system prompt for the facade tool surface. Host examples
  * (Eve, Vercel AI SDK, deepagents) should use this text rather than authoring
  * their own so agent guidance stays identical across frameworks.
  */
-export const FACADE_AGENT_INSTRUCTIONS = `You control one persistent browser through exactly three tools:
+export const FACADE_AGENT_INSTRUCTIONS = `Browser tool surface: Stagehand Playwright facade.
+You control one persistent browser through exactly three tools:
+- run: execute JavaScript against an initialized Playwright page, context, and browser (page.goto, page.locator(selector).click()/fill(), page.getByRole(...), page.evaluate(...), page.waitForURL(...), and the rest of the Playwright API). Use await directly and return JSON-serializable values so you can inspect progress. Alternatively, pass snapshot actions.
+- snapshot: inspect the active page's accessibility tree and hydrate bracketed element IDs for run actions.
+- screenshot: inspect the rendered page visually.
+
+Pass run exactly one of code or actions; every action uses "op" and "id", never "kind" or "ref". Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation or stale IDs. The first browser action should usually be: await page.goto(url, { waitUntil: 'domcontentloaded' }). Do not launch another browser or create a separate browser process.`;
+
+/**
+ * Agent instructions of the pre-Playwright-idiom facade surface, kept
+ * byte-identical for `--surface=legacy` hosts.
+ */
+export const LEGACY_FACADE_AGENT_INSTRUCTIONS = `You control one persistent browser through exactly three tools:
 - snapshot: inspect the active page and hydrate bracketed element IDs.
 - run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
 - screenshot: inspect the rendered page visually.
@@ -139,6 +190,31 @@ export const STALE_SNAPSHOT_ID_ERROR =
 export function staleSnapshotIdError(id: string): string {
   return STALE_SNAPSHOT_ID_ERROR.replace("${id}", id);
 }
+
+/**
+ * Prefix of the terminal error every facade tool returns once the browser
+ * session is gone. Harnesses match on it to tell consequences from agent errors.
+ */
+export const BROWSER_SESSION_LOST_ERROR_PREFIX = "Browser session lost (";
+export const BROWSER_SESSION_LOST_ERROR =
+  "Browser session lost (${cause}). The task cannot continue; report your final result now.";
+/** Stderr telemetry line the stdio server emits once when the session is lost. */
+export const SESSION_LOST_TELEMETRY_PREFIX = "stagehand_facade_session_lost ";
+
+export function browserSessionLostError(cause: string): string {
+  return BROWSER_SESSION_LOST_ERROR.replace("${cause}", cause);
+}
+
+export function isBrowserSessionLostError(message: string): boolean {
+  return message.startsWith(BROWSER_SESSION_LOST_ERROR_PREFIX);
+}
+
+export type FacadeSessionLoss = {
+  cause: string;
+  /** Tool call that first observed the loss. */
+  tool: string;
+  at: string;
+};
 
 export const RefActionSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("click"), id: z.string().min(1) }),

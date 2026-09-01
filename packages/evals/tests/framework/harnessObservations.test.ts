@@ -9,6 +9,7 @@ import {
 } from "../../framework/observationRecorder.js";
 import {
   armsOverLimit,
+  armsWithPassesWithoutBrowserUse,
   armsWithUngradedRuns,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
@@ -238,6 +239,7 @@ describe("verifiability gate", () => {
         ungradedRuns: 0,
         unverifiableCriteria: 1,
         totalCriteria: 7,
+        passesWithoutBrowserUse: 0,
       },
       {
         arm: "claude_code × playwright_code × model-a",
@@ -245,6 +247,7 @@ describe("verifiability gate", () => {
         ungradedRuns: 0,
         unverifiableCriteria: 2,
         totalCriteria: 5,
+        passesWithoutBrowserUse: 0,
       },
     ]);
   });
@@ -254,8 +257,22 @@ describe("verifiability gate", () => {
     process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA = "1";
     expect(resolveUnverifiableCriteriaLimit()).toBe(1);
     const arms = [
-      { arm: "a", gradedRuns: 1, ungradedRuns: 0, unverifiableCriteria: 1, totalCriteria: 4 },
-      { arm: "b", gradedRuns: 1, ungradedRuns: 0, unverifiableCriteria: 2, totalCriteria: 4 },
+      {
+        arm: "a",
+        gradedRuns: 1,
+        ungradedRuns: 0,
+        unverifiableCriteria: 1,
+        totalCriteria: 4,
+        passesWithoutBrowserUse: 0,
+      },
+      {
+        arm: "b",
+        gradedRuns: 1,
+        ungradedRuns: 0,
+        unverifiableCriteria: 2,
+        totalCriteria: 4,
+        passesWithoutBrowserUse: 0,
+      },
     ];
     expect(armsOverLimit(arms, 1).map((a) => a.arm)).toEqual(["b"]);
   });
@@ -278,6 +295,42 @@ describe("verifiability gate", () => {
     expect(arms[0].gradedRuns).toBe(1);
     expect(arms[0].ungradedRuns).toBe(1);
     expect(armsWithUngradedRuns(arms).map((a) => a.arm)).toEqual([arms[0].arm]);
+  });
+
+  it("counts passes that never called the mounted browser surface", () => {
+    const arms = summarizeArmVerifiability(
+      [
+        row("m", "stagehand_facade", {
+          criterionCount: 3,
+          evidenceInsufficient: [],
+          _success: true,
+          metrics: { facade_tool_calls: { count: 1, value: 0 } },
+        }),
+        row("m", "stagehand_facade", {
+          criterionCount: 3,
+          evidenceInsufficient: [],
+          _success: true,
+          metrics: { facade_tool_calls: { count: 1, value: 4 } },
+        }),
+        row("m", "stagehand_facade", {
+          criterionCount: 3,
+          evidenceInsufficient: [],
+          _success: false,
+          metrics: { facade_tool_calls: { count: 1, value: 0 } },
+        }),
+        // No facade metric at all (older rows): not counted either way.
+        row("m", "stagehand_facade", {
+          criterionCount: 3,
+          evidenceInsufficient: [],
+          _success: true,
+        }),
+      ],
+      "codex",
+    );
+    expect(arms).toHaveLength(1);
+    expect(arms[0].gradedRuns).toBe(4);
+    expect(arms[0].passesWithoutBrowserUse).toBe(1);
+    expect(armsWithPassesWithoutBrowserUse(arms).map((a) => a.arm)).toEqual([arms[0].arm]);
   });
 
   it("treats malformed limit values as report-only", () => {

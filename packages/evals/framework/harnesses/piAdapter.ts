@@ -133,12 +133,14 @@ function normalizeResult(value: unknown): {
     for (const block of value.content) {
       if (!isRecord(block)) continue;
       if (block.type === "text" && typeof block.text === "string") text.push(block.text);
-      if (
-        block.type === "image" &&
-        typeof block.data === "string" &&
-        typeof block.mimeType === "string"
-      ) {
-        images.push({ bytes: Buffer.from(block.data, "base64"), mediaType: block.mimeType });
+      if (block.type === "image" && typeof block.mimeType === "string") {
+        // The pi session decodes screenshots to a single Buffer when it retains
+        // the event; raw base64 only arrives from callers that bypass it.
+        if (Buffer.isBuffer(block.bytes)) {
+          images.push({ bytes: block.bytes, mediaType: block.mimeType });
+        } else if (typeof block.data === "string") {
+          images.push({ bytes: Buffer.from(block.data, "base64"), mediaType: block.mimeType });
+        }
       }
     }
   }

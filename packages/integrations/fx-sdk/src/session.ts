@@ -4,6 +4,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -429,7 +430,15 @@ export async function runFxSession(input: {
   const committed = findLastCommittedTurn(logEvents);
   const turn = committed?.turn;
   const turnAssistant = typeof turn?.assistant === "string" ? turn.assistant : undefined;
-  const finalMessage = typeof ask?.output === "string" ? ask.output : (turnAssistant ?? "");
+  // `ask.output` is every assistant message of the turn joined together —
+  // opening narration, interstitial commentary and the conclusion — while the
+  // committed turn's `assistant` is the conclusion alone. The narration belongs
+  // to the tool steps that carry it, so the final message must be the latter.
+  const finalMessage = turnAssistant?.trim()
+    ? turnAssistant
+    : typeof ask?.output === "string"
+      ? ask.output
+      : "";
   if (turnAssistant || finalMessage) {
     const event: FxEvent = { type: "assistant", text: turnAssistant ?? finalMessage };
     events.push(event);
@@ -658,11 +667,19 @@ export function buildFxTranscript(events: FxEvent[]): string {
 }
 
 export function logFxEvent(logger: HarnessLogger, event: FxEvent): void {
+  const level = harnessEventLogLevel(event.type, {
+    isError:
+      (event.type === "stderr" && /\b(?:error|fatal|failed|panic)\b/iu.test(event.line)) ||
+      (event.type === "tool_step" &&
+        event.tool_results.some((result) => /^(?:error|failed)$/iu.test(result.status ?? ""))),
+    hasContent: true,
+  });
+  if (level === undefined) return;
   const summary = summarizeFxEvent(event);
   logger.log({
     category: "fx",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: event.type, type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),

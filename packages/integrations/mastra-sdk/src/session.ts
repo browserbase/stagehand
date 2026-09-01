@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -58,6 +59,8 @@ export type MastraSessionConfig = {
   agentId?: string;
   agentName?: string;
   modelSettings?: Record<string, unknown>;
+  /** AI SDK provider options forwarded to every model call (e.g. OpenAI reasoning summaries). */
+  providerOptions?: Record<string, Record<string, unknown>>;
   mcpTimeoutMs?: number;
   disconnectTimeoutMs?: number;
 };
@@ -205,10 +208,11 @@ export async function runMastraSession(input: {
         maxSteps,
         abortSignal: controller.signal,
         ...(input.session.modelSettings && { modelSettings: input.session.modelSettings }),
+        ...(input.session.providerOptions && { providerOptions: input.session.providerOptions }),
       });
 
       for await (const event of stream.fullStream) {
-        events.push(event);
+        events.push(compactMastraEvent(event));
         logMastraEvent(input.logger, event);
         const payload = isRecord(event.payload) ? event.payload : {};
         if (event.type === "tool-call") {
@@ -345,12 +349,17 @@ export function buildMastraTranscript(events: MastraEvent[]): string {
 }
 
 export function logMastraEvent(logger: HarnessLogger, event: MastraEvent): void {
-  const summary = summarizeMastraEvent(event);
   const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError: type === "error" || type === "tool-error",
+    hasContent: type === "tool-call" || type === "tool-result",
+  });
+  if (level === undefined) return;
+  const summary = summarizeMastraEvent(event);
   logger.log({
     category: "mastra",
     message: summary.message,
-    level: type === "text-delta" || type === "reasoning-delta" ? 2 : 1,
+    level,
     auxiliary: {
       type: { value: type, type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
@@ -383,17 +392,60 @@ export function summarizeMastraEvent(event: MastraEvent): {
   if (type === "reasoning-delta" && typeof payload.text === "string") {
     return sanitizeMastraSummary(`reasoning: ${clip(payload.text, 500)}`, payload.text);
   }
-  if (type === "finish") {
+  if (type === "finish" || type === "step-finish") {
     const stepResult = isRecord(payload.stepResult) ? payload.stepResult : undefined;
     const reason = String(stepResult?.reason ?? "unknown");
     const output = isRecord(payload.output) ? payload.output : undefined;
-    return sanitizeMastraSummary(`finish: ${reason}`, safeJson(output?.usage));
+    return sanitizeMastraSummary(`${type}: ${reason}`, safeJson(output?.usage));
   }
   if (type === "error") {
     const message = stringifyError(payload.error) || "error";
     return sanitizeMastraSummary(`error: ${clip(message, 500)}`, message);
   }
-  return sanitizeMastraSummary(`${type} event`, safeJson(event));
+  const detail = safeJson(compactMastraEvent(event));
+  return sanitizeMastraSummary(
+    `${type} event`,
+    detail === undefined ? undefined : clip(detail, MAX_EVENT_DETAIL_CHARS),
+  );
+}
+
+const MAX_EVENT_DETAIL_CHARS = 2_000;
+
+/** Chunk types the trajectory adapter and transcript read verbatim. */
+const RETAINED_MASTRA_EVENT_TYPES = new Set([
+  "tool-call",
+  "tool-result",
+  "tool-error",
+  "text-delta",
+  "reasoning-delta",
+  "error",
+  "abort",
+]);
+
+/**
+ * Reduce a fullStream chunk to what the session consumers need. Mastra's
+ * `step-finish`/`finish` payloads carry the whole request body (every prior
+ * message and tool result) under `metadata.request`/`response`, so retaining or
+ * stringifying them per step grows quadratically with the conversation.
+ */
+export function compactMastraEvent(event: MastraEvent): MastraEvent {
+  const type = String(event.type ?? "");
+  if (RETAINED_MASTRA_EVENT_TYPES.has(type)) return event;
+  const payload = isRecord(event.payload) ? event.payload : undefined;
+  const output = isRecord(payload?.output) ? payload.output : undefined;
+  const compactPayload: Record<string, unknown> = {
+    ...(payload?.stepResult !== undefined && { stepResult: payload.stepResult }),
+    ...(payload?.reason !== undefined && { reason: payload.reason }),
+    ...(payload?.toolName !== undefined && { toolName: payload.toolName }),
+    ...(payload?.toolCallId !== undefined && { toolCallId: payload.toolCallId }),
+    ...(output?.usage !== undefined && { output: { usage: output.usage } }),
+  };
+  return {
+    type: event.type,
+    ...(event.runId !== undefined && { runId: event.runId }),
+    ...(event.from !== undefined && { from: event.from }),
+    ...(payload !== undefined && { payload: compactPayload }),
+  };
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

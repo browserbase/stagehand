@@ -121,6 +121,7 @@ describe("bench harness registry", () => {
     expect(harness.start).toBeUndefined();
     expect(harness.supportedToolSurfaces).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
@@ -139,6 +140,7 @@ describe("bench harness registry", () => {
     expect(harness.start).toBeUndefined();
     expect(harness.supportedToolSurfaces).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
@@ -156,6 +158,7 @@ describe("bench harness registry", () => {
     expect(harness.start).toBeUndefined();
     expect(harness.supportedToolSurfaces).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
@@ -176,6 +179,7 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces).toEqual(CURSOR_TOOL_SURFACES);
     expect(harness.supportedToolSurfaces).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
@@ -344,6 +348,140 @@ describe("bench harness registry", () => {
         harness.execute?.({ task, input, row, logger: new EvalLogger(false) }),
       ).rejects.toThrow("cleanup failed");
       expect(close).toHaveBeenCalledOnce();
+    } finally {
+      close.mockRestore();
+    }
+  });
+
+  it("logs the browser session as the first task log line and stamps the result", async () => {
+    const close = vi.spyOn(V3.prototype, "close").mockResolvedValue(undefined);
+    const logger = new EvalLogger(false);
+    let agentSawSessionLine = false;
+    const harness = defineExternalHarness({
+      harness: "session_first_external",
+      supportedToolSurfaces: ["stagehand_facade"],
+      defaultModels: ["openai/x" as AvailableModel],
+      prepareToolAdapter: async (input) => {
+        input.logger.log({ category: "setup", message: "bridge started", level: 2 });
+        return {
+          browserSession: {
+            provider: "browserbase" as const,
+            sessionId: "sess-1",
+            sessionUrl: "https://www.browserbase.com/sessions/sess-1",
+          },
+          cleanup: async () => {},
+        };
+      },
+      runAgent: async (input) => {
+        agentSawSessionLine = input.logger
+          .getLogs()
+          .some(
+            (line) =>
+              line.message === "Browserbase session: https://www.browserbase.com/sessions/sess-1",
+          );
+        input.logger.log({ category: "agent", message: "step 1 · run · ok", level: 1 });
+        return { _success: true, logs: input.logger.getLogs() };
+      },
+    });
+    const input: EvalInput = {
+      name: "agent/webvoyager",
+      modelName: "openai/x" as AvailableModel,
+      params: { id: "wv-1", web: "https://example.com", ques: "Find it" },
+    };
+    const task: DiscoveredTask = {
+      name: input.name,
+      tier: "bench",
+      primaryCategory: "agent",
+      categories: ["agent"],
+      tags: [],
+      filePath: "/tmp/fake.ts",
+      isLegacy: false,
+    };
+    const row: BenchMatrixRow = {
+      harness: "session_first_external",
+      task: input.name,
+      category: "agent",
+      taskKind: "agent",
+      model: input.modelName,
+      environment: "BROWSERBASE",
+      useApi: false,
+      toolSurface: "stagehand_facade",
+      startupProfile: "tool_create_browserbase",
+      trial: 1,
+      config: {
+        harness: "session_first_external",
+        model: input.modelName,
+        environment: "BROWSERBASE",
+        useApi: false,
+        toolSurface: "stagehand_facade",
+        startupProfile: "tool_create_browserbase",
+      },
+    };
+
+    try {
+      const result = await harness.execute!({ task, input, row, logger });
+      expect(agentSawSessionLine).toBe(true);
+      // Level-2 setup chatter is filtered out, so the session pointer heads the row logs.
+      expect((result.logs ?? []).map((line) => line.message)).toEqual([
+        "Browserbase session: https://www.browserbase.com/sessions/sess-1",
+        "step 1 · run · ok",
+      ]);
+      expect(result.logs?.[0]).toMatchObject({ category: "session", level: 0 });
+      expect(result).toMatchObject({
+        sessionUrl: "https://www.browserbase.com/sessions/sess-1",
+        browserbaseSessionId: "sess-1",
+        browserProvider: "browserbase",
+      });
+    } finally {
+      close.mockRestore();
+    }
+  });
+
+  it("logs a bare provider line when the adapter reports no session", async () => {
+    const close = vi.spyOn(V3.prototype, "close").mockResolvedValue(undefined);
+    const logger = new EvalLogger(false);
+    const harness = defineExternalHarness({
+      harness: "session_fallback_external",
+      supportedToolSurfaces: ["browse_cli"],
+      defaultModels: ["openai/x" as AvailableModel],
+      prepareToolAdapter: async () => ({ cleanup: async () => {} }),
+      runAgent: async () => ({ _success: true }),
+    });
+    const input: EvalInput = {
+      name: "agent/webvoyager",
+      modelName: "openai/x" as AvailableModel,
+      params: { id: "wv-1", web: "https://example.com", ques: "Find it" },
+    };
+    const task: DiscoveredTask = {
+      name: input.name,
+      tier: "bench",
+      primaryCategory: "agent",
+      categories: ["agent"],
+      tags: [],
+      filePath: "/tmp/fake.ts",
+      isLegacy: false,
+    };
+    const row: BenchMatrixRow = {
+      harness: "session_fallback_external",
+      task: input.name,
+      category: "agent",
+      taskKind: "agent",
+      model: input.modelName,
+      environment: "LOCAL",
+      useApi: false,
+      trial: 1,
+      config: {
+        harness: "session_fallback_external",
+        model: input.modelName,
+        environment: "LOCAL",
+        useApi: false,
+      },
+    };
+    try {
+      const result = await harness.execute!({ task, input, row, logger });
+      expect(logger.getLogs().map((line) => line.message)).toEqual(["Browser: local"]);
+      expect(result.browserProvider).toBe("local");
+      expect(result.sessionUrl).toBeUndefined();
     } finally {
       close.mockRestore();
     }

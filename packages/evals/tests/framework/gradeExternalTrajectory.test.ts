@@ -1,7 +1,13 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Rubric, TaskSpec, Trajectory, TrajectoryStep } from "stagehand-v3";
 
-import { gradeExternalTrajectory } from "../../framework/verifierAdapter.js";
+import {
+  buildPersistedEvaluationResult,
+  gradeExternalTrajectory,
+} from "../../framework/verifierAdapter.js";
 import { EvalLogger } from "../../logger.js";
 
 const mockState = vi.hoisted(() => ({
@@ -112,5 +118,176 @@ describe("gradeExternalTrajectory", () => {
 
     expect(result._success).toBe(true);
     expect(result.processScore).toBe(0.95);
+  });
+
+  it("surfaces the judge verdict, gate list and gate metrics on the result", async () => {
+    const result = await grade({ metrics: { harness_total_tokens: { count: 1, value: 10 } } });
+
+    expect(result.judgeOutcomeSuccess).toBe(true);
+    expect(result.outcomeGates).toEqual([]);
+    expect(result.processScoreLenient).toBe(0.92);
+    expect(result.processScoreStrict).toBe(0.92);
+    expect(result.scoringIncomplete).toBe(true);
+    const metrics = result.metrics as Record<string, { count: number; value: number }>;
+    expect(metrics.harness_total_tokens).toEqual({ count: 1, value: 10 });
+    expect(metrics.outcome_gated).toEqual({ count: 1, value: 0 });
+    expect(metrics.scoring_incomplete).toEqual({ count: 1, value: 1 });
+    expect(metrics.answer_grounded).toBeUndefined();
+  });
+
+  it("gates a judge pass that never touched the browser and fails _success", async () => {
+    const result = await gradeExternalTrajectory({
+      buildTrajectory: () =>
+        ({
+          ...trajectory,
+          steps: [
+            { actionName: "web_fetch", actionArgs: {}, toolOutput: { ok: true, result: "" } },
+          ],
+        }) as unknown as Trajectory,
+      verifier: { v3: {} as never, taskSpec, dataset: "test" },
+      baseResult: { _success: true },
+      errorMessage: "agent reported failure",
+      category: "fx",
+      logger: new EvalLogger(false),
+      isFacadeTool: (name) => name.startsWith("stagehand"),
+    });
+
+    expect(result.judgeOutcomeSuccess).toBe(true);
+    expect(result.outcomeSuccess).toBe(false);
+    expect(result.outcomeGates).toEqual(["no_browser_use"]);
+    expect(result._success).toBe(false);
+    // A gate that overrides a judge pass names itself in the row error so the
+    // reason is visible where the row is read, with the agent's claim attached.
+    expect(result.error).toMatch(
+      /^gated: no_browser_use — no browser tool calls \(judge passed; agent said: agent reported failure\)$/,
+    );
+    expect((result.metrics as Record<string, { value: number }>).outcome_gated.value).toBe(1);
+  });
+
+  it("persists the gated verdict at the top level of scores/result.json", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "gated-result-json-"));
+    process.env.VERIFIER_PERSIST_TRAJECTORIES = "1";
+    try {
+      const result = await gradeExternalTrajectory({
+        buildTrajectory: () =>
+          ({
+            ...trajectory,
+            finalAnswer: "",
+            status: "error",
+            steps: [
+              {
+                actionName: "stagehand__run",
+                actionArgs: {},
+                reasoning: "",
+                agentEvidence: { modalities: [] },
+                probeEvidence: {},
+                toolOutput: { ok: true, result: "" },
+              },
+            ],
+          }) as Trajectory,
+        verifier: { v3: {} as never, taskSpec, dataset: "test", trajectoryRoot: root },
+        baseResult: { _success: true },
+        errorMessage: "agent reported failure",
+        category: "eve",
+        logger: new EvalLogger(false),
+      });
+      expect(result.verifierError).toBeUndefined();
+      expect(result.outcomeGates).toEqual(["no_final_answer", "trajectory_error"]);
+
+      const dir = result.trajectoryDir as string;
+      const persisted = JSON.parse(
+        await fs.readFile(path.join(dir, "scores", "result.json"), "utf8"),
+      );
+      expect(persisted).toMatchObject({
+        outcomeSuccess: false,
+        judgeOutcomeSuccess: true,
+        outcomeGates: ["no_final_answer", "trajectory_error"],
+        processScore: 0.92,
+        processScoreStrict: 0.92,
+        processScoreLenient: 0.92,
+        judge: { outcomeSuccess: true, processScore: 0.92 },
+      });
+      const taskData = JSON.parse(await fs.readFile(path.join(dir, "task_data.json"), "utf8"));
+      expect(taskData.result.outcomeSuccess).toBe(false);
+      // The sidecar audit file stays.
+      const gates = JSON.parse(await fs.readFile(path.join(dir, "scores", "gates.json"), "utf8"));
+      expect(gates.outcomeSuccess).toBe(false);
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("builds the persisted result from the judge verdict and the gates", () => {
+    const persisted = buildPersistedEvaluationResult(
+      { outcomeSuccess: true, processScore: 0.8, perCriterion: [], evidenceInsufficient: ["x"] },
+      {
+        outcomeSuccess: false,
+        judgeOutcomeSuccess: true,
+        outcomeGates: ["no_browser_use"],
+        processScore: 0.5,
+        processScoreStrict: 0.5,
+        processScoreLenient: 0.8,
+        perCriterion: [
+          { criterion: "a", maxPoints: 1, earnedPoints: 0, explanation: "", blocked: true },
+        ],
+        blockedCriteria: 1,
+        scoringIncomplete: false,
+      },
+    );
+    expect(persisted.outcomeSuccess).toBe(false);
+    expect(persisted.judgeOutcomeSuccess).toBe(true);
+    expect(persisted.processScore).toBe(0.5);
+    expect(persisted.processScoreLenient).toBe(0.8);
+    expect(persisted.perCriterion).toEqual([expect.objectContaining({ blocked: true })]);
+    expect(persisted.evidenceInsufficient).toEqual(["x"]);
+    expect(persisted.judge).toEqual({
+      outcomeSuccess: true,
+      processScore: 0.8,
+      perCriterion: [],
+      evidenceInsufficient: ["x"],
+    });
+  });
+
+  it("records grounding as advisory by default and gates only when opted in", async () => {
+    const searchOnly = {
+      ...trajectory,
+      finalAnswer: "The seat costs SGD 5.",
+      steps: [
+        {
+          actionName: "stagehand__run",
+          actionArgs: { code: "await page.goto('https://www.google.com/search?q=seat')" },
+          probeEvidence: { url: "https://www.google.com/search?q=seat" },
+          toolOutput: { ok: true, result: "AirAsia seat SGD 5" },
+        },
+      ],
+    } as unknown as Trajectory;
+    const run = (dataset: string) =>
+      gradeExternalTrajectory({
+        buildTrajectory: () => searchOnly,
+        verifier: { v3: {} as never, taskSpec, dataset },
+        baseResult: { _success: true },
+        errorMessage: "agent reported failure",
+        category: "eve",
+        logger: new EvalLogger(false),
+      });
+
+    // Default: a correct answer sourced from a search snippet still passes;
+    // the grounding result is recorded so snippet-sourced passes stay filterable.
+    const advisory = await run("hardbenchmark");
+    expect(advisory.outcomeGates).toEqual([]);
+    expect(advisory._success).toBe(true);
+    expect((advisory.metrics as Record<string, { value: number }>).answer_grounded.value).toBe(0);
+    expect(
+      (advisory.grounding as { ungrounded: Array<{ text: string }> }).ungrounded[0]?.text,
+    ).toBe("SGD 5");
+
+    process.env.EVAL_REQUIRE_GROUNDING = "1";
+    try {
+      const gated = await run("hardbenchmark");
+      expect(gated.outcomeGates).toEqual(["ungrounded_answer"]);
+      expect(gated._success).toBe(false);
+    } finally {
+      delete process.env.EVAL_REQUIRE_GROUNDING;
+    }
   });
 });

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -395,11 +396,19 @@ export function buildCursorTranscript(events: CursorEvent[]): string {
 }
 
 export function logCursorEvent(logger: HarnessLogger, event: CursorEvent): void {
+  const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError:
+      (type === "result" && event.subtype !== undefined && event.subtype !== "success") ||
+      (type === "tool_call" && extractCursorToolCall(event)?.ok === false),
+    hasContent: type === "assistant" || type === "tool_call" || type === "result",
+  });
+  if (level === undefined) return;
   const summary = summarizeCursorEvent(event);
   logger.log({
     category: "cursor",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),

@@ -1,11 +1,17 @@
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import type { HarnessTrajectory, TerminationReason } from "./trajectoryAdapter.js";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+import type { BrowserSessionLoss } from "../../core/contracts/tool.js";
+import { isBrowserSessionLostError } from "../../core/tools/browserSessionLoss.js";
 import type { EvalLogger } from "../../logger.js";
 import { datasetPromptGuidance } from "../externalHarnessPlan.js";
 import type { ExternalHarnessTaskPlan } from "../externalHarnessPlan.js";
 import type { StepObservation } from "../observationRecorder.js";
 import type { TaskResult } from "../types.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "../verifierAdapter.js";
+import { emitTrajectoryTrace } from "./traceLog.js";
+import { resolveBilledCost, type BilledCost } from "../costEstimate.js";
+import { normalizeUsage, type NormalizedUsage } from "../usageNormalization.js";
 
 export type MetricValue = { count: number; value: number };
 
@@ -45,10 +51,13 @@ export function parseEvalResult(raw: string): ParsedEvalResult {
   const markerIndex = markerMatch?.index ?? -1;
   const resultText =
     markerIndex >= 0 ? raw.slice(markerIndex + (markerMatch?.[0].length ?? 0)).trim() : raw.trim();
+  // Without a marker the report may trail free-form narration ("I'll open
+  // the site...\n\n{...}"): a report-shaped object that ends the message is
+  // the agent's conclusion. One quoted mid-prose is not.
   const candidates =
     markerIndex >= 0
       ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
-      : [resultText, resultText.split(/\r?\n/, 1)[0]?.trim()];
+      : [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), trailingEvalResultJson(resultText)];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -56,6 +65,30 @@ export function parseEvalResult(raw: string): ParsedEvalResult {
     if (parsed) return { ...parsed, raw };
   }
   return { success: false, raw };
+}
+
+/**
+ * The answer the verifier should grade: the structured report's finalAnswer
+ * when the agent produced one, otherwise its last message with any embedded
+ * JSON report removed so plans and raw blobs are never graded as answers.
+ */
+export function resolveFinalAnswer(
+  parsed: Pick<ParsedEvalResult, "finalAnswer">,
+  lastMessage: string | undefined,
+): string | undefined {
+  if (parsed.finalAnswer !== undefined) return parsed.finalAnswer;
+  if (!lastMessage) return undefined;
+  const stripped = stripEmbeddedJsonObjects(lastMessage).trim();
+  return stripped || undefined;
+}
+
+/** Remove every balanced `{...}` span that parses as a JSON object. */
+export function stripEmbeddedJsonObjects(text: string): string {
+  let output = text;
+  for (const span of extractJsonObjects(text)) {
+    if (isRecordJson(span)) output = output.replace(span, "");
+  }
+  return output.replace(/\n{3,}/gu, "\n\n");
 }
 
 export interface ExternalHarnessPromptInput {
@@ -107,6 +140,12 @@ export interface ExternalHarnessUsage {
   cacheCreationInputTokens?: number;
   reasoningOutputTokens?: number;
   totalTokens: number;
+  /**
+   * `false` when the SDK exposed no usage at all (cursor; codex after an
+   * aborted turn with no rollout to recover from). Zeros with `reported: false`
+   * are treated as unknown, never as a free run.
+   */
+  reported?: boolean;
 }
 
 export interface ExternalHarnessSessionOutcome<TRaw> {
@@ -126,6 +165,26 @@ export interface ExternalHarnessToolAdapterLike {
   captureEvidence?: () => Promise<ProbeEvidence>;
   drainStepObservations?: () => Promise<StepObservation[]>;
   observedToolMatcher?: (name: string) => boolean;
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
+}
+
+/** harnessStopReason recorded when the mounted browser died before the agent finished. */
+export const BROWSER_SESSION_LOST_STOP_REASON = "browser_session_lost";
+
+/**
+ * Collapse a harness's normalized status + stop reason into why the run ended.
+ * Every SDK reports `completed | max_turns | sdk_error`; the stop reason is the
+ * only place aborts and browser loss are distinguishable from other errors.
+ */
+export function deriveTerminationReason(
+  outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "status" | "stopReason">,
+): TerminationReason {
+  if (outcome.status === "completed") return "completed";
+  if (outcome.status === "max_turns") return "step_budget";
+  const stopReason = outcome.stopReason ?? "";
+  if (stopReason === BROWSER_SESSION_LOST_STOP_REASON) return "browser_session_lost";
+  if (/\b(aborted|interrupted)\b/iu.test(stopReason)) return "aborted";
+  return "sdk_error";
 }
 
 export interface ExternalHarnessTrajectoryInput<TRaw> {
@@ -141,11 +200,18 @@ export interface ExternalHarnessTrajectoryInput<TRaw> {
 export interface RunExternalHarnessTaskInput<TRaw> {
   harness: string;
   plan: ExternalHarnessTaskPlan;
+  /** Configured model id, used to price the normalized token usage. */
+  model?: string;
   logger: EvalLogger;
   toolAdapter?: ExternalHarnessToolAdapterLike;
   verifier?: ExternalHarnessVerifierConfig;
   resultContract: EvalResultContract;
   fallbackErrorMessage: string;
+  /**
+   * The step (or turn) budget the session was started with, emitted as the
+   * `step_budget` metric so rows can be grouped by it in Braintrust.
+   */
+  stepBudget?: number;
   /** Harness-specific result parser; defaults to the strict parseEvalResult. */
   parseResult?: (raw: string) => ParsedEvalResult;
   runSession: (prompt: string) => Promise<ExternalHarnessSessionOutcome<TRaw>>;
@@ -160,11 +226,13 @@ export interface RunExternalHarnessTaskInput<TRaw> {
 export async function runExternalHarnessTask<TRaw>({
   harness,
   plan,
+  model,
   logger,
   toolAdapter,
   verifier,
   resultContract,
   fallbackErrorMessage,
+  stepBudget,
   parseResult,
   runSession,
   toTrajectory,
@@ -174,7 +242,27 @@ export async function runExternalHarnessTask<TRaw>({
     toolInstructions: toolAdapter?.promptInstructions,
     resultContract,
   });
-  const outcome = await runSession(prompt);
+  const startedAt = performance.now();
+  const sessionOutcome = await runSession(prompt);
+  const agentWallMs = performance.now() - startedAt;
+  // A run that outlived its browser has no trustworthy self-report: the agent
+  // was answering terminal "Browser session lost" errors, not the task.
+  const browserSessionLoss = toolAdapter?.browserSessionLoss?.();
+  if (browserSessionLoss) {
+    logger.warn({
+      category: "stagehand_facade",
+      level: 1,
+      message: `browser session lost before the agent finished: ${browserSessionLoss.cause}`,
+    });
+  }
+  const outcome: ExternalHarnessSessionOutcome<TRaw> = browserSessionLoss
+    ? {
+        ...sessionOutcome,
+        status: "sdk_error",
+        stopReason: BROWSER_SESSION_LOST_STOP_REASON,
+        iterationError: `Browser session lost (${browserSessionLoss.cause})`,
+      }
+    : sessionOutcome;
   const iterationErrorMessage = stringifyError(outcome.iterationError);
   const rawResult = [outcome.resultText, outcome.transcriptText, iterationErrorMessage]
     .filter(Boolean)
@@ -189,7 +277,9 @@ export async function runExternalHarnessTask<TRaw>({
   const sanitizedIterationError = iterationErrorMessage
     ? sanitizeErrorMessage(iterationErrorMessage)
     : undefined;
-  const sdkErrorMessage = sanitizedStopReason ?? sanitizedIterationError;
+  const sdkErrorMessage = browserSessionLoss
+    ? sanitizedIterationError
+    : (sanitizedStopReason ?? sanitizedIterationError);
   const errorMessage = sanitizeErrorMessage(
     outcome.status === "sdk_error"
       ? (sdkErrorMessage ?? fallbackErrorMessage)
@@ -201,6 +291,22 @@ export async function runExternalHarnessTask<TRaw>({
           fallbackErrorMessage,
   );
   const prefix = legacyHarnessFieldPrefix(harness);
+  const terminationReason = deriveTerminationReason(outcome);
+  const usage = normalizeUsage({ harness, raw: outcome.usage });
+  const cost = resolveBilledCost({ harness, model, usage, reportedCostUsd: outcome.costUsd });
+  if (cost.cost_source === "unavailable" && usage.convention !== "unreported") {
+    logger.log({
+      category: "cost",
+      level: 1,
+      message: `cost unavailable for ${harness} on ${model ?? "(unknown model)"} (channel ${cost.billing_channel}); cost_usd omitted`,
+    });
+  }
+  const baseMetrics: Record<string, MetricValue> = {
+    ...buildNormalizedHarnessMetrics(outcome),
+    ...buildUsageCostMetrics(usage, cost),
+    ...(stepBudget !== undefined && { step_budget: metricValue(stepBudget) }),
+    agent_wall_ms: metricValue(agentWallMs),
+  };
   const baseResult: TaskResult = {
     _success: outcome.status === "sdk_error" ? false : parsed.success,
     error: outcome.status === "sdk_error" || !parsed.success ? errorMessage : undefined,
@@ -209,47 +315,198 @@ export async function runExternalHarnessTask<TRaw>({
     rawResult: parsed.raw,
     harnessStatus: outcome.status,
     ...(sanitizedStopReason && { harnessStopReason: sanitizedStopReason }),
+    terminationReason,
+    agent_wall_ms: Math.round(agentWallMs),
+    cost_source: cost.cost_source,
+    billing_channel: cost.billing_channel,
+    ...(cost.cost_usd !== undefined && { cost_usd: cost.cost_usd }),
     // Deprecated compatibility aliases; consumers should use the normalized
     // harnessStatus / harnessStopReason fields for newly registered harnesses.
     [`${prefix}Status`]: outcome.status,
     ...(sanitizedStopReason && { [`${prefix}StopReason`]: sanitizedStopReason }),
     logs: logger.getLogs(),
-    metrics: buildNormalizedHarnessMetrics(outcome),
+    metrics: baseMetrics,
   };
-  if (!verifier) return baseResult;
+  if (!verifier) {
+    return { ...baseResult, metrics: { ...baseMetrics, total_wall_ms: metricValue(agentWallMs) } };
+  }
 
+  const isFacadeTool = toolAdapter?.observedToolMatcher;
   const evidenceTimeoutMs = readPositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000);
+  const evidenceStartedAt = performance.now();
   const finalObservation = toolAdapter?.captureEvidence
     ? await bestEffort(toolAdapter.captureEvidence(), evidenceTimeoutMs)
     : undefined;
   const stepObservations = toolAdapter?.drainStepObservations
     ? await bestEffort(toolAdapter.drainStepObservations(), evidenceTimeoutMs)
     : undefined;
+  const evidenceMs = performance.now() - evidenceStartedAt;
+  let trajectory: HarnessTrajectory | undefined;
+  const verifierStartedAt = performance.now();
   const gradedResult = await gradeExternalTrajectory({
-    buildTrajectory: () =>
-      toTrajectory(
-        {
-          raw: outcome.raw,
-          parsed,
+    buildTrajectory: () => {
+      trajectory = withTerminationReason(
+        toTrajectory(
+          {
+            raw: outcome.raw,
+            parsed,
+            outcome,
+            ...(finalObservation && { finalObservation }),
+            ...(stepObservations?.length && { stepObservations }),
+            ...(toolAdapter?.observedToolMatcher && {
+              observedToolName: toolAdapter.observedToolMatcher,
+            }),
+            status: outcome.status === "completed" ? "complete" : "error",
+          },
+          verifier.taskSpec,
+        ),
+        terminationReason,
+      );
+      // The readable step trace is derived from the normalized trajectory so
+      // every harness logs the same shape; a formatting bug must never fail
+      // the grade.
+      try {
+        emitTrajectoryTrace(logger, {
+          trajectory,
           outcome,
-          ...(finalObservation && { finalObservation }),
-          ...(stepObservations?.length && { stepObservations }),
-          ...(toolAdapter?.observedToolMatcher && {
-            observedToolName: toolAdapter.observedToolMatcher,
-          }),
-          status: outcome.status === "completed" ? "complete" : "error",
-        },
-        verifier.taskSpec,
-      ),
+          usage,
+          agentWallMs,
+          isFacadeTool,
+          report: {
+            summary: parsed.summary,
+            finalAnswer: parsed.finalAnswer,
+            success: parsed.success,
+          },
+        });
+      } catch (traceError) {
+        logger.warn({
+          category: "trace",
+          level: 1,
+          message: `step trace failed: ${stringifyError(traceError)}`,
+        });
+      }
+      return trajectory;
+    },
     verifier,
     baseResult,
     errorMessage,
     category: harness,
     logger,
+    isFacadeTool,
   });
+  const verifierWallMs = performance.now() - verifierStartedAt;
+  const timing = buildTimingMetrics({ agentWallMs, evidenceMs, verifierWallMs });
+  logger.log({
+    category: "trace",
+    level: 1,
+    message: [
+      "timing",
+      `agent=${formatSeconds(agentWallMs)}`,
+      `evidence=${formatSeconds(evidenceMs)}`,
+      `verifier=${formatSeconds(verifierWallMs)}`,
+      `total=${formatSeconds(timing.total_wall_ms.value)}`,
+      ...(cost.cost_usd !== undefined ? [`cost=$${cost.cost_usd} (${cost.cost_source})`] : []),
+    ].join(" · "),
+  });
+  const facadeMetrics =
+    trajectory && isFacadeTool ? buildFacadeToolCallMetrics(trajectory, isFacadeTool) : {};
+  const gradedMetrics = (gradedResult.metrics ?? {}) as Record<string, MetricValue>;
+  const result: TaskResult = {
+    ...gradedResult,
+    metrics: { ...gradedMetrics, ...facadeMetrics, ...timing },
+    // Re-read so the trace and verifier lines logged after baseResult was
+    // built ship with the row.
+    logs: logger.getLogs(),
+  };
   return outcome.status === "sdk_error"
-    ? { ...gradedResult, _success: false, error: errorMessage }
-    : gradedResult;
+    ? { ...result, _success: false, error: errorMessage }
+    : result;
+}
+
+function withTerminationReason(
+  trajectory: Trajectory,
+  terminationReason: TerminationReason,
+): HarnessTrajectory {
+  return { ...trajectory, terminationReason };
+}
+
+/**
+ * How often the agent actually reached the mounted browser surface. A run that
+ * "passes" with zero facade calls answered from somewhere else (curl, another
+ * MCP server, prior knowledge), which the rubric verifier cannot see.
+ *
+ * Calls answered with the terminal "Browser session lost" error are counted
+ * separately: they are consequences of the browser dying, not agent errors.
+ */
+export function buildFacadeToolCallMetrics(
+  trajectory: Pick<Trajectory, "steps">,
+  isFacadeTool: (name: string) => boolean,
+): Record<string, MetricValue> {
+  let calls = 0;
+  let failures = 0;
+  let afterSessionLost = 0;
+  for (const step of trajectory.steps) {
+    if (!isFacadeTool(step.actionName)) continue;
+    calls += 1;
+    if (step.toolOutput?.ok !== false) continue;
+    if (isSessionLostToolOutput(step.toolOutput)) afterSessionLost += 1;
+    else failures += 1;
+  }
+  return {
+    facade_tool_calls: metricValue(calls),
+    facade_tool_call_failures: metricValue(failures),
+    ...(afterSessionLost > 0 && {
+      facade_tool_calls_after_session_lost: metricValue(afterSessionLost),
+    }),
+  };
+}
+
+function isSessionLostToolOutput(
+  toolOutput: NonNullable<Trajectory["steps"][number]["toolOutput"]>,
+): boolean {
+  const { error, result } = toolOutput as { error?: unknown; result?: unknown };
+  return [error, result].some(
+    (value) => typeof value === "string" && isBrowserSessionLostError(value),
+  );
+}
+
+/** Wall-clock split so agent speed is never confounded with verifier speed. */
+export function buildTimingMetrics(timing: {
+  agentWallMs: number;
+  evidenceMs: number;
+  verifierWallMs: number;
+}): Record<"agent_wall_ms" | "evidence_ms" | "verifier_wall_ms" | "total_wall_ms", MetricValue> {
+  return {
+    agent_wall_ms: metricValue(timing.agentWallMs),
+    evidence_ms: metricValue(timing.evidenceMs),
+    verifier_wall_ms: metricValue(timing.verifierWallMs),
+    total_wall_ms: metricValue(timing.agentWallMs + timing.evidenceMs + timing.verifierWallMs),
+  };
+}
+
+export function formatSeconds(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/**
+ * Convention-independent token buckets (the efficiency axis) plus the single
+ * billed cost column `cost_usd` — reported by the harness's channel, else
+ * computed at provider list price for direct-API harnesses, else absent
+ * rather than zero. Unreported usage gets no usage_* metrics rather than zeros.
+ */
+export function buildUsageCostMetrics(
+  usage: NormalizedUsage,
+  cost: BilledCost,
+): Record<string, MetricValue> {
+  return {
+    ...(usage.convention !== "unreported" && {
+      usage_input_total: metricValue(usage.input_total),
+      usage_input_cached: metricValue(usage.input_cached),
+      usage_output: metricValue(usage.output),
+      usage_reasoning: metricValue(usage.reasoning),
+    }),
+    ...(cost.cost_usd !== undefined && { cost_usd: metricValue(cost.cost_usd) }),
+  };
 }
 
 /** Convert a registered harness id to its deprecated TaskResult field prefix. */
@@ -292,13 +549,25 @@ function toFiniteNumber(value: unknown): number {
 }
 
 function extractFirstJsonObject(value: string): string | undefined {
-  const start = value.indexOf("{");
-  if (start < 0) return undefined;
+  return extractJsonObjects(value)[0];
+}
+
+/** Every top-level balanced `{...}` span in document order (not validated). */
+function extractJsonObjects(value: string): string[] {
+  const spans: string[] = [];
+  let start = -1;
   let depth = 0;
   let inString = false;
   let escaped = false;
-  for (let index = start; index < value.length; index += 1) {
+  for (let index = 0; index < value.length; index += 1) {
     const character = value[index];
+    if (start < 0) {
+      if (character === "{") {
+        start = index;
+        depth = 1;
+      }
+      continue;
+    }
     if (inString) {
       if (escaped) escaped = false;
       else if (character === "\\") escaped = true;
@@ -309,10 +578,40 @@ function extractFirstJsonObject(value: string): string | undefined {
     else if (character === "{") depth += 1;
     else if (character === "}") {
       depth -= 1;
-      if (depth === 0) return value.slice(start, index + 1);
+      if (depth === 0) {
+        spans.push(value.slice(start, index + 1));
+        start = -1;
+      }
     }
   }
-  return undefined;
+  return spans;
+}
+
+function isRecordJson(candidate: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(candidate);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
+  } catch {
+    return false;
+  }
+}
+
+function trailingEvalResultJson(text: string): string | undefined {
+  const last = extractJsonObjects(text).at(-1);
+  return last && text.endsWith(last) && isEvalResultJson(last) ? last : undefined;
+}
+
+function isEvalResultJson(candidate: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(candidate);
+    return (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof (parsed as { success?: unknown }).success === "boolean"
+    );
+  } catch {
+    return false;
+  }
 }
 
 function tryParseEvalJson(candidate: string): Omit<ParsedEvalResult, "raw"> | undefined {

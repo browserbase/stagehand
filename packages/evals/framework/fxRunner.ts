@@ -16,6 +16,7 @@ import {
   buildExternalHarnessPrompt,
   metricValue,
   parseEvalResult,
+  resolveFinalAnswer,
   runExternalHarnessTask,
   type ExternalHarnessToolAdapterLike,
   type MetricValue,
@@ -72,14 +73,17 @@ export async function runFxAgent({
     drainStepObservations: toolAdapter.drainStepObservations,
     observedToolMatcher: toolAdapter.observedToolMatcher,
   };
+  const maxAgentSteps = readFxMaxAgentSteps(plan.dataset);
   return runExternalHarnessTask({
     harness: "fx",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "fx did not report success",
+    stepBudget: maxAgentSteps,
     runSession: async (prompt) => {
       const sessionResult = await runFxSession({
         prompt,
@@ -88,7 +92,7 @@ export async function runFxAgent({
         home: toolAdapter.home,
         env: toolAdapter.env,
         permissionMode: process.env.EVAL_FX_PERMISSION_MODE === "yolo" ? "yolo" : "auto",
-        maxAgentSteps: readFxMaxAgentSteps(),
+        maxAgentSteps,
         signal,
         logger,
         runProcess,
@@ -129,7 +133,7 @@ export async function runFxAgent({
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
           observedToolCallKeys: raw.observedToolCallKeys,
-          finalAnswer: parsed.finalAnswer ?? raw.finalMessage,
+          finalAnswer: resolveFinalAnswer(parsed, raw.finalMessage),
           status,
           usage: {
             input_tokens: raw.tokenUsage.input_tokens,

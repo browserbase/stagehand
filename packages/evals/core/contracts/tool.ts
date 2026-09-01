@@ -12,6 +12,7 @@ export type ToolSurface =
   | "playwright_mcp"
   | "chrome_devtools_mcp"
   | "stagehand_facade"
+  | "stagehand_facade_legacy"
   | "browse_cli";
 
 export type StartupProfile =
@@ -135,6 +136,14 @@ export interface ToolStartInput {
   };
 }
 
+/** Why a tool surface's browser became unusable mid-run. */
+export interface BrowserSessionLoss {
+  cause: string;
+  /** Tool call that first observed the loss. */
+  tool?: string;
+  at?: string;
+}
+
 export interface ToolStartResult {
   session: CoreSession;
   /**
@@ -149,6 +158,11 @@ export interface ToolStartResult {
    * Implementations must swallow per-field failures and must not throw.
    */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /**
+   * Set once the surface's browser is gone for the rest of the run. Harnesses
+   * read it after the agent finishes to classify the outcome.
+   */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   /** Releases the runtime; `captureEvidence` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {

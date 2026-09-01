@@ -21,9 +21,24 @@ export interface ArmVerifiability {
   ungradedRuns: number;
   unverifiableCriteria: number;
   totalCriteria: number;
+  /**
+   * Runs marked successful whose `facade_tool_calls` metric is 0 — the agent
+   * never reached the mounted browser surface, so the pass came from
+   * somewhere the verifier cannot see (another tool, prior knowledge).
+   */
+  passesWithoutBrowserUse: number;
 }
 
 const GATE_ENV = "EVAL_MAX_UNVERIFIABLE_CRITERIA";
+
+function readFacadeToolCalls(output: Record<string, unknown>): number | undefined {
+  const metrics = output.metrics;
+  if (typeof metrics !== "object" || metrics === null) return undefined;
+  const metric = (metrics as Record<string, unknown>).facade_tool_calls;
+  if (typeof metric !== "object" || metric === null) return undefined;
+  const value = (metric as { value?: unknown }).value;
+  return typeof value === "number" ? value : undefined;
+}
 
 export function summarizeArmVerifiability(
   results: Array<{ input: EvalInput; output: Record<string, unknown> }>,
@@ -43,6 +58,7 @@ export function summarizeArmVerifiability(
       ungradedRuns: 0,
       unverifiableCriteria: 0,
       totalCriteria: 0,
+      passesWithoutBrowserUse: 0,
     };
     if (graded) {
       arm.gradedRuns += 1;
@@ -50,6 +66,9 @@ export function summarizeArmVerifiability(
       arm.unverifiableCriteria += Array.isArray(output.evidenceInsufficient)
         ? output.evidenceInsufficient.length
         : 0;
+      if (output._success === true && readFacadeToolCalls(output) === 0) {
+        arm.passesWithoutBrowserUse += 1;
+      }
     } else {
       arm.ungradedRuns += 1;
     }
@@ -77,4 +96,9 @@ export function armsOverLimit(arms: ArmVerifiability[], limit: number): ArmVerif
 /** Arms carrying self-reported (verifier-failed) rows. */
 export function armsWithUngradedRuns(arms: ArmVerifiability[]): ArmVerifiability[] {
   return arms.filter((arm) => arm.ungradedRuns > 0);
+}
+
+/** Arms where at least one pass never touched the mounted browser surface. */
+export function armsWithPassesWithoutBrowserUse(arms: ArmVerifiability[]): ArmVerifiability[] {
+  return arms.filter((arm) => arm.passesWithoutBrowserUse > 0);
 }

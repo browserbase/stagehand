@@ -9,6 +9,7 @@ import {
   cleanupFxRuntime,
   FX_DENIED_TOOLS,
   FX_TOOL_SURFACES,
+  resolveFxRuntimePaths,
 } from "../../framework/fxToolAdapter.js";
 import {
   resolveStartupProfile,
@@ -17,11 +18,16 @@ import {
 
 describe("fx tool adapter helpers", () => {
   it("resolves surfaces and startup profiles through the shared registry helpers", () => {
-    expect(FX_TOOL_SURFACES).toEqual(["stagehand_facade", "playwright_mcp", "chrome_devtools_mcp"]);
+    expect(FX_TOOL_SURFACES).toEqual([
+      "stagehand_facade",
+      "stagehand_facade_legacy",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+    ]);
     expect(resolveToolSurface(fxHarness)).toBe("stagehand_facade");
     expect(resolveToolSurface(fxHarness, "playwright_mcp")).toBe("playwright_mcp");
     expect(() => resolveToolSurface(fxHarness, "browse_cli")).toThrow(
-      'Harness "fx" supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "browse_cli".',
+      'Harness "fx" supports --tool stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp; received "browse_cli".',
     );
     expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
     expect(resolveStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
@@ -109,8 +115,13 @@ describe("fx tool adapter helpers", () => {
       Object.fromEntries(FX_DENIED_TOOLS.map((name) => [name, "deny"])),
     );
     const permission = buildFxSettings({ stagehand: ["run"] }).permission;
+    // A "*" deny hides fx's mcp_search_tools/mcp_select_tool, which makes every
+    // dynamic MCP tool unreachable; fx 0.0.3 then advertised only web_fetch.
+    expect(permission).not.toHaveProperty("*");
+    for (const metaTool of ["mcp_search_tools", "mcp_select_tool", "mcp_features"]) {
+      expect(permission).not.toHaveProperty(metaTool);
+    }
     expect(permission).toMatchObject({
-      "*": "deny",
       grep_files: "deny",
       open_file: "deny",
       file_info: "deny",
@@ -121,6 +132,16 @@ describe("fx tool adapter helpers", () => {
     });
     expect(FX_DENIED_TOOLS).not.toContain("glob" as never);
     expect(FX_DENIED_TOOLS).not.toContain("grep" as never);
+  });
+
+  it("nests the workspace below the throwaway home so fx loads AGENTS.md", () => {
+    const paths = resolveFxRuntimePaths("/tmp/stagehand-evals-fx-abc");
+    expect(paths).toEqual({
+      home: "/tmp/stagehand-evals-fx-abc/home",
+      fxHome: "/tmp/stagehand-evals-fx-abc/home/.fx",
+      workspace: "/tmp/stagehand-evals-fx-abc/home/workspace",
+    });
+    expect(paths.workspace.startsWith(`${paths.home}/`)).toBe(true);
   });
 
   it("redacts cleanup failures before logging", async () => {

@@ -52,6 +52,11 @@ process.stdin.on("data", (chunk) => {
         result(request.id, text(request.params.arguments.code === "return page.url();" ? "https://example.com/final" : "ok"));
       } else if (name === "snapshot") {
         result(request.id, text("[1-1] RootWebArea: Example"));
+      } else if (name === "__lose_session") {
+        process.stderr.write("stagehand_facade_session_lost " + JSON.stringify({ cause: "CDP connection closed", tool: "run", at: "2026-08-31T19:58:00.000Z" }) + "\n");
+        result(request.id, { content: [{ type: "text", text: "Browser session lost (CDP connection closed). The task cannot continue; report your final result now." }], isError: true });
+      } else if (name === "__lost_marker_only") {
+        result(request.id, { content: [{ type: "text", text: "Browser session lost (RPC client closed). The task cannot continue; report your final result now." }], isError: true });
       } else {
         reply({ jsonrpc: "2.0", id: request.id, error: { code: -32601, message: "Unknown tool: " + name } });
       }
@@ -255,6 +260,35 @@ describe("stagehand facade bridge", () => {
       initializeCount: 1,
       lastRequestIdType: "string",
     });
+  });
+
+  it("records the browser session loss from the facade telemetry line", async () => {
+    const bridge = await startBridge();
+    expect(bridge.browserSessionLoss()).toBeUndefined();
+
+    await bridge.call("tools/call", { name: "__lose_session", arguments: {} });
+    await waitFor(() => bridge.browserSessionLoss() !== undefined);
+    expect(bridge.browserSessionLoss()).toEqual({
+      cause: "CDP connection closed",
+      tool: "run",
+      at: "2026-08-31T19:58:00.000Z",
+    });
+  });
+
+  it("falls back to the terminal tool error relayed to the agent", async () => {
+    const bridge = await startBridge();
+    const relay = startRelay(bridge);
+    const output = collectResponses(relay);
+    await waitFor(() => bridge.agentConnections() === 1);
+
+    relay.stdin.write(
+      `${JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "__lost_marker_only", arguments: {} } })}\n`,
+    );
+    await expect(output.response(7)).resolves.toMatchObject({ result: { isError: true } });
+    expect(bridge.browserSessionLoss()).toEqual({ cause: "RPC client closed" });
+
+    relay.stdin.end();
+    await waitForExit(relay);
   });
 
   it("rejects response waiters when relay stdout closes", async () => {

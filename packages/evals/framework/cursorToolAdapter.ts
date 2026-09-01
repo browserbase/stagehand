@@ -2,10 +2,11 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { ProbeEvidence } from "stagehand-v3";
-import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
@@ -26,7 +27,11 @@ export interface PreparedCursorToolAdapter {
   mcpConfigPath: string;
   mcpServerNames: string[];
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   onToolResult?: (toolName: string) => void;
   observedToolMatcher?: (name: string) => boolean;
@@ -35,6 +40,7 @@ export interface PreparedCursorToolAdapter {
 
 export const CURSOR_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
 ];
@@ -119,7 +125,7 @@ export async function prepareCursorToolAdapter(
     input.logger.log({
       category: "cursor",
       message: `Initialized ${toolSurface} MCP mount for Cursor (servers: ${mcpServerNames.join(", ")}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -134,6 +140,10 @@ export async function prepareCursorToolAdapter(
       mcpConfigPath,
       mcpServerNames,
       promptInstructions: mount.promptInstructions,
+      browserSession: runtime.browserSession,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

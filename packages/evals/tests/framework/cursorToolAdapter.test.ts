@@ -21,6 +21,7 @@ describe("cursor tool adapter helpers", () => {
     const harness = { harness: "cursor", supportedToolSurfaces: CURSOR_TOOL_SURFACES };
     expect(CURSOR_TOOL_SURFACES).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
@@ -29,10 +30,10 @@ describe("cursor tool adapter helpers", () => {
     expect(resolveToolSurface(harness, "playwright_mcp")).toBe("playwright_mcp");
     expect(resolveToolSurface(harness, "chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
     expect(() => resolveToolSurface(harness, "browse_cli")).toThrow(
-      /stagehand_facade, playwright_mcp, or chrome_devtools_mcp.*browse_cli/,
+      /stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp.*browse_cli/,
     );
     expect(() => resolveToolSurface(harness, "stagehand_code")).toThrow(
-      /stagehand_facade, playwright_mcp, or chrome_devtools_mcp.*stagehand_code/,
+      /stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp.*stagehand_code/,
     );
   });
 

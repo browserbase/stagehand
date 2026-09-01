@@ -1,9 +1,15 @@
-import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
+import {
+  FACADE_AGENT_INSTRUCTIONS,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
+} from "@browserbasehq/stagehand-integrations/facade";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCoreTool, listCoreRunnableTools, listCoreTools } from "../../core/tools/registry.js";
 import {
   buildStagehandFacadeEnv,
+  buildStagehandFacadeLegacyServerSpec,
+  evalBrowserbaseSessionTimeoutSeconds,
   buildStagehandFacadeServerSpec,
+  StagehandFacadeLegacyTool,
   StagehandFacadeTool,
   StagehandFacadeToolError,
 } from "../../core/tools/stagehand_facade.js";
@@ -38,6 +44,44 @@ process.stdin.on("data", (chunk) => {
 process.stdin.on("end", () => process.exit(0));
 `;
 
+/** Answers session_info like the shipped server; records every tools/call name on stderr. */
+const SESSION_AWARE_FACADE_SOURCE = String.raw`
+let carry = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  carry += chunk;
+  const lines = carry.split("\n");
+  carry = lines.pop() || "";
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const request = JSON.parse(line);
+    const reply = (result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }) + "\n");
+    if (request.method === "initialize") {
+      reply({ protocolVersion: request.params.protocolVersion, capabilities: {}, serverInfo: { name: "fake" } });
+    } else if (request.method === "tools/call") {
+      process.stderr.write("fake tools/call " + request.params.name + "\n");
+      if (request.params.name === "session_info") {
+        const provider = process.env.STAGEHAND_BROWSER === "browserbase" ? "browserbase" : "local";
+        reply({ content: [{ type: "text", text: JSON.stringify(provider === "browserbase" ? { provider, sessionId: "fake-session-1" } : { provider }) }] });
+      } else {
+        reply({ content: [{ type: "text", text: "Unknown tool: " + request.params.name }], isError: true });
+      }
+    }
+  }
+});
+process.stdin.on("end", () => process.exit(0));
+`;
+
+function recordingLogger(): EvalLogger & { lines: Array<{ level?: number; message: string }> } {
+  const lines: Array<{ level?: number; message: string }> = [];
+  return {
+    lines,
+    log: (line: { level?: number; message: string }): void => void lines.push(line),
+    warn: (line: { level?: number; message: string }): void => void lines.push(line),
+    error: (line: { level?: number; message: string }): void => void lines.push(line),
+  } as unknown as EvalLogger & { lines: Array<{ level?: number; message: string }> };
+}
+
 beforeEach(() => {
   for (const key of Object.keys(process.env)) {
     if (/^(STAGEHAND_|BROWSERBASE_)/u.test(key)) delete process.env[key];
@@ -58,6 +102,42 @@ describe("stagehand facade tool surface", () => {
     // page operation.
     expect(listCoreRunnableTools()).not.toContain("stagehand_facade");
     expect(getCoreTool("stagehand_facade")).toBeInstanceOf(StagehandFacadeTool);
+  });
+
+  it("registers the legacy prompt surface as a distinct agent-mount-only tool", () => {
+    expect(listCoreTools()).toContain("stagehand_facade_legacy");
+    expect(listCoreRunnableTools()).not.toContain("stagehand_facade_legacy");
+    const tool = getCoreTool("stagehand_facade_legacy");
+    expect(tool).toBeInstanceOf(StagehandFacadeLegacyTool);
+    expect(tool.id).toBe("stagehand_facade_legacy");
+    expect(getCoreTool("stagehand_facade")).not.toBeInstanceOf(StagehandFacadeLegacyTool);
+    expect(getCoreTool("stagehand_facade").id).toBe("stagehand_facade");
+  });
+
+  it("starts the legacy surface from the same server with --surface=legacy", () => {
+    const playwright = buildStagehandFacadeServerSpec("LOCAL");
+    const legacy = buildStagehandFacadeLegacyServerSpec("LOCAL");
+    expect(legacy.command).toBe(playwright.command);
+    expect(legacy.env).toEqual(playwright.env);
+    expect(legacy.args).toEqual([...playwright.args, "--surface=legacy"]);
+    expect(playwright.args).not.toContain("--surface=legacy");
+  });
+
+  it("gives Browserbase facade sessions an explicit timeout every harness inherits", () => {
+    expect(buildStagehandFacadeEnv("BROWSERBASE", {})).toMatchObject({
+      STAGEHAND_BROWSER: "browserbase",
+      STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "3600",
+    });
+    expect(
+      buildStagehandFacadeEnv("BROWSERBASE", { EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "900" }),
+    ).toMatchObject({ STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "900" });
+    expect(buildStagehandFacadeEnv("LOCAL", {})).not.toHaveProperty(
+      "STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS",
+    );
+    expect(evalBrowserbaseSessionTimeoutSeconds(" 21600 ")).toBe(21_600);
+    for (const invalid of ["0", "-5", "1.5", "abc", "21601"]) {
+      expect(() => evalBrowserbaseSessionTimeoutSeconds(invalid)).toThrow(StagehandFacadeToolError);
+    }
   });
 
   it("uses typed, sanitized errors for invalid lifecycle operations", async () => {
@@ -89,15 +169,19 @@ describe("stagehand facade tool surface", () => {
 
   it("preserves facade MCP timeouts in the Codex config", () => {
     const server = { command: "node", args: ["stdio-server.mjs"] };
+    expect(buildCodexMcpServers("stagehand_facade_legacy", { stagehand: server })).toEqual(
+      buildCodexMcpServers("stagehand_facade", { stagehand: server }),
+    );
     expect(buildCodexMcpServers("stagehand_facade", { stagehand: server })).toEqual({
       stagehand: {
         ...server,
+        default_tools_approval_mode: "approve",
         startup_timeout_sec: 60,
         tool_timeout_sec: 300,
       },
     });
     expect(buildCodexMcpServers("playwright_mcp", { playwright: server })).toEqual({
-      playwright: server,
+      playwright: { ...server, default_tools_approval_mode: "approve" },
     });
   });
 
@@ -146,6 +230,80 @@ describe("stagehand facade tool surface", () => {
     }
   });
 
+  it("resolves the Browserbase session before the agent starts and publishes it on metadata", async () => {
+    process.env.BROWSERBASE_API_KEY = "browserbase-secret";
+    const logger = recordingLogger();
+    const running = await new StagehandFacadeTool({
+      serverSpec: (environment) => ({
+        command: process.execPath,
+        args: ["-e", SESSION_AWARE_FACADE_SOURCE],
+        env: buildStagehandFacadeEnv(environment),
+      }),
+    }).start({
+      logger,
+      environment: "BROWSERBASE",
+      startupProfile: "tool_create_browserbase",
+    });
+    try {
+      expect(running.metadata).toMatchObject({
+        browserbaseSessionId: "fake-session-1",
+        browserbaseSessionUrl: "https://www.browserbase.com/sessions/fake-session-1",
+      });
+      // Bridge setup chatter is debug-only so the session pointer can head the row logs.
+      expect(
+        logger.lines.find((line) => line.message.startsWith("Started runner-owned"))?.level,
+      ).toBe(2);
+      expect(logger.lines.some((line) => line.message === "fake tools/call session_info")).toBe(
+        true,
+      );
+    } finally {
+      await running.cleanup();
+    }
+  });
+
+  it("keeps the lazy browser launch for local runs", async () => {
+    const logger = recordingLogger();
+    const running = await new StagehandFacadeTool({
+      serverSpec: (environment) => ({
+        command: process.execPath,
+        args: ["-e", SESSION_AWARE_FACADE_SOURCE],
+        env: buildStagehandFacadeEnv(environment),
+      }),
+    }).start({
+      logger,
+      environment: "LOCAL",
+      startupProfile: "tool_launch_local",
+    });
+    try {
+      expect(running.metadata).not.toHaveProperty("browserbaseSessionId");
+      expect(logger.lines.some((line) => line.message.includes("tools/call"))).toBe(false);
+    } finally {
+      await running.cleanup();
+    }
+  });
+
+  it("mounts the legacy surface with the legacy agent instructions", async () => {
+    const running = await new StagehandFacadeLegacyTool({
+      serverSpec: (environment) => ({
+        command: process.execPath,
+        args: ["-e", MINIMAL_FACADE_SOURCE],
+        env: buildStagehandFacadeEnv(environment),
+      }),
+    }).start({
+      logger: {} as EvalLogger,
+      environment: "LOCAL",
+      startupProfile: "tool_launch_local",
+    });
+    try {
+      if (running.agentMount?.via !== "mcp") throw new Error("expected MCP mount");
+      expect(running.agentMount.promptInstructions).toBe(LEGACY_FACADE_AGENT_INSTRUCTIONS);
+      expect(running.agentMount.promptInstructions).not.toBe(FACADE_AGENT_INSTRUCTIONS);
+      expect(Object.keys(running.agentMount.mcpServers)).toEqual(["stagehand"]);
+    } finally {
+      await running.cleanup();
+    }
+  });
+
   it("builds the default facade server spec with the shipped entrypoint", () => {
     process.env.STAGEHAND_MODEL_NAME = "openai/gpt-5-mini";
     process.env.BROWSERBASE_API_KEY = "browserbase-secret";
@@ -176,9 +334,28 @@ describe("stagehand facade tool surface", () => {
     });
     expect(buildStagehandFacadeEnv("BROWSERBASE")).toEqual({
       STAGEHAND_BROWSER: "browserbase",
+      STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "3600",
+      STAGEHAND_BROWSERBASE_PROXIES: "1",
+      STAGEHAND_BROWSERBASE_VERIFIED: "1",
       STAGEHAND_MODEL_API_KEY: "model-secret",
       BROWSERBASE_PROJECT_ID: "project-id",
     });
+  });
+
+  it("runs Browserbase facade sessions proxied and verified by default (native-path parity)", () => {
+    expect(buildStagehandFacadeEnv("BROWSERBASE", {})).toMatchObject({
+      STAGEHAND_BROWSERBASE_PROXIES: "1",
+      STAGEHAND_BROWSERBASE_VERIFIED: "1",
+    });
+    expect(
+      buildStagehandFacadeEnv("BROWSERBASE", {
+        EVAL_BROWSERBASE_PROXIES: "0",
+        EVAL_BROWSERBASE_VERIFIED: "false",
+      }),
+    ).toMatchObject({ STAGEHAND_BROWSERBASE_PROXIES: "0", STAGEHAND_BROWSERBASE_VERIFIED: "0" });
+    expect(buildStagehandFacadeEnv("LOCAL", {})).not.toHaveProperty(
+      "STAGEHAND_BROWSERBASE_PROXIES",
+    );
   });
 
   it("is supported by both agent harnesses with tool-owned startup profiles", () => {

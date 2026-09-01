@@ -1,9 +1,16 @@
 export {
   FACADE_TOOLS,
+  FACADE_LEGACY_TOOLS,
   FACADE_AGENT_INSTRUCTIONS,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
   RUN_TOOL_DESCRIPTION,
+  LEGACY_RUN_TOOL_DESCRIPTION,
+  facadeSurfaceFromArgs,
+  facadeToolsForSurface,
+  type FacadeSurface,
   SNAPSHOT_TOOL_DESCRIPTION,
   SCREENSHOT_TOOL_DESCRIPTION,
+  SESSION_INFO_TOOL_NAME,
   RUN_INPUT_SCHEMA,
   SNAPSHOT_INPUT_SCHEMA,
   SCREENSHOT_INPUT_SCHEMA,
@@ -11,6 +18,12 @@ export {
   NAVIGATED_SNAPSHOT_ERROR,
   STALE_SNAPSHOT_ID_ERROR,
   staleSnapshotIdError,
+  BROWSER_SESSION_LOST_ERROR,
+  BROWSER_SESSION_LOST_ERROR_PREFIX,
+  SESSION_LOST_TELEMETRY_PREFIX,
+  browserSessionLostError,
+  isBrowserSessionLostError,
+  type FacadeSessionLoss,
   RefActionSchema,
   CodeModeRunInputSchema,
   SnapshotInputSchema,
@@ -18,8 +31,15 @@ export {
   type RefAction,
   type CodeModeRunInput,
 } from "./contract.js";
-export { StagehandFacadeTools } from "./tools.js";
 export {
+  StagehandFacadeTools,
+  StagehandFacadeSessionLostError,
+  type StagehandFacadeRunReport,
+  type StagehandFacadeToolsOptions,
+} from "./tools.js";
+export {
+  DEFAULT_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
+  MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
   StagehandFacadeConfigError,
   stagehandFacadeConfigFromEnv,
   type StagehandFacadeConfig,

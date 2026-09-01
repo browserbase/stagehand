@@ -16,6 +16,7 @@ import {
 } from "./harnesses/externalRunner.js";
 import { piAdapter } from "./harnesses/piAdapter.js";
 import type { PreparedPiToolAdapter } from "./piToolAdapter.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -49,14 +50,22 @@ export function parsePiResult(raw: string): ParsedPiResult {
 
 export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
   const { plan, model, logger, toolAdapter, signal, sdk, verifier } = input;
+  // pi budgets turns (a turn may hold several tool calls), so the shared tool-step budget is a mild over-allowance.
+  const maxTurns = resolveStepBudget({
+    harnessEnvKey: "EVAL_PI_MAX_TURNS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "pi",
     plan,
+    model,
     logger,
     toolAdapter,
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "pi did not report success",
+    stepBudget: maxTurns,
     runSession: async (prompt) => {
       const sessionResult = await runPiSession({
         prompt,
@@ -66,9 +75,11 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
         signal,
         session: {
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
-          systemPrompt:
+          // Appended to pi's stock prompt (same shape as claude_code's
+          // preset+append); replacing the stock prompt made the agent quit early.
+          appendSystemPrompt:
             "You are being evaluated. Do not edit repository files. Complete the browser task with the provided browser tools and emit the requested EVAL_RESULT line.",
-          maxTurns: readPiMaxTurns(),
+          maxTurns,
           ...(process.env.EVAL_PI_THINKING && {
             thinkingLevel: process.env.EVAL_PI_THINKING,
           }),
@@ -125,12 +136,4 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
         taskSpec,
       ),
   });
-}
-
-function readPiMaxTurns(): number {
-  for (const key of ["EVAL_PI_MAX_TURNS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
 }

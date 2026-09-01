@@ -2,13 +2,15 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { connectToMCPServer, type ProbeEvidence } from "stagehand-v3";
-import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
+import { openAiReasoningProviderOptions } from "./reasoningSummary.js";
 
 export interface EveToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -40,9 +42,13 @@ export interface PreparedEveToolAdapter {
   appRoot: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   serverNames: string[];
   toolNames: string[];
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
   observedToolMatcher: (name: string) => boolean;
@@ -51,6 +57,7 @@ export interface PreparedEveToolAdapter {
 
 export const EVE_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
 ];
@@ -72,8 +79,8 @@ export const EVE_DISABLED_FRAMEWORK_TOOLS = [
 ] as const;
 
 export type EveModelProvider = {
-  pkg: "@ai-sdk/openai" | "@ai-sdk/anthropic" | "@ai-sdk/google";
-  factory: "openai" | "anthropic" | "google";
+  pkg: "@ai-sdk/openai" | "@ai-sdk/anthropic" | "@ai-sdk/google" | "ai";
+  factory: "openai" | "anthropic" | "google" | "gateway";
   modelId: string;
 };
 
@@ -82,28 +89,108 @@ export function eveToolSlug(server: string, tool: string): string {
   return `${sanitize(server)}__${sanitize(tool)}`;
 }
 
+/**
+ * openai/, anthropic/ and google/ bind their first-party AI SDK providers.
+ * Every other `creator/model` id (alibaba/qwen…, zai/glm…, deepseek/…, xai/…)
+ * is routed through the Vercel AI Gateway, whose ids use exactly that shape;
+ * an explicit `gateway/creator/model` forces the gateway for any creator.
+ * The gateway needs AI_GATEWAY_API_KEY (or Vercel OIDC) in the agent's env.
+ */
 export function resolveEveModelProvider(model: string): EveModelProvider {
-  const separator = model.indexOf("/");
-  const prefix = separator >= 0 ? model.slice(0, separator) : "openai";
-  const modelId = separator >= 0 ? model.slice(separator + 1) : model;
+  const trimmed = model.trim();
+  if (!trimmed) throw new EvalsError("Eve model id must not be empty.");
+  if (trimmed.startsWith("gateway/")) {
+    const modelId = trimmed.slice("gateway/".length);
+    if (!modelId.includes("/")) {
+      throw new EvalsError(
+        `Eve gateway model "${model}" must be "gateway/<creator>/<model>" (AI Gateway ids are creator-prefixed).`,
+      );
+    }
+    return { pkg: "ai", factory: "gateway", modelId };
+  }
+  const separator = trimmed.indexOf("/");
+  const prefix = separator >= 0 ? trimmed.slice(0, separator) : "openai";
+  const modelId = separator >= 0 ? trimmed.slice(separator + 1) : trimmed;
   if (prefix === "openai") return { pkg: "@ai-sdk/openai", factory: "openai", modelId };
   if (prefix === "anthropic") {
     return { pkg: "@ai-sdk/anthropic", factory: "anthropic", modelId };
   }
   if (prefix === "google") return { pkg: "@ai-sdk/google", factory: "google", modelId };
-  throw new EvalsError(
-    `Eve model "${model}" uses an unsupported provider. Supported prefixes: openai/, anthropic/, google/.`,
-  );
+  if (!modelId) {
+    throw new EvalsError(`Eve model "${model}" is missing a model id after the creator prefix.`);
+  }
+  return { pkg: "ai", factory: "gateway", modelId: trimmed };
 }
 
-export function buildEveAgentDefinitionSource(model: string): string {
+export function isEveGatewayModel(model: string): boolean {
+  return resolveEveModelProvider(model).factory === "gateway";
+}
+
+/**
+ * eve derives its compaction threshold from the model's context window and
+ * looks it up in its bundled AI Gateway catalog; models newer than the eve
+ * release (e.g. alibaba/qwen3.8-flash on 0.29.4) are missing there and fail
+ * to compile. `modelContextWindowTokens` bypasses the lookup. Override with
+ * EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS when a model's window is known to differ.
+ */
+export const DEFAULT_EVE_GATEWAY_CONTEXT_WINDOW_TOKENS = 128_000;
+
+export function resolveEveModelContextWindowTokens(
+  model: string,
+  env: NodeJS.ProcessEnv = process.env,
+): number | undefined {
+  const raw = env.EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS?.trim();
+  if (raw) {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new EvalsError(
+        `EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS must be a positive integer (got "${raw}").`,
+      );
+    }
+    return parsed;
+  }
+  return resolveEveModelProvider(model).factory === "gateway"
+    ? DEFAULT_EVE_GATEWAY_CONTEXT_WINDOW_TOKENS
+    : undefined;
+}
+
+export function buildEveAgentDefinitionSource(
+  model: string,
+  options: {
+    providerOptions?: Record<string, Record<string, unknown>>;
+    modelContextWindowTokens?: number;
+  } = {},
+): string {
   const provider = resolveEveModelProvider(model);
+  const baseModel = `${provider.factory}(${JSON.stringify(provider.modelId)})`;
+  // Eve's public agent definition takes a model handle, not call settings, so
+  // per-call provider options (reasoning summaries) ride on an AI SDK
+  // middleware wrapped around the model.
+  const wrapped = options.providerOptions !== undefined;
+  const modelExpression = wrapped
+    ? [
+        "wrapLanguageModel({",
+        `    model: ${baseModel},`,
+        `    middleware: defaultSettingsMiddleware({ settings: { providerOptions: ${JSON.stringify(options.providerOptions)} } }),`,
+        "  })",
+      ].join("\n")
+    : baseModel;
+  const aiImports = [
+    ...(provider.factory === "gateway" ? ["gateway"] : []),
+    ...(wrapped ? ["defaultSettingsMiddleware", "wrapLanguageModel"] : []),
+  ];
   return [
-    `import { ${provider.factory} } from ${JSON.stringify(provider.pkg)};`,
+    ...(provider.factory === "gateway"
+      ? []
+      : [`import { ${provider.factory} } from ${JSON.stringify(provider.pkg)};`]),
+    ...(aiImports.length ? [`import { ${aiImports.join(", ")} } from "ai";`] : []),
     'import { defineAgent } from "eve";',
     "",
     "export default defineAgent({",
-    `  model: ${provider.factory}(${JSON.stringify(provider.modelId)}),`,
+    `  model: ${modelExpression},`,
+    ...(options.modelContextWindowTokens !== undefined
+      ? [`  modelContextWindowTokens: ${options.modelContextWindowTokens},`]
+      : []),
     "  limits: { maxInputTokensPerSession: false, maxOutputTokensPerSession: false },",
     "});",
     "",
@@ -180,7 +267,16 @@ export async function writeEveAgentApp(options: {
 export async function writeEveAgentDefinition(appRoot: string, model: string): Promise<void> {
   const destination = path.join(appRoot, "agent", "agent.ts");
   await fsp.mkdir(path.dirname(destination), { recursive: true });
-  await fsp.writeFile(destination, buildEveAgentDefinitionSource(model), "utf8");
+  const providerOptions = openAiReasoningProviderOptions(model);
+  const modelContextWindowTokens = resolveEveModelContextWindowTokens(model);
+  await fsp.writeFile(
+    destination,
+    buildEveAgentDefinitionSource(model, {
+      ...(providerOptions && { providerOptions }),
+      ...(modelContextWindowTokens !== undefined && { modelContextWindowTokens }),
+    }),
+    "utf8",
+  );
 }
 
 export async function listMcpServerTools(
@@ -297,7 +393,7 @@ export async function prepareEveToolAdapter(
     input.logger.log({
       category: "eve",
       message: `Initialized ${toolSurface} MCP mount for Eve (servers: ${serverNames.join(", ")}; tools: ${toolNames.length}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -310,8 +406,12 @@ export async function prepareEveToolAdapter(
       appRoot,
       env: { [EVE_MCP_SERVERS_ENV]: JSON.stringify(mount.mcpServers) },
       promptInstructions: mount.promptInstructions,
+      browserSession: runtime.browserSession,
       serverNames,
       toolNames,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

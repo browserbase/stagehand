@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -249,7 +250,9 @@ export async function runEveSession(input: {
       const data = isRecord(event.data) ? event.data : undefined;
 
       if (event.type === "message.completed" && typeof data?.message === "string") {
-        finalMessage = data.message;
+        // Eve emits interim assistant text before tool calls with finishReason
+        // "tool-calls"; only a terminal reply is the agent's final message.
+        if (data.finishReason !== "tool-calls") finalMessage = data.message;
       } else if (event.type === "step.completed") {
         // Usage is aggregated from the complete event list below.
       } else if (event.type === "actions.requested" && Array.isArray(data?.actions)) {
@@ -369,13 +372,18 @@ export function buildEveTranscript(events: EveEvent[]): string {
 }
 
 export function logEveEvent(logger: HarnessLogger, event: EveEvent): void {
+  const level = harnessEventLogLevel(event.type, {
+    isError: event.type.endsWith(".failed"),
+    hasContent: event.type.endsWith(".completed") || event.type === "action.result",
+  });
+  if (level === undefined) return;
   const summary = summarizeEveEvent(event);
   const message = sanitizeErrorMessage(summary.message);
   const detail = summary.detail ? sanitizeErrorMessage(summary.detail) : undefined;
   logger.log({
     category: "eve",
     message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: event.type, type: "string" },
       ...(detail && { detail: { value: detail, type: "string" } }),

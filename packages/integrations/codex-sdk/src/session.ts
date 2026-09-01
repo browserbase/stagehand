@@ -1,5 +1,9 @@
+import type { Dirent } from "node:fs";
+import fsp from "node:fs/promises";
+import path from "node:path";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -35,12 +39,21 @@ export type CodexTokenUsage = {
   reasoning_output_tokens?: number;
 };
 
+/**
+ * Where the session's token usage came from: the `turn.completed` event, the
+ * thread's rollout file under CODEX_HOME (when the turn was aborted before it
+ * completed), or nowhere (all-zero usage that must not be trusted).
+ */
+export type CodexUsageSource = "turn_completed" | "rollout" | "none";
+
 export type CodexSessionResult = {
   events: CodexEvent[];
   finalMessage: string;
   status: "completed" | "max_turns" | "sdk_error";
   stopReason?: string;
   tokenUsage: CodexTokenUsage;
+  usageSource: CodexUsageSource;
+  threadId?: string;
   iterationError?: unknown;
 };
 
@@ -130,6 +143,13 @@ export async function runCodexSession(input: {
   outputSchema?: Record<string, unknown>;
   maxToolSteps?: number;
   onToolStep?: () => void | Promise<void>;
+  /**
+   * CODEX_HOME the binary runs with. `codex exec` only reports usage on
+   * `turn.completed`, which never arrives when the turn is aborted (step
+   * budget, caller signal); the cumulative count is then read back from the
+   * thread's rollout file under this directory.
+   */
+  codexHome?: string;
 }): Promise<CodexSessionResult> {
   const sdk = input.sdk ?? (await loadCodexSdk());
   const events: CodexEvent[] = [];
@@ -137,6 +157,8 @@ export async function runCodexSession(input: {
   let stopReason: string | undefined;
   let iterationError: unknown;
   let tokenUsage = emptyTokenUsage();
+  let usageSource: CodexUsageSource = "none";
+  let threadId: string | undefined;
   const maxToolSteps = positiveInteger(input.maxToolSteps, 100);
   const budgetController = new AbortController();
   const forwardAbort = () => budgetController.abort(input.signal?.reason);
@@ -167,8 +189,11 @@ export async function runCodexSession(input: {
     for await (const event of streamed.events) {
       events.push(event);
       logCodexEvent(input.logger, event);
-      if (event.type === "turn.completed" && isRecord(event.usage)) {
+      if (event.type === "thread.started" && typeof event.thread_id === "string") {
+        threadId = event.thread_id;
+      } else if (event.type === "turn.completed" && isRecord(event.usage)) {
         tokenUsage = extractCodexTokenUsage(event.usage);
+        usageSource = "turn_completed";
       } else if (event.type === "turn.failed") {
         stopReason = readCodexErrorMessage(event.error);
       } else if (event.type === "error") {
@@ -208,14 +233,96 @@ export async function runCodexSession(input: {
     input.signal?.removeEventListener("abort", forwardAbort);
   }
 
+  if (usageSource === "none" && input.codexHome && threadId) {
+    const recovered = await readCodexRolloutUsage(input.codexHome, threadId);
+    if (recovered) {
+      tokenUsage = recovered;
+      usageSource = "rollout";
+      input.logger.log({
+        category: "codex",
+        level: 1,
+        message: `token usage recovered from rollout (turn never completed): in=${recovered.input_tokens} out=${recovered.output_tokens}`,
+      });
+    } else {
+      input.logger.warn({
+        category: "codex",
+        level: 1,
+        message: "token usage unavailable: turn never completed and no rollout token_count found",
+      });
+    }
+  }
+
   return {
     events,
     finalMessage,
     status: resolveCodexStatus(iterationError, stopReason, budgetExhausted),
     ...(stopReason && { stopReason: sanitizeErrorMessage(stopReason) }),
     tokenUsage,
+    usageSource,
+    ...(threadId && { threadId }),
     ...(iterationError !== undefined && { iterationError }),
   };
+}
+
+/**
+ * Cumulative usage of a thread from its rollout under
+ * `<codexHome>/sessions/YYYY/MM/DD/rollout-<timestamp>-<threadId>.jsonl`.
+ * Codex appends a `token_count` event after every model response, so the last
+ * one on disk covers everything billed before the process was killed.
+ */
+export async function readCodexRolloutUsage(
+  codexHome: string,
+  threadId: string,
+): Promise<CodexTokenUsage | undefined> {
+  const rollout = await findCodexRollout(codexHome, threadId);
+  if (!rollout) return undefined;
+  try {
+    return parseCodexRolloutUsage(await fsp.readFile(rollout, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+async function findCodexRollout(codexHome: string, threadId: string): Promise<string | undefined> {
+  const sessionsRoot = path.join(codexHome, "sessions");
+  const pending = [sessionsRoot];
+  while (pending.length > 0) {
+    const dir = pending.pop()!;
+    let entries: Dirent[];
+    try {
+      entries = await fsp.readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) pending.push(full);
+      else if (entry.name.startsWith("rollout-") && entry.name.endsWith(`-${threadId}.jsonl`)) {
+        return full;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** Last `token_count` total in a rollout JSONL body; undefined when there is none. */
+export function parseCodexRolloutUsage(body: string): CodexTokenUsage | undefined {
+  let latest: Record<string, unknown> | undefined;
+  for (const line of body.split(/\r?\n/u)) {
+    if (!line.includes('"token_count"')) continue;
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!isRecord(record)) continue;
+    const payload = isRecord(record.payload) ? record.payload : record;
+    if (payload.type !== "token_count" || !isRecord(payload.info)) continue;
+    const total = payload.info.total_token_usage;
+    if (isRecord(total)) latest = total;
+  }
+  return latest ? extractCodexTokenUsage(latest) : undefined;
 }
 
 export function resolveCodexStatus(
@@ -256,11 +363,22 @@ export function buildCodexTranscript(events: CodexEvent[]): string {
 }
 
 export function logCodexEvent(logger: HarnessLogger, event: CodexEvent): void {
+  const type = String(event.type ?? "unknown");
+  const item = isRecord(event.item) ? event.item : undefined;
+  const level = harnessEventLogLevel(type, {
+    isError:
+      type === "turn.failed" ||
+      type === "error" ||
+      item?.type === "error" ||
+      (type === "item.completed" && item?.status === "failed"),
+    hasContent: type === "item.completed" || type === "turn.completed",
+  });
+  if (level === undefined) return;
   const summary = summarizeCodexEvent(event);
   logger.log({
     category: "codex",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),

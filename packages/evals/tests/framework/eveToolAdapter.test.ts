@@ -9,6 +9,7 @@ import {
   buildEveAgentAppFiles,
   buildEveAgentDefinitionSource,
   eveToolSlug,
+  resolveEveModelContextWindowTokens,
   resolveEveModelProvider,
   writeEveAgentApp,
   writeEveAgentDefinition,
@@ -37,8 +38,48 @@ describe("Eve tool adapter helpers", () => {
       modelId: "gemini-2.5-pro",
     });
     expect(resolveEveModelProvider("gpt-5.4-mini").factory).toBe("openai");
-    expect(() => resolveEveModelProvider("mistral/x")).toThrow(EvalsError);
-    expect(() => resolveEveModelProvider("mistral/x")).toThrow(/openai\/, anthropic\/, google\//);
+  });
+
+  it("routes other creators through the Vercel AI Gateway with creator-prefixed ids", () => {
+    expect(resolveEveModelProvider("alibaba/qwen3.8-flash")).toEqual({
+      pkg: "ai",
+      factory: "gateway",
+      modelId: "alibaba/qwen3.8-flash",
+    });
+    expect(resolveEveModelProvider("zai/glm-5.3").modelId).toBe("zai/glm-5.3");
+    // Explicit gateway/ forces the gateway even for first-party creators.
+    expect(resolveEveModelProvider("gateway/openai/gpt-5.4-mini")).toEqual({
+      pkg: "ai",
+      factory: "gateway",
+      modelId: "openai/gpt-5.4-mini",
+    });
+    expect(() => resolveEveModelProvider("gateway/gpt-5.4-mini")).toThrow(EvalsError);
+    expect(() => resolveEveModelProvider("alibaba/")).toThrow(EvalsError);
+  });
+
+  it("builds a gateway agent definition without a first-party provider import", () => {
+    const source = buildEveAgentDefinitionSource("alibaba/qwen3.8-flash", {
+      modelContextWindowTokens: 128_000,
+    });
+    expect(source).toContain('import { gateway } from "ai";');
+    expect(source).toContain('gateway("alibaba/qwen3.8-flash")');
+    expect(source).toContain("modelContextWindowTokens: 128000,");
+    expect(source).not.toContain("@ai-sdk/");
+  });
+
+  it("pins a context window for gateway models eve's catalog may not know", () => {
+    expect(resolveEveModelContextWindowTokens("alibaba/qwen3.8-flash", {})).toBe(128_000);
+    expect(resolveEveModelContextWindowTokens("openai/gpt-5.4-mini", {})).toBeUndefined();
+    expect(
+      resolveEveModelContextWindowTokens("openai/gpt-5.4-mini", {
+        EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS: "200000",
+      }),
+    ).toBe(200_000);
+    expect(() =>
+      resolveEveModelContextWindowTokens("alibaba/qwen3.8-flash", {
+        EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS: "lots",
+      }),
+    ).toThrow(EvalsError);
   });
 
   it("builds an agent definition with the selected model and uncapped token limits", () => {
@@ -47,6 +88,18 @@ describe("Eve tool adapter helpers", () => {
     expect(source).toContain('anthropic("claude-sonnet-4-6")');
     expect(source).toContain("maxInputTokensPerSession: false");
     expect(source).toContain("maxOutputTokensPerSession: false");
+  });
+
+  it("wraps the model in a reasoning-summary middleware when provider options are given", () => {
+    const source = buildEveAgentDefinitionSource("openai/gpt-5.6-luna", {
+      providerOptions: { openai: { reasoningSummary: "detailed" } },
+    });
+    expect(source).toContain('import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";');
+    expect(source).toContain('model: openai("gpt-5.6-luna")');
+    expect(source).toContain(
+      'defaultSettingsMiddleware({ settings: { providerOptions: {"openai":{"reasoningSummary":"detailed"}} } })',
+    );
+    expect(buildEveAgentDefinitionSource("openai/gpt-5.6-luna")).not.toContain("wrapLanguageModel");
   });
 
   it("builds authored MCP tools, bridge, instructions, and disabled built-ins", () => {
@@ -155,6 +208,6 @@ describe("Eve tool adapter helpers", () => {
         { harness: "eve", supportedToolSurfaces: EVE_TOOL_SURFACES },
         "browse_cli",
       ),
-    ).toThrow(/stagehand_facade, playwright_mcp, or chrome_devtools_mcp/);
+    ).toThrow(/stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp/);
   });
 });

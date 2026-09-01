@@ -26,6 +26,8 @@ import {
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { readReasoningSummary } from "./reasoningSummary.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -79,14 +81,22 @@ export async function runCodexAgent({
     observedToolMatcher:
       "observedToolMatcher" in toolAdapter ? toolAdapter.observedToolMatcher : undefined,
   };
+  // Codex budgets individual tool steps; 100 ≈ 50 Claude turns keeps the harnesses comparable.
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_CODEX_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 100,
+  });
   return runExternalHarnessTask({
     harness: "codex",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "Codex did not report success",
+    stepBudget: maxToolSteps,
     runSession: async (prompt) => {
       const sessionResult = await runCodexSession({
         prompt,
@@ -108,13 +118,18 @@ export async function runCodexAgent({
           skipGitRepoCheck: true,
         },
         outputSchema: EVAL_RESULT_SCHEMA,
-        maxToolSteps: readCodexMaxToolSteps(),
+        maxToolSteps,
+        ...(toolAdapter?.env?.CODEX_HOME && { codexHome: toolAdapter.env.CODEX_HOME }),
         onToolStep:
           toolAdapter && "recordObservation" in toolAdapter
             ? toolAdapter.recordObservation
             : undefined,
       });
-      const usage = normalizeCodexUsage(sessionResult.tokenUsage);
+      const usage = {
+        ...normalizeCodexUsage(sessionResult.tokenUsage),
+        // Zeros after an aborted turn with no rollout are unknown usage, not a free run.
+        reported: sessionResult.usageSource !== "none",
+      };
       return {
         raw: sessionResult,
         resultText: sessionResult.finalMessage,
@@ -127,7 +142,11 @@ export async function runCodexAgent({
             ? sanitizeErrorMessage(stringifyError(sessionResult.iterationError)) || undefined
             : undefined),
         usage,
-        metrics: buildCodexMetrics(sessionResult.tokenUsage),
+        metrics: {
+          ...buildCodexMetrics(sessionResult.tokenUsage),
+          // 1 when the turn never completed and usage came from the rollout file.
+          codex_usage_recovered: metricValue(sessionResult.usageSource === "rollout" ? 1 : 0),
+        },
       };
     },
     toTrajectory: (
@@ -160,6 +179,22 @@ export async function runCodexAgent({
   });
 }
 
+/**
+ * Codex config overrides for an eval session. Codex requests no reasoning
+ * summaries for models outside its own catalog, so reasoning items never
+ * arrive unless `model_reasoning_summary` is set explicitly.
+ */
+export function buildEvalCodexConfig(
+  extraConfig?: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, unknown> {
+  const reasoningSummary = readReasoningSummary(env);
+  return {
+    ...(reasoningSummary && { model_reasoning_summary: reasoningSummary }),
+    ...extraConfig,
+  };
+}
+
 async function loadEvalCodexSdk(
   env?: Record<string, string>,
   extraConfig?: Record<string, unknown>,
@@ -170,19 +205,8 @@ async function loadEvalCodexSdk(
     baseUrl: process.env.EVAL_CODEX_BASE_URL,
     apiKey: process.env.OPENAI_API_KEY,
     rawReasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
-    extraConfig,
+    extraConfig: buildEvalCodexConfig(extraConfig),
   });
-}
-
-function readCodexMaxToolSteps(): number {
-  for (const key of ["EVAL_CODEX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  // Codex budgets individual tool steps while Claude budgets turns (which can
-  // span several tool calls); 100 steps ≈ 50 Claude turns keeps the harnesses
-  // roughly comparable.
-  return 100;
 }
 
 function readBooleanEnv(key: string, fallback: boolean): boolean {

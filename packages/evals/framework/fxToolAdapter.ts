@@ -3,13 +3,15 @@ import os from "node:os";
 import path from "node:path";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { connectToMCPServer, type ProbeEvidence } from "stagehand-v3";
-import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
+import { resolveStepBudget } from "./stepBudget.js";
 
 export interface FxToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -30,8 +32,12 @@ export interface PreparedFxToolAdapter {
   home: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   mcpServerNames: string[];
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
   observedToolMatcher?: (name: string) => boolean;
@@ -46,12 +52,17 @@ type FxMcpServerSpec = {
 
 export const FX_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
 ];
 
+// No "*" catch-all: a deny rule hides the tool from the model, and "*" also
+// hides fx's own mcp_search_tools / mcp_select_tool, without which no dynamic
+// MCP tool can ever be selected (fx 0.0.3 advertised only web_fetch). web_fetch
+// itself is not permission-gated in fx 0.0.3; the rule is kept for forward
+// compatibility and the AGENTS.md guidance steers the model off it.
 export const FX_DENIED_TOOLS = [
-  "*",
   "run_command",
   "terminal",
   "write_file",
@@ -151,6 +162,20 @@ export function buildFxMcpConfig(
   return { mcp };
 }
 
+/**
+ * Per-run fx layout. The workspace must sit below the throwaway $HOME: fx
+ * loads AGENTS.md / .fx.json only for workspaces under home and otherwise
+ * traces "project_rules_omitted reason=workspace is not below home".
+ */
+export function resolveFxRuntimePaths(root: string): {
+  home: string;
+  fxHome: string;
+  workspace: string;
+} {
+  const home = path.join(root, "home");
+  return { home, fxHome: path.join(home, ".fx"), workspace: path.join(home, "workspace") };
+}
+
 export function buildFxSettings(mcpToolNames: Record<string, string[]>): {
   permission: Record<string, "allow" | "deny">;
 } {
@@ -185,6 +210,7 @@ export function buildFxAgentsMarkdown(promptInstructions: string, serverNames: s
     `MCP tools use the fx name mcp_<server>_<tool> (configured servers: ${serverNames.join(", ")}; patterns: ${prefixes}).`,
     "Select tools with mcp_select_tool using their exact name. mcp_search_tools may return nothing.",
     "Never invent tool names. Do not use the shell, web search/fetch, or file tools.",
+    "web_fetch is not a browser: it cannot run JavaScript, click, type, or keep a session, and the task is graded only on browser evidence. Do not call it, even to read docs; start with mcp_select_tool.",
     stagehandGuidance,
     "",
     promptInstructions,
@@ -230,9 +256,7 @@ export async function prepareFxToolAdapter(
     root = await fsp.mkdtemp(
       path.join(os.tmpdir(), `stagehand-evals-fx-${toolSurface.replace(/_/gu, "-")}-`),
     );
-    const home = path.join(root, "home");
-    const workspace = path.join(root, "workspace");
-    const fxHome = path.join(home, ".fx");
+    const { home, fxHome, workspace } = resolveFxRuntimePaths(root);
     await Promise.all([
       fsp.mkdir(fxHome, { recursive: true }),
       fsp.mkdir(workspace, { recursive: true }),
@@ -242,7 +266,7 @@ export async function prepareFxToolAdapter(
     const pathEnv = process.env.PATH ?? "";
     const mcpOptions: FxMcpOptions = { home, pathEnv, parentEnv: process.env };
     const mcpToolNames: Record<string, string[]> = {};
-    if (toolSurface === "stagehand_facade") {
+    if (toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy") {
       mcpToolNames.stagehand = ["run", "snapshot", "screenshot"];
     } else {
       const listMcpToolNames = input.listMcpToolNames ?? defaultListMcpToolNames;
@@ -263,7 +287,7 @@ export async function prepareFxToolAdapter(
           input.logger.log({
             category: "fx",
             message: `Discovered ${toolNames.length} MCP tools for fx server ${serverName}.`,
-            level: 1,
+            level: 2,
           });
         } catch (error) {
           const message = sanitizeErrorMessage(stringifyUnknown(error));
@@ -288,7 +312,7 @@ export async function prepareFxToolAdapter(
       ),
       writeJson(path.join(fxHome, "settings.json"), buildFxSettings(mcpToolNames)),
       writeJson(path.join(workspace, ".fx.json"), {
-        max_agent_steps: readFxMaxAgentSteps(),
+        max_agent_steps: readFxMaxAgentSteps(input.plan.dataset),
         max_tool_result_bytes: 262_144,
       }),
       fsp.writeFile(path.join(workspace, "AGENTS.md"), agentsMarkdown),
@@ -302,7 +326,7 @@ export async function prepareFxToolAdapter(
     input.logger.log({
       category: "fx",
       message: `Initialized ${toolSurface} MCP mount for fx (servers: ${serverNames.join(", ")}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -316,7 +340,11 @@ export async function prepareFxToolAdapter(
       home,
       env: definedProcessEnv({ HOME: home }),
       promptInstructions: agentsMarkdown,
+      browserSession: runtime.browserSession,
       mcpServerNames: serverNames,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),
@@ -411,12 +439,8 @@ function stringifyUnknown(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function readFxMaxAgentSteps(): number {
-  for (const key of ["EVAL_FX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 60;
+export function readFxMaxAgentSteps(dataset: ExternalHarnessTaskPlan["dataset"]): number {
+  return resolveStepBudget({ harnessEnvKey: "EVAL_FX_MAX_STEPS", dataset, harnessDefault: 60 });
 }
 
 function boundedCaptureEvidence(

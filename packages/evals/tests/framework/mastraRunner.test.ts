@@ -92,6 +92,7 @@ describe("Mastra runner", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/tmp/mastra-test",
         promptInstructions: "Use Stagehand.",
         mcpServers: { stagehand: { command: "node", args: ["server.mjs"] } },
@@ -105,7 +106,10 @@ describe("Mastra runner", () => {
     expect(result.finalAnswer).toBe("ok");
     expect(agentConfig).toMatchObject({ model: "openai/gpt-5.4-mini" });
     expect(agentConfig?.instructions).not.toBe("Use Stagehand.");
-    expect(streamOptions).toMatchObject({ maxSteps: 50 });
+    expect(streamOptions).toMatchObject({
+      maxSteps: 50,
+      providerOptions: { openai: { reasoningSummary: "detailed" } },
+    });
     expect(mcpServers?.stagehand).toMatchObject({ command: "node", onToolError: "return" });
     expect(metrics.harness_input_tokens.value).toBe(100);
     expect(metrics.harness_cached_input_tokens.value).toBe(10);

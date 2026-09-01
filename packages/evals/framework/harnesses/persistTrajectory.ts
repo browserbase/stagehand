@@ -7,10 +7,11 @@ import {
   resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "../trajectoryGroup.js";
-import type { EvaluationResult, TaskSpec, Trajectory } from "stagehand-v3";
+import type { EvaluationResult, TaskSpec } from "stagehand-v3";
+import type { HarnessTrajectory } from "./trajectoryAdapter.js";
 
 export interface PersistAdapterTrajectoryOptions {
-  trajectory: Trajectory;
+  trajectory: HarnessTrajectory;
   taskSpec: TaskSpec;
   /** EvaluationResult from V3Evaluator.verify(). Written to scores/result.json. */
   evaluationResult?: EvaluationResult;
@@ -73,6 +74,9 @@ export async function persistAdapterTrajectory(
     runDir: path.basename(directory),
     attempt,
     status: opts.trajectory.status,
+    ...(opts.trajectory.terminationReason && {
+      terminationReason: opts.trajectory.terminationReason,
+    }),
   });
 
   if (opts.evaluationResult) {

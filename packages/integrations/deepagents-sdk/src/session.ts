@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import {
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -23,6 +24,8 @@ export type DeepagentsSessionConfig = {
   env?: Record<string, string>;
   mcpServers?: Record<string, DeepagentsMcpServerConfig>;
   systemPrompt?: string;
+  /** OpenAI reasoning summary mode requested from the model (omit for none). */
+  reasoningSummary?: "auto" | "concise" | "detailed";
   recursionLimit?: number;
   maxToolSteps?: number;
   killGraceMs?: number;
@@ -189,6 +192,7 @@ export async function runDeepagentsSession(input: {
         prompt: input.prompt,
         system_prompt: input.session.systemPrompt ?? null,
         model: normalizeDeepagentsModel(input.model),
+        reasoning_summary: input.session.reasoningSummary ?? null,
         mcp_servers: input.session.mcpServers ?? {},
         recursion_limit: positiveInteger(input.session.recursionLimit, 100),
         max_tool_steps: positiveInteger(input.session.maxToolSteps, 50),
@@ -366,11 +370,17 @@ export function buildDeepagentsTranscript(events: DeepagentsEvent[]): string {
 }
 
 export function logDeepagentsEvent(logger: HarnessLogger, event: DeepagentsEvent): void {
+  const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError: type === "error" || (type === "tool_result" && event.ok === false),
+    hasContent: type === "assistant" || type === "tool_result" || type === "final",
+  });
+  if (level === undefined) return;
   const summary = summarizeDeepagentsEvent(event);
   logger.log({
     category: "deepagents",
     message: sanitizeErrorMessage(summary.message),
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && {
@@ -435,9 +445,11 @@ export function summarizeDeepagentsEvent(event: DeepagentsEvent): {
 } {
   const type = String(event.type ?? "unknown");
   if (type === "assistant" && typeof event.text === "string") {
+    const reasoning = typeof event.reasoning === "string" ? event.reasoning : "";
+    const text = reasoning ? `${reasoning}\n${event.text}`.trim() : event.text;
     return {
-      message: `assistant: ${clip(sanitizeErrorMessage(event.text), 500)}`,
-      detail: event.text,
+      message: `assistant: ${clip(sanitizeErrorMessage(text), 500)}`,
+      detail: text,
     };
   }
   if (type === "tool_result") {

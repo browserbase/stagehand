@@ -3,10 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import type { DeepagentsMcpServerConfig } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
 import type { ProbeEvidence } from "stagehand-v3";
-import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import type { BrowserSessionLoss, StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
@@ -25,8 +26,12 @@ export interface PreparedDeepagentsToolAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   mcpServers: Record<string, DeepagentsMcpServerConfig>;
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   recordObservation?: () => void;
   observedToolMatcher: (name: string) => boolean;
@@ -35,6 +40,7 @@ export interface PreparedDeepagentsToolAdapter {
 
 export const DEEPAGENTS_TOOL_SURFACES: ToolSurface[] = [
   "stagehand_facade",
+  "stagehand_facade_legacy",
   "playwright_mcp",
   "chrome_devtools_mcp",
 ];
@@ -115,7 +121,7 @@ export async function prepareDeepagentsToolAdapter(
     input.logger.log({
       category: "deepagents",
       message: `Initialized ${toolSurface} MCP mount for Deep Agents (servers: ${serverNames.join(", ")}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -128,7 +134,11 @@ export async function prepareDeepagentsToolAdapter(
       cwd,
       env: { ...process.env } as Record<string, string>,
       promptInstructions: mount.promptInstructions,
+      browserSession: runtime.browserSession,
       mcpServers,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),

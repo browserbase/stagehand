@@ -1,0 +1,146 @@
+{
+  "as_of": "2026-08-31",
+  "models": {
+    "openai/gpt-5.4-mini": {
+      "input_per_m": 0.75,
+      "cached_input_per_m": 0.075,
+      "output_per_m": 4.5,
+      "source": "https://ai-gateway.vercel.sh/v1/models (openai/gpt-5.4-mini)"
+    },
+    "openai/gpt-5.5": {
+      "input_per_m": 5,
+      "cached_input_per_m": 0.5,
+      "output_per_m": 30,
+      "source": "https://ai-gateway.vercel.sh/v1/models (openai/gpt-5.5)"
+    },
+    "anthropic/claude-sonnet-4.6": {
+      "input_per_m": 3,
+      "cached_input_per_m": 0.3,
+      "cache_write_input_per_m": 3.75,
+      "output_per_m": 15,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-sonnet-4.6)"
+    },
+    "anthropic/claude-opus-4.8": {
+      "input_per_m": 5,
+      "cached_input_per_m": 0.5,
+      "cache_write_input_per_m": 6.25,
+      "output_per_m": 25,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-opus-4.8)"
+    },
+    "anthropic/claude-sonnet-5": {
+      "input_per_m": 2,
+      "cached_input_per_m": 0.2,
+      "cache_write_input_per_m": 2.5,
+      "output_per_m": 10,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-sonnet-5)"
+    },
+    "anthropic/claude-opus-5": {
+      "input_per_m": 5,
+      "cached_input_per_m": 0.5,
+      "cache_write_input_per_m": 6.25,
+      "output_per_m": 25,
+      "source": "https://ai-gateway.vercel.sh/v1/models (anthropic/claude-opus-5)"
+    },
+    "google/gemini-3-flash": {
+      "input_per_m": 0.5,
+      "cached_input_per_m": 0.05,
+      "output_per_m": 3,
+      "source": "https://ai-gateway.vercel.sh/v1/models (google/gemini-3-flash)"
+    },
+    "google/gemini-3.5-flash": {
+      "input_per_m": 1.5,
+      "cached_input_per_m": 0.15,
+      "output_per_m": 9,
+      "source": "https://ai-gateway.vercel.sh/v1/models (google/gemini-3.5-flash)"
+    },
+    "google/gemini-3.6-flash": {
+      "input_per_m": 0.75,
+      "cached_input_per_m": 0.075,
+      "output_per_m": 3.75,
+      "source": "https://ai-gateway.vercel.sh/v1/models (google/gemini-3.6-flash)"
+    },
+    "google/gemini-3.7-flash": {
+      "input_per_m": 0.75,
+      "cached_input_per_m": 0.075,
+      "output_per_m": 3.75,
+      "source": "https://ai-gateway.vercel.sh/v1/models (google/gemini-3.7-flash)"
+    },
+    "spacexai/grok-4.5": {
+      "input_per_m": 2,
+      "cached_input_per_m": 0.3,
+      "output_per_m": 6,
+      "source": "https://ai-gateway.vercel.sh/v1/models (spacexai/grok-4.5)"
+    },
+    "spacexai/grok-4.6": {
+      "input_per_m": 2,
+      "cached_input_per_m": 0.5,
+      "output_per_m": 6,
+      "source": "https://ai-gateway.vercel.sh/v1/models (spacexai/grok-4.6)"
+    },
+    "zai/glm-5.3": {
+      "input_per_m": 1.4,
+      "cached_input_per_m": 0.14,
+      "output_per_m": 4.4,
+      "source": "https://ai-gateway.vercel.sh/v1/models (zai/glm-5.3)"
+    },
+    "zai/glm-5.3-flash": {
+      "input_per_m": 0.15,
+      "cached_input_per_m": 0.03,
+      "output_per_m": 0.5,
+      "source": "https://ai-gateway.vercel.sh/v1/models (zai/glm-5.3-flash)"
+    },
+    "alibaba/qwen3.8-flash": {
+      "input_per_m": 0.16,
+      "cached_input_per_m": 0.016,
+      "cache_write_input_per_m": 0.2,
+      "output_per_m": 0.47,
+      "source": "https://ai-gateway.vercel.sh/v1/models (alibaba/qwen3.8-flash)"
+    },
+    "deepseek/deepseek-v4-pro": {
+      "input_per_m": 0.66,
+      "cached_input_per_m": 0.022,
+      "output_per_m": 1.98,
+      "source": "https://ai-gateway.vercel.sh/v1/models (deepseek/deepseek-v4-pro)"
+    },
+    "deepseek/deepseek-v4-flash": {
+      "input_per_m": 0.13,
+      "cached_input_per_m": 0.028,
+      "output_per_m": 0.26,
+      "source": "https://ai-gateway.vercel.sh/v1/models (deepseek/deepseek-v4-flash)"
+    },
+    "openai/gpt-5.6-luna": {
+      "input_per_m": null,
+      "cached_input_per_m": null,
+      "output_per_m": null,
+      "source": "needs owner input",
+      "note": "gateway lists in=0.2 cached=0.02 out=1.2 USD/M on 2026-08-31; confirm before pricing an EAP model"
+    },
+    "openai/gpt-5.6-sol": {
+      "input_per_m": null,
+      "cached_input_per_m": null,
+      "output_per_m": null,
+      "source": "needs owner input",
+      "note": "gateway lists in=2 cached=0.2 out=10 USD/M on 2026-08-31; confirm before pricing an EAP model"
+    },
+    "openai/gpt-5.6-terra": {
+      "input_per_m": null,
+      "cached_input_per_m": null,
+      "output_per_m": null,
+      "source": "needs owner input",
+      "note": "gateway lists in=2 cached=0.2 out=12 USD/M on 2026-08-31; confirm before pricing an EAP model"
+    },
+    "anthropic/claude-fable-5": {
+      "input_per_m": null,
+      "cached_input_per_m": null,
+      "output_per_m": null,
+      "source": "needs owner input",
+      "note": "gateway lists in=10 cached=1 out=50 USD/M on 2026-08-31; confirm before pricing an EAP model"
+    },
+    "anthropic/claude-melon": {
+      "input_per_m": null,
+      "cached_input_per_m": null,
+      "output_per_m": null,
+      "source": "needs owner input"
+    }
+  }
+}

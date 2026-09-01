@@ -1,21 +1,64 @@
+import fsp from "node:fs/promises";
+import path from "node:path";
 import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/stagehand";
 import {
+  browserSessionLostError,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RefActionSchema,
   staleSnapshotIdError,
+  type FacadeSessionLoss,
   type RefAction,
 } from "./contract.js";
-import { createPlaywrightCompatRuntime } from "./runtime.js";
+import { createPlaywrightCompatRuntime, type PlaywrightCompatTelemetry } from "./runtime.js";
 
 type SnapshotState = { url: string; xpathById: Record<string, string> };
 type HydratedAction = RefAction & { selector: string };
 type ActionResult = { completed: number };
+type ScreenshotArtifact = { path: string; base64: string };
 type RunEnvelope = {
   __stagehandPlaywrightCompat: true;
   value: unknown;
   executionError?: { name: string; message: string; stack?: string };
+  telemetry: PlaywrightCompatTelemetry;
+  artifacts: ScreenshotArtifact[];
+  closeRequested: boolean;
+  batchRuntimeMs: number;
 };
+
+export type StagehandFacadeRunReport = {
+  telemetry: PlaywrightCompatTelemetry;
+  /** Wall-clock time of the whole experimentalBatch round trip. */
+  batchRoundTripMs: number;
+  /** Time the agent's code spent executing inside the batch. */
+  batchRuntimeMs: number;
+  closeRequested: boolean;
+};
+
+export type StagehandFacadeToolsOptions = {
+  /** Directory that relative `page.screenshot({ path })` paths resolve against. Defaults to process.cwd(). */
+  artifactRoot?: string;
+  /** Observes every completed `run` batch (including ones whose code threw). */
+  onRunReport?: (report: StagehandFacadeRunReport) => void;
+  /** Fires once, the first time a call proves the browser session is gone. */
+  onSessionLost?: (loss: FacadeSessionLoss) => void;
+};
+
+/** Every facade tool returns this once the browser session is gone. */
+export class StagehandFacadeSessionLostError extends Error {
+  override readonly name = "StagehandFacadeSessionLostError";
+  constructor(readonly loss: FacadeSessionLoss) {
+    super(browserSessionLostError(loss.cause));
+  }
+}
+
+const RUN_BATCH_TIMEOUT_MS = 60_000;
+/**
+ * snapshot/screenshot RPCs have no executor-side deadline. Calls are serialized,
+ * so one that never answers would wedge every later tool call; treat that as
+ * the session being gone.
+ */
+const PAGE_CAPTURE_DEADLINE_MS = 120_000;
 
 export type StagehandFacadeScreenshot = {
   data: string;
@@ -60,6 +103,7 @@ const page = runtime.page;
 const context = runtime.context;
 const browser = runtime.browser;
 const console = globalThis.console;
+const __stagehandBatchStartedAt = performance.now();
 let value;
 let executionError;
 try {
@@ -78,35 +122,52 @@ return {
   __stagehandPlaywrightCompat: true,
   value,
   executionError,
+  telemetry: runtime.telemetry(),
+  artifacts: runtime.artifacts(),
+  closeRequested: runtime.closeRequested(),
+  batchRuntimeMs: performance.now() - __stagehandBatchStartedAt,
 };`;
 
 export class StagehandFacadeTools {
   private readonly snapshotsByPage = new Map<string, SnapshotState>();
   private queue: Promise<void> = Promise.resolve();
+  private loss: FacadeSessionLoss | undefined;
 
-  constructor(private readonly stagehand: Stagehand) {}
+  constructor(
+    private readonly stagehand: Stagehand,
+    private readonly options: StagehandFacadeToolsOptions = {},
+  ) {}
+
+  /** Set once a call has proven the browser session is gone; never cleared. */
+  get sessionLoss(): FacadeSessionLoss | undefined {
+    return this.loss;
+  }
 
   snapshot(options: { includeIframes?: boolean } = {}): Promise<string> {
-    return this.enqueue(() => this.snapshotNow(options));
+    return this.enqueue("snapshot", () => this.snapshotNow(options));
   }
 
   screenshot(
     options: { fullPage?: boolean; type?: "png" | "jpeg"; quality?: number } = {},
   ): Promise<StagehandFacadeScreenshot> {
-    return this.enqueue(() => this.screenshotNow(options));
+    return this.enqueue("screenshot", () => this.screenshotNow(options));
   }
 
   runActions(actions: RefAction[]): Promise<{ completed: number; url: string }> {
-    return this.enqueue(() => this.runActionsNow(actions));
+    return this.enqueue("run", () => this.runActionsNow(actions));
   }
 
   run(code: string): Promise<unknown> {
-    return this.enqueue(() => this.runNow(code));
+    return this.enqueue("run", () => this.runNow(code));
   }
 
   private async snapshotNow(options: { includeIframes?: boolean }): Promise<string> {
     const page = await this.activePage();
-    const snapshot = await page.snapshot({ includeIframes: options.includeIframes ?? true });
+    const snapshot = await withDeadline(
+      page.snapshot({ includeIframes: options.includeIframes ?? true }),
+      PAGE_CAPTURE_DEADLINE_MS,
+      "page.snapshot",
+    );
     this.snapshotsByPage.set(page.pageId, {
       url: await page.url(),
       xpathById: { ...snapshot.xpathMap },
@@ -124,11 +185,15 @@ export class StagehandFacadeTools {
     // CDP only accepts quality for jpeg, and only as an integer.
     const quality =
       type === "jpeg" && options.quality !== undefined ? Math.round(options.quality) : undefined;
-    const bytes = await page.screenshot({
-      type,
-      ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
-      ...(quality === undefined ? {} : { quality }),
-    });
+    const bytes = await withDeadline(
+      page.screenshot({
+        type,
+        ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
+        ...(quality === undefined ? {} : { quality }),
+      }),
+      PAGE_CAPTURE_DEADLINE_MS,
+      "page.screenshot",
+    );
     return {
       data: Buffer.from(bytes).toString("base64"),
       mimeType: type === "jpeg" ? "image/jpeg" : "image/png",
@@ -147,15 +212,26 @@ export class StagehandFacadeTools {
     }
 
     const hydrated = parsed.map((action) => {
-      const xpath = trimTrailingTextNode(snapshot.xpathById[action.id]);
+      const xpath = trimTrailingTextNode(resolveSnapshotXPath(snapshot.xpathById, action.id));
       if (!xpath) throw new Error(staleSnapshotIdError(action.id));
       return { ...action, selector: `xpath=${xpath}` };
     });
-    const result = await this.stagehand.experimentalBatch(
-      actionRunner,
-      { actions: hydrated },
-      { page, timeout: 60_000 },
-    );
+    const runBatch = () =>
+      this.stagehand.experimentalBatch(
+        actionRunner,
+        { actions: hydrated },
+        { page, timeout: 60_000 },
+      );
+    let result: ActionResult | undefined;
+    try {
+      result = await runBatch();
+    } catch (error) {
+      // A freshly hydrated element with no layout box is usually mid-render
+      // (menus, lazy lists); give it one beat before reporting.
+      if (!isLayoutError(error)) throw error;
+      await page.waitForTimeout(250);
+      result = await runBatch();
+    }
     return { completed: result?.completed ?? hydrated.length, url: await page.url() };
   }
 
@@ -166,18 +242,68 @@ export class StagehandFacadeTools {
       "input",
       FACADE_PRELUDE + code + FACADE_EPILOGUE,
     ) as ExperimentalBatchCallback<Record<string, never>, RunEnvelope>;
-    const envelope = await this.stagehand.experimentalBatch(
-      callback,
-      {},
-      { page, timeout: 60_000 },
-    );
+    const startedAt = performance.now();
+    const envelope = await this.runBatchWithActivePageFallback(callback, page);
+    this.options.onRunReport?.({
+      telemetry: envelope.telemetry,
+      batchRoundTripMs: performance.now() - startedAt,
+      batchRuntimeMs: envelope.batchRuntimeMs,
+      closeRequested: envelope.closeRequested,
+    });
+    await this.writeScreenshotArtifacts(envelope.artifacts);
     if (envelope.executionError) {
-      const error = new Error(envelope.executionError.message);
+      // Thrown by the agent's own code inside the browser, so its message can
+      // never be evidence about this process's connection to the browser.
+      const error = new Error(envelope.executionError.message) as Error & {
+        facadeExecutionError: true;
+      };
       error.name = envelope.executionError.name;
       if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
+      error.facadeExecutionError = true;
       throw error;
     }
     return envelope.value;
+  }
+
+  /**
+   * The batch controller resolves its target page before invoking the
+   * callback, so when the active page vanished between activePage() and the
+   * batch (tab closed by the previous snippet) this retry cannot replay
+   * partially executed agent code.
+   */
+  private async runBatchWithActivePageFallback(
+    callback: ExperimentalBatchCallback<Record<string, never>, RunEnvelope>,
+    page: Page,
+  ): Promise<RunEnvelope> {
+    try {
+      return await this.stagehand.experimentalBatch(
+        callback,
+        {},
+        { page, timeout: RUN_BATCH_TIMEOUT_MS },
+      );
+    } catch (error) {
+      if (!(error instanceof Error) || !/callback batch page was not found/iu.test(error.message)) {
+        throw error;
+      }
+      const context = this.stagehand.browser.context;
+      if (!(await context.activePage())) await context.newPage();
+      return await this.stagehand.experimentalBatch(
+        callback,
+        {},
+        { timeout: RUN_BATCH_TIMEOUT_MS },
+      );
+    }
+  }
+
+  private async writeScreenshotArtifacts(artifacts: ScreenshotArtifact[]): Promise<void> {
+    const root = this.options.artifactRoot ?? process.cwd();
+    for (const artifact of artifacts) {
+      const target = path.isAbsolute(artifact.path)
+        ? artifact.path
+        : path.resolve(root, artifact.path);
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.writeFile(target, Buffer.from(artifact.base64, "base64"));
+    }
   }
 
   private async activePage(): Promise<Page> {
@@ -186,8 +312,20 @@ export class StagehandFacadeTools {
     return page;
   }
 
-  private enqueue<Result>(operation: () => Promise<Result>): Promise<Result> {
-    const result = this.queue.then(operation, operation);
+  private enqueue<Result>(tool: string, operation: () => Promise<Result>): Promise<Result> {
+    const guarded = async (): Promise<Result> => {
+      if (this.loss) throw new StagehandFacadeSessionLostError(this.loss);
+      try {
+        return await operation();
+      } catch (error) {
+        const cause = sessionLossCause(error);
+        if (cause === undefined) throw error;
+        this.loss = { cause, tool, at: new Date().toISOString() };
+        this.options.onSessionLost?.(this.loss);
+        throw new StagehandFacadeSessionLostError(this.loss);
+      }
+    };
+    const result = this.queue.then(guarded, guarded);
     this.queue = result.then(
       () => undefined,
       () => undefined,
@@ -196,6 +334,75 @@ export class StagehandFacadeTools {
   }
 }
 
+class FacadeDeadlineError extends Error {
+  override readonly name = "FacadeDeadlineError";
+  constructor(operation: string, timeoutMs: number) {
+    super(`${operation} received no response within ${timeoutMs}ms`);
+  }
+}
+
+function withDeadline<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new FacadeDeadlineError(operation, timeoutMs)),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
+ * Maps an error to the reason the browser session is unusable, or undefined
+ * when it is an ordinary tool failure the agent can act on. A batch that hit
+ * its executor-side timeout is ordinary: the executor answered.
+ */
+function sessionLossCause(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  if ((error as { facadeExecutionError?: boolean }).facadeExecutionError) return undefined;
+  switch (error.name) {
+    case "StagehandBatchTimeoutError": {
+      const { clientTimeout } = error as Error & { clientTimeout?: number };
+      return typeof clientTimeout === "number"
+        ? `batch received no response within ${clientTimeout}ms`
+        : "batch received no response before its client deadline";
+    }
+    case "FacadeDeadlineError":
+      return error.message;
+    case "CDPConnectionClosedError":
+      return "CDP connection closed";
+  }
+  if (/\bCDP connection closed\b/u.test(error.message)) return "CDP connection closed";
+  if (/\bRPC client is closed\b/u.test(error.message)) return "RPC client closed";
+  return undefined;
+}
+
 function trimTrailingTextNode(path: string | undefined): string | undefined {
   return path?.replace(/\/text\(\)(\[\d+\])?$/iu, "");
+}
+
+/**
+ * Snapshot IDs are `<frameOrdinal>-<backendNodeId>` (e.g. "0-7812"). Models
+ * regularly copy only the backend id; accept that when it is unambiguous.
+ */
+function resolveSnapshotXPath(xpathById: Record<string, string>, id: string): string | undefined {
+  const exact = xpathById[id];
+  if (exact !== undefined) return exact;
+  if (id.includes("-")) return undefined;
+  const suffix = `-${id}`;
+  const matches = Object.keys(xpathById).filter((key) => key.endsWith(suffix));
+  return matches.length === 1 ? xpathById[matches[0]!] : undefined;
+}
+
+function isLayoutError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /layout object|box model/iu.test(message);
 }
