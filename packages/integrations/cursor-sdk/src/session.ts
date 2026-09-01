@@ -279,8 +279,9 @@ export async function runCursorAgentSession(input: {
       env: stringEnv({ ...process.env, ...input.session.env }),
       signal: budgetController.signal,
       onStdoutLine: async (line) => {
-        const event = parseCursorStreamLine(line);
-        if (!event) return;
+        const parsedEvent = parseCursorStreamLine(line);
+        if (!parsedEvent) return;
+        const event = deepSanitizeCursorEvent(parsedEvent);
         events.push(event);
         logCursorEvent(input.logger, event);
         if (event.type === "assistant") {
@@ -296,17 +297,18 @@ export async function runCursorAgentSession(input: {
           await input.onToolResult?.(view.name, view);
           if (toolStepCount >= maxToolSteps && !budgetController.signal.aborted) {
             budgetStopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
-            budgetController.abort(new Error(budgetStopReason));
+            budgetController.abort(new HarnessAdapterError(budgetStopReason));
           }
         }
       },
       onStderr: (chunk) => {
-        input.logger.log({ category: "cursor", message: chunk, level: 1 });
         stderr = `${stderr}${chunk}`.slice(-STDERR_LIMIT);
       },
     });
   } catch (error) {
-    iterationError = error;
+    iterationError = new HarnessAdapterError(
+      sanitizeErrorMessage(stringifyError(error)) || "Cursor agent session failed.",
+    );
     input.logger.warn({
       category: "cursor",
       message: `Cursor stopped before a normal result: ${sanitizeErrorMessage(stringifyError(error))}`,
@@ -318,6 +320,9 @@ export async function runCursorAgentSession(input: {
   } finally {
     input.signal?.removeEventListener("abort", forwardAbort);
   }
+
+  stderr = sanitizeErrorMessage(stderr);
+  if (stderr) input.logger.log({ category: "cursor", message: stderr, level: 1 });
 
   if (!resultText) resultText = lastAssistantText;
   const externalAbortReason = input.signal?.aborted
@@ -374,14 +379,16 @@ export function buildCursorStopReason(
         : "Cursor agent returned an error result",
     );
   }
-  if (!resultEvent && exit?.exitCode !== 0) {
+  if (!resultEvent) {
     const lastLine = stderr
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean)
       .at(-1);
     return sanitizeErrorMessage(
-      `cursor agent exited with code ${String(exit?.exitCode ?? "unknown")}${lastLine ? `: ${lastLine}` : ""}`,
+      exit?.exitCode !== 0
+        ? `cursor agent exited with code ${String(exit?.exitCode ?? "unknown")}${lastLine ? `: ${lastLine}` : ""}`
+        : "Cursor agent exited without a terminal result event",
     );
   }
   return undefined;
@@ -411,7 +418,11 @@ export function summarizeCursorEvent(event: CursorEvent): { message: string; det
   const type = String(event.type ?? "unknown");
   if (type === "assistant") {
     const text = extractAssistantText(event);
-    return { message: text ? `assistant: ${clip(text, 500)}` : "assistant message", detail: text };
+    const sanitized = text ? sanitizeErrorMessage(text) : undefined;
+    return {
+      message: sanitized ? `assistant: ${clip(sanitized, 500)}` : "assistant message",
+      detail: sanitized,
+    };
   }
   if (type === "tool_call") {
     const view = extractCursorToolCall(event);
@@ -419,16 +430,33 @@ export function summarizeCursorEvent(event: CursorEvent): { message: string; det
       message: view
         ? `tool: ${view.name} ${view.subtype}${view.ok ? "" : " failed"}`
         : "tool_call event",
-      detail: safeJson(event),
+      detail: sanitizeOptional(safeJson(event)),
     };
   }
   if (type === "result") {
     return {
       message: `result: ${String(event.subtype ?? "done")}`,
-      detail: typeof event.result === "string" ? event.result : safeJson(event),
+      detail: sanitizeOptional(typeof event.result === "string" ? event.result : safeJson(event)),
     };
   }
-  return { message: `${type} event`, detail: safeJson(event) };
+  return { message: `${type} event`, detail: sanitizeOptional(safeJson(event)) };
+}
+
+function sanitizeOptional(value: string | undefined): string | undefined {
+  return value === undefined ? undefined : sanitizeErrorMessage(value);
+}
+
+function deepSanitizeCursorEvent(event: CursorEvent): CursorEvent {
+  return deepSanitizeCursorValue(event) as CursorEvent;
+}
+
+function deepSanitizeCursorValue(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeErrorMessage(value);
+  if (Array.isArray(value)) return value.map(deepSanitizeCursorValue);
+  if (!isRecord(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [key, deepSanitizeCursorValue(child)]),
+  );
 }
 
 function extractAssistantText(event: CursorEvent): string | undefined {

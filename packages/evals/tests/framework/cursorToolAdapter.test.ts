@@ -64,7 +64,7 @@ describe("cursor tool adapter helpers", () => {
     ]) {
       expect(matches(name)).toBe(true);
     }
-    for (const name of ["shell", "read", "playwright.click"]) {
+    for (const name of ["shell", "read", "playwright.click", "mcp__stagehand_extra__run"]) {
       expect(matches(name)).toBe(false);
     }
   });

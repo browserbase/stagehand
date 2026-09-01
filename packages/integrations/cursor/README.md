@@ -10,6 +10,7 @@ project MCP server through `.cursor/mcp.json`.
 Use Node.js 24 or newer. From the repository root, build the integrations package first:
 
 ```bash
+pnpm install --frozen-lockfile
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
 ```
 

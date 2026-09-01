@@ -66,7 +66,8 @@ export function isCursorMountToolName(serverNames: string[], toolName: string): 
       toolName === server ||
       toolName.startsWith(`${server}.`) ||
       toolName.startsWith(`${server}__`) ||
-      toolName.startsWith(`mcp__${server}`) ||
+      toolName === `mcp__${server}` ||
+      toolName.startsWith(`mcp__${server}__`) ||
       toolName.startsWith(`${server}:`),
   );
 }

@@ -216,6 +216,41 @@ describe("external harness runner", () => {
     expect(result.reasoning).toBeUndefined();
   });
 
+  it("uses a harness-specific result parser while retaining the default parser", async () => {
+    const run = (parseResult?: (raw: string) => ReturnType<typeof parseEvalResult>) =>
+      runExternalHarnessTask({
+        harness: "custom",
+        plan,
+        logger: new EvalLogger(false),
+        resultContract: "marker",
+        fallbackErrorMessage: "missing result",
+        ...(parseResult && { parseResult }),
+        runSession: async () => ({
+          raw: { events: [] },
+          resultText: "custom wire result",
+          transcriptText: "",
+          status: "completed" as const,
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          metrics: {},
+        }),
+        toTrajectory: () => {
+          throw new Error("not called without a verifier");
+        },
+      });
+    const customParser = vi.fn(() => ({
+      success: true,
+      summary: "custom parser used",
+      raw: "custom wire result",
+    }));
+
+    const custom = await run(customParser);
+    const defaults = await run();
+
+    expect(customParser).toHaveBeenCalledWith("custom wire result");
+    expect(custom).toMatchObject({ _success: true, reasoning: "custom parser used" });
+    expect(defaults).toMatchObject({ _success: false, reasoning: undefined });
+  });
+
   it("forces SDK errors to fail while preserving the parsed report", async () => {
     const result = await runExternalHarnessTask({
       harness: "codex",

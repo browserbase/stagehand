@@ -27,7 +27,8 @@ describe("cursor trajectory adapter", () => {
   });
 
   it("decodes MCP content images and uses the last image as final observation", () => {
-    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const firstBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    const lastBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
     const args = {
       providerIdentifier: "stagehand",
       name: "screenshot",
@@ -38,7 +39,19 @@ describe("cursor trajectory adapter", () => {
         { type: "text", text: "captured" },
         {
           type: "image",
-          source: { type: "base64", media_type: "image/png", data: bytes.toString("base64") },
+          source: {
+            type: "base64",
+            media_type: "image/png",
+            data: firstBytes.toString("base64"),
+          },
+        },
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/jpeg",
+            data: lastBytes.toString("base64"),
+          },
         },
       ],
     };
@@ -54,8 +67,8 @@ describe("cursor trajectory adapter", () => {
     expect(trajectory.steps[0].actionName).toBe("stagehand.screenshot");
     expect(
       trajectory.steps[0].agentEvidence.modalities.filter((m) => m.type === "image"),
-    ).toHaveLength(1);
-    expect(trajectory.finalObservation?.screenshot?.equals(bytes)).toBe(true);
+    ).toHaveLength(2);
+    expect(trajectory.finalObservation?.screenshot?.equals(lastBytes)).toBe(true);
   });
 
   it("maps completed error envelopes", () => {

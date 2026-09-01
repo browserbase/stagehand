@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
   buildCursorAgentArgs,
   extractCursorToolCall,
@@ -168,6 +169,61 @@ describe("Cursor CLI session", () => {
     expect(exitResult.stopReason).toContain("bb_live_abcd[redacted]");
     expect(exitResult.stopReason).toContain("apiKey=[redacted]");
     expect(exitResult.stopReason).not.toContain("secret-value");
+    expect(exitResult.stderr).not.toContain("secret-value");
+  });
+
+  it("sanitizes stored event payloads and typed process errors", async () => {
+    const secret = "sk-abcdef1234567890";
+    const eventResult = await runCursorAgentSession({
+      prompt: "task",
+      model: "auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([
+        {
+          type: "tool_call",
+          subtype: "completed",
+          call_id: "1",
+          tool_call: {
+            readToolCall: { args: {}, result: { error: `failed with ${secret}` } },
+          },
+        },
+        { type: "result", result: "done" },
+      ]),
+    });
+    expect(JSON.stringify(eventResult.events)).toContain("sk-abcdef[redacted]");
+    expect(JSON.stringify(eventResult.events)).not.toContain(secret);
+
+    const processResult = await runCursorAgentSession({
+      prompt: "task",
+      model: "auto",
+      logger,
+      session: {},
+      runProcess: async () => {
+        throw new Error(`process failed with ${secret}`);
+      },
+    });
+    expect(processResult.iterationError).toBeInstanceOf(HarnessAdapterError);
+    expect(String(processResult.iterationError)).toContain("sk-abcdef[redacted]");
+    expect(String(processResult.iterationError)).not.toContain(secret);
+  });
+
+  it("fails closed when a successful process emits no result event", async () => {
+    const result = await runCursorAgentSession({
+      prompt: "task",
+      model: "auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([
+        {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "partial answer" }] },
+        },
+      ]),
+    });
+
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("Cursor agent exited without a terminal result event");
   });
 
   it("aborts when the completed tool-step budget is exhausted", async () => {
