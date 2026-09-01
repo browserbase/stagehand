@@ -129,6 +129,23 @@ describe("remote.ts (Browserbase capability)", () => {
     });
   });
 
+  it("sanitizes Browserbase launch failures", async () => {
+    stagehandMocks.launch.mockRejectedValue(
+      new Error("sensitive provider detail"),
+    );
+
+    const error = await launchRemoteBrowser({ kind: "remote" }).catch(
+      (cause: unknown) => cause,
+    );
+    expect(error).toMatchObject({
+      code: "remote_session_create_failed",
+      name: "DriverError",
+    });
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toContain("sensitive provider detail");
+    expect((error as Error & { cause?: unknown }).cause).toBeUndefined();
+  });
+
   it("preserves remote session and live-view output fields", async () => {
     const debug = async () => ({
       debuggerUrl: "https://www.browserbase.com/live/session-test",
