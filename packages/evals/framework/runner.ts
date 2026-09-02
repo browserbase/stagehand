@@ -46,7 +46,7 @@ export { discoverTasks, resolveTarget } from "./discovery.js";
 export { inferEffectiveBenchCategory, resolveBenchModelEntries } from "./benchPlanner.js";
 export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
-import { resolveDefaultCoreStartupProfile } from "./context.js";
+import { rejectAgentMountOnlyCoreTool, resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
 
 export interface RunProgressEvent {
@@ -342,6 +342,11 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     const trials = options.trials ?? 3;
     const environment = options.environment ?? "LOCAL";
 
+    const effectiveCoreToolSurface = hasCoreOnly
+      ? (options.coreToolSurface ?? "understudy_code")
+      : undefined;
+    if (effectiveCoreToolSurface) rejectAgentMountOnlyCoreTool(effectiveCoreToolSurface);
+
     const testcases = generateTestcases(options.tasks, options);
     options.onProgress?.({
       type: "planned",
@@ -356,9 +361,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       };
     }
 
-    const effectiveCoreToolSurface = hasCoreOnly
-      ? (options.coreToolSurface ?? "understudy_code")
-      : undefined;
     const effectiveCoreStartupProfile =
       hasCoreOnly && effectiveCoreToolSurface
         ? (options.coreStartupProfile ??
