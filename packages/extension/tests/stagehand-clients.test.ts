@@ -41,6 +41,7 @@ import type {
   LocatorTypeParams,
   PageAddInitScriptParams,
   PageClickParams,
+  PageEventName,
   PageCDPEvent,
   PageCDPEventNotification,
   PageDragAndDropParams,
@@ -460,7 +461,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
-  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
+  subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+  ): () => void {
     const method = "Runtime.consoleAPICalled";
     const listeners = this.cdpEventListeners.get(method) ?? new Set();
     listeners.add(listener);
