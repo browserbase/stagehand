@@ -7,12 +7,12 @@ import { BrowserContext } from "../understudy/context.js";
 import { Page } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
-  readonly id = "main";
   readonly calls: Array<{ method: string; params?: object }> = [];
   readonly handlers = new Map<string, Set<(params: unknown) => void>>();
 
   constructor(
     readonly responses: Record<string, (session: FakeCDPSession, params?: object) => unknown> = {},
+    readonly id: string = "main",
   ) {}
 
   async send<Result = unknown>(method: string, params?: object): Promise<Result> {
@@ -53,6 +53,14 @@ function createPage(session: FakeCDPSession): Page {
   return new Page(connection, session, "target-1", "frame-1", {} as StagehandLogger);
 }
 
+function addSameProcessChild(page: Page, session: FakeCDPSession): void {
+  page.onFrameAttached("frame-2", "frame-1", session);
+}
+
+function adoptChildSession(page: Page, session: FakeCDPSession): void {
+  page.adoptOopifSession(session, "frame-2");
+}
+
 function createContextPage(session: FakeCDPSession): { context: BrowserContext; page: Page } {
   const connection = {
     connected: true,
@@ -78,6 +86,7 @@ describe("Page WebMCP invocation lifecycle", () => {
       "WebMCP.invokeTool": () => ({ invocationId: `invocation-${++invocation}` }),
     });
     const page = createPage(session);
+    addSameProcessChild(page, session);
 
     await expect(
       page.invokeWebMCPTool("frame-2", "search", {
@@ -115,6 +124,97 @@ describe("Page WebMCP invocation lifecycle", () => {
       },
     ]);
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
+  });
+
+  it("routes an OOPIF invocation, response, and cancellation through its child session", async () => {
+    const session = new FakeCDPSession();
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": () => ({ invocationId: "child-invocation" }),
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+
+    await expect(
+      page.invokeWebMCPTool("frame-2", "search", {
+        input: { searchQuery: "Stagehand" },
+      }),
+    ).resolves.toStrictEqual({
+      invocationId: "child-invocation",
+      toolName: "search",
+      frameId: "frame-2",
+      input: { searchQuery: "Stagehand" },
+    });
+    expect(session.callsFor("WebMCP.invokeTool")).toHaveLength(0);
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
+    expect(childSession.callsFor("WebMCP.invokeTool")).toStrictEqual([
+      {
+        method: "WebMCP.invokeTool",
+        params: {
+          frameId: "frame-2",
+          toolName: "search",
+          input: { searchQuery: "Stagehand" },
+        },
+      },
+    ]);
+    expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(1);
+
+    const result = page.waitForWebMCPInvocationResult("child-invocation");
+    childSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "child-invocation",
+      status: "Completed",
+      output: { source: "child" },
+    });
+    await expect(result).resolves.toStrictEqual({
+      invocationId: "child-invocation",
+      status: "Completed",
+      output: { source: "child" },
+    });
+
+    await page.cancelWebMCPInvocation("child-invocation");
+    expect(session.callsFor("WebMCP.cancelInvocation")).toHaveLength(0);
+    expect(childSession.callsFor("WebMCP.cancelInvocation")).toStrictEqual([
+      {
+        method: "WebMCP.cancelInvocation",
+        params: { invocationId: "child-invocation" },
+      },
+    ]);
+  });
+
+  it("ignores a matching invocation response emitted by the wrong session", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () => ({ invocationId: "main-invocation" }),
+    });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": () => ({ invocationId: "child-invocation" }),
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+    await page.invokeWebMCPTool("frame-1", "main");
+    await page.invokeWebMCPTool("frame-2", "child");
+
+    const result = page.waitForWebMCPInvocationResult("child-invocation");
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "child-invocation",
+      status: "Completed",
+      output: { source: "wrong" },
+    });
+    childSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "child-invocation",
+      status: "Completed",
+      output: { source: "child" },
+    });
+
+    await expect(result).resolves.toStrictEqual({
+      invocationId: "child-invocation",
+      status: "Completed",
+      output: { source: "child" },
+    });
   });
 
   it.each([
@@ -323,7 +423,126 @@ describe("Page WebMCP invocation lifecycle", () => {
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
 
-  it("removes an idle response listener when invocation fails", async () => {
+  it("detaching an OOPIF rejects only that session's pending invocations", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () => ({ invocationId: "main-invocation" }),
+    });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": () => ({ invocationId: "child-invocation" }),
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+    await page.invokeWebMCPTool("frame-1", "main");
+    await page.invokeWebMCPTool("frame-2", "child");
+    const mainResult = page.waitForWebMCPInvocationResult("main-invocation");
+    const childResult = page.waitForWebMCPInvocationResult("child-invocation");
+    const childRejection = expect(childResult).rejects.toThrow(
+      'WebMCP invocation "child-invocation" was disposed before it completed because its frame detached from page "target-1".',
+    );
+
+    page.detachOopifSession("child");
+
+    await childRejection;
+    expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
+    await expect(page.waitForWebMCPInvocationResult("child-invocation")).rejects.toThrow(
+      'WebMCP invocation "child-invocation" was not found on page "target-1".',
+    );
+
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "main-invocation",
+      status: "Completed",
+    });
+    await expect(mainResult).resolves.toStrictEqual({
+      invocationId: "main-invocation",
+      status: "Completed",
+    });
+  });
+
+  it("does not register an invocation whose child session detached during the command", async () => {
+    let resolveInvocation!: (response: Protocol.WebMCP.InvokeToolResponse) => void;
+    const session = new FakeCDPSession();
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": () =>
+          new Promise<Protocol.WebMCP.InvokeToolResponse>((resolve) => {
+            resolveInvocation = resolve;
+          }),
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+    const invocation = page.invokeWebMCPTool("frame-2", "child");
+    await Promise.resolve();
+
+    page.detachOopifSession("child");
+    resolveInvocation({ invocationId: "orphaned-invocation" });
+
+    await expect(invocation).rejects.toThrow(
+      'WebMCP session for frame "frame-2" was disposed before invocation registration completed on page "target-1".',
+    );
+    expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
+    await expect(page.waitForWebMCPInvocationResult("orphaned-invocation")).rejects.toThrow(
+      'WebMCP invocation "orphaned-invocation" was not found on page "target-1".',
+    );
+  });
+
+  it("page disposal rejects invocations and removes listeners across every session", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () => ({ invocationId: "main-invocation" }),
+    });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": () => ({ invocationId: "child-invocation" }),
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+    await page.invokeWebMCPTool("frame-1", "main");
+    await page.invokeWebMCPTool("frame-2", "child");
+    const mainResult = page.waitForWebMCPInvocationResult("main-invocation");
+    const childResult = page.waitForWebMCPInvocationResult("child-invocation");
+    const mainRejection = expect(mainResult).rejects.toThrow(
+      'WebMCP invocation "main-invocation" was disposed before it completed on page "target-1".',
+    );
+    const childRejection = expect(childResult).rejects.toThrow(
+      'WebMCP invocation "child-invocation" was disposed before it completed on page "target-1".',
+    );
+
+    page.dispose();
+
+    await Promise.all([mainRejection, childRejection]);
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
+    expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
+  });
+
+  it("rejects duplicate invocation IDs returned by different sessions", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () => ({ invocationId: "duplicate" }),
+    });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": () => ({ invocationId: "duplicate" }),
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+    await page.invokeWebMCPTool("frame-1", "main");
+
+    await expect(page.invokeWebMCPTool("frame-2", "child")).rejects.toThrow(
+      'WebMCP returned duplicate invocation ID "duplicate".',
+    );
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
+    expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
+  });
+
+  it("rejects an unknown frame without installing a listener or sending an invocation", async () => {
     const session = new FakeCDPSession({
       "WebMCP.invokeTool": () => {
         throw new Error("Tool not found");
@@ -331,7 +550,28 @@ describe("Page WebMCP invocation lifecycle", () => {
     });
     const page = createPage(session);
 
-    await expect(page.invokeWebMCPTool("stale-frame", "search")).rejects.toThrow("Tool not found");
+    await expect(page.invokeWebMCPTool("stale-frame", "search")).rejects.toThrow(
+      'WebMCP frame "stale-frame" was not found on page "target-1" or has detached.',
+    );
+    expect(session.callsFor("WebMCP.invokeTool")).toHaveLength(0);
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
+  });
+
+  it("removes an idle child-session response listener when invocation fails", async () => {
+    const session = new FakeCDPSession();
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": () => {
+          throw new Error("Tool not found");
+        },
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+
+    await expect(page.invokeWebMCPTool("frame-2", "search")).rejects.toThrow("Tool not found");
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
+    expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
 });
