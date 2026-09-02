@@ -20,14 +20,17 @@ import {
   JSONRPCWireInputSchema,
   type RPCMethod,
   type RPCNotification,
-} from "../../protocol/json-rpc/schemas.js";
-import type { JSONRPCResponse } from "../../protocol/json-rpc/types.js";
-import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
+} from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import type { JSONRPCResponse } from "@browserbasehq/stagehand-protocol/json-rpc/types";
+import {
+  encodeWireValue,
+  wireSchema,
+} from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
 import {
   getStagehandMethod,
   StagehandMethods,
   StagehandRpcRequestSchema,
-} from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import { z } from "zod/v4";
 import { RPCRouter } from "../rpcRouter.js";
 import { ChromeRuntimeClient } from "./chromeRuntimeClient.js";

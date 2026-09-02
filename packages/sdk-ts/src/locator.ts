@@ -1,5 +1,5 @@
-import { LocatorDescriptorSchema } from "../../protocol/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { LocatorDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   LocatorClickParams,
   LocatorCentroidResult,
@@ -9,7 +9,7 @@ import type {
   LocatorSelectOptionParams,
   LocatorSendClickEventParams,
   LocatorTypeParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 

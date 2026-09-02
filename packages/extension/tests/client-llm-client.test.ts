@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import { generateWithClientLlm } from "../llm/clientLlmClient.js";
 import * as llmService from "../services/llmService.js";
 import { createStagehandRuntime } from "../runtime.js";

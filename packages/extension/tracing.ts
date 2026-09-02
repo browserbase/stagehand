@@ -14,7 +14,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import { z } from "zod/v4";
-import type { ImplementationInfo, TelemetryConfig } from "../protocol/types.js";
+import type { ImplementationInfo, TelemetryConfig } from "@browserbasehq/stagehand-protocol/types";
 import extensionPackageJson from "./package.json" with { type: "json" };
 
 const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
