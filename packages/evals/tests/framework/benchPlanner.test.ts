@@ -50,6 +50,20 @@ describe("benchPlanner", () => {
     });
   });
 
+  it("uses the registry-derived fx model override environment key", async () => {
+    expect(defaultModelsEnvKey("fx")).toBe("EVAL_FX_MODELS");
+    await withEnvOverrides({ EVAL_FX_MODELS: "openai/custom-fx" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "fx" }).modelEntries).toEqual([
+        { modelName: "openai/custom-fx", mode: "hybrid", cua: false },
+      ]);
+    });
+    await withEnvOverrides({ EVAL_FX_MODELS: "" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "fx" }).modelEntries).toEqual([
+        { modelName: "openai/gpt-5.4-mini", mode: "hybrid", cua: false },
+      ]);
+    });
+  });
+
   it("plans registered pass-through harness rows generically", () => {
     registerBenchHarness({
       harness: "fake_planner_harness",
