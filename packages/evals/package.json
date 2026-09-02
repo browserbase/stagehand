@@ -27,8 +27,10 @@
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-codex-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-eve-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
@@ -54,5 +56,8 @@
     "string-comparison": "^1.3.0",
     "vite": "catalog:",
     "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

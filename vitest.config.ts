@@ -15,6 +15,7 @@ export default defineConfig({
       "packages/integrations/codex-sdk/tests/**/*.test.ts",
       "packages/integrations/mastra-sdk/tests/**/*.test.ts",
       "packages/integrations/pi-sdk/tests/**/*.test.ts",
+      "packages/integrations/eve-sdk/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",

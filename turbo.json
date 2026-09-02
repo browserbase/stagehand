@@ -56,6 +56,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "@browserbasehq/stagehand-integrations-eve-sdk#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -169,6 +174,16 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
+    "@browserbasehq/stagehand-integrations-eve-sdk#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-eve-sdk#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
     "@browserbasehq/stagehand-integrations-example-mastra-facade#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -182,6 +197,9 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-eve-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
