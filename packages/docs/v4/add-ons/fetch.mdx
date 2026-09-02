@@ -1,0 +1,532 @@
+---
+title: "Web Fetch"
+sidebarTitle: "Web Fetch"
+description: "Turn any webpage into agent context, without launching a browser"
+---
+
+## What is `fetch()`?
+
+Most of the time an agent doesn't need to *use* a page, it needs to *read* one. `browserbase.fetch()` takes a URL and returns its content as markdown, structured JSON, or the raw body — in one HTTP call, with no browser to start, no page to navigate, and nothing to close.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase } from "@browserbasehq/stagehand";
+
+const fetchResult = await browserbase.fetch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  url: "https://example.com",
+  format: "markdown",
+});
+
+console.log(fetchResult.content);
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+
+from stagehand import browserbase
+
+fetch_result = await browserbase.fetch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    url="https://example.com",
+    format="markdown",
+)
+
+print(fetch_result.content)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+fetchResult, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	URL:    "https://example.com",
+	Format: stagehand.BrowserbaseFetchFormatMarkdown,
+})
+if err != nil {
+	return err
+}
+
+content, ok := fetchResult.Content.AsString()
+if !ok {
+	return errors.New("fetch returned non-string content")
+}
+fmt.Println(content)
+```
+</Tab>
+</Tabs>
+
+<Note>
+`fetch()` hangs off the same `browserbase` facade you use to launch cloud browsers, but it never starts a browser session. All it needs is a Browserbase API key — there is no `Stagehand` instance and no page. Local browsers have no equivalent.
+</Note>
+
+## Why use `fetch()`?
+
+<CardGroup cols={2}>
+  <Card title="Freshness" icon="rotate">
+    Every call retrieves the live page, not a copy from a crawl index, so what the model reads is what the site serves right now.
+  </Card>
+  <Card title="Speed" icon="bolt">
+    No browser boot, no render, no wait for the DOM to settle — fast enough to sit inside a latency-sensitive agent loop.
+  </Card>
+  <Card title="Token-optimized output" icon="feather" href="#output-formats">
+    Markdown and JSON strip the boilerplate and layout, so the model spends its context on content instead of markup.
+  </Card>
+  <Card title="Proxy support" icon="shield" href="#proxies-and-transport">
+    Pages that block datacenter traffic are reachable by routing the request through Browserbase's proxy network.
+  </Card>
+</CardGroup>
+
+## Setup
+
+`fetch()` ships with the Stagehand SDK. The only requirement is a [Browserbase API key](https://www.browserbase.com/overview):
+
+```bash
+export BROWSERBASE_API_KEY="bb_live_..."
+```
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import "dotenv/config";
+import { browserbase } from "@browserbasehq/stagehand";
+
+const { BROWSERBASE_API_KEY } = process.env;
+if (!BROWSERBASE_API_KEY) throw new Error("BROWSERBASE_API_KEY is required");
+
+const fetchResult = await browserbase.fetch({
+  apiKey: BROWSERBASE_API_KEY,
+  url: "https://docs.stagehand.dev/v4/first-steps/introduction",
+  format: "markdown",
+});
+
+console.log(fetchResult.statusCode, fetchResult.contentType);
+console.log(fetchResult.content);
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import asyncio
+import os
+
+from stagehand import browserbase
+
+
+async def main() -> None:
+    fetch_result = await browserbase.fetch(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        url="https://docs.stagehand.dev/v4/first-steps/introduction",
+        format="markdown",
+    )
+    print(fetch_result.status_code, fetch_result.content_type)
+    print(fetch_result.content)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) error {
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	if apiKey == "" {
+		return errors.New("BROWSERBASE_API_KEY is required")
+	}
+
+	fetchResult, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+		APIKey: apiKey,
+		URL:    "https://docs.stagehand.dev/v4/first-steps/introduction",
+		Format: stagehand.BrowserbaseFetchFormatMarkdown,
+	})
+	if err != nil {
+		return err
+	}
+
+	content, ok := fetchResult.Content.AsString()
+	if !ok {
+		return errors.New("fetch returned non-string content")
+	}
+	fmt.Println(fetchResult.StatusCode, fetchResult.ContentType)
+	fmt.Println(content)
+	return nil
+}
+```
+</Tab>
+</Tabs>
+
+## Output formats
+
+`format` decides what lands in `content`. Pick the cheapest representation that still answers your question.
+
+<Tabs>
+<Tab title="markdown">
+
+Markdown is the default choice for agent context: headings, links, and text survive, while navigation chrome and layout markup don't.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const { content } = await browserbase.fetch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  url: "https://example.com/blog/post",
+  format: "markdown",
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+result = await browserbase.fetch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    url="https://example.com/blog/post",
+    format="markdown",
+)
+content = result.content
+```
+</Tab>
+
+<Tab title="Go">
+```go
+result, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	URL:    "https://example.com/blog/post",
+	Format: stagehand.BrowserbaseFetchFormatMarkdown,
+})
+if err != nil {
+	return err
+}
+content, _ := result.Content.AsString()
+```
+</Tab>
+</Tabs>
+
+`content` is a string.
+
+</Tab>
+<Tab title="json">
+
+Pass a JSON Schema and get back an object that matches it — the extraction happens server-side, so no model call of your own is involved.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const { content } = await browserbase.fetch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  url: "https://example.com/products/mouse",
+  format: "json",
+  schema: {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      price: { type: "number" },
+      inStock: { type: "boolean" },
+    },
+    required: ["name", "price"],
+  },
+});
+
+// content is an object, not a string
+console.log(content);
+```
+</Tab>
+
+<Tab title="Python">
+```python
+result = await browserbase.fetch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    url="https://example.com/products/mouse",
+    format="json",
+    schema={
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "price": {"type": "number"},
+            "inStock": {"type": "boolean"},
+        },
+        "required": ["name", "price"],
+    },
+)
+
+# result.content is a dict, not a string
+print(result.content)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+result, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	URL:    "https://example.com/products/mouse",
+	Format: stagehand.BrowserbaseFetchFormatJSON,
+	Schema: map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"name":    map[string]any{"type": "string"},
+			"price":   map[string]any{"type": "number"},
+			"inStock": map[string]any{"type": "boolean"},
+		},
+		"required": []string{"name", "price"},
+	},
+})
+if err != nil {
+	return err
+}
+
+// Object content, not string content
+extracted, ok := result.Content.AsObject()
+if !ok {
+	return errors.New("fetch returned non-object content")
+}
+fmt.Println(extracted)
+```
+</Tab>
+</Tabs>
+
+<Warning>
+`schema` and `format: "json"` go together: passing a schema with any other format, or asking for `json` without one, fails validation before the request is sent.
+</Warning>
+
+</Tab>
+<Tab title="raw">
+
+The upstream response body, untouched. Use it when you want to parse the page yourself, or when the response isn't HTML at all — a JSON API, an RSS feed, a CSV export.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const { content, contentType } = await browserbase.fetch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  url: "https://example.com/feed.xml",
+  format: "raw",
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+result = await browserbase.fetch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    url="https://example.com/feed.xml",
+    format="raw",
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+result, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	URL:    "https://example.com/feed.xml",
+	Format: stagehand.BrowserbaseFetchFormatRaw,
+})
+```
+</Tab>
+</Tabs>
+
+`raw` is the default when you omit `format`, and the cheapest of the three. Check `encoding` before treating `content` as text: binary responses come back `base64`.
+
+</Tab>
+</Tabs>
+
+## Proxies and transport
+
+Some sites refuse datacenter traffic, some answer only after a redirect, and some serve a certificate you'd rather not argue with. Three booleans cover those cases, all off by default.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const result = await browserbase.fetch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  url: "https://example.com/protected",
+  format: "markdown",
+  proxies: true,          // route through Browserbase's proxy network
+  allowRedirects: true,   // follow HTTP redirects
+  allowInsecureSsl: true, // skip TLS certificate verification
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+result = await browserbase.fetch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    url="https://example.com/protected",
+    format="markdown",
+    proxies=True,             # route through Browserbase's proxy network
+    allow_redirects=True,     # follow HTTP redirects
+    allow_insecure_ssl=True,  # skip TLS certificate verification
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+proxies := true
+allowRedirects := true
+allowInsecureSSL := true
+
+result, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+	APIKey:           os.Getenv("BROWSERBASE_API_KEY"),
+	URL:              "https://example.com/protected",
+	Format:           stagehand.BrowserbaseFetchFormatMarkdown,
+	Proxies:          &proxies,          // route through Browserbase's proxy network
+	AllowRedirects:   &allowRedirects,   // follow HTTP redirects
+	AllowInsecureSSL: &allowInsecureSSL, // skip TLS certificate verification
+})
+```
+</Tab>
+</Tabs>
+
+<Tip>
+Turn `proxies` on only for the requests that need it. Proxied fetches cost more and add latency, so a per-domain fallback beats enabling it globally.
+</Tip>
+
+## Response
+
+Every fetch returns the content alongside the transport metadata, so you can tell a real page from a soft 404 or a bot wall before handing anything to a model.
+
+```json
+{
+  "id": "fet_01JB8Z3K7Q2M4N",
+  "content": "# Example Domain\n\nThis domain is for use in illustrative examples...",
+  "contentType": "text/html; charset=utf-8",
+  "encoding": "utf-8",
+  "headers": { "content-type": "text/html; charset=utf-8" },
+  "statusCode": 200
+}
+```
+
+<Note>
+Field names follow each language's conventions: `contentType` and `statusCode` in TypeScript, `content_type` and `status_code` in Python, and `ContentType` and `StatusCode` on the Go structs. In Go, `Content` is a union — call `AsString()` for `raw` and `markdown`, `AsObject()` for `json`.
+</Note>
+
+## API reference
+
+### Parameters
+
+<ParamField path="apiKey" type="string" required>
+  Your Browserbase API key. Fetches are billed to the project that owns the key.
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  The `http` or `https` URL to fetch. Validated locally before the request is sent.
+</ParamField>
+
+<ParamField path="format" type='"raw" | "json" | "markdown"' optional>
+  Which representation to return in `content`. Defaults to `raw`.
+</ParamField>
+
+<ParamField path="schema" type="object" optional>
+  JSON Schema describing the object to extract. Required with `format: "json"`, and rejected with any other format.
+</ParamField>
+
+<ParamField path="proxies" type="boolean" optional>
+  Route the request through Browserbase's proxy network. Defaults to `false`.
+</ParamField>
+
+<ParamField path="allowRedirects" type="boolean" optional>
+  Follow HTTP redirects. Defaults to `false`, so a redirect is reported as its `3xx` status.
+</ParamField>
+
+<ParamField path="allowInsecureSsl" type="boolean" optional>
+  Skip TLS certificate verification. Defaults to `false`.
+</ParamField>
+
+<ParamField path="baseUrl" type="string" optional>
+  Browserbase API origin override. Defaults to `https://api.browserbase.com`.
+</ParamField>
+
+### Returns
+
+<ResponseField name="id" type="string">
+  Identifier for this fetch request.
+</ResponseField>
+
+<ResponseField name="content" type="string | object">
+  The page content. A string for `raw` and `markdown`, an object for `json`.
+</ResponseField>
+
+<ResponseField name="contentType" type="string">
+  MIME type reported by the target.
+</ResponseField>
+
+<ResponseField name="encoding" type="string">
+  `utf-8` for text, `base64` for binary responses.
+</ResponseField>
+
+<ResponseField name="headers" type="Record<string, string>">
+  Response headers from the target.
+</ResponseField>
+
+<ResponseField name="statusCode" type="number">
+  HTTP status code returned by the target. A fetch that reaches a `404` succeeds as a call and reports `404` here.
+</ResponseField>
+
+## When to use a browser instead
+
+`fetch()` never renders the page. It performs an HTTP request and converts the response, which is exactly why it is fast — and also why it cannot see anything that only exists after JavaScript runs.
+
+<Warning>
+Reach for [`browserbase.launch()`](/v4/configuration/browser) and [`extract()`](/v4/basics/extract) when the content is client-rendered, sits behind a login, or appears only after interaction — scrolling, clicking a tab, dismissing a modal. A common pattern is to try `fetch()` first and fall back to a browser session when the content you need is missing.
+</Warning>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="General agents and chatbots" icon="comments">
+    Retrieve up-to-date information to produce more accurate answers.
+  </Card>
+  <Card title="Coding agents" icon="code">
+    Pull the documentation page for a library straight into context as markdown.
+  </Card>
+  <Card title="Vertical-specific agents" icon="briefcase">
+    Pull fresh, domain-specific information tailored to a given industry or knowledge vertical.
+  </Card>
+  <Card title="AI workflows" icon="arrows-spin">
+    Regularly collect news, people, company, or other frequently updated information for internal or production workflows.
+  </Card>
+</CardGroup>
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Content size | 5 MB |
+| Request timeout | 60 seconds |
+| JavaScript execution | Not supported — the page is never rendered |
+| PDF conversion | PDFs cannot be converted to `markdown` or `json` |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Web Search" icon="magnifying-glass" href="/v4/add-ons/search">
+    Find the URLs worth fetching in the first place.
+  </Card>
+  <Card title="Browserbase Fetch" icon="cloud" href="https://docs.browserbase.com/platform/fetch/overview">
+    Endpoint details, pricing, and the underlying REST API.
+  </Card>
+</CardGroup>
