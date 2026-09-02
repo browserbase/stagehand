@@ -983,6 +983,20 @@ async def test_occupied_explicit_port_precedes_profile_creation_and_spawn(
     assert not spawned
 
 
+@pytest.mark.parametrize("port", [0, -1, 65_536])
+def test_resolve_chrome_port_rejects_invalid_explicit_ports(
+    monkeypatch: pytest.MonkeyPatch,
+    port: int,
+) -> None:
+    def inspect_port(_port: int) -> int:
+        raise AssertionError("invalid ports should not be inspected")
+
+    monkeypatch.setattr(browser, "_inspect_chrome_port", inspect_port)
+
+    with pytest.raises(ValueError, match="between 1 and 65535"):
+        browser._resolve_chrome_port(port)
+
+
 def test_resolve_chrome_port_preserves_non_occupancy_socket_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

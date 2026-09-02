@@ -1020,6 +1020,8 @@ def _is_executable_file(path: str, platform: str) -> bool:
 def _resolve_chrome_port(requested_port: int | None) -> int:
     if requested_port is None:
         return _available_port()
+    if requested_port < 1 or requested_port > 65_535:
+        raise ValueError("Chrome port must be between 1 and 65535")
     try:
         _inspect_chrome_port(requested_port)
     except OSError as error:
