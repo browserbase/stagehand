@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PageCDPEvent } from "@browserbasehq/stagehand-protocol/types";
+import type { PageCDPEvent, PageEventName } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
-import { Page } from "../understudy/page.js";
+import { Page, PAGE_TO_CDP_EVENTS } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
   readonly handlers = new Map<string, Set<(params: unknown) => void>>();
@@ -45,30 +45,32 @@ function createPage(
 }
 
 describe("Page CDP event subscriptions", () => {
+  const pageEventNames: Array<PageEventName> = ["console"];
+  const randomPageEventName = pageEventNames[Math.floor(Math.random() * pageEventNames.length)];
   it("covers the main session plus current and future OOPIF sessions", () => {
     const main = new FakeCDPSession("main");
     const child = new FakeCDPSession("child");
     const page = createPage(main);
     const events: unknown[] = [];
 
-    const unsubscribe = page.subscribeCDPEvent((event) => {
+    const unsubscribe = page.subscribeCDPEvent(randomPageEventName, (event) => {
       events.push(event);
     });
-    main.emit("Runtime.consoleAPICalled", { type: "log", args: [] });
+    main.emit(PAGE_TO_CDP_EVENTS[randomPageEventName], { type: "log", args: [] });
     page.adoptOopifSession(child, "frame-child");
-    child.emit("Runtime.consoleAPICalled", { type: "warning", args: [] });
+    child.emit(PAGE_TO_CDP_EVENTS[randomPageEventName], { type: "warning", args: [] });
 
     expect(events).toStrictEqual([
       {
         pageId: "target-main",
-        method: "Runtime.consoleAPICalled",
+        method: PAGE_TO_CDP_EVENTS[randomPageEventName],
         params: { type: "log", args: [] },
         sessionId: "main",
         targetId: "target-main",
       },
       {
         pageId: "target-main",
-        method: "Runtime.consoleAPICalled",
+        method: PAGE_TO_CDP_EVENTS[randomPageEventName],
         params: { type: "warning", args: [] },
         sessionId: "child",
         targetId: "target-child",
@@ -76,9 +78,9 @@ describe("Page CDP event subscriptions", () => {
     ]);
 
     page.detachOopifSession("child");
-    expect(child.listenerCount("Runtime.consoleAPICalled")).toBe(0);
+    expect(child.listenerCount(PAGE_TO_CDP_EVENTS[randomPageEventName])).toBe(0);
     unsubscribe();
-    expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
+    expect(main.listenerCount(PAGE_TO_CDP_EVENTS[randomPageEventName])).toBe(0);
   });
 
   it("removes every raw listener when the page is disposed", () => {
@@ -87,11 +89,11 @@ describe("Page CDP event subscriptions", () => {
     const page = createPage(main);
 
     page.adoptOopifSession(child, "frame-child");
-    page.subscribeCDPEvent(() => {});
+    page.subscribeCDPEvent(randomPageEventName, () => {});
     page.dispose();
 
-    expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
-    expect(child.listenerCount("Runtime.consoleAPICalled")).toBe(0);
+    expect(main.listenerCount(PAGE_TO_CDP_EVENTS[randomPageEventName])).toBe(0);
+    expect(child.listenerCount(PAGE_TO_CDP_EVENTS[randomPageEventName])).toBe(0);
   });
 
   it("isolates listener failures so other subscriptions still receive the event", () => {
@@ -100,18 +102,20 @@ describe("Page CDP event subscriptions", () => {
     const page = createPage(main, { error: logError } as unknown as StagehandLogger);
     const events: PageCDPEvent[] = [];
 
-    page.subscribeCDPEvent(() => {
+    page.subscribeCDPEvent(randomPageEventName, () => {
       throw new Error("listener failed");
     });
-    page.subscribeCDPEvent((event) => events.push(event));
+    page.subscribeCDPEvent(randomPageEventName, (event) => events.push(event));
 
-    expect(() => main.emit("Runtime.consoleAPICalled", { type: "log", args: [] })).not.toThrow();
+    expect(() =>
+      main.emit(PAGE_TO_CDP_EVENTS[randomPageEventName], { type: "log", args: [] }),
+    ).not.toThrow();
     expect(events).toHaveLength(1);
     expect(logError).toHaveBeenCalledWith(
       "Page CDP event listener failed",
       expect.objectContaining({
         category: "page",
-        method: "Runtime.consoleAPICalled",
+        method: PAGE_TO_CDP_EVENTS[randomPageEventName],
         sessionId: "main",
         error: "listener failed",
       }),

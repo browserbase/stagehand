@@ -45,6 +45,7 @@ import type {
   PageCDPEventNotification,
   PageDragAndDropParams,
   PageEvaluateParams,
+  PageEventName,
   PageKeyPressParams,
   PageNavigationOptions,
   PageReloadParams,
@@ -62,6 +63,7 @@ import type {
   WebMCPToolResponse,
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
+import { PAGE_TO_CDP_EVENTS } from "../understudy/page.ts";
 
 vi.mock("../understudy/context.js", () => ({
   BrowserContext: {
@@ -460,8 +462,11 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
-  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
-    const method = "Runtime.consoleAPICalled";
+  subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+  ): () => void {
+    const method = PAGE_TO_CDP_EVENTS[pageEventName];
     const listeners = this.cdpEventListeners.get(method) ?? new Set();
     listeners.add(listener);
     this.cdpEventListeners.set(method, listeners);
@@ -666,6 +671,9 @@ function configuredInitParams(cdpUrl: string) {
 }
 
 describe("Stagehand worker clients", () => {
+  const pageEventNames: Array<PageEventName> = ["console"];
+  const randomPageEventName = pageEventNames[Math.floor(Math.random() * pageEventNames.length)];
+
   it("routes callback batches through the registered JSON-RPC method", async () => {
     const page = new FakeUnderstudyRuntimePage("page-1", "https://example.com", "Example");
     const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
@@ -739,10 +747,14 @@ describe("Stagehand worker clients", () => {
     });
     await runtime.contextPages();
 
-    runtime.pageOn({ pageId: "page-a", subscriptionId: "subscription-1", event: "console" });
+    runtime.pageOn({
+      pageId: "page-a",
+      subscriptionId: "subscription-1",
+      event: randomPageEventName,
+    });
     page.emitCDPEvent({
       pageId: "page-a",
-      method: "Runtime.consoleAPICalled",
+      method: PAGE_TO_CDP_EVENTS[randomPageEventName],
       params: { type: "log", executionContextId: 1 },
       sessionId: "session-1",
       targetId: "target-1",
@@ -753,25 +765,25 @@ describe("Stagehand worker clients", () => {
         subscriptionId: "subscription-1",
         event: {
           pageId: "page-a",
-          method: "Runtime.consoleAPICalled",
+          method: PAGE_TO_CDP_EVENTS[randomPageEventName],
           params: { type: "log", executionContextId: 1 },
           sessionId: "session-1",
           targetId: "target-1",
         },
       },
     ]);
-    expect(page.cdpEventListeners.has("Runtime.consoleAPICalled")).toBe(true);
+    expect(page.cdpEventListeners.has(PAGE_TO_CDP_EVENTS[randomPageEventName])).toBe(true);
 
     runtime.pageOff({ subscriptionId: "subscription-1" });
     page.emitCDPEvent({
       pageId: "page-a",
-      method: "Runtime.consoleAPICalled",
+      method: PAGE_TO_CDP_EVENTS[randomPageEventName],
       params: { type: "log" },
       sessionId: "session-1",
       targetId: "target-1",
     });
     expect(notifications).toHaveLength(1);
-    expect(page.cdpEventListeners.has("Runtime.consoleAPICalled")).toBe(false);
+    expect(page.cdpEventListeners.has(PAGE_TO_CDP_EVENTS[randomPageEventName])).toBe(false);
   });
 
   it("rejects duplicate page event subscriptions without reflecting their identifier", async () => {
@@ -779,16 +791,16 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
     const subscriptionId = 'caller-controlled-<script>alert("x")</script>';
 
-    runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+    runtime.pageOn({ pageId: "page-a", subscriptionId, event: randomPageEventName });
 
-    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
-      DuplicatePageEventSubscriptionError,
-    );
-    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
-      "A page event subscription with this identifier already exists",
-    );
+    expect(() =>
+      runtime.pageOn({ pageId: "page-a", subscriptionId, event: randomPageEventName }),
+    ).toThrow(DuplicatePageEventSubscriptionError);
+    expect(() =>
+      runtime.pageOn({ pageId: "page-a", subscriptionId, event: randomPageEventName }),
+    ).toThrow("A page event subscription with this identifier already exists");
     try {
-      runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+      runtime.pageOn({ pageId: "page-a", subscriptionId, event: randomPageEventName });
     } catch (error) {
       expect((error as Error).message).not.toContain(subscriptionId);
     }
