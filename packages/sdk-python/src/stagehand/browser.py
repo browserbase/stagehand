@@ -26,14 +26,19 @@ from ._generated.models import (
     BrowserbaseSessionCreateParams,
     BrowserSessionMetadata,
 )
+from .browserbase_services import fetch_browserbase, search_browserbase
 from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
 from .cdp_client import CDPClient, CDPConnectionClosedError
 from .client_models import (
     BrowserbaseConnectOptions,
+    BrowserbaseFetchResult,
+    BrowserbaseSearchResult,
     LocalBrowserConnectOptions,
     LocalBrowserLaunchOptions,
     LocalProxyConfig,
     LocalViewport,
+    _BrowserbaseFetchOptions,
+    _BrowserbaseSearchOptions,
 )
 from .extension_assets import extension_directory
 from .timeouts import stagehand_init_deadline
@@ -648,6 +653,54 @@ class BrowserbaseBrowser:
                 browser=_browser_session_metadata(connection.session_id, connection.region),
             ),
         )
+
+    async def search(
+        self,
+        *,
+        api_key: str,
+        query: str,
+        base_url: str = DEFAULT_BROWSERBASE_URL,
+        num_results: int | None = None,
+    ) -> BrowserbaseSearchResult:
+        options = _BrowserbaseSearchOptions.model_validate({
+            name: value
+            for name, value in (
+                ("api_key", api_key),
+                ("base_url", base_url),
+                ("query", query),
+                ("num_results", num_results),
+            )
+            if value is not None
+        })
+        return await search_browserbase(options)
+
+    async def fetch(
+        self,
+        *,
+        api_key: str,
+        url: str,
+        base_url: str = DEFAULT_BROWSERBASE_URL,
+        allow_insecure_ssl: bool | None = None,
+        allow_redirects: bool | None = None,
+        format: Literal["raw", "json", "markdown"] | None = None,
+        proxies: bool | None = None,
+        schema: Mapping[str, Any] | None = None,
+    ) -> BrowserbaseFetchResult:
+        options = _BrowserbaseFetchOptions.model_validate({
+            name: value
+            for name, value in (
+                ("api_key", api_key),
+                ("base_url", base_url),
+                ("url", url),
+                ("allow_insecure_ssl", allow_insecure_ssl),
+                ("allow_redirects", allow_redirects),
+                ("format", format),
+                ("proxies", proxies),
+                ("schema", dict(schema) if schema is not None else None),
+            )
+            if value is not None
+        })
+        return await fetch_browserbase(options)
 
 
 local_browser = LocalBrowser()

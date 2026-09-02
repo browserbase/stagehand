@@ -121,6 +121,21 @@ const {
 
 See the [Python](./packages/sdk-python/README.md) and [Go](./packages/sdk-go/README.md) READMEs for equivalent examples.
 
+The same `browserbase` facade also exposes Browserbase Search and Fetch without launching a browser:
+
+```typescript
+const results = await browserbase.search({
+  apiKey: BROWSERBASE_API_KEY,
+  query: "browser agent frameworks",
+  numResults: 5,
+});
+const fetchResult = await browserbase.fetch({
+  apiKey: BROWSERBASE_API_KEY,
+  url: results.results[0].url,
+  format: "markdown",
+});
+```
+
 ## Documentation
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.

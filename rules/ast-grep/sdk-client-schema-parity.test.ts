@@ -47,6 +47,30 @@ const concepts: readonly Concept[] = [
     go: () => goStructFields("browser_factories.go", "BrowserbaseConnectOptions"),
   },
   {
+    name: "BrowserbaseSearchOptions",
+    typescript: ClientSchemas.BrowserbaseSearchOptionsSchema,
+    python: () => pythonMethodParameters("browser.py", "BrowserbaseBrowser", "search"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseSearchOptions"),
+  },
+  {
+    name: "BrowserbaseFetchOptions",
+    typescript: ClientSchemas.BrowserbaseFetchOptionsSchema,
+    python: () => pythonMethodParameters("browser.py", "BrowserbaseBrowser", "fetch"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseFetchOptions"),
+  },
+  {
+    name: "BrowserbaseSearchResult",
+    typescript: ClientSchemas.BrowserbaseSearchResultSchema,
+    python: () => pythonClassFields("client_models.py", "BrowserbaseSearchResult"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseSearchResult"),
+  },
+  {
+    name: "BrowserbaseFetchResult",
+    typescript: ClientSchemas.BrowserbaseFetchResultSchema,
+    python: () => pythonClassFields("client_models.py", "BrowserbaseFetchResult"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseFetchResult"),
+  },
+  {
     name: "StagehandClientLoggingConfig",
     typescript: ClientSchemas.StagehandClientLoggingConfigSchema,
     python: () => pythonClassFields("client_types.py", "StagehandClientLoggingConfig"),

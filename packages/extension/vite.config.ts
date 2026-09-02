@@ -9,7 +9,7 @@ const root = import.meta.dirname;
 const outDir = path.join(root, "dist");
 const artifactsDir = path.join(root, "artifacts");
 const extensionArchivePath = path.join(artifactsDir, "stagehand-extension.zip");
-const zipModifiedAt = new Date(1980, 0, 1);
+const deterministicZipModifiedAt = new Date(1980, 0, 1);
 
 function buildExtensionArtifacts() {
   return {
@@ -99,7 +99,7 @@ async function readExtensionFiles(directory: string, relativeDirectory = ""): Pr
     }
     files[relativePath.split(path.sep).join("/")] = [
       await readFile(path.join(directory, relativePath)),
-      { attrs: 0o644 << 16, mtime: zipModifiedAt, os: 3 },
+      { attrs: 0o644 << 16, mtime: deterministicZipModifiedAt, os: 3 },
     ];
   }
 
