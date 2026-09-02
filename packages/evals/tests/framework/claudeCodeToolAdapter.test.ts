@@ -8,15 +8,14 @@ import {
   insertAfterFrontmatter,
   isAllowedBrowseCommand,
   installBrowseSkill,
-  resolveClaudeCodeStartupProfile,
-  resolveClaudeCodeToolSurface,
   waitForCdpEvent,
 } from "../../framework/claudeCodeToolAdapter.js";
-import {
-  resolveCodexStartupProfile,
-  resolveCodexToolSurface,
-} from "../../framework/codexToolAdapter.js";
 import type { CdpEventMessage } from "../../core/tools/cdp_code.js";
+import { claudeCodeHarness, codexHarness } from "../../framework/benchHarness.js";
+import {
+  resolveStartupProfile,
+  resolveToolSurface,
+} from "../../framework/harnesses/toolSurfaceResolution.js";
 
 describe("claude code tool adapter resolution", () => {
   afterEach(() => {
@@ -24,84 +23,74 @@ describe("claude code tool adapter resolution", () => {
   });
 
   it("defaults Claude Code to browse_cli", () => {
-    expect(resolveClaudeCodeToolSurface()).toBe("browse_cli");
+    expect(resolveToolSurface(claudeCodeHarness)).toBe("browse_cli");
   });
 
   it("defaults browse_cli startup by environment", () => {
-    expect(resolveClaudeCodeStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveClaudeCodeStartupProfile("browse_cli", "BROWSERBASE")).toBe(
-      "tool_create_browserbase",
-    );
+    expect(resolveStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");
   });
 
   it("supports code tool surfaces as Claude Code run tools", () => {
-    expect(resolveClaudeCodeToolSurface("playwright_code")).toBe("playwright_code");
-    expect(resolveClaudeCodeStartupProfile("playwright_code", "LOCAL")).toBe(
-      "runner_provided_local_cdp",
-    );
-    expect(resolveClaudeCodeStartupProfile("playwright_code", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(claudeCodeHarness, "playwright_code")).toBe("playwright_code");
+    expect(resolveStartupProfile("playwright_code", "LOCAL")).toBe("runner_provided_local_cdp");
+    expect(resolveStartupProfile("playwright_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
-    expect(resolveClaudeCodeToolSurface("cdp_code")).toBe("cdp_code");
-    expect(resolveClaudeCodeStartupProfile("cdp_code", "LOCAL")).toBe("runner_provided_local_cdp");
-    expect(resolveClaudeCodeStartupProfile("cdp_code", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(claudeCodeHarness, "cdp_code")).toBe("cdp_code");
+    expect(resolveStartupProfile("cdp_code", "LOCAL")).toBe("runner_provided_local_cdp");
+    expect(resolveStartupProfile("cdp_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
   });
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
-    expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp/,
+    expect(() => resolveToolSurface(claudeCodeHarness, "understudy_code")).toThrow(
+      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
     );
   });
 
   it("supports the MCP surfaces with runner-provided startup profiles", () => {
-    expect(resolveClaudeCodeToolSurface("playwright_mcp")).toBe("playwright_mcp");
-    expect(resolveClaudeCodeToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
-    expect(resolveClaudeCodeStartupProfile("playwright_mcp", "LOCAL")).toBe(
-      "runner_provided_local_cdp",
+    expect(resolveToolSurface(claudeCodeHarness, "playwright_mcp")).toBe("playwright_mcp");
+    expect(resolveToolSurface(claudeCodeHarness, "chrome_devtools_mcp")).toBe(
+      "chrome_devtools_mcp",
     );
-    expect(resolveClaudeCodeStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
+    expect(resolveStartupProfile("playwright_mcp", "LOCAL")).toBe("runner_provided_local_cdp");
+    expect(resolveStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
   });
 
   it("accepts stagehand_code with SDK-owned startup profiles", () => {
-    expect(resolveClaudeCodeToolSurface("stagehand_code")).toBe("stagehand_code");
-    expect(resolveClaudeCodeStartupProfile("stagehand_code", "BROWSERBASE")).toBe(
-      "tool_create_browserbase",
-    );
-    expect(resolveClaudeCodeStartupProfile("stagehand_code", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveToolSurface(claudeCodeHarness, "stagehand_code")).toBe("stagehand_code");
+    expect(resolveStartupProfile("stagehand_code", "BROWSERBASE")).toBe("tool_create_browserbase");
+    expect(resolveStartupProfile("stagehand_code", "LOCAL")).toBe("tool_launch_local");
   });
 
   it("supports browse_cli and the code surfaces on Codex", () => {
-    expect(resolveCodexToolSurface()).toBe("browse_cli");
-    expect(resolveCodexToolSurface("browse_cli")).toBe("browse_cli");
-    expect(resolveCodexToolSurface("stagehand_code")).toBe("stagehand_code");
-    expect(resolveCodexToolSurface("playwright_code")).toBe("playwright_code");
-    expect(resolveCodexToolSurface("cdp_code")).toBe("cdp_code");
-    expect(resolveCodexStartupProfile("stagehand_code", "BROWSERBASE")).toBe(
-      "tool_create_browserbase",
-    );
-    expect(resolveCodexStartupProfile("playwright_code", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(codexHarness)).toBe("browse_cli");
+    expect(resolveToolSurface(codexHarness, "browse_cli")).toBe("browse_cli");
+    expect(resolveToolSurface(codexHarness, "stagehand_code")).toBe("stagehand_code");
+    expect(resolveToolSurface(codexHarness, "playwright_code")).toBe("playwright_code");
+    expect(resolveToolSurface(codexHarness, "cdp_code")).toBe("cdp_code");
+    expect(resolveStartupProfile("stagehand_code", "BROWSERBASE")).toBe("tool_create_browserbase");
+    expect(resolveStartupProfile("playwright_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
-    expect(() => resolveCodexToolSurface("understudy_code")).toThrow(
-      /browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp/,
+    expect(() => resolveToolSurface(codexHarness, "understudy_code")).toThrow(
+      /Harness "codex" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
     );
-    expect(resolveCodexStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
-    expect(resolveCodexStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");
+    expect(resolveStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");
   });
 
   it("supports the MCP surfaces on Codex with runner-provided startup profiles", () => {
-    expect(resolveCodexToolSurface("playwright_mcp")).toBe("playwright_mcp");
-    expect(resolveCodexToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
-    expect(resolveCodexStartupProfile("playwright_mcp", "BROWSERBASE")).toBe(
+    expect(resolveToolSurface(codexHarness, "playwright_mcp")).toBe("playwright_mcp");
+    expect(resolveToolSurface(codexHarness, "chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
+    expect(resolveStartupProfile("playwright_mcp", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
-    expect(resolveCodexStartupProfile("chrome_devtools_mcp", "LOCAL")).toBe(
-      "runner_provided_local_cdp",
-    );
+    expect(resolveStartupProfile("chrome_devtools_mcp", "LOCAL")).toBe("runner_provided_local_cdp");
   });
 
   it("allows only direct browse commands through Bash", () => {

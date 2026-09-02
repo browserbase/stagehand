@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PageCDPEvent } from "../../protocol/types.js";
+import type { PageCDPEvent } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
 import { Page } from "../understudy/page.js";

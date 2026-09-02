@@ -5,6 +5,11 @@ import {
   deriveCategoryFilter,
   runCommand,
 } from "../../tui/commands/run.js";
+import {
+  formatBenchHarnessFlags,
+  listBenchHarnessesForTaskKind,
+  registerBenchHarness,
+} from "../../framework/benchHarness.js";
 
 const runEvalsMock = vi.hoisted(() =>
   vi.fn(async () => ({
@@ -168,9 +173,43 @@ describe("deriveCategoryFilter", () => {
 
     const payload = JSON.parse(String(log.mock.calls[0][0]));
     expect(payload.matrix).toEqual([]);
-    expect(String(payload.error)).toMatch(/--harness claude_code or --harness codex/);
+    expect(String(payload.error)).toContain(
+      formatBenchHarnessFlags(listBenchHarnessesForTaskKind("suite")),
+    );
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
+  });
+
+  it("rejects agent-mount-only tools for core dry-runs with registry guidance", async () => {
+    const registry = makeRegistry([
+      makeTask({
+        name: "navigation/open",
+        tier: "core",
+        primaryCategory: "navigation",
+        categories: ["navigation"],
+      }),
+    ]);
+
+    await expect(
+      runCommand(
+        {
+          target: "core:navigation",
+          normalizedTarget: "core:navigation",
+          trials: 1,
+          concurrency: 1,
+          environment: "LOCAL",
+          useApi: false,
+          coreToolSurface: "stagehand_facade",
+          harness: "stagehand",
+          envOverrides: {},
+          dryRun: true,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
+        },
+        registry,
+      ),
+    ).rejects.toThrow(formatBenchHarnessFlags(listBenchHarnessesForTaskKind("suite")));
   });
 
   it("prints claude_code dry-run matrices without stagehand agent modes", async () => {
@@ -364,6 +403,17 @@ describe("deriveCategoryFilter", () => {
     expect(canExecuteBenchHarness("stagehand")).toBe(true);
     expect(canExecuteBenchHarness("claude_code")).toBe(true);
     expect(canExecuteBenchHarness("codex")).toBe(true);
+  });
+
+  it("reports registered planning-only harnesses as non-executable", () => {
+    registerBenchHarness({
+      harness: "tui_planning_only_harness",
+      supportedTaskKinds: ["suite"],
+      supportsApi: false,
+      supportedToolSurfaces: ["browse_cli"],
+    });
+
+    expect(canExecuteBenchHarness("tui_planning_only_harness")).toBe(false);
   });
 
   it("prints expanded plan dimensions in the run heading", async () => {

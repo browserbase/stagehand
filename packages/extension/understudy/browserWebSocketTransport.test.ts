@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { browserWebSocketFactory } from "../../../extension/understudy/browserWebSocketTransport.js";
-import { CdpConnection } from "../../../extension/understudy/cdp.js";
+import { browserWebSocketFactory } from "./browserWebSocketTransport.js";
+import { CdpConnection } from "./cdp.js";
 
 const discardCdpLogs = {
   debug: () => {},

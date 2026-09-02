@@ -17,8 +17,12 @@ import {
   LLMGenerateResultSchema,
   ModelProviderSchema,
   OpenAIModelIdSchema,
-} from "../../protocol/schemas.js";
-import type { LLMGenerateParams, LLMGenerateResult, ModelConfig } from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
+import type {
+  LLMGenerateParams,
+  LLMGenerateResult,
+  ModelConfig,
+} from "@browserbasehq/stagehand-protocol/types";
 
 const AiSdkMessagesSchema = z.array(LLMMessageSchema).transform((messages): ModelMessage[] => {
   const toolNames = new Map<string, string>();

@@ -1,6 +1,12 @@
-import type { ImplementationInfo, RuntimeDescriptor } from "../../protocol/types.js";
-import { RuntimeDescriptorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
-import { checkProtocolCompatibility } from "../../protocol/protocol-version.js";
+import type {
+  ImplementationInfo,
+  RuntimeDescriptor,
+} from "@browserbasehq/stagehand-protocol/types";
+import {
+  RuntimeDescriptorSchema,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "@browserbasehq/stagehand-protocol/schemas";
+import { checkProtocolCompatibility } from "@browserbasehq/stagehand-protocol/protocol-version";
 import { z } from "zod/v4";
 
 export type RuntimeRequirement = {

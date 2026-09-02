@@ -87,6 +87,12 @@ describe("claude code runner helpers", () => {
             ],
           },
         };
+        yield {
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"done"}',
+        };
       },
     };
 
@@ -114,6 +120,25 @@ describe("claude code runner helpers", () => {
     expect(String(result.verifierError)).toContain("items array");
     expect(result.outcomeSuccess).toBeUndefined();
     expect(result.processScore).toBeUndefined();
+  });
+
+  it("prefers iteration errors over result text for failed Claude Code runs", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield { type: "result", subtype: "error", result: "less useful result text" };
+        throw new Error("specific iteration failure");
+      },
+    };
+
+    const result = await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.error).toBe("specific iteration failure");
   });
 
   it("reports Claude Code token usage as Braintrust metrics", async () => {
@@ -149,5 +174,12 @@ describe("claude code runner helpers", () => {
     expect(metrics.claude_code_cache_creation_input_tokens.value).toBe(10);
     expect(metrics.claude_code_cache_read_input_tokens.value).toBe(5);
     expect(metrics.claude_code_total_tokens.value).toBe(140);
+    expect(metrics.harness_input_tokens.value).toBe(100);
+    expect(metrics.harness_output_tokens.value).toBe(25);
+    expect(metrics.harness_cache_creation_input_tokens.value).toBe(10);
+    expect(metrics.harness_total_tokens.value).toBe(140);
+    expect(metrics.harness_cost_usd.value).toBe(0.045);
+    expect(result.harnessStatus).toBe("completed");
+    expect(result.claudeCodeStatus).toBe("completed");
   });
 });

@@ -1,6 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   CDPClient,
   CDPConnectionClosedError,

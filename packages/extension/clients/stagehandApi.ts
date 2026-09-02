@@ -1,4 +1,4 @@
-import type { BrowserbaseRegion } from "../../protocol/types.js";
+import type { BrowserbaseRegion } from "@browserbasehq/stagehand-protocol/types";
 
 const REGION_API_URLS: Record<BrowserbaseRegion, string> = {
   "us-west-2": "https://api.stagehand.browserbase.com",
