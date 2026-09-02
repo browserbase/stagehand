@@ -68,7 +68,8 @@ func TestBrowserbaseSearchAndFetch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchBrowserbase() error = %v", err)
 	}
-	if fetch.StatusCode != 200 || fetch.Content != "# Stagehand" {
+	content, stringContent := fetch.Content.AsString()
+	if fetch.StatusCode != 200 || !stringContent || content != "# Stagehand" {
 		t.Fatalf("FetchBrowserbase() = %#v", fetch)
 	}
 }
@@ -95,6 +96,50 @@ func TestBrowserbaseSearchAndFetchValidateOptions(t *testing.T) {
 		Format: BrowserbaseFetchFormatMarkdown, Schema: map[string]any{"type": "object"},
 	}); err == nil || !strings.Contains(err.Error(), `schema is only valid when format is "json"`) {
 		t.Fatalf("FetchBrowserbase() error = %v, want schema format error", err)
+	}
+	if _, err := FetchBrowserbase(context.Background(), BrowserbaseFetchOptions{
+		APIKey: "bb_test", URL: "https://stagehand.dev", Format: BrowserbaseFetchFormatJSON,
+	}); err == nil || !strings.Contains(err.Error(), `schema is required when format is "json"`) {
+		t.Fatalf("FetchBrowserbase() error = %v, want required schema error", err)
+	}
+}
+
+func TestBrowserbaseFetchContentVariants(t *testing.T) {
+	var stringContent BrowserbaseFetchContent
+	if err := json.Unmarshal([]byte(`"# Stagehand"`), &stringContent); err != nil {
+		t.Fatalf("decode string content: %v", err)
+	}
+	if value, ok := stringContent.AsString(); !ok || value != "# Stagehand" {
+		t.Fatalf("AsString() = %q, %t", value, ok)
+	}
+	if _, ok := stringContent.AsObject(); ok {
+		t.Fatal("AsObject() unexpectedly matched string content")
+	}
+	encodedString, err := json.Marshal(stringContent)
+	if err != nil || string(encodedString) != `"# Stagehand"` {
+		t.Fatalf("MarshalJSON() = %s, %v", encodedString, err)
+	}
+
+	var objectContent BrowserbaseFetchContent
+	if err := json.Unmarshal([]byte(`{"title":"Stagehand"}`), &objectContent); err != nil {
+		t.Fatalf("decode object content: %v", err)
+	}
+	if value, ok := objectContent.AsObject(); !ok || value["title"] != "Stagehand" {
+		t.Fatalf("AsObject() = %#v, %t", value, ok)
+	}
+	if _, ok := objectContent.AsString(); ok {
+		t.Fatal("AsString() unexpectedly matched object content")
+	}
+	encodedObject, err := json.Marshal(objectContent)
+	if err != nil || string(encodedObject) != `{"title":"Stagehand"}` {
+		t.Fatalf("MarshalJSON() = %s, %v", encodedObject, err)
+	}
+
+	for _, invalid := range []string{`null`, `[]`, `42`, `true`} {
+		var content BrowserbaseFetchContent
+		if err := json.Unmarshal([]byte(invalid), &content); err == nil {
+			t.Fatalf("UnmarshalJSON(%s) expected error", invalid)
+		}
 	}
 }
 

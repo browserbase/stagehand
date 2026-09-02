@@ -104,6 +104,13 @@ def test_browserbase_services_validate_request_constraints() -> None:
             schema={"type": "object"},
         )
 
+    with pytest.raises(ValueError, match='schema is required when format is "json"'):
+        _BrowserbaseFetchOptions(
+            api_key="bb_key",
+            url="https://stagehand.dev",
+            format="json",
+        )
+
     options = _BrowserbaseFetchOptions(
         api_key="bb_key",
         url="https://stagehand.dev",

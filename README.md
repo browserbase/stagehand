@@ -129,7 +129,7 @@ const results = await browserbase.search({
   query: "browser agent frameworks",
   numResults: 5,
 });
-const page = await browserbase.fetch({
+const fetchResult = await browserbase.fetch({
   apiKey: BROWSERBASE_API_KEY,
   url: results.results[0].url,
   format: "markdown",

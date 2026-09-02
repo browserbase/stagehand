@@ -167,7 +167,11 @@ fetched, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOption
 if err != nil {
 	return err
 }
-fmt.Println(fetched.Content)
+content, ok := fetched.Content.AsString()
+if !ok {
+	return fmt.Errorf("fetch returned non-string content")
+}
+fmt.Println(content)
 ```
 
 ## Navigation

@@ -140,6 +140,8 @@ class _BrowserbaseFetchOptions(WireModel):
     def validate_schema_format(self) -> _BrowserbaseFetchOptions:
         if self.json_schema is not None and self.format != "json":
             raise ValueError('schema is only valid when format is "json"')
+        if self.format == "json" and self.json_schema is None:
+            raise ValueError('schema is required when format is "json"')
         return self
 
 

@@ -125,6 +125,10 @@ export const BrowserbaseFetchOptionsSchema = z
     message: 'schema is only valid when format is "json"',
     path: ["schema"],
   })
+  .refine(({ format, schema }) => format !== "json" || schema !== undefined, {
+    message: 'schema is required when format is "json"',
+    path: ["schema"],
+  })
   .meta({ id: "BrowserbaseFetchOptions" });
 
 export const BrowserbaseSearchResultSchema = z

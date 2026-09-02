@@ -73,6 +73,13 @@ describe("Browserbase services client", () => {
         apiKey: "bb_key",
         url: "https://stagehand.dev",
         format: "json",
+      }),
+    ).toThrow(/schema is required when format/u);
+    expect(() =>
+      BrowserbaseFetchOptionsSchema.parse({
+        apiKey: "bb_key",
+        url: "https://stagehand.dev",
+        format: "json",
         schema: { type: "object" },
       }),
     ).not.toThrow();

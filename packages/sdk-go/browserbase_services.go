@@ -57,15 +57,84 @@ type BrowserbaseFetchOptions struct {
 	Schema           map[string]any
 }
 
+type browserbaseFetchContentKind uint8
+
+const (
+	browserbaseFetchContentUnset browserbaseFetchContentKind = iota
+	browserbaseFetchContentString
+	browserbaseFetchContentObject
+)
+
+// BrowserbaseFetchContent is either string content for raw and markdown
+// responses or an object for JSON responses.
+type BrowserbaseFetchContent struct {
+	kind   browserbaseFetchContentKind
+	text   string
+	object map[string]any
+}
+
+// AsString returns the string content variant, if present.
+func (content BrowserbaseFetchContent) AsString() (string, bool) {
+	return content.text, content.kind == browserbaseFetchContentString
+}
+
+// AsObject returns a copy of the object content variant, if present.
+func (content BrowserbaseFetchContent) AsObject() (map[string]any, bool) {
+	if content.kind != browserbaseFetchContentObject {
+		return nil, false
+	}
+	result := make(map[string]any, len(content.object))
+	for key, item := range content.object {
+		result[key] = item
+	}
+	return result, true
+}
+
+// MarshalJSON implements json.Marshaler.
+func (content BrowserbaseFetchContent) MarshalJSON() ([]byte, error) {
+	switch content.kind {
+	case browserbaseFetchContentString:
+		return json.Marshal(content.text)
+	case browserbaseFetchContentObject:
+		return json.Marshal(content.object)
+	default:
+		return nil, errors.New("stagehand.BrowserbaseFetchContent is unset")
+	}
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (content *BrowserbaseFetchContent) UnmarshalJSON(data []byte) error {
+	if content == nil {
+		return errors.New("stagehand.BrowserbaseFetchContent: UnmarshalJSON on nil pointer")
+	}
+	switch firstJSONByte(data) {
+	case '"':
+		var value string
+		if err := json.Unmarshal(data, &value); err != nil {
+			return fmt.Errorf("decode Browserbase fetch string content: %w", err)
+		}
+		*content = BrowserbaseFetchContent{kind: browserbaseFetchContentString, text: value}
+		return nil
+	case '{':
+		var value map[string]any
+		if err := json.Unmarshal(data, &value); err != nil {
+			return fmt.Errorf("decode Browserbase fetch object content: %w", err)
+		}
+		*content = BrowserbaseFetchContent{kind: browserbaseFetchContentObject, object: value}
+		return nil
+	default:
+		return errors.New("decode Browserbase fetch content: expected string or object")
+	}
+}
+
 // BrowserbaseFetchResult contains content and response metadata returned by Browserbase Fetch.
-// Content is either a string or a map[string]any when Format is BrowserbaseFetchFormatJSON.
 type BrowserbaseFetchResult struct {
-	ID          string            `json:"id"`
-	Content     any               `json:"content"`
-	ContentType string            `json:"contentType"`
-	Encoding    string            `json:"encoding"`
-	Headers     map[string]string `json:"headers"`
-	StatusCode  int               `json:"statusCode"`
+	ID          string                  `json:"id"`
+	Content     BrowserbaseFetchContent `json:"content"`
+	ContentType string                  `json:"contentType"`
+	Encoding    string                  `json:"encoding"`
+	Headers     map[string]string       `json:"headers"`
+	StatusCode  int                     `json:"statusCode"`
 }
 
 // SearchBrowserbase performs a Browserbase web search.
@@ -213,6 +282,9 @@ func (request browserbaseFetchRequest) encode() (browserbaseEncodedRequest, erro
 	if request.Schema != nil && request.Format != BrowserbaseFetchFormatJSON {
 		return encoded, errors.New(`schema is only valid when format is "json"`)
 	}
+	if request.Format == BrowserbaseFetchFormatJSON && request.Schema == nil {
+		return encoded, errors.New(`schema is required when format is "json"`)
+	}
 	body, err := json.Marshal(request)
 	if err != nil {
 		return encoded, fmt.Errorf("encode fetch request: %w", err)
@@ -243,14 +315,9 @@ func (response browserbaseFetchResponse) validate() error {
 }
 
 func (response browserbaseFetchResponse) result() (BrowserbaseFetchResult, error) {
-	var content any
+	var content BrowserbaseFetchContent
 	if err := json.Unmarshal(*response.Content, &content); err != nil {
 		return BrowserbaseFetchResult{}, fmt.Errorf("decode Browserbase fetch content: %w", err)
-	}
-	if _, stringContent := content.(string); !stringContent {
-		if _, objectContent := content.(map[string]any); !objectContent {
-			return BrowserbaseFetchResult{}, errors.New("Browserbase fetch content must be a string or object")
-		}
 	}
 	return BrowserbaseFetchResult{
 		ID: *response.ID, Content: content, ContentType: *response.ContentType,
