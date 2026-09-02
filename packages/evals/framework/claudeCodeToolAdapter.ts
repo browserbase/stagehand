@@ -23,6 +23,7 @@ import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
+import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
 export { waitForCdpEvent } from "../core/tools/cdp_code.js";
 
@@ -78,6 +79,16 @@ export interface BrowseCliHarnessAdapterInput {
   logger: EvalLogger;
   logCategory: string;
 }
+
+export const CLAUDE_CODE_TOOL_SURFACES: ToolSurface[] = [
+  "browse_cli",
+  "playwright_code",
+  "cdp_code",
+  "stagehand_code",
+  "playwright_mcp",
+  "chrome_devtools_mcp",
+  "stagehand_facade",
+];
 
 // The CLI skill below is written for interactive use and covers surface
 // (install, Browse.sh discovery, Browserbase cloud/Functions/templates) that
@@ -160,8 +171,14 @@ export function getBrowseCliAllowedTools(): string[] {
 export async function prepareClaudeCodeToolAdapter(
   input: ClaudeCodeToolAdapterInput,
 ): Promise<PreparedClaudeCodeToolAdapter> {
-  const toolSurface = resolveClaudeCodeToolSurface(input.toolSurface);
-  const startupProfile = resolveClaudeCodeStartupProfile(
+  const toolSurface = resolveToolSurface(
+    { harness: "claude_code", supportedToolSurfaces: CLAUDE_CODE_TOOL_SURFACES },
+    input.toolSurface,
+  );
+  if (toolSurface === undefined) {
+    throw new EvalsError("Claude Code harness requires a tool surface.");
+  }
+  const startupProfile = resolveStartupProfile(
     toolSurface,
     input.environment,
     input.startupProfile,
@@ -187,62 +204,8 @@ export async function prepareClaudeCodeToolAdapter(
       });
     }
     default:
-      throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp, with stagehand_facade also available; received "${toolSurface}".`,
-      );
+      throw new EvalsError(`Unsupported Claude Code tool surface "${toolSurface}".`);
   }
-}
-
-export function resolveClaudeCodeToolSurface(requested?: ToolSurface): ToolSurface {
-  if (!requested) return "browse_cli";
-  if (
-    requested === "browse_cli" ||
-    requested === "playwright_code" ||
-    requested === "cdp_code" ||
-    requested === "stagehand_code" ||
-    requested === "playwright_mcp" ||
-    requested === "chrome_devtools_mcp" ||
-    requested === "stagehand_facade"
-  ) {
-    return requested;
-  }
-  throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp, with stagehand_facade also available; received "${requested}".`,
-  );
-}
-
-export function resolveClaudeCodeStartupProfile(
-  toolSurface: ToolSurface,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile {
-  if (requested) return requested;
-
-  // browse_cli, stagehand_code, and stagehand_facade own their browser (the
-  // Stagehand SDK launches or creates it), so no runner-provided CDP endpoint.
-  if (
-    toolSurface === "browse_cli" ||
-    toolSurface === "stagehand_code" ||
-    toolSurface === "stagehand_facade"
-  ) {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-  }
-  // The attachable surfaces need a runner-provided endpoint so the harness-side
-  // session (evidence capture) and the agent's server instance share a browser.
-  if (
-    toolSurface === "playwright_code" ||
-    toolSurface === "cdp_code" ||
-    toolSurface === "playwright_mcp" ||
-    toolSurface === "chrome_devtools_mcp"
-  ) {
-    return environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
-  }
-
-  throw new EvalsError(
-    `No Claude Code startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
 }
 
 async function prepareBrowseCliAdapter(

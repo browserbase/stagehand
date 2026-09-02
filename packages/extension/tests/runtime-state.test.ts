@@ -1,7 +1,7 @@
 import { ROOT_CONTEXT } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
-import type { StagehandInitParams } from "../../protocol/types.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
+import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
 

@@ -7,8 +7,8 @@
 
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
-import * as ProtocolSchemas from "../../protocol/schemas.js";
-import type { StagehandLog } from "../../protocol/types.js";
+import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
+import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
@@ -19,7 +19,7 @@ import {
   ObserveOptionsSchema,
   StagehandInitParamsSchema,
   StagehandLogLevelSchema,
-} from "../../protocol/schemas.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
 import { Page } from "./page.js";
 import { Locator } from "./locator.js";
 import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
