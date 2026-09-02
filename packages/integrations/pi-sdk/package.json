@@ -1,0 +1,37 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-pi-sdk",
+  "version": "4.0.1",
+  "private": true,
+  "description": "pi (pi-coding-agent) SDK harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/pi-sdk/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/pi-sdk/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  }
+}

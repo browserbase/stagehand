@@ -5,7 +5,11 @@ import {
   resolveDefaultCoreStartupProfile,
 } from "../../framework/context.js";
 import { prepareCoreBrowserTarget } from "../../core/targets/index.js";
-import { registerBenchHarness } from "../../framework/benchHarness.js";
+import {
+  formatBenchHarnessFlags,
+  listBenchHarnessesForToolSurface,
+  registerBenchHarness,
+} from "../../framework/benchHarness.js";
 
 describe("resolveDefaultCoreStartupProfile", () => {
   it("rejects agent-mount-only surfaces", () => {
@@ -13,7 +17,7 @@ describe("resolveDefaultCoreStartupProfile", () => {
       /available only as an agent harness mount/,
     );
     expect(() => rejectAgentMountOnlyCoreTool("stagehand_facade")).toThrow(
-      /--harness claude_code, --harness codex, or --harness mastra/,
+      formatBenchHarnessFlags(listBenchHarnessesForToolSurface("stagehand_facade")),
     );
   });
 
@@ -28,9 +32,11 @@ describe("resolveDefaultCoreStartupProfile", () => {
     });
 
     try {
-      expect(() => rejectAgentMountOnlyCoreTool("stagehand_facade")).toThrow(
-        /--harness claude_code, --harness codex, --harness mastra, or --harness context_facade_harness/,
+      const guidance = formatBenchHarnessFlags(
+        listBenchHarnessesForToolSurface("stagehand_facade"),
       );
+      expect(guidance).toContain("--harness context_facade_harness");
+      expect(() => rejectAgentMountOnlyCoreTool("stagehand_facade")).toThrow(guidance);
     } finally {
       unregister();
     }

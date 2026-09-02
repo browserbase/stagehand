@@ -5,7 +5,11 @@ import {
   deriveCategoryFilter,
   runCommand,
 } from "../../tui/commands/run.js";
-import { registerBenchHarness } from "../../framework/benchHarness.js";
+import {
+  formatBenchHarnessFlags,
+  listBenchHarnessesForTaskKind,
+  registerBenchHarness,
+} from "../../framework/benchHarness.js";
 
 const runEvalsMock = vi.hoisted(() =>
   vi.fn(async () => ({
@@ -169,8 +173,8 @@ describe("deriveCategoryFilter", () => {
 
     const payload = JSON.parse(String(log.mock.calls[0][0]));
     expect(payload.matrix).toEqual([]);
-    expect(String(payload.error)).toMatch(
-      /--harness claude_code, --harness codex, or --harness mastra/,
+    expect(String(payload.error)).toContain(
+      formatBenchHarnessFlags(listBenchHarnessesForTaskKind("suite")),
     );
     expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
@@ -205,7 +209,7 @@ describe("deriveCategoryFilter", () => {
         },
         registry,
       ),
-    ).rejects.toThrow(/--harness claude_code, --harness codex, or --harness mastra/);
+    ).rejects.toThrow(formatBenchHarnessFlags(listBenchHarnessesForTaskKind("suite")));
   });
 
   it("prints claude_code dry-run matrices without stagehand agent modes", async () => {
