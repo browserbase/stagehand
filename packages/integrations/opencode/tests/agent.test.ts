@@ -8,6 +8,7 @@ import {
   FACADE_TOOLS,
 } from "@browserbasehq/stagehand-integrations/facade";
 import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
+import { withTemporaryEnvironment } from "@browserbasehq/stagehand-integrations-opencode-sdk";
 
 import {
   buildOpenCodeConfig,
@@ -15,7 +16,6 @@ import {
   resolveInstruction,
   runOpenCode,
   STAGEHAND_TOOL_NAMES,
-  withTemporaryEnvironment,
   type OpenCodeRuntime,
 } from "../src/agent.ts";
 
@@ -226,15 +226,16 @@ function fakeRuntime(failure?: string) {
     ): Promise<{ data?: unknown; error?: unknown }> =>
       failure === "prompt"
         ? { error: leakedPayload }
-        : { data: { parts: [{ type: "text", text: "done" }] } },
+        : { data: { info: {}, parts: [{ type: "text", text: "done" }] } },
   );
   const deleteSession = vi.fn(async () => ({ data: true }));
+  const abort = vi.fn(async () => ({ data: true }));
   const close = vi.fn();
   const runtime: OpenCodeRuntime = {
-    client: { session: { create, prompt, delete: deleteSession } },
+    client: { session: { create, prompt, abort, delete: deleteSession } },
     close,
   };
-  return { runtime, create, prompt, deleteSession, close };
+  return { runtime, create, prompt, abort, deleteSession, close };
 }
 
 async function makeTemporaryDirectory(): Promise<string> {

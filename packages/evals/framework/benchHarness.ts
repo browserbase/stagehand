@@ -22,6 +22,8 @@ import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
 import { CURSOR_TOOL_SURFACES, prepareCursorToolAdapter } from "./cursorToolAdapter.js";
+import { runOpenCodeAgent } from "./opencodeRunner.js";
+import { OPENCODE_TOOL_SURFACES, prepareOpenCodeToolAdapter } from "./opencodeToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
@@ -346,6 +348,14 @@ export const cursorHarness = defineExternalHarness({
   runAgent: runCursorAgent,
 });
 
+export const opencodeHarness = defineExternalHarness({
+  harness: "opencode",
+  supportedToolSurfaces: OPENCODE_TOOL_SURFACES,
+  defaultModels: ["opencode/auto" as AvailableModel],
+  prepareToolAdapter: prepareOpenCodeToolAdapter,
+  runAgent: runOpenCodeAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -356,6 +366,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["deepagents", deepagentsHarness],
   ["fx", fxHarness],
   ["cursor", cursorHarness],
+  ["opencode", opencodeHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {

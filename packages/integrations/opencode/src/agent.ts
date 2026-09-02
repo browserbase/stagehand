@@ -6,8 +6,14 @@ import {
   buildAllowlistedEnv,
   sanitizeErrorMessage,
 } from "@browserbasehq/stagehand-integrations/harness";
-import { createOpencodeClient, createOpencodeServer, type Config } from "@opencode-ai/sdk/v2";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  extractOpenCodeAssistantText,
+  runOpenCodeSession,
+  type OpenCodeRuntime,
+  type StartOpenCodeRuntime,
+} from "@browserbasehq/stagehand-integrations-opencode-sdk";
+import type { Config } from "@opencode-ai/sdk/v2";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +30,6 @@ export function buildOpenCodeConfig(
     tools[toolName] = true;
     permission[toolName] = "allow";
   }
-
   return {
     share: "disabled",
     autoupdate: false,
@@ -43,40 +48,17 @@ export function buildOpenCodeConfig(
 }
 
 export function extractAssistantText(result: unknown): string {
-  const data = readRecord(result)?.data;
-  const parts = readRecord(data)?.parts;
-  if (!Array.isArray(parts)) return "";
-  return parts
-    .map((part) => readRecord(part))
-    .filter((part): part is Record<string, unknown> => part?.type === "text")
-    .map((part) => (typeof part.text === "string" ? part.text : ""))
-    .join("")
-    .trim();
+  if (result && typeof result === "object" && "data" in result) {
+    return extractOpenCodeAssistantText((result as { data?: unknown }).data);
+  }
+  return extractOpenCodeAssistantText(result);
 }
 
 export function resolveInstruction(args: string[]): string {
   return (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
 }
 
-type ApiResult = { data?: unknown; error?: unknown };
-
-export type OpenCodeRuntime = {
-  client: {
-    session: {
-      create(parameters?: unknown, options?: unknown): Promise<ApiResult>;
-      prompt(parameters: unknown, options?: unknown): Promise<ApiResult>;
-      delete(parameters: unknown, options?: unknown): Promise<ApiResult>;
-    };
-  };
-  close(): void;
-};
-
-export type StartOpenCodeRuntime = (options: {
-  config: Config;
-  directory: string;
-  configRoot: string;
-  signal: AbortSignal;
-}) => Promise<OpenCodeRuntime>;
+export type { OpenCodeRuntime };
 
 export type RunOpenCodeOptions = {
   env?: NodeJS.ProcessEnv;
@@ -96,108 +78,29 @@ export async function runOpenCode(
   const runtimeDirectory = await (options.makeRuntimeDirectory ?? createRuntimeDirectory)();
   const abortController = new AbortController();
   const removeSignalHandlers = forwardTerminationSignals(abortController);
-  let runtime: OpenCodeRuntime | undefined;
-  let sessionId: string | undefined;
-
   try {
-    const config = buildOpenCodeConfig(facadeServerPath, env);
-    runtime = await (options.startRuntime ?? startOpenCodeRuntime)({
-      config,
-      directory: join(runtimeDirectory, "workspace"),
-      configRoot: join(runtimeDirectory, "config"),
+    const result = await runOpenCodeSession({
+      prompt: instruction,
+      model: env.OPENCODE_MODEL?.trim() || "opencode/auto",
+      logger: { log: () => undefined, warn: () => undefined, error: () => undefined },
       signal: abortController.signal,
-    });
-    const created = await runtime.client.session.create(
-      { title: "Stagehand browser task" },
-      { throwOnError: true, signal: abortController.signal },
-    );
-    assertNoApiError(created, "session creation");
-    sessionId = readString(readRecord(created.data)?.id);
-    if (!sessionId) throw new Error("OpenCode session creation returned no session ID.");
-
-    const prompted = await runtime.client.session.prompt(
-      {
-        sessionID: sessionId,
-        system: FACADE_AGENT_INSTRUCTIONS,
+      startRuntime: options.startRuntime,
+      session: {
+        config: buildOpenCodeConfig(facadeServerPath, env),
+        directory: join(runtimeDirectory, "workspace"),
+        configRoot: join(runtimeDirectory, "config"),
+        systemPrompt: FACADE_AGENT_INSTRUCTIONS,
         tools: Object.fromEntries(STAGEHAND_TOOL_NAMES.map((name) => [name, true])),
-        parts: [{ type: "text", text: instruction }],
       },
-      { throwOnError: true, signal: abortController.signal },
-    );
-    assertNoApiError(prompted, "prompt");
-    const text = extractAssistantText(prompted);
-    if (!text) throw new Error("OpenCode returned no assistant text.");
-    return text;
-  } finally {
-    if (runtime && sessionId) {
-      await runtime.client.session
-        .delete(
-          { sessionID: sessionId },
-          { throwOnError: false, signal: AbortSignal.timeout(5_000) },
-        )
-        .catch(() => undefined);
+    });
+    if (result.status !== "completed") {
+      throw new Error(result.stopReason ?? "OpenCode did not complete the task.");
     }
-    runtime?.close();
+    if (!result.finalMessage) throw new Error("OpenCode returned no assistant text.");
+    return result.finalMessage;
+  } finally {
     removeSignalHandlers();
     await rm(runtimeDirectory, { recursive: true, force: true });
-  }
-}
-
-export async function startOpenCodeRuntime(options: {
-  config: Config;
-  directory: string;
-  configRoot: string;
-  signal: AbortSignal;
-}): Promise<OpenCodeRuntime> {
-  await Promise.all([
-    mkdir(options.directory, { recursive: true }),
-    mkdir(join(options.configRoot, "xdg"), { recursive: true }),
-    mkdir(join(options.configRoot, "extensions"), { recursive: true }),
-  ]);
-  const emptyConfigPath = join(options.configRoot, "opencode.json");
-  await writeFile(emptyConfigPath, "{}\n", { mode: 0o600 });
-
-  const server = await withTemporaryEnvironment(
-    {
-      XDG_CONFIG_HOME: join(options.configRoot, "xdg"),
-      OPENCODE_CONFIG: emptyConfigPath,
-      OPENCODE_CONFIG_DIR: join(options.configRoot, "extensions"),
-    },
-    () =>
-      createOpencodeServer({
-        hostname: "127.0.0.1",
-        port: 0,
-        timeout: 30_000,
-        signal: options.signal,
-        config: options.config,
-      }),
-  );
-  const client = createOpencodeClient({
-    baseUrl: server.url,
-    directory: options.directory,
-  });
-  return {
-    client: client as unknown as OpenCodeRuntime["client"],
-    close: () => server.close(),
-  };
-}
-
-export async function withTemporaryEnvironment<T>(
-  overrides: Record<string, string>,
-  operation: () => Promise<T>,
-): Promise<T> {
-  const previous = new Map<string, string | undefined>();
-  for (const [key, value] of Object.entries(overrides)) {
-    previous.set(key, process.env[key]);
-    process.env[key] = value;
-  }
-  try {
-    return await operation();
-  } finally {
-    for (const [key, value] of previous) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
   }
 }
 
@@ -213,22 +116,6 @@ function forwardTerminationSignals(controller: AbortController): () => void {
     process.removeListener("SIGINT", onSignal);
     process.removeListener("SIGTERM", onSignal);
   };
-}
-
-function assertNoApiError(result: ApiResult, operation: string): void {
-  if (result.error !== undefined) {
-    throw new Error(`OpenCode ${operation} failed.`);
-  }
-}
-
-function readRecord(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function readString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 async function main(): Promise<void> {
