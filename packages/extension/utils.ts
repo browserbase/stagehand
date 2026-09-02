@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { ZodPathSegments } from "./types/private/internal.js";
 
 const ID_PATTERN = /^\d+-\d+$/;
+const URL_STRING_FORMATS = new Set(["url", "uri", "uri-reference"]);
 
 const TYPE_NAME_MAP: Record<string, string> = {
   string: "string",
@@ -151,11 +152,11 @@ export function transformSchema(
         };
         return (
           candidate.kind === "url" ||
-          candidate.format === "url" ||
+          URL_STRING_FORMATS.has(candidate.format ?? "") ||
           candidate._zod?.def?.check === "url" ||
-          candidate._zod?.def?.format === "url"
+          URL_STRING_FORMATS.has(candidate._zod?.def?.format ?? "")
         );
-      }) || format === "url";
+      }) || URL_STRING_FORMATS.has(format ?? "");
 
     if (hasUrlCheck) {
       return [makeIdStringSchema(schema), [{ segments: [] }]];
@@ -337,6 +338,115 @@ export function injectUrls(
       }
     } else {
       injectUrls(record[key], rest, idToUrlMapping);
+    }
+  }
+}
+
+function isUrlFieldName(name: string | undefined): boolean {
+  if (!name) return false;
+  return (
+    /^(urls?|hrefs?|uris?|links?)$/i.test(name) ||
+    /[_-](urls?|hrefs?|uris?|links?)$/i.test(name) ||
+    /(URL|URLs|Href|Hrefs|Uri|Uris|Link|Links)$/.test(name)
+  );
+}
+
+function lookupMappedUrl(id: string, idToUrlMapping: Record<string, string>): string | undefined {
+  // Leave unknown IDs in place rather than blanking the field. A missing
+  // href is more useful than an empty string, and the token may not be an ID.
+  return Object.hasOwn(idToUrlMapping, id) ? idToUrlMapping[id] : undefined;
+}
+
+function lookupBareId(raw: string, idToUrlMapping: Record<string, string>): string | undefined {
+  const trimmed = raw.trim();
+  if (!ID_PATTERN.test(trimmed)) return undefined;
+  return lookupMappedUrl(trimmed, idToUrlMapping);
+}
+
+function replaceBracketedIds(value: string, idToUrlMapping: Record<string, string>): string {
+  return value.replace(/\[(\d+-\d+)\]/g, (match, id: string) => {
+    return lookupMappedUrl(id, idToUrlMapping) ?? match;
+  });
+}
+
+function replaceBareIdSegment(segment: string, idToUrlMapping: Record<string, string>): string {
+  const url = lookupBareId(segment, idToUrlMapping);
+  if (url === undefined) return segment;
+  const leading = segment.match(/^(\s*)/)?.[1] ?? "";
+  const trailing = segment.match(/(\s*)$/)?.[1] ?? "";
+  return `${leading}${url}${trailing}`;
+}
+
+function replaceIdTokensInString(
+  value: string,
+  idToUrlMapping: Record<string, string>,
+  allowBareIds: boolean,
+): string {
+  const next = replaceBracketedIds(value, idToUrlMapping);
+  if (!allowBareIds) {
+    return next;
+  }
+
+  const whole = lookupBareId(next, idToUrlMapping);
+  if (whole !== undefined) {
+    return whole;
+  }
+
+  if (next.includes("\n")) {
+    return next
+      .split("\n")
+      .map((line) => replaceBareIdSegment(line, idToUrlMapping))
+      .join("\n");
+  }
+
+  if (next.includes(",")) {
+    return next
+      .split(",")
+      .map((part) => replaceBareIdSegment(part, idToUrlMapping))
+      .join(",");
+  }
+
+  return next;
+}
+
+/**
+ * Replace accessibility-tree element IDs that leaked into extracted strings
+ * with the hrefs from the snapshot URL map. Typed `z.url()` fields are already
+ * handled by {@link injectUrls}.
+ *
+ * Bracketed IDs (`[0-74]`) match the a11y-tree encoding and are rewritten in
+ * any string. Bare IDs (`0-74`) are only rewritten on URL-ish field names so
+ * scores/versions like `"3-2"` are left alone.
+ */
+export function replaceElementIdsWithUrls(
+  value: unknown,
+  idToUrlMapping: Record<string, string>,
+  allowBareIds = false,
+): void {
+  if (typeof value === "string" || value === null || value === undefined) {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const item = value[i];
+      if (typeof item === "string") {
+        value[i] = replaceIdTokensInString(item, idToUrlMapping, allowBareIds);
+      } else {
+        replaceElementIdsWithUrls(item, idToUrlMapping, false);
+      }
+    }
+    return;
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      const item = record[key];
+      const fieldAllowsBareIds = isUrlFieldName(key);
+      if (typeof item === "string") {
+        record[key] = replaceIdTokensInString(item, idToUrlMapping, fieldAllowsBareIds);
+      } else {
+        replaceElementIdsWithUrls(item, idToUrlMapping, fieldAllowsBareIds);
+      }
     }
   }
 }
