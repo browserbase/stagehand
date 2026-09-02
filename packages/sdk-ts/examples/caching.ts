@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { z } from "zod/v4";
-import type { StagehandResultMetadata } from "../../protocol/types.js";
+import type { StagehandResultMetadata } from "@browserbasehq/stagehand-protocol/types";
 import { browserbase, Stagehand } from "../src/index.js";
 
 const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;

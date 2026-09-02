@@ -2,7 +2,7 @@ import { generateText, NoObjectGeneratedError, Output } from "ai";
 import type { ImagePart, LanguageModel, ModelMessage, TextPart, Tool, ToolSet } from "ai";
 import type { JSONValue } from "@ai-sdk/provider";
 import { z } from "zod/v4";
-import type { ClientOptions, ModelName } from "../../protocol/types.js";
+import type { ClientOptions, ModelName } from "@browserbasehq/stagehand-protocol/types";
 import { CreateChatCompletionOptions, LLMClient, type LLMResponse } from "./LLMClient.js";
 import { ChatCompletionOptionsSchema } from "./schemas.js";
 import { anthropicFallbacksOptions } from "./anthropicOptions.js";

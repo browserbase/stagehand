@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 import { build } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
-import { launchLocalBrowser } from "../../../sdk-ts/src/browser/localBrowser.js";
-import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
-import { StagehandMethods } from "../../schema-registry.js";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
-import type { StagehandRpcNotification } from "../../types.js";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
+import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
+import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
+import { connectRPCClient, type RPCClient } from "../../src/rpcClient.js";
 
 const stagehandExtensionDistDir = new URL("../../../extension/dist", import.meta.url).pathname;
 

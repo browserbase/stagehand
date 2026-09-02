@@ -1,4 +1,4 @@
-import type { StagehandInitParams } from "../../../protocol/types.js";
+import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseLaunchOptionsSchema,

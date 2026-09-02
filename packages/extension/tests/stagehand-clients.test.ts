@@ -1,13 +1,16 @@
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import { JSONRPCRequestSchema, JSONRPCResponseSchema } from "../../protocol/json-rpc/schemas.ts";
-import type { JSONRPCResponse } from "../../protocol/json-rpc/types.ts";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import {
+  JSONRPCRequestSchema,
+  JSONRPCResponseSchema,
+} from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import type { JSONRPCResponse } from "@browserbasehq/stagehand-protocol/json-rpc/types";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandRpcNotificationSchema,
   StagehandSendToHostBindingSchema,
-} from "../../protocol/schema-registry.ts";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import { startStagehandServiceWorker } from "../service-worker.ts";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
@@ -58,7 +61,7 @@ import type {
   WebMCPToolDescriptor,
   WebMCPToolResponse,
   WebMCPToolsOptions,
-} from "../../protocol/types.ts";
+} from "@browserbasehq/stagehand-protocol/types";
 
 vi.mock("../understudy/context.js", () => ({
   BrowserContext: {

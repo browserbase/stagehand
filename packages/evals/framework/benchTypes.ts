@@ -1,37 +1,13 @@
 import type { AvailableModel } from "stagehand-v3";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 
-export type Harness = "stagehand" | "claude_code" | "codex";
+/**
+ * Identifier of a registered BenchHarness (see benchHarness.ts harnessRegistry).
+ * Validate with parseBenchHarness / isBenchHarness; never hardcode the set.
+ */
+export type Harness = string;
 
 export const DEFAULT_BENCH_HARNESS: Harness = "stagehand";
-
-export const SUPPORTED_BENCH_HARNESSES = [
-  "stagehand",
-  "claude_code",
-  "codex",
-] as const satisfies readonly Harness[];
-
-export const EXECUTABLE_BENCH_HARNESSES = [
-  "stagehand",
-  "claude_code",
-  "codex",
-] as const satisfies readonly Harness[];
-
-export function isBenchHarness(value: string): value is Harness {
-  return (SUPPORTED_BENCH_HARNESSES as readonly string[]).includes(value);
-}
-
-export function isExecutableBenchHarness(value: Harness): boolean {
-  return (EXECUTABLE_BENCH_HARNESSES as readonly Harness[]).includes(value);
-}
-
-export function parseBenchHarness(value: string | undefined): Harness {
-  if (!value) return DEFAULT_BENCH_HARNESS;
-  if (isBenchHarness(value)) return value;
-  throw new Error(
-    `Unknown harness "${value}". Supported: ${SUPPORTED_BENCH_HARNESSES.join(", ")}.`,
-  );
-}
 
 export type BenchTaskKind = "act" | "extract" | "observe" | "agent" | "combination" | "suite";
 
@@ -47,6 +23,8 @@ export interface StagehandHarnessConfig {
 }
 
 export interface ExternalHarnessConfig {
+  /** Registered external harness id (e.g. "claude_code", "codex"). Never "stagehand". */
+  harness: string;
   model: AvailableModel;
   provider?: string;
   environment: "LOCAL" | "BROWSERBASE";
@@ -56,18 +34,7 @@ export interface ExternalHarnessConfig {
   dataset?: string;
 }
 
-export interface ClaudeCodeHarnessConfig extends ExternalHarnessConfig {
-  harness: "claude_code";
-}
-
-export interface CodexHarnessConfig extends ExternalHarnessConfig {
-  harness: "codex";
-}
-
-export type BenchHarnessConfig =
-  | StagehandHarnessConfig
-  | ClaudeCodeHarnessConfig
-  | CodexHarnessConfig;
+export type BenchHarnessConfig = StagehandHarnessConfig | ExternalHarnessConfig;
 
 export interface BenchMatrixRow {
   harness: Harness;

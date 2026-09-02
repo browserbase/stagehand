@@ -110,7 +110,7 @@ import type {
   WebMCPToolDescriptor,
   WebMCPToolResponse,
   WebMCPToolsOptions,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
