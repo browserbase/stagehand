@@ -1,0 +1,372 @@
+---
+title: "Web Search"
+sidebarTitle: "Web Search"
+description: "Search the live web and hand your agent a ranked list of URLs"
+---
+
+## What is `search()`?
+
+An agent that doesn't know where to start has to launch a browser, load a search engine, wait for the page, and read a result list before it can do anything useful. `browserbase.search()` collapses that into a single API call: you send a query, you get back ranked results with URLs, titles, and metadata.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase } from "@browserbasehq/stagehand";
+
+const searchResult = await browserbase.search({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  query: "browser agent frameworks",
+  numResults: 5,
+});
+
+for (const result of searchResult.results) {
+  console.log(`${result.title}: ${result.url}`);
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+
+from stagehand import browserbase
+
+search_result = await browserbase.search(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    query="browser agent frameworks",
+    num_results=5,
+)
+
+for result in search_result.results:
+    print(f"{result.title}: {result.url}")
+```
+</Tab>
+
+<Tab title="Go">
+```go
+numResults := 5
+
+searchResult, err := stagehand.SearchBrowserbase(ctx, stagehand.BrowserbaseSearchOptions{
+	APIKey:     os.Getenv("BROWSERBASE_API_KEY"),
+	Query:      "browser agent frameworks",
+	NumResults: &numResults,
+})
+if err != nil {
+	return err
+}
+
+for _, result := range searchResult.Results {
+	fmt.Printf("%s: %s\n", result.Title, result.URL)
+}
+```
+</Tab>
+</Tabs>
+
+<Note>
+`search()` hangs off the same `browserbase` facade you use to launch cloud browsers, but it never starts a browser session. All it needs is a Browserbase API key — there is no `Stagehand` instance, no page, and nothing to close. Local browsers have no equivalent.
+</Note>
+
+## Why use `search()`?
+
+<CardGroup cols={2}>
+  <Card title="Whole-web index" icon="globe">
+    Search spans the whole web, so your agent can discover sources on any topic instead of being limited to domains you hardcoded.
+  </Card>
+  <Card title="Structured, ranked output" icon="list-ol" href="#response">
+    Results come back as structured objects, ranked for relevance and ready for the agent to act on — no result page to parse.
+  </Card>
+  <Card title="Live, low-latency results" icon="bolt">
+    Every query hits the live web rather than a cached index, and it returns without the cost of booting a browser and rendering a search page.
+  </Card>
+  <Card title="Token-optimized" icon="feather" href="/v4/add-ons/fetch">
+    Each result carries the URL, title, and metadata rather than full page excerpts. The agent decides which pages are worth fetching, and the context window stays lean.
+  </Card>
+</CardGroup>
+
+## Setup
+
+`search()` ships with the Stagehand SDK. The only requirement is a [Browserbase API key](https://www.browserbase.com/overview):
+
+```bash
+export BROWSERBASE_API_KEY="bb_live_..."
+```
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import "dotenv/config";
+import { browserbase } from "@browserbasehq/stagehand";
+
+const { BROWSERBASE_API_KEY } = process.env;
+if (!BROWSERBASE_API_KEY) throw new Error("BROWSERBASE_API_KEY is required");
+
+const searchResult = await browserbase.search({
+  apiKey: BROWSERBASE_API_KEY,
+  query: "stagehand browser automation",
+});
+
+console.log(searchResult.requestId, searchResult.results.length);
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import asyncio
+import os
+
+from stagehand import browserbase
+
+
+async def main() -> None:
+    search_result = await browserbase.search(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        query="stagehand browser automation",
+    )
+    print(search_result.request_id, len(search_result.results))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) error {
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	if apiKey == "" {
+		return errors.New("BROWSERBASE_API_KEY is required")
+	}
+
+	searchResult, err := stagehand.SearchBrowserbase(ctx, stagehand.BrowserbaseSearchOptions{
+		APIKey: apiKey,
+		Query:  "stagehand browser automation",
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(searchResult.RequestID, len(searchResult.Results))
+	return nil
+}
+```
+</Tab>
+</Tabs>
+
+## Response
+
+A search returns the query it ran, a request ID you can quote in support requests, and the ranked results. `id`, `title`, and `url` are always present; the rest are filled in when the source exposes them.
+
+```json
+{
+  "query": "browser agent frameworks",
+  "requestId": "req_01JB8Z3K7Q2M4N",
+  "results": [
+    {
+      "id": "https://docs.stagehand.dev/v4/first-steps/introduction",
+      "title": "Introduction - Stagehand",
+      "url": "https://docs.stagehand.dev/v4/first-steps/introduction",
+      "author": null,
+      "favicon": "https://docs.stagehand.dev/favicon.ico",
+      "image": null,
+      "publishedDate": "2025-11-04T00:00:00.000Z"
+    }
+  ]
+}
+```
+
+<Note>
+Field names follow each language's conventions: `requestId` and `publishedDate` in TypeScript, `request_id` and `published_date` in Python, and `RequestID` and `PublishedDate` on the Go structs.
+</Note>
+
+## API reference
+
+### Parameters
+
+<ParamField path="apiKey" type="string" required>
+  Your Browserbase API key. Search is billed to the project that owns the key.
+</ParamField>
+
+<ParamField path="query" type="string" required>
+  The search query, 1–200 characters.
+</ParamField>
+
+<ParamField path="numResults" type="number" optional>
+  How many results to return, between 1 and 25. Defaults to 10.
+</ParamField>
+
+<ParamField path="baseUrl" type="string" optional>
+  Browserbase API origin override. Defaults to `https://api.browserbase.com`.
+</ParamField>
+
+### Returns
+
+<ResponseField name="query" type="string">
+  The query that was executed.
+</ResponseField>
+
+<ResponseField name="requestId" type="string">
+  Identifier for this search request.
+</ResponseField>
+
+<ResponseField name="results" type="SearchResult[]">
+  Results ordered by relevance.
+
+  <Expandable title="SearchResult">
+    <ResponseField name="id" type="string">
+      Stable identifier for the result.
+    </ResponseField>
+    <ResponseField name="title" type="string">
+      Page title.
+    </ResponseField>
+    <ResponseField name="url" type="string">
+      Canonical URL of the page — pass it straight to [`fetch()`](/v4/add-ons/fetch) or `page.goto()`.
+    </ResponseField>
+    <ResponseField name="author" type="string | null">
+      Author, when the source declares one.
+    </ResponseField>
+    <ResponseField name="favicon" type="string | null">
+      Favicon URL, when available.
+    </ResponseField>
+    <ResponseField name="image" type="string | null">
+      Representative image URL, when available.
+    </ResponseField>
+    <ResponseField name="publishedDate" type="string | null">
+      ISO 8601 publication date, when available.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Tip>
+Invalid input is rejected before the request leaves your process: an empty query, a query over 200 characters, or a `numResults` outside 1–25 raises locally rather than costing you a round trip.
+</Tip>
+
+## Search, then read
+
+`search()` deliberately returns pointers rather than page bodies. Pair it with [`fetch()`](/v4/add-ons/fetch) to pull the content of the one or two pages that actually matter, and reach for a full browser session only when the page needs interaction.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const { results } = await browserbase.search({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  query: "browser agent frameworks",
+  numResults: 5,
+});
+
+const page = await browserbase.fetch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  url: results[0].url,
+  format: "markdown",
+});
+
+console.log(page.content);
+```
+</Tab>
+
+<Tab title="Python">
+```python
+search_result = await browserbase.search(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    query="browser agent frameworks",
+    num_results=5,
+)
+
+fetched = await browserbase.fetch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    url=search_result.results[0].url,
+    format="markdown",
+)
+
+print(fetched.content)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+numResults := 5
+searchResult, err := stagehand.SearchBrowserbase(ctx, stagehand.BrowserbaseSearchOptions{
+	APIKey:     os.Getenv("BROWSERBASE_API_KEY"),
+	Query:      "browser agent frameworks",
+	NumResults: &numResults,
+})
+if err != nil {
+	return err
+}
+if len(searchResult.Results) == 0 {
+	return errors.New("search returned no results")
+}
+
+fetched, err := stagehand.FetchBrowserbase(ctx, stagehand.BrowserbaseFetchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	URL:    searchResult.Results[0].URL,
+	Format: stagehand.BrowserbaseFetchFormatMarkdown,
+})
+if err != nil {
+	return err
+}
+
+content, ok := fetched.Content.AsString()
+if !ok {
+	return errors.New("fetch returned non-string content")
+}
+fmt.Println(content)
+```
+</Tab>
+</Tabs>
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="General agents and chatbots" icon="comments">
+    Retrieve up-to-date information to produce more accurate answers.
+  </Card>
+  <Card title="Coding agents" icon="code">
+    Find the best library, or the documentation page for a given technical requirement.
+  </Card>
+  <Card title="Research agents" icon="flask">
+    Conduct in-depth web research across the whole web.
+  </Card>
+  <Card title="Voice agents" icon="microphone">
+    Find relevant sources fast enough for low-latency voice interactions.
+  </Card>
+</CardGroup>
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Query length | 1–200 characters |
+| Results per query | 1–25 (default 10) |
+| Rate limit | 120 requests per minute, per project |
+
+Exceeding the rate limit returns a `429`. Back off and retry rather than looping.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Web Fetch" icon="file-lines" href="/v4/add-ons/fetch">
+    Turn any URL you discovered into agent-ready markdown or JSON.
+  </Card>
+  <Card title="Browserbase Search" icon="cloud" href="https://docs.browserbase.com/platform/search/overview">
+    Endpoint details, pricing, and the underlying REST API.
+  </Card>
+</CardGroup>
