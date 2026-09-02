@@ -12,6 +12,7 @@
   "dependencies": {
     "@browserbasehq/stagehand": "workspace:*",
     "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-flue-sdk": "workspace:*",
     "@flue/runtime": "catalog:",
     "dotenv": "catalog:",
     "valibot": "catalog:"

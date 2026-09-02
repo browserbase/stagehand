@@ -14,14 +14,14 @@ pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
 
 Configure the environment as needed:
 
-| Variable                  | Purpose                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------------------ |
-| `STAGEHAND_BROWSER`       | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
-| `BROWSERBASE_API_KEY`     | Browserbase API key.                                                                             |
-| `STAGEHAND_MODEL_NAME`    | Optional Stagehand model name, such as `openai/gpt-5.6-luna`.                                    |
+| Variable                  | Purpose                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`       | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.      |
+| `BROWSERBASE_API_KEY`     | Browserbase API key.                                                                                  |
+| `STAGEHAND_MODEL_NAME`    | Optional Stagehand model name, such as `openai/gpt-5.6-luna`.                                         |
 | `STAGEHAND_MODEL_API_KEY` | Optional explicit API key for `STAGEHAND_MODEL_NAME`; otherwise a supported provider key is inferred. |
-| `FLUE_STAGEHAND_MODEL`    | Flue agent model; defaults to `openai/gpt-5.6-luna`.                                             |
-| `OPENAI_API_KEY`          | Used by the Flue agent model in the host process.                                                |
+| `FLUE_STAGEHAND_MODEL`    | Flue agent model; defaults to `openai/gpt-5.6-luna`.                                                  |
+| `OPENAI_API_KEY`          | Used by the Flue agent model in the host process.                                                     |
 
 ## Run
 
