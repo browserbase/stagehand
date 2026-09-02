@@ -41,6 +41,15 @@ describe("benchPlanner", () => {
     });
   });
 
+  it("uses the registry-derived Mastra model override environment key", async () => {
+    expect(defaultModelsEnvKey("mastra")).toBe("EVAL_MASTRA_MODELS");
+    await withEnvOverrides({ EVAL_MASTRA_MODELS: "openai/custom-mastra" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "mastra" }).modelEntries).toEqual([
+        { modelName: "openai/custom-mastra", mode: "hybrid", cua: false },
+      ]);
+    });
+  });
+
   it("plans registered pass-through harness rows generically", () => {
     registerBenchHarness({
       harness: "fake_planner_harness",

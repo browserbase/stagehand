@@ -13,7 +13,7 @@ describe("resolveDefaultCoreStartupProfile", () => {
       /available only as an agent harness mount/,
     );
     expect(() => rejectAgentMountOnlyCoreTool("stagehand_facade")).toThrow(
-      /--harness claude_code or --harness codex/,
+      /--harness claude_code, --harness codex, or --harness mastra/,
     );
   });
 
@@ -29,7 +29,7 @@ describe("resolveDefaultCoreStartupProfile", () => {
 
     try {
       expect(() => rejectAgentMountOnlyCoreTool("stagehand_facade")).toThrow(
-        /--harness claude_code, --harness codex, or --harness context_facade_harness/,
+        /--harness claude_code, --harness codex, --harness mastra, or --harness context_facade_harness/,
       );
     } finally {
       unregister();
