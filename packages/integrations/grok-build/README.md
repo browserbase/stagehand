@@ -1,25 +1,48 @@
-# Grok Build + Stagehand over ACP
+# Grok Build CLI + Stagehand facade over MCP/stdio
 
-This example starts the packaged Grok Build CLI as an ACP v1 agent and mounts the persistent Stagehand facade as its only session MCP server.
+Grok Build's `grok` CLI consumes the Stagehand facade (`run` / `snapshot` / `screenshot`) as a
+project MCP server through `.grok/config.toml`.
 
-## Run
+<!-- Verified against Grok Build 1.0.5. -->
 
-From the repository root:
+## Setup
+
+Use Node.js 24 or newer. From the repository root, build the integrations package first:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
-export XAI_API_KEY=xai-...
-pnpm --dir packages/integrations/grok-build start -- \
-  "Open https://example.com, snapshot it, request a screenshot, and report the title."
+npm install --global @xai-official/grok
+grok login
+# or: export XAI_API_KEY=...
 ```
 
-An existing `grok login` can be used instead of `XAI_API_KEY`. Grok uses its configured default model. Browser selection continues to use `STAGEHAND_BROWSER` and `BROWSERBASE_API_KEY`; `BROWSERBASE_PROJECT_ID` is optional.
+## Configure
 
-## Isolation
+Copy `.grok/config.toml` from this directory to your project, then replace the facade path and
+Browserbase key placeholders. Grok merges project MCP configuration over its user settings.
 
-Each run creates a disposable workspace, home directory, and `GROK_HOME`, copies only cached `auth.json` when API-key auth is unavailable, and disables user compatibility MCP imports. The ACP session supplies exactly one `stagehand` stdio server. A minimal launcher creates the actual facade runtime with non-empty `STAGEHAND_*` and `BROWSERBASE_*` values plus basic OS values needed to launch Node and local Chrome, so `XAI_API_KEY` and unrelated host secrets are unavailable to the facade.
+## Run
 
-The shared `@browserbasehq/stagehand-integrations/acp` transport handles protocol initialization, auth, session updates, permission decisions, cancellation, and process-tree cleanup. This package supplies only Grok's command and protocol-specific profile behavior.
+Run from the configured project so Grok sees both `.grok/config.toml` and `AGENTS.md`:
 
-The Grok process is restricted to `search_tool` and `use_tool` through an ACP `--agent-profile` allowlist so it can discover and invoke the lazy Stagehand MCP tools. Shell, file, subagent, memory, plan, and web-search capabilities are disabled for this browser-only example, matching the Claude and Codex integrations.
+```bash
+grok -p \
+  --output-format streaming-json \
+  --always-approve \
+  --tools search_tool,use_tool \
+  --disallowed-tools Agent \
+  --no-plan \
+  --no-subagents \
+  --disable-web-search \
+  "Use the stagehand MCP tools: open https://example.com, snapshot it, and report the heading citing the snapshot ID."
+```
+
+The eval harness uses the same CLI path with an isolated temporary Grok home and project config:
+
+```bash
+evals run b:webvoyager --harness grok_build --tool stagehand_facade -l 1 -t 1 -e browserbase
+```
+
+Set `EVAL_GROK_BUILD_PATH` to override the binary, `EVAL_GROK_BUILD_MAX_TURNS` to change the
+50-turn default, or `EVAL_GROK_BUILD_SANDBOX` to pass a Grok sandbox profile.

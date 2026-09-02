@@ -267,6 +267,7 @@ jobs:
             packages/integrations/deepagents-sdk/dist/**
             packages/integrations/fx-sdk/dist/**
             packages/integrations/cursor-sdk/dist/**
+            packages/integrations/grok-build-sdk/dist/**
             packages/evals/dist/**
           retention-days: 1
 

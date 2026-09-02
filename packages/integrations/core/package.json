@@ -11,9 +11,6 @@
   ],
   "type": "module",
   "exports": {
-    "./acp": {
-      "import": "./dist/acp/index.mjs"
-    },
     "./codemode/stdio-server": {
       "import": "./dist/codemode/stdio-server.mjs"
     },
@@ -35,7 +32,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "zod": "catalog:"

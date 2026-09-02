@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildAllowlistedEnv, sanitizeErrorMessage } from "../src/harness/index.js";
 
 describe("harness contract", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("redacts credential-bearing URL query parameters", () => {
     expect(sanitizeErrorMessage("wss://example.test?signingKey=top-secret&foo=bar")).toBe(
       "wss://example.test?signingKey=[redacted]&foo=bar",
@@ -27,12 +31,12 @@ describe("harness contract", () => {
   });
 
   it("allows Stagehand and Browserbase env vars while excluding other and empty values", () => {
-    const env = buildAllowlistedEnv({
-      STAGEHAND_MODEL: "model",
-      BROWSERBASE_API_KEY: "browserbase-key",
-      STAGEHAND_EMPTY: "",
-      NOT_ALLOWLISTED_SECRET: "secret",
-    });
+    vi.stubEnv("STAGEHAND_MODEL", "model");
+    vi.stubEnv("BROWSERBASE_API_KEY", "browserbase-key");
+    vi.stubEnv("STAGEHAND_EMPTY", "");
+    vi.stubEnv("NOT_ALLOWLISTED_SECRET", "secret");
+
+    const env = buildAllowlistedEnv();
 
     expect(env.STAGEHAND_MODEL).toBe("model");
     expect(env.BROWSERBASE_API_KEY).toBe("browserbase-key");

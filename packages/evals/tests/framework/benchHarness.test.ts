@@ -13,6 +13,7 @@ import {
   mastraHarness,
   piHarness,
   cursorHarness,
+  grokBuildHarness,
   fxHarness,
   deepagentsHarness,
   eveHarness,
@@ -21,6 +22,7 @@ import {
 import { MASTRA_TOOL_SURFACES } from "../../framework/mastraToolAdapter.js";
 import { PI_TOOL_SURFACES } from "../../framework/piToolAdapter.js";
 import { CURSOR_TOOL_SURFACES } from "../../framework/cursorToolAdapter.js";
+import { GROK_BUILD_TOOL_SURFACES } from "../../framework/grokBuildToolAdapter.js";
 import { defaultModelsEnvKey } from "../../framework/benchPlanner.js";
 import type { BenchMatrixRow } from "../../framework/benchTypes.js";
 import type { DiscoveredTask } from "../../framework/types.js";
@@ -39,6 +41,7 @@ describe("bench harness registry", () => {
       "deepagents",
       "fx",
       "cursor",
+      "grok_build",
     ]);
   });
 
@@ -46,7 +49,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, grok_build\./,
     );
   });
 
@@ -183,6 +186,20 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces).not.toContain("browse_cli");
     expect(harness.supportedToolSurfaces).not.toContain("stagehand_code");
     expect(harness.defaultModels).toEqual(["cursor/auto"]);
+  });
+
+  it("registers grok_build as a concrete executable harness", () => {
+    const harness = getBenchHarness("grok_build");
+
+    expect(harness).toBe(grokBuildHarness);
+    expect(parseBenchHarness("grok_build")).toBe("grok_build");
+    expect(isExecutableBenchHarness("grok_build")).toBe(true);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    expect(harness.supportedToolSurfaces).toEqual(GROK_BUILD_TOOL_SURFACES);
+    expect(harness.supportedToolSurfaces[0]).toBe("stagehand_facade");
+    expect(harness.defaultModels).toEqual(["grok-build/auto"]);
   });
 
   it("registers a new harness and rejects duplicate ids", () => {

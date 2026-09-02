@@ -81,7 +81,7 @@ Every integration exposes the same browser capabilities.
 
 The tools share a browser for the lifetime of the integration's client session. A navigation performed by `run` is visible to the next `snapshot`, and authentication and page state remain available across calls.
 
-The Claude Code, Codex, CrewAI, Mastra, fx, Vercel AI SDK, and local Deep Agents examples keep one MCP client session in the host so the stdio server and browser stay alive. Grok Build uses ACP: Stagehand is the ACP client and mounts the same facade as the session's only MCP server on `session/new`, so the browser still lasts the full prompt turn. Eve, Pi, and Managed Deep Agents bind equivalent tools in-process.
+The Claude Code, Codex, Grok Build, CrewAI, Mastra, fx, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve, Pi, and Managed Deep Agents bind equivalent tools in-process.
 
 The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server. The TypeScript integrations and CrewAI use this package.
 
