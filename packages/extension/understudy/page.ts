@@ -20,6 +20,7 @@ import {
 import type {
   LoadState,
   LocalBrowserLaunchOptions,
+  PageEventName,
   PageCDPEvent,
   PageSnapshotOptions,
   SnapshotResult,
@@ -77,6 +78,12 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
 const WEBMCP_SETTLED_INVOCATION_RETENTION_MS = 5 * 60 * 1_000;
 
+type PageCDPEventMethod = PageCDPEvent["method"];
+
+export const PAGE_TO_CDP_EVENTS: Record<PageEventName, PageCDPEventMethod> = {
+  ["console"]: "Runtime.consoleAPICalled",
+};
+
 type Deferred<T> = {
   promise: Promise<T>;
   resolve: (value: T | PromiseLike<T>) => void;
@@ -91,6 +98,7 @@ type WebMCPInvocationRecord = {
 };
 
 type CDPEventSubscription = {
+  cdpEventMethod: PageCDPEventMethod;
   listener: (event: PageCDPEvent) => void;
   sessionHandlers: Map<string, { session: CDPSessionLike; handler: (params: unknown) => void }>;
 };
@@ -507,9 +515,14 @@ export class Page {
     return this.mainSession.send<T>(method, params);
   }
 
-  /** Subscribe to console events on every session owned by this page. */
-  public subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
+  /** Subscribe to events on every session owned by this page. */
+  public subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+  ): () => void {
+    const cdpEventMethod = PAGE_TO_CDP_EVENTS[pageEventName];
     const subscription: CDPEventSubscription = {
+      cdpEventMethod,
       listener,
       sessionHandlers: new Map(),
     };
@@ -542,7 +555,7 @@ export class Page {
           : {};
       const event = PageCDPEventSchema.parse({
         pageId: this.pageId,
-        method: "Runtime.consoleAPICalled",
+        method: subscription.cdpEventMethod,
         params: normalizedParams,
         sessionId,
         targetId: this.conn.targetIdForSession(session.id) ?? this._targetId,
@@ -553,20 +566,20 @@ export class Page {
         this.logger.error("Page CDP event listener failed", {
           category: "page",
           pageId: this.pageId,
-          method: "Runtime.consoleAPICalled",
+          method: subscription.cdpEventMethod,
           sessionId,
           error: error instanceof Error ? error.message : String(error),
         });
       }
     };
     subscription.sessionHandlers.set(sessionId, { session, handler });
-    session.on("Runtime.consoleAPICalled", handler);
+    session.on(subscription.cdpEventMethod, handler);
   }
 
   private detachCDPEventSubscription(subscription: CDPEventSubscription, sessionId: string): void {
     const registered = subscription.sessionHandlers.get(sessionId);
     if (!registered) return;
-    registered.session.off("Runtime.consoleAPICalled", registered.handler);
+    registered.session.off(subscription.cdpEventMethod, registered.handler);
     subscription.sessionHandlers.delete(sessionId);
   }
 
