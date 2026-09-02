@@ -16,6 +16,8 @@ import { runPiAgent } from "./piRunner.js";
 import { PI_TOOL_SURFACES, preparePiToolAdapter } from "./piToolAdapter.js";
 import { runEveAgent } from "./eveRunner.js";
 import { EVE_TOOL_SURFACES, prepareEveToolAdapter } from "./eveToolAdapter.js";
+import { runDeepagentsAgent } from "./deepagentsRunner.js";
+import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
@@ -316,6 +318,14 @@ export const eveHarness = defineExternalHarness({
   runAgent: runEveAgent,
 });
 
+export const deepagentsHarness = defineExternalHarness({
+  harness: "deepagents",
+  supportedToolSurfaces: DEEPAGENTS_TOOL_SURFACES,
+  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  prepareToolAdapter: prepareDeepagentsToolAdapter,
+  runAgent: runDeepagentsAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -323,6 +333,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["mastra", mastraHarness],
   ["pi", piHarness],
   ["eve", eveHarness],
+  ["deepagents", deepagentsHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {
