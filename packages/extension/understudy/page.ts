@@ -571,10 +571,11 @@ export class Page {
   }
 
   /**
-   * Return a fresh snapshot of the WebMCP tools registered by the current page.
+   * Return a fresh snapshot of the WebMCP tools registered by the current page and its frames.
    *
-   * Enabling the domain emits `toolsAdded` for every currently registered tool. Keep the
-   * listeners scoped to this call so tools from an earlier document or call are never cached.
+   * Enabling the domain on each owned CDP session emits `toolsAdded` for every currently
+   * registered tool in that target. Keep the listeners scoped to this call so tools from an
+   * earlier document or call are never cached.
    */
   public async listWebMCPTools(
     options?: Partial<WebMCPToolsOptions>,
@@ -612,11 +613,17 @@ export class Page {
     };
 
     const deadline = Date.now() + timeout;
-    this.mainSession.on("WebMCP.toolsAdded", onToolsAdded);
-    this.mainSession.on("WebMCP.toolsRemoved", onToolsRemoved);
+    const sessions = [
+      this.mainSession,
+      ...[...this.sessions.values()].filter((session) => session !== this.mainSession),
+    ];
+    for (const session of sessions) {
+      session.on("WebMCP.toolsAdded", onToolsAdded);
+      session.on("WebMCP.toolsRemoved", onToolsRemoved);
+    }
 
     try {
-      await this.mainSession.send("WebMCP.enable");
+      await Promise.all(sessions.map((session) => session.send("WebMCP.enable")));
       if (quietWindowMs === 0) return [...tools.values()];
 
       await new Promise<void>((resolve) => {
@@ -655,8 +662,10 @@ export class Page {
         scheduleQuietWindow();
       });
     } finally {
-      this.mainSession.off("WebMCP.toolsAdded", onToolsAdded);
-      this.mainSession.off("WebMCP.toolsRemoved", onToolsRemoved);
+      for (const session of sessions) {
+        session.off("WebMCP.toolsAdded", onToolsAdded);
+        session.off("WebMCP.toolsRemoved", onToolsRemoved);
+      }
     }
 
     return [...tools.values()];
