@@ -20,6 +20,8 @@ import { runDeepagentsAgent } from "./deepagentsRunner.js";
 import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
 import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
+import { runCursorAgent } from "./cursorRunner.js";
+import { CURSOR_TOOL_SURFACES, prepareCursorToolAdapter } from "./cursorToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
@@ -336,6 +338,14 @@ export const fxHarness = defineExternalHarness({
   runAgent: runFxAgent,
 });
 
+export const cursorHarness = defineExternalHarness({
+  harness: "cursor",
+  supportedToolSurfaces: CURSOR_TOOL_SURFACES,
+  defaultModels: ["cursor/auto" as AvailableModel],
+  prepareToolAdapter: prepareCursorToolAdapter,
+  runAgent: runCursorAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -345,6 +355,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["eve", eveHarness],
   ["deepagents", deepagentsHarness],
   ["fx", fxHarness],
+  ["cursor", cursorHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {
