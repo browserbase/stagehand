@@ -1219,6 +1219,7 @@ type PageCDPEvent struct {
 type PageCDPEventMethod string
 
 const PageCDPEventMethodRuntimeConsoleAPICalled PageCDPEventMethod = "Runtime.consoleAPICalled"
+const PageCDPEventMethodWebMCPToolsAdded PageCDPEventMethod = "WebMCP.toolsAdded"
 
 type PageCDPEventNotification struct {
 	// Event corresponds to the JSON schema field "event".
@@ -1315,6 +1316,15 @@ type PageEvaluateResult struct {
 type PageEventName string
 
 const PageEventNameConsole PageEventName = "console"
+const PageEventNameToolsAdded PageEventName = "toolsAdded"
+
+type PageEventNotification struct {
+	// Event corresponds to the JSON schema field "event".
+	Event json.RawMessage `json:"event"`
+
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
+}
 
 type PageGoBackParams struct {
 	// Options corresponds to the JSON schema field "options".
@@ -2581,6 +2591,10 @@ type generatedModelCatalog struct {
 	// PageEventName corresponds to the JSON schema field "PageEventName".
 	PageEventName *PageEventName `json:"PageEventName,omitempty,omitzero"`
 
+	// PageEventNotification corresponds to the JSON schema field
+	// "PageEventNotification".
+	PageEventNotification *PageEventNotification `json:"PageEventNotification,omitempty,omitzero"`
+
 	// PageGoBackParams corresponds to the JSON schema field "PageGoBackParams".
 	PageGoBackParams *PageGoBackParams `json:"PageGoBackParams,omitempty,omitzero"`
 
@@ -2851,6 +2865,9 @@ type generatedModelCatalog struct {
 
 	// Schema12 corresponds to the JSON schema field "__schema12".
 	Schema12 json.RawMessage `json:"__schema12,omitempty,omitzero"`
+
+	// Schema13 corresponds to the JSON schema field "__schema13".
+	Schema13 json.RawMessage `json:"__schema13,omitempty,omitzero"`
 
 	// Schema2 corresponds to the JSON schema field "__schema2".
 	Schema2 json.RawMessage `json:"__schema2,omitempty,omitzero"`

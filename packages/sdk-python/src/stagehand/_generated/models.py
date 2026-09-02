@@ -660,6 +660,12 @@ class FieldSchema14(
     root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
 
 
+class FieldSchema15(
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -771,7 +777,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema14] = None
+    data: Optional[FieldSchema15] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1297,6 +1303,11 @@ class LogLevel(StrEnum):
     debug = "debug"
 
 
+class Method(StrEnum):
+    runtime_console_api_called = "Runtime.consoleAPICalled"
+    web_mcp_tools_added = "WebMCP.toolsAdded"
+
+
 class Mode(StrEnum):
     auto = "auto"
     required = "required"
@@ -1476,7 +1487,7 @@ class PageCDPEvent(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
-    method: Literal["Runtime.consoleAPICalled"]
+    method: Method
     params: PageCDPEventParams
     session_id: Annotated[StrictStr, Field(min_length=1)]
     target_id: Annotated[StrictStr, Field(min_length=1)]
@@ -1573,8 +1584,18 @@ class PageEvaluateResult(WireModel):
     value: Optional[FieldSchema9]
 
 
-class PageEventName(RootModel[Literal["console"]]):
-    root: Literal["console"]
+class PageEventName(StrEnum):
+    console = "console"
+    tools_added = "toolsAdded"
+
+
+class PageEventNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Optional[FieldSchema13]
 
 
 class PageGoBackParams(WireModel):
@@ -2359,6 +2380,7 @@ FieldSchema11.model_rebuild()
 FieldSchema12.model_rebuild()
 FieldSchema13.model_rebuild()
 FieldSchema14.model_rebuild()
+FieldSchema15.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

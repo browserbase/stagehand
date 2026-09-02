@@ -65,6 +65,7 @@ import {
   PageCDPEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
+  PageEventNotificationSchema,
   PageDragAndDropParamsSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
@@ -538,6 +539,11 @@ export const StagehandNotifications = {
   pageCDPEvent: {
     name: "page.cdp_event",
     params: PageCDPEventNotificationSchema,
+    paramsWire: { opaqueKeys: ["params"] },
+  },
+  pageEvent: {
+    name: "page.event",
+    params: PageEventNotificationSchema,
     paramsWire: { opaqueKeys: ["params"] },
   },
 } as const satisfies Record<string, RPCNotification>;

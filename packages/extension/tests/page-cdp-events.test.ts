@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PageCDPEvent, PageEventName } from "@browserbasehq/stagehand-protocol/types";
+import type { PageCDPEvent } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
-import { Page, PAGE_TO_CDP_EVENTS } from "../understudy/page.js";
+import { Page, PAGE_TO_CDP_EVENTS, type CDPPageEventName } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
   readonly handlers = new Map<string, Set<(params: unknown) => void>>();
@@ -45,7 +45,7 @@ function createPage(
 }
 
 describe("Page CDP event subscriptions", () => {
-  const pageEventNames: Array<PageEventName> = ["console"];
+  const pageEventNames: Array<CDPPageEventName> = ["console", "toolsAdded"];
   const randomPageEventName = pageEventNames[Math.floor(Math.random() * pageEventNames.length)];
   it("covers the main session plus current and future OOPIF sessions", () => {
     const main = new FakeCDPSession("main");

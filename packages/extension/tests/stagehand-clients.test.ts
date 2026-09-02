@@ -43,6 +43,7 @@ import type {
   PageClickParams,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
   PageDragAndDropParams,
   PageEvaluateParams,
   PageEventName,
@@ -63,7 +64,7 @@ import type {
   WebMCPToolResponse,
   WebMCPToolsOptions,
 } from "@browserbasehq/stagehand-protocol/types";
-import { PAGE_TO_CDP_EVENTS } from "../understudy/page.ts";
+import { PAGE_TO_CDP_EVENTS, type CDPPageEventName } from "../understudy/page.ts";
 
 vi.mock("../understudy/context.js", () => ({
   BrowserContext: {
@@ -255,6 +256,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   readonly cdpEventListeners = new Map<
     PageCDPEvent["method"],
     Set<(event: PageCDPEvent) => void>
+  >();
+  readonly pageEventListeners = new Map<
+    PageEventName,
+    Set<(event: PageEventNotification["event"]) => void>
   >();
   closed = false;
   currentUrl: string;
@@ -463,7 +468,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   }
 
   subscribeCDPEvent(
-    pageEventName: PageEventName,
+    pageEventName: CDPPageEventName,
     listener: (event: PageCDPEvent) => void,
   ): () => void {
     const method = PAGE_TO_CDP_EVENTS[pageEventName];
@@ -478,6 +483,19 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 
   emitCDPEvent(event: PageCDPEvent): void {
     for (const listener of this.cdpEventListeners.get(event.method) ?? []) listener(event);
+  }
+
+  subscribePageEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageEventNotification["event"]) => void,
+  ): () => void {
+    const listeners = this.pageEventListeners.get(pageEventName) ?? new Set();
+    listeners.add(listener);
+    this.pageEventListeners.set(pageEventName, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.pageEventListeners.delete(pageEventName);
+    };
   }
 }
 
@@ -671,7 +689,7 @@ function configuredInitParams(cdpUrl: string) {
 }
 
 describe("Stagehand worker clients", () => {
-  const pageEventNames: Array<PageEventName> = ["console"];
+  const pageEventNames: Array<CDPPageEventName> = ["console", "toolsAdded"];
   const randomPageEventName = pageEventNames[Math.floor(Math.random() * pageEventNames.length)];
 
   it("routes callback batches through the registered JSON-RPC method", async () => {

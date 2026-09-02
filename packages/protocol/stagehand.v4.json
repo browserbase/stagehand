@@ -1097,9 +1097,19 @@
           },
           "required": ["params"],
           "additionalProperties": false
+        },
+        "page.event": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageEventNotification"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
         }
       },
-      "required": ["stagehand.log", "page.cdp_event"],
+      "required": ["stagehand.log", "page.cdp_event", "page.event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -3634,7 +3644,7 @@
     },
     "PageEventName": {
       "type": "string",
-      "enum": ["console"]
+      "enum": ["console", "toolsAdded"]
     },
     "PageOffParams": {
       "type": "object",
@@ -4882,7 +4892,7 @@
         },
         "method": {
           "type": "string",
-          "enum": ["Runtime.consoleAPICalled"]
+          "enum": ["Runtime.consoleAPICalled", "WebMCP.toolsAdded"]
         },
         "params": {
           "$ref": "#/$defs/PageCDPEventParams"
@@ -4935,6 +4945,51 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/__schema12"
+          }
+        }
+      ]
+    },
+    "PageEventNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "$ref": "#/$defs/__schema13"
+        }
+      },
+      "required": ["subscription_id", "event"],
+      "additionalProperties": false
+    },
+    "__schema13": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema13"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema13"
           }
         }
       ]
@@ -7273,6 +7328,24 @@
           },
           "required": ["jsonrpc", "method", "params"],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.event"
+            },
+            "params": {
+              "$ref": "#/$defs/PageEventNotification"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
         }
       ]
     },
@@ -7284,7 +7357,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema14"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -7293,7 +7366,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema13": {
+    "__schema14": {
       "anyOf": [
         {
           "type": "string"
@@ -7310,7 +7383,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         },
         {
@@ -7319,7 +7392,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         }
       ]
@@ -7353,13 +7426,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema14"
+          "$ref": "#/$defs/__schema15"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema14": {
+    "__schema15": {
       "anyOf": [
         {
           "type": "string"
@@ -7376,7 +7449,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         },
         {
@@ -7385,7 +7458,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema15"
           }
         }
       ]

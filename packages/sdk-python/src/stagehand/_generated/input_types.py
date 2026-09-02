@@ -253,6 +253,9 @@ FieldSchema13: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema13"
 FieldSchema14: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema14"], dict[str, "FieldSchema14"]]]
 
 
+FieldSchema15: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema15"], dict[str, "FieldSchema15"]]]
+
+
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
@@ -308,7 +311,7 @@ class InputFilePayload(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema14]
+    data: NotRequired[FieldSchema15]
 
 
 JSONRPCRequestId: TypeAlias = int
@@ -676,7 +679,7 @@ PageCDPEventParams: TypeAlias = dict[str, FieldSchema12]
 
 class PageCDPEvent(TypedDict):
     page_id: str
-    method: Literal["Runtime.consoleAPICalled"]
+    method: Literal["Runtime.consoleAPICalled", "WebMCP.toolsAdded"]
     params: PageCDPEventParams
     session_id: str
     target_id: str
@@ -733,7 +736,12 @@ class PageEvaluateResult(TypedDict):
     value: FieldSchema9
 
 
-PageEventName: TypeAlias = Literal["console"]
+PageEventName: TypeAlias = Literal["console", "toolsAdded"]
+
+
+class PageEventNotification(TypedDict):
+    subscription_id: str
+    event: FieldSchema13
 
 
 class PageHoverParams(TypedDict):

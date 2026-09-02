@@ -22,6 +22,7 @@ import type {
   LocalBrowserLaunchOptions,
   PageEventName,
   PageCDPEvent,
+  PageEventNotification,
   PageSnapshotOptions,
   SnapshotResult,
   WebMCPAnnotation,
@@ -79,10 +80,20 @@ const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
 const WEBMCP_SETTLED_INVOCATION_RETENTION_MS = 5 * 60 * 1_000;
 
 type PageCDPEventMethod = PageCDPEvent["method"];
+type PageEvent = PageEventNotification["event"];
 
-export const PAGE_TO_CDP_EVENTS: Record<PageEventName, PageCDPEventMethod> = {
+export const PAGE_TO_CDP_EVENTS = {
   ["console"]: "Runtime.consoleAPICalled",
-};
+  ["toolsAdded"]: "WebMCP.toolsAdded",
+} as const satisfies Partial<Record<PageEventName, PageCDPEventMethod>>;
+
+export type CDPPageEventName = keyof typeof PAGE_TO_CDP_EVENTS;
+
+export function isCDPPageEventName(
+  pageEventName: PageEventName,
+): pageEventName is CDPPageEventName {
+  return Object.hasOwn(PAGE_TO_CDP_EVENTS, pageEventName);
+}
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -517,7 +528,7 @@ export class Page {
 
   /** Subscribe to events on every session owned by this page. */
   public subscribeCDPEvent(
-    pageEventName: PageEventName,
+    pageEventName: CDPPageEventName,
     listener: (event: PageCDPEvent) => void,
   ): () => void {
     const cdpEventMethod = PAGE_TO_CDP_EVENTS[pageEventName];
@@ -540,6 +551,16 @@ export class Page {
         this.detachCDPEventSubscription(subscription, sessionId);
       }
     };
+  }
+
+  public subscribePageEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageEvent) => void,
+  ): () => void {
+    if (isCDPPageEventName(pageEventName)) {
+      return this.subscribeCDPEvent(pageEventName, listener as (event: PageCDPEvent) => void);
+    }
+    throw new Error(`Unsupported page event "${pageEventName}"`);
   }
 
   private attachCDPEventSubscription(
@@ -574,6 +595,9 @@ export class Page {
     };
     subscription.sessionHandlers.set(sessionId, { session, handler });
     session.on(subscription.cdpEventMethod, handler);
+    if (subscription.cdpEventMethod === "WebMCP.toolsAdded") {
+      void session.send("WebMCP.enable").catch(() => {});
+    }
   }
 
   private detachCDPEventSubscription(subscription: CDPEventSubscription, sessionId: string): void {

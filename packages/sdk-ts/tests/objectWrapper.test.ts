@@ -15,6 +15,9 @@ import {
   Page,
   Response,
   Stagehand,
+  type PageCDPEvent,
+  type PageEvent,
+  type PageEventListener,
   type StagehandMetrics,
   WebMCPInvocation,
   WebMCPTool,
@@ -538,6 +541,11 @@ describe("Stagehand TS object wrapper", () => {
     const page = new Page(client, { pageId: "page-1" });
     const events: unknown[] = [];
 
+    expectTypeOf<Parameters<PageEventListener<"console">>[0]>().toEqualTypeOf<
+      PageEvent<"console">
+    >();
+    expectTypeOf<PageEvent<"console">>().toEqualTypeOf<PageCDPEvent>();
+    expectTypeOf<PageEvent<"toolsAdded">>().toEqualTypeOf<PageCDPEvent>();
     const subscription = await page.on("console", (event) => events.push(event));
     const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
     client.emitNotification({

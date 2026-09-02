@@ -57,6 +57,7 @@ import type {
   PageCloseResult,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
   PageEventName,
   PageAddInitScriptParams,
   PageDragAndDropParams,
@@ -122,7 +123,7 @@ import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runti
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
-import { Page } from "./understudy/page.js";
+import { isCDPPageEventName, Page, type CDPPageEventName } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
@@ -179,8 +180,12 @@ export type UnderstudyRuntimePage = {
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
   subscribeCDPEvent(
-    pageEventName: PageEventName,
+    pageEventName: CDPPageEventName,
     listener: (event: PageCDPEvent) => void,
+  ): () => void;
+  subscribePageEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageEventNotification["event"]) => void,
   ): () => void;
 };
 
@@ -266,6 +271,7 @@ export type StagehandRuntimeAdapters = {
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
+  emitPageEvent?: (notification: PageEventNotification) => void;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -275,6 +281,7 @@ const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () =>
 };
 const discardLog: StagehandLogEmitter = () => {};
 const discardPageCDPEvent = (): void => {};
+const discardPageEvent = (): void => {};
 const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
@@ -289,6 +296,7 @@ export function createStagehandRuntime(
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
+      emitPageEvent: adapters.emitPageEvent ?? discardPageEvent,
     },
     tracing,
   );
@@ -747,9 +755,14 @@ export class StagehandRuntime {
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
       throw new DuplicatePageEventSubscriptionError();
     }
-    const dispose = this.resolvePage(params.pageId).subscribeCDPEvent(params.event, (event) => {
-      this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
-    });
+    const page = this.resolvePage(params.pageId);
+    const dispose = isCDPPageEventName(params.event)
+      ? page.subscribeCDPEvent(params.event, (event) => {
+          this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+        })
+      : page.subscribePageEvent(params.event, (event) => {
+          this.adapters.emitPageEvent({ subscriptionId: params.subscriptionId, event });
+        });
     this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });
     return { ok: true };
   }

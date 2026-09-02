@@ -1441,7 +1441,7 @@ export const ResponseFinishedResultSchema = z
   })
   .meta({ id: "ResponseFinishedResult" });
 
-export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
+export const PageEventNameSchema = z.enum(["console", "toolsAdded"]).meta({ id: "PageEventName" });
 
 export const PageCDPEventParamsSchema = z
   .record(z.string(), z.json())
@@ -1450,7 +1450,7 @@ export const PageCDPEventParamsSchema = z
 export const PageCDPEventSchema = z
   .strictObject({
     pageId: z.string().min(1),
-    method: z.enum(["Runtime.consoleAPICalled"]),
+    method: z.enum(["Runtime.consoleAPICalled", "WebMCP.toolsAdded"]),
     params: PageCDPEventParamsSchema,
     sessionId: z.string().min(1),
     targetId: z.string().min(1),
@@ -1463,6 +1463,13 @@ export const PageCDPEventNotificationSchema = z
     event: PageCDPEventSchema,
   })
   .meta({ id: "PageCDPEventNotification" });
+
+export const PageEventNotificationSchema = z
+  .strictObject({
+    subscriptionId: z.string().min(1),
+    event: z.json(),
+  })
+  .meta({ id: "PageEventNotification" });
 
 export const WebMCPAnnotationSchema = z
   .strictObject({

@@ -160,6 +160,7 @@ import type {
   PageHoverParamsSchema,
   PageIdParamsSchema,
   PageKeyPressParamsSchema,
+  PageEventNotificationSchema,
   PageEventNameSchema,
   PageLocatorSchema,
   PageNavigationResultSchema,
@@ -303,6 +304,7 @@ export type PageEventName = z.infer<typeof PageEventNameSchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
 export type PageCDPEvent = z.infer<typeof PageCDPEventSchema>;
 export type PageCDPEventNotification = z.infer<typeof PageCDPEventNotificationSchema>;
+export type PageEventNotification = z.infer<typeof PageEventNotificationSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
 export type NavigationHeader = z.infer<typeof NavigationHeaderSchema>;
 export type NavigationSecurityDetails = z.infer<typeof NavigationSecurityDetailsSchema>;
