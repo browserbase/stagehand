@@ -20,6 +20,26 @@ export type ClearCookieOptions = {
   path?: string | RegExp;
 };
 
+/**
+ * Playwright-compatible storage state. Cookies are exported via CDP (including
+ * HttpOnly). `origins` is reserved for future localStorage support and is always
+ * empty on export today.
+ */
+export type StorageState = {
+  cookies: Cookie[];
+  origins: StorageStateOrigin[];
+};
+
+export type StorageStateOrigin = {
+  origin: string;
+  localStorage: Array<{ name: string; value: string }>;
+};
+
+export type StorageStateOptions = {
+  /** When set, also write the storage state JSON to this path. */
+  path?: string;
+};
+
 export class BrowserContext {
   clipboardRef?: BrowserClipboard;
 
@@ -93,6 +113,31 @@ export class BrowserContext {
       options === undefined ? {} : { options: serializeClearCookieOptions(options) };
     await this.rpcClient.send(StagehandMethods.contextClearCookies, params);
   }
+
+  /**
+   * Export cookies for the context in a Playwright-compatible storage state shape.
+   * localStorage / IndexedDB are not included yet (`origins` is always `[]`).
+   */
+  async storageState(options?: StorageStateOptions): Promise<StorageState> {
+    const cookies = normalizeStorageStateCookieSameSite(await this.cookies());
+    const state: StorageState = { cookies, origins: [] };
+    if (options?.path !== undefined) {
+      await writeStorageStateFile(options.path, state);
+    }
+    return state;
+  }
+
+  /**
+   * Replace cookies in this context with those from a storage state object or JSON file.
+   * Clears existing cookies first. `origins` / localStorage entries are ignored for now.
+   */
+  async setStorageState(state: StorageState | string): Promise<void> {
+    const resolved = typeof state === "string" ? await readStorageStateFile(state) : state;
+    const cookies = normalizeStorageState(resolved).cookies;
+    await this.clearCookies();
+    if (cookies.length === 0) return;
+    await this.addCookies(cookies.map(cookieToParam));
+  }
 }
 
 function serializeClearCookieOptions(
@@ -109,4 +154,106 @@ function serializeCookieFilter(
   filter: string | RegExp,
 ): string | { source: string; flags: string } {
   return typeof filter === "string" ? filter : { source: filter.source, flags: filter.flags };
+}
+
+function cookieToParam(cookie: Cookie): CookieParam {
+  return {
+    name: cookie.name,
+    value: cookie.value,
+    domain: cookie.domain,
+    path: cookie.path,
+    expires: cookie.expires,
+    httpOnly: cookie.httpOnly,
+    secure: cookie.secure,
+    sameSite: cookie.sameSite,
+  };
+}
+
+/** CDP may omit SameSite; Playwright-compatible storage state uses Lax. */
+function normalizeStorageStateCookieSameSite(cookies: Cookie[]): Cookie[] {
+  return cookies.map((cookie) =>
+    cookie.sameSite ? cookie : { ...cookie, sameSite: "Lax" },
+  );
+}
+
+function normalizeStorageState(value: unknown): StorageState {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("storage state must be an object with a cookies array");
+  }
+  const cookiesValue = (value as { cookies?: unknown }).cookies;
+  if (!Array.isArray(cookiesValue)) {
+    throw new TypeError("storage state must include a cookies array");
+  }
+  // origins / localStorage are ignored until supported; keep the Playwright shape.
+  return {
+    cookies: normalizeStorageStateCookieSameSite(
+      cookiesValue.map((entry, index) => normalizeStorageCookie(entry, index)),
+    ),
+    origins: [],
+  };
+}
+
+function normalizeStorageCookie(value: unknown, index: number): Cookie {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`storage state cookies[${index}] must be an object`);
+  }
+  const record = value as Record<string, unknown>;
+  const rawSameSite = record.sameSite ?? record.same_site;
+  const sameSite = rawSameSite === "" || rawSameSite === undefined ? "Lax" : rawSameSite;
+  if (
+    typeof record.name !== "string" ||
+    typeof record.value !== "string" ||
+    typeof record.domain !== "string" ||
+    typeof record.path !== "string" ||
+    typeof record.expires !== "number" ||
+    typeof (record.httpOnly ?? record.http_only) !== "boolean" ||
+    typeof record.secure !== "boolean" ||
+    (sameSite !== "Strict" && sameSite !== "Lax" && sameSite !== "None")
+  ) {
+    throw new TypeError(`storage state cookies[${index}] has an invalid shape`);
+  }
+  return {
+    name: record.name,
+    value: record.value,
+    domain: record.domain,
+    path: record.path,
+    expires: record.expires,
+    httpOnly: Boolean(record.httpOnly ?? record.http_only),
+    secure: record.secure,
+    sameSite,
+  };
+}
+
+async function writeStorageStateFile(path: string, state: StorageState): Promise<void> {
+  const moduleName = "node:" + "fs/promises";
+  const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
+    throw new TypeError(
+      "context.storageState(): path is only supported in Node.js; omit path to receive the state object",
+    );
+  })) as typeof import("node:fs/promises");
+  await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+}
+
+async function readStorageStateFile(path: string): Promise<StorageState> {
+  const moduleName = "node:" + "fs/promises";
+  const { readFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
+    throw new TypeError(
+      "context.setStorageState(): path is only supported in Node.js; pass a storage state object instead",
+    );
+  })) as typeof import("node:fs/promises");
+  const raw = await readFile(path, "utf8");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    throw new TypeError(
+      `context.setStorageState(): failed to parse JSON from ${path}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+  return normalizeStorageState(parsed);
 }
