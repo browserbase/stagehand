@@ -71,13 +71,16 @@ describe("discovery", () => {
     const tasksRoot = path.join(root, "tasks");
 
     writeFile(path.join(tasksRoot, "bench", "observe", "observe_github.ts"));
+    writeFile(path.join(tasksRoot, "bench", "observe", "observe_main_frame_element_ids.ts"));
 
     const registry = await discoverTasks(tasksRoot, false);
     const tasks = resolveTarget(registry, "regression");
 
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0].name).toBe("observe/observe_github");
-    expect(tasks[0].categories).toEqual(["observe", "regression"]);
+    expect(tasks.map((task) => task.name).sort()).toEqual([
+      "observe/observe_github",
+      "observe/observe_main_frame_element_ids",
+    ]);
+    expect(tasks.every((task) => task.categories.includes("regression"))).toBe(true);
   });
 
   it("rejects empty tier-qualified category targets", async () => {

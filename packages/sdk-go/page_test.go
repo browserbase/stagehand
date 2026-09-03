@@ -275,7 +275,6 @@ func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 		},
 		"page.screenshot": PageScreenshotResult{
 			Data: "cG5nLWJ5dGVz",
-			Type: PageScreenshotResultTypePNG,
 		},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
@@ -311,7 +310,6 @@ func TestPageScreenshotSerializesOptionsAndMaskLocators(t *testing.T) {
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"page.screenshot": PageScreenshotResult{
 			Data: "cG5nLWJ5dGVz",
-			Type: PageScreenshotResultTypePNG,
 		},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
@@ -378,7 +376,7 @@ func TestPageScreenshotRejectsCrossPageMaskLocators(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz", Type: PageScreenshotResultTypePNG},
+		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz"},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 	otherPage := &Page{rpc: rpc, ref: PageRef{PageID: "page-2"}}
@@ -398,7 +396,7 @@ func TestPageScreenshotRejectsNilMaskLocators(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz", Type: PageScreenshotResultTypePNG},
+		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz"},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 
@@ -447,7 +445,7 @@ func TestPageScreenshotRejectsMalformedBase64(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.screenshot": PageScreenshotResult{Data: "%%%", Type: PageScreenshotResultTypePNG},
+		"page.screenshot": PageScreenshotResult{Data: "%%%"},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 	if _, err := page.Screenshot(context.Background(), nil); err == nil ||

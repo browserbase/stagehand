@@ -17,6 +17,7 @@ from stagehand._generated.protocol_version import (
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
+_STAGEHAND_EXTENSION_NAME = "Stagehand Runtime"
 _PROTOCOL_SEMVER_PATTERN = re.compile(PROTOCOL_SEMVER_PATTERN)
 
 # Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
@@ -113,6 +114,15 @@ class ServiceWorkerInfo:
     extension_id: str | None = None
 
 
+@dataclass(frozen=True)
+class _InstalledExtension:
+    id: str
+    name: str
+    version: str
+    path: str
+    enabled: bool
+
+
 class _CDPCommandError(RuntimeError):
     def __init__(self, method: str, error: Mapping[str, object]) -> None:
         self.method = method
@@ -169,25 +179,23 @@ class CDPClient:
         client = cls(socket, web_socket_debugger_url)
 
         try:
+            resolved_extension_id = extension_id
+            if extension_dir is not None:
+                resolved_extension_id = await client._load_unpacked_extension(extension_dir)
             if preloaded_extension:
-                worker, session_id = await client._wait_for_preloaded_service_worker(
-                    service_worker_url_includes or "service-worker.js",
-                )
-                resolved_extension_id = _extension_id_from_url(worker.url)
-            else:
-                resolved_extension_id = extension_id
-                if extension_dir is not None:
-                    resolved_extension_id = await client._load_unpacked_extension(extension_dir)
+                resolved_extension_id = await client._discover_installed_stagehand_extension_id()
+            if resolved_extension_id is None:
+                raise RuntimeError("Stagehand extension ID was not resolved")
 
-                worker = await client._wait_for_service_worker(
-                    resolved_extension_id,
-                    service_worker_url_includes or "service-worker.js",
-                )
-                attached = await client.send_command(
-                    "Target.attachToTarget",
-                    {"targetId": worker.target_id, "flatten": True},
-                )
-                session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
+            worker = await client._wait_for_service_worker(
+                resolved_extension_id,
+                service_worker_url_includes or "service-worker.js",
+            )
+            attached = await client.send_command(
+                "Target.attachToTarget",
+                {"targetId": worker.target_id, "flatten": True},
+            )
+            session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
             client._session_id = session_id
             client._service_worker = ServiceWorkerInfo(
                 target_id=worker.target_id,
@@ -394,9 +402,32 @@ class CDPClient:
             raise
         return _required_string(loaded, "id", "Extensions.loadUnpacked")
 
+    async def _discover_installed_stagehand_extension_id(self) -> str:
+        response = await self.send_command("Extensions.getExtensions")
+        installed = [
+            extension
+            for extension in _parse_installed_extensions(response)
+            if extension.name == _STAGEHAND_EXTENSION_NAME
+        ]
+        enabled = [extension for extension in installed if extension.enabled]
+
+        if len(enabled) == 1:
+            return enabled[0].id
+        if len(enabled) > 1:
+            ids = ", ".join(sorted(extension.id for extension in enabled))
+            raise RuntimeError(f"Multiple enabled Stagehand extensions are installed: {ids}")
+        if installed:
+            raise RuntimeError(
+                "Stagehand extension is installed in the connected browser but is disabled."
+            )
+        raise RuntimeError(
+            "Stagehand extension is not installed in the connected browser. "
+            "The extension must be included when the Browserbase session is created."
+        )
+
     async def _wait_for_service_worker(
         self,
-        extension_id: str | None,
+        extension_id: str,
         url_includes: str,
     ) -> ServiceWorkerInfo:
         started = time.monotonic()
@@ -416,10 +447,7 @@ class CDPClient:
                         target_info.get("type") == "service_worker"
                         and isinstance(url, str)
                         and url.startswith("chrome-extension://")
-                        and (
-                            extension_id is None
-                            or url.startswith(f"chrome-extension://{extension_id}/")
-                        )
+                        and url.startswith(f"chrome-extension://{extension_id}/")
                         and url_includes in url
                     ):
                         return ServiceWorkerInfo(
@@ -431,11 +459,7 @@ class CDPClient:
                             extension_id=extension_id,
                         )
 
-                if (
-                    extension_id is not None
-                    and activation_target_id is None
-                    and (time.monotonic() - started) >= 1
-                ):
+                if activation_target_id is None and (time.monotonic() - started) >= 1:
                     with suppress(Exception):
                         activation = await self.send_command(
                             "Target.createTarget",
@@ -449,83 +473,6 @@ class CDPClient:
                 self._schedule_best_effort_command(
                     "Target.closeTarget", {"targetId": activation_target_id}
                 )
-
-    async def _wait_for_preloaded_service_worker(
-        self,
-        url_includes: str,
-    ) -> tuple[ServiceWorkerInfo, str]:
-        """Return a discovered worker and its flat CDP session, left attached for the caller.
-
-        Each candidate must be attached to evaluate readiness; unready or incompatible
-        candidates are detached before the next poll.
-        """
-        while True:
-            response = await self.send_command("Target.getTargets")
-            targets = response.get("targetInfos")
-            target_infos = cast(list[object], targets) if isinstance(targets, list) else []
-            for target in target_infos:
-                if not isinstance(target, dict):
-                    continue
-                target_info = cast(dict[str, object], target)
-                url = target_info.get("url")
-                if not (
-                    target_info.get("type") == "service_worker"
-                    and isinstance(url, str)
-                    and url.startswith("chrome-extension://")
-                    and url_includes in url
-                ):
-                    continue
-
-                session_id: str | None = None
-                keep_attached = False
-                try:
-                    attached = await self.send_command(
-                        "Target.attachToTarget",
-                        {
-                            "targetId": _required_string(
-                                target_info, "targetId", "Target.getTargets"
-                            ),
-                            "flatten": True,
-                        },
-                    )
-                    session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
-                    evaluated = await self.send_command(
-                        "Runtime.evaluate",
-                        {
-                            "expression": _RUNTIME_READINESS_EXPRESSION,
-                            "returnByValue": True,
-                        },
-                        session_id=session_id,
-                    )
-                    if not isinstance(evaluated.get("exceptionDetails"), Mapping):
-                        result = evaluated.get("result")
-                        value = result.get("value") if isinstance(result, Mapping) else None
-                        if isinstance(value, Mapping):
-                            compatible, _ = _negotiate_runtime(value.get("marker"))
-                            if compatible and value.get("hasReceiver") is True:
-                                service_worker = ServiceWorkerInfo(
-                                    target_id=_required_string(
-                                        target_info, "targetId", "Target.getTargets"
-                                    ),
-                                    title=_required_string(
-                                        target_info, "title", "Target.getTargets"
-                                    ),
-                                    url=url,
-                                    extension_id=_extension_id_from_url(url),
-                                )
-                                keep_attached = True
-                                return service_worker, session_id
-                except Exception:
-                    # The worker may still be starting. Detach and retry until cancellation.
-                    pass
-                finally:
-                    if session_id is not None and not keep_attached:
-                        with suppress(Exception):
-                            await self.send_command(
-                                "Target.detachFromTarget",
-                                {"sessionId": session_id},
-                            )
-            await asyncio.sleep(0.1)
 
     async def _wait_for_runtime_receiver(self, session_id: str) -> None:
         while True:
@@ -605,9 +552,36 @@ def _required_string(value: Mapping[str, object], key: str, method: str) -> str:
     return result
 
 
-def _extension_id_from_url(url: str) -> str | None:
-    prefix = "chrome-extension://"
-    if not url.startswith(prefix):
-        return None
-    extension_id, separator, _ = url.removeprefix(prefix).partition("/")
-    return extension_id if separator and extension_id else None
+def _parse_installed_extensions(response: Mapping[str, object]) -> list[_InstalledExtension]:
+    raw_extensions = response.get("extensions")
+    if not isinstance(raw_extensions, list):
+        raise RuntimeError("Extensions.getExtensions did not return extensions")
+
+    extensions: list[_InstalledExtension] = []
+    for value in raw_extensions:
+        if not isinstance(value, Mapping):
+            raise RuntimeError("Extensions.getExtensions returned an invalid extension entry")
+        extension_id = value.get("id")
+        name = value.get("name")
+        version = value.get("version")
+        path = value.get("path")
+        enabled = value.get("enabled")
+        if (
+            not isinstance(extension_id, str)
+            or not extension_id
+            or not isinstance(name, str)
+            or not isinstance(version, str)
+            or not isinstance(path, str)
+            or not isinstance(enabled, bool)
+        ):
+            raise RuntimeError("Extensions.getExtensions returned an invalid extension entry")
+        extensions.append(
+            _InstalledExtension(
+                id=extension_id,
+                name=name,
+                version=version,
+                path=path,
+                enabled=enabled,
+            )
+        )
+    return extensions

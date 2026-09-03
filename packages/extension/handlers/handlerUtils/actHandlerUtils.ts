@@ -2,7 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
-import type { MouseButton } from "../../../protocol/types.js";
+import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import type { StagehandLogger } from "../../logger.js";
