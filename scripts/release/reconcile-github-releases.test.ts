@@ -1,12 +1,23 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  ChangelogParseError,
   parseTypeScriptReleases,
   reconcileGitHubReleases,
   type TypeScriptRelease,
 } from "./reconcile-github-releases.ts";
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map(async (directory) => {
+      await rm(directory, { recursive: true, force: true });
+    }),
+  );
+});
 
 const changelog = `# Stagehand
 
@@ -37,6 +48,7 @@ const changelog = `# Stagehand
 
 async function repositoryFixture(contents = changelog): Promise<string> {
   const repositoryRoot = await mkdtemp(path.join(os.tmpdir(), "stagehand-releases-"));
+  temporaryDirectories.push(repositoryRoot);
   await writeFile(path.join(repositoryRoot, "CHANGELOG.md"), contents);
   return repositoryRoot;
 }
@@ -70,15 +82,17 @@ describe("parseTypeScriptReleases", () => {
         prerelease: true,
       },
     ]);
-    expect(() => parseTypeScriptReleases("## TypeScript SDK next\n\n- Invalid.\n")).toThrow(
-      "Invalid TypeScript SDK changelog version: next",
-    );
+    const malformedChangelog = () =>
+      parseTypeScriptReleases("## TypeScript SDK next\n\n- Invalid.\n");
+    expect(malformedChangelog).toThrow(ChangelogParseError);
+    expect(malformedChangelog).toThrow("Invalid TypeScript SDK changelog version");
+    expect(malformedChangelog).not.toThrow("next");
   });
 
   it("rejects empty release notes", () => {
     expect(() =>
       parseTypeScriptReleases("## TypeScript SDK 4.1.0\n\n## Python SDK 4.1.0\n"),
-    ).toThrow("TypeScript SDK 4.1.0 has empty release notes");
+    ).toThrow("TypeScript SDK changelog entry has empty release notes");
   });
 });
 

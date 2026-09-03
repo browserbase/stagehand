@@ -30,6 +30,17 @@ type ExecFileError = Error & {
   stderr?: string;
 };
 
+export class ChangelogParseError extends Error {
+  constructor(reason: "invalid-version" | "empty-notes") {
+    super(
+      reason === "invalid-version"
+        ? "Invalid TypeScript SDK changelog version"
+        : "TypeScript SDK changelog entry has empty release notes",
+    );
+    this.name = "ChangelogParseError";
+  }
+}
+
 export function parseTypeScriptReleases(changelog: string): TypeScriptRelease[] {
   const headings = [...changelog.matchAll(/^##\s+(.+)$/gmu)];
   const releases: TypeScriptRelease[] = [];
@@ -40,14 +51,14 @@ export function parseTypeScriptReleases(changelog: string): TypeScriptRelease[] 
 
     const version = heading.slice(sectionPrefix.length);
     if (!semverPattern.test(version)) {
-      throw new Error(`Invalid TypeScript SDK changelog version: ${version}`);
+      throw new ChangelogParseError("invalid-version");
     }
 
     const start = (match.index ?? 0) + match[0].length;
     const end = headings[index + 1]?.index ?? changelog.length;
     const notes = changelog.slice(start, end).trim();
     if (notes.length === 0) {
-      throw new Error(`TypeScript SDK ${version} has empty release notes`);
+      throw new ChangelogParseError("empty-notes");
     }
 
     releases.push({
@@ -63,14 +74,16 @@ export function parseTypeScriptReleases(changelog: string): TypeScriptRelease[] 
   return releases.reverse();
 }
 
-async function localTagExists(repositoryRoot: string, tag: string): Promise<boolean> {
+async function remoteTagExists(repositoryRoot: string, tag: string): Promise<boolean> {
   try {
-    await execFileAsync("git", ["show-ref", "--verify", "--quiet", `refs/tags/${tag}`], {
-      cwd: repositoryRoot,
-    });
+    await execFileAsync(
+      "git",
+      ["ls-remote", "--exit-code", "--tags", "origin", `refs/tags/${tag}`],
+      { cwd: repositoryRoot },
+    );
     return true;
   } catch (error) {
-    if ((error as ExecFileError).code === 1) return false;
+    if ((error as ExecFileError).code === 2) return false;
     throw error;
   }
 }
@@ -118,7 +131,7 @@ async function createGitHubRelease(
 export async function reconcileGitHubReleases({
   repositoryRoot = path.resolve(import.meta.dirname, "../.."),
   repository = process.env.GITHUB_REPOSITORY ?? "browserbase/stagehand",
-  tagExists = async (tag) => await localTagExists(repositoryRoot, tag),
+  tagExists = async (tag) => await remoteTagExists(repositoryRoot, tag),
   releaseExists = async (tag) => await githubReleaseExists(repository, tag),
   createRelease = async (release) => await createGitHubRelease(repositoryRoot, repository, release),
 }: ReconcileGitHubReleasesOptions = {}): Promise<string[]> {
