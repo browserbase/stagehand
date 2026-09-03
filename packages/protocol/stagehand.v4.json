@@ -1088,18 +1088,18 @@
           "required": ["params"],
           "additionalProperties": false
         },
-        "page.cdp_event": {
+        "page.event": {
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/PageCDPEventNotification"
+              "$ref": "#/$defs/PageEventNotification"
             }
           },
           "required": ["params"],
           "additionalProperties": false
         }
       },
-      "required": ["stagehand.log", "page.cdp_event"],
+      "required": ["stagehand.log", "page.event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -3634,7 +3634,7 @@
     },
     "PageEventName": {
       "type": "string",
-      "enum": ["console"]
+      "enum": ["console", "requestfinished"]
     },
     "PageOffParams": {
       "type": "object",
@@ -4859,7 +4859,7 @@
         }
       ]
     },
-    "PageCDPEventNotification": {
+    "PageEventNotification": {
       "type": "object",
       "properties": {
         "subscription_id": {
@@ -4867,7 +4867,14 @@
           "minLength": 1
         },
         "event": {
-          "$ref": "#/$defs/PageCDPEvent"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PageCDPEvent"
+            },
+            {
+              "$ref": "#/$defs/NavigationResponseDescriptor"
+            }
+          ]
         }
       },
       "required": ["subscription_id", "event"],
@@ -7265,10 +7272,10 @@
             },
             "method": {
               "type": "string",
-              "const": "page.cdp_event"
+              "const": "page.event"
             },
             "params": {
-              "$ref": "#/$defs/PageCDPEventNotification"
+              "$ref": "#/$defs/PageEventNotification"
             }
           },
           "required": ["jsonrpc", "method", "params"],

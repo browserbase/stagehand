@@ -1,6 +1,6 @@
 import type {
   LoadState,
-  PageCDPEvent,
+  PageEvent,
   PageEventName,
   PageClickParams,
   PageDragAndDropParams,
@@ -21,6 +21,7 @@ import {
   StagehandMethods,
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { PageEventSchemas } from "@browserbasehq/stagehand-protocol/schemas";
 import { decodeBase64 } from "./base64.js";
 import { Locator } from "./locator.js";
 import {
@@ -46,8 +47,13 @@ export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["
 export type PageTypeOptions = NonNullable<PageTypeParams["options"]>;
 export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["options"]>;
 
-export interface PageEventListener {
-  (event: PageCDPEvent): unknown;
+export type PageEventPayload<E extends PageEventName> = {
+  console: PageEvent<"console">;
+  requestfinished: Response;
+}[E];
+
+export interface PageEventListener<E extends PageEventName> {
+  (event: PageEventPayload<E>): unknown;
 }
 
 export class CDPSubscription {
@@ -212,17 +218,38 @@ export class Page {
     });
   }
 
-  async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
+  async on<E extends PageEventName>(
+    event: E,
+    listener: PageEventListener<E>,
+  ): Promise<CDPSubscription> {
     const subscriptionId = crypto.randomUUID();
+    const eventSchema = PageEventSchemas[event];
     const removeNotificationListener = this.rpcClient.onNotification((notification) => {
       if (
-        notification.method !== StagehandNotifications.pageCDPEvent.name ||
+        notification.method !== StagehandNotifications.event.name ||
         notification.params.subscriptionId !== subscriptionId
       ) {
         return;
       }
+      const parsedEvent = eventSchema.safeParse(notification.params.event);
+      if (!parsedEvent.success) {
+        reportPageEventListenerError(parsedEvent.error);
+        return;
+      }
       try {
-        const result = listener(notification.params.event);
+        let eventPayload: PageEventPayload<E>;
+        if (event === "console") {
+          eventPayload = parsedEvent.data as PageEventPayload<E>;
+        } else if (event === "requestfinished") {
+          eventPayload = new Response(
+            this.rpcClient,
+            parsedEvent.data as any,
+          ) as PageEventPayload<E>;
+        } else {
+          reportPageEventListenerError(new Error(`Unsupported event type: ${event}`));
+          return;
+        }
+        const result = listener(eventPayload);
         if (result && typeof result === "object" && "then" in result) {
           void Promise.resolve(result).catch(reportPageEventListenerError);
         }

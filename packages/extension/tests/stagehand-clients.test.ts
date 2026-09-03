@@ -43,7 +43,7 @@ import type {
   PageClickParams,
   PageEventName,
   PageCDPEvent,
-  PageCDPEventNotification,
+  PageEventNotification,
   PageDragAndDropParams,
   PageEvaluateParams,
   PageKeyPressParams,
@@ -733,10 +733,10 @@ describe("Stagehand worker clients", () => {
   it("canonicalizes the console alias and stops page notifications after page.off", async () => {
     const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
     const session = new FakeBrowserSession([page]);
-    const notifications: PageCDPEventNotification[] = [];
+    const notifications: PageEventNotification[] = [];
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => session,
-      emitPageCDPEvent: (notification) => notifications.push(notification),
+      emitPageEvent: (notification) => notifications.push(notification),
     });
     await runtime.replaceBrowserConnection({
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
