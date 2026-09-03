@@ -355,19 +355,25 @@ describe("Stagehand service worker RPC client smoke", () => {
       }),
     ).resolves.toBe("clicked:user@example.com");
 
-    await expect(
-      activeRpcClient.send(StagehandMethods.locatorFill, {
-        pageId: page.pageId,
-        selector: "#locator-date",
-        value: "2026-07-21",
-      }),
-    ).resolves.toStrictEqual({ filled: true });
-    await expect(
-      activeRpcClient.send(StagehandMethods.locatorInputValue, {
-        pageId: page.pageId,
-        selector: "#locator-date",
-      }),
-    ).resolves.toBe("2026-07-21");
+    for (const { selector, value } of [
+      { selector: "#locator-date", value: "2026-07-21" },
+      { selector: "#locator-time", value: "14:30" },
+      { selector: "#locator-datetime-local", value: "2026-07-21T09:15" },
+    ] as const) {
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorFill, {
+          pageId: page.pageId,
+          selector,
+          value,
+        }),
+      ).resolves.toStrictEqual({ filled: true });
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorInputValue, {
+          pageId: page.pageId,
+          selector,
+        }),
+      ).resolves.toBe(value);
+    }
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
@@ -624,6 +630,8 @@ async function startFixtureServer(): Promise<FixtureServer> {
     <input id="locator-input" name="email" />
     <label for="locator-date">Date</label>
     <input id="locator-date" type="date" />
+    <input id="locator-time" type="time" />
+    <input id="locator-datetime-local" type="datetime-local" />
     <button
       id="locator-button"
       onclick="document.querySelector('#locator-output').textContent = 'clicked:' + document.querySelector('#locator-input').value;"
