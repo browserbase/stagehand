@@ -21,6 +21,7 @@ import { getRuntimeTasksRoot } from "../runtimePaths.js";
 import { printExtendedWelcome, printTipLine } from "./welcome.js";
 import { snapshotEnv, renderInlineWarning } from "./welcomeStatus.js";
 import { isFirstRun, markFirstRunComplete } from "./welcomeState.js";
+import { variantFromEnv } from "./welcome/index.js";
 import { abortActiveRun } from "../framework/activeRunCleanup.js";
 
 export type ReplOptions = {
@@ -46,17 +47,43 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
   // The only inline output about env state is the zero-keys warning,
   // surfaced when no welcome panel is shown. Discovery count is NOT
   // printed (use `list` or `evals doctor` instead).
+  // Pre-filled into the readline buffer if a welcome flow recommends a
+  // hand-off command. Set below, consumed after the interface exists.
+  let pendingHandoff: string | null = null;
+
   if (!quiet) {
-    printBanner();
     const showExtendedWelcome = !noWelcome && isFirstRun(entryDir);
-    if (showExtendedWelcome) {
-      printExtendedWelcome({ snapshot: snapshotEnv(), registry });
-    } else {
-      const warning = renderInlineWarning(snapshotEnv());
-      if (warning && process.stdout.isTTY) {
-        console.log(warning);
+    const wizardVariant = variantFromEnv(process.env.EVALS_WELCOME_WIZARD);
+    const wizardRan = showExtendedWelcome && wizardVariant !== null;
+
+    if (wizardRan) {
+      // Guided onboarding (opt-in via EVALS_WELCOME_WIZARD=<variant|1>).
+      // Runs before readline exists, so it owns stdin outright. It paints
+      // its own banner and marks first-run itself on completion — Ctrl+C
+      // leaves the marker unset so it re-shows next launch.
+      const { runWelcome } = await import("./welcome/index.js");
+      const result = await runWelcome(wizardVariant, {
+        entryDir,
+        getRegistry: async () => registry,
+      });
+      if (result.status === "completed" && result.runNext) {
+        pendingHandoff = result.runNext;
+      } else if (result.status === "cancelled") {
+        const warning = renderInlineWarning(snapshotEnv());
+        if (warning && process.stdout.isTTY) console.log(warning);
+        printTipLine();
       }
-      printTipLine();
+    } else {
+      printBanner();
+      if (showExtendedWelcome) {
+        printExtendedWelcome({ snapshot: snapshotEnv(), registry });
+      } else {
+        const warning = renderInlineWarning(snapshotEnv());
+        if (warning && process.stdout.isTTY) {
+          console.log(warning);
+        }
+        printTipLine();
+      }
     }
     console.log("");
     // Mark the marker pre-prompt so even an immediate Ctrl+C counts as
@@ -69,13 +96,18 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     // `EVALS_NO_WELCOME=1`, on the other hand, IS an explicit dismissal,
     // so it still marks the marker via the `else` branch above already
     // having rendered the tip line — the user knows they're in the REPL.
-    markFirstRunComplete(entryDir);
+    // The wizard branch owns its own marking (see above).
+    if (!wizardRan) {
+      markFirstRunComplete(entryDir);
+    }
   }
 
   const contextPath: string[] = [];
   const abortRef = { current: null as AbortController | null };
 
   const tree = buildCommandTree();
+
+  let rlRef: readline.Interface | null = null;
 
   const ctx: CommandContext = {
     entryDir,
@@ -85,6 +117,28 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     },
     abortRef,
     contextPath,
+    // Hand stdin to a welcome flow: detach every keypress listener (readline's
+    // internal handler included — a paused interface still echoes keypresses
+    // into rl.line once someone else resumes the stream) and pause the
+    // interface so rl.resume() knows to restore flow after the flow's raw
+    // listener leaves stdin paused.
+    suspendInput: () => {
+      const rl = rlRef;
+      const listeners = process.stdin
+        .rawListeners("keypress")
+        .filter((l): l is (...a: unknown[]) => void => typeof l === "function");
+      for (const l of listeners) process.stdin.off("keypress", l);
+      rl?.pause();
+      return () => {
+        for (const l of listeners) process.stdin.on("keypress", l);
+        rl?.resume();
+      };
+    },
+    // Queued so the write lands after the current line handler returns and
+    // the prompt has been re-rendered.
+    prefillInput: (text) => {
+      setImmediate(() => rlRef?.write(text));
+    },
     pushContext: (seg) => {
       contextPath.push(seg);
     },
@@ -102,6 +156,7 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     output: process.stdout,
     prompt: renderPrompt(contextPath),
   });
+  rlRef = rl;
 
   // Esc → either pop one context level (idle) or abort the in-flight run
   // (cooperative; double-press escalates to aggressive — the runner closes
@@ -148,7 +203,11 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     else rl.close();
   });
 
-  rl.prompt();
+  // A welcome hand-off lands in the buffer so the user just hits Enter.
+  if (pendingHandoff) {
+    rl.write(pendingHandoff);
+  }
+  rl.prompt(/* preserveCursor */ true);
 
   rl.on("line", async (line) => {
     const trimmed = line.trim();
