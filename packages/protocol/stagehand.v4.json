@@ -4882,7 +4882,7 @@
         },
         "method": {
           "type": "string",
-          "const": "Runtime.consoleAPICalled"
+          "enum": ["Runtime.consoleAPICalled"]
         },
         "params": {
           "$ref": "#/$defs/PageCDPEventParams"

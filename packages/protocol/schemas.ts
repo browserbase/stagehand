@@ -1450,7 +1450,7 @@ export const PageCDPEventParamsSchema = z
 export const PageCDPEventSchema = z
   .strictObject({
     pageId: z.string().min(1),
-    method: z.literal("Runtime.consoleAPICalled"),
+    method: z.enum(["Runtime.consoleAPICalled"]),
     params: PageCDPEventParamsSchema,
     sessionId: z.string().min(1),
     targetId: z.string().min(1),
