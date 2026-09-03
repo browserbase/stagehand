@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-example-mastra-facade",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "private": true,
   "type": "module",
   "scripts": {

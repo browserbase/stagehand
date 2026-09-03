@@ -3,6 +3,84 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.1.0
+
+### Minor Changes
+
+- [#2828](https://github.com/browserbase/stagehand/pull/2828) [`e2c8946`](https://github.com/browserbase/stagehand/commit/e2c8946eefb45717fe5a2e992afd57327a1f9505) Thanks [@miguelg719](https://github.com/miguelg719)! - Expose Browserbase Search and Fetch through the Stagehand browserbase facade in TypeScript, Python, and Go.
+
+### Patch Changes
+
+- [#2827](https://github.com/browserbase/stagehand/pull/2827) [`6555e81`](https://github.com/browserbase/stagehand/commit/6555e81e837012088eb12a39c06aed0527a2e5af) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make browser.close() and browser.context.close() always terminate the browser regardless of keepAlive.
+
+- [#2878](https://github.com/browserbase/stagehand/pull/2878) [`50146e4`](https://github.com/browserbase/stagehand/commit/50146e426baff4e6507c6302dbee50ee0c9bc6bc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support discovering and invoking WebMCP tools in out-of-process iframes (OOPIFs)
+
+- [#2790](https://github.com/browserbase/stagehand/pull/2790) [`1011177`](https://github.com/browserbase/stagehand/commit/1011177a3140a93f021745a3e3dc0dce9ee73225) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fail fast on browserbase.connect() when extension is not present
+
+- [#2818](https://github.com/browserbase/stagehand/pull/2818) [`341433a`](https://github.com/browserbase/stagehand/commit/341433acac46a305ad6c2f9a0445e907675f4fb4) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make stagehand.close() preserve the browser and allow another Stagehand instance to attach later
+
+- [#2754](https://github.com/browserbase/stagehand/pull/2754) [`a21633d`](https://github.com/browserbase/stagehand/commit/a21633d53930abc5d62b8dbd6b608995f2ccb4b1) Thanks [@monadoid](https://github.com/monadoid)! - remove the redundant image type from page screenshot protocol responses.
+
+## Python SDK 4.1.0
+
+### Minor Changes
+
+- [#2828](https://github.com/browserbase/stagehand/pull/2828) [`e2c8946`](https://github.com/browserbase/stagehand/commit/e2c8946eefb45717fe5a2e992afd57327a1f9505) Thanks [@miguelg719](https://github.com/miguelg719)! - Expose Browserbase Search and Fetch through the Stagehand browserbase facade in TypeScript, Python, and Go.
+
+### Patch Changes
+
+- [#2827](https://github.com/browserbase/stagehand/pull/2827) [`6555e81`](https://github.com/browserbase/stagehand/commit/6555e81e837012088eb12a39c06aed0527a2e5af) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make browser.close() and browser.context.close() always terminate the browser regardless of keepAlive.
+
+- [#2878](https://github.com/browserbase/stagehand/pull/2878) [`50146e4`](https://github.com/browserbase/stagehand/commit/50146e426baff4e6507c6302dbee50ee0c9bc6bc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support discovering and invoking WebMCP tools in out-of-process iframes (OOPIFs)
+
+- [#2790](https://github.com/browserbase/stagehand/pull/2790) [`1011177`](https://github.com/browserbase/stagehand/commit/1011177a3140a93f021745a3e3dc0dce9ee73225) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fail fast on browserbase.connect() when extension is not present
+
+- [#2818](https://github.com/browserbase/stagehand/pull/2818) [`341433a`](https://github.com/browserbase/stagehand/commit/341433acac46a305ad6c2f9a0445e907675f4fb4) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make stagehand.close() preserve the browser and allow another Stagehand instance to attach later
+
+- [#2754](https://github.com/browserbase/stagehand/pull/2754) [`a21633d`](https://github.com/browserbase/stagehand/commit/a21633d53930abc5d62b8dbd6b608995f2ccb4b1) Thanks [@monadoid](https://github.com/monadoid)! - remove the redundant image type from page screenshot protocol responses.
+
+- [#2864](https://github.com/browserbase/stagehand/pull/2864) [`d2d9169`](https://github.com/browserbase/stagehand/commit/d2d91697df6aaad572ac32ac9b9493be396a0f75) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Make python and golang SDKs reject occupied local chrome debugging ports, and make local browser launch wait for readiness in python.
+
+## Extension Runtime 1.0.2
+
+### Patch Changes
+
+- [#2827](https://github.com/browserbase/stagehand/pull/2827) [`6555e81`](https://github.com/browserbase/stagehand/commit/6555e81e837012088eb12a39c06aed0527a2e5af) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make browser.close() and browser.context.close() always terminate the browser regardless of keepAlive.
+
+- [#2878](https://github.com/browserbase/stagehand/pull/2878) [`50146e4`](https://github.com/browserbase/stagehand/commit/50146e426baff4e6507c6302dbee50ee0c9bc6bc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support discovering and invoking WebMCP tools in out-of-process iframes (OOPIFs)
+
+- [#2818](https://github.com/browserbase/stagehand/pull/2818) [`341433a`](https://github.com/browserbase/stagehand/commit/341433acac46a305ad6c2f9a0445e907675f4fb4) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make stagehand.close() preserve the browser and allow another Stagehand instance to attach later
+
+- [#2754](https://github.com/browserbase/stagehand/pull/2754) [`a21633d`](https://github.com/browserbase/stagehand/commit/a21633d53930abc5d62b8dbd6b608995f2ccb4b1) Thanks [@monadoid](https://github.com/monadoid)! - remove the redundant image type from page screenshot protocol responses.
+
+## Go SDK 4.1.0
+
+### Minor Changes
+
+- [#2828](https://github.com/browserbase/stagehand/pull/2828) [`e2c8946`](https://github.com/browserbase/stagehand/commit/e2c8946eefb45717fe5a2e992afd57327a1f9505) Thanks [@miguelg719](https://github.com/miguelg719)! - Expose Browserbase Search and Fetch through the Stagehand browserbase facade in TypeScript, Python, and Go.
+
+### Patch Changes
+
+- [#2827](https://github.com/browserbase/stagehand/pull/2827) [`6555e81`](https://github.com/browserbase/stagehand/commit/6555e81e837012088eb12a39c06aed0527a2e5af) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make browser.close() and browser.context.close() always terminate the browser regardless of keepAlive.
+
+- [#2878](https://github.com/browserbase/stagehand/pull/2878) [`50146e4`](https://github.com/browserbase/stagehand/commit/50146e426baff4e6507c6302dbee50ee0c9bc6bc) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - support discovering and invoking WebMCP tools in out-of-process iframes (OOPIFs)
+
+- [#2790](https://github.com/browserbase/stagehand/pull/2790) [`1011177`](https://github.com/browserbase/stagehand/commit/1011177a3140a93f021745a3e3dc0dce9ee73225) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - fail fast on browserbase.connect() when extension is not present
+
+- [#2818](https://github.com/browserbase/stagehand/pull/2818) [`341433a`](https://github.com/browserbase/stagehand/commit/341433acac46a305ad6c2f9a0445e907675f4fb4) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make stagehand.close() preserve the browser and allow another Stagehand instance to attach later
+
+- [#2754](https://github.com/browserbase/stagehand/pull/2754) [`a21633d`](https://github.com/browserbase/stagehand/commit/a21633d53930abc5d62b8dbd6b608995f2ccb4b1) Thanks [@monadoid](https://github.com/monadoid)! - remove the redundant image type from page screenshot protocol responses.
+
+- [#2864](https://github.com/browserbase/stagehand/pull/2864) [`d2d9169`](https://github.com/browserbase/stagehand/commit/d2d91697df6aaad572ac32ac9b9493be396a0f75) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Make python and golang SDKs reject occupied local chrome debugging ports, and make local browser launch wait for readiness in python.
+
+## Protocol 2.0.0
+
+### Major Changes
+
+- [#2827](https://github.com/browserbase/stagehand/pull/2827) [`6555e81`](https://github.com/browserbase/stagehand/commit/6555e81e837012088eb12a39c06aed0527a2e5af) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - make browser.close() and browser.context.close() always terminate the browser regardless of keepAlive.
+
+- [#2754](https://github.com/browserbase/stagehand/pull/2754) [`a21633d`](https://github.com/browserbase/stagehand/commit/a21633d53930abc5d62b8dbd6b608995f2ccb4b1) Thanks [@monadoid](https://github.com/monadoid)! - remove the redundant image type from page screenshot protocol responses.
+
 ## TypeScript SDK 4.0.2
 
 ### Patch Changes
