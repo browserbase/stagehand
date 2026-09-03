@@ -2,7 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { StagehandLog } from "../../protocol/types.js";
+import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils.js";
 import { StagehandLogger } from "../logger.js";
 import type { StagehandTracing } from "../tracing.js";
@@ -30,7 +30,7 @@ describe("Stagehand legacy logging migration", () => {
     const logs: StagehandLog[] = [];
     const tracing: StagehandTracing = {
       tracer: trace.getTracer("stagehand-logging-migration-test"),
-      configure: () => {},
+      configure: async () => {},
       forceFlush: async () => {},
       shutdown: async () => {},
     };

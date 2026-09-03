@@ -46,3 +46,7 @@ vendor-repos/
 requirements.md
 to dos.md
 .turbo
+
+# Changesets Action reads these after the version command consolidates them.
+/packages/*/CHANGELOG.md
+/packages/integrations/*/CHANGELOG.md

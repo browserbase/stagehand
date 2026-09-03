@@ -666,6 +666,7 @@ func browserbaseTestSessionParams() BrowserbaseLaunchOptions {
 			"attempt":                json.RawMessage(`3`),
 			"stagehand":              json.RawMessage(`"false"`),
 			"stagehand_sdk_language": json.RawMessage(`"python"`),
+			"stagehand_sdk_version":  json.RawMessage(`"0.0.0-spoofed"`),
 		},
 	}
 }
@@ -722,6 +723,7 @@ func browserbaseExpectedSessionRequest() map[string]any {
 			"attempt":                3.0,
 			"stagehand":              "true",
 			"stagehand_sdk_language": "go",
+			"stagehand_sdk_version":  stagehandSDKVersion,
 		},
 	}
 }

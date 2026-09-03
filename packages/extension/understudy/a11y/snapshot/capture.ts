@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { Locator } from "../../../../protocol/types.js";
+import type { Locator } from "@browserbasehq/stagehand-protocol/types";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
 import { Frame } from "../../frame.js";

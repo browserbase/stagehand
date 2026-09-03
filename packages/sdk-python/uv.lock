@@ -772,7 +772,7 @@ wheels = [
 
 [[package]]
 name = "stagehand"
-version = "4.0.0"
+version = "4.0.2"
 source = { editable = "." }
 dependencies = [
     { name = "browserbase" },

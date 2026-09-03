@@ -26,6 +26,7 @@ type browserbaseSessionConnection struct {
 	sessionID string
 	cdpURL    string
 	region    *BrowserbaseRegion
+	close     func(context.Context) error
 }
 
 func newBrowserbaseSessionClient(
@@ -68,10 +69,11 @@ func (client *browserbaseSessionClient) createSession(
 		return resolvedBrowserSource{}, fmt.Errorf("build Browserbase session request: %w", err)
 	}
 	if request.UserMetadata == nil {
-		request.UserMetadata = make(map[string]json.RawMessage, 2)
+		request.UserMetadata = make(map[string]json.RawMessage, 3)
 	}
 	request.UserMetadata["stagehand"] = json.RawMessage(`"true"`)
 	request.UserMetadata["stagehand_sdk_language"] = json.RawMessage(`"go"`)
+	request.UserMetadata["stagehand_sdk_version"] = json.RawMessage(`"` + stagehandSDKVersion + `"`)
 	extensionID := ""
 	ownsExtension := !callerHasExtension
 	if ownsExtension {
@@ -198,10 +200,15 @@ func (client *browserbaseSessionClient) connectSession(
 			"Browserbase session is not available for connection",
 		)
 	}
+	resources := &browserbaseSessionResources{
+		api:       client.api,
+		sessionID: strings.TrimSpace(*session.ID),
+	}
 	return browserbaseSessionConnection{
 		sessionID: strings.TrimSpace(*session.ID),
 		cdpURL:    cdpURL,
 		region:    session.Region,
+		close:     resources.close,
 	}, nil
 }
 

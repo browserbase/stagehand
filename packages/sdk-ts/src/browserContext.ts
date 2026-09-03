@@ -5,14 +5,14 @@ import type {
   Cookie,
   CookieParam,
   DomainPolicy,
-} from "../../protocol/types.js";
-import type * as ProtocolTypes from "../../protocol/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/types";
+import type * as ProtocolTypes from "@browserbasehq/stagehand-protocol/types";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { BrowserClipboard } from "./browserClipboard.js";
 import { Page } from "./page.js";
 import { normalizeInitScriptSource, type InitScriptSource } from "./pageScripts.js";
 import type { StagehandCommandClient } from "./commandClient.js";
-export type { Cookie, CookieParam, DomainPolicy } from "../../protocol/types.js";
+export type { Cookie, CookieParam, DomainPolicy } from "@browserbasehq/stagehand-protocol/types";
 
 export type ClearCookieOptions = {
   name?: string | RegExp;
@@ -43,7 +43,10 @@ export type StorageStateOptions = {
 export class BrowserContext {
   clipboardRef?: BrowserClipboard;
 
-  constructor(readonly rpcClient: StagehandCommandClient) {}
+  constructor(
+    readonly rpcClient: StagehandCommandClient,
+    private readonly closeBrowser?: () => Promise<void>,
+  ) {}
 
   get clipboard(): BrowserClipboard {
     return (this.clipboardRef ??= new BrowserClipboard(this.rpcClient));
@@ -71,9 +74,12 @@ export class BrowserContext {
     });
   }
 
-  /** Close the remote context. Call Stagehand.close() to dispose the SDK's local resources. */
+  /** Close the underlying browser. */
   async close(): Promise<void> {
-    await this.rpcClient.send(StagehandMethods.contextClose, {});
+    if (!this.closeBrowser) {
+      throw new Error("Browser context is not attached to a browser");
+    }
+    await this.closeBrowser();
   }
 
   async addInitScript<Arg = unknown>(script: InitScriptSource<Arg>, arg?: Arg): Promise<void> {

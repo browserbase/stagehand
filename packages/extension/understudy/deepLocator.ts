@@ -3,7 +3,7 @@ import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
-import type { MouseButton } from "../../protocol/types.js";
+import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 
 type Axis = "child" | "desc";

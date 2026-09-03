@@ -17,6 +17,7 @@ import {
   prepareBrowseCliHarnessAdapter,
   type PreparedBrowseCliHarnessAdapter,
 } from "./claudeCodeToolAdapter.js";
+import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
 export interface CodexToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -51,8 +52,37 @@ export interface PreparedCodexCodeAdapter {
 
 export type PreparedCodexToolAdapter = PreparedBrowseCliHarnessAdapter | PreparedCodexCodeAdapter;
 
-const CODE_SURFACES = new Set<ToolSurface>(["stagehand_code", "playwright_code", "cdp_code"]);
-const MCP_SURFACES = new Set<ToolSurface>(["playwright_mcp", "chrome_devtools_mcp"]);
+export const CODEX_TOOL_SURFACES: ToolSurface[] = [
+  "browse_cli",
+  "playwright_code",
+  "cdp_code",
+  "stagehand_code",
+  "playwright_mcp",
+  "chrome_devtools_mcp",
+  "stagehand_facade",
+];
+
+const STAGEHAND_FACADE_MCP_TIMEOUTS = {
+  startup_timeout_sec: 60,
+  tool_timeout_sec: 300,
+} as const;
+
+export function buildCodexMcpServers(
+  toolSurface: ToolSurface,
+  mcpServers: Record<string, unknown>,
+): Record<string, unknown> {
+  if (toolSurface !== "stagehand_facade") return mcpServers;
+
+  return Object.fromEntries(
+    Object.entries(mcpServers).map(([name, config]) => [
+      name,
+      {
+        ...(typeof config === "object" && config !== null ? config : {}),
+        ...STAGEHAND_FACADE_MCP_TIMEOUTS,
+      },
+    ]),
+  );
+}
 
 /** Mirrors the claude adapter's bounded, best-effort terminal capture. */
 function boundedCaptureEvidence(
@@ -97,8 +127,14 @@ function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
 export async function prepareCodexToolAdapter(
   input: CodexToolAdapterInput,
 ): Promise<PreparedCodexToolAdapter> {
-  const toolSurface = resolveCodexToolSurface(input.toolSurface);
-  const startupProfile = resolveCodexStartupProfile(
+  const toolSurface = resolveToolSurface(
+    { harness: "codex", supportedToolSurfaces: CODEX_TOOL_SURFACES },
+    input.toolSurface,
+  );
+  if (toolSurface === undefined) {
+    throw new EvalsError("Codex harness requires a tool surface.");
+  }
+  const startupProfile = resolveStartupProfile(
     toolSurface,
     input.environment,
     input.startupProfile,
@@ -140,6 +176,7 @@ export async function prepareCodexToolAdapter(
       );
       const capturedCwd = cwd;
       const serverNames = Object.keys(mount.mcpServers);
+      const codexMcpServers = buildCodexMcpServers(toolSurface, mount.mcpServers);
 
       input.logger.log({
         category: "codex",
@@ -157,7 +194,7 @@ export async function prepareCodexToolAdapter(
         cwd,
         env: { ...process.env } as Record<string, string>,
         promptInstructions: mount.promptInstructions,
-        codexConfig: { mcp_servers: mount.mcpServers },
+        codexConfig: { mcp_servers: codexMcpServers },
         ...(runtime.running.captureEvidence && {
           captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
         }),
@@ -273,43 +310,4 @@ function buildCodexCodePromptInstructions(
     surfaceGuidance,
     `Surface: ${toolSurface}.`,
   ].join("\n");
-}
-
-export function resolveCodexToolSurface(requested?: ToolSurface): ToolSurface {
-  if (!requested) return "browse_cli";
-  if (requested === "browse_cli" || CODE_SURFACES.has(requested) || MCP_SURFACES.has(requested)) {
-    return requested;
-  }
-  throw new EvalsError(
-    `Codex harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${requested}".`,
-  );
-}
-
-export function resolveCodexStartupProfile(
-  toolSurface: ToolSurface,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile {
-  if (requested) return requested;
-
-  // browse_cli and stagehand_code own their browser; playwright/cdp attach to a
-  // runner-provided CDP endpoint (same defaults as the claude_code harness).
-  if (toolSurface === "browse_cli" || toolSurface === "stagehand_code") {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-  }
-  // MCP surfaces need a runner-provided endpoint so the harness-side session
-  // (evidence capture) and the agent's own server instance share one browser.
-  if (
-    toolSurface === "playwright_code" ||
-    toolSurface === "cdp_code" ||
-    MCP_SURFACES.has(toolSurface)
-  ) {
-    return environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
-  }
-
-  throw new EvalsError(
-    `No Codex startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
 }

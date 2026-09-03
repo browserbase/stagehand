@@ -1,5 +1,23 @@
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { consolidateChangelog, formatPackageChangelog } from "./consolidate-changelogs.ts";
+import {
+  cleanupGeneratedChangelogs,
+  consolidateChangelog,
+  formatPackageChangelog,
+  shouldPreservePackageChangelogs,
+} from "./consolidate-changelogs.ts";
+
+async function createTemporaryChangelog(): Promise<{
+  directory: string;
+  changelogPath: string;
+}> {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "stagehand-changelog-"));
+  const changelogPath = path.join(directory, "CHANGELOG.md");
+  await writeFile(changelogPath, "## 4.0.1\n");
+  return { directory, changelogPath };
+}
 
 describe("formatPackageChangelog", () => {
   it("labels generated version headings and removes the package title", () => {
@@ -119,5 +137,41 @@ Release notes for the public SDKs.
     expect(() => consolidateChangelog(rootWithTypeScript, [section])).toThrow(
       "The root changelog contains only part of",
     );
+  });
+});
+
+describe("cleanupGeneratedChangelogs", () => {
+  it("preserves package changelogs when the release action requests it", async () => {
+    const { directory, changelogPath } = await createTemporaryChangelog();
+
+    try {
+      await cleanupGeneratedChangelogs([changelogPath], true);
+
+      await expect(readFile(changelogPath, "utf8")).resolves.toBe("## 4.0.1\n");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("deletes package changelogs when preservation is disabled", async () => {
+    const { directory, changelogPath } = await createTemporaryChangelog();
+
+    try {
+      await cleanupGeneratedChangelogs([changelogPath], false);
+
+      await expect(readFile(changelogPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("shouldPreservePackageChangelogs", () => {
+  it.each([
+    { value: "true", expected: true },
+    { value: "false", expected: false },
+    { value: undefined, expected: false },
+  ])("returns $expected for $value", ({ value, expected }) => {
+    expect(shouldPreservePackageChangelogs(value)).toBe(expected);
   });
 });

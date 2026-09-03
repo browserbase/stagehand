@@ -5,6 +5,7 @@ import io
 import os
 import zipfile
 from collections.abc import Mapping
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
@@ -213,6 +214,7 @@ async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowse
             "tenant": "acme",
             "stagehand": "caller",
             "stagehand_sdk_language": "caller",
+            "stagehand_sdk_version": "0.0.0-spoofed",
         }
     )
     session = await _BrowserbaseSessionClient(fake_api).create_session(options)
@@ -224,6 +226,7 @@ async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowse
         "tenant": "acme",
         "stagehand": "true",
         "stagehand_sdk_language": "python",
+        "stagehand_sdk_version": version("stagehand"),
     }
     await session.close()
 
@@ -382,6 +385,10 @@ async def test_connect_validates_sanitizes_and_normalizes(
     assert connection.cdp_url == "wss://browser"
     assert connection.region == BrowserbaseRegion.us_east_1
     assert fake_api.retrieve_calls[-1] == "input"
+
+    await connection.close()
+    await connection.close()
+    assert fake_api.release_calls == ["retrieved"]
 
 
 async def test_connect_preserves_missing_region(fake_api: FakeBrowserbaseAPI) -> None:

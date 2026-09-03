@@ -11,6 +11,7 @@ export type ToolSurface =
   | "cdp_code"
   | "playwright_mcp"
   | "chrome_devtools_mcp"
+  | "stagehand_facade"
   | "browse_cli";
 
 export type StartupProfile =

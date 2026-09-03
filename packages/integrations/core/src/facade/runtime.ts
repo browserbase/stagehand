@@ -110,6 +110,7 @@ export type PlaywrightCompatRuntime = {
   browser: unknown;
   telemetry: () => PlaywrightCompatTelemetry;
   artifacts: () => Array<{ path: string; base64: string }>;
+  closeRequested: () => boolean;
 };
 
 /**
@@ -624,6 +625,7 @@ export async function createPlaywrightCompatRuntime(
   const pageKey = (page: RawPage): PageKey => page.pageId ?? page;
   const compatPages = new Map<PageKey, unknown>();
   const closedPages = new Set<PageKey>();
+  let closeRequested = false;
   const contextPageListeners = new Map<unknown, boolean>();
   const screenshotArtifacts: Array<{ path: string; base64: string }> = [];
   const encodeBase64 = (bytes: Uint8Array): string => {
@@ -2002,7 +2004,14 @@ export async function createPlaywrightCompatRuntime(
   const context = guard("context", contextObject);
   const browser = guard("browser", {
     contexts: () => [context],
-    isConnected: () => true,
+    isConnected: () => !closeRequested,
+    // Do not close Chrome from inside experimentalBatch — the callback is
+    // running in that browser. Host-side run() reads closeRequested() and
+    // tears down Stagehand + the keep-alive session after the batch returns.
+    close: async () => {
+      record("calls", "browser.close");
+      closeRequested = true;
+    },
     // Stagehand v4 exposes one attached context. Returning that context preserves
     // Playwright-shaped control flow without pretending an isolated context exists.
     newContext: async () => {
@@ -2018,5 +2027,6 @@ export async function createPlaywrightCompatRuntime(
     browser,
     telemetry: () => ({ calls: { ...stats.calls }, misses: { ...stats.misses } }),
     artifacts: () => screenshotArtifacts.map((artifact) => ({ ...artifact })),
+    closeRequested: () => closeRequested,
   };
 }

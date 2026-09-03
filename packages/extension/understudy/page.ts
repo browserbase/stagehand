@@ -16,7 +16,7 @@ import {
   WebMCPToolResponseSchema,
   WebMCPToolsOptionsSchema,
   PageCDPEventSchema,
-} from "../../protocol/schemas.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   LoadState,
   LocalBrowserLaunchOptions,
@@ -30,7 +30,7 @@ import type {
   WebMCPToolDescriptor,
   WebMCPToolResponse,
   WebMCPToolsOptions,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";

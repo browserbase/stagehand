@@ -86,6 +86,15 @@ const args = process.argv.slice(2);
     } catch {
       // ignore
     }
+    try {
+      const { resolveTraceTransport } = await import("./framework/langsmith.js");
+      if (resolveTraceTransport() === "otel") {
+        try {
+          const { shutdownTracing } = await import("./framework/otel.js");
+          await shutdownTracing();
+        } catch {}
+      }
+    } catch {}
     process.exit(code);
   };
   process.on("SIGINT", () => void handleSignal("SIGINT"));

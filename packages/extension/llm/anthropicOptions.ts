@@ -17,7 +17,7 @@
 
 import type { AnthropicProviderOptions } from "@ai-sdk/anthropic";
 import type { JSONValue } from "@ai-sdk/provider";
-import type { ThinkingEffort } from "../../protocol/types.js";
+import type { ThinkingEffort } from "@browserbasehq/stagehand-protocol/types";
 import { stripModelProvider } from "../utils.js";
 
 /**

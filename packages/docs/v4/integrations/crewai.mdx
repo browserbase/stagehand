@@ -1,0 +1,90 @@
+---
+title: "CrewAI"
+description: "Give a CrewAI agent persistent Stagehand browser tools over MCP/stdio."
+---
+
+The CrewAI integration connects a Python agent to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- Python 3.11–3.13
+- [uv](https://docs.astral.sh/uv/)
+- A model-provider credential for the CrewAI agent
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Install the CrewAI example">
+```bash
+cd packages/integrations/crewai
+uv sync --locked
+```
+  </Step>
+  <Step title="Configure the agent model">
+The example uses an OpenAI model by default. Keep the provider credential in the CrewAI process:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+Set `CREWAI_MODEL` to use another model supported by CrewAI.
+  </Step>
+  <Step title="Choose the browser">
+The integration uses local Chrome by default. To use Browserbase instead:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+uv run python agent.py \
+  "Open https://example.com and report the page title."
+```
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `CREWAI_MODEL` | CrewAI agent model. |
+| `OPENAI_API_KEY` | Credential for the example's default agent model. CrewAI does not forward it to the MCP child. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
+
+## Screenshot behavior
+
+CrewAI's current tool loop is text-only, and its standard MCP adapter drops image blocks. This integration saves each screenshot to a temporary file and returns the path to the agent. Open the returned path to inspect the image.
+
+## Keep the browser session alive
+
+The example opens one MCP session around the complete CrewAI run. Keep that lifetime when adapting the example: creating a new MCP process for each tool call loses the browser and invalidates prior snapshot IDs.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="CrewAI integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/crewai">
+  Read the adapter, agent prompt, and contract tests.
+</Card>

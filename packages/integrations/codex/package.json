@@ -1,0 +1,24 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-example-codex-facade",
+  "version": "4.0.2",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/agent.ts",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-codex-sdk && vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-codex-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

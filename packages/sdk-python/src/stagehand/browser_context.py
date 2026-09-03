@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TypedDict
 
@@ -15,7 +15,6 @@ from ._generated.models import (
     ContextAddCookiesParams,
     ContextAddInitScriptParams,
     ContextClearCookiesParams,
-    ContextCloseResult,
     ContextCookiesParams,
     ContextCookiesResult,
     ContextGetDomainPolicyResult,
@@ -56,8 +55,13 @@ class StorageState(TypedDict):
 
 
 class BrowserContext:
-    def __init__(self, rpc_client: RPCClient) -> None:
+    def __init__(
+        self,
+        rpc_client: RPCClient,
+        close_browser: Callable[[], Awaitable[None]] | None = None,
+    ) -> None:
         self._rpc_client = rpc_client
+        self._close_browser = close_browser
         self._clipboard: BrowserClipboard | None = None
 
     @property
@@ -97,12 +101,10 @@ class BrowserContext:
         )
 
     async def close(self) -> None:
-        """Close the remote context; use Stagehand.close() to release local resources."""
-        await self._rpc_client.send(
-            "context.close",
-            EmptyParams(),
-            ContextCloseResult,
-        )
+        """Close the underlying browser."""
+        if self._close_browser is None:
+            raise RuntimeError("Browser context is not attached to a browser")
+        await self._close_browser()
 
     async def add_init_script(self, source: str | Path) -> None:
         if isinstance(source, Path):

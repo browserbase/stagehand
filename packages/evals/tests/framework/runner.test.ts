@@ -1,6 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
-import type { DiscoveredTask } from "../../framework/types.js";
-import { resolveBenchModelEntries, type RunEvalsOptions } from "../../framework/runner.js";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
+import {
+  resolveBenchModelEntries,
+  runEvals,
+  type RunEvalsOptions,
+} from "../../framework/runner.js";
+import { resolveBraintrustProjectName } from "../../framework/braintrust.js";
 
 vi.mock("playwright", () => ({
   chromium: {},
@@ -28,51 +33,63 @@ function makeTask(overrides: Partial<DiscoveredTask>): DiscoveredTask {
   };
 }
 
+function emptyRegistry(): TaskRegistry {
+  return {
+    tasks: [],
+    byName: new Map(),
+    byTier: new Map(),
+    byCategory: new Map(),
+  };
+}
+
 describe("runner: Braintrust project selection", () => {
-  it("uses stagehand-core-dev for core-only tasks", async () => {
-    // The project selection logic is:
-    //   hasCoreOnly ? stagehand-core[-dev] : stagehand[-dev]
-    // We verify this logic directly
+  const saved = {
+    CI: process.env.CI,
+    BRAINTRUST_PROJECT_NAME: process.env.BRAINTRUST_PROJECT_NAME,
+  };
+  beforeEach(() => {
+    delete process.env.CI;
+    delete process.env.BRAINTRUST_PROJECT_NAME;
+  });
+  afterEach(() => {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  it("uses stagehand-core-dev for core-only tasks", () => {
     const tasks = [makeTask({ tier: "core", name: "open" })];
     const hasCoreOnly = tasks.every((t) => t.tier === "core");
-    expect(hasCoreOnly).toBe(true);
-
-    const project = hasCoreOnly ? "stagehand-core-dev" : "stagehand-dev";
-    expect(project).toBe("stagehand-core-dev");
+    expect(resolveBraintrustProjectName(hasCoreOnly ? "core" : "bench")).toBe("stagehand-core-dev");
   });
 
-  it("uses stagehand-dev for bench tasks", () => {
-    const tasks = [makeTask({ tier: "bench", name: "dropdown" })];
-    const hasCoreOnly = tasks.every((t) => t.tier === "core");
-    expect(hasCoreOnly).toBe(false);
-
-    const project = hasCoreOnly ? "stagehand-core-dev" : "stagehand-dev";
-    expect(project).toBe("stagehand-dev");
-  });
-
-  it("uses stagehand-dev for mixed tiers", () => {
-    const tasks = [
+  it("uses stagehand-dev for bench and mixed tiers", () => {
+    const mixed = [
       makeTask({ tier: "core", name: "open" }),
-      makeTask({ tier: "bench", name: "dropdown" }),
+      makeTask({ tier: "bench", name: "dd" }),
     ];
-    const hasCoreOnly = tasks.every((t) => t.tier === "core");
-    expect(hasCoreOnly).toBe(false);
-
-    const project = hasCoreOnly ? "stagehand-core-dev" : "stagehand-dev";
-    expect(project).toBe("stagehand-dev");
+    const hasCoreOnly = mixed.every((t) => t.tier === "core");
+    expect(resolveBraintrustProjectName(hasCoreOnly ? "core" : "bench")).toBe("stagehand-dev");
+    expect(resolveBraintrustProjectName()).toBe("stagehand-dev");
   });
 
-  it("uses stagehand in CI for core", () => {
-    const hasCoreOnly = true;
-    const isCI = true;
-    const project = hasCoreOnly
-      ? isCI
-        ? "stagehand-core"
-        : "stagehand-core-dev"
-      : isCI
-        ? "stagehand"
-        : "stagehand-dev";
-    expect(project).toBe("stagehand-core");
+  it("drops the -dev suffix in CI", () => {
+    process.env.CI = "true";
+    expect(resolveBraintrustProjectName("core")).toBe("stagehand-core");
+    expect(resolveBraintrustProjectName("bench")).toBe("stagehand");
+  });
+
+  it("BRAINTRUST_PROJECT_NAME overrides the tier/CI matrix for both tiers", () => {
+    process.env.CI = "true";
+    process.env.BRAINTRUST_PROJECT_NAME = "  my-team-evals ";
+    expect(resolveBraintrustProjectName("core")).toBe("my-team-evals");
+    expect(resolveBraintrustProjectName("bench")).toBe("my-team-evals");
+  });
+
+  it("ignores a blank BRAINTRUST_PROJECT_NAME", () => {
+    process.env.BRAINTRUST_PROJECT_NAME = "   ";
+    expect(resolveBraintrustProjectName()).toBe("stagehand-dev");
   });
 });
 
@@ -179,5 +196,33 @@ describe("runner: single-task agent model detection", () => {
     expect(resolved.isAgentCategory).toBe(true);
     expect(resolved.modelEntries.length).toBeGreaterThan(0);
     expect(resolved.modelEntries.every((entry) => entry.mode === "hybrid")).toBe(true);
+  });
+});
+
+describe("runner: core tool validation", () => {
+  it("rejects stagehand_facade before planning core tasks", async () => {
+    const onProgress = vi.fn();
+    await expect(
+      runEvals({
+        tasks: [makeTask({ tier: "core", name: "open" })],
+        registry: emptyRegistry(),
+        coreToolSurface: "stagehand_facade",
+        onProgress,
+      }),
+    ).rejects.toThrow(/available only as an agent harness mount/iu);
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it("keeps ordinary empty core planning unchanged", async () => {
+    const onProgress = vi.fn();
+    await expect(
+      runEvals({
+        tasks: [],
+        registry: emptyRegistry(),
+        coreToolSurface: "understudy_code",
+        onProgress,
+      }),
+    ).resolves.toMatchObject({ summary: { passed: 0, failed: 0, total: 0 } });
+    expect(onProgress).toHaveBeenCalledWith({ type: "planned", total: 0 });
   });
 });

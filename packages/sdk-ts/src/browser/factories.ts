@@ -1,13 +1,16 @@
-import type { StagehandInitParams } from "../../../protocol/types.js";
+import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserbaseConnectOptionsSchema,
+  BrowserbaseFetchOptionsSchema,
   BrowserbaseLaunchOptionsSchema,
+  BrowserbaseSearchOptionsSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
 } from "../clientSchemas.js";
 import {
   claimStagehandBrowserHandle,
   createStagehandBrowserHandle,
+  invalidateStagehandBrowserHandle,
   isStagehandBrowser,
   releaseStagehandBrowserHandle,
   type BrowserbaseBrowser,
@@ -16,11 +19,15 @@ import {
   type StagehandBrowserOrigin,
   type StagehandBrowserProvider,
 } from "./index.js";
-import { CDPClient, type CDPClientOptions } from "../cdpClient.js";
+import { CDPClient, CDPConnectionClosedError, type CDPClientOptions } from "../cdpClient.js";
 import {
   createBrowserbaseSessionClient,
   type BrowserbaseSessionClient,
 } from "./browserbaseSession.js";
+import {
+  createBrowserbaseServicesClient,
+  type BrowserbaseServicesClient,
+} from "./browserbaseServices.js";
 import { launchLocalBrowser, type LocalBrowserLauncher } from "./localBrowser.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "../extensionAssets.js";
 import { abortable } from "../abort.js";
@@ -39,6 +46,7 @@ export type ClaimedStagehandBrowser = {
 type BrowserFactoryDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
   createBrowserbaseSessionClient?: (apiKey: string, baseUrl: string) => BrowserbaseSessionClient;
+  createBrowserbaseServicesClient?: (apiKey: string, baseUrl: string) => BrowserbaseServicesClient;
   connectCdp?: (options: CDPClientOptions) => Promise<CDPClient>;
 };
 
@@ -55,6 +63,8 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
   const launchLocal = dependencies.launchLocalBrowser ?? launchLocalBrowser;
   const createBrowserbase =
     dependencies.createBrowserbaseSessionClient ?? createBrowserbaseSessionClient;
+  const createBrowserbaseServices =
+    dependencies.createBrowserbaseServicesClient ?? createBrowserbaseServicesClient;
   const connectCdp = dependencies.connectCdp ?? ((options) => CDPClient.connect(options));
 
   return {
@@ -65,7 +75,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           throw new Error("downloadsPath is required when acceptDownloads is true");
         }
         return await withStagehandInitDeadline(async (signal) => {
-          const launchPromise = launchLocal(options);
+          const launchPromise = launchLocal(options, signal);
           let launched: Awaited<typeof launchPromise>;
           try {
             launched = await abortable(launchPromise, signal);
@@ -183,6 +193,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
             keepAlive: true,
+            close: session.close,
           };
           return await connectBrowser({
             provider: "browserbase",
@@ -203,6 +214,16 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             },
           });
         });
+      },
+
+      async search(input) {
+        const { apiKey, baseUrl, ...params } = BrowserbaseSearchOptionsSchema.parse(input);
+        return await createBrowserbaseServices(apiKey, baseUrl).search(params);
+      },
+
+      async fetch(input) {
+        const { apiKey, baseUrl, ...params } = BrowserbaseFetchOptionsSchema.parse(input);
+        return await createBrowserbaseServices(apiKey, baseUrl).fetch(params);
       },
     },
   };
@@ -227,6 +248,11 @@ export function claimStagehandBrowser(browser: StagehandBrowser): ClaimedStageha
 /** @internal */
 export function releaseStagehandBrowser(browser: StagehandBrowser): void {
   releaseStagehandBrowserHandle(browser);
+}
+
+/** @internal */
+export function invalidateStagehandBrowser(browser: StagehandBrowser): Promise<void> {
+  return invalidateStagehandBrowserHandle(browser);
 }
 
 async function connectBrowser(options: {
@@ -259,6 +285,27 @@ async function connectBrowser(options: {
     }
     await options.afterConnect?.(cdpClient, options.signal);
     const connectedClient = cdpClient;
+    const invalidate = async () => {
+      connectedClient.close();
+      if (ownsSource) {
+        await closeSource(options.source);
+      }
+    };
+    const close = async () => {
+      try {
+        if (options.provider === "local" && options.origin === "connected") {
+          try {
+            await connectedClient.sendCommand("Browser.close");
+          } catch (error) {
+            if (!(error instanceof CDPConnectionClosedError)) throw error;
+          }
+        } else {
+          await closeSource(options.source);
+        }
+      } finally {
+        connectedClient.close();
+      }
+    };
     return createStagehandBrowserHandle({
       provider: options.provider,
       origin: options.origin,
@@ -267,12 +314,8 @@ async function connectBrowser(options: {
         cdpClient: connectedClient,
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
-      close: async () => {
-        connectedClient.close();
-        if (ownsSource) {
-          await closeSource(options.source);
-        }
-      },
+      close,
+      invalidate,
     });
   } catch (error) {
     cdpClient?.close();

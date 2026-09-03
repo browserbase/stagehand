@@ -122,6 +122,10 @@ export interface TaskResult {
   debugUrl?: string;
   sessionUrl?: string;
   error?: unknown;
+  /** Normalized external-harness status, independent of the registered harness id. */
+  harnessStatus?: string;
+  /** Normalized external-harness stop reason, when the SDK reports one. */
+  harnessStopReason?: string;
   [key: string]: unknown;
 }
 

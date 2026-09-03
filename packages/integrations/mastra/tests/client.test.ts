@@ -1,7 +1,8 @@
 import { FACADE_TOOLS } from "@browserbasehq/stagehand-integrations/facade";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildAllowlistedEnv, createFacadeMCPClient } from "../src/client.js";
+import { createFacadeMCPClient } from "../src/client.js";
 
 type FacadeClient = ReturnType<typeof createFacadeMCPClient>;
 

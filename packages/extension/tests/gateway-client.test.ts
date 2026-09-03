@@ -6,7 +6,7 @@ import {
   fetchWithoutModel,
 } from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
-import type { StagehandInitParams } from "../../protocol/types.js";
+import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 
 vi.mock("ai", () => ({
   generateText: vi.fn(),

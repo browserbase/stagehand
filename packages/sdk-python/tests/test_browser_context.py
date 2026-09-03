@@ -28,7 +28,7 @@ async def test_browser_context_wraps_generated_page_references() -> None:
         "context.active_page": PageRef(page_id="page-2"),
         "context.set_active_page": ContextVoidResult(ok=True),
     })
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     pages = await context.pages()
     new_page = await context.new_page("https://example.com")
@@ -50,7 +50,7 @@ async def test_browser_context_wraps_generated_page_references() -> None:
 @pytest.mark.asyncio
 async def test_browser_context_new_page_validates_optional_url() -> None:
     recording = RecordingRPCClient({"context.new_page": PageRef(page_id="page-1")})
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     blank_page = await context.new_page()
 
@@ -62,7 +62,7 @@ async def test_browser_context_new_page_validates_optional_url() -> None:
 
 
 def test_browser_context_reuses_one_clipboard_wrapper() -> None:
-    context = BrowserContext(cast(RPCClient, RecordingRPCClient()))
+    context = BrowserContext(cast(RPCClient, RecordingRPCClient()), _close_browser)
 
     assert context.clipboard is context.clipboard
 
@@ -70,7 +70,7 @@ def test_browser_context_reuses_one_clipboard_wrapper() -> None:
 @pytest.mark.asyncio
 async def test_browser_context_serializes_python_cookie_filters() -> None:
     recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     await context.clear_cookies(
         name=re.compile("^session$", re.IGNORECASE),
@@ -102,7 +102,7 @@ async def test_browser_context_storage_state_exports_and_restores(tmp_path: Path
         "context.clear_cookies": ContextVoidResult(ok=True),
         "context.add_cookies": ContextVoidResult(ok=True),
     })
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
     state_path = tmp_path / "state.json"
 
     exported = await context.storage_state(path=state_path)
@@ -138,7 +138,7 @@ async def test_browser_context_set_storage_state_accepts_exported_object() -> No
         "context.clear_cookies": ContextVoidResult(ok=True),
         "context.add_cookies": ContextVoidResult(ok=True),
     })
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     exported = await context.storage_state()
     await context.set_storage_state(exported)
@@ -153,6 +153,10 @@ async def test_browser_context_set_storage_state_accepts_exported_object() -> No
 
 @pytest.mark.asyncio
 async def test_browser_context_set_storage_state_rejects_invalid_payload() -> None:
-    context = BrowserContext(cast(RPCClient, RecordingRPCClient()))
+    context = BrowserContext(cast(RPCClient, RecordingRPCClient()), _close_browser)
     with pytest.raises(TypeError, match="cookies array"):
         await context.set_storage_state({})
+
+
+async def _close_browser() -> None:
+    return None
