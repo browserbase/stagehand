@@ -85,9 +85,16 @@ type Deferred<T> = {
 
 type WebMCPInvocationRecord = {
   descriptor: WebMCPInvocationDescriptor;
+  session: CDPSessionLike;
   deferred: Deferred<WebMCPToolResponse>;
   result?: WebMCPToolResponse;
   retentionTimer?: ReturnType<typeof setTimeout>;
+};
+
+type WebMCPResponseSessionState = {
+  handler: (event: Protocol.WebMCP.ToolRespondedEvent) => void;
+  invocationIds: Set<string>;
+  pendingCommands: number;
 };
 
 type CDPEventSubscription = {
@@ -170,23 +177,23 @@ export class Page {
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
-  private webMCPResponseListenerInstalled = false;
+  private readonly webMCPResponseSessions = new Map<CDPSessionLike, WebMCPResponseSessionState>();
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
 
-  private readonly onWebMCPToolResponded = (event: Protocol.WebMCP.ToolRespondedEvent): void => {
+  private onWebMCPToolResponded(
+    session: CDPSessionLike,
+    event: Protocol.WebMCP.ToolRespondedEvent,
+  ): void {
     const record = this.webMCPInvocations.get(event.invocationId);
-    if (!record || record.result !== undefined) return;
+    if (!record || record.session !== session || record.result !== undefined) return;
 
     const result = webMCPToolResponse(event);
     record.result = result;
     record.deferred.resolve(result);
     record.retentionTimer = setTimeout(() => {
-      if (this.webMCPInvocations.get(event.invocationId) === record) {
-        this.webMCPInvocations.delete(event.invocationId);
-        this.removeWebMCPResponseListenerIfIdle();
-      }
+      this.removeWebMCPInvocation(event.invocationId, record);
     }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
-  };
+  }
 
   constructor(
     readonly conn: CdpConnection,
@@ -452,6 +459,15 @@ export class Page {
 
   /** Detach an adopted child session and prune its subtree */
   public detachOopifSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      this.teardownWebMCPInvocationsForSession(
+        session,
+        (invocationId) =>
+          `WebMCP invocation "${invocationId}" was disposed before it completed because its ` +
+          `frame detached from page "${this.pageId}".`,
+      );
+    }
     for (const subscription of this.cdpEventSubscriptions) {
       this.detachCDPEventSubscription(subscription, sessionId);
     }
@@ -571,10 +587,11 @@ export class Page {
   }
 
   /**
-   * Return a fresh snapshot of the WebMCP tools registered by the current page.
+   * Return a fresh snapshot of the WebMCP tools registered by the current page and its frames.
    *
-   * Enabling the domain emits `toolsAdded` for every currently registered tool. Keep the
-   * listeners scoped to this call so tools from an earlier document or call are never cached.
+   * Enabling the domain on each owned CDP session emits `toolsAdded` for every currently
+   * registered tool in that target. Keep the listeners scoped to this call so tools from an
+   * earlier document or call are never cached.
    */
   public async listWebMCPTools(
     options?: Partial<WebMCPToolsOptions>,
@@ -612,11 +629,17 @@ export class Page {
     };
 
     const deadline = Date.now() + timeout;
-    this.mainSession.on("WebMCP.toolsAdded", onToolsAdded);
-    this.mainSession.on("WebMCP.toolsRemoved", onToolsRemoved);
+    const sessions = [
+      this.mainSession,
+      ...[...this.sessions.values()].filter((session) => session !== this.mainSession),
+    ];
+    for (const session of sessions) {
+      session.on("WebMCP.toolsAdded", onToolsAdded);
+      session.on("WebMCP.toolsRemoved", onToolsRemoved);
+    }
 
     try {
-      await this.mainSession.send("WebMCP.enable");
+      await Promise.all(sessions.map((session) => session.send("WebMCP.enable")));
       if (quietWindowMs === 0) return [...tools.values()];
 
       await new Promise<void>((resolve) => {
@@ -655,8 +678,10 @@ export class Page {
         scheduleQuietWindow();
       });
     } finally {
-      this.mainSession.off("WebMCP.toolsAdded", onToolsAdded);
-      this.mainSession.off("WebMCP.toolsRemoved", onToolsRemoved);
+      for (const session of sessions) {
+        session.off("WebMCP.toolsAdded", onToolsAdded);
+        session.off("WebMCP.toolsRemoved", onToolsRemoved);
+      }
     }
 
     return [...tools.values()];
@@ -668,37 +693,53 @@ export class Page {
     options?: Partial<WebMCPInvokeOptions>,
   ): Promise<WebMCPInvocationDescriptor> {
     const { input } = WebMCPInvokeOptionsSchema.parse(options ?? {});
-    this.ensureWebMCPResponseListener();
+    const session = this.webMCPSessionForFrame(frameId);
+    const responseState = this.ensureWebMCPResponseListener(session);
+    responseState.pendingCommands += 1;
 
     let response: Protocol.WebMCP.InvokeToolResponse;
     try {
-      response = await this.mainSession.send<Protocol.WebMCP.InvokeToolResponse>(
-        "WebMCP.invokeTool",
-        {
-          frameId,
-          toolName,
-          input,
-        },
-      );
+      response = await session.send<Protocol.WebMCP.InvokeToolResponse>("WebMCP.invokeTool", {
+        frameId,
+        toolName,
+        input,
+      });
     } catch (error) {
-      this.removeWebMCPResponseListenerIfIdle();
+      responseState.pendingCommands -= 1;
+      this.removeWebMCPResponseListenerIfIdle(session);
       throw error;
+    }
+    responseState.pendingCommands -= 1;
+    if (this.webMCPResponseSessions.get(session) !== responseState) {
+      throw new Error(
+        `WebMCP session for frame "${frameId}" was disposed before invocation registration ` +
+          `completed on page "${this.pageId}".`,
+      );
     }
 
     if (this.webMCPInvocations.has(response.invocationId)) {
+      this.removeWebMCPResponseListenerIfIdle(session);
       throw new Error(`WebMCP returned duplicate invocation ID "${response.invocationId}".`);
     }
 
-    const descriptor = WebMCPInvocationDescriptorSchema.parse({
-      invocationId: response.invocationId,
-      toolName,
-      frameId,
-      input,
-    });
+    let descriptor: WebMCPInvocationDescriptor;
+    try {
+      descriptor = WebMCPInvocationDescriptorSchema.parse({
+        invocationId: response.invocationId,
+        toolName,
+        frameId,
+        input,
+      });
+    } catch (error) {
+      this.removeWebMCPResponseListenerIfIdle(session);
+      throw error;
+    }
     this.webMCPInvocations.set(response.invocationId, {
       descriptor,
+      session,
       deferred: createDeferred<WebMCPToolResponse>(),
     });
+    responseState.invocationIds.add(response.invocationId);
     return descriptor;
   }
 
@@ -730,26 +771,49 @@ export class Page {
   }
 
   public async cancelWebMCPInvocation(invocationId: string): Promise<void> {
-    this.webMCPInvocation(invocationId);
-    await this.mainSession.send("WebMCP.cancelInvocation", { invocationId });
+    const record = this.webMCPInvocation(invocationId);
+    await record.session.send("WebMCP.cancelInvocation", { invocationId });
   }
 
-  private ensureWebMCPResponseListener(): void {
-    if (this.webMCPResponseListenerInstalled) return;
-    this.mainSession.on<Protocol.WebMCP.ToolRespondedEvent>(
-      "WebMCP.toolResponded",
-      this.onWebMCPToolResponded,
+  private webMCPSessionForFrame(frameId: string): CDPSessionLike {
+    if (frameId === this.mainFrameId()) return this.mainSession;
+
+    const sessionId = this.registry.getOwnerSessionId(frameId);
+    const session = sessionId ? this.sessions.get(sessionId) : undefined;
+    if (session) return session;
+
+    throw new Error(
+      `WebMCP frame "${frameId}" was not found on page "${this.pageId}" or has detached.`,
     );
-    this.webMCPResponseListenerInstalled = true;
   }
 
-  private removeWebMCPResponseListenerIfIdle(): void {
-    if (this.webMCPInvocations.size > 0 || !this.webMCPResponseListenerInstalled) return;
-    this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
-      "WebMCP.toolResponded",
-      this.onWebMCPToolResponded,
-    );
-    this.webMCPResponseListenerInstalled = false;
+  private ensureWebMCPResponseListener(session: CDPSessionLike): WebMCPResponseSessionState {
+    const existing = this.webMCPResponseSessions.get(session);
+    if (existing) return existing;
+
+    const state: WebMCPResponseSessionState = {
+      handler: (event) => this.onWebMCPToolResponded(session, event),
+      invocationIds: new Set<string>(),
+      pendingCommands: 0,
+    };
+    session.on<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", state.handler);
+    this.webMCPResponseSessions.set(session, state);
+    return state;
+  }
+
+  private removeWebMCPResponseListenerIfIdle(session: CDPSessionLike): void {
+    const state = this.webMCPResponseSessions.get(session);
+    if (!state || state.pendingCommands > 0 || state.invocationIds.size > 0) return;
+    session.off<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", state.handler);
+    this.webMCPResponseSessions.delete(session);
+  }
+
+  private removeWebMCPInvocation(invocationId: string, record: WebMCPInvocationRecord): void {
+    if (this.webMCPInvocations.get(invocationId) !== record) return;
+    if (record.retentionTimer !== undefined) clearTimeout(record.retentionTimer);
+    this.webMCPInvocations.delete(invocationId);
+    this.webMCPResponseSessions.get(record.session)?.invocationIds.delete(invocationId);
+    this.removeWebMCPResponseListenerIfIdle(record.session);
   }
 
   private webMCPInvocation(invocationId: string): WebMCPInvocationRecord {
@@ -758,27 +822,37 @@ export class Page {
     throw new Error(`WebMCP invocation "${invocationId}" was not found on page "${this.pageId}".`);
   }
 
-  private teardownWebMCPInvocations(): void {
-    if (this.webMCPResponseListenerInstalled) {
-      this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
+  private teardownWebMCPInvocationsForSession(
+    session: CDPSessionLike,
+    errorMessage: (invocationId: string) => string,
+  ): void {
+    const responseState = this.webMCPResponseSessions.get(session);
+    if (responseState) {
+      session.off<Protocol.WebMCP.ToolRespondedEvent>(
         "WebMCP.toolResponded",
-        this.onWebMCPToolResponded,
+        responseState.handler,
       );
-      this.webMCPResponseListenerInstalled = false;
+      this.webMCPResponseSessions.delete(session);
     }
-
     for (const [invocationId, record] of this.webMCPInvocations) {
+      if (record.session !== session) continue;
       if (record.retentionTimer !== undefined) clearTimeout(record.retentionTimer);
       if (record.result === undefined) {
-        record.deferred.reject(
-          new Error(
-            `WebMCP invocation "${invocationId}" was disposed before it completed on page ` +
-              `"${this.pageId}".`,
-          ),
-        );
+        record.deferred.reject(new Error(errorMessage(invocationId)));
       }
+      this.webMCPInvocations.delete(invocationId);
     }
-    this.webMCPInvocations.clear();
+  }
+
+  private teardownWebMCPInvocations(): void {
+    for (const session of this.webMCPResponseSessions.keys()) {
+      this.teardownWebMCPInvocationsForSession(
+        session,
+        (invocationId) =>
+          `WebMCP invocation "${invocationId}" was disposed before it completed on page ` +
+          `"${this.pageId}".`,
+      );
+    }
   }
 
   /** Seed the cached URL before navigation events converge. */
