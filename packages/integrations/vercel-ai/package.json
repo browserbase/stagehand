@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-example-vercel-ai-facade",
-  "version": "4.0.0",
+  "version": "4.0.2",
   "private": true,
   "type": "module",
   "scripts": {

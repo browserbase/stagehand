@@ -14,7 +14,7 @@ import type {
   ContextSetDomainPolicyParams,
   ContextSetExtraHTTPHeadersParams,
   EmptyParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
 
@@ -37,11 +37,6 @@ export function createContextController(runtime: StagehandRuntime) {
   async function setActivePage(params: ContextSetActivePageParams, { logger }: HandlerContext) {
     logger.debug("context.set_active_page", {});
     return runtime.contextSetActivePage(params);
-  }
-
-  async function close(_params: EmptyParams, { logger }: HandlerContext) {
-    logger.debug("context.close", {});
-    return runtime.contextClose();
   }
 
   async function addInitScript(params: ContextAddInitScriptParams, { logger }: HandlerContext) {
@@ -123,7 +118,6 @@ export function createContextController(runtime: StagehandRuntime) {
     newPage,
     activePage,
     setActivePage,
-    close,
     addInitScript,
     setExtraHTTPHeaders,
     getDomainPolicy,

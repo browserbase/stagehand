@@ -3,11 +3,15 @@ title: "MCP integrations"
 description: "Call Model Context Protocol (MCP) servers alongside Stagehand's primitives"
 ---
 
-{/* TODO: the v3 version of this guide wired MCP tool servers into stagehand.agent(). Agent is not planned for v4, so that guide is not coming back; this page teaches caller-side orchestration instead. Revisit only if the v4 runtime ever ships an MCP client. */}
-
 <Note>
-In v3, MCP integrations attached external tool servers to a Stagehand agent. Stagehand v4 has no autonomous agent and ships no MCP client, so there is no integrations surface to configure. Call your MCP servers from your own code instead, as below.
+Stagehand v4 does not include an autonomous agent or a general-purpose MCP client. To call third-party MCP tools alongside Stagehand, orchestrate both from your own code as shown below.
 </Note>
+
+Stagehand also provides experimental [integrations](/v4/integrations/overview) that expose a persistent Stagehand browser to CrewAI, Deep Agents, Mastra, and the Vercel AI SDK over MCP. The Eve integration exposes the same tools natively.
+
+<Card title="Stagehand integrations" icon="puzzle-piece" href="/v4/integrations/overview">
+  Give an agent the `run`, `snapshot`, and `screenshot` browser tools.
+</Card>
 
 ## Calling MCP servers from your code
 

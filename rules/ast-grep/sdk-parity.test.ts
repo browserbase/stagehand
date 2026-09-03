@@ -29,6 +29,7 @@ const sdkObjects = [
 const typescriptSource = new URL("../../packages/sdk-ts/src/", import.meta.url);
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
 const goSource = new URL("../../packages/sdk-go/", import.meta.url);
+const extensionRouterUrl = new URL("../../packages/extension/rpcRouter.ts", import.meta.url);
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
 
@@ -145,7 +146,7 @@ describe("All language SDK operations remain in sync", () => {
     ).root();
     for (const pattern of [
       'values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION',
-      'values["client_info"] = ImplementationInfo($$$ARGS)',
+      'values["client_info"] = STAGEHAND_SDK_CLIENT_INFO',
     ]) {
       expect(
         pythonRoot.find({ rule: { pattern } }),
@@ -159,18 +160,55 @@ describe("All language SDK operations remain in sync", () => {
     const registeredOperations = [...registry.values()].sort();
 
     expect(
-      await clientProtocolOperations("typescript", typescriptSource, registry),
+      await protocolOperations("typescript", typescriptSource, registry),
       "TypeScript must reference every StagehandMethods operation",
     ).toStrictEqual(registeredOperations);
     expect(
-      await clientProtocolOperations("python", pythonSource, registry),
+      await protocolOperations("python", pythonSource, registry),
       "Python must reference every StagehandMethods operation",
     ).toStrictEqual(registeredOperations);
     expect(
-      await clientProtocolOperations("go", goSource, registry),
+      await protocolOperations("go", goSource, registry),
       "Go must reference every StagehandMethods operation",
     ).toStrictEqual(registeredOperations);
   });
+
+  it("routes every protocol operation to exactly one receiving endpoint", async () => {
+    const registry = await stagehandMethodNames();
+    const [extensionInbound, typescriptInbound] = await Promise.all([
+      extensionRouterOperations(),
+      protocolOperations("typescript", typescriptSource, registry, "inbound"),
+    ]);
+    const registeredOperations = [...registry.values()].sort();
+    const handledByBothEndpoints = extensionInbound.filter((method) =>
+      typescriptInbound.includes(method),
+    );
+    const handledOperations = [...new Set([...extensionInbound, ...typescriptInbound])].sort();
+
+    expect(
+      handledByBothEndpoints,
+      "A protocol operation must not be handled by both the extension and the SDKs",
+    ).toEqual([]);
+    expect(
+      handledOperations,
+      "Every StagehandMethods operation must have exactly one receiving endpoint",
+    ).toStrictEqual(registeredOperations);
+
+    for (const [language, source] of [
+      ["typescript", typescriptSource],
+      ["python", pythonSource],
+      ["go", goSource],
+    ] as const) {
+      expect(
+        await protocolOperations(language, source, registry, "outbound"),
+        `${language} outbound operations must match the extension router`,
+      ).toStrictEqual(extensionInbound);
+      expect(
+        await protocolOperations(language, source, registry, "inbound"),
+        `${language} inbound request handlers must match TypeScript inbound request handlers`,
+      ).toStrictEqual(typescriptInbound);
+    }
+  }, 15_000);
 
   it("keeps every registered notification in the generated protocol and every client", async () => {
     const [registry, protocol] = await Promise.all([
@@ -208,7 +246,7 @@ describe("All language SDK operations remain in sync", () => {
         `Python must decode ${binding.notification} with its generated params model`,
       ).toBe(referencedModel(notification.properties.params.$ref));
     }
-  });
+  }, 15_000);
 
   it("exposes the same RPC-backed operations in every SDK", async () => {
     const registry = await stagehandMethodNames();
@@ -712,26 +750,53 @@ async function publicAccessors(
     .sort();
 }
 
-async function clientProtocolOperations(
+type RequestBoundary = "inbound" | "outbound";
+
+async function protocolOperations(
   language: SdkLanguage,
   source: URL,
   registry: ReadonlyMap<string, string>,
+  boundary?: RequestBoundary,
 ): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
   const files = (await readdir(source, { recursive: true }))
-    .filter((file) => file.endsWith(extension) && !file.endsWith(`_test${extension}`))
+    .filter(
+      (file) =>
+        file.endsWith(extension) &&
+        !file.endsWith(`_test${extension}`) &&
+        !file.endsWith(`.test${extension}`) &&
+        !file.split("/").includes("tests"),
+    )
     .sort();
   const operations = new Set<string>();
 
   for (const file of files) {
     const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
-    for (const call of protocolCalls(root, language)) {
+    for (const call of protocolCalls(root, language, boundary)) {
       const method = protocolMethodNode(call, language);
       if (method) operations.add(wireMethodForCall(method, language, registry));
     }
   }
 
   return [...operations].sort();
+}
+
+async function extensionRouterOperations(): Promise<string[]> {
+  const root = parse("typescript", await readFile(extensionRouterUrl, "utf8")).root();
+  const routeSwitches = root
+    .findAll({ rule: { kind: "switch_statement" } })
+    .filter((statement) => namedChildren(statement)[0]?.text() === "(request.method)");
+  if (routeSwitches.length !== 1) {
+    throw new Error(`Expected one request.method router switch, received ${routeSwitches.length}`);
+  }
+
+  return routeSwitches[0]!
+    .findAll({ rule: { kind: "switch_case" } })
+    .flatMap((case_) => {
+      const method = namedChildren(case_)[0];
+      return method?.kind() === "string" ? [stringLiteral(method)] : [];
+    })
+    .sort();
 }
 
 async function stagehandMethodNames(): Promise<Map<string, string>> {
@@ -958,20 +1023,14 @@ async function goRpcCalls(): Promise<GoRpcCall[]> {
   return calls;
 }
 
-function protocolCalls(node: SgNode, language: SdkLanguage): SgNode[] {
+function protocolCalls(node: SgNode, language: SdkLanguage, boundary?: RequestBoundary): SgNode[] {
   const callKind = language === "python" ? "call" : "call_expression";
   return node.findAll({ rule: { kind: callKind } }).filter((call) => {
     const calledFunction = namedChildren(call)[0]?.text();
-    const isProtocolBoundary =
-      calledFunction?.endsWith(".send") === true ||
-      calledFunction?.endsWith("?.send") === true ||
-      (language === "typescript" &&
-        (calledFunction?.endsWith(".onRequest") === true ||
-          calledFunction?.endsWith("?.onRequest") === true)) ||
-      (language === "python" && calledFunction?.endsWith(".on_request") === true) ||
-      (language === "go" &&
-        (calledFunction?.endsWith(".call") === true ||
-          calledFunction?.endsWith(".onRequest") === true));
+    const isProtocolBoundary = boundary
+      ? matchesProtocolBoundary(calledFunction, language, boundary)
+      : matchesProtocolBoundary(calledFunction, language, "outbound") ||
+        matchesProtocolBoundary(calledFunction, language, "inbound");
     if (!isProtocolBoundary) return false;
     const method = protocolMethodNode(call, language);
     return language === "typescript"
@@ -980,6 +1039,24 @@ function protocolCalls(node: SgNode, language: SdkLanguage): SgNode[] {
         ? method?.kind() === "string"
         : method?.kind() === "interpreted_string_literal";
   });
+}
+
+function matchesProtocolBoundary(
+  calledFunction: string | undefined,
+  language: SdkLanguage,
+  boundary: RequestBoundary,
+): boolean {
+  if (boundary === "outbound") {
+    return language === "go"
+      ? calledFunction?.endsWith(".call") === true
+      : calledFunction?.endsWith(".send") === true || calledFunction?.endsWith("?.send") === true;
+  }
+  return language === "typescript"
+    ? calledFunction?.endsWith(".onRequest") === true ||
+        calledFunction?.endsWith("?.onRequest") === true
+    : language === "python"
+      ? calledFunction?.endsWith(".on_request") === true
+      : calledFunction?.endsWith(".onRequest") === true;
 }
 
 type DirectClassMethod = {

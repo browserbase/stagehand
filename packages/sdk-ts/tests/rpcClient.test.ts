@@ -1,13 +1,21 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
-import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+import {
+  JSONRPCErrorCodes,
+  type RPCMethod,
+} from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import {
   MAX_CALLBACK_BATCH_TIMEOUT_MS,
   STAGEHAND_PROTOCOL_VERSION,
-} from "../../protocol/schemas.js";
-import { RPCClient, rpcResponseTimeoutMs, type CDPTransport } from "../src/rpcClient.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
+import {
+  RPCClient,
+  RPCClientOptionsSchema,
+  rpcResponseTimeoutMs,
+  type CDPTransport,
+} from "../src/rpcClient.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -64,6 +72,34 @@ class ManualCDPTransport implements CDPTransport {
     this.closeCalls += 1;
   }
 }
+
+describe("RPCClientOptionsSchema", () => {
+  it("accepts the preloaded-extension option", () => {
+    const signal = new AbortController().signal;
+
+    expect(
+      RPCClientOptionsSchema.parse({
+        cdpUrl: "ws://browser.example",
+        preloadedExtension: true,
+        signal,
+      }),
+    ).toStrictEqual({
+      cdpUrl: "ws://browser.example",
+      preloadedExtension: true,
+      signal,
+    });
+  });
+
+  it("rejects an installed-extension discovery policy", () => {
+    expect(() =>
+      RPCClientOptionsSchema.parse({
+        cdpUrl: "ws://browser.example",
+        discoverExtension: "require",
+        signal: new AbortController().signal,
+      }),
+    ).toThrow();
+  });
+});
 
 describe("RPCClient", () => {
   it("keeps callback batches in the ordinary pending RPC path", async () => {
@@ -391,7 +427,6 @@ describe("RPCClient", () => {
       StagehandMethods.stagehandExtract.name,
       StagehandMethods.stagehandObserve.name,
       StagehandMethods.contextNewPage.name,
-      StagehandMethods.contextClose.name,
       StagehandMethods.contextAddInitScript.name,
       StagehandMethods.contextSetExtraHTTPHeaders.name,
       StagehandMethods.contextGetDomainPolicy.name,

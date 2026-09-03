@@ -1,4 +1,7 @@
-import type { StagehandMetrics, StagehandResultUsage } from "../protocol/types.js";
+import type {
+  StagehandMetrics,
+  StagehandResultUsage,
+} from "@browserbasehq/stagehand-protocol/types";
 
 type StagehandMetricMethod = "act" | "extract" | "observe";
 
@@ -62,5 +65,9 @@ export class StagehandMetricsAccumulator {
 
   snapshot(): StagehandMetrics {
     return { ...this.values };
+  }
+
+  reset(): void {
+    Object.assign(this.values, EMPTY_METRICS);
   }
 }

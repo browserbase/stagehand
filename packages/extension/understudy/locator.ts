@@ -19,7 +19,7 @@ import {
 import type { Frame } from "./frame.js";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
-import type { MouseButton } from "../../protocol/types.js";
+import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 

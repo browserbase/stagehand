@@ -4,52 +4,93 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
 
-func TestDefaultChromeFlagsMatchChromeLauncher(t *testing.T) {
-	want := []string{
-		"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
-			"CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
-			"CertificateTransparencyComponentUpdater,AutofillServerCommunication," +
-			"PrivacySandboxSettings4,RenderDocument",
-		"--disable-component-extensions-with-background-pages",
-		"--disable-background-networking",
-		"--disable-component-update",
-		"--disable-client-side-phishing-detection",
-		"--disable-sync",
-		"--metrics-recording-only",
-		"--disable-default-apps",
-		"--mute-audio",
-		"--no-default-browser-check",
-		"--no-first-run",
-		"--disable-backgrounding-occluded-windows",
-		"--disable-renderer-backgrounding",
-		"--disable-background-timer-throttling",
-		"--disable-ipc-flooding-protection",
-		"--password-store=basic",
-		"--use-mock-keychain",
-		"--force-fieldtrials=*BackgroundTracing/default/",
-		"--disable-hang-monitor",
-		"--disable-prompt-on-repost",
-		"--disable-domain-reliability",
-		"--propagate-iph-for-testing",
+const testWebMCPChromeFlag = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
+
+func TestDefaultChromeFlags(t *testing.T) {
+	fixturePath := filepath.Join("..", "..", "tests", "fixtures", "local-browser-default-flags.json")
+	fixture, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("read default Chrome flags fixture: %v", err)
 	}
-	if !reflect.DeepEqual(defaultChromeFlags, want) {
+	var want []string
+	if err := json.Unmarshal(fixture, &want); err != nil {
+		t.Fatalf("decode default Chrome flags fixture: %v", err)
+	}
+	if !slices.Equal(defaultChromeFlags, want) {
 		t.Fatalf("defaultChromeFlags = %#v, want %#v", defaultChromeFlags, want)
 	}
 	if slices.Contains(defaultChromeFlags, "--disable-extensions") {
 		t.Fatal("defaultChromeFlags contains --disable-extensions")
+	}
+}
+
+func TestLaunchedChromeProfileOwnership(t *testing.T) {
+	tests := []struct {
+		name      string
+		removeDir bool
+		wantExist bool
+	}{
+		{name: "SDK-owned", removeDir: true, wantExist: false},
+		{name: "caller-owned or preserved", removeDir: false, wantExist: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			profile := filepath.Join(t.TempDir(), "profile")
+			if err := os.Mkdir(profile, 0o700); err != nil {
+				t.Fatalf("create profile: %v", err)
+			}
+			done := make(chan struct{})
+			close(done)
+			launched := &launchedChrome{
+				userDataDir: profile,
+				process:     &chromeProcess{done: done},
+				removeDir:   test.removeDir,
+			}
+
+			if err := launched.close(context.Background()); err != nil {
+				t.Fatalf("close launched Chrome: %v", err)
+			}
+			_, err := os.Stat(profile)
+			if test.wantExist && err != nil {
+				t.Fatalf("preserved profile is unavailable: %v", err)
+			}
+			if !test.wantExist && !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("SDK-owned profile still exists: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveChromeProfileTreatsEmptyPathAsTemporary(t *testing.T) {
+	profile, remove, err := resolveChromeProfile(LocalBrowserLaunchOptions{UserDataDir: ""})
+	if err != nil {
+		t.Fatalf("resolveChromeProfile() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(profile); err != nil {
+			t.Errorf("remove temporary Chrome profile: %v", err)
+		}
+	})
+	if !remove {
+		t.Fatal("resolveChromeProfile() remove = false, want true")
+	}
+	if filepath.Base(profile) == "." || !strings.HasPrefix(filepath.Base(profile), "stagehand-chrome-") {
+		t.Fatalf("resolveChromeProfile() path = %q, want Stagehand temporary profile", profile)
 	}
 }
 
@@ -75,7 +116,7 @@ func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 		"--enable-unsafe-extension-debugging",
 		"--remote-allow-origins=*",
 		"--window-size=1440,900",
-		webMCPChromeFlag,
+		testWebMCPChromeFlag,
 		"--remote-debugging-port=9222",
 		"--user-data-dir=/tmp/stagehand profile",
 		"--custom-flag=value",
@@ -123,12 +164,7 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 				t.Fatalf("buildChromeArgs() contains ignored default %q", defaultArg)
 			}
 		}
-		for _, stagehandDefault := range []string{
-			"--enable-unsafe-extension-debugging",
-			"--remote-allow-origins=*",
-			"--window-size=1280,800",
-			webMCPChromeFlag,
-		} {
+		for _, stagehandDefault := range []string{"--window-size=1280,800"} {
 			if slices.Contains(got, stagehandDefault) {
 				t.Fatalf("buildChromeArgs() contains ignored Stagehand default %q", stagehandDefault)
 			}
@@ -155,13 +191,13 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 	t.Run("WebMCP", func(t *testing.T) {
 		got := buildChromeArgs(
 			LocalBrowserLaunchOptions{
-				IgnoreDefaultArgs: &IgnoreDefaultArgs{Args: []string{webMCPChromeFlag}},
+				IgnoreDefaultArgs: &IgnoreDefaultArgs{Args: []string{testWebMCPChromeFlag}},
 			},
 			9_222,
 			"/tmp/profile",
 		)
-		if slices.Contains(got, webMCPChromeFlag) {
-			t.Fatalf("buildChromeArgs() contains ignored default %q", webMCPChromeFlag)
+		if slices.Contains(got, testWebMCPChromeFlag) {
+			t.Fatalf("buildChromeArgs() contains ignored default %q", testWebMCPChromeFlag)
 		}
 		if !slices.Contains(got, "--enable-unsafe-extension-debugging") {
 			t.Fatal("buildChromeArgs() omitted non-ignored Stagehand defaults")
@@ -451,5 +487,81 @@ func TestAvailablePort(t *testing.T) {
 	}
 	if port < 1 || port > 65_535 {
 		t.Fatalf("availablePort() = %d, want valid TCP port", port)
+	}
+	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)))
+	if err != nil {
+		t.Fatalf("automatic port %d was not released: %v", port, err)
+	}
+	if err := listener.Close(); err != nil {
+		t.Fatalf("close automatic-port listener: %v", err)
+	}
+}
+
+func TestResolveChromePort(t *testing.T) {
+	t.Run("automatic", func(t *testing.T) {
+		got, err := resolveChromePortWith(0, func(port int) (int, error) {
+			if port != 0 {
+				t.Fatalf("inspect port = %d, want 0", port)
+			}
+			return 4567, nil
+		})
+		if err != nil || got != 4567 {
+			t.Fatalf("resolveChromePortWith() = (%d, %v), want (4567, nil)", got, err)
+		}
+	})
+
+	t.Run("explicit available", func(t *testing.T) {
+		got, err := resolveChromePortWith(9222, func(port int) (int, error) {
+			return port, nil
+		})
+		if err != nil || got != 9222 {
+			t.Fatalf("resolveChromePortWith() = (%d, %v), want (9222, nil)", got, err)
+		}
+	})
+
+	t.Run("explicit occupied", func(t *testing.T) {
+		_, err := resolveChromePortWith(9222, func(int) (int, error) {
+			return 0, syscall.EADDRINUSE
+		})
+		if !errors.Is(err, syscall.EADDRINUSE) ||
+			!strings.Contains(err.Error(), "Chrome debugging port 9222 is already in use") {
+			t.Fatalf("resolveChromePortWith() error = %v, want occupied-port error", err)
+		}
+	})
+
+	t.Run("other socket error", func(t *testing.T) {
+		socketErr := errors.New("socket unavailable")
+		_, err := resolveChromePortWith(9222, func(int) (int, error) {
+			return 0, socketErr
+		})
+		if !errors.Is(err, socketErr) || strings.Contains(err.Error(), "already in use") {
+			t.Fatalf("resolveChromePortWith() error = %v, want preserved socket error", err)
+		}
+	})
+}
+
+func TestLaunchChromeRejectsOccupiedPortBeforeProfileCreation(t *testing.T) {
+	profile := filepath.Join(t.TempDir(), "profile")
+	portChecked := false
+
+	_, err := launchChromeWithPortResolver(context.Background(), LocalBrowserLaunchOptions{
+		ExecutablePath: os.Args[0],
+		Port:           9222,
+		UserDataDir:    profile,
+	}, func(port int) (int, error) {
+		portChecked = true
+		if port != 9222 {
+			t.Fatalf("resolve port = %d, want 9222", port)
+		}
+		return 0, fmt.Errorf("Chrome debugging port %d is already in use: %w", port, syscall.EADDRINUSE)
+	})
+	if err == nil || !strings.Contains(err.Error(), "already in use") {
+		t.Fatalf("launchChrome() error = %v, want occupied-port error", err)
+	}
+	if !portChecked {
+		t.Fatal("Chrome port was not checked")
+	}
+	if _, statErr := os.Stat(profile); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("profile was created before occupied-port rejection: %v", statErr)
 	}
 }

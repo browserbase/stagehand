@@ -1,0 +1,41 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-eve-sdk",
+  "version": "4.0.1",
+  "private": true,
+  "description": "Eve (Vercel) harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/eve-sdk/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/eve-sdk/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/google": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "ai": "^7.0.38",
+    "eve": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

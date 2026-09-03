@@ -6,7 +6,6 @@ import inspect
 import json
 import sys
 from collections.abc import Callable, Mapping
-from importlib.metadata import version
 from typing import TypeVar, cast, overload
 
 from pydantic import BaseModel
@@ -27,7 +26,6 @@ from ._generated.models import (
     EmptyParams,
     ExtractOptions,
     FieldSchema0,
-    ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
     ObserveOptions,
@@ -42,12 +40,14 @@ from ._generated.models import (
     StagehandObserveParams,
 )
 from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+from ._sdk_identity import STAGEHAND_SDK_CLIENT_INFO
 from .browser import (
     StagehandBrowser,
     _attach_browser_context,
     _claim_browser,
     _ClaimedBrowser,
     _detach_browser_context,
+    _invalidate_browser,
     _release_browser,
 )
 from .browser_context import BrowserContext
@@ -279,7 +279,10 @@ class Stagehand:
             init_params,
             StagehandInitResult,
         )
-        _attach_browser_context(self._browser_handle, BrowserContext(rpc_client))
+        _attach_browser_context(
+            self._browser_handle,
+            BrowserContext(rpc_client, self._browser_handle.close),
+        )
         self._initialized = True
 
     async def act(
@@ -451,6 +454,7 @@ class Stagehand:
 
     async def close(self) -> None:
         async def close_impl() -> None:
+            release_browser_claim = not self._initialized
             try:
                 if self._initialized and self._rpc_client is not None:
                     try:
@@ -459,10 +463,15 @@ class Stagehand:
                             EmptyParams(),
                             StagehandCloseResult,
                         )
+                        release_browser_claim = True
                     except CDPConnectionClosedError:
-                        pass
+                        release_browser_claim = True
             finally:
-                await asyncio.shield(self._release_resources())
+                try:
+                    await asyncio.shield(self._release_resources())
+                finally:
+                    if release_browser_claim:
+                        _release_browser(self._browser_handle)
 
         if self._close_task is None:
             self._close_task = asyncio.create_task(
@@ -490,10 +499,7 @@ class Stagehand:
         elif self._create_config.model is not None:
             values["model"] = self._create_config.model
         values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
-        values["client_info"] = ImplementationInfo(
-            name="stagehand-sdk-python",
-            version=version("stagehand"),
-        )
+        values["client_info"] = STAGEHAND_SDK_CLIENT_INFO
         values["browser_cdp_url"] = browser_cdp_url
         values["log_level"] = self._create_config.logging.level
         metadata = claimed.worker_init_metadata
@@ -545,11 +551,11 @@ class Stagehand:
         fail_closed: bool,
     ) -> None:
         if fail_closed:
-            browser_close = browser.close()
+            browser_invalidation = _invalidate_browser(browser)
             try:
                 await self._release_resources()
             finally:
-                await browser_close
+                await browser_invalidation
             return
 
         try:

@@ -92,6 +92,23 @@ export function consolidateChangelog(rootChangelog: string, sections: string[]):
   return `${introduction}\n\n${additions.join("\n\n")}\n\n${history}\n`;
 }
 
+export async function cleanupGeneratedChangelogs(
+  generatedPaths: string[],
+  preservePackageChangelogs: boolean,
+): Promise<void> {
+  if (preservePackageChangelogs) {
+    return;
+  }
+
+  for (const generatedPath of generatedPaths) {
+    await unlink(generatedPath);
+  }
+}
+
+export function shouldPreservePackageChangelogs(value: string | undefined): boolean {
+  return value === "true";
+}
+
 async function checkPackageChangelogsAreTemporary(): Promise<void> {
   const existingPaths: string[] = [];
   for (const changelog of packageChangelogs) {
@@ -138,9 +155,11 @@ async function main(): Promise<void> {
     await writeFile(rootChangelogPath, nextRootChangelog);
   }
 
-  for (const { path: generatedPath } of generated) {
-    await unlink(generatedPath);
-  }
+  // changesets/action reads each versioned package changelog after this command exits.
+  await cleanupGeneratedChangelogs(
+    generated.map(({ path: generatedPath }) => generatedPath),
+    shouldPreservePackageChangelogs(process.env.CHANGESETS_ACTION_PRESERVE_CHANGELOGS),
+  );
 }
 
 const invokedPath = process.argv[1];

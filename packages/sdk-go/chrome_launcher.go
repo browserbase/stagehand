@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -23,18 +24,8 @@ const (
 	defaultChromeWidth  = 1280
 	defaultChromeHeight = 800
 	chromePollInterval  = 100 * time.Millisecond
-	webMCPChromeFlag    = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 )
 
-// Copyright 2017 Google Inc. All Rights Reserved.
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-// https://www.apache.org/licenses/LICENSE-2.0.
-//
-// defaultChromeFlags tracks chrome-launcher 1.2.1's DEFAULT_FLAGS, excluding
-// --disable-extensions so Stagehand can load its unpacked extension. The
-// TypeScript and Python SDKs use the same list.
 var defaultChromeFlags = []string{
 	"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
 		"CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
@@ -61,6 +52,9 @@ var defaultChromeFlags = []string{
 	"--disable-prompt-on-repost",
 	"--disable-domain-reliability",
 	"--propagate-iph-for-testing",
+	"--enable-unsafe-extension-debugging",
+	"--remote-allow-origins=*",
+	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 }
 
 type launchedChrome struct {
@@ -99,6 +93,14 @@ func launchChrome(
 	ctx context.Context,
 	options LocalBrowserLaunchOptions,
 ) (*launchedChrome, error) {
+	return launchChromeWithPortResolver(ctx, options, resolveChromePort)
+}
+
+func launchChromeWithPortResolver(
+	ctx context.Context,
+	options LocalBrowserLaunchOptions,
+	resolvePort func(int) (int, error),
+) (*launchedChrome, error) {
 	if ctx == nil {
 		return nil, errors.New("stagehand Chrome launch context is required")
 	}
@@ -113,26 +115,16 @@ func launchChrome(
 	if err != nil {
 		return nil, err
 	}
-	port := options.Port
-	if port == 0 {
-		port, err = availablePort()
-		if err != nil {
-			return nil, err
-		}
+	port, err := resolvePort(options.Port)
+	if err != nil {
+		return nil, err
 	}
 
-	userDataDir := options.UserDataDir
-	temporaryProfile := userDataDir == ""
-	if temporaryProfile {
-		userDataDir, err = os.MkdirTemp("", "stagehand-chrome-")
-		if err != nil {
-			return nil, fmt.Errorf("create Chrome profile: %w", err)
-		}
-	} else if err := os.MkdirAll(userDataDir, 0o700); err != nil {
-		return nil, fmt.Errorf("create Chrome profile %q: %w", userDataDir, err)
+	userDataDir, removeDir, err := resolveChromeProfile(options)
+	if err != nil {
+		return nil, err
 	}
 
-	removeDir := temporaryProfile && !options.PreserveUserDataDir
 	cleanupProfile := func() error {
 		if !removeDir {
 			return nil
@@ -180,6 +172,20 @@ func launchChrome(
 	return launched, nil
 }
 
+func resolveChromeProfile(options LocalBrowserLaunchOptions) (string, bool, error) {
+	if options.UserDataDir != "" {
+		if err := os.MkdirAll(options.UserDataDir, 0o700); err != nil {
+			return "", false, fmt.Errorf("create Chrome profile %q: %w", options.UserDataDir, err)
+		}
+		return options.UserDataDir, false, nil
+	}
+	userDataDir, err := os.MkdirTemp("", "stagehand-chrome-")
+	if err != nil {
+		return "", false, fmt.Errorf("create Chrome profile: %w", err)
+	}
+	return userDataDir, !options.PreserveUserDataDir, nil
+}
+
 func validateLocalBrowserOptions(options LocalBrowserLaunchOptions) error {
 	if options.Port < 0 || options.Port > 65_535 {
 		return errors.New("stagehand Chrome port must be 0 or between 1 and 65535")
@@ -210,12 +216,12 @@ func buildChromeArgs(options LocalBrowserLaunchOptions, port int, userDataDir st
 		width, height = options.Viewport.Width, options.Viewport.Height
 	}
 	args := selectedDefaultChromeFlags(options.IgnoreDefaultArgs)
-	args = append(args, selectedChromeFlags([]string{
-		"--enable-unsafe-extension-debugging",
-		"--remote-allow-origins=*",
-		fmt.Sprintf("--window-size=%d,%d", width, height),
-		webMCPChromeFlag,
-	}, options.IgnoreDefaultArgs)...)
+	windowSizeFlag := fmt.Sprintf("--window-size=%d,%d", width, height)
+	if options.Viewport != nil {
+		args = append(args, windowSizeFlag)
+	} else {
+		args = append(args, selectedChromeFlags([]string{windowSizeFlag}, options.IgnoreDefaultArgs)...)
+	}
 	args = append(args,
 		fmt.Sprintf("--remote-debugging-port=%d", port),
 		"--user-data-dir="+userDataDir,
@@ -363,13 +369,47 @@ func isFile(path string) bool {
 }
 
 func availablePort() (int, error) {
-	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	port, err := inspectChromePort(0)
 	if err != nil {
 		return 0, fmt.Errorf("select Chrome debugging port: %w", err)
 	}
-	defer listener.Close()
-	port := listener.Addr().(*net.TCPAddr).Port
 	return port, nil
+}
+
+func resolveChromePort(requestedPort int) (int, error) {
+	return resolveChromePortWith(requestedPort, inspectChromePort)
+}
+
+func resolveChromePortWith(
+	requestedPort int,
+	inspect func(int) (int, error),
+) (int, error) {
+	if requestedPort == 0 {
+		port, err := inspect(0)
+		if err != nil {
+			return 0, fmt.Errorf("select Chrome debugging port: %w", err)
+		}
+		return port, nil
+	}
+	if _, err := inspect(requestedPort); err != nil {
+		if errors.Is(err, syscall.EADDRINUSE) {
+			return 0, fmt.Errorf("Chrome debugging port %d is already in use: %w", requestedPort, err)
+		}
+		return 0, fmt.Errorf("inspect Chrome debugging port %d: %w", requestedPort, err)
+	}
+	return requestedPort, nil
+}
+
+func inspectChromePort(port int) (int, error) {
+	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		return 0, err
+	}
+	assignedPort := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		return 0, err
+	}
+	return assignedPort, nil
 }
 
 func waitForChrome(

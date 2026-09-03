@@ -21,7 +21,7 @@ pnpm install @browserbasehq/stagehand zod
 <Tab title="Python">
 ```bash
 mkdir my-stagehand-app && cd my-stagehand-app
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install stagehand
 ```
 </Tab>
@@ -229,7 +229,7 @@ Set your Browserbase API key, then run the script. Model Gateway selects and aut
 <Tab title="TypeScript">
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-npx tsx index.ts                         # Run the example script
+pnpm dlx tsx index.ts                    # Run the example script
 ```
 </Tab>
 

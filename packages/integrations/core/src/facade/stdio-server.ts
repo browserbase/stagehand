@@ -10,6 +10,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { closeCodeModeStdio } from "../codemode/stdio-lifecycle.js";
+import { sanitizeErrorMessage } from "../harness/redact.js";
 import { stagehandFacadeConfigFromEnv } from "./config.js";
 import {
   CodeModeRunInputSchema,
@@ -19,6 +20,10 @@ import {
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
+import {
+  captureScreenshotWithinBase64Budget,
+  screenshotBase64BudgetFromArgs,
+} from "./screenshot-transport.js";
 import { StagehandFacadeTools } from "./tools.js";
 
 type FacadeResources = {
@@ -28,6 +33,7 @@ type FacadeResources = {
 };
 
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
+const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
 let resourcesPromise: Promise<FacadeResources> | undefined;
 let closing = false;
 
@@ -70,11 +76,28 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "screenshot": {
         const input = ScreenshotInputSchema.parse(args);
-        const image = await (await ensureResources()).tools.screenshot(input);
+        const tools = (await ensureResources()).tools;
+        const screenshot =
+          screenshotBase64Budget === undefined
+            ? { image: await tools.screenshot(input), adjusted: false }
+            : await captureScreenshotWithinBase64Budget(
+                (options) => tools.screenshot(options),
+                input,
+                screenshotBase64Budget,
+              );
         return {
           content: [
-            { type: "text" as const, text: "Screenshot captured." },
-            { type: "image" as const, data: image.data, mimeType: image.mimeType },
+            {
+              type: "text" as const,
+              text: screenshot.adjusted
+                ? "Screenshot captured with transport-safe compression."
+                : "Screenshot captured.",
+            },
+            {
+              type: "image" as const,
+              data: screenshot.image.data,
+              mimeType: screenshot.image.mimeType,
+            },
           ],
         };
       }
@@ -125,15 +148,6 @@ function stringifyResult(value: unknown): string {
   } catch {
     return String(value);
   }
-}
-
-export function sanitizeErrorMessage(message: string): string {
-  return message
-    .replace(/([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"']+/gi, "$1[redacted]")
-    .replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1[redacted]")
-    .replace(/\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+/g, "$1[redacted]")
-    .replace(/\bAIza[0-9A-Za-z_-]{30,}/g, "AIza[redacted]")
-    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, "$1[redacted]");
 }
 
 async function shutdown(code: number): Promise<void> {

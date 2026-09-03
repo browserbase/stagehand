@@ -3,6 +3,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
+import {
+  formatBenchHarnessFlags,
+  listBenchHarnessesForTaskKind,
+} from "../../framework/benchHarness.js";
 import { executeBenchTask } from "../../framework/benchRunner.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 
@@ -172,7 +176,9 @@ describe("bench runner", () => {
     );
 
     expect(result._success).toBe(false);
-    expect(String(result.error)).toMatch(/--harness claude_code or --harness codex/);
+    expect(String(result.error)).toContain(
+      formatBenchHarnessFlags(listBenchHarnessesForTaskKind("suite")),
+    );
     expect(closeMock).not.toHaveBeenCalled();
   });
 });

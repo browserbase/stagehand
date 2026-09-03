@@ -162,19 +162,6 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
-        "context.close": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/ContextCloseResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
         "context.add_init_script": {
           "type": "object",
           "properties": {
@@ -1021,7 +1008,6 @@
         "context.new_page",
         "context.active_page",
         "context.set_active_page",
-        "context.close",
         "context.add_init_script",
         "context.set_extra_http_headers",
         "context.get_domain_policy",
@@ -2915,17 +2901,6 @@
       "required": ["ok"],
       "additionalProperties": false
     },
-    "ContextCloseResult": {
-      "type": "object",
-      "properties": {
-        "closed": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["closed"],
-      "additionalProperties": false
-    },
     "ContextAddInitScriptParams": {
       "type": "object",
       "properties": {
@@ -3804,13 +3779,9 @@
           "format": "byte",
           "contentEncoding": "base64",
           "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["png", "jpeg"]
         }
       },
-      "required": ["data", "type"],
+      "required": ["data"],
       "additionalProperties": false
     },
     "PageSnapshotParams": {
@@ -5519,33 +5490,6 @@
             },
             "params": {
               "$ref": "#/$defs/ContextSetActivePageParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "context.close"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
             },
             "traceparent": {
               "type": "string"

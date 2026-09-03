@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
-import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "../../protocol/schemas.js";
-import type { StagehandRpcNotification } from "../../protocol/types.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
+import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserClipboard,
   BrowserContext,
@@ -118,7 +118,7 @@ function createStagehandWithClientForTest(client: RPCClient): Stagehand {
     close: () => {},
   });
   claimStagehandBrowserHandle(browser);
-  attachStagehandBrowserContext(browser, new BrowserContext(client));
+  attachStagehandBrowserContext(browser, new BrowserContext(client, () => browser.close()));
   const stagehand = Object.create(Stagehand.prototype) as Stagehand;
   Object.assign(stagehand, { browserHandle: browser });
   stagehand.rpcClient = client;
@@ -323,19 +323,18 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes context.setActivePage and context.close", async () => {
+  it("routes context.setActivePage and closes the browser without context.close", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextSetActivePage, { ok: true });
-    client.queueResponse(StagehandMethods.contextClose, { closed: true });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
 
     await stagehand.browser.context.setActivePage(page);
     await stagehand.browser.context.close();
 
+    expect(stagehand.browser.closed).toBe(true);
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextSetActivePage, { pageId: "page-1" }),
-      requestCall(StagehandMethods.contextClose, {}),
     ]);
   });
 
@@ -926,7 +925,6 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "iVBORw0KGgo=",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
     const mask = page.locator("[data-secret]");
@@ -961,7 +959,6 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "iVBORw0KGgo=",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
     vi.stubGlobal("Buffer", undefined);
@@ -980,11 +977,9 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "Zh==",
-      type: "png",
     });
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "Zh==",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
 
@@ -1006,7 +1001,6 @@ describe("Stagehand TS object wrapper", () => {
       const client = new FakeProtocolClient();
       client.queueResponse(StagehandMethods.pageScreenshot, {
         data: "iVBORw0KGgo=",
-        type: "png",
       });
       const page = new Page(client, { pageId: "page-1" });
 

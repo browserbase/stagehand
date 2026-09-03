@@ -11,7 +11,6 @@ import type {
   ContextClipboardReadTextParams,
   ContextClipboardReadTextResult,
   ContextClipboardWriteTextParams,
-  ContextCloseResult,
   ContextCookiesParams,
   ContextCookiesResult,
   ContextGetDomainPolicyResult,
@@ -111,7 +110,7 @@ import type {
   WebMCPToolDescriptor,
   WebMCPToolResponse,
   WebMCPToolsOptions,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
@@ -296,7 +295,7 @@ export class StagehandRuntime {
   readonly metrics = new StagehandMetricsAccumulator();
   readonly responseHandles = new ResponseHandleTable();
   readonly state = createStore<StagehandRuntimeState>()(() =>
-    StagehandRuntimeStateSchema.parse({ status: "created" }),
+    StagehandRuntimeStateSchema.parse({ status: "idle" }),
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
@@ -305,6 +304,14 @@ export class StagehandRuntime {
     { pageId: string; dispose: () => void }
   >();
   private initializationInProgress = false;
+  private lifecycleTail = Promise.resolve();
+  private stagehandInstanceClosing = false;
+  private activeStagehandInstanceRequests = 0;
+  private stagehandInstanceRequestsDrained?: {
+    promise: Promise<void>;
+    resolve: () => void;
+  };
+  private stagehandInstanceDisposal?: Promise<void>;
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -342,43 +349,48 @@ export class StagehandRuntime {
     params: StagehandInitParams,
     logger: StagehandLogger = this.logger,
   ): Promise<StagehandInitResult> {
-    if (this.state.getState().status !== "created") {
-      throw new Error("Stagehand has already been initialized");
-    }
     if (this.initializationInProgress) {
       throw new Error("Stagehand initialization is already in progress");
     }
     this.initializationInProgress = true;
 
     try {
-      this.logger.setLevel(params.logLevel);
-      if (!this.browserSession) {
-        if (!params.browserCdpUrl) {
-          throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+      return await this.enqueueLifecycle(async () => {
+        const state = this.state.getState();
+        if (state.status !== "idle") {
+          throw new Error("A Stagehand instance is already initialized");
         }
-        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
-      }
-      const pages = await this.runWithTelemetryContext(
-        Symbol("stagehand.init"),
-        logger,
-        async () => {
-          await this.browserSession?.prepareForInitialization?.();
-          return await this.contextPages();
-        },
-      );
-      this.tracing.configure(params.telemetry, params.clientInfo);
-      this.state.setState(
-        StagehandRuntimeStateSchema.parse({
-          status: "initialized",
-          initParams: params,
-        }),
-        true,
-      );
+        this.logger.setLevel(params.logLevel);
+        if (!this.browserSession?.connected) {
+          if (!params.browserCdpUrl) {
+            throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+          }
+          await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
+        }
+        const pages = await this.runWithTelemetryContext(
+          Symbol("stagehand.init"),
+          logger,
+          async () => {
+            if (state.status === "idle") {
+              await this.browserSession?.prepareForInitialization?.();
+            }
+            return await this.contextPages();
+          },
+        );
+        await this.tracing.configure(params.telemetry, params.clientInfo);
+        this.state.setState(
+          StagehandRuntimeStateSchema.parse({
+            status: "initialized",
+            initParams: params,
+          }),
+          true,
+        );
 
-      return {
-        initialized: true,
-        pages,
-      };
+        return {
+          initialized: true,
+          pages,
+        };
+      });
     } finally {
       this.initializationInProgress = false;
     }
@@ -428,11 +440,6 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     await this.requireBrowserSession().setActivePage(page);
     return { ok: true };
-  }
-
-  async contextClose(): Promise<ContextCloseResult> {
-    await this.close();
-    return { closed: true };
   }
 
   async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {
@@ -678,7 +685,6 @@ export class StagehandRuntime {
     const bytes = await page.screenshot(options);
     return {
       data: bytesToBase64(bytes),
-      type: params.options?.type ?? "png",
     };
   }
 
@@ -847,16 +853,73 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
-    const session = this.browserSession;
-    this.browserSession = undefined;
+    await this.enqueueLifecycle(async () => {
+      const session = this.browserSession;
+      this.browserSession = undefined;
+      this.clearStagehandInstance();
+      await session?.close();
+    });
+  }
+
+  async disposeStagehandInstance(): Promise<void> {
+    if (this.stagehandInstanceDisposal) return await this.stagehandInstanceDisposal;
+
+    this.stagehandInstanceClosing = true;
+    const disposal = this.enqueueLifecycle(async () => {
+      await this.waitForStagehandInstanceRequests();
+      this.clearStagehandInstance();
+    });
+    this.stagehandInstanceDisposal = disposal.finally(() => {
+      this.stagehandInstanceClosing = false;
+      this.stagehandInstanceDisposal = undefined;
+    });
+    return await this.stagehandInstanceDisposal;
+  }
+
+  acquireStagehandInstanceRequest(): () => void {
+    if (this.stagehandInstanceClosing) {
+      throw new Error("Stagehand instance is closing");
+    }
+
+    this.activeStagehandInstanceRequests += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.activeStagehandInstanceRequests -= 1;
+      if (this.activeStagehandInstanceRequests !== 0) return;
+      this.stagehandInstanceRequestsDrained?.resolve();
+      this.stagehandInstanceRequestsDrained = undefined;
+    };
+  }
+
+  private clearStagehandInstance(): void {
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
-    try {
-      await session?.close();
-    } finally {
-      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
+    this.metrics.reset();
+    this.state.setState(StagehandRuntimeStateSchema.parse({ status: "idle" }), true);
+  }
+
+  private enqueueLifecycle<Result>(run: () => Promise<Result>): Promise<Result> {
+    const result = this.lifecycleTail.then(run, run);
+    this.lifecycleTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private waitForStagehandInstanceRequests(): Promise<void> {
+    if (this.activeStagehandInstanceRequests === 0) return Promise.resolve();
+    if (!this.stagehandInstanceRequestsDrained) {
+      let resolve!: () => void;
+      const promise = new Promise<void>((drained) => {
+        resolve = drained;
+      });
+      this.stagehandInstanceRequestsDrained = { promise, resolve };
     }
+    return this.stagehandInstanceRequestsDrained.promise;
   }
 
   pageRefForId(pageId: string): PageRef {

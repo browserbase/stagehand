@@ -51,7 +51,6 @@ import type {
   ContextClipboardReadTextResultSchema,
   ContextClipboardTargetSchema,
   ContextClipboardWriteTextParamsSchema,
-  ContextCloseResultSchema,
   ContextCookiesParamsSchema,
   ContextCookiesResultSchema,
   ContextGetDomainPolicyResultSchema,
@@ -299,7 +298,6 @@ export type ObserveOptions = z.infer<typeof ObserveOptionsSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;
 export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
 export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
-export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageEventName = z.infer<typeof PageEventNameSchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
