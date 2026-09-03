@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-pi-sdk",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "private": true,
   "description": "pi (pi-coding-agent) SDK harness adapter for Stagehand integrations",
   "files": [
