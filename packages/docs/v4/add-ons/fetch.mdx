@@ -1,12 +1,12 @@
 ---
-title: "Web Fetch"
-sidebarTitle: "Web Fetch"
+title: "Fetch"
+sidebarTitle: "Fetch"
 description: "Turn any webpage into agent context, without launching a browser"
 ---
 
 ## What is `fetch()`?
 
-Most of the time an agent doesn't need to *use* a page, it needs to *read* one. `browserbase.fetch()` takes a URL and returns its content as markdown, structured JSON, or the raw body — in one HTTP call, with no browser to start, no page to navigate, and nothing to close.
+Sometimes an agent doesn't need to *use* a page, it needs to *read* one. `browserbase.fetch()` takes a URL and returns its content as markdown, structured JSON, or the raw body.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -60,7 +60,7 @@ fmt.Println(content)
 </Tabs>
 
 <Note>
-`fetch()` hangs off the same `browserbase` facade you use to launch cloud browsers, but it never starts a browser session. All it needs is a Browserbase API key — there is no `Stagehand` instance and no page. Local browsers have no equivalent.
+`fetch()` is a Browserbase cloud feature. The request runs on Browserbase infrastructure and needs a Browserbase API key, so local browsers have no equivalent.
 </Note>
 
 ## Why use `fetch()`?
@@ -70,7 +70,7 @@ fmt.Println(content)
     Every call retrieves the live page, not a copy from a crawl index, so what the model reads is what the site serves right now.
   </Card>
   <Card title="Speed" icon="bolt">
-    No browser boot, no render, no wait for the DOM to settle — fast enough to sit inside a latency-sensitive agent loop.
+    No browser boot, no render, and no wait for the DOM to settle. Fast enough to sit inside a latency-sensitive agent loop.
   </Card>
   <Card title="Token-optimized output" icon="feather" href="#output-formats">
     Markdown and JSON strip the boilerplate and layout, so the model spends its context on content instead of markup.
@@ -94,11 +94,8 @@ export BROWSERBASE_API_KEY="bb_live_..."
 import "dotenv/config";
 import { browserbase } from "@browserbasehq/stagehand";
 
-const { BROWSERBASE_API_KEY } = process.env;
-if (!BROWSERBASE_API_KEY) throw new Error("BROWSERBASE_API_KEY is required");
-
 const fetchResult = await browserbase.fetch({
-  apiKey: BROWSERBASE_API_KEY,
+  apiKey: process.env.BROWSERBASE_API_KEY,
   url: "https://docs.stagehand.dev/v4/first-steps/introduction",
   format: "markdown",
 });
@@ -229,7 +226,7 @@ content, _ := result.Content.AsString()
 </Tab>
 <Tab title="json">
 
-Pass a JSON Schema and get back an object that matches it — the extraction happens server-side, so no model call of your own is involved.
+Pass a JSON Schema and get back an object that matches it. The extraction happens server-side, so no model call of your own is involved.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -313,7 +310,7 @@ fmt.Println(extracted)
 </Tab>
 <Tab title="raw">
 
-The upstream response body, untouched. Use it when you want to parse the page yourself, or when the response isn't HTML at all — a JSON API, an RSS feed, a CSV export.
+The upstream response body, untouched. Use it when you want to parse the page yourself, or when the response isn't HTML at all: a JSON API, an RSS feed, or a CSV export.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -421,7 +418,7 @@ Every fetch returns the content alongside the transport metadata, so you can tel
 ```
 
 <Note>
-Field names follow each language's conventions: `contentType` and `statusCode` in TypeScript, `content_type` and `status_code` in Python, and `ContentType` and `StatusCode` on the Go structs. In Go, `Content` is a union — call `AsString()` for `raw` and `markdown`, `AsObject()` for `json`.
+Field names follow each language's conventions: `contentType` and `statusCode` in TypeScript, `content_type` and `status_code` in Python, and `ContentType` and `StatusCode` on the Go structs. In Go, `Content` is a union: call `AsString()` for `raw` and `markdown`, and `AsObject()` for `json`.
 </Note>
 
 ## API reference
@@ -456,9 +453,6 @@ Field names follow each language's conventions: `contentType` and `statusCode` i
   Skip TLS certificate verification. Defaults to `false`.
 </ParamField>
 
-<ParamField path="baseUrl" type="string" optional>
-  Browserbase API origin override. Defaults to `https://api.browserbase.com`.
-</ParamField>
 
 ### Returns
 
@@ -488,10 +482,10 @@ Field names follow each language's conventions: `contentType` and `statusCode` i
 
 ## When to use a browser instead
 
-`fetch()` never renders the page. It performs an HTTP request and converts the response, which is exactly why it is fast — and also why it cannot see anything that only exists after JavaScript runs.
+`fetch()` never renders the page. It performs an HTTP request and converts the response, which is exactly why it is fast, and also why it cannot see anything that only exists after JavaScript runs.
 
 <Warning>
-Reach for [`browserbase.launch()`](/v4/configuration/browser) and [`extract()`](/v4/basics/extract) when the content is client-rendered, sits behind a login, or appears only after interaction — scrolling, clicking a tab, dismissing a modal. A common pattern is to try `fetch()` first and fall back to a browser session when the content you need is missing.
+Reach for [`browserbase.launch()`](/v4/configuration/browser) and [`extract()`](/v4/basics/extract) when the content is client-rendered, sits behind a login, or appears only after interaction such as scrolling, clicking a tab, or dismissing a modal. A common pattern is to try `fetch()` first and fall back to a browser session when the content you need is missing.
 </Warning>
 
 ## Use cases
@@ -517,7 +511,7 @@ Reach for [`browserbase.launch()`](/v4/configuration/browser) and [`extract()`](
 |---|---|
 | Content size | 5 MB |
 | Request timeout | 60 seconds |
-| JavaScript execution | Not supported — the page is never rendered |
+| JavaScript execution | Not supported (the page is never rendered) |
 | PDF conversion | PDFs cannot be converted to `markdown` or `json` |
 
 ## Next steps

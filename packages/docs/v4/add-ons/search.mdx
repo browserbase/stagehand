@@ -1,6 +1,6 @@
 ---
-title: "Web Search"
-sidebarTitle: "Web Search"
+title: "Search"
+sidebarTitle: "Search"
 description: "Search the live web and hand your agent a ranked list of URLs"
 ---
 
@@ -63,7 +63,7 @@ for _, result := range searchResult.Results {
 </Tabs>
 
 <Note>
-`search()` hangs off the same `browserbase` facade you use to launch cloud browsers, but it never starts a browser session. All it needs is a Browserbase API key — there is no `Stagehand` instance, no page, and nothing to close. Local browsers have no equivalent.
+`search()` is a Browserbase cloud feature. The query runs on Browserbase infrastructure and needs a Browserbase API key, so local browsers have no equivalent.
 </Note>
 
 ## Why use `search()`?
@@ -73,7 +73,7 @@ for _, result := range searchResult.Results {
     Search spans the whole web, so your agent can discover sources on any topic instead of being limited to domains you hardcoded.
   </Card>
   <Card title="Structured, ranked output" icon="list-ol" href="#response">
-    Results come back as structured objects, ranked for relevance and ready for the agent to act on — no result page to parse.
+    Results come back as structured objects, ranked for relevance and ready for the agent to act on, with no result page to parse.
   </Card>
   <Card title="Live, low-latency results" icon="bolt">
     Every query hits the live web rather than a cached index, and it returns without the cost of booting a browser and rendering a search page.
@@ -97,11 +97,8 @@ export BROWSERBASE_API_KEY="bb_live_..."
 import "dotenv/config";
 import { browserbase } from "@browserbasehq/stagehand";
 
-const { BROWSERBASE_API_KEY } = process.env;
-if (!BROWSERBASE_API_KEY) throw new Error("BROWSERBASE_API_KEY is required");
-
 const searchResult = await browserbase.search({
-  apiKey: BROWSERBASE_API_KEY,
+  apiKey: process.env.BROWSERBASE_API_KEY,
   query: "stagehand browser automation",
 });
 
@@ -238,7 +235,7 @@ Field names follow each language's conventions: `requestId` and `publishedDate` 
       Page title.
     </ResponseField>
     <ResponseField name="url" type="string">
-      Canonical URL of the page — pass it straight to [`fetch()`](/v4/add-ons/fetch) or `page.goto()`.
+      Canonical URL of the page. Pass it straight to [`fetch()`](/v4/add-ons/fetch) or `page.goto()`.
     </ResponseField>
     <ResponseField name="author" type="string | null">
       Author, when the source declares one.
@@ -261,7 +258,7 @@ Stagehand rejects invalid input before the request leaves your process: an empty
 
 ## Search, then read
 
-`search()` deliberately returns pointers rather than page bodies. Pair it with [`fetch()`](/v4/add-ons/fetch) to pull the content of the one or two pages that actually matter, and reach for a full browser session only when the page needs interaction.
+`search()` deliberately returns pointers rather than page bodies. Pair it with [`fetch()`](/v4/add-ons/fetch) to pull the content of the one or two pages that matter, and reach for a full browser session only when the page needs interaction.
 
 <Tabs>
 <Tab title="TypeScript">
