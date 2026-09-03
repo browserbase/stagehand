@@ -1,0 +1,23 @@
+# frozen_string_literal: true
+
+require "rake/testtask"
+
+Rake::TestTask.new(:test) do |t|
+  t.libs << "test" << "lib"
+  t.test_files = FileList["test/test_*.rb"]
+  t.warning = false
+end
+
+desc "Regenerate wire models from the protocol schema"
+task :generate do
+  ruby "scripts/generate.rb"
+end
+
+namespace :generate do
+  desc "Fail when generated files are stale"
+  task :check do
+    ruby "scripts/generate.rb --check"
+  end
+end
+
+task default: :test

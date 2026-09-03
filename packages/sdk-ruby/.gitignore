@@ -1,0 +1,6 @@
+.bundle/
+vendor/
+Gemfile.lock
+*.gem
+lib/stagehand/_extension/
+stagehand.jsonl
