@@ -194,7 +194,7 @@ export function localBrowserChromeFlags(
   const viewport = options.viewport ?? { width: 1280, height: 800 };
   const windowSizeFlag = `--window-size=${viewport.width},${viewport.height}`;
 
-  return [
+  return mergeFeatureFlags([
     ...(includeDefaults ? selectedChromeFlags(DEFAULT_CHROME_FLAGS, ignoredFlags) : []),
     ...(options.viewport !== undefined || (includeDefaults && !ignoredFlags.has(windowSizeFlag))
       ? [windowSizeFlag]
@@ -214,7 +214,7 @@ export function localBrowserChromeFlags(
     ...(options.ignoreHTTPSErrors === true ? ["--ignore-certificate-errors"] : []),
     ...(options.args ?? []),
     "about:blank",
-  ];
+  ]);
 }
 
 function selectedChromeFlags(
@@ -222,6 +222,52 @@ function selectedChromeFlags(
   ignoredFlags: ReadonlySet<string>,
 ): string[] {
   return flags.filter((flag) => !ignoredFlags.has(flag));
+}
+
+const MERGEABLE_FEATURE_FLAGS = ["--disable-features", "--enable-features"] as const;
+
+/**
+ * Chrome parses `--disable-features` and `--enable-features` as a single value
+ * each. A second occurrence of either switch does not add to the first, it
+ * replaces it whole, taking every feature name the first one carried with it.
+ *
+ * Since the defaults above are emitted before `options.args`, without this a
+ * caller passing any `--disable-features` of their own would silently drop all
+ * ten of the default names, and a caller passing `--enable-features` would drop
+ * the WebMCP switch that the extension surface relies on.
+ *
+ * Merge instead: keep one switch of each kind, at the position of its first
+ * occurrence, carrying the de-duplicated union of every value in list order.
+ */
+function mergeFeatureFlags(flags: string[]): string[] {
+  const merged: string[] = [];
+  const slotFor = new Map<string, number>();
+  const valuesFor = new Map<string, Set<string>>();
+
+  for (const flag of flags) {
+    const name = MERGEABLE_FEATURE_FLAGS.find((candidate) => flag.startsWith(`${candidate}=`));
+    if (name === undefined) {
+      merged.push(flag);
+      continue;
+    }
+    const values = valuesFor.get(name) ?? new Set<string>();
+    for (const value of flag.slice(name.length + 1).split(",")) {
+      if (value !== "") {
+        values.add(value);
+      }
+    }
+    valuesFor.set(name, values);
+    const slot = slotFor.get(name);
+    if (slot === undefined) {
+      slotFor.set(name, merged.length);
+      merged.push(flag);
+    }
+  }
+
+  for (const [name, slot] of slotFor) {
+    merged[slot] = `${name}=${[...(valuesFor.get(name) ?? [])].join(",")}`;
+  }
+  return merged;
 }
 
 function validateLocalBrowserOptions(options: LocalBrowserLaunchOptions): void {

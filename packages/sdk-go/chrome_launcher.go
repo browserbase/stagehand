@@ -265,7 +265,66 @@ func buildChromeArgs(options LocalBrowserLaunchOptions, port int, userDataDir st
 		args = append(args, "--ignore-certificate-errors")
 	}
 	args = append(args, options.Args...)
-	return append(args, "about:blank")
+	return mergeFeatureFlags(append(args, "about:blank"))
+}
+
+var mergeableFeatureFlags = [...]string{"--disable-features", "--enable-features"}
+
+// mergeFeatureFlags emits each of the feature switches once, carrying every
+// value it was given.
+//
+// Chrome parses --disable-features and --enable-features as a single value each.
+// A second occurrence of either switch does not add to the first, it replaces it
+// whole, taking every feature name the first one carried with it.
+//
+// Since the defaults are emitted before options.Args, without this a caller
+// passing any --disable-features of their own would silently drop all ten of the
+// default names, and a caller passing --enable-features would drop the WebMCP
+// switch that the extension surface relies on.
+//
+// Merge instead: keep one switch of each kind, at the position of its first
+// occurrence, carrying the de-duplicated union of every value in list order.
+func mergeFeatureFlags(flags []string) []string {
+	merged := make([]string, 0, len(flags))
+	slotFor := make(map[string]int, len(mergeableFeatureFlags))
+	valuesFor := make(map[string][]string, len(mergeableFeatureFlags))
+	seenValue := make(map[string]map[string]struct{}, len(mergeableFeatureFlags))
+
+	for _, flag := range flags {
+		name := ""
+		for _, candidate := range mergeableFeatureFlags {
+			if strings.HasPrefix(flag, candidate+"=") {
+				name = candidate
+				break
+			}
+		}
+		if name == "" {
+			merged = append(merged, flag)
+			continue
+		}
+		if _, ok := seenValue[name]; !ok {
+			seenValue[name] = map[string]struct{}{}
+		}
+		for _, value := range strings.Split(flag[len(name)+1:], ",") {
+			if value == "" {
+				continue
+			}
+			if _, ok := seenValue[name][value]; ok {
+				continue
+			}
+			seenValue[name][value] = struct{}{}
+			valuesFor[name] = append(valuesFor[name], value)
+		}
+		if _, ok := slotFor[name]; !ok {
+			slotFor[name] = len(merged)
+			merged = append(merged, flag)
+		}
+	}
+
+	for name, slot := range slotFor {
+		merged[slot] = name + "=" + strings.Join(valuesFor[name], ",")
+	}
+	return merged
 }
 
 func selectedDefaultChromeFlags(ignore *IgnoreDefaultArgs) []string {

@@ -947,7 +947,7 @@ def _local_browser_flags(
     )
     window_size_flag = f"--window-size={viewport.width},{viewport.height}"
 
-    return [
+    return _merge_feature_flags([
         *(
             [flag for flag in _DEFAULT_CHROME_FLAGS if flag not in ignored_flags]
             if include_defaults
@@ -980,7 +980,55 @@ def _local_browser_flags(
         *(["--ignore-certificate-errors"] if options.ignore_https_errors is True else []),
         *(options.args or []),
         "about:blank",
-    ]
+    ])
+
+
+_MERGEABLE_FEATURE_FLAGS = ("--disable-features", "--enable-features")
+
+
+def _merge_feature_flags(flags: list[str]) -> list[str]:
+    """Emit each of the feature switches once, carrying every value it was given.
+
+    Chrome parses ``--disable-features`` and ``--enable-features`` as a single
+    value each. A second occurrence of either switch does not add to the first,
+    it replaces it whole, taking every feature name the first one carried with
+    it.
+
+    Since the defaults are emitted before ``options.args``, without this a caller
+    passing any ``--disable-features`` of their own would silently drop all ten
+    of the default names, and a caller passing ``--enable-features`` would drop
+    the WebMCP switch that the extension surface relies on.
+
+    Merge instead: keep one switch of each kind, at the position of its first
+    occurrence, carrying the de-duplicated union of every value in list order.
+    """
+    merged: list[str] = []
+    slot_for: dict[str, int] = {}
+    values_for: dict[str, dict[str, None]] = {}
+
+    for flag in flags:
+        name = next(
+            (
+                candidate
+                for candidate in _MERGEABLE_FEATURE_FLAGS
+                if flag.startswith(f"{candidate}=")
+            ),
+            None,
+        )
+        if name is None:
+            merged.append(flag)
+            continue
+        values = values_for.setdefault(name, {})
+        for value in flag[len(name) + 1 :].split(","):
+            if value:
+                values[value] = None
+        if name not in slot_for:
+            slot_for[name] = len(merged)
+            merged.append(flag)
+
+    for name, slot in slot_for.items():
+        merged[slot] = f"{name}={','.join(values_for.get(name, {}))}"
+    return merged
 
 
 def _should_disable_chromium_sandbox(
