@@ -1,0 +1,30 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-example-flue-facade",
+  "version": "4.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/run-agent.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*",
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-flue-sdk": "workspace:*",
+    "@flue/runtime": "catalog:",
+    "dotenv": "catalog:",
+    "valibot": "catalog:"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "catalog:",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

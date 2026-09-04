@@ -22,6 +22,8 @@ import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
 import { CURSOR_TOOL_SURFACES, prepareCursorToolAdapter } from "./cursorToolAdapter.js";
+import { runFlueAgent } from "./flueRunner.js";
+import { FLUE_TOOL_SURFACES, prepareFlueToolAdapter } from "./flueToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
@@ -346,6 +348,14 @@ export const cursorHarness = defineExternalHarness({
   runAgent: runCursorAgent,
 });
 
+export const flueHarness = defineExternalHarness({
+  harness: "flue",
+  supportedToolSurfaces: FLUE_TOOL_SURFACES,
+  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  prepareToolAdapter: prepareFlueToolAdapter,
+  runAgent: runFlueAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -356,6 +366,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["deepagents", deepagentsHarness],
   ["fx", fxHarness],
   ["cursor", cursorHarness],
+  ["flue", flueHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {
