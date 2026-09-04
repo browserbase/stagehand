@@ -73,27 +73,19 @@ export async function writeGrokBuildWorkspace(
   grokHome: string,
   mcpServers: Record<string, unknown>,
 ): Promise<{ mcpConfigPath: string }> {
-  const projectConfigDir = path.join(cwd, ".grok");
-  const mcpConfigPath = path.join(projectConfigDir, "config.toml");
-  await Promise.all([
-    fsp.mkdir(projectConfigDir, { recursive: true }),
-    fsp.mkdir(grokHome, { recursive: true }),
-  ]);
-  await Promise.all([
-    fsp.writeFile(
-      path.join(grokHome, "config.toml"),
-      stringify({
-        cli: { auto_update: false, use_leader: false },
-        compat: { claude: { mcps: false }, cursor: { mcps: false } },
-        subagents: { enabled: false },
-        memory: { enabled: false },
-      }),
-      { mode: 0o600 },
-    ),
-    fsp.writeFile(mcpConfigPath, stringify(buildGrokBuildMcpConfig(mcpServers)), {
-      mode: 0o600,
+  const mcpConfigPath = path.join(grokHome, "config.toml");
+  await fsp.mkdir(grokHome, { recursive: true });
+  await fsp.writeFile(
+    mcpConfigPath,
+    stringify({
+      cli: { auto_update: false, use_leader: false },
+      compat: { claude: { mcps: false }, cursor: { mcps: false } },
+      subagents: { enabled: false },
+      memory: { enabled: false },
+      ...buildGrokBuildMcpConfig(mcpServers),
     }),
-  ]);
+    { mode: 0o600 },
+  );
   return { mcpConfigPath };
 }
 

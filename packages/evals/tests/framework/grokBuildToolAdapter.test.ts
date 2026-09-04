@@ -42,7 +42,7 @@ describe("Grok Build tool adapter helpers", () => {
     });
   });
 
-  it("writes isolated user and project config", async () => {
+  it("writes the MCP config to the isolated user scope", async () => {
     const root = await fsp.mkdtemp(path.join(os.tmpdir(), "grok-build-workspace-test-"));
     tempDirs.push(root);
     const cwd = path.join(root, "workspace");
@@ -50,12 +50,10 @@ describe("Grok Build tool adapter helpers", () => {
     const result = await writeGrokBuildWorkspace(cwd, grokHome, {
       stagehand: { command: "node", args: ["server.mjs"] },
     });
-    const projectConfig = parse(await fsp.readFile(result.mcpConfigPath, "utf8"));
     const userConfig = parse(await fsp.readFile(path.join(grokHome, "config.toml"), "utf8"));
-    expect(projectConfig).toMatchObject({
-      mcp_servers: { stagehand: { command: "node", args: ["server.mjs"] } },
-    });
+    expect(result.mcpConfigPath).toBe(path.join(grokHome, "config.toml"));
     expect(userConfig).toMatchObject({
+      mcp_servers: { stagehand: { command: "node", args: ["server.mjs"] } },
       cli: { auto_update: false, use_leader: false },
       subagents: { enabled: false },
       memory: { enabled: false },
