@@ -813,6 +813,22 @@ const stagehand = new Stagehand({
 });
 ```
 
+#### Chat Completions-only endpoints
+
+By default, Stagehand uses OpenAI's Responses API format. If your OpenAI-compatible host only supports standard Chat Completions (such as Databricks, vLLM, or other OpenAI-compatible proxies), specify `openaiEndpointFormat: "chat"`:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: {
+    modelName: "openai/deepseek-v4-flash",
+    apiKey: process.env.CUSTOM_API_KEY,
+    baseURL: "https://api.pzero.studio/v1",
+    openaiEndpointFormat: "chat"
+  }
+});
+```
+
 </Tab>
 
 <Tab title="Anthropic">
