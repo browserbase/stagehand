@@ -44,6 +44,7 @@ function composeGrokBuildToolInstructions(toolInstructions?: string): string {
   return [
     toolInstructions ?? "Use the available browser tools to complete the task.",
     MCP_ONLY_LINE,
+    "For Stagehand snapshots, start with includeIframes:false. Include iframes only when the task needs embedded-frame content; unrelated advertising frames can stall snapshots.",
     "Do not edit repository files.",
   ].join("\n");
 }

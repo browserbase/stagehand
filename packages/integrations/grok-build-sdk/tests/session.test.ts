@@ -114,6 +114,47 @@ describe("Grok Build CLI session", () => {
     });
   });
 
+  it("ignores partial updates and observes wrapped MCP tools only on completion", async () => {
+    const onToolResult = vi.fn();
+    const start = {
+      type: "tool_call",
+      toolCallId: "mcp-1",
+      toolName: "use_tool",
+      rawInput: { tool_name: "stagehand__run", tool_input: { code: "return 1" } },
+    };
+    expect(extractGrokBuildToolCall(start)).toMatchObject({
+      name: "stagehand__run",
+      args: { code: "return 1" },
+    });
+    const partial = {
+      type: "tool_call_update",
+      toolCallId: "mcp-1",
+      status: null,
+      content: [],
+      rawOutput: null,
+    };
+    expect(extractGrokBuildToolCall(partial)).toBeUndefined();
+    expect(extractGrokBuildToolCall({ ...partial, status: undefined })).toBeUndefined();
+    await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/grok-4.6",
+      logger,
+      session: {},
+      onToolResult,
+      runProcess: scriptedRunner([
+        start,
+        partial,
+        { type: "tool_call_update", toolCallId: "mcp-1", status: "completed", rawOutput: "1" },
+        { type: "end", stopReason: "end_turn" },
+      ]),
+    });
+    expect(onToolResult).toHaveBeenCalledTimes(1);
+    expect(onToolResult).toHaveBeenCalledWith(
+      "stagehand__run",
+      expect.objectContaining({ result: "1" }),
+    );
+  });
+
   it("runs the stream, joins text, and reports usage and cost", async () => {
     const onToolResult = vi.fn();
     const result = await runGrokBuildSession({

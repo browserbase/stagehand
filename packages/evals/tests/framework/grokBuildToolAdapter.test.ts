@@ -45,9 +45,8 @@ describe("Grok Build tool adapter helpers", () => {
   it("writes the MCP config to the isolated user scope", async () => {
     const root = await fsp.mkdtemp(path.join(os.tmpdir(), "grok-build-workspace-test-"));
     tempDirs.push(root);
-    const cwd = path.join(root, "workspace");
     const grokHome = path.join(root, "home", ".grok");
-    const result = await writeGrokBuildWorkspace(cwd, grokHome, {
+    const result = await writeGrokBuildWorkspace(grokHome, {
       stagehand: { command: "node", args: ["server.mjs"] },
     });
     const userConfig = parse(await fsp.readFile(path.join(grokHome, "config.toml"), "utf8"));

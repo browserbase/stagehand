@@ -84,6 +84,9 @@ export class GrokBuildTrajectoryAdapter implements TrajectoryAdapter<GrokBuildRu
 export const grokBuildAdapter = new GrokBuildTrajectoryAdapter();
 
 function normalizeToolResult(result: unknown): unknown {
+  if (isRecord(result) && result.type === "MCP" && isRecord(result.output)) {
+    return result.output.OkayOutput ?? result.output.Error ?? result.output;
+  }
   if (!isRecord(result) || !Array.isArray(result.content)) return result;
   const text = result.content
     .filter(isRecord)
@@ -100,7 +103,8 @@ function attachStepObservations(toolCalls: NormalizedToolCall[], result: GrokBui
   const observedCalls = toolCalls.filter((call) => isObservedTool(call.name));
   const totalObservedRuns =
     Math.max(...observations.map((observation) => observation.runIndex)) + 1;
-  if (observedCalls.length !== totalObservedRuns) return;
+  // A failed final capture leaves earlier observations valid at their original indices.
+  if (totalObservedRuns > observedCalls.length) return;
   const byRunIndex = new Map(
     observations.map((observation) => [observation.runIndex, observation.evidence]),
   );
@@ -111,7 +115,7 @@ function attachStepObservations(toolCalls: NormalizedToolCall[], result: GrokBui
 }
 
 function appendText(current: string, next: string): string {
-  return current ? `${current}\n${next}` : next;
+  return current + next;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

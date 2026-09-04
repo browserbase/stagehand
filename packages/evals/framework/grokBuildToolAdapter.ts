@@ -69,7 +69,6 @@ export function buildGrokBuildMcpConfig(
 }
 
 export async function writeGrokBuildWorkspace(
-  cwd: string,
   grokHome: string,
   mcpServers: Record<string, unknown>,
 ): Promise<{ mcpConfigPath: string }> {
@@ -174,7 +173,7 @@ export async function prepareGrokBuildToolAdapter(
       fsp.mkdir(grokHome, { recursive: true }),
     ]);
     await copyGrokBuildAuth(process.env, grokHome);
-    const { mcpConfigPath } = await writeGrokBuildWorkspace(cwd, grokHome, mount.mcpServers);
+    const { mcpConfigPath } = await writeGrokBuildWorkspace(grokHome, mount.mcpServers);
     const mcpServerNames = Object.keys(mount.mcpServers);
     const recorder = runtime.running.captureEvidence
       ? new ObservationRecorder(runtime.running.captureEvidence)

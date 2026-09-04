@@ -116,17 +116,20 @@ export function parseGrokBuildStreamLine(line: string): GrokBuildEvent | undefin
 
 export function extractGrokBuildToolCall(event: GrokBuildEvent): GrokBuildToolCallView | undefined {
   if (event.type === "tool_call") {
+    const rawInput = isRecord(event.rawInput) ? event.rawInput : {};
+    const wrappedTool = event.toolName === "use_tool" && readString(rawInput.tool_name);
     return {
       callId: readString(event.toolCallId) ?? "",
       subtype: "started",
-      name: readString(event.toolName),
-      args: isRecord(event.rawInput) ? event.rawInput : {},
+      name: wrappedTool || readString(event.toolName),
+      args: wrappedTool && isRecord(rawInput.tool_input) ? rawInput.tool_input : rawInput,
       ok: true,
     };
   }
   if (event.type !== "tool_call_update") return undefined;
-  const status = readString(event.status) ?? "completed";
-  if (!["completed", "failed", "cancelled", "rejected"].includes(status)) return undefined;
+  const status = readString(event.status);
+  if (!status || !["completed", "failed", "cancelled", "rejected"].includes(status))
+    return undefined;
   const ok = status === "completed";
   const result = event.rawOutput ?? event.content;
   return {
