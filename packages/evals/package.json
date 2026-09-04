@@ -32,6 +32,7 @@
     "@browserbasehq/stagehand-integrations-eve-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-fx-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-opencode-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
