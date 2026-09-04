@@ -1,0 +1,12 @@
+{/*
+  Shared "coming soon" note for Examples tab stub pages.
+  Import with: import { ExamplesComingSoon } from '/snippets/examples-coming-soon.mdx';
+  Then render: <ExamplesComingSoon stack="TanStack AI" />
+*/}
+export const ExamplesComingSoon = ({ stack }) => (
+  <Note>
+    This cookbook is a placeholder for the Examples catalog mock. End-to-end
+    recipes for <strong>{stack}</strong> will land here; integration wiring (when
+    it exists) stays under Docs → Integrations.
+  </Note>
+);

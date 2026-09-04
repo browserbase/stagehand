@@ -1,0 +1,124 @@
+---
+title: "Compare pages in parallel"
+description: "Open one tab per source and extract comparable data concurrently."
+---
+
+## Agent prompt
+
+Copy this prompt into your coding agent. Have it use your existing input source and result type instead of the sample repositories.
+
+```text
+Add a concurrent, multi-page Stagehand v4 comparison to this project.
+
+Requirements:
+- Open one Stagehand page per source.
+- Pass { page } to every extract() call. Never depend on activePage() while
+  concurrent work is running.
+- Validate every source with the same Zod schema so results are comparable.
+- Preserve the source identifier beside each extracted result.
+- Use the project's concurrency limiter when the input can grow without bound.
+- Close Stagehand and the browser in finally blocks.
+
+Do not share locators or observed Actions between pages.
+
+Verify that delayed responses complete out of order without attaching data to
+the wrong source, and verify cleanup when one extraction rejects.
+```
+
+**Goal:** Compare several pages without serial navigation or cross-tab targeting bugs.
+
+**Outcome:** One typed result per source, extracted concurrently from an explicit page object.
+
+## Stack
+
+- Node.js 24 or newer
+- `@browserbasehq/stagehand`
+- Zod 4
+- Browserbase
+
+## Set up the project
+
+```bash
+mkdir stagehand-comparison && cd stagehand-comparison
+pnpm init -y
+pnpm add @browserbasehq/stagehand zod@4.4.3
+```
+
+Set `BROWSERBASE_API_KEY`, then create `index.ts`:
+
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+const repositories = [
+  "browserbase/stagehand",
+  "browserbase/stagehand-python",
+  "microsoft/playwright",
+] as const;
+
+const repositorySchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  stars: z.string(),
+  primaryLanguage: z.string().nullable(),
+  latestRelease: z.string().nullable(),
+});
+
+const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
+if (!browserbaseApiKey) throw new Error("BROWSERBASE_API_KEY is required");
+
+const browser = await browserbase.launch({
+  apiKey: browserbaseApiKey,
+});
+
+try {
+  const stagehand = await Stagehand.create({ browser });
+  try {
+    const pages = await Promise.all(
+      repositories.map((repository) =>
+        browser.context.newPage(`https://github.com/${repository}`),
+      ),
+    );
+
+    const results = await Promise.all(
+      pages.map(async (page, index) => {
+        const extracted = await stagehand.extract(
+          "Extract the repository name, description, displayed star count, primary language, and latest release. Use null when the page does not show a language or release.",
+          repositorySchema,
+          { page },
+        );
+
+        return {
+          repository: repositories[index],
+          ...extracted.data,
+        };
+      }),
+    );
+
+    console.table(results);
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+
+Run it:
+
+```bash
+export BROWSERBASE_API_KEY="bb_live_..."
+pnpm dlx tsx index.ts
+```
+
+## Why this works
+
+Stagehand defaults to the active tab, which can change while concurrent work is running. Passing `{ page }` makes the target explicit. `Promise.all()` then overlaps navigation and extraction latency across the tabs.
+
+Keep concurrency bounded in production. Opening hundreds of tabs at once can exhaust memory or hit a site's rate limits. A small worker pool is usually better than one tab per item for an unbounded input list.
+
+## Check your work
+
+- The table contains one row for each repository.
+- Each row's `repository` and extracted `name` refer to the same page.
+- Closing Stagehand and the browser leaves no session running.

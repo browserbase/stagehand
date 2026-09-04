@@ -1,0 +1,148 @@
+---
+title: "Add Stagehand extraction to TanStack AI"
+description: "Wrap a one-shot Stagehand browser task as a typed TanStack AI server tool."
+---
+
+## Agent prompt
+
+Copy this prompt into your coding agent. Have it register the tool in your existing TanStack AI server and use that project's model adapter.
+
+```text
+Add a one-shot Stagehand v4 extraction tool to this TanStack AI server.
+
+Requirements:
+- Define the contract once with toolDefinition(), including inputSchema and
+  outputSchema, then attach a server implementation with .server().
+- Check the requested URL against an explicit hostname allowlist before launch.
+- Launch one Browserbase session inside the tool call, navigate, extract typed
+  facts with Stagehand, and return the canonical page URL.
+- Close Stagehand and the browser in nested finally blocks.
+- Register the tool with chat() and validate the terminal answer with
+  outputSchema.
+
+Keep Stagehand server-side. Do not store a browser in a module-level variable in
+a serverless route. If later tools need shared page state, move session ownership
+to a durable worker or reconnect by Browserbase session ID.
+
+Verify off-allowlist rejection, output-schema validation, and browser cleanup
+when extraction throws.
+```
+
+**Goal:** Add browser-backed facts to a TanStack AI loop without introducing cross-request browser state.
+
+**Outcome:** A typed server tool that owns one Browserbase session from launch through cleanup and returns a validated answer.
+
+## Stack
+
+- Node.js 24 or newer
+- `@browserbasehq/stagehand`
+- `@tanstack/ai` and `@tanstack/ai-openai`
+- Zod 4
+- Browserbase
+
+## Set up the project
+
+```bash
+mkdir stagehand-tanstack-ai && cd stagehand-tanstack-ai
+pnpm init -y
+pnpm add @browserbasehq/stagehand @tanstack/ai @tanstack/ai-openai zod@4.4.3
+```
+
+Set `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`, then create `index.ts`:
+
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { chat, toolDefinition } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+import { z } from "zod/v4";
+
+const factsSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  facts: z.array(z.string()).min(1).max(10),
+});
+
+const extractPageDefinition = toolDefinition({
+  name: "extract_stagehand_docs_page",
+  description: "Open an allowed Stagehand docs URL and extract facts that answer a question.",
+  inputSchema: z.object({
+    url: z.string().url(),
+    question: z.string(),
+  }),
+  outputSchema: factsSchema.extend({ url: z.string().url() }),
+});
+
+const extractPage = extractPageDefinition.server(async ({ url, question }) => {
+  const parsed = new URL(url);
+  if (parsed.hostname !== "docs.stagehand.dev") {
+    throw new Error("Only docs.stagehand.dev URLs are allowed");
+  }
+
+  const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
+  if (!browserbaseApiKey) throw new Error("BROWSERBASE_API_KEY is required");
+
+  const browser = await browserbase.launch({
+    apiKey: browserbaseApiKey,
+  });
+
+  try {
+    const stagehand = await Stagehand.create({ browser });
+    try {
+      const page = await browser.context.activePage();
+      if (!page) throw new Error("No active page");
+      await page.goto(parsed.href);
+
+      const result = await stagehand.extract(
+        `Answer this question using only the current page: ${question}`,
+        factsSchema,
+        { page },
+      );
+      return { url: await page.url(), ...result.data };
+    } finally {
+      await stagehand.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
+const answerSchema = z.object({
+  answer: z.string(),
+  sourceUrl: z.string().url(),
+});
+
+const answer = await chat({
+  adapter: openaiText("gpt-4.1"),
+  messages: [
+    {
+      role: "user",
+      content:
+        "Using https://docs.stagehand.dev/v4/basics/observe, explain why I would pass an observed action to act().",
+    },
+  ],
+  tools: [extractPage],
+  outputSchema: answerSchema,
+});
+
+console.log(JSON.stringify(answer, null, 2));
+```
+
+Run it:
+
+```bash
+export BROWSERBASE_API_KEY="bb_live_..."
+export OPENAI_API_KEY="sk-..."
+pnpm dlx tsx index.ts
+```
+
+## Why this works
+
+TanStack AI validates the tool input and output. Stagehand validates the page extraction. The tool also checks the hostname before opening the URL. Closing both Stagehand and the browser in nested `finally` blocks prevents abandoned sessions when navigation or extraction fails.
+
+Use a persistent Stagehand session instead when several tools must share page state. In that design, keep the session in a durable worker or reconnect to a Browserbase session by ID. A module-level browser variable is not reliable in a serverless route.
+
+## Check your work
+
+- The model calls `extract_stagehand_docs_page` before producing the answer.
+- A URL outside `docs.stagehand.dev` fails before the browser navigates.
+- The final value matches `answerSchema` and includes the page URL.

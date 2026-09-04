@@ -1,0 +1,149 @@
+---
+title: "Build a typed research agent with the AI SDK"
+description: "Give a Vercel AI SDK tool loop a persistent Stagehand browser and require a typed final report."
+---
+
+## Agent prompt
+
+Copy this prompt into your coding agent. Have it add the tools to your current AI SDK agent and keep its model, logging, and persistence choices.
+
+```text
+Add Stagehand v4 research tools to this Vercel AI SDK agent.
+
+Requirements:
+- Keep one Stagehand browser alive for the whole generateText() tool loop.
+- Expose separate navigation and extraction tools with narrow Zod inputs.
+- Enforce an explicit hostname allowlist before every navigation.
+- Pass the same Stagehand page to each primitive so tool calls share state.
+- Return a final Output.object() with an answer and the exact source URLs used.
+- Give stopWhen enough steps for navigation, extraction, and final output.
+- Close Stagehand and the browser in finally blocks.
+
+Do not expose a general JavaScript execution tool or accept arbitrary URLs.
+
+Verify that an off-allowlist URL fails before navigation, both requested pages
+are visited, and an incomplete final report fails schema validation.
+```
+
+**Goal:** Let an AI SDK agent decide how to research a bounded set of web pages while Stagehand owns the browser state.
+
+**Outcome:** A multi-step browser loop that returns a validated report with source URLs instead of unstructured model text.
+
+## Stack
+
+- Node.js 24 or newer
+- `@browserbasehq/stagehand`
+- Vercel AI SDK and `@ai-sdk/openai`
+- Zod 4
+- Browserbase
+
+## Set up the project
+
+```bash
+mkdir stagehand-ai-sdk-research && cd stagehand-ai-sdk-research
+pnpm init -y
+pnpm add @browserbasehq/stagehand ai @ai-sdk/openai zod@4.4.3
+```
+
+Set `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`, then create `index.ts`:
+
+```typescript
+import { openai } from "@ai-sdk/openai";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { generateText, Output, stepCountIs, tool } from "ai";
+import { z } from "zod/v4";
+
+const pageFactsSchema = z.object({
+  title: z.string(),
+  facts: z.array(z.string()).min(1).max(8),
+});
+
+const reportSchema = z.object({
+  answer: z.string(),
+  sources: z.array(
+    z.object({
+      url: z.string().url(),
+      factsUsed: z.array(z.string()),
+    }),
+  ),
+});
+
+const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
+if (!browserbaseApiKey) throw new Error("BROWSERBASE_API_KEY is required");
+
+const browser = await browserbase.launch({
+  apiKey: browserbaseApiKey,
+});
+
+try {
+  const stagehand = await Stagehand.create({ browser });
+  try {
+    const page = await browser.context.activePage();
+    if (!page) throw new Error("No active page");
+
+    const tools = {
+      visitStagehandDocs: tool({
+        description: "Open one docs.stagehand.dev page in the research browser.",
+        inputSchema: z.object({ url: z.string().url() }),
+        execute: async ({ url }) => {
+          const parsed = new URL(url);
+          if (parsed.hostname !== "docs.stagehand.dev") {
+            throw new Error("Only docs.stagehand.dev URLs are allowed");
+          }
+          await page.goto(parsed.href);
+          return { url: await page.url(), title: await page.title() };
+        },
+      }),
+      readCurrentPage: tool({
+        description: "Extract facts from the Stagehand documentation page that is currently open.",
+        inputSchema: z.object({ question: z.string() }),
+        execute: async ({ question }) => {
+          const result = await stagehand.extract(
+            `Answer this research question from the current page: ${question}`,
+            pageFactsSchema,
+            { page },
+          );
+          return { url: await page.url(), ...result.data };
+        },
+      }),
+    };
+
+    const result = await generateText({
+      model: openai(process.env.OPENAI_MODEL ?? "gpt-5.4"),
+      instructions:
+        "Research only with the provided tools. Visit both URLs named by the user. Do not invent facts or source URLs.",
+      prompt:
+        "Compare when I should use Stagehand act and extract. Read https://docs.stagehand.dev/v4/basics/act and https://docs.stagehand.dev/v4/basics/extract.",
+      tools,
+      output: Output.object({ schema: reportSchema }),
+      stopWhen: stepCountIs(8),
+    });
+
+    console.log(JSON.stringify(result.output, null, 2));
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+
+Run it:
+
+```bash
+export BROWSERBASE_API_KEY="bb_live_..."
+export OPENAI_API_KEY="sk-..."
+pnpm dlx tsx index.ts
+```
+
+## Why this works
+
+The model can choose the order of tool calls, but it cannot browse outside `docs.stagehand.dev`. Stagehand owns the page, so each tool call sees the state left by the previous call. `Output.object()` validates the report after the tool loop finishes. The extra step budget accounts for both tool use and final structured output.
+
+For broader research, replace the single-host check with an explicit allowlist. Do not accept arbitrary URLs in a server-side browser tool unless the surrounding network can safely handle them.
+
+## Check your work
+
+- The agent visits both requested URLs.
+- Every source in the final object points to `docs.stagehand.dev`.
+- Removing a required field from the model output fails schema validation instead of returning partial data.

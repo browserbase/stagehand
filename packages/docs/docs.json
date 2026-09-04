@@ -22,72 +22,107 @@
     "versions": [
       {
         "version": "v4",
-        "groups": [
+        "tabs": [
           {
-            "group": "First steps",
-            "pages": [
-              "v4/first-steps/introduction",
-              "v4/first-steps/quickstart",
-              "v4/first-steps/installation",
-              "v4/first-steps/ai-rules"
+            "tab": "Docs",
+            "groups": [
+              {
+                "group": "First steps",
+                "pages": [
+                  "v4/first-steps/introduction",
+                  "v4/first-steps/quickstart",
+                  "v4/first-steps/installation",
+                  "v4/first-steps/ai-rules"
+                ]
+              },
+              {
+                "group": "The basics",
+                "pages": ["v4/basics/act", "v4/basics/extract", "v4/basics/observe", "v4/basics/webmcp"]
+              },
+              {
+                "group": "Configuration",
+                "pages": [
+                  "v4/configuration/browser",
+                  "v4/configuration/models",
+                  "v4/configuration/logging",
+                  "v4/configuration/observability"
+                ]
+              },
+              {
+                "group": "Integrations",
+                "pages": [
+                  "v4/integrations/overview",
+                  "v4/integrations/claude-code",
+                  "v4/integrations/codex",
+                  "v4/integrations/eve",
+                  "v4/integrations/deep-agents",
+                  "v4/integrations/crewai",
+                  "v4/integrations/mastra",
+                  "v4/integrations/fx",
+                  "v4/integrations/pi",
+                  "v4/integrations/vercel-ai-sdk"
+                ]
+              },
+              {
+                "group": "Best practices",
+                "pages": [
+                  "v4/best-practices/prompting-best-practices",
+                  "v4/best-practices/usecase-observe",
+                  "v4/best-practices/caching",
+                  "v4/best-practices/using-multiple-tabs",
+                  "v4/best-practices/user-data",
+                  "v4/best-practices/speed-optimization",
+                  "v4/best-practices/cost-optimization",
+                  "v4/best-practices/deployments",
+                  "v4/best-practices/mcp-integrations"
+                ]
+              },
+              {
+                "group": "Migration guide",
+                "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
+              },
+              {
+                "group": "SDK reference",
+                "pages": [
+                  "v4/reference/stagehand",
+                  "v4/reference/context",
+                  "v4/reference/clipboard",
+                  "v4/reference/page",
+                  "v4/reference/webmcp",
+                  "v4/reference/response",
+                  "v4/reference/locator"
+                ]
+              }
             ]
           },
           {
-            "group": "The basics",
-            "pages": ["v4/basics/act", "v4/basics/extract", "v4/basics/observe", "v4/basics/webmcp"]
-          },
-          {
-            "group": "Configuration",
-            "pages": [
-              "v4/configuration/browser",
-              "v4/configuration/models",
-              "v4/configuration/logging",
-              "v4/configuration/observability"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              "v4/integrations/overview",
-              "v4/integrations/claude-code",
-              "v4/integrations/codex",
-              "v4/integrations/eve",
-              "v4/integrations/deep-agents",
-              "v4/integrations/crewai",
-              "v4/integrations/mastra",
-              "v4/integrations/fx",
-              "v4/integrations/pi",
-              "v4/integrations/vercel-ai-sdk"
-            ]
-          },
-          {
-            "group": "Best practices",
-            "pages": [
-              "v4/best-practices/prompting-best-practices",
-              "v4/best-practices/usecase-observe",
-              "v4/best-practices/caching",
-              "v4/best-practices/using-multiple-tabs",
-              "v4/best-practices/user-data",
-              "v4/best-practices/speed-optimization",
-              "v4/best-practices/cost-optimization",
-              "v4/best-practices/deployments",
-              "v4/best-practices/mcp-integrations"
-            ]
-          },
-          {
-            "group": "Migration guide",
-            "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
-          },
-          {
-            "group": "SDK reference",
-            "pages": [
-              "v4/reference/stagehand",
-              "v4/reference/context",
-              "v4/reference/clipboard",
-              "v4/reference/page",
-              "v4/reference/webmcp",
-              "v4/reference/response",
-              "v4/reference/locator"
+            "tab": "Examples",
+            "root": "v4/examples/overview",
+            "groups": [
+              {
+                "group": "Overview",
+                "pages": ["v4/examples/overview"]
+              },
+              {
+                "group": "Data Extraction",
+                "pages": ["v4/examples/paginated-catalog"]
+              },
+              {
+                "group": "Multi-page Workflows",
+                "pages": ["v4/examples/compare-pages-in-parallel"]
+              },
+              {
+                "group": "Vercel AI SDK",
+                "pages": ["v4/examples/ai-sdk-research-agent"]
+              },
+              {
+                "group": "Human-in-the-Loop",
+                "pages": ["v4/examples/approve-form-submission"]
+              },
+              {
+                "group": "TanStack AI",
+                "pages": ["v4/examples/tanstack-ai-extraction-tool"]
+              }
             ]
           }
         ]

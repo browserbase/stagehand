@@ -1,0 +1,51 @@
+---
+title: "Examples"
+sidebarTitle: "Overview"
+description: "End-to-end Stagehand recipes for agents and developers using the tools and frameworks they already have."
+---
+
+These are complete Stagehand programs built with common tools and frameworks. The integration pages explain how to connect a stack. These examples show what to build after that.
+
+When Codex, Claude Code, or another coding agent searches the Stagehand docs, these pages provide working patterns with code, inputs, and checks.
+
+Each recipe defines when the job stops, how it cleans up, and what to check after you adapt it.
+
+## Data extraction
+
+<CardGroup cols={2}>
+  <Card title="Extract a paginated catalog" href="/v4/examples/paginated-catalog">
+    Combine extract, observe, and act to collect an unknown number of pages.
+  </Card>
+</CardGroup>
+
+## Multi-page workflows
+
+<CardGroup cols={2}>
+  <Card title="Compare pages in parallel" href="/v4/examples/compare-pages-in-parallel">
+    Keep each extraction bound to its own tab while the work runs concurrently.
+  </Card>
+</CardGroup>
+
+## Vercel AI SDK
+
+<CardGroup cols={2}>
+  <Card title="Build a typed AI SDK research agent" href="/v4/examples/ai-sdk-research-agent">
+    Run a persistent Stagehand browser inside an AI SDK tool loop and validate the final report.
+  </Card>
+</CardGroup>
+
+## Human-in-the-loop
+
+<CardGroup cols={2}>
+  <Card title="Approve before submitting a form" href="/v4/examples/approve-form-submission">
+    Pause an AI SDK tool call before Stagehand performs the final browser side effect.
+  </Card>
+</CardGroup>
+
+## TanStack AI
+
+<CardGroup cols={2}>
+  <Card title="Add Stagehand extraction to TanStack AI" href="/v4/examples/tanstack-ai-extraction-tool">
+    Wrap a one-shot Browserbase extraction as a typed TanStack AI server tool.
+  </Card>
+</CardGroup>
