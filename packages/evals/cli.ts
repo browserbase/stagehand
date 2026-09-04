@@ -10,10 +10,12 @@
  *   - `evals experiments [sub]`      → inspect / compare Braintrust runs
  *   - `evals doctor` / `health`      → env-key + config + discovery health report
  *   - `evals new <tier> <cat> <name>`→ scaffold a task file
+ *   - `evals welcome [a|b|c|d]`      → guided onboarding (variants to compare)
  *   - `evals help` / `-h`            → help
  *
  * Env vars:
  *   - EVALS_NO_WELCOME=1             → suppress first-run welcome panel (REPL only)
+ *   - EVALS_WELCOME_WIZARD=<v|1>     → auto-run welcome variant on first REPL launch
  *
  * No child processes. All runs flow through framework/runEvals in-process.
  *
@@ -165,13 +167,22 @@ const args = process.argv.slice(2);
       },
       abortRef: null,
       contextPath: null,
+      // Welcome flows own stdin (raw-byte Esc/Ctrl+C listener + clack).
+      // Release the Esc-exits-CLI handler first: left attached, Node's
+      // keypress decoder re-emits a held Esc after its escape-sequence
+      // timeout and kills the process mid-prompt.
+      suspendInput: () => {
+        cleanupArgvInput();
+        return () => {};
+      },
     });
 
     // Only count real handler invocations as "first use". Doctor is a
-    // diagnostic, not a first use; help/meta paths are discovery.
+    // diagnostic, not a first use; help/meta paths are discovery; the
+    // welcome flows mark on completion themselves (Ctrl+C must not mark).
     if (outcome.kind === "ran") {
       const top = outcome.absolutePath[0];
-      shouldMarkFirstRun = top !== "doctor";
+      shouldMarkFirstRun = top !== "doctor" && !top.startsWith("welcome");
     }
   } catch (err) {
     console.error(red(`Error: ${(err as Error).message}`));

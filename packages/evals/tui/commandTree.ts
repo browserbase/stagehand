@@ -58,6 +58,15 @@ export type CommandContext = {
   pushContext?: (segment: string) => void;
   popContext?: () => void;
   setContextPath?: (path: readonly string[]) => void;
+  /**
+   * Hand exclusive stdin ownership to a full-screen-ish handler (the welcome
+   * flows drive raw-byte listeners + clack prompts). Returns the restore fn.
+   * REPL: detaches readline's keypress listeners + pauses the interface.
+   * argv: releases the Esc-exits-CLI handler.
+   */
+  suspendInput?: () => () => void;
+  /** REPL only: pre-fill the next prompt's input buffer. */
+  prefillInput?: (text: string) => void;
 };
 
 export type Resolution =
@@ -639,6 +648,26 @@ export function buildCommandTree(): CommandNode {
     },
   };
 
+  const welcomeNode: CommandNode = {
+    name: "welcome",
+    summary: "Guided onboarding — `welcome a|b|c` to pick a design",
+    printHelp: async () => (await import("./welcome/index.js")).printWelcomeHelp(),
+    handler: async (args, ctx) => {
+      const { handleWelcome } = await import("./welcome/index.js");
+      await handleWelcome(args, ctx);
+    },
+  };
+  // `welcome-a` … `welcome-d`: hidden one-token spellings of `welcome <v>`.
+  const welcomeAliases: CommandNode[] = ["a", "b", "c", "intro"].map((v) => ({
+    name: `welcome-${v}`,
+    summary: `welcome ${v}`,
+    hidden: true,
+    handler: async (args, ctx) => {
+      const { handleWelcome } = await import("./welcome/index.js");
+      await handleWelcome([v, ...args], ctx);
+    },
+  }));
+
   const verifyNode: CommandNode = {
     name: "verify",
     summary: "Re-score a saved trajectory",
@@ -653,7 +682,17 @@ export function buildCommandTree(): CommandNode {
     name: "evals",
     summary: "Stagehand evals CLI",
     printHelp: async () => (await help()).printHelp(),
-    children: [runNode, listNode, configNode, experimentsNode, newNode, verifyNode, doctorNode],
+    children: [
+      runNode,
+      listNode,
+      configNode,
+      experimentsNode,
+      newNode,
+      verifyNode,
+      doctorNode,
+      welcomeNode,
+      ...welcomeAliases,
+    ],
   };
 
   return root;

@@ -45,6 +45,18 @@ Inside the REPL (or as `evals <command>` from your shell):
 
 Use `Esc` to abort an in-flight run without exiting the REPL.
 
+### Onboarding
+
+`evals welcome` runs a guided first-run flow built on the agent benchmarks. Three designs are available while we decide which one ships. Each opens with the same short intro (logo → what we measure → top of the board):
+
+| Command           | Design                                                                    |
+| ----------------- | ------------------------------------------------------------------------- |
+| `evals welcome a` | **Arena** — three models race the same real WebVoyager task in lanes      |
+| `evals welcome b` | **Trace** — scrub through a recorded agent trajectory (← → space)         |
+| `evals welcome c` | **Dialogue** — the agent narrates a real task in first person, chat-style |
+
+`evals welcome intro` plays just the shared opening (handy while iterating on the animation). `welcome` alone shows a picker; `welcome-a`, `welcome-b`, `welcome-c` are one-token spellings. With a provider key and a browser each design hands off to a real `run b:webvoyager -l 3`; without them it replays scripted trajectories of real benchmark tasks and says what unlocks the real thing. Set `EVALS_WELCOME_WIZARD=<variant>` (or `1`) to auto-run one on the first REPL launch; `EVALS_NO_WELCOME=1` suppresses the first-run welcome. Esc skips ahead, Ctrl+C cancels.
+
 ## Run targets
 
 `evals run` accepts any of these shapes:

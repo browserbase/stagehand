@@ -26,6 +26,7 @@ export function printHelp(): void {
     ),
     row(`${cyan("verify")} ${dim("<trajectory-dir> [options]")}`, "Re-score a saved trajectory"),
     row(`${cyan("doctor")} ${dim("| health")}`, "Health report"),
+    row(`${cyan("welcome")} ${dim("[a|b|c]")}`, "Guided onboarding (three designs to compare)"),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
