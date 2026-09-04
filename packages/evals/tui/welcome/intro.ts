@@ -309,7 +309,7 @@ async function flow(): Promise<IntroOutcome> {
   try {
     // ── 0. the mark — fades up as a green square, the S carves in, a light passes ──
     if (!keys.skipAll) {
-      const MARK_ROWS = 16; // the mark owns the whole slot
+      const MARK_ROWS = 12; // 24×12 cells, centered in the 16-row slot
       const size = markSize(MARK_ROWS);
       const raster = rasterizeMark(size.cols); // px per side = cols (1 px per column)
       const x0 = cx(size.cols);
