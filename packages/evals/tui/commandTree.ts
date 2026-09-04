@@ -658,7 +658,7 @@ export function buildCommandTree(): CommandNode {
     },
   };
   // `welcome-a` … `welcome-d`: hidden one-token spellings of `welcome <v>`.
-  const welcomeAliases: CommandNode[] = ["a", "b", "c"].map((v) => ({
+  const welcomeAliases: CommandNode[] = ["a", "b", "c", "intro"].map((v) => ({
     name: `welcome-${v}`,
     summary: `welcome ${v}`,
     hidden: true,

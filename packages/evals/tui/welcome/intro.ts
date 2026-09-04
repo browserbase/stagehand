@@ -50,6 +50,7 @@ import {
   LEADERBOARD_URL,
 } from "./leaderboard.js";
 import { SHADOW_GLYPHS, shadowText } from "./shadowFont.js";
+import { markSize, paintMark, rasterizeMark } from "./mark.js";
 
 const ROWS = 16;
 /** Region width: as wide as the terminal allows between 72 and 96 columns. */
@@ -188,32 +189,6 @@ function dropWord(
   });
 }
 
-/** The Stagehand mark: a green square carrying a white S from the same face. */
-const MARK_W = 14;
-const MARK_H = 7;
-function putMark(cv: Canvas, x0: number, y0: number, alpha: number, sweep: number | null): void {
-  const green = mixRgb(PALETTE.void, PALETTE.brand, alpha);
-  for (let y = 0; y < MARK_H; y++) {
-    for (let x = 0; x < MARK_W; x++) {
-      let g = green;
-      if (sweep !== null) {
-        const d = Math.abs(x0 + x - sweep) / 6;
-        if (d < 1) g = mixRgb(g, PALETTE.white, (1 - d) * 0.3);
-      }
-      cv.put(x0 + x, y0 + y, " ", null, g);
-    }
-  }
-  const S = SHADOW_GLYPHS["S"].slice(0, BLOCK_ROWS);
-  const sw = Math.max(...S.map((r) => r.length));
-  const sx = x0 + Math.floor((MARK_W - sw) / 2);
-  const white = mixRgb(PALETTE.void, PALETTE.white, alpha);
-  S.forEach((row, r) => {
-    Array.from(row).forEach((ch, col) => {
-      if (ch !== " ") cv.put(sx + col, y0 + r, ch, white, green);
-    });
-  });
-}
-
 type Screen = {
   /** Animated build of the screen; `t` is 0→1 over `buildMs`. */
   draw: (t: number, now: number) => Canvas;
@@ -332,39 +307,35 @@ async function flow(): Promise<IntroOutcome> {
   };
 
   try {
-    // ── 0. brand — the mark fades up, STAGEHAND drops in letter by letter ──
+    // ── 0. the mark — fades up as a green square, the S carves in, a light passes ──
     if (!keys.skipAll) {
-      const word = blockLetters("STAGEHAND");
-      const gap = 3;
-      const sideBySide = MEASURE >= MARK_W + gap + word.width + 2;
-      const markX = sideBySide ? cx(MARK_W + gap + word.width) : cx(MARK_W);
-      const markY = sideBySide ? Math.floor((ROWS - MARK_H) / 2) : 1;
-      const wordX = sideBySide ? markX + MARK_W + gap : cx(word.width);
-      const wordY = sideBySide ? markY : markY + MARK_H + 2;
+      const MARK_ROWS = 16; // the mark owns the whole slot
+      const size = markSize(MARK_ROWS);
+      const raster = rasterizeMark(size.cols); // px per side = cols (1 px per column)
+      const x0 = cx(size.cols);
+      const y0 = Math.floor((ROWS - size.rows) / 2);
       await play({
-        buildMs: 1700,
+        buildMs: 1900,
         draw: (t) => {
           const cv = new Canvas(MEASURE, ROWS);
-          const sweep = t > 0.78 ? -8 + (MEASURE + 16) * ease.inOutSine((t - 0.78) / 0.22) : null;
-          putMark(cv, markX, markY, ease.outCubic(Math.min(1, t / 0.4)), sweep);
-          dropWord(cv, word, wordX, wordY, (t - 0.2) / 0.6, PALETTE.deep, PALETTE.white);
-          if (sweep !== null) {
-            for (const letter of word.letters) {
-              const d = Math.abs(wordX + letter.x + letter.width / 2 - sweep) / 8;
-              if (d < 1)
-                putLetter(
-                  cv,
-                  letter,
-                  wordX,
-                  wordY,
-                  0,
-                  mixRgb(PALETTE.white, PALETTE.mint, (1 - d) * 0.6),
-                );
-            }
-          }
+          const alpha = ease.outCubic(Math.min(1, t / 0.3));
+          const carve = t < 0.28 ? 0 : ease.inOutSine(Math.min(1, (t - 0.28) / 0.5));
+          const sweepX =
+            t > 0.82 ? -6 + (size.cols + 12) * ease.inOutSine((t - 0.82) / 0.18) : null;
+          paintMark(cv, raster, x0, y0, { alpha, carve, sweepX, glow: 0 });
           return cv;
         },
-        dwellMs: 1200,
+        idle: (t) => {
+          const cv = new Canvas(MEASURE, ROWS);
+          paintMark(cv, raster, x0, y0, {
+            alpha: 1,
+            carve: 1,
+            sweepX: null,
+            glow: (0.35 * (Math.sin(t * Math.PI * 2) + 1)) / 2,
+          });
+          return cv;
+        },
+        dwellMs: 1400,
       });
       if (keys.aborted) return cancelled();
     }

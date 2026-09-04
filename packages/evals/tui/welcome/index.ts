@@ -102,6 +102,8 @@ export function printWelcomeHelp(): void {
         `    ${c.bb}${v}${c.reset}  ${VARIANTS[v].name.padEnd(10)} ${c.dim}${VARIANTS[v].tagline}${c.reset}`,
     ),
     "",
+    `    ${c.bb}intro${c.reset}  ${"".padEnd(10)} ${c.dim}the shared opening on its own (for iterating on the animation)${c.reset}`,
+    "",
     `  ${c.dim}No variant → picker. Also:${c.reset} ${c.bb}welcome-a${c.reset}${c.dim} … ${c.reset}${c.bb}welcome-e${c.reset}`,
     `  ${c.dim}First-run auto-launch:${c.reset} ${c.bb}EVALS_WELCOME_WIZARD=a evals${c.reset}`,
     "",
@@ -118,6 +120,19 @@ export async function handleWelcome(args: string[], ctx: CommandContext): Promis
   const first = args[0]?.toLowerCase();
   if (first === "--help" || first === "-h" || first === "help") {
     printWelcomeHelp();
+    return;
+  }
+  if (first === "intro") {
+    // The shared opening on its own — for iterating on the animation without
+    // sitting through a design. Owns stdin like the designs do; marks nothing.
+    const restore = ctx.suspendInput?.() ?? (() => {});
+    try {
+      const { runIntro } = await import("./intro.js");
+      await runIntro();
+    } finally {
+      restore();
+      process.stdout.write("\x1b[?25h");
+    }
     return;
   }
   let variant: WelcomeVariant | undefined;
