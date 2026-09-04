@@ -62,7 +62,7 @@ import {
   LLMGenerateResultSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
-  PageCDPEventNotificationSchema,
+  PageEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
@@ -535,9 +535,9 @@ export const StagehandRpcRequestSchema = z
 
 export const StagehandNotifications = {
   log: { name: "stagehand.log", params: StagehandLogSchema, paramsWire: undefined },
-  pageCDPEvent: {
-    name: "page.cdp_event",
-    params: PageCDPEventNotificationSchema,
+  event: {
+    name: "page.event",
+    params: PageEventNotificationSchema,
     paramsWire: { opaqueKeys: ["params"] },
   },
 } as const satisfies Record<string, RPCNotification>;
