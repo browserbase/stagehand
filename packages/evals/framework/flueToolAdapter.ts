@@ -4,9 +4,10 @@ import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
-  defineFlueJsonTool,
+  bridgeFlueMcpTools,
   type FlueToolDefinition,
 } from "@browserbasehq/stagehand-integrations-flue-sdk";
+import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { ProbeEvidence } from "stagehand-v3";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
@@ -51,8 +52,12 @@ export interface McpServerSpec {
 }
 
 export interface ConnectedMcpServer {
-  tools: Array<{ name: string; description?: string }>;
-  callTool(name: string, args: Record<string, unknown>): Promise<unknown>;
+  tools: Tool[];
+  callTool(
+    name: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<CallToolResult>;
   close(): Promise<void>;
 }
 
@@ -81,6 +86,7 @@ export async function prepareFlueToolAdapter(
     logger: input.logger,
   });
   const connections: ConnectedMcpServer[] = [];
+  const bridges: Array<{ close(): Promise<void> }> = [];
   let cwd: string | undefined;
   try {
     const mount = runtime.running.agentMount;
@@ -99,17 +105,10 @@ export async function prepareFlueToolAdapter(
       const spec = normalizeMcpSpec(serverName, rawSpec);
       const connection = await connect(serverName, spec);
       connections.push(connection);
-      for (const tool of connection.tools) {
-        const name = flueMcpToolName(serverName, tool.name);
-        mountedNames.add(name);
-        tools.push(
-          defineFlueJsonTool({
-            name,
-            description: tool.description ?? `${tool.name} from ${serverName}`,
-            execute: (args) => connection.callTool(tool.name, args),
-          }),
-        );
-      }
+      const bridge = await bridgeFlueMcpTools(serverName, connection);
+      bridges.push(bridge);
+      for (const tool of bridge.tools) mountedNames.add(tool.name);
+      tools.push(...bridge.tools);
     }
     if (tools.length === 0) throw new EvalsError("Flue MCP mount exposed no tools.");
     const recorder = runtime.running.captureEvidence
@@ -149,6 +148,7 @@ export async function prepareFlueToolAdapter(
       cleanup: async () => {
         cleanupPromise ??= (async () => {
           try {
+            await Promise.allSettled(bridges.map((bridge) => bridge.close()));
             await Promise.allSettled(connections.map((connection) => connection.close()));
             await withTimeout(
               runtime.cleanup(),
@@ -164,6 +164,7 @@ export async function prepareFlueToolAdapter(
       },
     };
   } catch (error) {
+    await Promise.allSettled(bridges.map((bridge) => bridge.close()));
     await Promise.allSettled(connections.map((connection) => connection.close()));
     await withTimeout(
       runtime.cleanup(),
@@ -186,13 +187,24 @@ async function connectFlueMcpServer(
   });
   try {
     await client.connect(transport);
-    const response = await client.listTools();
+    const tools: Tool[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const response = await client.listTools(cursor ? { cursor } : undefined);
+      tools.push(...response.tools);
+      cursor = response.nextCursor;
+      if (cursor && cursors.has(cursor)) {
+        throw new Error("Flue MCP tool discovery repeated a cursor.");
+      }
+      if (cursor) cursors.add(cursor);
+    } while (cursor);
     return {
-      tools: response.tools.map((tool) => ({
-        name: tool.name,
-        ...(tool.description && { description: tool.description }),
-      })),
-      callTool: (name, args) => client.callTool({ name, arguments: args }),
+      tools,
+      callTool: async (name, args, signal) =>
+        (await client.callTool({ name, arguments: args }, undefined, {
+          signal,
+        })) as CallToolResult,
       close: () => client.close(),
     };
   } catch (error) {

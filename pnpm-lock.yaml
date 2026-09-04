@@ -906,6 +906,9 @@ importers:
       '@flue/runtime':
         specifier: 'catalog:'
         version: 2.0.3(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(bufferutil@4.1.0)(typescript@5.9.3)(ws@8.21.0(bufferutil@4.1.0))(zod@4.4.3)
+      '@modelcontextprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.29.0(supports-color@8.1.1)(zod@4.4.3)
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@5.9.3)
