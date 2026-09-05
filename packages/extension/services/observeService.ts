@@ -4,7 +4,7 @@ import type {
   ModelConfig,
   ObserveResult,
   StagehandObserveParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { TimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as inference from "../inference.js";

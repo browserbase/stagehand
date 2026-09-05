@@ -1,6 +1,6 @@
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import type { CacheClient } from "../clients/cacheClient.js";
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";

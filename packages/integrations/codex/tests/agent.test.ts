@@ -1,7 +1,7 @@
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { describe, expect, it } from "vitest";
 
 import { buildCodexConfig } from "../src/agent.ts";
-import { buildAllowlistedEnv } from "../src/env.ts";
 
 describe("codex stagehand example", () => {
   it("mounts the facade server in the config override", () => {

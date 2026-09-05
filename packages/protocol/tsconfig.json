@@ -4,27 +4,8 @@
     "noImplicitAny": false,
     "strictNullChecks": true,
     "skipLibCheck": true,
-    "types": ["node", "chrome"]
+    "types": ["node"]
   },
-  "include": [
-    "tests/**/*.ts",
-    "../extension/llm/LLMClient.ts",
-    "../extension/llm/**/*.test-d.ts",
-    "../extension/controllers/**/*.ts",
-    "../extension/clients/**/*.ts",
-    "../extension/rpcRouter.ts",
-    "../extension/service-worker-lifecycle/**/*.ts",
-    "../extension/service-worker.ts",
-    "../extension/tests/**/*.ts",
-    "../extension/services/**/*.ts",
-    "../extension/types/**/*.ts",
-    "../extension/understudy/**/*.ts",
-    "../extension/version.ts",
-    "../sdk-ts/src/**/*.ts",
-    "../sdk-ts/tests/**/*.ts",
-    // TODO(docs-migration): Re-enable when the docs conformance tests return.
-    // "../docs/tests/**/*.ts",
-    "../../rules/ast-grep/**/*.ts",
-    "../../scripts/release/**/*.ts"
-  ]
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
 }

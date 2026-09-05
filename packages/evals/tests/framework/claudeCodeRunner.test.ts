@@ -3,8 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildClaudeCodePrompt,
-  isClaudeCodeMaxTurnsError,
-  normalizeClaudeCodeModel,
   parseClaudeCodeResult,
   runClaudeCodeAgent,
 } from "../../framework/claudeCodeRunner.js";
@@ -20,13 +18,6 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("claude code runner helpers", () => {
-  it("normalizes provider-prefixed models for Claude Code", () => {
-    expect(normalizeClaudeCodeModel("anthropic/claude-sonnet-4-20250514" as AvailableModel)).toBe(
-      "claude-sonnet-4-20250514",
-    );
-    expect(normalizeClaudeCodeModel("claude-opus-4-1" as AvailableModel)).toBe("claude-opus-4-1");
-  });
-
   it("builds a browser task prompt with the required result marker", () => {
     const prompt = buildClaudeCodePrompt(plan, "Use browse only. Discover usage with browse -h.");
 
@@ -82,61 +73,6 @@ describe("claude code runner helpers", () => {
     });
   });
 
-  it("identifies max-turn SDK errors", () => {
-    expect(isClaudeCodeMaxTurnsError(new Error("Reached maximum number of turns (20)"))).toBe(true);
-    expect(isClaudeCodeMaxTurnsError("network failed")).toBe(false);
-  });
-
-  it("returns a normal task result when Claude Code reaches max turns after emitting a result", async () => {
-    const sdk: ClaudeAgentSdk = {
-      query: async function* () {
-        yield {
-          type: "assistant",
-          message: {
-            content: [
-              {
-                type: "text",
-                text: 'EVAL_RESULT: {"success":true,"summary":"already complete","finalAnswer":"done"}',
-              },
-            ],
-          },
-        };
-        throw new Error("Reached maximum number of turns (20)");
-      },
-    };
-
-    const result = await runClaudeCodeAgent({
-      plan,
-      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
-      logger: new EvalLogger(false),
-      sdk,
-    });
-
-    expect(result._success).toBe(true);
-    expect(result.error).toBeUndefined();
-    expect(result.claudeCodeStatus).toBe("max_turns");
-    expect(result.finalAnswer).toBe("done");
-  });
-
-  it("returns a failed task result instead of throwing when max turns prevents a result", async () => {
-    const sdk: ClaudeAgentSdk = {
-      query: async function* () {
-        throw new Error("Reached maximum number of turns (20)");
-      },
-    };
-
-    const result = await runClaudeCodeAgent({
-      plan,
-      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
-      logger: new EvalLogger(false),
-      sdk,
-    });
-
-    expect(result._success).toBe(false);
-    expect(result.claudeCodeStatus).toBe("max_turns");
-    expect(String(result.error)).toContain("maximum number of turns");
-  });
-
   it("surfaces verifier integration failures as verifierError on the self-reported result", async () => {
     const sdk: ClaudeAgentSdk = {
       query: async function* () {
@@ -150,6 +86,12 @@ describe("claude code runner helpers", () => {
               },
             ],
           },
+        };
+        yield {
+          type: "result",
+          subtype: "success",
+          is_error: false,
+          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"done"}',
         };
       },
     };
@@ -178,6 +120,25 @@ describe("claude code runner helpers", () => {
     expect(String(result.verifierError)).toContain("items array");
     expect(result.outcomeSuccess).toBeUndefined();
     expect(result.processScore).toBeUndefined();
+  });
+
+  it("prefers iteration errors over result text for failed Claude Code runs", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield { type: "result", subtype: "error", result: "less useful result text" };
+        throw new Error("specific iteration failure");
+      },
+    };
+
+    const result = await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+
+    expect(result._success).toBe(false);
+    expect(result.error).toBe("specific iteration failure");
   });
 
   it("reports Claude Code token usage as Braintrust metrics", async () => {
@@ -213,43 +174,12 @@ describe("claude code runner helpers", () => {
     expect(metrics.claude_code_cache_creation_input_tokens.value).toBe(10);
     expect(metrics.claude_code_cache_read_input_tokens.value).toBe(5);
     expect(metrics.claude_code_total_tokens.value).toBe(140);
-  });
-
-  it("forwards adapter MCP servers into the Claude Code SDK query", async () => {
-    let capturedOptions: Record<string, unknown> | undefined;
-    const mcpServers = {
-      stagehand_browser: { type: "sdk", name: "stagehand_browser" },
-    };
-    const sdk: ClaudeAgentSdk = {
-      query: async function* (input) {
-        capturedOptions = input.options;
-        yield {
-          type: "result",
-          subtype: "success",
-          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
-        };
-      },
-    };
-
-    await runClaudeCodeAgent({
-      plan,
-      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
-      logger: new EvalLogger(false),
-      sdk,
-      toolAdapter: {
-        toolSurface: "playwright_code",
-        startupProfile: "runner_provided_local_cdp",
-        cwd: "/tmp/stagehand-evals-test",
-        env: {},
-        allowedTools: ["Bash", "mcp__stagehand_browser__run"],
-        settingSources: [],
-        promptInstructions: "Use run.",
-        mcpServers,
-        cleanup: async () => {},
-      },
-    });
-
-    expect(capturedOptions?.mcpServers).toBe(mcpServers);
-    expect(capturedOptions?.allowedTools).toEqual(["Bash", "mcp__stagehand_browser__run"]);
+    expect(metrics.harness_input_tokens.value).toBe(100);
+    expect(metrics.harness_output_tokens.value).toBe(25);
+    expect(metrics.harness_cache_creation_input_tokens.value).toBe(10);
+    expect(metrics.harness_total_tokens.value).toBe(140);
+    expect(metrics.harness_cost_usd.value).toBe(0.045);
+    expect(result.harnessStatus).toBe("completed");
+    expect(result.claudeCodeStatus).toBe("completed");
   });
 });

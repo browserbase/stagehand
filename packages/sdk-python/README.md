@@ -62,7 +62,7 @@ import os
 
 from pydantic import BaseModel
 
-from stagehand import Stagehand, local_browser
+from stagehand import Stagehand, browserbase, local_browser
 
 
 class PullRequest(BaseModel):
@@ -117,6 +117,32 @@ Stagehand extension that `launch()` uploaded for that session is retained on the
 same reason, so a `keep_alive=True` workflow that launches repeatedly accumulates extensions until
 they are deleted out of band. Sessions reached through `browserbase.connect()` are never released by
 `close()` — whoever created the session owns it.
+
+The same `browserbase` facade exposes Browserbase Search and Fetch without launching a browser:
+
+```python
+import asyncio
+import os
+
+from stagehand import browserbase
+
+
+async def search_and_fetch() -> None:
+    results = await browserbase.search(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        query="browser agent frameworks",
+        num_results=5,
+    )
+    fetched = await browserbase.fetch(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        url=results.results[0].url,
+        format="markdown",
+    )
+    print(fetched.content)
+
+
+asyncio.run(search_and_fetch())
+```
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
 default. Pass `page=page` to target a specific SDK `Page`.

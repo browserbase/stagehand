@@ -1,0 +1,36 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-claude-agent-sdk",
+  "version": "4.0.1",
+  "private": true,
+  "description": "Claude Agent SDK harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/claude-agent-sdk/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/claude-agent-sdk/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "catalog:",
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

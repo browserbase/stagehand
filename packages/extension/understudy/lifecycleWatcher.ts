@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { LoadState } from "../../protocol/types.js";
+import type { LoadState } from "@browserbasehq/stagehand-protocol/types";
 import type { CDPSessionLike } from "./cdp.js";
 import type { NetworkManager } from "./networkManager.js";
 import type { Page } from "./page.js";

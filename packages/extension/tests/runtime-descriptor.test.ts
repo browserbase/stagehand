@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { RuntimeDescriptorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import {
+  RuntimeDescriptorSchema,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "@browserbasehq/stagehand-protocol/schemas";
 import extensionPackageJson from "../package.json" with { type: "json" };
 import {
   startStagehandServiceWorker,

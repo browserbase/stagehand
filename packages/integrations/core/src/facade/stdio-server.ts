@@ -10,6 +10,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { closeCodeModeStdio } from "../codemode/stdio-lifecycle.js";
+import { sanitizeErrorMessage } from "../harness/redact.js";
 import { stagehandFacadeConfigFromEnv } from "./config.js";
 import {
   CodeModeRunInputSchema,
@@ -147,15 +148,6 @@ function stringifyResult(value: unknown): string {
   } catch {
     return String(value);
   }
-}
-
-export function sanitizeErrorMessage(message: string): string {
-  return message
-    .replace(/([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"']+/gi, "$1[redacted]")
-    .replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1[redacted]")
-    .replace(/\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+/g, "$1[redacted]")
-    .replace(/\bAIza[0-9A-Za-z_-]{30,}/g, "AIza[redacted]")
-    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, "$1[redacted]");
 }
 
 async function shutdown(code: number): Promise<void> {

@@ -1,4 +1,4 @@
-import type { ProtocolIncompatibilityReason } from "../protocol/protocol-version.js";
+import type { ProtocolIncompatibilityReason } from "@browserbasehq/stagehand-protocol/protocol-version";
 
 export class TimeoutError extends Error {
   constructor(operation: string, timeout: number) {

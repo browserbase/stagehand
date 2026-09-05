@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ClientLLM, Stagehand } from "../../src/index.js";
-import type { LLMGenerateParams } from "../../../protocol/types.js";
+import type { LLMGenerateParams } from "@browserbasehq/stagehand-protocol/types";
 import { closeStagehand, createStagehand, firstPage } from "./_support.js";
 
 const cases = [

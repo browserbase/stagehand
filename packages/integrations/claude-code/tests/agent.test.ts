@@ -1,8 +1,8 @@
 import { FACADE_TOOLS } from "@browserbasehq/stagehand-integrations/facade";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { describe, expect, it } from "vitest";
 
 import { STAGEHAND_TOOL_NAMES } from "../src/agent.ts";
-import { buildAllowlistedEnv } from "../src/env.ts";
 
 describe("claude-code stagehand example", () => {
   it("allows exactly the namespaced facade tools", () => {

@@ -15,17 +15,17 @@ import {
   type BenchTaskKind,
   type Harness,
 } from "./benchTypes.js";
+import { getBrowseCliToolMetadata } from "./claudeCodeToolAdapter.js";
 import {
-  getBrowseCliToolMetadata,
-  resolveClaudeCodeStartupProfile,
-  resolveClaudeCodeToolSurface,
-} from "./claudeCodeToolAdapter.js";
-import { resolveCodexStartupProfile, resolveCodexToolSurface } from "./codexToolAdapter.js";
-
-const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
-  "anthropic/claude-sonnet-4-6" as AvailableModel,
-];
-const DEFAULT_CODEX_MODELS: AvailableModel[] = ["openai/gpt-5.4-mini" as AvailableModel];
+  formatBenchHarnessFlags,
+  getBenchHarness,
+  isExecutableBenchHarness,
+  listBenchHarnessesForTaskKind,
+} from "./benchHarness.js";
+import {
+  resolveOptionalStartupProfile,
+  resolveToolSurface,
+} from "./harnesses/toolSurfaceResolution.js";
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
@@ -95,29 +95,21 @@ function resolveDefaultModelEntries(
   harness: Harness,
   effectiveCategory: string | null,
 ): AgentModelEntry[] {
-  if (harness === "claude_code") {
-    return readModelListEnv("EVAL_CLAUDE_CODE_MODELS", DEFAULT_CLAUDE_CODE_MODELS).map(
-      (modelName) => ({
-        modelName,
-        mode: "hybrid",
-        cua: false,
-      }),
-    );
-  }
-
-  if (harness === "codex") {
-    return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map((modelName) => ({
-      modelName,
-      mode: "hybrid",
-      cua: false,
-    }));
-  }
-
-  return getModelList(effectiveCategory).map((modelName) => ({
+  const harnessImpl = getBenchHarness(harness);
+  const toEntry = (modelName: AvailableModel): AgentModelEntry => ({
     modelName,
-    mode: "hybrid" as const,
+    mode: "hybrid",
     cua: false,
-  }));
+  });
+  if (harnessImpl.defaultModels) {
+    return readModelListEnv(defaultModelsEnvKey(harness), harnessImpl.defaultModels).map(toEntry);
+  }
+
+  return getModelList(effectiveCategory).map(toEntry);
+}
+
+export function defaultModelsEnvKey(harness: Harness): string {
+  return `EVAL_${harness.toUpperCase()}_MODELS`;
 }
 
 function readModelListEnv(key: string, fallback: AvailableModel[]): AvailableModel[] {
@@ -149,13 +141,12 @@ export function buildBenchMatrixRow(
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
   const environment = options.environment ?? "LOCAL";
   const useApi = Boolean(options.useApi);
-  const toolSurface = resolveBenchRowToolSurface(harness, options.coreToolSurface);
-  const startupProfile = resolveBenchRowStartupProfile(
-    harness,
-    toolSurface,
-    environment,
-    options.coreStartupProfile,
-  );
+  const harnessImpl = getBenchHarness(harness);
+  const toolSurface = resolveToolSurface(harnessImpl, options.coreToolSurface);
+  const startupProfile =
+    harnessImpl.supportedToolSurfaces.length === 0
+      ? options.coreStartupProfile
+      : resolveOptionalStartupProfile(toolSurface, environment, options.coreStartupProfile);
   // Provider is derived from the model id ("provider/model") for metadata;
   // there is no independent provider selector.
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
@@ -198,19 +189,6 @@ function buildBenchHarnessConfig(input: {
   startupProfile?: StartupProfile;
   dataset?: string;
 }): BenchHarnessConfig {
-  if (input.harness === "stagehand") {
-    return {
-      harness: "stagehand",
-      model: input.model,
-      provider: input.provider,
-      environment: input.environment,
-      useApi: input.useApi,
-      toolSurface: input.toolSurface,
-      startupProfile: input.startupProfile,
-      dataset: input.dataset,
-    };
-  }
-
   return {
     harness: input.harness,
     model: input.model,
@@ -231,13 +209,18 @@ export function generateBenchTestcases(
   // stagehand harness has no agent loop. A selection that leaves nothing to
   // run (suite name, agent category, dataset shorthand) errors with guidance
   // instead of planning zero cases; broad targets simply omit the suites.
+  const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
+  const harnessImpl = getBenchHarness(harness);
   let plannedTasks = benchTasks;
-  if ((options.harness ?? DEFAULT_BENCH_HARNESS) === "stagehand") {
+  if (!harnessImpl.supportedTaskKinds.includes("suite")) {
     plannedTasks = benchTasks.filter((task) => inferBenchTaskKind(task) !== "suite");
     if (plannedTasks.length === 0 && benchTasks.length > 0) {
-      throw new EvalsError(
-        "Agent benchmark suites require an external harness. Re-run with --harness claude_code or --harness codex.",
-      );
+      const suiteHarnesses =
+        listBenchHarnessesForTaskKind("suite").filter(isExecutableBenchHarness);
+      const guidance = suiteHarnesses.length
+        ? `Re-run with ${formatBenchHarnessFlags(suiteHarnesses)}.`
+        : "No registered harness runs agent benchmark suites.";
+      throw new EvalsError(`Agent benchmark suites require an external harness. ${guidance}`);
     }
   }
 
@@ -246,14 +229,19 @@ export function generateBenchTestcases(
   const suiteTestcases = generateSuiteTestcases(plannedTasks, options, modelEntries);
   const allTestcases = [...suiteTestcases.testcases];
 
-  if (options.harness === "claude_code" || options.harness === "codex") {
+  if (
+    harnessImpl.supportedTaskKinds.includes("suite") &&
+    !harnessImpl.supportedTaskKinds.some((taskKind) =>
+      (["act", "extract", "observe"] as BenchTaskKind[]).includes(taskKind),
+    )
+  ) {
     if (suiteTestcases.remainingTasks.length > 0) {
       const unsupported = suiteTestcases.remainingTasks
         .map((task) => task.name)
         .sort()
         .join(", ");
       throw new EvalsError(
-        `Harness "${options.harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
+        `Harness "${harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
       );
     }
     return allTestcases;
@@ -296,34 +284,6 @@ export function generateBenchTestcases(
   }
 
   return allTestcases;
-}
-
-function resolveBenchRowToolSurface(
-  harness: Harness,
-  requested?: ToolSurface,
-): ToolSurface | undefined {
-  if (harness === "claude_code") {
-    return resolveClaudeCodeToolSurface(requested);
-  }
-  if (harness === "codex") {
-    return resolveCodexToolSurface(requested);
-  }
-  return requested;
-}
-
-function resolveBenchRowStartupProfile(
-  harness: Harness,
-  toolSurface: ToolSurface | undefined,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile | undefined {
-  if (harness === "claude_code") {
-    return resolveClaudeCodeStartupProfile(toolSurface ?? "browse_cli", environment, requested);
-  }
-  if (harness === "codex") {
-    return resolveCodexStartupProfile(toolSurface ?? "browse_cli", environment, requested);
-  }
-  return requested;
 }
 
 export function generateSuiteTestcases(
@@ -405,7 +365,7 @@ function withBenchMetadata(
 
 function buildToolMetadata(row: BenchMatrixRow): Partial<Testcase["metadata"]> {
   if (
-    (row.harness === "claude_code" || row.harness === "codex") &&
+    getBenchHarness(row.harness).supportedToolSurfaces.includes("browse_cli") &&
     row.toolSurface === "browse_cli"
   ) {
     return getBrowseCliToolMetadata();

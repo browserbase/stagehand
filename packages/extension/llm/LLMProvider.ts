@@ -1,6 +1,10 @@
 import type { LanguageModel, LanguageModelMiddleware } from "ai";
-import type { ClientOptions, ModelName, ModelProvider } from "../../protocol/types.js";
-import { ClientOptionsSchema, ModelNameSchema } from "../../protocol/schemas.js";
+import type {
+  ClientOptions,
+  ModelName,
+  ModelProvider,
+} from "@browserbasehq/stagehand-protocol/types";
+import { ClientOptionsSchema, ModelNameSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { AISdkClient } from "./aisdk.js";
 import { LLMClient } from "./LLMClient.js";
 import { createOpenAI } from "@ai-sdk/openai";

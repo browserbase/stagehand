@@ -108,8 +108,8 @@ async function setCoreKey(entryDir: string, key: CoreKey, value: string): Promis
     return;
   }
 
-  const { listCoreTools, getCoreTool } = await import("../../core/tools/registry.js");
-  const validTools = listCoreTools();
+  const { listCoreRunnableTools, getCoreTool } = await import("../../core/tools/registry.js");
+  const validTools = listCoreRunnableTools();
 
   const config = readConfig(entryDir);
   const core: CoreConfigSection = { ...config.core };

@@ -39,18 +39,21 @@
     "build": "tsdown",
     "test": "vitest run --root ../.. packages/sdk-ts/tests",
     "test:unit": "vitest run --root ../.. packages/sdk-ts/tests --exclude=packages/sdk-ts/tests/browser-runtime/**",
-    "test:browser": "vitest run --root ../.. packages/sdk-ts/tests/browser-runtime"
+    "test:browser": "vitest run --root ../.. packages/sdk-ts/tests/browser-runtime",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@browserbasehq/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
-    "chrome-launcher": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@browserbasehq/stagehand-protocol": "workspace:*",
+    "@types/node": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {

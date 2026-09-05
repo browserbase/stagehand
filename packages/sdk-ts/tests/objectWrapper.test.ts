@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
-import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "../../protocol/schemas.js";
-import type { StagehandRpcNotification } from "../../protocol/types.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
+import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserClipboard,
   BrowserContext,

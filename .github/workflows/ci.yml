@@ -37,6 +37,7 @@ jobs:
       is_internal_head: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
+      deepagents-runner: ${{ steps.filter.outputs.deepagents-runner }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -74,6 +75,9 @@ jobs:
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
+              - '.github/**'
+            deepagents-runner:
+              - 'packages/integrations/deepagents/runner/**'
               - '.github/**'
             sdk-go:
               - 'packages/sdk-go/**'
@@ -255,6 +259,14 @@ jobs:
             packages/extension/artifacts/**
             packages/sdk-ts/dist/**
             packages/integrations/core/dist/**
+            packages/integrations/claude-agent-sdk/dist/**
+            packages/integrations/codex-sdk/dist/**
+            packages/integrations/mastra-sdk/dist/**
+            packages/integrations/pi-sdk/dist/**
+            packages/integrations/eve-sdk/dist/**
+            packages/integrations/deepagents-sdk/dist/**
+            packages/integrations/fx-sdk/dist/**
+            packages/integrations/cursor-sdk/dist/**
             packages/evals/dist/**
           retention-days: 1
 
@@ -336,6 +348,35 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/sdk-python/uv.lock
 
+      - run: uv sync --locked --dev
+      - run: uv run --locked pytest
+
+  deepagents-runner-checks:
+    name: Deep Agents runner checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.deepagents-runner == 'true'
+    defaults:
+      run:
+        working-directory: packages/integrations/deepagents/runner
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: packages/integrations/deepagents/runner/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/integrations/deepagents/runner
+          enable-cache: true
+          cache-dependency-glob: packages/integrations/deepagents/runner/uv.lock
+
+      - run: uv lock --check
       - run: uv sync --locked --dev
       - run: uv run --locked pytest
 

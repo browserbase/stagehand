@@ -5,14 +5,14 @@ import type {
   Cookie,
   CookieParam,
   DomainPolicy,
-} from "../../protocol/types.js";
-import type * as ProtocolTypes from "../../protocol/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/types";
+import type * as ProtocolTypes from "@browserbasehq/stagehand-protocol/types";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { BrowserClipboard } from "./browserClipboard.js";
 import { Page } from "./page.js";
 import { normalizeInitScriptSource, type InitScriptSource } from "./pageScripts.js";
 import type { StagehandCommandClient } from "./commandClient.js";
-export type { Cookie, CookieParam, DomainPolicy } from "../../protocol/types.js";
+export type { Cookie, CookieParam, DomainPolicy } from "@browserbasehq/stagehand-protocol/types";
 
 export type ClearCookieOptions = {
   name?: string | RegExp;

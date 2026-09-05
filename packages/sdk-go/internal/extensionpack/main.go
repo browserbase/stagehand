@@ -5,6 +5,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -72,7 +73,11 @@ func syncArchive(sourcePath, targetPath, packagePath string, check bool) error {
 				err,
 			)
 		case !bytes.Equal(current, source):
-			return errors.New("embedded Stagehand extension is stale; run `just generate`")
+			return fmt.Errorf(
+				"embedded Stagehand extension is stale (built sha256 %x, embedded sha256 %x); run `just generate`",
+				sha256.Sum256(source),
+				sha256.Sum256(current),
+			)
 		default:
 			return nil
 		}

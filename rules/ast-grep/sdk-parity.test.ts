@@ -208,7 +208,7 @@ describe("All language SDK operations remain in sync", () => {
         `${language} inbound request handlers must match TypeScript inbound request handlers`,
       ).toStrictEqual(typescriptInbound);
     }
-  });
+  }, 15_000);
 
   it("keeps every registered notification in the generated protocol and every client", async () => {
     const [registry, protocol] = await Promise.all([

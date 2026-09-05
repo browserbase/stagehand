@@ -5,11 +5,11 @@ import type {
   StagehandInitParams,
   StagehandInitResult,
   StagehandObserveParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import {
   checkProtocolCompatibility,
   STAGEHAND_PROTOCOL_VERSION,
-} from "../../protocol/protocol-version.js";
+} from "@browserbasehq/stagehand-protocol/protocol-version";
 import type { HandlerContext } from "../rpcRouter.js";
 import { StagehandProtocolCompatibilityError } from "../errors.js";
 import type { StagehandRuntime } from "../runtime.js";

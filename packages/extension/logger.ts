@@ -1,7 +1,14 @@
 import { context, ROOT_CONTEXT, SpanStatusCode, trace, type Context } from "@opentelemetry/api";
 import { z } from "zod/v4";
-import { StagehandLogDataSchema, StagehandLogSchema } from "../protocol/schemas.js";
-import type { StagehandLog, StagehandLogData, StagehandLogLevel } from "../protocol/types.js";
+import {
+  StagehandLogDataSchema,
+  StagehandLogSchema,
+} from "@browserbasehq/stagehand-protocol/schemas";
+import type {
+  StagehandLog,
+  StagehandLogData,
+  StagehandLogLevel,
+} from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandTracing } from "./tracing.js";
 
 export type StagehandLogEmitter = (log: StagehandLog) => void;

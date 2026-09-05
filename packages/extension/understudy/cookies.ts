@@ -1,5 +1,5 @@
-import type { Cookie, CookieParam } from "../../protocol/types.js";
-import { CookieParamSchema } from "../../protocol/schemas.js";
+import type { Cookie, CookieParam } from "@browserbasehq/stagehand-protocol/types";
+import { CookieParamSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { z } from "zod/v4";
 
 export type UnderstudyClearCookieOptions = {

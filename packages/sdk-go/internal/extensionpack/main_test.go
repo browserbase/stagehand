@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,6 +35,9 @@ func TestSyncArchiveRefreshesAndChecksCanonicalArtifact(t *testing.T) {
 	}
 	if err := syncArchive(sourcePath, targetPath, packagePath, true); err == nil {
 		t.Fatal("syncArchive(check) accepted a stale archive")
+	} else if !strings.Contains(err.Error(), "built sha256") ||
+		!strings.Contains(err.Error(), "embedded sha256") {
+		t.Fatalf("syncArchive(check) error = %v, want archive hashes", err)
 	}
 }
 

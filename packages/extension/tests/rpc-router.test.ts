@@ -5,8 +5,11 @@ import {
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
-import { DEFAULT_EXTRACT_JSON_SCHEMA, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { StagehandRpcRequestSchema } from "@browserbasehq/stagehand-protocol/schema-registry";
+import {
+  DEFAULT_EXTRACT_JSON_SCHEMA,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "@browserbasehq/stagehand-protocol/schemas";
 import { StagehandMetricsAccumulator } from "../metrics.ts";
 import { StagehandProtocolCompatibilityError } from "../errors.ts";
 import { createStagehandRuntime, type StagehandBrowserSession } from "../runtime.ts";

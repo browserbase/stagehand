@@ -7,14 +7,14 @@ import {
   type Span,
 } from "@opentelemetry/api";
 import { W3CTraceContextPropagator } from "@opentelemetry/core";
-import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
-import { wireSchema } from "../protocol/json-rpc/wire-casing.js";
-import { StagehandMethods } from "../protocol/schema-registry.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { wireSchema } from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   StagehandInitParams,
   StagehandInitResult,
   StagehandRpcRequest,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { createContextController } from "./controllers/contextController.js";
 import {

@@ -25,7 +25,7 @@ import type {
   PageWebMCPInvocationResultParams,
   PageWebMCPInvokeToolParams,
   PageWebMCPToolsParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
 

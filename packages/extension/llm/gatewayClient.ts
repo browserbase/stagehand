@@ -1,6 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
-import type { ModelConfig, StagehandInitParams } from "../../protocol/types.js";
+import type { ModelConfig, StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import { apiUrlForRegion } from "../clients/stagehandApi.js";
 
 export interface GatewayContext {

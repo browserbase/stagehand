@@ -6,7 +6,7 @@ import type {
   LLMGenerateParams,
   LLMGenerateResult,
   LLMMessageContentBlock,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { localBrowser, Stagehand } from "../src/index.js";
 
 const { OPENAI_API_KEY } = process.env;

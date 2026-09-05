@@ -6,7 +6,7 @@ import type {
   LLMImageContent,
   StagehandMetrics,
   StagehandResultUsage,
-} from "../../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import {
   localBrowser,
   Stagehand,

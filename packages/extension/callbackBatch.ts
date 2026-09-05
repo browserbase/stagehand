@@ -1,13 +1,16 @@
-import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
-import { encodeWireValue } from "../protocol/json-rpc/wire-casing.js";
-import { StagehandMethods, StagehandRpcRequestSchema } from "../protocol/schema-registry.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { encodeWireValue } from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
+import {
+  StagehandMethods,
+  StagehandRpcRequestSchema,
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   Action,
   CallbackBatchParams,
   CallbackBatchResult,
   StagehandMetrics,
   StagehandRpcNotification,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import type { ExperimentalBatchBrowserContext } from "../sdk-ts/src/batch.js";
 import { BrowserContext } from "../sdk-ts/src/browserContext.js";

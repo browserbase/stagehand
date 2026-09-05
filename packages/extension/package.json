@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build --config vite.config.ts",
     "test": "pnpm run build && vitest run --root ../.. packages/extension/tests",
-    "test:unit": "vitest run --root ../.. packages/extension/tests packages/extension/understudy"
+    "test:unit": "vitest run --root ../.. packages/extension/tests packages/extension/understudy",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "catalog:",
@@ -27,6 +28,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
     "fflate": "catalog:",

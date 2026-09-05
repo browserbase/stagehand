@@ -21,18 +21,21 @@ import {
   JSONRPCSuccessResponseSchema,
   JSONRPCWireInputSchema,
   type RPCMethod,
-} from "../../protocol/json-rpc/schemas.js";
+} from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import type {
   JSONRPCMessage,
   JSONRPCRequest,
   JSONRPCResponse,
-} from "../../protocol/json-rpc/types.js";
-import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
+} from "@browserbasehq/stagehand-protocol/json-rpc/types";
+import {
+  encodeWireValue,
+  wireSchema,
+} from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
 import {
   StagehandMethods,
   StagehandRpcNotificationSchema,
-} from "../../protocol/schema-registry.js";
-import type { StagehandRpcNotification } from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
+import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 import { abortReason } from "./abort.js";

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import type { DiscoveredTask } from "../../framework/types.js";
-import { buildBenchMatrixRow, generateBenchTestcases } from "../../framework/benchPlanner.js";
+import {
+  buildBenchMatrixRow,
+  defaultModelsEnvKey,
+  generateBenchTestcases,
+  resolveBenchModelEntries,
+} from "../../framework/benchPlanner.js";
+import { registerBenchHarness } from "../../framework/benchHarness.js";
 import { withEnvOverrides } from "../../tui/commands/parse.js";
 
 function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
@@ -26,6 +32,64 @@ function makeSuiteTask(name: string): DiscoveredTask {
 }
 
 describe("benchPlanner", () => {
+  it("uses the registry-derived Codex model override environment key", async () => {
+    expect(defaultModelsEnvKey("codex")).toBe("EVAL_CODEX_MODELS");
+    await withEnvOverrides({ EVAL_CODEX_MODELS: "openai/custom-codex" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "codex" }).modelEntries).toEqual([
+        { modelName: "openai/custom-codex", mode: "hybrid", cua: false },
+      ]);
+    });
+  });
+
+  it("uses the registry-derived Mastra model override environment key", async () => {
+    expect(defaultModelsEnvKey("mastra")).toBe("EVAL_MASTRA_MODELS");
+    await withEnvOverrides({ EVAL_MASTRA_MODELS: "openai/custom-mastra" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "mastra" }).modelEntries).toEqual([
+        { modelName: "openai/custom-mastra", mode: "hybrid", cua: false },
+      ]);
+    });
+  });
+
+  it("uses the registry-derived fx model override environment key", async () => {
+    expect(defaultModelsEnvKey("fx")).toBe("EVAL_FX_MODELS");
+    await withEnvOverrides({ EVAL_FX_MODELS: "openai/custom-fx" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "fx" }).modelEntries).toEqual([
+        { modelName: "openai/custom-fx", mode: "hybrid", cua: false },
+      ]);
+    });
+    await withEnvOverrides({ EVAL_FX_MODELS: "" }, async () => {
+      expect(resolveBenchModelEntries([makeTask()], { harness: "fx" }).modelEntries).toEqual([
+        { modelName: "openai/gpt-5.4-mini", mode: "hybrid", cua: false },
+      ]);
+    });
+  });
+
+  it("plans registered pass-through harness rows generically", () => {
+    registerBenchHarness({
+      harness: "fake_planner_harness",
+      supportedTaskKinds: ["act", "extract", "observe"],
+      supportsApi: false,
+      supportedToolSurfaces: [],
+      execute: async () => ({ _success: true }),
+      start: async () => {
+        throw new Error("n/a");
+      },
+    });
+
+    const row = buildBenchMatrixRow(makeTask(), "openai/test" as AvailableModel, {
+      harness: "fake_planner_harness",
+      coreToolSurface: "understudy_code",
+      coreStartupProfile: "tool_attach_local_cdp",
+    });
+
+    expect(row).toMatchObject({
+      harness: "fake_planner_harness",
+      toolSurface: "understudy_code",
+      startupProfile: "tool_attach_local_cdp",
+      config: { harness: "fake_planner_harness" },
+    });
+  });
+
   it("builds stagehand matrix rows by default", () => {
     const task = makeTask();
     const row = buildBenchMatrixRow(task, "openai/gpt-4.1-mini" as AvailableModel, {
@@ -81,6 +145,25 @@ describe("benchPlanner", () => {
       );
 
     await expect(generate()).rejects.toThrow("Agent benchmark suites require an external harness");
+  });
+
+  it("omits planning-only harnesses from executable suite guidance", async () => {
+    registerBenchHarness({
+      harness: "planning_only_suite_guidance",
+      supportedTaskKinds: ["suite"],
+      supportsApi: false,
+      supportedToolSurfaces: ["browse_cli"],
+    });
+    const generate = () =>
+      withEnvOverrides({ EVAL_MAX_K: "1", EVAL_WEBVOYAGER_LIMIT: "1" }, async () =>
+        generateBenchTestcases([makeSuiteTask("agent/webvoyager")], {
+          modelOverride: "openai/gpt-4.1-mini",
+          datasetFilter: "webvoyager",
+          harness: "stagehand",
+        }),
+      );
+
+    await expect(generate()).rejects.not.toThrow("planning_only_suite_guidance");
   });
 
   it("keeps claude_code as a harness-level matrix", async () => {

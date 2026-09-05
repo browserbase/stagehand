@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import type { DiscoveredTask } from "../../framework/types.js";
-import { resolveBenchModelEntries, type RunEvalsOptions } from "../../framework/runner.js";
+import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
+import {
+  resolveBenchModelEntries,
+  runEvals,
+  type RunEvalsOptions,
+} from "../../framework/runner.js";
 import { resolveBraintrustProjectName } from "../../framework/braintrust.js";
 
 vi.mock("playwright", () => ({
@@ -26,6 +30,15 @@ function makeTask(overrides: Partial<DiscoveredTask>): DiscoveredTask {
     filePath: "/fake.ts",
     isLegacy: false,
     ...overrides,
+  };
+}
+
+function emptyRegistry(): TaskRegistry {
+  return {
+    tasks: [],
+    byName: new Map(),
+    byTier: new Map(),
+    byCategory: new Map(),
   };
 }
 
@@ -183,5 +196,33 @@ describe("runner: single-task agent model detection", () => {
     expect(resolved.isAgentCategory).toBe(true);
     expect(resolved.modelEntries.length).toBeGreaterThan(0);
     expect(resolved.modelEntries.every((entry) => entry.mode === "hybrid")).toBe(true);
+  });
+});
+
+describe("runner: core tool validation", () => {
+  it("rejects stagehand_facade before planning core tasks", async () => {
+    const onProgress = vi.fn();
+    await expect(
+      runEvals({
+        tasks: [makeTask({ tier: "core", name: "open" })],
+        registry: emptyRegistry(),
+        coreToolSurface: "stagehand_facade",
+        onProgress,
+      }),
+    ).rejects.toThrow(/available only as an agent harness mount/iu);
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it("keeps ordinary empty core planning unchanged", async () => {
+    const onProgress = vi.fn();
+    await expect(
+      runEvals({
+        tasks: [],
+        registry: emptyRegistry(),
+        coreToolSurface: "understudy_code",
+        onProgress,
+      }),
+    ).resolves.toMatchObject({ summary: { passed: 0, failed: 0, total: 0 } });
+    expect(onProgress).toHaveBeenCalledWith({ type: "planned", total: 0 });
   });
 });

@@ -1,4 +1,6 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
+import { listBenchHarnesses, listBenchHarnessesForTaskKind } from "../../framework/benchHarness.js";
+import { listCoreRunnableTools } from "../../core/tools/registry.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -35,6 +37,7 @@ export function printHelp(): void {
 }
 
 export function printRunHelp(): void {
+  const suiteHarness = listBenchHarnessesForTaskKind("suite")[0];
   print([
     "",
     `  ${dustyCyanHeader("evals run")} ${dim("[target] [options]")}`,
@@ -76,7 +79,7 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
+      `Bench harness ${gray(`(${listBenchHarnesses().join(" | ")})`)}`,
     ),
     row(
       `${cyan("--success")} ${dim("<mode>")}`,
@@ -103,7 +106,11 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run b:webvoyager -l 10`,
     `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
     `    ${dim("$")} evals run b:webtailbench -l 10`,
-    `    ${dim("$")} evals run b:webvoyager --harness claude_code --tool stagehand_code -l 3`,
+    ...(suiteHarness
+      ? [
+          `    ${dim("$")} evals run b:webvoyager --harness ${suiteHarness} --tool stagehand_code -l 3`,
+        ]
+      : []),
     "",
   ]);
 }
@@ -173,7 +180,7 @@ export function printConfigHelp(): void {
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",
@@ -204,7 +211,7 @@ export function printConfigCoreHelp(): void {
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",

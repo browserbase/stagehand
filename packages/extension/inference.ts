@@ -6,7 +6,7 @@ import type {
   LLMMessage,
   LLMUsage,
   Variables,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import {
   buildActSystemPrompt,
   buildExtractSystemPrompt,

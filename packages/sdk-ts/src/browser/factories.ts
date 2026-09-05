@@ -1,7 +1,9 @@
-import type { StagehandInitParams } from "../../../protocol/types.js";
+import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserbaseConnectOptionsSchema,
+  BrowserbaseFetchOptionsSchema,
   BrowserbaseLaunchOptionsSchema,
+  BrowserbaseSearchOptionsSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
 } from "../clientSchemas.js";
@@ -22,6 +24,10 @@ import {
   createBrowserbaseSessionClient,
   type BrowserbaseSessionClient,
 } from "./browserbaseSession.js";
+import {
+  createBrowserbaseServicesClient,
+  type BrowserbaseServicesClient,
+} from "./browserbaseServices.js";
 import { launchLocalBrowser, type LocalBrowserLauncher } from "./localBrowser.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "../extensionAssets.js";
 import { abortable } from "../abort.js";
@@ -40,6 +46,7 @@ export type ClaimedStagehandBrowser = {
 type BrowserFactoryDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
   createBrowserbaseSessionClient?: (apiKey: string, baseUrl: string) => BrowserbaseSessionClient;
+  createBrowserbaseServicesClient?: (apiKey: string, baseUrl: string) => BrowserbaseServicesClient;
   connectCdp?: (options: CDPClientOptions) => Promise<CDPClient>;
 };
 
@@ -56,6 +63,8 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
   const launchLocal = dependencies.launchLocalBrowser ?? launchLocalBrowser;
   const createBrowserbase =
     dependencies.createBrowserbaseSessionClient ?? createBrowserbaseSessionClient;
+  const createBrowserbaseServices =
+    dependencies.createBrowserbaseServicesClient ?? createBrowserbaseServicesClient;
   const connectCdp = dependencies.connectCdp ?? ((options) => CDPClient.connect(options));
 
   return {
@@ -66,7 +75,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           throw new Error("downloadsPath is required when acceptDownloads is true");
         }
         return await withStagehandInitDeadline(async (signal) => {
-          const launchPromise = launchLocal(options);
+          const launchPromise = launchLocal(options, signal);
           let launched: Awaited<typeof launchPromise>;
           try {
             launched = await abortable(launchPromise, signal);
@@ -205,6 +214,16 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             },
           });
         });
+      },
+
+      async search(input) {
+        const { apiKey, baseUrl, ...params } = BrowserbaseSearchOptionsSchema.parse(input);
+        return await createBrowserbaseServices(apiKey, baseUrl).search(params);
+      },
+
+      async fetch(input) {
+        const { apiKey, baseUrl, ...params } = BrowserbaseFetchOptionsSchema.parse(input);
+        return await createBrowserbaseServices(apiKey, baseUrl).fetch(params);
       },
     },
   };
