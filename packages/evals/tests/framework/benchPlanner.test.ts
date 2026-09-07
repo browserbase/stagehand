@@ -212,12 +212,12 @@ describe("benchPlanner", () => {
     expect(testcases[0].input.isCUA).toBeUndefined();
     expect(testcases[0].tags).toContain("harness/claude_code");
     expect(testcases[0].metadata.harness).toBe("claude_code");
-    expect(testcases[0].metadata.toolSurface).toBe("browse_cli");
+    expect(testcases[0].metadata.toolSurface).toBe("stagehand_facade");
     expect(testcases[0].metadata.startupProfile).toBe("tool_launch_local");
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
-  it("keeps codex as a harness-level matrix with browse_cli metadata", async () => {
+  it("keeps codex as a harness-level matrix with facade metadata", async () => {
     const testcases = await withEnvOverrides(
       {
         EVAL_MAX_K: "1",
@@ -237,9 +237,9 @@ describe("benchPlanner", () => {
     expect(testcases[0].input.isCUA).toBeUndefined();
     expect(testcases[0].tags).toContain("harness/codex");
     expect(testcases[0].metadata.harness).toBe("codex");
-    expect(testcases[0].metadata.toolSurface).toBe("browse_cli");
+    expect(testcases[0].metadata.toolSurface).toBe("stagehand_facade");
     expect(testcases[0].metadata.startupProfile).toBe("tool_launch_local");
-    expect(testcases[0].metadata.toolCommand).toBe("browse");
+    expect(testcases[0].metadata.toolCommand).toBeUndefined();
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 

@@ -26,7 +26,13 @@ import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
 } from "./externalHarnessPlan.js";
+import {
+  logBrowserSession,
+  withBrowserSession,
+  type BrowserSessionInfo,
+} from "./browserSession.js";
 import { withHarnessAgentSpan } from "./otel.js";
+import { verifierTraceEnabled } from "./verifierTrace.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
@@ -105,7 +111,14 @@ export interface ExternalHarnessRunInput<TAdapter> {
   verifier: ExternalHarnessVerifierConfig;
 }
 
-export interface ExternalHarnessDefinition<TAdapter extends { cleanup: () => Promise<void> }> {
+/** What every prepared external-harness adapter must expose to the shared lifecycle. */
+export interface ExternalHarnessAdapterBase {
+  cleanup: () => Promise<void>;
+  /** Browser behind the mounted surface; logged before the agent starts. */
+  browserSession?: BrowserSessionInfo;
+}
+
+export interface ExternalHarnessDefinition<TAdapter extends ExternalHarnessAdapterBase> {
   harness: string;
   supportedToolSurfaces: ToolSurface[];
   defaultModels: AvailableModel[];
@@ -119,7 +132,7 @@ export interface ExternalHarnessDefinition<TAdapter extends { cleanup: () => Pro
  * Define the lifecycle common to external agent harnesses without registering
  * it; registry ownership stays explicit so list order remains deterministic.
  */
-export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<void> }>(
+export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBase>(
   definition: ExternalHarnessDefinition<TAdapter>,
 ): BenchHarness {
   const {
@@ -157,7 +170,11 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
           logger,
         });
         const preparedAdapter = toolAdapter;
-        return await withHarnessAgentSpan(
+        const browserSession: BrowserSessionInfo = preparedAdapter.browserSession ?? {
+          provider: row.config.environment === "BROWSERBASE" ? "browserbase" : "local",
+        };
+        logBrowserSession(logger, browserSession);
+        const result = await withHarnessAgentSpan(
           {
             harness,
             model: input.modelName,
@@ -178,6 +195,7 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
               },
             }),
         );
+        return withBrowserSession(result, browserSession);
       } finally {
         try {
           await toolAdapter?.cleanup();
@@ -208,7 +226,9 @@ function buildVerifierCarrierV3(logger: EvalLogger): V3 {
     disablePino: true,
     disableAPI: true,
     experimental: true,
-    verbose: 0,
+    // verbose 2 surfaces the judge's LLM request/response lines (level 2),
+    // which verifierAdapter routes to scores/verifier-trace.jsonl.
+    verbose: verifierTraceEnabled() ? 2 : 0,
   });
 }
 
