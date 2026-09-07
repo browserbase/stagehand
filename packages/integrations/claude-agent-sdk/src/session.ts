@@ -1,5 +1,6 @@
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -115,7 +116,11 @@ export async function runClaudeAgentSession(input: {
         permissionMode: input.session.permissionMode ?? "default",
         settingSources: input.session.settingSources ?? [],
         stderr: (data: string) => {
-          input.logger.log({ category: "claude_code", message: data, level: 1 });
+          input.logger.log({
+            category: "claude_code",
+            message: data,
+            level: /\b(?:error|fatal|failed)\b/iu.test(data) ? 1 : 2,
+          });
         },
         ...(systemPrompt !== undefined && { systemPrompt }),
       },
@@ -277,11 +282,19 @@ export function buildClaudeCodeTranscript(messages: ClaudeSdkMessage[]): string 
 }
 
 export function logClaudeCodeMessage(logger: HarnessLogger, message: ClaudeSdkMessage): void {
+  const type = String(message.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError:
+      (type === "result" && message.subtype !== undefined && message.subtype !== "success") ||
+      message.is_error === true,
+    hasContent: type === "assistant" || type === "user" || type === "result",
+  });
+  if (level === undefined) return;
   const summary = summarizeClaudeCodeMessage(message);
   logger.log({
     category: "claude_code",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(message.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
