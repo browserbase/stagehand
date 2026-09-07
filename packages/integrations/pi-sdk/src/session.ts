@@ -49,6 +49,8 @@ export type PiSessionConfig = {
   mcpServers?: Record<string, PiMcpServerSpec>;
 };
 export type PiTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -267,6 +269,7 @@ export async function runPiSession(input: {
 
 export function extractPiTokenUsage(events: PiEvent[]): PiTokenUsage {
   const total: PiTokenUsage = {
+    reported: false,
     inputTokens: 0,
     outputTokens: 0,
     cacheReadTokens: 0,
@@ -281,6 +284,7 @@ export function extractPiTokenUsage(events: PiEvent[]): PiTokenUsage {
     const message = event.message;
     if (message.role !== "assistant" || !isRecord(message.usage)) continue;
     const usage = message.usage;
+    total.reported ||= [usage.input, usage.output].some(isTokenCount);
     total.inputTokens += toFiniteNumber(usage.input);
     total.outputTokens += toFiniteNumber(usage.output);
     total.cacheReadTokens += toFiniteNumber(usage.cacheRead);
@@ -494,4 +498,12 @@ export function toFiniteNumber(value: unknown): number {
         ? Number(value)
         : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

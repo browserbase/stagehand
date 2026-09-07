@@ -31,6 +31,8 @@ export type DeepagentsSessionConfig = {
 };
 
 export type DeepagentsTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadInputTokens: number;
@@ -350,6 +352,8 @@ export function extractDeepagentsTokenUsage(
   event: Record<string, unknown> | undefined,
 ): DeepagentsTokenUsage {
   return {
+    reported:
+      event?.reported !== false && [event?.input_tokens, event?.output_tokens].some(isTokenCount),
     inputTokens: toFiniteNumber(event?.input_tokens),
     outputTokens: toFiniteNumber(event?.output_tokens),
     cacheReadInputTokens: toFiniteNumber(event?.cache_read_input_tokens),
@@ -531,4 +535,12 @@ export function toFiniteNumber(value: unknown): number {
         ? Number(value)
         : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

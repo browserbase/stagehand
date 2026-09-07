@@ -259,7 +259,7 @@ def message_events(message: object, tool_servers: Mapping[str, str]) -> list[Eve
     return []
 
 
-def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int]:
+def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int | bool]:
     totals = {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -267,9 +267,16 @@ def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int]
         "reasoning_output_tokens": 0,
         "total_tokens": 0,
     }
+    reported = False
     for usage in usages:
         if not usage:
             continue
+        reported = reported or any(
+            isinstance(usage.get(key), int)
+            and not isinstance(usage.get(key), bool)
+            and usage[key] >= 0
+            for key in ("input_tokens", "output_tokens")
+        )
         totals["input_tokens"] += _integer(usage.get("input_tokens"))
         totals["output_tokens"] += _integer(usage.get("output_tokens"))
         totals["total_tokens"] += _integer(usage.get("total_tokens"))
@@ -279,7 +286,7 @@ def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int]
             totals["cache_read_input_tokens"] += _integer(input_details.get("cache_read"))
         if isinstance(output_details, Mapping):
             totals["reasoning_output_tokens"] += _integer(output_details.get("reasoning"))
-    return totals
+    return {**totals, "reported": reported}
 
 
 def _integer(value: object) -> int:
