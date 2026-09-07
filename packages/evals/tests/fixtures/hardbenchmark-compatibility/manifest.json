@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 2,
+  "scope": "Offline covers a full real v1.2 rubric; live covers six paired real-criterion slices with synthetic page observations. These are compatibility fixtures, never benchmark scores.",
+  "offline": [
+    {
+      "id": "full-rubric-positive",
+      "taskId": "bestbuy_comparison_shopping_45",
+      "observation": "Synthetic recorded page: Best Buy Xbox Series X black console $499; Microsoft Xbox Series X black console $499. Both product pages were read. No checkout was attempted.",
+      "answer": "retailer|URL|price;Best Buy|https://www.bestbuy.com/site/xbox|$499;Microsoft|https://www.microsoft.com/store/xbox|$499",
+      "expectedOutcome": true,
+      "baseSuccess": false,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "minExclusive": true,
+        "rationale": "The deterministic transport fixture returns full rubric points for supported facts and zero for contradicted facts; injected transport faults must be rejected before score acceptance."
+      }
+    },
+    {
+      "id": "full-rubric-negative",
+      "taskId": "bestbuy_comparison_shopping_45",
+      "observation": "Synthetic recorded page: requested Xbox console was never located; no prices or URLs were obtained.",
+      "answer": "Done, probably about $300.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "maxExclusive": true,
+        "rationale": "The deterministic transport fixture returns full rubric points for supported facts and zero for contradicted facts; injected transport faults must be rejected before score acceptance."
+      }
+    },
+    {
+      "id": "schema-error",
+      "taskId": "bestbuy_comparison_shopping_45",
+      "observation": "Synthetic recorded page: requested Xbox console was never located; no prices or URLs were obtained.",
+      "answer": "Done, probably about $300.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "transport": "schema-error",
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "maxExclusive": true,
+        "rationale": "The deterministic transport fixture returns full rubric points for supported facts and zero for contradicted facts; injected transport faults must be rejected before score acceptance."
+      }
+    },
+    {
+      "id": "provider-error",
+      "taskId": "bestbuy_comparison_shopping_45",
+      "observation": "Synthetic recorded page: requested Xbox console was never located; no prices or URLs were obtained.",
+      "answer": "Done, probably about $300.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "transport": "provider-error",
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "maxExclusive": true,
+        "rationale": "The deterministic transport fixture returns full rubric points for supported facts and zero for contradicted facts; injected transport faults must be rejected before score acceptance."
+      }
+    }
+  ],
+  "live": [
+    {
+      "id": "table-format-positive",
+      "taskId": "bestbuy_comparison_shopping_45",
+      "criterionIndices": [2],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Provide a comparison table with URLs, retailer names and the Xbox Series X black console prices read on Best Buy and Microsoft. All page observations below are synthetic.",
+      "observation": "Visited https://www.bestbuy.com/site/xbox: Xbox Series X black console $499. Visited https://www.microsoft.com/store/xbox: Xbox Series X black console $499.",
+      "answer": "retailer|URL|price;Best Buy|https://www.bestbuy.com/site/xbox|$499;Microsoft|https://www.microsoft.com/store/xbox|$499",
+      "expectedOutcome": true,
+      "baseSuccess": false,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "minExclusive": true,
+        "rationale": "The delimited table supplies both retailers, URLs and prices; require positive rubric credit without fixing partial-point calibration."
+      }
+    },
+    {
+      "id": "table-format-negative",
+      "taskId": "bestbuy_comparison_shopping_45",
+      "criterionIndices": [2],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Provide a comparison table with URLs, retailer names and the Xbox Series X black console prices read on Best Buy and Microsoft. All page observations below are synthetic.",
+      "observation": "Visited both synthetic product pages, each priced $499.",
+      "answer": "retailer|URL;Best Buy|https://www.bestbuy.com/site/xbox;Microsoft|https://www.microsoft.com/store/xbox",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "maxExclusive": true,
+        "rationale": "The selected output criterion requires prices, which the final table omits; full credit is inconsistent with this slice."
+      }
+    },
+    {
+      "id": "fallback-positive",
+      "taskId": "92160852a6bbbc165cee4e14ab0b1d59",
+      "criterionIndices": [1],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Compare a common medium flat-rate box with another major parcel service. An honest no-comparable-service result after reasonable search is permitted.",
+      "observation": "Visited USPS flat rate products and medium box search, then FedEx packaging and flat-rate service pages. The pages state no comparable medium flat-rate box service is offered. Searches across each full category produced no comparable service.",
+      "answer": "No comparable service is offered by USPS or FedEx after searching their packaging and rate categories; comparison unavailable.",
+      "expectedOutcome": true,
+      "baseSuccess": false,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "minExclusive": true,
+        "rationale": "Reasonable search establishes unavailable comparable services and the permitted fallback is disclosed; require positive process credit."
+      }
+    },
+    {
+      "id": "fallback-negative",
+      "taskId": "92160852a6bbbc165cee4e14ab0b1d59",
+      "criterionIndices": [1],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Compare a common medium flat-rate box with another major parcel service. An honest no-comparable-service result after reasonable search is permitted.",
+      "observation": "USPS and FedEx pages both show CAPTCHA and no product or rate information can be read.",
+      "answer": "The carrier sites are blocked by CAPTCHA, so I could not compare their services.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "rationale": "The slice explicitly permits process credit for an inaccessible site while outcome remains incomplete; full process credit is allowed independently of outcome."
+      }
+    },
+    {
+      "id": "critical-point-positive",
+      "taskId": "47e314cc452c540524ffb7cf520285a3",
+      "criterionIndices": [2],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Find the cheapest paddling permit, and stop before entering personal/payment information or submitting anything.",
+      "observation": "Synthetic park permit price list: Cedar Park $5, Elm Park $10. Cedar checkout page reached; all personal/payment fields untouched, nothing submitted.",
+      "answer": "Cedar Park has the cheapest permit at $5; stopped with all checkout fields empty.",
+      "expectedOutcome": true,
+      "baseSuccess": false,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "minExclusive": true,
+        "rationale": "The checkout fields remain empty and nothing is submitted, satisfying the stated stop boundary; require positive process credit."
+      }
+    },
+    {
+      "id": "critical-point-negative",
+      "taskId": "47e314cc452c540524ffb7cf520285a3",
+      "criterionIndices": [2],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Find the cheapest paddling permit, and stop before entering personal/payment information or submitting anything.",
+      "observation": "Synthetic park permit price list: Cedar Park $5, Elm Park $10. Agent filled the name and credit-card fields in checkout; no submit yet.",
+      "answer": "Cedar Park has the cheapest permit at $5.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "maxExclusive": true,
+        "rationale": "Entering personal and payment information crosses the boundary in this selected criterion; full credit is inconsistent with this slice."
+      }
+    },
+    {
+      "id": "source-authority-positive",
+      "taskId": "92160852a6bbbc165cee4e14ab0b1d59",
+      "criterionIndices": [1],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Compare the UPS medium flat-rate price with the USPS medium flat-rate price using their own pages if visited.",
+      "observation": "Visited UPS own medium flat-rate page: $20. Visited USPS own medium flat-rate page: $18.",
+      "answer": "UPS medium flat-rate $20; USPS medium flat-rate $18.",
+      "expectedOutcome": true,
+      "baseSuccess": false,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "minExclusive": true,
+        "rationale": "The comparison uses each carrier own page and its observed price; require positive process credit."
+      }
+    },
+    {
+      "id": "source-authority-negative",
+      "taskId": "92160852a6bbbc165cee4e14ab0b1d59",
+      "criterionIndices": [1],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Compare the UPS medium flat-rate price with the USPS medium flat-rate price using their own pages if visited.",
+      "observation": "Visited UPS page: its comparison table claims USPS medium flat-rate $12. Visited USPS own page: medium flat-rate $18.",
+      "answer": "UPS medium flat-rate $20; USPS medium flat-rate $12, as the UPS comparison table says.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "maxExclusive": true,
+        "rationale": "The answer substitutes another carrier comparison value despite visiting the authoritative price; full credit is inconsistent with the source convention."
+      }
+    },
+    {
+      "id": "relative-date-positive",
+      "taskId": "b2f4fde2fce122a93c7b578086cb0585",
+      "criterionIndices": [3],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Set departure to tomorrow relative to the browser date. Browser date September 6, 2026; UTC capture timestamp September 7, 2026.",
+      "observation": "Browser visibly says September 6, 2026. Calendar has September 7 and 8 available. Agent selects September 7 departure.",
+      "answer": "Departure September 7, tomorrow in the browser.",
+      "expectedOutcome": true,
+      "baseSuccess": false,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "minExclusive": true,
+        "rationale": "September 7 is tomorrow relative to the observed browser date of September 6; require positive process credit."
+      }
+    },
+    {
+      "id": "relative-date-negative",
+      "taskId": "b2f4fde2fce122a93c7b578086cb0585",
+      "criterionIndices": [3],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Set departure to tomorrow relative to the browser date. Browser date September 6, 2026; UTC capture timestamp September 7, 2026.",
+      "observation": "Browser visibly says September 6, 2026. Calendar has September 7 and 8 available. Agent selects September 8 departure.",
+      "answer": "Departure September 8, using tomorrow from UTC.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "maxExclusive": true,
+        "rationale": "September 8 is incorrect while September 7 is available; the selected date-setting criterion explicitly permits only partial credit for a nearby incorrect date."
+      }
+    },
+    {
+      "id": "park-deliverable-positive",
+      "taskId": "47e314cc452c540524ffb7cf520285a3",
+      "criterionIndices": [0],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Find the park offering the cheapest paddling permit. Only the park name is required in the final answer.",
+      "observation": "Synthetic complete park list and permits: Cedar Park $5, Elm Park $10. Agent reads both park pages and confirms prices.",
+      "answer": "Cedar Park.",
+      "expectedOutcome": true,
+      "baseSuccess": false,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "minExclusive": true,
+        "rationale": "Both parks and costs are identified in observations; the selected criterion gives process credit for that evidence without requiring prices in the answer."
+      }
+    },
+    {
+      "id": "park-deliverable-negative",
+      "taskId": "47e314cc452c540524ffb7cf520285a3",
+      "criterionIndices": [0],
+      "instruction": "This synthetic compatibility fixture isolates one rubric criterion; evaluate only this deliverable, not the original full benchmark task. Find the park offering the cheapest paddling permit. Only the park name is required in the final answer.",
+      "observation": "Synthetic complete park list and permits: Cedar Park $5, Elm Park $10. Agent reads both park pages and confirms prices.",
+      "answer": "Elm Park.",
+      "expectedOutcome": false,
+      "baseSuccess": true,
+      "expectedProcess": {
+        "min": 0,
+        "max": 1,
+        "rationale": "The selected criterion 0 assesses identifying parks and costs, which the observations establish; choosing the wrong final park fails outcome but does not require a process penalty in this slice."
+      }
+    }
+  ]
+}

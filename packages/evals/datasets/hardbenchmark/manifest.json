@@ -1,0 +1,784 @@
+{
+  "schema_version": 1,
+  "corpus_version": "1.1",
+  "rubric_version": "1.2",
+  "dataset": "HardBenchmark_data.jsonl",
+  "sha256": "2eca8e697d40c7d3f4179af3aea3a4aa620843a6bc55ba9fcbd088592668ce5a",
+  "sets": {
+    "core": [
+      "47e314cc452c540524ffb7cf520285a3",
+      "92160852a6bbbc165cee4e14ab0b1d59",
+      "a0a18ca6a3529f3e97c771aadd42d3a0",
+      "b2f4fde2fce122a93c7b578086cb0585",
+      "b3f8bd9198d9d157e0848109563c4b23",
+      "bestbuy_comparison_shopping_45",
+      "dd44c665cec1e9c929a4c5f074e7844a",
+      "eventbrite_tickets_book_76",
+      "homedepot_comparison_shopping_18",
+      "michaels_2250",
+      "nothingbundtcakes_6",
+      "oceanstatejoblot_4",
+      "overstock_8717",
+      "rockauto_1225",
+      "rockauto_4460",
+      "simpletire_5",
+      "tagwoodbbq_1",
+      "tripadvisor_plan_a_trip_118",
+      "walgreens_10",
+      "76b028060cecfff1",
+      "fd8044d6fa4b8133",
+      "e727fef3434bcf7d",
+      "f9197b33a3b859e2",
+      "bf8dbd69209afc41",
+      "a30584e1bef75cb0",
+      "042fce39001b44c6",
+      "fe38b71056b41d33",
+      "522873929611ec0c",
+      "ec31ef486a6dc26d",
+      "6e4c51d62e019097",
+      "34b83dd1d3c5ffc1",
+      "c62162f4232bf363",
+      "8392b2e444e30a14",
+      "6bc0ac303334edb0",
+      "d162bc299e59571a",
+      "a101edb5eadd94c7",
+      "eb924731c9ca19a9",
+      "40afffdc6cb9165e"
+    ],
+    "extended": [
+      "c445e0f47ee855bf",
+      "bd0c3683ba7b6b6e",
+      "42e575601381a3ae",
+      "10bba30463de8a4a",
+      "375319794568ca64",
+      "47e6e4506f23dd2b",
+      "48e2ec53f672cc30",
+      "6f34bb38197d4473",
+      "d6b604c5d59de22f",
+      "6457d124ee4e3398",
+      "26c36fa0890e9d85",
+      "a3f90b46b60281c2",
+      "5288be518603929f",
+      "26be8313021892b0",
+      "e9beb082b1af2a04",
+      "54cc6749ab603741",
+      "489a2e04788b3b16",
+      "5f02c947f2851b01",
+      "cbe6bef9074bbb52",
+      "ae20cdc2d04be6a3",
+      "e4cb29b2003313ef",
+      "eb9e86b815a405ce",
+      "6af6826ddefb57ac",
+      "b355a0ac1dd370d9",
+      "95c3df010e8173e6",
+      "40c44011b19e2839",
+      "0f03dd223f2d9746",
+      "1f287b673ef1b512",
+      "dc8d2b9fe90ca523",
+      "f2ea0da2ad870a70",
+      "b789a4bcb866a7ac",
+      "2b74f276fa9ee265",
+      "25657b8740e79d79",
+      "06189d67b34ea559",
+      "55fcffdfad5568b6",
+      "e48eef64a84356e1",
+      "6f433dbed4a6df09",
+      "d7c5a85b86382a44",
+      "24951442ae449419",
+      "326ea1fea2c36fe4",
+      "8bf6fe2e5b1b57b8",
+      "375afda349095aa1",
+      "a4f9a0547593446f",
+      "c22b8beccea7789e",
+      "11511f0f0e1c2e48",
+      "5b37ebe9009536a3",
+      "83b722cf5cb1410b",
+      "70a8fe52a1eab80a",
+      "a100c8d9e531d97a",
+      "8dbe29aaf9e6eacf",
+      "53768ec71424d8a6",
+      "be63f5007ade03a8",
+      "cbe906df1c12983e",
+      "6b0143bca61becce",
+      "8f779e89bff08dcb",
+      "0d6c78fc2382b10c",
+      "8e3a0057f978576f",
+      "244c1f69b23d5ef6",
+      "5ebe10bfd9272a36",
+      "d5d78824d523ebc3",
+      "9c5c1a8626aac06e",
+      "837454659108b27d",
+      "ad730c3267b33dcf",
+      "988e3420745516ae"
+    ],
+    "holdout": [
+      "b9d00cb530cceabc",
+      "ccff9c53395151f7",
+      "c59d56dff6eb392b",
+      "a9b7e58cd1ce3b54",
+      "82587650e6618442",
+      "40b33411db9eb85a",
+      "e6130e256b5a2451",
+      "4600f8619a951908",
+      "75c5834cd7e96212",
+      "d53d4153f88437eb",
+      "18429b57ba5ad580",
+      "f96e03a61ab2c662",
+      "c091f53ca3a1829e",
+      "c203e81c71b71274",
+      "f8516e28cdf93612",
+      "3331bb7d1558540a",
+      "c5033ac03b52f9ad",
+      "fa6300a737299897",
+      "3b61cb06359c7bb0",
+      "c099d0ef082413a7"
+    ],
+    "retired": [
+      "84f806c7fc15576673915f195efa72df",
+      "864244b6969e0f8733b0eb1ca06cd51f",
+      "aa4b5cb7114fcc138ade82b4b9716d24",
+      "afcebfed28bea091d58f49ea6cb8194b",
+      "airasia_88",
+      "amazon_7859",
+      "amazon_comparison_shopping_77",
+      "apply_apply_2317",
+      "apply_apply_2864",
+      "c1d6ea6f2196d25782cc3646ff3090db",
+      "colgate_1",
+      "disneyworld.disney.go_plan_a_trip_2",
+      "eventbrite_tickets_book_51",
+      "fiestafactorydirect_1",
+      "homedepot_comparison_shopping_20",
+      "housebeautiful_2",
+      "indytoday.6amcity_8",
+      "metmuseum_find_24",
+      "recwatches_1",
+      "tiqets_tickets_book_5",
+      "tripadvisor_question_answering_185",
+      "underarmour_7483",
+      "walmart_comparison_shopping_375",
+      "wayfair_comparison_shopping_3",
+      "147eecd9b61d05da",
+      "97d97fe75018ef46",
+      "e2fd04abb9b441ee",
+      "8ba5d6269c04ad6e",
+      "80ee62a5a0340608",
+      "98b6c728253f5a48",
+      "0f3fd63e67f4132d",
+      "e6184031393cc481",
+      "24958a8b1ff269c7"
+    ],
+    "quarantined": [
+      "7e1047f4803237f319c004f7a7f6bccb",
+      "7e6993f2c5cd72c44809024f0bc85dc1",
+      "heb_comparison_shopping_1"
+    ]
+  },
+  "selection": {
+    "default": "core",
+    "core": ["core"],
+    "extended": ["core", "extended"],
+    "holdout": ["holdout"],
+    "all": ["core", "extended"],
+    "explicit_ids": "Any valid task ID or slug, ordered, overrides set/mode/limit/sample."
+  },
+  "origins": ["webtailbench", "onlineMind2Web", "authored compositional/adversarial task families"],
+  "retirement_rule": ">=85% pooled pass on current frontier, or rubric-quality defect (UGC, PII-application, absolute dates, purchase/stop contradiction)",
+  "authoring_provenance": {
+    "created": "2026-09-01",
+    "families": [
+      {
+        "slug": "a-redrocks-drury-rentalcars-table",
+        "track": "A",
+        "web": "https://www.redrocksonline.com/events/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-redrocks-drury-rentalcars-table-v1",
+          "a-redrocks-drury-rentalcars-table-v2",
+          "a-redrocks-drury-rentalcars-table-v3"
+        ],
+        "dropped": [
+          {
+            "slug": "a-redrocks-drury-rentalcars-table-v4",
+            "reason": "Rubric is internally inconsistent and cannot be graded reliably: the instruction lists 17 keys (event_name ... grand_total_usd) but the deliverable rubric requires 'exactly the eighteen requested keys', so a fully correct answer would be docked or an extra invented key rewarded. Secondary conflict: the instruction tells the agent to set blocked fields to an explanatory string while the rubric requires all *_usd values to be numbers. The supplier opening-hours cross-check also could not be confirmed in the static results page (JS-rendered). Fix the key count/type conflict before reconsidering."
+          }
+        ],
+        "author_notes": "Hard because the event date is only known after step 1 and must be propagated into two different date pickers; the Red Rocks event page shows Start Time and Doors Time side by side (Doors is the trap); Drury lists AAA/Senior/Government rates alongside the public rate so the lowest-visible number is often ineligible; both properties must be priced (agents commonly price one and assert the other); the cancellation wording lives only in the rate-details modal and the taxed total only in the booking summary adjacent to the guest form, so the agent must go to the critical point and stop; rentalcars class labels include Mini which 'economy or compact' phrasing would have excluded. Grader recognizes success by: weekday rule satisfied and Start Time (not Doors) quoted from the event page; two Drury general-public rates visible for the same night; policy text quoted from the modal; DEN search with matching date/times and the lowest Mini/Economy/Compact result chosen; single USD table whose grand total sums. Captcha on rentalcars results, if it occurs, is an environment failure reported honestly, not a substitution."
+      },
+      {
+        "slug": "a-sydneyoperahouse-transportnsw-hostelworld-table",
+        "track": "A",
+        "web": "https://www.sydneyoperahouse.com/whats-on",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-sydneyoperahouse-transportnsw-hostelworld-table-v2",
+          "a-sydneyoperahouse-transportnsw-hostelworld-table-v3"
+        ],
+        "dropped": [
+          {
+            "slug": "a-sydneyoperahouse-transportnsw-hostelworld-table-v1",
+            "reason": "Site check: sydneyoperahouse.com has no 'Comedy' genre; the filter label is 'Comedy, circus and magic' (/whats-on/comedy loads 200 but the multi-select label differs), so the instruction names a filter that does not exist as written. More importantly, switching EARLIEST to LATEST changes the search from stop-at-first-hit to an exhaustive scan of every comedy event's session calendar next month (SOH comedy programming is dense; multi-performance runs each need their calendar opened to find the last qualifying Thu/Fri/Sat 7:30pm+ date), which is not credibly <= 40 actions and contradicts the 'difficulty roughly unchanged' claim. Hostelworld 3-guest search itself is fine (curl 200, PrivateRooms rate types present)."
+          },
+          {
+            "slug": "a-sydneyoperahouse-transportnsw-hostelworld-table-v4",
+            "reason": "Duplicates the parent in substance: identical sites, identical selection rules (Contemporary Music, earliest Fri/Sat 7pm+, Domestic Airport -> Circular Quay arrive-by 60 min, 2 guests Private <=2 km, AUD, half-room per-person total), so the expected values are the same as the parent's and results would be fully correlated. The only differences are output format (JSON + prose) and two add-on fields (session-selector cross-check, hostel check-in time), which do not change the browsing task; the cross-check is also weakly gradeable since SOH event pages show the same date data in listing and selector, making 'agree' near-automatic. Not enough independent signal to justify a pool slot next to the parent."
+          }
+        ],
+        "author_notes": "Traps: (1) the Contemporary Music filter must actually be applied — unfiltered agents grab Classical/Talks events; (2) Opera House runs span date ranges — grader accepts the earliest qualifying individual performance date, not the run's opening date, and the 7 pm rule kills matinees; (3) 'lowest price' is pinned to Standard adult excluding the $8.95-style booking fee — Student/Group concession or fee-inclusive figures are the wrong-but-plausible answers; (4) Transport NSW must be set to arrive-by, not depart-at, and the airport station access fee is sometimes folded into the fare with a footnote and sometimes separate — the answer must state which; (5) Hostelworld defaults to USD for US-geo sessions and to dorm beds — grader checks for the currency switcher (or an explicit rate + source), the Room type = Private filter and price sort visible, the first <= 2 km property, and the per-room basis; (6) total must be per-person with half the room. Success = filter/sort state visible on each site, the 'Private' label, access-fee status stated, and an AUD sum that matches its components."
+      },
+      {
+        "slug": "a-chicagotheatre-parkwhiz-wyndham-table",
+        "track": "A",
+        "web": "https://www.msg.com/calendar",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-chicagotheatre-parkwhiz-wyndham-table-v3",
+          "a-chicagotheatre-parkwhiz-wyndham-table-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "a-chicagotheatre-parkwhiz-wyndham-table-v1",
+            "reason": "Substantive duplicate of the parent: identical site chain, identical selection logic, identical traps and identical 10-row table deliverable; only constants change (Sat->Fri, 7:00->7:30, -1h/+4h -> -1.5h/+3.5h, 0.3->0.2 mi, 2->1 adult, 1->1.5 mi). The author concedes 'difficulty roughly equal', so it adds no new capability signal to the pool while doubling the exposure to the same task. No new URLs introduced; no rule violation otherwise, but the duplication criterion applies."
+          },
+          {
+            "slug": "a-chicagotheatre-parkwhiz-wyndham-table-v2",
+            "reason": "Rubric not reliably gradeable: the hotel leg contradicts itself. The instruction says 'if the cheapest property under 1 mile only offers non-refundable rates, move to the next-cheapest property' (property-first selection), while rubric item 3 requires 'no cheaper refundable non-member rate under 1 mile was visible' (global cheapest refundable rate). These diverge whenever the cheapest property has a pricier refundable rate than another property's refundable rate, so two correct-looking answers get graded differently. Wyndham results show a single 'FROM' price, so the agent must open rate details per property, and the ambiguity is hit in practice. Additional minor issues: '8:00 pm or later' rollover rule assumes a 12:00 AM exit counts as next day (fine in picker but unstated), and the added garage-attribute check plus per-rate cancellation inspection pushes a careful human close to the 40-action ceiling. Harder-than-parent claim is credible, but the grading inconsistency disqualifies it."
+          }
+        ],
+        "author_notes": "Trap 1: msg.com calendar defaults to all venues; the URL '/the-chicago-theatre/' check makes venue evidence gradeable. Trap 2: Chicago Theatre often has two shows on one Saturday (e.g. 7:00 and 10:00 pm) — tie-break to earliest. Trap 3: ParkWhiz venue page pushes event packages; the task demands the hourly ?daily=1 search with explicit arrive/exit times; distance labels mix ft and mi. ParkWhiz answers curl with 202/empty but renders fully in headless Chrome (verified); spothero.com is the stated fallback only if a challenge page appears. Trap 4: Wyndham's cheapest properties are 9-18 miles out; only 2-3 sit under 1 mile; member rates must be ignored; the rate-level cancellation text lives in the rate details/booking summary, so item 5 explicitly allows opening that page with nothing typed. Grader recognises success by: venue URL evidence, earliest-qualifying-Saturday logic, hourly parking window screenshot with ft/mi labels, Wyndham distance labels and non-member rate, rate-specific policy text, correct check-out date, and combined total = listing price + hotel total."
+      },
+      {
+        "slug": "a-barbican-nationalrail-premierinn-table",
+        "track": "A",
+        "web": "https://www.barbican.org.uk/whats-on",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-barbican-nationalrail-premierinn-table-v2",
+          "a-barbican-nationalrail-premierinn-table-v3"
+        ],
+        "dropped": [
+          {
+            "slug": "a-barbican-nationalrail-premierinn-table-v1",
+            "reason": "Substantive duplicate of the parent: identical three-site structure, identical rubric text, identical devices (Classical filter, weekday/earliest-start tie-break, arrive-by latest train, Barbican-anchored distance, rate-type terms, 10-row table). Only constants change (Sunday/next month, Brighton, 60 min, 2 adults) and the variant itself concedes difficulty is 'roughly unchanged'. No new capability axis, so it adds a redundant row to the pool. No new URL introduced; existing site checks carry over."
+          },
+          {
+            "slug": "a-barbican-nationalrail-premierinn-table-v4",
+            "reason": "Rubric cannot be graded consistently against the instruction: the ques defines train_details_match as 'true/false plus a one-line note' while the shape item demands 'exactly the eighteen requested keys' with a boolean for train_details_match. An agent that follows the instruction (string with note) fails the type check; one that follows the type (bare boolean) has nowhere to put the required note, so a correct trajectory necessarily loses shape credit and graders will split. The added venue field and journey-details cross-check are otherwise sound and gradeable, and site checks are inherited, but per the conservative bar this deliverable-spec contradiction disqualifies it as written (fixable by adding a separate train_details_note key)."
+          }
+        ],
+        "author_notes": "Trap 1: Barbican listings mix Classical, Contemporary, Cinema, Theatre; filter state matters, multi-day exhibitions and sold-out/no-price events must be skipped, and same-day pairs (matinee + evening) resolve to the earliest start. Trap 2: National Rail requires Arrive-by mode and the LATEST qualifying train, not the first results row; the per-row 'from £X' is the correct fare, a homepage 'fares from' figure is not. Trap 3: Premier Inn distances are relative to the search point; searching 'London' gives city-centre distances that do not satisfy the constraint. Trap 4: 'cheapest' is on each hotel's lowest rate; the reported rate type, price, and cancellation terms must belong to the same rate (Flex vs Standard/Saver terms appear only at rate selection). Budget ~35-40 actions; journey duration dropped to save actions. Grader checks filter screenshot, earliest-start tie-break, arrive-by results with latest qualifying row, Barbican-anchored distance evidence, rate-type wording consistency, GBP sum, and the stop-before-guest-form statement."
+      },
+      {
+        "slug": "a-nps-yosemite-recreation-yarts-table",
+        "track": "A",
+        "web": "https://www.nps.gov/yose/planyourvisit/calendar.htm",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-nps-yosemite-recreation-yarts-table-v1",
+          "a-nps-yosemite-recreation-yarts-table-v2",
+          "a-nps-yosemite-recreation-yarts-table-v3",
+          "a-nps-yosemite-recreation-yarts-table-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Dependency chain: program start time (NPS) -> campground night (recreation.gov) -> latest YARTS run arriving before start. Trap 1: at 9:00 AM the NPS calendar shows an NPS Ranger Walk and an Ansel Adams Gallery walk tagged Partner Program side by side; picking the partner entry fails item 1. Trap 2: all three Pines campgrounds are typically fully Reserved in season, and Lower Pines mixes Reserved with Closed sites; item 2 requires per-campground state counts, not a bare 'all full'. Trap 3: the $8 reservation fee is only visible after sign-in, so the honest answer is 'not reachable'; the campground page's $10 transaction/cancellation fee is the decoy. Trap 4: on the Summer timetable the only run arriving at Yosemite Village before 9:00 AM is RUN 140-1 (Merced Transpo 4:00 am, does NOT serve Merced Amtrak); RUN 140-3 (7:00 am) is the plausible wrong pick because it arrives ~9:58 am. The Amtrak yes/no forces reading the stop list. Trap 5: the Summer schedule ends and Winter begins around the six-week horizon; the agent must state which applies. Grader recognizes success by: calendar entry screenshot without Partner tag, three grids on the same date with state counts, Fees-section text for each campground, 'not reachable' for reservation fee (or a cost summary if a site was open), timetable screenshot showing the run row and stop list, round-trip fare row, and a Total that follows the conditional definition."
+      },
+      {
+        "slug": "a-discounttire-camry-crossclimate2-warranty-cost-per-mile",
+        "track": "A",
+        "web": "https://www.discounttire.com/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-discounttire-camry-crossclimate2-warranty-cost-per-mile-v1",
+          "a-discounttire-camry-crossclimate2-warranty-cost-per-mile-v2",
+          "a-discounttire-camry-crossclimate2-warranty-cost-per-mile-v3",
+          "a-discounttire-camry-crossclimate2-warranty-cost-per-mile-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Verified end-to-end in a real browser on 2026-09-01. Why it is hard: (1) the fitment widget is a react-select combobox chain that resists naive select() calls and even mis-registers clicks (my own automation picked 2027 Corolla twice before succeeding), and the LE trim has three variants (FWD / AWD / Hybrid); (2) model memory says a 2022 Camry LE rides on 205/65R16 (one reviewer asserted this too) but Discount Tire's fitment labels O.E. = 215/55R17 94V for LE FWD, so any agent that skips the tool or 'corrects' the site is caught by rubric item 1; (3) Michelin's page has the true figure (60,000 Miles) inside a Warranties accordion but the footnotes contain several treadwear-test 'estimated life' mileages including one for 215/55R17 on a Camry (64,236 mi), and both retailers show their own 60K badges, so item 3 punishes the lazy source; (4) Priority Tire lists 94H and 94V variants of 215/55R17, so item 4 requires matching the load/speed index, not just the size; (5) Discount Tire shows '$216.00 /ea + Installation costs added in cart' while Priority Tire shows '$215.99 / tire, free shipping': the honest like-for-like difference is a few cents, which the arithmetic item forbids rounding away, and an agent that adds installation or subtracts the sign-in $80 promo on one side fails item 5. Grader recognizes success by: O.E. label screenshot/text on discounttire.com with 215/55R17 94V (or whatever the site shows on the day), a product page price with '/ea' and the install-in-cart note, the michelinman.com Warranties section text, a prioritytire.com variant page title with matching size and index, and arithmetic consistent with the agent's own numbers. Single-retailer fallback is fully specified in items 4, 6, 7 so an honest 'not offered' outcome can still score full marks."
+      },
+      {
+        "slug": "a-brother-hll2400d-toner-cost-per-page",
+        "track": "A",
+        "web": "https://www.brother-usa.com/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-brother-hll2400d-toner-cost-per-page-v1",
+          "a-brother-hll2400d-toner-cost-per-page-v2",
+          "a-brother-hll2400d-toner-cost-per-page-v3",
+          "a-brother-hll2400d-toner-cost-per-page-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Traps, each now explicitly scored: (1) Newegg results are ~30:1 compatible-to-genuine; the lone genuine TN830XL listing omits 'Brother' from its title and is sold by multiple marketplace sellers with a price range, so the agent must confirm brand via breadcrumb/model and name the seller. (2) Office Depot lists three genuine Brother SKUs (standard TN830, single XL, XL 2-pack); the 2-pack divided by a single yield doubles cost per page. (3) Brother's printer page shows both the base 1-year limited warranty and a 2-year bundle/subscription term. (4) Brother lists TN830XL, TN830V and TN830XL2PK as high-yield variants; only the single XL may be carried into pricing. (5) Using the standard-yield page count with the XL price. Grader recognizes success by: consistent single-XL model number across all three sites, visible Brother brand on both retailer pages, named Newegg seller, base warranty (not extended), same high-yield yield in every row, and division/rounding correct against the agent's own inputs. Prices churn, so grading is on consistency, not fixed values."
+      },
+      {
+        "slug": "a-petsmart-proplan-price-per-lb-autoship-target",
+        "track": "A",
+        "web": "https://www.petsmart.com/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-petsmart-proplan-price-per-lb-autoship-target-v2",
+          "a-petsmart-proplan-price-per-lb-autoship-target-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "a-petsmart-proplan-price-per-lb-autoship-target-v1",
+            "reason": "Site-check claims in 'changes' do not reproduce. Fetched petsmart.com/.../large-breed-...-57927.html (200, 639 KB): the flavor fieldset (data-testid=\"flavor\") lists only 'Salmon & Rice' -- there is no Lamb & Rice option (the only 'lamb' string on the page is an Authority-brand carousel product), so the task's 'make sure Salmon & Rice (not Lamb & Rice) is selected' instruction and the rubric's Lamb-price partial-credit clause describe a selector that does not exist. More seriously, the general 'Save 35% On Your First Autoship Order!' callout appears 0 times in this page's HTML (vs 40 times on the parent's product page fetched the same way); only the brand-specific 'Save 50% on your first Purina Pro Plan Autoship order' is present. The question requires computing the effective per-lb figure 'using the GENERAL (site-wide) offer' and rubric item 3 assumes two labeled offers, so the arithmetic item is likely ungradable/unachievable as written. Shipping help page did verify ('Treats Rewards members enjoy Free Standard Shipping on orders over $49'), and sizes 24/34 Lb ($77.99/$97.98) verified, but the fabricated flavor selector and missing general callout disqualify the variant."
+          },
+          {
+            "slug": "a-petsmart-proplan-price-per-lb-autoship-target-v3",
+            "reason": "Strict subset of the parent: identical product page, identical traps, identical rubric items 1-3 and deliverable minus the Returns and Amazon legs. Rubric items are a verbatim copy of the parent's, so a trajectory passing parent items 1-3 passes V3 identically -- it adds no discriminating signal beyond the parent's own partial-credit breakdown, i.e. it duplicates the parent in substance. It also collapses to a single-site, single-product-page lookup plus arithmetic, which is WebTailBench-shaped (rule 7). The 'easier' claim is credible but the variant does not earn a pool slot."
+          }
+        ],
+        "author_notes": "Traps, all verified in-page: (1) PetSmart shows the Autoship price prominently and, for the 4 lb, a sale price under a struck list price, so agents compute per-lb from the wrong price tier; (2) the page HTML/carousel carries sizes for sibling SKUs (5/15/35/47, 24/34 lb) that leak into 'every size' lists -- the correct selector has exactly four sizes (4/16/30/40) and the grader checks against the selector shown in the trajectory, not a fixed list; (3) the Autoship help/T&C page states no percentage, while the product-page callout shows two first-order offers (35% general vs 50% time-limited Pro Plan promo) that must be labeled and the general one used for the effective per-lb math; (4) the Returns page phrases the window as receipt validity (60 days) with a mail-return caveat, so the rubric names accepted phrasings; (5) Amazon search returns a dozen Pro Plan Sensitive Skin & Stomach near-variants (Senior, Small Breed, Large Breed, Puppy, cat, wet, Complete Essentials) and pushes Subscribe & Save pricing, mirroring the Autoship trap; the largest size on the adult listing is 40 lb at authoring time. Grader recognizes success when the table sizes match the selector visible in the trace, per-lb division uses the labeled regular price, the Autoship-effective figure uses the general percentage, the help-page text and Amazon size selector are visible in tool output, and no cart/checkout/sign-in occurred."
+      },
+      {
+        "slug": "a-apple-mba-charger-wattage-anker-compat-target",
+        "track": "A",
+        "web": "https://www.apple.com/macbook-air/specs/",
+        "tier": "core",
+        "holdout": true,
+        "variants": [
+          "a-apple-mba-charger-wattage-anker-compat-target-v1",
+          "a-apple-mba-charger-wattage-anker-compat-target-v2",
+          "a-apple-mba-charger-wattage-anker-compat-target-v3",
+          "a-apple-mba-charger-wattage-anker-compat-target-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Traps: (1) Apple's in-box adapter label carries two figures ('40W Dynamic Power Adapter with 60W Max'); agents that write 35W from prior knowledge or collapse to one number lose credit. (2) The 70W threshold kills the popular 65W Nano; the cheapest qualifying single unit today is the Nano Charger (70W, 3 Ports) at $39.99, but the listing is littered with 2-packs, cable bundles, car chargers and stations that must be excluded. (3) anker.com/warranty is a Solix redirect trap; warranty must come from the chosen charger's product page (currently 18-month for the 70W Nano, 24-month for Prime). (4) Target titles differ from anker.com titles, so identity is defined by model number or series+wattage+ports. Grader checks: in-box label quoted with both figures, 70W CTO identified, Apple $ from product page, Anker pick >= threshold and cheapest single unit visible, model number recorded, warranty from product page, Target match by model number, division correct, n/a handling for Target if not carried."
+      },
+      {
+        "slug": "a-logitech-mxkeys-s-mac-port-compat-newegg-warranty",
+        "track": "A",
+        "web": "https://www.logitech.com/en-us/shop/p/mx-keys-s.920-011406",
+        "tier": "easy",
+        "holdout": false,
+        "variants": [
+          "a-logitech-mxkeys-s-mac-port-compat-newegg-warranty-v2",
+          "a-logitech-mxkeys-s-mac-port-compat-newegg-warranty-v3",
+          "a-logitech-mxkeys-s-mac-port-compat-newegg-warranty-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "a-logitech-mxkeys-s-mac-port-compat-newegg-warranty-v1",
+            "reason": "Sites verified (logitech 920-011559 -> 200, single $129.99, Logi Bolt/USB-A/warranty present; apple.com/macbook-pro/specs -> 200 with Thunderbolt 5/HDMI/SDXC/MagSafe 3; Newegg PDP N82E16823126719 -> 200, 3 'Sold and shipped by' offers). But the variant is the parent in substance: identical sites, identical dependency chain, identical rubric structure, only the color SKU and laptop constants change. Worse, the swap removes the parent's #1 trap (struck-through MSRP vs sale price -- the Pale Gray page shows one price) and replaces it with a trivial 'say MSRP = current' statement, while the MacBook Pro port list adds nothing a model gets wrong; so the 'difficulty roughly the same' claim is not credible (it is easier) and it would be near-redundant with the parent in the pool."
+          }
+        ],
+        "author_notes": "Traps, in order of how often they bite: (1) logitech.com shows a struck-through $129.99 and a sale $110.49; recording the sale price as MSRP zeroes the savings math and now earns no credit on items 1 and 7. (2) Newegg's search card for 920-011406 shows one price, but the product page has an offers panel with three marketplace sellers at different prices; the rubric requires the panel to be opened, and mistaking Combo / non-S / Pale Gray / Mac-edition listings earns zero, not partial. (3) The standalone Logi Bolt receiver is also USB-A, so the 'would buying it fix the adapter problem' verdict is a negative result (No) that models tend to hallucinate as Yes; it requires an extra Logitech page visit with the connector visible. (4) Warranty is on the product page Specs tab ('1-Year Limited Hardware Warranty'); the support.logi.com article is a captcha lookup form and is no longer referenced. Grader checks: part number consistency logitech.com <-> Newegg tool output; MSRP = struck-through price; the three-verdict logic chain references the agent's own recorded connector/port facts; both savings baselines with correct signs; all fields present; no checkout."
+      },
+      {
+        "slug": "a-usajobs-opm-locality-rent-budget",
+        "track": "A",
+        "web": "https://www.usajobs.gov/ / https://www.opm.gov/ / https://www.rent.com/",
+        "tier": "core",
+        "holdout": true,
+        "variants": [
+          "a-usajobs-opm-locality-rent-budget-v2",
+          "a-usajobs-opm-locality-rent-budget-v3",
+          "a-usajobs-opm-locality-rent-budget-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "a-usajobs-opm-locality-rent-budget-v1",
+            "reason": "Parametric duplicate of the parent in substance (identical seven-item rubric and chain; only Denver->Seattle, GS-11->GS-12 swapped) that adds no new capability axis. Its rule-5 check is also incomplete: the changes note only confirms the USAJOBS client-rendered shell returns 200, not that any open 1102 posting with GS-12 in range and a Seattle/Tacoma/Bremerton duty station exists (the parent had a rendered check showing 2-3 GS-11 Denver qualifiers; v1 has none), so achievability is unverified. New URLs do load (OPM SEA.aspx 200 'Seattle-Tacoma, WA' 31.57%; rent.com Seattle max-price-2000-1-bedroom 200, '4,354 Rentals', $100 presets, Sort by), and the variant itself flags rent.com 429s on repeated hits."
+          }
+        ],
+        "author_notes": "Hard because: (1) USAJOBS is a client-rendered app; qualifying postings are all multi-location so the agent must open announcement pages to confirm a Denver-area duty station and exclude remote / location-negotiable ones, then justify 'soonest closing' against another result; (2) two dense OPM grids (Denver and Rest of U.S.) where GS-11 step 1 vs step 10 and the year label are easy to misread, and a prior-year table silently poisons the whole chain (now no credit); (3) the salary low end almost never matches Denver GS-11 step 1 because multi-location 1102 postings quote the lowest locality rate (observed: 'Starting at $75,897 (GS 11)' vs Denver GS-11 step 1 at 30.52%), so the agent must explain the mismatch from announcement text and test it against the Rest of U.S. value -- a bare 'mismatch' no longer earns full credit; grade-span postings are a second, rarer cause; (4) rent.com only offers $100 max-rent presets, so the derived budget must be rounded down, results sorted low-to-high, and range / 'Call for rent' cards handled per the stated rule. Dropped alternatives: salary.com (403 Human Check) and apartments.com (403). Grader recognizes success when the chain is consistent (OPM Denver step 1 -> budget -> preset cap <= budget -> first sorted listing <= cap), the posting's duty-location list visibly includes a Denver-area station, and the mismatch explanation quotes the announcement page."
+      },
+      {
+        "slug": "a-nps-shenandoah-recgov-camp-pass-scenarios",
+        "track": "A",
+        "web": "https://www.nps.gov/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-nps-shenandoah-recgov-camp-pass-scenarios-v1",
+          "a-nps-shenandoah-recgov-camp-pass-scenarios-v2",
+          "a-nps-shenandoah-recgov-camp-pass-scenarios-v3",
+          "a-nps-shenandoah-recgov-camp-pass-scenarios-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Traps, all verified live: (a) the Big Meadows campground page says only 'plus recreation.gov administrative fees' with no amount, so the agent must go to recreation.gov's Rules and Reservation Policies page ($8 online) rather than quote $8 from memory or try the sign-in-gated cart; (b) Big Meadows has STANDARD NONELECTRIC vs TENT ONLY NONELECTRIC vs GROUP sites - the agent must exclude tent-only/group from the availability answer; (c) popular weekends show every site Reserved, so the correct answer is often 'not available' read off the grid, not invented availability; (d) the USGS store lists a $5 processing fee ONLY on Senior/Access/Military passes - the standard Annual Pass is '$80 plus $7.50 handling'; copying the processing fee is a hallucination signal; (e) the nps.gov Shenandoah page shows both the $55 park annual pass and the $80 America the Beautiful pass - the agent must not confuse them; (f) the break-even counts (e.g. 2 visits for B, 3 for C with current values) require every fee component and cannot be answered from memory alone. Success = every fee visible on its source page, availability outcome matching the grid, and totals/break-evens reproducible from the table."
+      },
+      {
+        "slug": "a-bklynlibrary-book-discussion-wiki-thriftbooks-abebooks",
+        "track": "A",
+        "web": "https://discover.bklynlibrary.org/?event=true",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-bklynlibrary-book-discussion-wiki-thriftbooks-abebooks-v1",
+          "a-bklynlibrary-book-discussion-wiki-thriftbooks-abebooks-v2",
+          "a-bklynlibrary-book-discussion-wiki-thriftbooks-abebooks-v3",
+          "a-bklynlibrary-book-discussion-wiki-thriftbooks-abebooks-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Revised per reviewers: 'book discussion' is an Event Tags facet (not a type filter), the selection now starts tomorrow so already-started events are excluded and same-day ties are broken by start time, and the skip rule is real (verified: two non-book tagged events precede the first qualifying one). Wikipedia is explicitly two pages (book article for publication year, author article for birth year) with a declared fallback and a 'not on Wikipedia' escape so honest failures are not zero-scored. Bookseller comparison rule is pinned in the ques (ThriftBooks item price vs AbeBooks delivered price) so item 5 has ground truth. Traps: tag facet is not in the first pills shown; keyword search returns false positives ('Cookbook Club'); ThriftBooks minimum must span all formats; AbeBooks default sort is not total price and generic titles (e.g. 'Cannon', 'James') return other books first. Grader: check tag visible on the event page, skipped list matches the sorted results, both Wikipedia pages opened, ThriftBooks cross-format minimum, AbeBooks card shows same title+author with shipping, verdict follows the pinned rule, no registration/cart."
+      },
+      {
+        "slug": "a-tmdb-toprated-novel-adaptation-justwatch-thriftbooks",
+        "track": "A",
+        "web": "https://www.themoviedb.org/movie/top-rated",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-tmdb-toprated-novel-adaptation-justwatch-thriftbooks-v1",
+          "a-tmdb-toprated-novel-adaptation-justwatch-thriftbooks-v2"
+        ],
+        "dropped": [
+          {
+            "slug": "a-tmdb-toprated-novel-adaptation-justwatch-thriftbooks-v3",
+            "reason": "Substantive duplicate of the parent: identical start URL, identical walk, identical stopping rule, identical skipped-film set and stopping film (The Godfather), identical Wikipedia and JustWatch targets -- it is the parent with the ThriftBooks leg and the Stream/free-with-ads judgement deleted. Any model that solves the parent solves this; it adds correlated signal, not a new discrimination point, and the two 'traps' it removes are the parent's only downstream mis-pick devices. The 'easier one rung below' claim is credible but does not justify a near-identical row in the pool. No rule violations otherwise."
+          },
+          {
+            "slug": "a-tmdb-toprated-novel-adaptation-justwatch-thriftbooks-v4",
+            "reason": "Substantive duplicate of the parent in everything that discriminates: same start URL, walk, stopping rule, stopping film (The Godfather), skipped set, JustWatch and ThriftBooks targets. The additions are weak: novel first-publication year (1969) vs film year (1972) is trivially recallable and the subtraction is not a browsing skill; the ThriftBooks author_match boolean is a restatement of the parent's existing 'correct novel by the author named on Wikipedia' criterion. Switching the deliverable from table to typed JSON is a format lever, not a new task, and the JSON rubric's 'exactly the specified keys / wrong type' language will penalise harmless representation differences (e.g. score as '87%' string vs number) unrelated to browsing capability. 'Slightly harder' is plausible but the row would be highly correlated with the parent; conservative reject."
+          }
+        ],
+        "author_notes": "Revised per both reviews. The TMDB Top Rated list is polluted by recent low-vote releases that rotate weekly (today ranks 1-5 are 2025/2026 titles, Shawshank is 6, Godfather 7), so the walk length varies; the rubric therefore grades rank against the agent's own list output, not a fixed film. The stopping rule was tightened to 'full-length novel only' so the walk is non-trivial on ANY list state: an unpolluted list still forces a skip (Shawshank = novella -> Godfather = novel), and the polluted list adds TV-series (Avatar Aang), no-en.wikipedia (Socias por accidente), original-screenplay (Swapped), real-events (Facing El Chapo) and manga (Demon Slayer) skips, each requiring a Wikipedia visit with the stated source type recorded. Main trap: models 'know' Shawshank is a King adaptation and stop there -- the article says novella, which earns at most 1/4 on item 1 and cascades wrong downstream. Secondary traps: no en.wikipedia article for rank 2 (must be evidenced as a 404/failed search, not silently skipped); JustWatch slug is /the-godfather-part-i, so guessing the URL 404s and the agent must use site search; JustWatch has Stream vs Free (Pluto) vs Rent vs Buy sections and multiple tiers -- cheapest Rent, and Pluto is not a subscription; ThriftBooks returns a Godfather/Fools Die omnibus and tie-ins, which earn no credit. Bounded at 10 films to keep the walk within ~40 actions (7 films x ~3 actions + TMDB film page 2 + JustWatch 4-5 + ThriftBooks 5-6 = ~33-36). Success = list order visible in trajectory, per-film Wikipedia check with source type, stop on a film whose article says 'novel', US JustWatch page with min Rent price and correct Stream verdict, the exact novel priced on ThriftBooks, and a 10-row table with URLs. Re-check the top-10 order at dataset freeze; the task is invalid only if a novel adaptation sits at rank 1 with no films above it (then depth collapses)."
+      },
+      {
+        "slug": "a-ocw-mit-1806-textbook-wiki-price-editions",
+        "track": "A",
+        "web": "https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "a-ocw-mit-1806-textbook-wiki-price-editions-v1",
+          "a-ocw-mit-1806-textbook-wiki-price-editions-v2",
+          "a-ocw-mit-1806-textbook-wiki-price-editions-v3",
+          "a-ocw-mit-1806-textbook-wiki-price-editions-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Three stacked traps. (1) Dual-edition syllabus: the OCW Syllabus page lists the 4th ed. (ISBN 9780980232714) as the assigned text AND says readings are 'also provided' for the 5th ed.; the agent must pick the assigned one and carry that ISBN through pricing. (2) ThriftBooks free-text search misses the book -- the agent must navigate by ISBN or author, and pick an in-stock condition. (3) AbeBooks: lowest item price is not the lowest delivered price (shipping ranges $0-$42), and the 'newest edition' must be the 6th (visible on the site), not the 5th the syllabus hints at. Points weighted toward the commerce legs (7 of 13) since the OCW/Wikipedia facts are well known and only gate on EVIDENCE REQUIRED. Grader recognizes success by: /pages/syllabus/ visited; ISBN 9780980232714 visible on the ThriftBooks item page and the AbeBooks listing; item + shipping components shown for both AbeBooks rows; 6th edition stated with its ISBN visible; gap reproducible from the table using the 4th-ed rows."
+      },
+      {
+        "slug": "b-staples-m404n-toner-cost-per-page",
+        "track": "B",
+        "web": "https://www.staples.com/",
+        "tier": "core",
+        "holdout": false,
+        "variants": ["b-staples-m404n-toner-cost-per-page-v2"],
+        "dropped": [
+          {
+            "slug": "b-staples-m404n-toner-cost-per-page-v1",
+            "reason": "The adversarial device does not fire on this printer line. Per the variant's own site check, the cheapest-sticker item (Staples reman TN760 single, $73.99) is also the per-page winner (73.99/3000 = 0.025, exactly tied with the reman 2/Pack 147.98/6000 = 0.025). A model that simply picks the cheapest sticker price gets the correct winner, so the 'cheapest sticker != cheapest per page' claim in changes is false and rubric item 4's 'No credit if the winner was chosen by lowest sticker price' cannot be distinguished from a correct answer in a trajectory. The exact top-two tie also makes the 'single winner' framing wobbly. 'Difficulty kept roughly equal' is therefore not credible; the task is materially easier than the parent."
+          },
+          {
+            "slug": "b-staples-m404n-toner-cost-per-page-v3",
+            "reason": "A strict subset of the parent (same site, same search, same two PDPs the parent already requires, same 58A-vs-58X sticker trap) with the multipack, remanufactured and label layers removed. What remains is two product-page lookups plus one division, i.e. a WebTailBench-style single-site lookup (rule 7) that every frontier model will pass, which is exactly the saturation problem HardBench v2 is trying to fix. Rubric is gradable and the 'one rung easier' claim is true, but the task adds no tier-separating signal and duplicates the parent's core in substance."
+          },
+          {
+            "slug": "b-staples-m404n-toner-cost-per-page-v4",
+            "reason": "Duplicates the parent in substance: identical ques constraints, identical candidate set, identical winner and identical pages visited; the only changes are output serialization (JSON instead of a table) and two verification demands (runner-up compatibility, 'Package contains' line) that the parent's trajectory already surfaces on the same PDP (product_24682667 shows both lines). A model that passes the parent passes v4 with the same run plus one extra PDP open, so it would sit in the pool as a near-copy with the same answer key. Rubric itself is gradable and the 'slightly higher verification load' claim is accurate, but the marginal signal does not justify a second near-identical task."
+          }
+        ],
+        "author_notes": "The ques no longer names the trap; the distractor must fire on its own. Three layers: (1) the cheapest sticker price is the remanufactured 58A (~$0.034/page at authoring), the worst per page among high-yield options; (2) Staples prints a rounded 'Cost Per Page' label on search cards ($0.02 vs $0.03) that ties several items and is missing entirely on the remanufactured 58X 2-pack; a model that trusts the label picks the single reman 58X ($0.022) and a model that trusts the label AND never opens the multipack never sees the real winner; (3) yield and M404n compatibility for remanufactured items appear only in the PDP Specifications panel, so the compatibility column cannot be filled honestly from the search page. Grader: recompute price/(yield x pack) for every candidate whose price appears in the trajectory; the winner is whichever has the lowest value at run time -- the author's numbers are illustrative only (at authoring: reman 58X 2/Pack 279.99/20000 = 0.014, reman 58X 0.022, HP 58X single 0.0306 and HP 58X 2/Pack 0.0306 tie at 3 decimals for third place, reman 58A 0.034, HP 58A 0.049, HP 58A 3/Pack 0.049). Accept either HP 58X item in the third row. Check that the multipack's total pages are doubled, that the compatibility line was visible in a tool output for the winner, and that the agent remarks on the label discrepancy (item 5 is the rung that separates careful from merely correct). A run blocked by Akamai Access Denied on first load is an environment failure, not an agent failure. Success requires items 2, 3, and 4 at full credit; an unverified compatibility claim or a label-based winner caps the outcome at fail."
+      },
+      {
+        "slug": "b-ikea-white-bookcase-max-load-per-shelf",
+        "track": "B",
+        "web": "https://www.ikea.com/us/en/",
+        "tier": "easy",
+        "holdout": false,
+        "variants": [
+          "b-ikea-white-bookcase-max-load-per-shelf-v1",
+          "b-ikea-white-bookcase-max-load-per-shelf-v2",
+          "b-ikea-white-bookcase-max-load-per-shelf-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "b-ikea-white-bookcase-max-load-per-shelf-v3",
+            "reason": "Strict subset of the parent: identical prompt minus the accessory clause, and rubric items 1-5 are verbatim copies of the parent's. It adds no new site, trap, or failure mode, so it duplicates the parent in substance. It is also easier by design, which works against the stated goal of separating tiers on a benchmark already flat at ~65%; removing the propagation into the shelf/total step deletes the part that most distinguishes careful from careless agents. Not a hard-rule violation, but conservative policy says drop it."
+          }
+        ],
+        "author_notes": "The listing card gives height, depth and price but never load rating. The cheapest white 79 1/2 in bookcase is the narrow BILLY at $59, rated only 31 lb/shelf on its page; the 31 1/2 in white BILLY at $79 is rated 66 lb. The prompt no longer warns about series-name inference, so a model that 'knows BILLY holds 66 lb' picks the $59 item and propagates the error into the accessory step: it will pull the $5 14 in shelf and report a plausible total of $69 instead of $99. HEMNES (66 lb) is a secondary distractor failing height and depth. Note the shelf width (29 7/8 in) is not numerically equal to the bookcase width (31 1/2 in); the shelf page's 'Fits BILLY bookcase 31 1/2\" wide' sentence is the match key, which trips literal width-matching. The 'Max load/shelf' text is present in page HTML/JSON even when the Measurements accordion is collapsed, so graders should accept any tool output containing the literal line for the specific article, not require a click. Grader: look for the 'Max load/shelf' line for both the winner and the rejected item, the shelf page fit text, and check the arithmetic on the total."
+      },
+      {
+        "slug": "b-meijer-peanut-only-peanut-butter-per-oz",
+        "track": "B",
+        "web": "https://www.wegmans.com/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "b-meijer-peanut-only-peanut-butter-per-oz-v1",
+          "b-meijer-peanut-only-peanut-butter-per-oz-v2",
+          "b-meijer-peanut-only-peanut-butter-per-oz-v3",
+          "b-meijer-peanut-only-peanut-butter-per-oz-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Re-hosted from meijer.com (Akamai 403 on plain curl and on product URLs) to wegmans.com, which returns 200 to curl and renders fully in headless CDP-driven Chrome with no login and a preselected store. What makes it hard: ingredients live only on the PDP Ingredients tab, and every cheaper-per-ounce candidate is a trap that looks right from the listing: Wegmans Just Peanuts Stir ($0.16/oz, name says just peanuts but the list is 'Dry Roasted Peanuts.' with no salt, which the ques explicitly disqualifies), Skippy Natural 40 oz and Jif Low Sodium! Natural ($0.17/oz, sugar + palm oil despite 'Natural' and 'no artificial...' copy), Jif Simply Creamy Unsweetened ($0.22/oz, palm oil despite 'Simply'/'Unsweetened'), Wegmans Organic p.b. Spread 40 oz ($0.25, organic palm oil + sugar) and Teddie Unsalted ($0.25, no salt). A price-first agent that trusts names hits four wrong answers before reaching the real one (Teddie All Natural Smooth 16 oz, 'Dry roasted peanuts, salt', ~$0.25/oz at check time; Smucker's Natural 26 oz is next at ~$0.26). Coverage rule ('every product at or below the winner's unit price') makes exhaustiveness gradeable without knowing today's prices: ~14 PDP visits, within 40 actions. Wegmans DOES display unit prices, so the arithmetic item is a consistency check (computed vs displayed) rather than the primary probe. Default store is geo-dependent (Erie West in my session); grader only checks the stated store matches what is visible. Grader recognizes success when: the four pinned products are marked no with the correct reason and their ingredient text is in tool output; the winner's quoted ingredient string is exactly peanuts (+ roasting/organic qualifiers) and salt; and no row with a lower displayed unit price and a peanuts-and-salt ingredient list was skipped."
+      },
+      {
+        "slug": "b-vitacost-vegan-d3-cost-per-2000iu",
+        "track": "B",
+        "web": "https://www.vitacost.com/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [],
+        "dropped": [
+          {
+            "slug": "b-vitacost-vegan-d3-cost-per-2000iu-v1",
+            "reason": "Substantive duplicate of the parent. Same site, same trap structure, same hidden winner (NATURELO 5,000 IU 180 caps is in the 'plant based vitamin d3' results I fetched: HTTP 200, 24 product URLs), same excluded-row device and same 7-column deliverable; the only edits are a synonym in the query, 'vegan'->'plant-sourced' wording, and dividing by 1,000 instead of 2,000 IU. The author's own 'changes' text says difficulty is held constant, so it adds no separating power. Minor additional weakness: the named 'Veggie Softgel' distractor (Doctor's Best 144914) is not in the plant-based result set, so the excluded row relies on 'adjacent D3 listings' outside the defined scope."
+          },
+          {
+            "slug": "b-vitacost-vegan-d3-cost-per-2000iu-v2",
+            "reason": "Violates the <=40-action budget (Hard Rule 5). The instruction says open the product page for every candidate across the union of 48 vegan-search results plus 24 'vitamin d3 2000 iu' results; page 2 alone (fetched, HTTP 200) adds ~8 more in-scope single-ingredient items and the 2000 IU search adds ~20 non-vegan softgels that must each be opened to prove they lack a plant source, plus a second scroll per page to reach Other Ingredients / stock control. That is 3 result loads + ~40 product opens + per-page scrolls, well past 40 actions for a careful human. Also, the gelatin/beeswax disqualifier depends on an 'Other Ingredients' panel that is not present on some pages (the NATURELO winner page contains zero occurrences of 'other ingredient'), making that criterion inconsistently gradable."
+          },
+          {
+            "slug": "b-vitacost-vegan-d3-cost-per-2000iu-v3",
+            "reason": "Rubric item 4 (2 pts, 'Cheapest unconfirmed-source 2,000 IU item excluded') cannot be satisfied inside the task's own scope. I fetched the live 'vegan vitamin d3' page 1 twice: the only 2,000 IU capsule/tablet items are Natural Factors 101668 (page says 'cholecalciferol (lichen)'), PlantFusion 130373 (organic algae) and Pure Encapsulations 158118 ('from organic algae'); Doctor's Best 144914 and any 'veggie-softgel' URL are absent (0 matches). So every in-scope 2,000 IU candidate is plant-confirmed, a correct agent has no excluded row to report and forfeits the item, and the 'changes' claim that the Doctor's Best veggie softgel is among the verified 2,000 IU vegan-search results is not credible. With only 3 candidates and no distractor actually reachable, the variant also degrades to a 3-page single-site lookup (Rule 7)."
+          },
+          {
+            "slug": "b-vitacost-vegan-d3-cost-per-2000iu-v4",
+            "reason": "The 'changes' verification claim is false. On the NATURELO 97675 page (fetched, HTTP 200) the $27.95 figure is the sibling '2500 IU | 180 count' variant in the size selector, not a Set & Save subscription price; the product JSON shows requires_selling_plan:false and selling_plan_allocations:[] so no subscription price exists, and the page contains no 'Other Ingredients' text at all. The added 'winner_crosscheck' hop therefore collapses to two nulls for the expected winner and adds no verification difficulty, while rubric item 4 is written around a Set-&-Save-vs-one-time trap that the winner page does not present. Apart from the JSON wrapper it is otherwise identical in candidate set, traps and winner to the parent."
+          }
+        ],
+        "author_notes": "Three layered traps, all verified at revision time. (1) Distractor: Doctor's Best Vitamin D3 2,000 IU 180 Veggie Softgels ($12.99, page 144914) sits in both the '2000 IU' and 'vegan' result sets, wears a 'Vegetarian' badge and 'Veggie Softgels' in the title, and normalizes to $0.0722 per 2,000 IU; its Supplement Facts say only '(as cholecalciferol)' with no source, so it must be the excluded row, not the winner. An agent that treats 'Veggie' as vegan wins wrong by 0.3 cents and looks perfectly plausible. (2) Detail-page-only qualifier: NATURELO Vitamin D3 5,000 IU 180 caps ($30.95, page 97675) has no 'Vegan' in its listing title but its page says 'Plant Based from Lichen'; at $0.0688 per 2,000 IU it is the true winner at check time. Agents that only open titles containing 'Vegan' or only 2,000 IU items miss it. (3) Scope traps: four D3+K2 combos, a vanilla spray, chewables and three liquids appear in the same 24 results; Vitacost also shows Set & Save subscription pricing beside the one-time price. Grader: winner row must quote lichen/algae/Vitashine or an explicit vegan claim from the opened product page; a tabled 'Veggie Softgel' with source-less Supplement Facts is an automatic fail on item 1; the excluded row should be the Doctor's Best veggie softgel or a cheaper house-brand softgel with a page-grounded reason; coverage item requires 8+ product pages including a 5,000 IU and a non-'Vegan'-titled item. Prices will drift, so grade on internal consistency and on whether every cheaper page-confirmed qualifier in the first 24 results was considered, not on the specific dollar values recorded here."
+      },
+      {
+        "slug": "b-bedbathbeyond-dehumidifier-guest-checkout-stop",
+        "track": "B",
+        "web": "https://www.bedbathandbeyond.com/",
+        "tier": "core",
+        "holdout": true,
+        "variants": [],
+        "dropped": [
+          {
+            "slug": "b-bedbathbeyond-dehumidifier-guest-checkout-stop-v1",
+            "reason": "The 'same dependency structure / equal difficulty' claim is not credible. Live check of https://www.bedbathandbeyond.com/search?keywords=8000+btu+window+air+conditioner+energy+star (HTTP 200, embedded product JSON) shows the cheapest 8,000 BTU window unit overall is the Frigidaire 8,000 BTU Smart Window AC at $279.99, which is below every remote-only listing (Commercial Cool $289.84, Keystone $296.99, LG w/ Remote $299, Perfect Aire $320.84, Durastar $329). The parent's core device, cheaper non-qualifying distractors that must be ruled out, does not exist here: the agent just picks the cheapest 8,000 BTU window tile and confirms Energy Star on one PDP. The variant's own 'changes' text even lists the smart unit below the 'distractors' it claims sit beneath it. The '8,000 BTU with a smaller DOE/SACC rating counts only if specs say 8,000 BTU cooling' clause is also ambiguous for graders. Net: a materially easier task mislabelled as equal."
+          },
+          {
+            "slug": "b-bedbathbeyond-dehumidifier-guest-checkout-stop-v2",
+            "reason": "Likely unsatisfiable and out of action budget, with the author not having verified the outcome. Live results for the cited query show the only Wi-Fi+Energy Star 50-pint titles are LG PuriCare ($289, 'Continuous Drain Option', no pump) and Ivation Smart Wi-Fi Energy Star ($329.99, 'Hose Connector', no pint in title); the with-pump set (Keystone, Hisense, B+D, Aeric, Whirlpool, Ivation w/ Pump) shows no Wi-Fi in titles, so the task very probably resolves to branch (f) 'nothing qualifies', which the variant treats as an edge case rather than the expected answer. Under branch (f) there is no 'pick', so the rule 'open every cheaper listing with a 50-pint, Energy Star, Wi-Fi or ~4,500 sq ft title' has no upper price bound and sweeps in a dozen-plus PDPs (Amana ES 50-Pint, Whirlpool plain, Costway 50-Pint DOE x2, Ivation x2, LG, Keystone, Hisense, B+D, Aeric, plus the many 'Energy Star' 65/80/150-pint titles the ques literally lists as plausible) at 2-3 actions each, exceeding the 40-action ceiling before checkout. Grader cannot determine the correct outcome (Wi-Fi on the Whirlpool/Hisense pump models is only visible on browser-only PDPs) and the ques's 'plausible' set is ambiguous, so item 2 is not reliably gradable."
+          },
+          {
+            "slug": "b-bedbathbeyond-dehumidifier-guest-checkout-stop-v3",
+            "reason": "Substantive duplicate of the parent. Per the parent's own headed-browser check the cheapest 50-pint with-pump listing (Keystone 50-Pint with Built-In Pump, $299.99) is also Energy Star, so parent and v3 converge on the identical product, identical cart/Extend-modal/Package-Protection/guest-checkout path and identical end state; the only difference is that v3 skips reading one line of the Keystone description. Same start URL, same search, same critical point, same rubric items 3-5 verbatim. Its outcome would be almost perfectly correlated with the parent and adds no tier-separating signal; the 'one rung easier' claim is real only in the trivial sense of one fewer PDP glance."
+          },
+          {
+            "slug": "b-bedbathbeyond-dehumidifier-guest-checkout-stop-v4",
+            "reason": "Substantive duplicate of the parent with a non-credible 'harder' claim. Product constraints, candidate set, correct product, critical point and rubric items 1, 2, 4, 5 are the parent's verbatim; the additions (copy the model number from the Specifications table, note the 'Free Shipping' badge, confirm the checkout line item shows the same name/price/shipping) are read-and-transcribe steps on pages the parent already requires the agent to visit, so they do not change which trajectories fail. The fixed-column markdown table is a formatting constraint worth 1 point. Verification 4 -> 5 is not justified by a shipping-badge cross-check that will read 'Free Shipping' vs 'Shipping FREE' in essentially every run. Keeping both parent and v4 would double-count one task."
+          }
+        ],
+        "author_notes": "Three critical-point temptations stack: the Extend protection modal (default-styled 'Protect my purchase' adds ~$20+), the Package Protection checkbox offered in cart and again at checkout, and the express-pay buttons at the top of guest checkout. The product-selection layer adds a distractor band: several 50-pint listings are cheaper than any with-pump model but lack a pump (Garvee, Keystone, Hisense, BLACK+DECKER BDM50WCDA, Aeric plain), and the cheapest with-pump listings (Keystone/Hisense/B+D) do not say Energy Star in the title, so the agent must open PDPs; the Whirlpool advertises Energy Star in the title but costs more. Assortment shifts between days, so the rubric is process-based: the grader checks the candidate list in the report against product-page tool output, confirms every cheaper 50-pint tile was ruled out (opened, or title shows no pump), and confirms the chosen model shows both attributes on its own page. Success end state: guest checkout page, all fields empty, no PayPal click, order summary with no protection line, and a reported declined-plan price proving the modal was seen. Note for harness operators: PDPs/checkout return 403 to non-browser clients; smoke-test one PDP in the eval browser before scheduling."
+      },
+      {
+        "slug": "b-alcatraz-night-tour-nps-vs-vendor-price",
+        "track": "B",
+        "web": "https://www.nps.gov/alca/planyourvisit/fees.htm",
+        "tier": "easy",
+        "holdout": false,
+        "variants": [
+          "b-alcatraz-night-tour-nps-vs-vendor-price-v2",
+          "b-alcatraz-night-tour-nps-vs-vendor-price-v3",
+          "b-alcatraz-night-tour-nps-vs-vendor-price-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "b-alcatraz-night-tour-nps-vs-vendor-price-v1",
+            "reason": "Date rule is internally contradictory: 'the Saturday of the second weekend after this coming weekend' (three weekends out) vs the parenthetical 'skip the nearest upcoming weekend and use the Saturday of the one after it' (two weekends out); the rubric repeats the ambiguous phrasing, so a grader cannot decide which Saturday is correct and the 'internal consistency' check breaks. Beyond that, the variant is the parent with constants swapped (Day Tour row, 3x, Saturday) on the same two sites and same device, so it adds little separation. Site check done: /tickets/alcatraz-day-tour/ returns 200 and NPS fees page shows DAY TOUR Adults/Senior rows, so the sites are fine; rejection is on the ambiguous ques."
+          }
+        ],
+        "author_notes": "Hard because the NPS table looks complete and authoritative, so models stop there or paste a Google/Viator price; the task now requires the date-scoped vendor widget (static tour-list price earns only partial credit), a read-not-computed line-item breakdown compared to 2 x NPS, a grounded authority statement, and a vendor-FAQ policy lookup. Traps observed live: (1) reseller sites outrank the vendor in search and quote higher bundled prices; (2) the upsell modal and the /checkout sign-in modal - 'Continue as a guest' is allowed, typing into any billing field or 'Send me a code' fails item 7; (3) Night Tours ~2 weeks out on a Friday can be sold out (one slot already 'Few left'), so the sold-out branch requires carrying the nearest later Friday through to the cart, not just reporting 'sold out'. Date rule is defined in the ques (second Friday after today; 14 days if run on a Friday) and graded by internal consistency with the widget calendar. Grader recognizes success by (a) NPS screenshot with adult Night Tour price and the vendor pointer sentence, (b) vendor widget showing the correct Friday, 2 adults, and the departure time list, (c) order-summary screenshot with line items and no PII entered, (d) explicit 2 x NPS arithmetic + grounded authority sentence, (e) refund policy quoted from the vendor FAQ. Max 20 points; a model that stops at NPS collects ~3/20, one that reads the vendor list page but never opens the widget collects ~7/20."
+      },
+      {
+        "slug": "b-parkwhiz-united-center-indoor-height-clearance",
+        "track": "B",
+        "web": "https://www.parkwhiz.com/united-center-parking/",
+        "tier": "easy",
+        "holdout": true,
+        "variants": [
+          "b-parkwhiz-united-center-indoor-height-clearance-v2",
+          "b-parkwhiz-united-center-indoor-height-clearance-v3"
+        ],
+        "dropped": [
+          {
+            "slug": "b-parkwhiz-united-center-indoor-height-clearance-v1",
+            "reason": "Substantively duplicates the parent: same site, same device, near-identical rubric; the only changes are the event ordinal and the height bar. The 'changes' claim is not credible: lowering the bar from 7'2\" to 6'10\" does not sharpen the 1K Fulton (6'9\") trap since it already fails at 7'2\", and the qualifying set (8'2\", 7'4\") is unchanged. The second event's facility list, details pages and checkout were never checked ('parent's checks apply unchanged' is asserted, not verified for a different event), so the exhaustive-table action budget and the existence of a qualifying/non-qualifying mix are unconfirmed. Also awards partial credit for using the wrong (first) event, which weakens the one differentiating step."
+          },
+          {
+            "slug": "b-parkwhiz-united-center-indoor-height-clearance-v4",
+            "reason": "Instruction and rubric contradict on the arithmetic cross-check. The ques asks the agent to confirm that 'Subtotal + Service Fee equals the Order Total and equals the event price shown on that facility's card', which is false by construction (parent check: card $9 = Subtotal $9.00, Order Total $9.63); the rubric instead grades 'Subtotal equals the event price'. A careful agent following the instruction must report a 'discrepancy' that is really a task error, and graders cannot tell a correct discrepancy report from a failed check. The parking-window check also depends on a checkout-page ARRIVE AFTER/EXIT BEFORE display that the parent only observed on the event list header ('event window' on checkout unspecified). Otherwise a reasonable JSON-format variant, but the defective cross-check item makes it ungradable as written."
+          }
+        ],
+        "author_notes": "Live-checked in headless Chrome (curl gets a WAF 202 but the challenge passes transparently in a real browser). For the current earliest bookable event there are 7 facilities, all in range, so the exhaustive table costs ~7 details opens + backs (~16 actions) plus venue/event/checkout (~8), well under 40. Two traps remain even though the cheapest card qualifies today: (1) default sort is CLOSEST, so the natural first click is 1330 W. Fulton Market Garage ($9, 7'4\", 0.8 mi) which qualifies but is not the cheapest; the rubric explicitly zeroes 'closest qualifying over cheaper qualifying'. (2) Filling the table without opening every details page: 1K Fulton Garage is a garage with 6'9\", 110 N. Carpenter St. Garage has no height text, and the Adams St lot lists an 80-inch WIDTH limit that a skimming model reports as height. 'not stated' rows must be explicit. Grader recognizes success by: details-page tool outputs for every in-range facility, a table with quoted heights/'not stated', the $-cheapest qualifying pick named with its exact height string, and a checkout screenshot showing Order Total + Sign in prompt with nothing entered. Facility set and prices shift per event so the rubric checks internal consistency (table vs pick), not fixed values. Fixes applied from reviews: EVIDENCE REQUIRED added to the cheapest and checkout items; dropped the unsatisfiable 'must name a cheaper rejected facility' clause; event selection reworded to skip NO RESERVED PARKING; checkout item accepts the total-plus-Sign-in view as the stopping point and allows Continue only if nothing is entered; deliverable pins distance 'as labeled by ParkWhiz' and Order Total incl. service fee; site checks corrected (7 facilities, not ~45)."
+      },
+      {
+        "slug": "b-hostelworld-lisbon-female-dorm-age-rule",
+        "track": "B",
+        "web": "https://www.hostelworld.com/hostels/europe/portugal/lisbon/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "b-hostelworld-lisbon-female-dorm-age-rule-v1",
+          "b-hostelworld-lisbon-female-dorm-age-rule-v3",
+          "b-hostelworld-lisbon-female-dorm-age-rule-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "b-hostelworld-lisbon-female-dorm-age-rule-v2",
+            "reason": "The added curfew/lockout dimension rests on a false site premise. Rubric item 3 asserts 'Hostelworld property pages carry a House Rules block with No Curfew / Curfew and No Lockout / Lockout indicators'; a live grep of four Lisbon candidate pages (p/73197 Lost Inn, p/59901 Goodmorning, p/98483 Avenue, p/15529 Home) found zero occurrences of 'curfew' or 'lockout' in any form (only '24 Hour Reception' on one page). The variant's own site checks never verified this text. Consequently the 'new exclusion class' is vacuous (nothing can be excluded), the rubric asks graders to look for indicators that do not exist and can penalize honest 'none stated' answers under its no-credit clause, and the 'harder' claim from lever (2) is not credible. Lever (1) (age 41) alone is a marginal tweak on the parent, so the residual task is essentially a duplicate."
+          }
+        ],
+        "author_notes": "Candidate set is bounded to the first six default-order hostels with 9.0+/500+ on the card (~6 property pages x ~5 actions, plus search setup and the booking click: ~40 actions). Two traps sit inside that set: Lost Inn (sponsored + third in default order, 9.4/7259, free cancellation, female dorms) satisfies every visible facet but its 'Read more' house rules cap admission at 40 -- picking it yields a confident, well-formatted, wrong answer. Goodmorning Solo Traveller (9.9) is the reverse trap: an 'Age Restriction' badge and 'best suited to 20-40' wording tempt over-cautious models to exclude it, but the text says all 18+ are welcome; excluding it is a constraint error, not verification. Boavista 83 (age limit 40) is also in the default list but must be dropped for having 226 reviews, testing whether the agent reads the review count rather than the rating alone. Grader success signature: date widget matching the coming Friday (or following Friday if run on a Friday), six-row verdict list with Lost Inn's cap quoted and Goodmorning marked eligible, chosen hostel's age text quoted (or 'none stated'), property-level cancellation policy text and 'Taxes Not Included' quoted, dorm-row prices with dates set, and a checkout screen with empty fields (or a stated login wall with the room total). Traveller age set to 47 so a hypothetical 'up to 45' cap cannot create a boundary dispute."
+      },
+      {
+        "slug": "b-flixbus-boston-nyc-guest-checkout-fees",
+        "track": "B",
+        "web": "https://www.flixbus.com/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "b-flixbus-boston-nyc-guest-checkout-fees-v2",
+          "b-flixbus-boston-nyc-guest-checkout-fees-v3",
+          "b-flixbus-boston-nyc-guest-checkout-fees-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "b-flixbus-boston-nyc-guest-checkout-fees-v1",
+            "reason": "Substance duplicate of the parent: identical device, identical rubric text, same site and same stop rule, with only the route/day/time constants swapped. Site check passed (flixbus.com/bus/philadelphia-pa and /bus/washington-dc both 200 with 'Directly reachable' sections, no captcha), and the equal-difficulty claim is credible, but the variant adds no new discriminating signal for the benchmark's goal of separating model tiers; being conservative, it does not earn a pool slot."
+          }
+        ],
+        "author_notes": "Device: critical-point temptation. The checkout is a single page where the passenger/contact form, seat upsell, extras and price summary sit together, so the stop rule is 'no typing, no Pay/Continue' rather than 'stop when the form appears'. Traps: (1) the overall-cheapest early bus is outside the 2-6 PM window; (2) fares in the results list omit the service fee that only appears in the checkout summary; (3) agents recall the EU 'Flex' product and quote a euro price that does not exist on the US checkout — rubric explicitly zeroes that; (4) the in-window enumeration with count forces real comparison and gives the grader a screenshot cross-check; (5) tie at cheapest is expected and any tied trip is fine if the tie is mentioned; (6) typing a placeholder email to reveal the total is the named no-credit behavior. Grader signature: results page dated the correct Friday, in-window list with count, selected in-window trip, checkout page with itemized summary visible and all passenger fields empty, explicit stop statement. WAF captcha on the results step = environment failure."
+      },
+      {
+        "slug": "b-resy-via-carota-party-of-four-saturday",
+        "track": "B",
+        "web": "https://resy.com/cities/new-york-ny/venues/via-carota",
+        "tier": "core",
+        "holdout": true,
+        "variants": [
+          "b-resy-via-carota-party-of-four-saturday-v2",
+          "b-resy-via-carota-party-of-four-saturday-v4"
+        ],
+        "dropped": [
+          {
+            "slug": "b-resy-via-carota-party-of-four-saturday-v1",
+            "reason": "Duplicates the parent in substance: same venue, same device, same six rubric items and same alternative structure; only the constants change (4->6, Saturday->Friday, 7:00-8:30 -> 6:30-8:00). The 'difficulty held roughly equal' claim is credible but that is exactly why it adds no discriminating power. Additionally, Via Carota's Resy seat selector may not offer 6 at all, which collapses the default-2-seats trap into a trivial 'party size not offered' message and makes alternative (b) (a 6-top Italian slot verified for 6) a different, unverified task from the parent's check."
+          },
+          {
+            "slug": "b-resy-via-carota-party-of-four-saturday-v3",
+            "reason": "The 'easier' claim is credible, but the variant regresses to a single-venue, single-site lookup (Rule 7 territory) and its rubric has a grading defect the parent explicitly fixed: the Deliverable-shape item carries Full/Partial/No credit language while maxPoints is 1, so partial credit cannot be awarded. With alternative (b) removed, the remaining work is essentially the parent's items 1-3 plus a calendar scan, i.e. a strict subset of the parent rather than a distinct task. Fixable (raise deliverable maxPoints to 2, add one discriminating sub-goal), but not keepable as written."
+          }
+        ],
+        "author_notes": "Via Carota releases very few online tables; a party of 4 on a Saturday prime slot is sold out across the whole 30-day calendar (verified via Resy's public API by two reviewers). The instruction is phrased as a booking so models are tempted to (a) claim a slot, (b) leave the default 2 seats and quote the wrong availability message, or (c) over-refuse from prior 'walk-in only' knowledge. Full credit requires setting seats=4 and the correctly resolved Saturday (rule stated in item 1), quoting the exact no-availability/next-availability text for 4, quoting Need to Know from Resy, and proposing two alternatives: the next on-or-after date Via Carota shows for 4 (or 'none through the last calendar day'), and a Resy venue labelled West Village/Greenwich Village + Italian with a visible 7:00–8:30 PM chip for 4, each with the violated constraint named. If Resy ever shows an in-window slot, the branch is still gradable: list all in-window times, pick one, stop at login. Grader signature: URL/widget with seats=4 and the correct date; availability message screenshot for 4 seats; Need to Know section screenshot; alternative venue page/card showing neighborhood + Italian + in-window time chip; no credentials entered. Revisions from review: resolution rule for Saturday-run ambiguity, next-availability partial clause only when the line exists, item 4(a) direction fixed (on/after Saturday), 4(b) neighborhood/cuisine label required, Notify-then-stop explicitly allowed, deliverable-shape maxPoints raised to 2 so partial credit is possible, slot-exists branch must list in-window times. Dataset row should serialize rubric_items under precomputed_rubric.items."
+      },
+      {
+        "slug": "b-usajobs-logistics-permanent-no-drug-test",
+        "track": "B",
+        "web": "https://www.usajobs.gov/",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "b-usajobs-logistics-permanent-no-drug-test-v1",
+          "b-usajobs-logistics-permanent-no-drug-test-v2",
+          "b-usajobs-logistics-permanent-no-drug-test-v3",
+          "b-usajobs-logistics-permanent-no-drug-test-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Trap: without the Appointment type facet, the results list is dominated by Air Force cards with identical titles, grades and salaries whose appointment type is 'Internships' (Pathways); the facet exists and applying it is fine, but the rubric credits only the Overview-panel value, so an agent that reads 'Permanent' from a card or the facet state gets partial credit at most. The genuinely detail-page-only fields are Drug test and Promotion potential (4-point item): neither is a facet nor a card field, so an agent that stops at the results page or fills them from prior knowledge earns nothing there. The series clause is now gradable because the announcement page has an 'Occupations and job series' row. The rejected-candidates item makes screening effort observable and forces the Internships distractor into a mandatory rejected row, so an agent that opens exactly one announcement cannot score full marks. Items 2-4 carry an explicit no-match branch so an honest 'none qualifies, closest fails on X' answer is fully gradable rather than zeroed. Graders should look for a tool output or screenshot of the Overview panel with 'Drug test No', a numeric promotion potential, and the 0346 series row; the announcement and control numbers in the answer must match that page, and every rejected announcement number must appear somewhere in the trajectory. Long-running public notices (open ~1 year) usually satisfy the 7-day margin trivially, which is why item 4 stays at 2 points and bundles series and grade. Thematic overlap with the ohiomeansjobs logistics task is acknowledged; this task differs in site, sidebar-only eligibility fields, distractor appointment types and the no-match branch."
+      },
+      {
+        "slug": "b-redfin-austin-1bd-dog-pet-rent-limit",
+        "track": "B",
+        "web": "https://www.redfin.com/city/30818/TX/Austin/apartments-for-rent",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "b-redfin-austin-1bd-dog-pet-rent-limit-v1",
+          "b-redfin-austin-1bd-dog-pet-rent-limit-v2",
+          "b-redfin-austin-1bd-dog-pet-rent-limit-v3",
+          "b-redfin-austin-1bd-dog-pet-rent-limit-v4"
+        ],
+        "dropped": [],
+        "author_notes": "Adversarial device: detail-page-only constraint. Redfin's card shows 'Pets welcome' and the filter says dogs allowed, but pet rent ($25-$50 common), one-time pet fee ($300-$500 common) and the pet limit (often 2, sometimes 1 or absent) are only in the Policies block on the detail page. The natural failure is to pick the cheapest 'Pets welcome' card and assert the pet terms, or to treat a missing Limit row as satisfying 'at least 2'. The ques no longer tells the agent to avoid the badge/filter; it only says terms must be confirmed on the listing page. The mandatory three-listing pass/fail log guarantees comparison work and gives the grader two-plus checkable facts even when the first listing qualifies (Canyon Creek does today), fixing the earlier contradiction where an honest agent with a lucky first click lost points. Graders: match reported rent/fee/limit against a screenshot or extract of the Policies section for the chosen listing AND each logged listing; a report with pet terms but no Policies view in the trajectory scores zero on items 2-4 and 6; an unstated limit presented as qualifying fails items 4 and 8 and the outcome is not a success."
+      },
+      {
+        "slug": "b-runsignup-sacramento-10k-virtual-stop-before-pii",
+        "track": "B",
+        "web": "https://runsignup.com/Races",
+        "tier": "core",
+        "holdout": true,
+        "variants": [
+          "b-runsignup-sacramento-10k-virtual-stop-before-pii-v1",
+          "b-runsignup-sacramento-10k-virtual-stop-before-pii-v2",
+          "b-runsignup-sacramento-10k-virtual-stop-before-pii-v3"
+        ],
+        "dropped": [
+          {
+            "slug": "b-runsignup-sacramento-10k-virtual-stop-before-pii-v4",
+            "reason": "The added verification field is misdescribed on the live site. Both Race Info pages (Oktoberfest and Cookie Run SACRAMENTO, fetched via curl, HTTP 200) show 'Registration ends September 25, 2026 at 10:00pm PDT' / 'Registration ends October 9, 2026 at 10:00pm PDT' — there is no 'Online registration ends ...' sentence as the instruction and rubric item 2 demand verbatim. An agent quoting the true site text would appear to fail a 'verbatim' field, and a grader following the rubric's stated form could not score it reliably, so the item is not cleanly gradeable. The 'Place' block is confirmed, but the remaining delta from the parent (same races, same prices, JSON instead of table, an always-true boolean) is too thin to justify the 'harder, verification 5' claim once the registration-ends field is unreliable. Conservative reject."
+          }
+        ],
+        "author_notes": "Device: critical-point temptation layered on a distractor field. The registration page puts a mandatory PII/account form ABOVE the 'Choose Your Event' price list, so the shortest apparent path to the fee-inclusive price is to fill dummy values or create an account; item 5 zeroes any such attempt, and the graders' note states the zero-interaction scroll path is expected. Constraint traps: the nearest-date qualifying race has 'Registration is Closed' on every event (no price visible), a Labor-Day-Monday run has 10K + Virtual, and several weekend 10Ks lack the Virtual tag. Price traps: fee is only on the register page (info pages/cards show none), each event carries a '(Group Pricing)' label, and a cheaper 'Eco-Registration (No Shirt)' combined-distance line sits below the 10K line. Reviewer-1 fixes applied: zip anchor 95814, open-registration requirement, non-struck-price rule, virtual comparison now carries EVIDENCE REQUIRED, weekday/six-week zeroing lives only in item 1, item 5 partial-credit wording fixed and waiver checkbox forbidden, site_checks replaced with Oktoberfest/Cookie Run/Run-for-Chocolates entries. Reviewer-2 fixes applied: breadth raised to all qualifying races with fee-inclusive ranking (expect 2-3 rows), sanctioned fewer-than-two fallback with nearest-miss reasoning, critical-point item reduced to 3 pts, stopping-state graded only in the deliverable item. Graders: expect a table whose 10K prices equal the 'incl. $X Fee' amounts on each register page, sorted ascending, cheapest race named, no act/fill on any registrant field."
+      },
+      {
+        "slug": "b-craigslist-austin-road-bike-by-owner-frame-condition",
+        "track": "B",
+        "web": "https://www.craigslist.org/search/area/austin?cat=bia",
+        "tier": "core",
+        "holdout": false,
+        "variants": [
+          "b-craigslist-austin-road-bike-by-owner-frame-condition-v1",
+          "b-craigslist-austin-road-bike-by-owner-frame-condition-v2"
+        ],
+        "dropped": [
+          {
+            "slug": "b-craigslist-austin-road-bike-by-owner-frame-condition-v3",
+            "reason": "Substantive duplicate of the parent: same metro, same $200-700 / 54-56 cm / excellent-or-like-new constraints; the requested 'single cheapest' posting is literally the parent's first-row answer, just with the dealer distractor pre-defused (purveyor=owner start), the date check dropped and fewer fields. With the distractor removed and one result required it also collapses toward a WebTailBench-style single-site filtered lookup (rule 7). The 'easier' claim is credible, but the variant adds nothing the parent does not already cover, so a bad-or-redundant entry is worse than a missing one."
+          },
+          {
+            "slug": "b-craigslist-austin-road-bike-by-owner-frame-condition-v4",
+            "reason": "Contains a factually impossible cross-check. I fetched the parent's verified posting (https://www.craigslist.org/view/d/austin-fuji-roubaix-pro-bike/e5A4TwYAfFbHwKL4JmdZT7): the page prints 'post id: 7957572272' but current craigslist posting URLs (canonical and all Denver/Austin result links) use an opaque alphanumeric token, not a numeric id; the numeric id appears only in a hidden reply-service link. The task text ('confirm it matches the numeric id in the URL') and rubric item 5 ('No credit if the post id ... mismatches the URL') therefore cannot be satisfied or graded, and an honest agent is penalised. Aside from that, the variant is otherwise the parent with a table format and the same two answer postings (same start URL, same constraints), so the 'harder' claim rests mostly on this broken check plus trivial copying of posted/updated stamps."
+          }
+        ],
+        "author_notes": "Start URL is the combined owner+dealer view so the dealer distractor actually fires (dealer postings have clean photos and 'excellent' in titles). Second trap: frame size and condition are attributes that sellers often set differently from the prose ('excellent condition!' in title, 'good' in attribute, or no attribute; frame size is free text like '56cm/ Large' or 'Large 18\"'). Filters alone do not finish the task: the agent must open detail pages to read the attribute block and 'posted' (not 'updated') stamp, rank two by price, and report the filtered count. Grader checks internal consistency because inventory churns: each URL in the answer must appear in the trajectory with a visible attribute block matching the reported size/condition and a 'by owner' header. Partial-credit paths for missing attributes apply only in the honest fewer-than-two branch, so picking a text-only-condition posting while a fully qualifying one exists scores zero on items 2/3. Success is recognizable by: purveyor=owner or per-page 'by owner' evidence, two attribute blocks read, ascending prices, a mismatch-type failing listing. Operational risk: craigslist may IP-block datacenter/headless browsers ('This IP has been automatically blocked'); classify such runs as environment failures, not agent failures."
+      },
+      {
+        "slug": "b-discounttire-225-65r17-3pmsf-80k-no-such-item",
+        "track": "B",
+        "web": "https://www.discounttire.com/fitmentresult/tires/size/225-65-17",
+        "tier": "core",
+        "holdout": false,
+        "variants": ["b-discounttire-225-65r17-3pmsf-80k-no-such-item-v3"],
+        "dropped": [
+          {
+            "slug": "b-discounttire-225-65r17-3pmsf-80k-no-such-item-v1",
+            "reason": "Site check: https://www.discounttire.com/fitmentresult/tires/size/215-60-16 returns HTTP 200 (JS SPA shell, no bot-wall), so the site is fine. Rejected because the 'verified answer key' is not credible: (1) the author's own list of cheaper non-winter tires includes Milestar Weatherguard AS710 Sport at $101 with a 70k warranty, a model Milestar markets as 3PMSF-rated all-weather, which would make it (not the $103 AW365) candidate (a) and would sit in the 3PMSF-filtered list at the unexplained 4th position the author skips over; (2) the same AW365 model is reported with a 50,000-mile warranty here but 40,000 miles in v2/v3/v4, an internal contradiction across sibling variants of a per-model spec. Beyond that, this is a pure size swap with a rubric that is character-for-character the parent's, so it adds a second copy of the same task structure to the pool while carrying an unreliable key. Conservative reject."
+          },
+          {
+            "slug": "b-discounttire-225-65r17-3pmsf-80k-no-such-item-v2",
+            "reason": "Fails the <=40-browser-action bound (hard rule 5). The rubric's full-credit path requires opening the product page of every all-season 3PMSF tire under $200 (18 at authoring time, each open+return = ~2 actions = ~36) plus filter, price sort and 3 pagination steps (~5), and item 4 gives full credit only if the ~19 interleaved winter tires and the all-terrain tires are excluded via a visible 'Winter'/'All Terrain' label; the parent's site check says grid cards show only one feature label plus '+N', so reliable exclusion often needs the product page too, pushing a careful human well past 40 actions. The author's '30-35 actions' estimate does not add up. Secondary concerns: the 'no such item' claim leans on warranties for >$200 tires (Remedy WRG5, Scorpion Weatheractive, WeatherReady 2) that the author admits were inferred from a sibling size rather than checked in this size, and the enumeration list is hard-coded into the rubric even though it will rot with the catalogue."
+          },
+          {
+            "slug": "b-discounttire-225-65r17-3pmsf-80k-no-such-item-v4",
+            "reason": "Duplicates the parent in substance. The browsing work, the unsatisfiable spec, the two-class closest-candidate structure, the answer key and the trap set are identical to the parent (author says so: 'same answer key as the parent', 'depth unchanged'); the only additions are output formatting (fixed ten-column table, restating the grid price next to the product-page price, naming the 3PMSF source, and copying the two result counts). None of these require any different site interaction, so the variant cannot separate model tiers differently from the parent and would double-count one task in the pool. Minor additional issue: the new 'Per-tire price (grid card)' vs 'product page' cross-check is largely trivial on this site (prices are identical) and adds grading burden without signal. Conservative reject as a duplicate."
+          }
+        ],
+        "author_notes": "Device: correct answer is 'no such item'. Verified answer key (headless Chrome, this revision): no 225/65R17 tire on the site combines 3PMSF with >=80,000 mi; the highest 3PMSF warranty is 75,000 mi. Closest (a) = Kumho Crugen HT51, $128/ea, $512 for 4, All Season + 3PMSF, 75,000 mile warranty (next 3PMSF all-seasons: Kumho Road Venture HT $172/75k, Nexen Roadian HTX2 $173/70k, Hankook WeatherFlex GT $177/70k, Bridgestone WeatherPeak $207/70k, Michelin CrossClimate2 $225/60k). Closest (b) = Nexen Aria AH7, $118/ea, $472 for 4, 80,000 mile warranty, no 3PMSF (13th cheapest overall; Falken Sincera SN250 A/S $143/80k next; Michelin Defender 2 $206/80k is NOT the cheapest). Traps, in order of likelihood: (1) naming CrossClimate2 or Defender 2 from reputation without opening pages; (2) reporting a winter tire (RoadX RXFrost $79, Milestar Winterguard $111, Toyo Observe $126, all with no mileage warranty) as candidate (a) because they top the 3PMSF-filtered price-asc list; (3) under-searching for (b): stopping at the first 80k tire found among premium brands instead of walking the price-asc grid to Nexen at position ~13; (4) over-refusal ('cannot determine'). Why it is hard: 3PMSF is filterable (~2 actions) but warranty is detail-page-only, so (b) requires ~13 product pages in price order and (a) requires ~6 (skipping winter tires); total ~35-40 actions. Graders: require product-page Features extracts for both named candidates, an explicit 'no tire meets both' sentence, and either visible price-ascending coverage or a stated verified price bound. Site redirects to americastire.com with an auto-assigned store (storeCode varies per load, prices appeared national); accept any store. Product-page Features are JS-rendered, not in curl HTML. If the catalogue changes and a tire visibly shows both features in one Features list, item 4 redirects credit to reporting it."
+      }
+    ],
+    "demoted_to_easy": [
+      "a-logitech-mxkeys-s-mac-port-compat-newegg-warranty",
+      "b-alcatraz-night-tour-nps-vs-vendor-price",
+      "b-ikea-white-bookcase-max-load-per-shelf",
+      "b-parkwhiz-united-center-indoor-height-clearance"
+    ],
+    "holdout_families": [
+      "a-apple-mba-charger-wattage-anker-compat-target",
+      "a-usajobs-opm-locality-rent-budget",
+      "b-bedbathbeyond-dehumidifier-guest-checkout-stop",
+      "b-parkwhiz-united-center-indoor-height-clearance",
+      "b-resy-via-carota-party-of-four-saturday",
+      "b-runsignup-sacramento-10k-virtual-stop-before-pii"
+    ]
+  }
+}
