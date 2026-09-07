@@ -5,6 +5,7 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@cursor/sdk": 1.0.31
   "@modelcontextprotocol/sdk": 1.29.0
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6
