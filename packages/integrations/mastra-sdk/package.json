@@ -20,6 +20,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/google": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@ai-sdk/openai-compatible": "^3.0.5",
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@mastra/core": "catalog:",
     "@mastra/mcp": "catalog:",
