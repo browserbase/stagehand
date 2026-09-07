@@ -15,6 +15,7 @@ from typing import Any
 
 from deepagents import create_deep_agent
 from deepagents._models import get_model_identifier, get_model_provider
+from langchain.chat_models import init_chat_model
 from deepagents.profiles import (
     GeneralPurposeSubagentProfile,
     HarnessProfile,
@@ -94,6 +95,10 @@ class RunnerConfig:
     mcp_servers: dict[str, McpServerConfig]
     recursion_limit: int
     max_tool_steps: int
+    reasoning_summary: str | None = None
+
+
+_REASONING_SUMMARY_MODES = frozenset({"auto", "concise", "detailed"})
 
 
 def _require_string(value: object, name: str, *, nullable: bool = False) -> str | None:
@@ -147,6 +152,11 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
             dict(env) if env is not None else None,
             cwd,
         )
+    reasoning_summary = _require_string(
+        raw.get("reasoning_summary"), "reasoning_summary", nullable=True
+    )
+    if reasoning_summary is not None and reasoning_summary not in _REASONING_SUMMARY_MODES:
+        raise ValueError("reasoning_summary must be one of auto, concise, detailed or null")
     return RunnerConfig(
         prompt=str(_require_string(raw.get("prompt"), "prompt")),
         system_prompt=_require_string(raw.get("system_prompt"), "system_prompt", nullable=True),
@@ -154,10 +164,47 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
         mcp_servers=servers,
         recursion_limit=_require_positive_int(raw.get("recursion_limit"), "recursion_limit"),
         max_tool_steps=_require_positive_int(raw.get("max_tool_steps"), "max_tool_steps"),
+        reasoning_summary=reasoning_summary,
     )
 
 
+# Content blocks that are tool invocations rather than model prose. Providers
+# such as OpenAI's Responses API surface them inside AIMessage.content next to
+# the text blocks; they are already reported through message.tool_calls.
+_TOOL_CALL_BLOCK_TYPES = frozenset({"function_call", "tool_call", "tool_use", "tool_call_chunk"})
+
+
+def _reasoning_text(block: Mapping[str, object]) -> str:
+    """Text of a provider reasoning block (OpenAI `summary`, Anthropic `thinking`)."""
+    summary = block.get("summary")
+    if isinstance(summary, list):
+        return "\n".join(
+            item["text"]
+            for item in summary
+            if isinstance(item, dict) and isinstance(item.get("text"), str)
+        )
+    for key in ("reasoning", "thinking", "text"):
+        if isinstance(block.get(key), str):
+            return block[key]  # type: ignore[return-value]
+    return ""
+
+
+def reasoning_text(content: object) -> str:
+    """The model's reasoning summaries, kept apart from its visible text."""
+    if not isinstance(content, list):
+        return ""
+    parts = [
+        text
+        for block in content
+        if isinstance(block, dict)
+        and block.get("type") == "reasoning"
+        and (text := _reasoning_text(block))
+    ]
+    return "\n".join(parts)
+
+
 def flatten_text(content: object) -> str:
+    """The model's visible text; reasoning blocks are reported separately."""
     if isinstance(content, str):
         return content
     if not isinstance(content, list):
@@ -172,6 +219,10 @@ def flatten_text(content: object) -> str:
             and isinstance(block.get("text"), str)
         ):
             parts.append(block["text"])
+        elif isinstance(block, dict) and block.get("type") in _TOOL_CALL_BLOCK_TYPES:
+            continue
+        elif isinstance(block, dict) and block.get("type") == "reasoning":
+            continue
         elif isinstance(block, dict) and _image_from_block(block) is not None:
             continue
         else:
@@ -222,6 +273,7 @@ def message_events(message: object, tool_servers: Mapping[str, str]) -> list[Eve
             {
                 "type": "assistant",
                 "text": flatten_text(message.content),
+                "reasoning": reasoning_text(message.content),
                 "tool_calls": calls,
                 "usage": _json_safe(message.usage_metadata) if message.usage_metadata else None,
             }
@@ -405,7 +457,11 @@ def _register_eval_harness_profile(model: str | BaseChatModel) -> None:
 
 
 def build_eval_model(config: RunnerConfig) -> str | BaseChatModel:
-    """Resolve native provider routing before building the agent."""
+    """The agent model; OpenAI models are asked for reasoning summaries.
+
+    The Responses API only returns reasoning text when `reasoning.summary` is
+    requested, and deepagents' own string resolution passes no call options.
+    """
     # xAI's API is OpenAI-compatible; langchain has no xai provider here, so route
     # grok through ChatOpenAI against api.x.ai (no new dependency, no gateway).
     if config.model.startswith("xai/") or config.model.startswith("xai:"):
@@ -417,7 +473,9 @@ def build_eval_model(config: RunnerConfig) -> str | BaseChatModel:
             base_url="https://api.x.ai/v1",
             api_key=os.environ.get("XAI_API_KEY"),
         )
-    return config.model
+    if config.reasoning_summary is None or not config.model.startswith("openai:"):
+        return config.model
+    return init_chat_model(config.model, reasoning={"summary": config.reasoning_summary})
 
 
 def _default_build_agent(

@@ -3,6 +3,7 @@ import type { AvailableModel } from "stagehand-v3";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import { buildPiPrompt, parsePiResult, runPiAgent, type PiSdk } from "../../framework/piRunner.js";
 import { EvalLogger } from "../../logger.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -32,6 +33,7 @@ describe("pi runner", () => {
 
   it("returns successful results and portable metrics", async () => {
     let options: Record<string, unknown> | undefined;
+    let taskPrompt = "";
     const sdk: PiSdk = {
       async createSession(input) {
         options = input;
@@ -42,7 +44,8 @@ describe("pi runner", () => {
             listener = next;
             return () => {};
           },
-          async prompt() {
+          async prompt(input) {
+            taskPrompt = input;
             listener({
               type: "message_end",
               message: {
@@ -81,6 +84,7 @@ describe("pi runner", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/tmp/pi-runner",
         env: {},
         promptInstructions: "Use browser.",
@@ -103,7 +107,12 @@ describe("pi runner", () => {
       cwd: "/tmp/pi-runner",
       customTools: [customTool],
     });
-    expect(String(options?.systemPrompt)).toContain("Do not edit repository files");
+    expect(options?.systemPrompt).toBeUndefined();
+    expect(String(options?.appendSystemPrompt)).toContain("Do not edit repository files");
+    expect((options?.appendSystemPrompt as string).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+    expect(taskPrompt).toContain(plan.instruction);
+    expect(taskPrompt).not.toContain(EVAL_SYSTEM_PROMPT);
+    expect(options?.thinkingLevel).toBe("medium");
   });
 
   it("returns a failed task result for SDK failures", async () => {
@@ -125,3 +134,46 @@ describe("pi runner", () => {
     expect(String(result.error)).toContain("pi failed");
   });
 });
+
+it.each([false, true])(
+  "preserves token usage presence through pi grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runPiAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk: {
+        async createSession() {
+          let listener: (event: Record<string, unknown>) => void = () => {};
+          return {
+            agent: { state: {} },
+            subscribe(next) {
+              listener = next;
+              return () => {};
+            },
+            async prompt() {
+              listener({
+                type: "message_end",
+                message: {
+                  role: "assistant",
+                  content: [{ type: "text", text: finalAnswer }],
+                  stopReason: "stop",
+                  ...(reported && { usage: { input: 0, output: 0 } }),
+                },
+              });
+              listener({ type: "turn_end" });
+            },
+            async abort() {},
+            dispose() {},
+          };
+        },
+      },
+    });
+    expect(result.usageConvention).toBe(reported ? "uncached_only" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);

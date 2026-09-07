@@ -1,7 +1,6 @@
 import {
   buildCodexTranscript,
   loadCodexSdk,
-  normalizeCodexModel,
   runCodexSession,
   stringifyError,
   toFiniteNumber,
@@ -15,6 +14,7 @@ import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harn
 import type { EvalLogger } from "../logger.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { EVAL_SYSTEM_PROMPT } from "./evalSystemPrompt.js";
 import { codexAdapter } from "./harnesses/codexAdapter.js";
 import {
   buildExternalHarnessPrompt,
@@ -26,6 +26,8 @@ import {
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { readReasoningSummary } from "./reasoningSummary.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -33,7 +35,6 @@ export type { CodexSdk, CodexThread } from "@browserbasehq/stagehand-integration
 export {
   buildCodexTranscript,
   loadCodexSdk,
-  normalizeCodexModel,
   runCodexSession,
 } from "@browserbasehq/stagehand-integrations-codex-sdk";
 export { EVAL_RESULT_SCHEMA } from "./harnesses/externalRunner.js";
@@ -78,15 +79,35 @@ export async function runCodexAgent({
       "drainStepObservations" in toolAdapter ? toolAdapter.drainStepObservations : undefined,
     observedToolMatcher:
       "observedToolMatcher" in toolAdapter ? toolAdapter.observedToolMatcher : undefined,
+    browserSessionLoss:
+      "browserSessionLoss" in toolAdapter ? toolAdapter.browserSessionLoss : undefined,
   };
+  // Codex budgets individual tool steps; 100 ≈ 50 Claude turns keeps the harnesses comparable.
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_CODEX_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 100,
+  });
   return runExternalHarnessTask({
     harness: "codex",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "Codex did not report success",
+    stepBudget: maxToolSteps,
+    stepBudgetUnit: "tool_calls",
+    configuration: {
+      requestedReasoningEffort: validateCodexReasoningEffort(
+        process.env.EVAL_CODEX_REASONING_EFFORT,
+      ),
+      requestedReasoningSummary: readReasoningSummary() ?? "off",
+    },
+    // A caller-owned SDK is already constructed, so its developer config
+    // cannot be extended here. Use the shared fallback for that path.
+    systemPromptMode: sdk ? "task_prefix" : "native",
     runSession: async (prompt) => {
       const sessionResult = await runCodexSession({
         prompt,
@@ -106,15 +127,25 @@ export async function runCodexAgent({
           networkAccessEnabled: readBooleanEnv("EVAL_CODEX_NETWORK_ACCESS", true),
           webSearchMode: "disabled",
           skipGitRepoCheck: true,
+          ...(validateCodexReasoningEffort(process.env.EVAL_CODEX_REASONING_EFFORT) && {
+            modelReasoningEffort: validateCodexReasoningEffort(
+              process.env.EVAL_CODEX_REASONING_EFFORT,
+            ),
+          }),
         },
         outputSchema: EVAL_RESULT_SCHEMA,
-        maxToolSteps: readCodexMaxToolSteps(),
+        maxToolSteps,
+        ...(toolAdapter?.env?.CODEX_HOME && { codexHome: toolAdapter.env.CODEX_HOME }),
         onToolStep:
           toolAdapter && "recordObservation" in toolAdapter
             ? toolAdapter.recordObservation
             : undefined,
       });
-      const usage = normalizeCodexUsage(sessionResult.tokenUsage);
+      const usage = {
+        ...normalizeCodexUsage(sessionResult.tokenUsage),
+        // Zeros after an aborted turn with no rollout are unknown usage, not a free run.
+        reported: sessionResult.usageSource !== "none",
+      };
       return {
         raw: sessionResult,
         resultText: sessionResult.finalMessage,
@@ -127,7 +158,11 @@ export async function runCodexAgent({
             ? sanitizeErrorMessage(stringifyError(sessionResult.iterationError)) || undefined
             : undefined),
         usage,
-        metrics: buildCodexMetrics(sessionResult.tokenUsage),
+        metrics: {
+          ...buildCodexMetrics(sessionResult.tokenUsage),
+          // 1 when the turn never completed and usage came from the rollout file.
+          codex_usage_recovered: metricValue(sessionResult.usageSource === "rollout" ? 1 : 0),
+        },
       };
     },
     toTrajectory: (
@@ -160,6 +195,58 @@ export async function runCodexAgent({
   });
 }
 
+/**
+ * Codex config overrides for an eval session. Codex requests no reasoning
+ * summaries for models outside its own catalog, so reasoning items never
+ * arrive unless `model_reasoning_summary` is set explicitly.
+ */
+const CODEX_REASONING_EFFORTS = [
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "ultra",
+  "persistent",
+] as const;
+
+/** Validate EVAL_CODEX_REASONING_EFFORT; undefined leaves the codex per-model default. */
+export function validateCodexReasoningEffort(
+  raw: string | undefined,
+): (typeof CODEX_REASONING_EFFORTS)[number] | undefined {
+  if (!raw) return undefined;
+  const v = raw.trim().toLowerCase();
+  if ((CODEX_REASONING_EFFORTS as readonly string[]).includes(v)) {
+    return v as (typeof CODEX_REASONING_EFFORTS)[number];
+  }
+  throw new Error(
+    `EVAL_CODEX_REASONING_EFFORT must be one of ${CODEX_REASONING_EFFORTS.join(", ")} (got "${raw}").`,
+  );
+}
+
+export function buildEvalCodexConfig(
+  extraConfig?: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, unknown> {
+  const reasoningSummary = readReasoningSummary(env);
+  const reasoningEffort = validateCodexReasoningEffort(env.EVAL_CODEX_REASONING_EFFORT);
+  const configuredInstructions = extraConfig?.developer_instructions;
+  if (configuredInstructions !== undefined && typeof configuredInstructions !== "string") {
+    throw new Error("Codex developer_instructions must be a string.");
+  }
+  const developerInstructions =
+    typeof configuredInstructions === "string" ? configuredInstructions : "";
+  return {
+    ...(reasoningSummary && { model_reasoning_summary: reasoningSummary }),
+    ...(reasoningEffort && { model_reasoning_effort: reasoningEffort }),
+    ...extraConfig,
+    developer_instructions: developerInstructions?.includes(EVAL_SYSTEM_PROMPT)
+      ? developerInstructions
+      : [developerInstructions, EVAL_SYSTEM_PROMPT].filter(Boolean).join("\n\n"),
+  };
+}
+
 async function loadEvalCodexSdk(
   env?: Record<string, string>,
   extraConfig?: Record<string, unknown>,
@@ -170,19 +257,8 @@ async function loadEvalCodexSdk(
     baseUrl: process.env.EVAL_CODEX_BASE_URL,
     apiKey: process.env.OPENAI_API_KEY,
     rawReasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
-    extraConfig,
+    extraConfig: buildEvalCodexConfig(extraConfig),
   });
-}
-
-function readCodexMaxToolSteps(): number {
-  for (const key of ["EVAL_CODEX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  // Codex budgets individual tool steps while Claude budgets turns (which can
-  // span several tool calls); 100 steps ≈ 50 Claude turns keeps the harnesses
-  // roughly comparable.
-  return 100;
 }
 
 function readBooleanEnv(key: string, fallback: boolean): boolean {

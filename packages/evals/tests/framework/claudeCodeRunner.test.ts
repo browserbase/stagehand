@@ -9,6 +9,7 @@ import {
 import { EvalLogger } from "../../logger.js";
 import type { ClaudeAgentSdk } from "../../framework/claudeCodeRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -18,6 +19,27 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("claude code runner helpers", () => {
+  it("appends the shared eval policy to the native system prompt once", async () => {
+    let request: Parameters<ClaudeAgentSdk["query"]>[0] | undefined;
+    await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk: {
+        query: async function* (input) {
+          request = input;
+          yield { type: "result", subtype: "success", result: 'EVAL_RESULT: {"success":true}' };
+        },
+      },
+    });
+    expect(request?.prompt).toContain(plan.instruction);
+    expect(request?.prompt).not.toContain(EVAL_SYSTEM_PROMPT);
+    const systemPrompt = request?.options?.systemPrompt as { preset: string; append: string };
+    expect(systemPrompt.preset).toBe("claude_code");
+    expect(systemPrompt.append.split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+    expect(systemPrompt.append).toContain("Do not edit repository files");
+  });
+
   it("builds a browser task prompt with the required result marker", () => {
     const prompt = buildClaudeCodePrompt(plan, "Use browse only. Discover usage with browse -h.");
 
@@ -73,7 +95,7 @@ describe("claude code runner helpers", () => {
     });
   });
 
-  it("surfaces verifier integration failures as verifierError on the self-reported result", async () => {
+  it("fails closed when verification fails while preserving the agent report", async () => {
     const sdk: ClaudeAgentSdk = {
       query: async function* () {
         yield {
@@ -116,7 +138,8 @@ describe("claude code runner helpers", () => {
 
     // The agent's self-report is preserved, the failure is visible, and no
     // verifier-graded fields are present.
-    expect(result._success).toBe(true);
+    expect(result._success).toBe(false);
+    expect(result.agentReportedSuccess).toBe(true);
     expect(String(result.verifierError)).toContain("items array");
     expect(result.outcomeSuccess).toBeUndefined();
     expect(result.processScore).toBeUndefined();
@@ -183,3 +206,30 @@ describe("claude code runner helpers", () => {
     expect(result.claudeCodeStatus).toBe("completed");
   });
 });
+
+it.each([false, true])(
+  "preserves token usage presence through claudeCode grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk: {
+        query: async function* () {
+          yield {
+            type: "result",
+            subtype: "success",
+            result: finalAnswer,
+            ...(reported && { usage: { input_tokens: 0, output_tokens: 0 } }),
+          };
+        },
+      },
+    });
+    expect(result.usageConvention).toBe(reported ? "anthropic_cache_separate" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);

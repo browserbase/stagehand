@@ -1,6 +1,5 @@
 import {
   buildDeepagentsTranscript,
-  normalizeDeepagentsModel,
   runDeepagentsSession,
   stringifyError,
   toFiniteNumber,
@@ -20,13 +19,14 @@ import {
   type ExternalHarnessUsage,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { isOpenAiModel, readReasoningSummary } from "./reasoningSummary.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 export type { DeepagentsProcessSpawner } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
 export {
   buildDeepagentsTranscript,
-  normalizeDeepagentsModel,
   runDeepagentsSession,
 } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
 
@@ -58,7 +58,7 @@ valid only for the latest snapshot of the active page. Snapshot again after navi
 `;
 
 export function buildDeepagentsSystemPrompt(toolSurface?: ToolSurface): string {
-  if (toolSurface === "stagehand_facade") {
+  if (toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy") {
     return `${DEEPAGENTS_SHARED_SYSTEM_PROMPT}\n${DEEPAGENTS_FACADE_SYSTEM_PROMPT}`;
   }
   const toolGuidance =
@@ -90,15 +90,24 @@ export async function runDeepagentsAgent({
   spawn,
   verifier,
 }: DeepagentsRunnerInput): Promise<TaskResult> {
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_DEEPAGENTS_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "deepagents",
     plan,
+    model,
     logger,
     toolAdapter,
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "Deep Agents did not report success",
-    runSession: async (prompt) => {
+    stepBudget: maxToolSteps,
+    stepBudgetUnit: "tool_calls",
+    systemPromptMode: "native",
+    runSession: async (prompt, systemPrompt) => {
       const sessionResult = await runDeepagentsSession({
         prompt,
         model,
@@ -109,9 +118,10 @@ export async function runDeepagentsAgent({
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
           ...(toolAdapter?.env && { env: toolAdapter.env }),
           ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
-          systemPrompt: buildDeepagentsSystemPrompt(toolAdapter?.toolSurface),
-          recursionLimit: readDeepagentsRecursionLimit(),
-          maxToolSteps: readDeepagentsMaxToolSteps(),
+          systemPrompt: `${systemPrompt}\n\n${buildDeepagentsSystemPrompt(toolAdapter?.toolSurface)}`,
+          ...(isOpenAiModel(model) && { reasoningSummary: readReasoningSummary() }),
+          recursionLimit: readDeepagentsRecursionLimit(maxToolSteps),
+          maxToolSteps,
         },
         onToolResult: (_name: string, server?: string) => {
           if (server && toolAdapter?.recordObservation) toolAdapter.recordObservation();
@@ -156,22 +166,23 @@ export async function runDeepagentsAgent({
   });
 }
 
-function readDeepagentsMaxToolSteps(): number {
-  for (const key of ["EVAL_DEEPAGENTS_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
-}
-
-function readDeepagentsRecursionLimit(): number {
-  const parsed = Number.parseInt(process.env.EVAL_DEEPAGENTS_RECURSION_LIMIT ?? "", 10);
+/**
+ * LangGraph counts every model and tool node, so a run needs at least
+ * 2 × maxToolSteps + 1 recursion budget to reach the step cap before the graph
+ * gives up; 4× leaves room for the harness's own bookkeeping nodes.
+ */
+export function readDeepagentsRecursionLimit(
+  maxToolSteps: number,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const parsed = Number.parseInt(env.EVAL_DEEPAGENTS_RECURSION_LIMIT ?? "", 10);
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return Math.max(100, readDeepagentsMaxToolSteps() * 4);
+  return Math.max(100, maxToolSteps * 4);
 }
 
 function normalizeDeepagentsUsage(usage: DeepagentsTokenUsage): ExternalHarnessUsage {
   return {
+    reported: usage.reported,
     inputTokens: toFiniteNumber(usage.inputTokens),
     outputTokens: toFiniteNumber(usage.outputTokens),
     cachedInputTokens: toFiniteNumber(usage.cacheReadInputTokens),

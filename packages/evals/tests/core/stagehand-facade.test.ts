@@ -94,10 +94,11 @@ describe("stagehand facade tool surface", () => {
         ...server,
         startup_timeout_sec: 60,
         tool_timeout_sec: 300,
+        default_tools_approval_mode: "approve",
       },
     });
     expect(buildCodexMcpServers("playwright_mcp", { playwright: server })).toEqual({
-      playwright: server,
+      playwright: { ...server, default_tools_approval_mode: "approve" },
     });
   });
 
