@@ -6,6 +6,33 @@ import {
 } from "../src/browserbaseExtension.js";
 
 describe("Browserbase extension client", () => {
+  it.each([0, -1, 1.5, 5, NaN, Infinity])(
+    "rejects an unbounded upload attempt count %s",
+    async (attempts) => {
+      const uploadExtension = vi.fn();
+      await expect(
+        provisionBrowserbaseExtension(
+          { uploadExtension, deleteExtension: vi.fn() },
+          "/archive.zip",
+          { attempts },
+        ),
+      ).rejects.toThrow("attempts must be");
+      expect(uploadExtension).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not print credential-bearing upload errors in the public startup message", async () => {
+    const secretError = new Error("https://example.test?apiKey=private-key");
+    const error = await provisionBrowserbaseExtension(
+      { uploadExtension: vi.fn().mockRejectedValue(secretError), deleteExtension: vi.fn() },
+      "/archive.zip",
+      { attempts: 1 },
+    ).catch((error: Error) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).not.toContain("private-key");
+    expect((error as Error).cause).toBe(secretError);
+  });
+
   it("maps extension upload and deletion to the official SDK surface", async () => {
     const create = vi.fn(async () => ({ id: "ext_uploaded" }));
     const remove = vi.fn(async () => {});
@@ -44,23 +71,39 @@ describe("Browserbase extension provisioning", () => {
     expect(deleteExtension).toHaveBeenCalledWith("ext_uploaded");
   });
 
-  it("preserves an upload failure as the cause", async () => {
+  it("preserves an upload failure as the cause and names it in the message", async () => {
     const uploadError = new Error("Browserbase unavailable");
-    const client: BrowserbaseExtensionClient = {
-      async uploadExtension() {
-        throw uploadError;
-      },
-      async deleteExtension() {},
-    };
+    const uploadExtension = vi.fn(async () => {
+      throw uploadError;
+    });
+    const client: BrowserbaseExtensionClient = { uploadExtension, async deleteExtension() {} };
 
-    const error = await provisionBrowserbaseExtension(client, import.meta.filename).catch(
-      (caught: unknown) => caught,
-    );
+    const error = await provisionBrowserbaseExtension(client, import.meta.filename, {
+      sleep: async () => {},
+    }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe(
-      "Failed to upload the Stagehand extension to Browserbase",
+      "Failed to upload the Stagehand extension to Browserbase after 4 attempt(s).",
     );
     expect((error as Error).cause).toBe(uploadError);
+    expect(uploadExtension).toHaveBeenCalledTimes(4);
+  });
+
+  it("retries a burst-rejected upload with backoff before giving up", async () => {
+    const uploadExtension = vi
+      .fn<() => Promise<{ id: string }>>()
+      .mockRejectedValueOnce(new Error("429 Too Many Requests"))
+      .mockRejectedValueOnce(new Error("429 Too Many Requests"))
+      .mockResolvedValueOnce({ id: "ext_after_retry" });
+    const sleeps: number[] = [];
+    const client: BrowserbaseExtensionClient = { uploadExtension, async deleteExtension() {} };
+
+    const provisioned = await provisionBrowserbaseExtension(client, import.meta.filename, {
+      sleep: async (ms) => void sleeps.push(ms),
+    });
+    expect(provisioned.extensionId).toBe("ext_after_retry");
+    expect(uploadExtension).toHaveBeenCalledTimes(3);
+    expect(sleeps).toStrictEqual([500, 1500]);
   });
 
   it("rejects an empty extension ID", async () => {
