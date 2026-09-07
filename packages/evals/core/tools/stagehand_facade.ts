@@ -318,3 +318,8 @@ export class StagehandFacadeLegacyTool extends StagehandFacadeTool {
 export class AnthropicBrowserToolsetTool extends StagehandFacadeTool {
   override readonly id: ToolSurface = "anthropic_browser_toolset";
 }
+
+/** Native Gemini actions execute on the same facade-owned browser. */
+export class GoogleComputerUseTool extends StagehandFacadeTool {
+  override readonly id: ToolSurface = "google_computer_use";
+}

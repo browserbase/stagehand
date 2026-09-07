@@ -381,6 +381,24 @@
         "**/*.test.ts",
         "$TURBO_ROOT$/vitest.config.ts"
       ]
+    },
+    "@browserbasehq/stagehand-integrations-gemini-cua-sdk#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
+    "@browserbasehq/stagehand-integrations-gemini-cua-sdk#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-gemini-cua-sdk#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-gemini-cua-sdk#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
     }
   }
 }

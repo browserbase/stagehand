@@ -26,11 +26,13 @@
     "@browserbasehq/stagehand": "workspace:*",
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-claude-cua-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-codex-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-cursor-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-deepagents-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-eve-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-fx-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-gemini-cua-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
@@ -49,8 +51,7 @@
     "stagehand-v3": "npm:@browserbasehq/stagehand@3.7.1",
     "tsx": "catalog:",
     "ws": "^8.21.0",
-    "zod": "catalog:",
-    "@browserbasehq/stagehand-integrations-claude-cua-sdk": "workspace:*"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
