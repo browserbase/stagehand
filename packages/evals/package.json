@@ -49,7 +49,8 @@
     "stagehand-v3": "npm:@browserbasehq/stagehand@3.7.1",
     "tsx": "catalog:",
     "ws": "^8.21.0",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@browserbasehq/stagehand-integrations-claude-cua-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

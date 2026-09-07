@@ -1,3 +1,4 @@
+import { StagehandCuaExecutor } from "@browserbasehq/stagehand-integrations-claude-cua-sdk";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -118,6 +119,27 @@ process.stdin.on('end',()=>process.exit(0));
         completed: 1,
         url: "https://fixture.test/next",
       });
+      const claude = new StagehandCuaExecutor({
+        tools,
+        logger: { log() {}, warn() {}, error() {} },
+      });
+      const navigated = await claude.execute(
+        "navigate",
+        { url: "https://fixture.test/claude" },
+        { toolUseId: "claude-nav" },
+      );
+      expect(navigated.isError).not.toBe(true);
+      expect(JSON.stringify(navigated.content)).toContain("https://fixture.test/claude");
+      await claude.execute("read_page", {}, { toolUseId: "claude-read" });
+      expect(
+        (
+          await claude.execute(
+            "left_click",
+            { target: { type: "ref", ref: "0-1" } },
+            { toolUseId: "claude-click" },
+          )
+        ).isError,
+      ).not.toBe(true);
       expect(await tools.screenshot()).toMatchObject({
         data: Buffer.from("png").toString("base64"),
         mimeType: "image/png",

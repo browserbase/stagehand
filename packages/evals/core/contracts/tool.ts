@@ -11,6 +11,7 @@ export type ToolSurface =
   | "cdp_code"
   | "playwright_mcp"
   | "chrome_devtools_mcp"
+  | "anthropic_browser_toolset"
   | "stagehand_facade"
   | "stagehand_facade_legacy"
   | "browse_cli";
