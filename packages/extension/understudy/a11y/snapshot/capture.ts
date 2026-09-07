@@ -356,6 +356,7 @@ export async function collectPerFrameMaps(
     const sameSessionAsParent = !!parentId && ownerSession(page, parentId) === sess;
 
     const docRootBe = await resolveFrameDocRootBackendId(page, frameId, idx, sameSessionAsParent);
+    if (docRootBe === undefined) continue;
 
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
@@ -454,6 +455,7 @@ async function resolveIgnoredNodesForLocator(
         idx,
         sameSessionAsParent,
       );
+      if (backendNodeId === undefined) return [];
       return [{ frameId: targetFrameId, backendNodeId }];
     }
     return resolveIgnoredNodesInFrame(
@@ -558,10 +560,12 @@ export async function buildFrameExclusionIntervals(
     const sameSessionAsParent =
       !!parentId && ownerSession(page, parentId) === ownerSession(page, frameId);
     const docRootBe = await resolveFrameDocRootBackendId(page, frameId, idx, sameSessionAsParent);
-    const start = idx.enterByBe.get(docRootBe);
-    const end = idx.exitByBe.get(docRootBe);
-    if (typeof start === "number" && typeof end === "number") {
-      pushInterval(frameId, start, end);
+    if (docRootBe !== undefined) {
+      const start = idx.enterByBe.get(docRootBe);
+      const end = idx.exitByBe.get(docRootBe);
+      if (typeof start === "number" && typeof end === "number") {
+        pushInterval(frameId, start, end);
+      }
     }
 
     for (const childFrameId of listChildrenOf(context.parentByFrame, frameId)) {
@@ -692,7 +696,7 @@ async function resolveFrameDocRootBackendId(
   frameId: string,
   idx: SessionDomIndex,
   sameSessionAsParent: boolean,
-): Promise<number> {
+): Promise<number | undefined> {
   if (!sameSessionAsParent) return idx.rootBackend;
   const session = ownerSession(page, frameId);
   try {
@@ -704,9 +708,10 @@ async function resolveFrameDocRootBackendId(
       if (typeof docRootBe === "number") return docRootBe;
     }
   } catch {
-    //
+    // The frame may have detached since the session DOM index was captured.
   }
-  return idx.rootBackend;
+  // A same-session child's missing document must not duplicate the parent document.
+  return undefined;
 }
 
 /**
