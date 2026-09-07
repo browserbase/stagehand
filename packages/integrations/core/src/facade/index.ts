@@ -37,6 +37,7 @@ export {
 } from "./contract.js";
 export {
   StagehandFacadeTools,
+  StagehandFacadeSessionLostError,
   type StagehandFacadeRunReport,
   type StagehandFacadeToolsOptions,
 } from "./tools.js";
