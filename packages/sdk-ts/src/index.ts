@@ -4,6 +4,9 @@ export {
   type Cookie,
   type CookieParam,
   type DomainPolicy,
+  type StorageState,
+  type StorageStateOptions,
+  type StorageStateOrigin,
 } from "./browserContext.js";
 export {
   BrowserClipboard,

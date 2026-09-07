@@ -2,6 +2,9 @@ package stagehand
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -112,4 +115,253 @@ func TestBrowserContextClipboardInitializesOnceConcurrently(t *testing.T) {
 			t.Fatalf("Clipboard() returned distinct helpers: %p and %p", first, clipboard)
 		}
 	}
+}
+
+func TestBrowserContextStorageStateRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	cookie := Cookie{
+		Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+		Expires: -1, HTTPOnly: true, Secure: true, SameSite: CookieSameSiteLax,
+	}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.cookies":       ContextCookiesResult{cookie},
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+		"context.add_cookies":   ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+
+	state, err := browserContext.StorageState(context.Background(), &StorageStateOptions{Path: path})
+	if err != nil {
+		t.Fatalf("StorageState() error = %v", err)
+	}
+	if len(state.Cookies) != 1 || state.Cookies[0].Name != "session" || len(state.Origins) != 0 {
+		t.Fatalf("StorageState() = %#v", state)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !containsAll(string(raw), `"httpOnly": true`, `"origins": []`) {
+		t.Fatalf("written storage state = %s", raw)
+	}
+
+	if err := browserContext.SetStorageStatePath(context.Background(), path); err != nil {
+		t.Fatalf("SetStorageStatePath() error = %v", err)
+	}
+	if got := methods(rpc); len(got) < 3 ||
+		got[0] != "context.cookies" ||
+		got[1] != "context.clear_cookies" ||
+		got[2] != "context.add_cookies" {
+		t.Fatalf("rpc methods = %#v", got)
+	}
+	params, ok := rpc.calls[2].params.(ContextAddCookiesParams)
+	if !ok || len(params.Cookies) != 1 || params.Cookies[0].HTTPOnly == nil || !*params.Cookies[0].HTTPOnly {
+		t.Fatalf("AddCookies() params = %#v", rpc.calls[2].params)
+	}
+}
+
+func TestBrowserContextStorageStateNilOptionsSkipsWrite(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.cookies": ContextCookiesResult{},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+
+	state, err := browserContext.StorageState(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("StorageState() error = %v", err)
+	}
+	if state.Cookies == nil || len(state.Origins) != 0 {
+		t.Fatalf("StorageState() = %#v", state)
+	}
+	if got := methods(rpc); len(got) != 1 || got[0] != "context.cookies" {
+		t.Fatalf("rpc methods = %#v", got)
+	}
+}
+
+func TestBrowserContextSetStorageStateRejectsNilCookiesWithoutClearing(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+
+	err := browserContext.SetStorageState(context.Background(), StorageState{})
+	if err == nil {
+		t.Fatal("SetStorageState() accepted nil cookies")
+	}
+	if len(rpc.calls) != 0 {
+		t.Fatalf("SetStorageState() mutated cookies before rejecting: %#v", methods(rpc))
+	}
+}
+
+func TestBrowserContextSetStorageStateRejectsInvalidSameSiteWithoutClearing(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+
+	err := browserContext.SetStorageState(context.Background(), StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: CookieSameSite("Invalid"),
+		}},
+	})
+	if err == nil {
+		t.Fatal("SetStorageState() accepted invalid sameSite")
+	}
+	if len(rpc.calls) != 0 {
+		t.Fatalf("SetStorageState() mutated cookies before rejecting: %#v", methods(rpc))
+	}
+}
+
+func TestReadStorageStateFileRejectsMissingCookiesAndFlags(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	missingCookies := filepath.Join(dir, "missing-cookies.json")
+	if err := os.WriteFile(missingCookies, []byte(`{"origins":[]}`+"\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := readStorageStateFile(missingCookies); err == nil {
+		t.Fatal("readStorageStateFile() accepted missing cookies array")
+	}
+
+	missingFlags := filepath.Join(dir, "missing-flags.json")
+	if err := os.WriteFile(missingFlags, []byte(`{
+  "cookies": [
+    {
+      "name": "session",
+      "value": "secret",
+      "domain": "example.com",
+      "path": "/",
+      "expires": -1,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := readStorageStateFile(missingFlags); err == nil {
+		t.Fatal("readStorageStateFile() accepted missing httpOnly/secure")
+	}
+
+	invalidSameSite := filepath.Join(dir, "invalid-samesite.json")
+	if err := os.WriteFile(invalidSameSite, []byte(`{
+  "cookies": [
+    {
+      "name": "session",
+      "value": "secret",
+      "domain": "example.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Nope"
+    }
+  ],
+  "origins": []
+}
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := readStorageStateFile(invalidSameSite); err == nil {
+		t.Fatal("readStorageStateFile() accepted invalid sameSite")
+	}
+}
+
+func TestWriteStorageStateFileRejectsInvalidSameSite(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "state.json")
+	err := writeStorageStateFile(path, StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: CookieSameSite("Nope"),
+		}},
+		Origins: []StorageStateOrigin{},
+	})
+	if err == nil {
+		t.Fatal("writeStorageStateFile() accepted invalid sameSite")
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("writeStorageStateFile() wrote file despite invalid sameSite: %v", statErr)
+	}
+}
+
+func TestWriteStorageStateFileNormalizesEmptySameSite(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "state.json")
+	err := writeStorageStateFile(path, StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: "",
+		}},
+		Origins: []StorageStateOrigin{},
+	})
+	if err != nil {
+		t.Fatalf("writeStorageStateFile() error = %v", err)
+	}
+
+	state, err := readStorageStateFile(path)
+	if err != nil {
+		t.Fatalf("readStorageStateFile() error = %v", err)
+	}
+	if len(state.Cookies) != 1 || state.Cookies[0].SameSite != CookieSameSiteLax {
+		t.Fatalf("writeStorageStateFile() = %#v, want SameSite=Lax", state)
+	}
+}
+
+func TestSetStorageStateNormalizesEmptySameSite(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+		"context.add_cookies":   ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+	err := browserContext.SetStorageState(context.Background(), StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: "",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("SetStorageState() error = %v", err)
+	}
+	if got := methods(rpc); len(got) != 2 || got[0] != "context.clear_cookies" || got[1] != "context.add_cookies" {
+		t.Fatalf("SetStorageState() calls = %#v", got)
+	}
+	params, ok := rpc.calls[1].params.(ContextAddCookiesParams)
+	if !ok || len(params.Cookies) != 1 || params.Cookies[0].SameSite == nil ||
+		*params.Cookies[0].SameSite != CookieParamSameSiteLax {
+		t.Fatalf("SetStorageState() add params = %#v", rpc.calls[1].params)
+	}
+}
+
+func methods(rpc *recordingProtocolClient) []string {
+	out := make([]string, len(rpc.calls))
+	for index, call := range rpc.calls {
+		out[index] = call.method
+	}
+	return out
+}
+
+func containsAll(value string, parts ...string) bool {
+	for _, part := range parts {
+		if !strings.Contains(value, part) {
+			return false
+		}
+	}
+	return true
 }
