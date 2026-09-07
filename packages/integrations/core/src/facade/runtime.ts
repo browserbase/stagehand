@@ -27,7 +27,24 @@ type QueryStep =
       hasNot?: QueryStep[];
       visible?: boolean;
     }
-  | { kind: "nth"; index: number };
+  | { kind: "nth"; index: number }
+  /**
+   * A `role` step that was resolved against the browser's accessibility tree.
+   * `values` are document-relative XPaths for the nodes whose role and name
+   * matched; the state filters are carried over from the original role step.
+   */
+  | {
+      kind: "xpaths";
+      values: string[];
+      checked?: boolean;
+      disabled?: boolean;
+      selected?: boolean;
+      expanded?: boolean;
+      pressed?: boolean;
+      level?: number;
+    };
+
+type RoleStep = Extract<QueryStep, { kind: "role" }>;
 
 type RawLocator = {
   click(options?: { button?: "left" | "right" | "middle"; clickCount?: number }): Promise<void>;
@@ -36,6 +53,15 @@ type RawLocator = {
   type(text: string, options?: { delay?: number }): Promise<void>;
   selectOption(values: string | string[]): Promise<string[]>;
   setInputFiles(files: unknown): Promise<void>;
+  count(): Promise<number>;
+  nth(index: number): RawLocator;
+  isVisible(): Promise<boolean>;
+  isChecked(): Promise<boolean>;
+  inputValue(): Promise<string>;
+  innerText(): Promise<string>;
+  innerHtml(): Promise<string>;
+  textContent(): Promise<string>;
+  scrollTo(percent: number): Promise<void>;
 };
 
 type CompatSelectOption =
@@ -119,7 +145,7 @@ export type PlaywrightCompatRuntime = {
  * extension service worker with Function#toString.
  */
 export type PlaywrightCompatRuntimeOptions = {
-  /** Host-owned pages excluded from the agent context and page events. */
+  /** Pages the host keeps for itself (the facade's keeper tab); never surfaced to agent code. */
   hiddenPageIds?: string[];
 };
 
@@ -148,6 +174,137 @@ export async function createPlaywrightCompatRuntime(
       ? { kind: "regexp", source: value.source, flags: value.flags }
       : { kind: "string", value: String(value), exact };
 
+  // ---------------------------------------------------------------------------
+  // getByRole fallback through the accessibility tree.
+  //
+  // The in-page role matcher reimplements accessible-name computation and
+  // disagrees with Chrome's on real sites (descendant aria-label / alt / svg
+  // titles, labelledby across shadow roots, custom elements). When a plan that
+  // contains a role step matches nothing in the DOM, resolve the role step
+  // against `page.snapshot()` — the same accessibility tree the `snapshot`
+  // tool shows the agent — and re-run the plan with those nodes' XPaths.
+  // ---------------------------------------------------------------------------
+
+  /** Playwright role → roles as they appear in Stagehand's formatted tree. */
+  const ACCESSIBILITY_ROLE_ALIASES: Record<string, string[]> = {
+    img: ["image", "img"],
+    image: ["image", "img"],
+    textbox: ["textbox", "searchbox"],
+    cell: ["cell", "gridcell"],
+    gridcell: ["gridcell", "cell"],
+  };
+
+  const ACCESSIBILITY_FALLBACK_CACHE_TTL_MS = 750;
+
+  type AccessibilityTreeNode = { id: string; role: string; name: string };
+
+  const parseAccessibilityTree = (formattedTree: string): AccessibilityTreeNode[] => {
+    const nodes: AccessibilityTreeNode[] = [];
+    for (const rawLine of formattedTree.split("\n")) {
+      const line = rawLine.match(/^\s*\[([^\]]+)\]\s+(.*)$/u);
+      if (!line) continue;
+      let rest = line[2] ?? "";
+      // Trailing state flags rendered by formatStateFlags.
+      rest = rest.replace(/(?:\s\[(?:selected|checked)\])+$/u, "");
+      const separator = rest.indexOf(": ");
+      const roleToken = separator === -1 ? rest : rest.slice(0, separator);
+      const name = separator === -1 ? "" : rest.slice(separator + 2);
+      // "scrollable, html" style lines carry the role before the comma.
+      const role = roleToken.split(",")[0]?.trim() ?? "";
+      if (!role) continue;
+      nodes.push({ id: line[1] ?? "", role, name });
+    }
+    return nodes;
+  };
+
+  const matchesAccessibleName = (value: string, expected: JsonMatcher): boolean => {
+    const normalized = value.replace(/\s+/gu, " ").trim();
+    if (expected.kind === "regexp") {
+      return new RegExp(expected.source, expected.flags).test(normalized);
+    }
+    const target = expected.value.replace(/\s+/gu, " ").trim();
+    return expected.exact
+      ? normalized === target
+      : normalized.toLocaleLowerCase().includes(target.toLocaleLowerCase());
+  };
+
+  const planHasRoleStep = (plan: QueryStep[]): boolean =>
+    plan.some(
+      (step) =>
+        step.kind === "role" ||
+        (step.kind === "filter" &&
+          ((step.has && planHasRoleStep(step.has)) ||
+            (step.hasNot && planHasRoleStep(step.hasNot)))),
+    );
+
+  const resolveRoleStepWithTree = (
+    step: RoleStep,
+    nodes: AccessibilityTreeNode[],
+    xpathMap: Record<string, string>,
+  ): QueryStep | null => {
+    const roles = new Set(ACCESSIBILITY_ROLE_ALIASES[step.role] ?? [step.role]);
+    const values = nodes
+      .filter(
+        (node) =>
+          roles.has(node.role) && (!step.name || matchesAccessibleName(node.name, step.name)),
+      )
+      .map((node) => xpathMap[node.id])
+      .filter((xpath): xpath is string => typeof xpath === "string" && xpath.length > 0);
+    if (values.length === 0) return null;
+    const { kind: _kind, role: _role, name: _name, includeHidden: _hidden, ...state } = step;
+    return { kind: "xpaths", values, ...state };
+  };
+
+  /**
+   * Returns a copy of `plan` whose top-level role steps are replaced by
+   * accessibility-tree resolved XPath steps, or null when the tree has no
+   * candidate for at least one of them (or no tree is available).
+   */
+  const resolvePlanWithAccessibilityTree = async (
+    page: RawPage,
+    plan: QueryStep[],
+  ): Promise<QueryStep[] | null> => {
+    if (typeof page.snapshot !== "function") {
+      record("misses", "getByRole.accessibilityTree:snapshotUnavailable");
+      return null;
+    }
+    let snapshot: unknown;
+    try {
+      snapshot = await page.snapshot({ includeIframes: false });
+    } catch {
+      record("misses", "getByRole.accessibilityTree:snapshotError");
+      return null;
+    }
+    const tree = snapshot as { formattedTree?: unknown; xpathMap?: unknown } | null;
+    if (
+      !tree ||
+      typeof tree.formattedTree !== "string" ||
+      !tree.xpathMap ||
+      typeof tree.xpathMap !== "object"
+    ) {
+      record("misses", "getByRole.accessibilityTree:noTree");
+      return null;
+    }
+    const nodes = parseAccessibilityTree(tree.formattedTree);
+    const xpathMap = tree.xpathMap as Record<string, string>;
+    let replaced = false;
+    const resolved: QueryStep[] = [];
+    for (const step of plan) {
+      if (step.kind !== "role") {
+        resolved.push(step);
+        continue;
+      }
+      const fallback = resolveRoleStepWithTree(step, nodes, xpathMap);
+      if (!fallback) {
+        record("misses", "getByRole.accessibilityTree:noCandidates");
+        return null;
+      }
+      resolved.push(fallback);
+      replaced = true;
+    }
+    return replaced ? resolved : null;
+  };
+
   const unsupported = (surface: string, method: PropertyKey): never => {
     const name = `${surface}.${String(method)}`;
     record("misses", name);
@@ -170,6 +327,7 @@ export async function createPlaywrightCompatRuntime(
     plan?: QueryStep[];
     operation:
       | "inspect"
+      | "describe"
       | "tag"
       | "tagAll"
       | "untag"
@@ -198,6 +356,7 @@ export async function createPlaywrightCompatRuntime(
     attribute?: string;
     functionSource?: string;
     argument?: unknown;
+    strict?: boolean;
   }): Promise<QueryResult> {
     type QueryRoot = Document | Element | ShadowRoot;
 
@@ -256,6 +415,72 @@ export async function createPlaywrightCompatRuntime(
         if (node instanceof Element) elements.push(node);
       }
       return elements;
+    };
+    /**
+     * Resolve an XPath produced by Stagehand's accessibility snapshot. Those
+     * paths are positional (`/html[1]/body[1]/x-host[1]//div[2]/button[1]`)
+     * and encode a shadow-root boundary as `//`, which native
+     * `document.evaluate` cannot follow. Mirrors the extension's
+     * resolveStagehandShadowHopMatches: child steps walk light-DOM children,
+     * a `//` step after the first walks into the host's (open) shadow root.
+     */
+    const resolveStagehandXPath = (expression: string): Element[] => {
+      const path = expression.trim().replace(/^xpath=/iu, "");
+      if (!path) return [];
+      type Step = { hop: boolean; tag: string; index?: number };
+      const steps: Step[] = [];
+      let cursor = 0;
+      while (cursor < path.length) {
+        let hop = false;
+        if (path.startsWith("//", cursor)) {
+          hop = true;
+          cursor += 2;
+        } else if (path[cursor] === "/") {
+          cursor += 1;
+        }
+        const start = cursor;
+        while (cursor < path.length && path[cursor] !== "/") cursor += 1;
+        const raw = path.slice(start, cursor).trim();
+        if (!raw) continue;
+        const parsed = raw.match(/^([^[]+)(?:\[(\d+)\])?$/u);
+        if (!parsed) return queryXPath(document, path);
+        steps.push({
+          hop,
+          tag: (parsed[1] ?? "*").toLowerCase(),
+          ...(parsed[2] ? { index: Number(parsed[2]) } : {}),
+        });
+      }
+      const hasShadowHop = steps.some((step, position) => step.hop && position > 0);
+      if (!hasShadowHop) {
+        try {
+          return queryXPath(document, path);
+        } catch {
+          return [];
+        }
+      }
+      let current: Array<Document | Element | ShadowRoot> = [document];
+      for (const [position, step] of steps.entries()) {
+        const next: Element[] = [];
+        for (const root of current) {
+          let pool: Element[];
+          if (root instanceof Document) {
+            pool = root.documentElement ? [root.documentElement] : [];
+          } else if (step.hop && position > 0) {
+            pool = root instanceof Element ? [...(root.shadowRoot?.children ?? [])] : [];
+          } else {
+            pool = [...root.children];
+          }
+          const tagged = pool.filter(
+            (element) => step.tag === "*" || element.localName.toLowerCase() === step.tag,
+          );
+          const picked =
+            step.index === undefined ? tagged : [tagged[step.index - 1]!].filter(Boolean);
+          for (const element of picked) if (!next.includes(element)) next.push(element);
+        }
+        if (!next.length) return [];
+        current = next;
+      }
+      return current as Element[];
     };
     const splitSelectorList = (selector: string): string[] => {
       const parts: string[] = [];
@@ -383,6 +608,52 @@ export async function createPlaywrightCompatRuntime(
       }
       return "";
     };
+    const labelNodeText = (node: Node): string => {
+      if (
+        ["SCRIPT", "STYLE", "NOSCRIPT"].includes(node.nodeName) ||
+        node.ownerDocument?.head?.contains(node)
+      ) {
+        return "";
+      }
+      if (node instanceof HTMLInputElement && (node.type === "submit" || node.type === "button")) {
+        return node.value;
+      }
+      let text = "";
+      for (const child of node.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) text += child.nodeValue ?? "";
+        else if (child.nodeType === Node.ELEMENT_NODE) text += labelNodeText(child);
+      }
+      if (node instanceof Element && node.shadowRoot) text += labelNodeText(node.shadowRoot);
+      return text;
+    };
+    // Label locators match each label separately, with labelledby > aria-label > <label>
+    // precedence. Accessible names, above, concatenate their referenced label text.
+    const elementLabels = (element: Element): string[] => {
+      const root = element.getRootNode();
+      const references = element.getAttribute("aria-labelledby")?.split(/\s+/u) ?? [];
+      const referencedLabels =
+        root instanceof Document || root instanceof ShadowRoot
+          ? dedupe(
+              references.flatMap((id) => {
+                const label = id ? root.getElementById(id) : null;
+                return label ? [label] : [];
+              }),
+            )
+          : [];
+      if (referencedLabels.length) return referencedLabels.map(labelNodeText);
+      const ariaLabel = element.getAttribute("aria-label");
+      if (ariaLabel?.trim()) return [ariaLabel];
+      if (
+        !["BUTTON", "METER", "OUTPUT", "PROGRESS", "SELECT", "TEXTAREA"].includes(
+          element.nodeName,
+        ) &&
+        !(element instanceof HTMLInputElement && element.type !== "hidden")
+      ) {
+        return [];
+      }
+      const labels = (element as HTMLElement & { labels?: NodeListOf<HTMLLabelElement> }).labels;
+      return labels ? [...labels].map(labelNodeText) : [];
+    };
     const accessibleName = (element: Element): string => {
       const ariaLabel = element.getAttribute("aria-label");
       if (ariaLabel) return ariaLabel;
@@ -414,13 +685,61 @@ export async function createPlaywrightCompatRuntime(
           );
         } else if (step.kind === "label") {
           current = descendants(roots).filter((element) =>
-            matches(labelText(element), step.matcher),
+            elementLabels(element).some((label) =>
+              step.matcher.kind === "regexp"
+                ? new RegExp(step.matcher.source, step.matcher.flags).test(label)
+                : matches(label, step.matcher),
+            ),
           );
         } else if (step.kind === "role") {
           current = descendants(roots).filter((element) => {
             if (implicitRole(element) !== step.role) return false;
             if (!step.includeHidden && !visible(element)) return false;
             if (step.name && !matches(accessibleName(element), step.name)) return false;
+            if (
+              step.checked !== undefined &&
+              (element as HTMLInputElement).checked !== step.checked
+            )
+              return false;
+            if (
+              step.disabled !== undefined &&
+              (element as HTMLInputElement).disabled !== step.disabled
+            )
+              return false;
+            if (
+              step.selected !== undefined &&
+              (element as HTMLOptionElement).selected !== step.selected
+            )
+              return false;
+            if (
+              step.expanded !== undefined &&
+              element.getAttribute("aria-expanded") !== String(step.expanded)
+            )
+              return false;
+            if (
+              step.pressed !== undefined &&
+              element.getAttribute("aria-pressed") !== String(step.pressed)
+            )
+              return false;
+            if (step.level !== undefined && Number(element.tagName.slice(1)) !== step.level)
+              return false;
+            return true;
+          });
+        } else if (step.kind === "xpaths") {
+          // Candidates come from the accessibility tree, so role, name, and
+          // visibility are already settled; only scope and state remain.
+          const scoped = dedupe(
+            step.values.flatMap((expression) => {
+              try {
+                return resolveStagehandXPath(expression);
+              } catch {
+                return [];
+              }
+            }),
+          ).filter((element) =>
+            roots.some((root) => root instanceof Document || root.contains(element)),
+          );
+          current = scoped.filter((element) => {
             if (
               step.checked !== undefined &&
               (element as HTMLInputElement).checked !== step.checked
@@ -484,9 +803,26 @@ export async function createPlaywrightCompatRuntime(
     }
 
     const elements = resolve(input.plan ?? []);
+    // Check before invoking callbacks or mutating focus/selection. Checking only
+    // the returned count would perform the operation on an ambiguous target.
+    if (input.strict && elements.length > 1) return { count: elements.length };
     const first = elements[0];
     if (input.operation === "inspect") {
       return { count: elements.length, visible: first ? visible(first) : false };
+    }
+    if (input.operation === "describe") {
+      const describe = (element: Element): string => {
+        const id = element.id ? `#${element.id}` : "";
+        const classes = element.classList.length
+          ? `.${[...element.classList].slice(0, 2).join(".")}`
+          : "";
+        const text = ((element as HTMLElement).innerText ?? element.textContent ?? "")
+          .replace(/\s+/gu, " ")
+          .trim();
+        const snippet = text.length > 40 ? `${text.slice(0, 40)}…` : text;
+        return `<${element.localName}${id}${classes}>${snippet ? ` "${snippet}"` : ""} (${visible(element) ? "visible" : "hidden"})`;
+      };
+      return { count: elements.length, values: elements.slice(0, 5).map(describe) };
     }
     if (input.operation === "untag") {
       document
@@ -661,6 +997,30 @@ export async function createPlaywrightCompatRuntime(
     closed: boolean;
   };
 
+  const strictModeMessage = (method: string, count: number, candidates: string[]): string => {
+    const listing = candidates.length
+      ? ` Candidates: ${candidates.map((candidate, index) => `[${index}] ${candidate}`).join("; ")}${count > candidates.length ? "; …" : ""}.`
+      : "";
+    return `${method}: strict mode violation: ${count} elements matched.${listing} Narrow the locator (e.g. .filter({ hasText }), .getByRole(...), a more specific selector) or pick one with .first()/.nth(i).`;
+  };
+
+  const LAYOUT_ERROR_RE = /layout object|box model|not rendered/iu;
+
+  /**
+   * Stagehand's CDP layer reports a matched-but-unrendered element as a bare
+   * "-32000 Node does not have a layout object". After the retry window that
+   * is what the agent saw; say what it means instead.
+   */
+  const describeActionFailure = (method: string, error: unknown, timeout: number): Error => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!LAYOUT_ERROR_RE.test(message)) return error instanceof Error ? error : new Error(message);
+    const described = new Error(
+      `${method}: element matched but is not rendered (no layout box: display:none, zero size, or detached) after ${timeout}ms. Wait for it to become visible, or target the visible element instead. Original: ${message}`,
+    );
+    described.name = error instanceof Error ? error.name : "Error";
+    return described;
+  };
+
   class CompatLocator {
     constructor(
       readonly plan: QueryStep[],
@@ -792,67 +1152,91 @@ export async function createPlaywrightCompatRuntime(
       return (await this.state.execute(this.plan, "allInnerTexts")).values as string[];
     }
 
+    private async singleResult(
+      operation: Parameters<typeof executeQueryInPage>[0]["operation"],
+      extra: Record<string, unknown> = {},
+      options: { timeout?: number } = {},
+    ): Promise<QueryResult> {
+      const timeout = options.timeout ?? 10_000;
+      const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
+      do {
+        const result = await this.state.execute(this.plan, operation, { ...extra, strict: true });
+        if (result.count > 1)
+          throw await this.strictModeViolation(`locator.${operation}`, result.count);
+        if (result.count === 1) return result;
+        if (Date.now() >= deadline) break;
+        await this.state.rawPage.waitForTimeout(Math.max(1, Math.min(50, deadline - Date.now())));
+      } while (Date.now() <= deadline);
+      throw new Error(`locator.${operation}: timed out after ${timeout}ms waiting for an element`);
+    }
+
     private async singleValue(
       operation: Parameters<typeof executeQueryInPage>[0]["operation"],
       extra: Record<string, unknown> = {},
+      options: { timeout?: number } = {},
     ): Promise<unknown> {
-      const result = await this.state.execute(this.plan, operation, extra);
-      if (result.count === 0) throw new Error(`locator.${operation}: no element matched`);
-      return result.value;
+      return (await this.singleResult(operation, extra, options)).value;
     }
 
-    async textContent(): Promise<string | null> {
+    async textContent(options: { timeout?: number } = {}): Promise<string | null> {
       record("calls", "locator.textContent");
-      return (await this.singleValue("textContent")) as string | null;
+      return (await this.singleValue("textContent", {}, options)) as string | null;
     }
 
-    async innerText(): Promise<string> {
+    async innerText(options: { timeout?: number } = {}): Promise<string> {
       record("calls", "locator.innerText");
-      return (await this.singleValue("innerText")) as string;
+      return (await this.singleValue("innerText", {}, options)) as string;
     }
 
-    async innerHTML(): Promise<string> {
+    async innerHTML(options: { timeout?: number } = {}): Promise<string> {
       record("calls", "locator.innerHTML");
-      return (await this.singleValue("innerHTML")) as string;
+      return (await this.singleValue("innerHTML", {}, options)) as string;
     }
 
-    async inputValue(): Promise<string> {
+    async inputValue(options: { timeout?: number } = {}): Promise<string> {
       record("calls", "locator.inputValue");
-      return (await this.singleValue("inputValue")) as string;
+      return (await this.singleValue("inputValue", {}, options)) as string;
     }
 
-    async getAttribute(name: string): Promise<string | null> {
+    async getAttribute(name: string, options: { timeout?: number } = {}): Promise<string | null> {
       record("calls", "locator.getAttribute");
-      return (await this.singleValue("getAttribute", { attribute: name })) as string | null;
+      return (await this.singleValue("getAttribute", { attribute: name }, options)) as
+        | string
+        | null;
     }
 
     async isVisible(): Promise<boolean> {
       record("calls", "locator.isVisible");
       const result = await this.state.execute(this.plan, "inspect");
+      if (result.count > 1) throw await this.strictModeViolation("locator.isVisible", result.count);
       return result.count > 0 && result.visible === true;
     }
 
-    async isChecked(): Promise<boolean> {
+    async isChecked(options: { timeout?: number } = {}): Promise<boolean> {
       record("calls", "locator.isChecked");
-      return (await this.singleValue("isChecked")) as boolean;
+      return (await this.singleValue("isChecked", {}, options)) as boolean;
     }
 
-    async isDisabled(): Promise<boolean> {
+    async isDisabled(options: { timeout?: number } = {}): Promise<boolean> {
       record("calls", "locator.isDisabled");
-      return (await this.singleValue("isDisabled")) as boolean;
+      return (await this.singleValue("isDisabled", {}, options)) as boolean;
     }
 
-    async isEnabled(): Promise<boolean> {
+    async isEnabled(options: { timeout?: number } = {}): Promise<boolean> {
       record("calls", "locator.isEnabled");
-      return (await this.singleValue("isEnabled")) as boolean;
+      return (await this.singleValue("isEnabled", {}, options)) as boolean;
     }
 
-    async boundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+    async boundingBox(
+      options: { timeout?: number } = {},
+    ): Promise<{ x: number; y: number; width: number; height: number } | null> {
       record("calls", "locator.boundingBox");
-      const result = await this.state.execute(this.plan, "boundingBox");
-      return result.count === 0
-        ? null
-        : (result.value as { x: number; y: number; width: number; height: number });
+      return (await this.singleValue("boundingBox", {}, options)) as {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      } | null;
     }
 
     getBoundingClientRect(): Promise<{
@@ -868,12 +1252,17 @@ export async function createPlaywrightCompatRuntime(
     async evaluate<Result = unknown>(
       fn: (element: Element, arg: unknown) => Result,
       arg?: unknown,
+      options: { timeout?: number } = {},
     ): Promise<Result> {
       record("calls", "locator.evaluate");
-      return (await this.singleValue("evaluate", {
-        functionSource: Function.prototype.toString.call(fn),
-        ...(arg === undefined ? {} : { argument: arg }),
-      })) as Result;
+      return (await this.singleValue(
+        "evaluate",
+        {
+          functionSource: Function.prototype.toString.call(fn),
+          ...(arg === undefined ? {} : { argument: arg }),
+        },
+        options,
+      )) as Result;
     }
 
     async evaluateAll<Result = unknown>(
@@ -892,25 +1281,30 @@ export async function createPlaywrightCompatRuntime(
     async evaluateHandle(
       fn: (element: Element, arg: unknown) => unknown,
       arg?: unknown,
+      options: { timeout?: number } = {},
     ): Promise<unknown> {
       record("calls", "locator.evaluateHandle");
       const token = crypto.randomUUID();
-      const result = await this.state.execute(this.plan, "elementEvaluateHandle", {
-        functionSource: Function.prototype.toString.call(fn),
-        ...(arg === undefined ? {} : { argument: arg }),
-        token,
-      });
+      const result = await this.singleResult(
+        "elementEvaluateHandle",
+        {
+          functionSource: Function.prototype.toString.call(fn),
+          ...(arg === undefined ? {} : { argument: arg }),
+          token,
+        },
+        options,
+      );
       return jsHandle(result, this.state);
     }
 
-    async focus(): Promise<void> {
+    async focus(options: { timeout?: number } = {}): Promise<void> {
       record("calls", "locator.focus");
-      await this.singleValue("focus");
+      await this.singleValue("focus", {}, options);
     }
 
-    async blur(): Promise<void> {
+    async blur(options: { timeout?: number } = {}): Promise<void> {
       record("calls", "locator.blur");
-      await this.singleValue("blur");
+      await this.singleValue("blur", {}, options);
     }
 
     async selectText(): Promise<void> {
@@ -950,15 +1344,18 @@ export async function createPlaywrightCompatRuntime(
       options: { timeout?: number } = {},
     ): Promise<void> {
       record("calls", method);
-      const timeout = options.timeout ?? 30_000;
+      // Playwright's own default is 30 s, but through this facade a miss is a
+      // dead wait with no call log: eval traces showed 0.65 such misses per
+      // task at 30 s each, with agents treating the silence as "not on the
+      // page". 10 s (the original facade default) bounds that tail; callers
+      // that genuinely need longer pass `timeout` explicitly.
+      const timeout = options.timeout ?? 10_000;
       const deadline = Date.now() + timeout;
       let result: QueryResult = { count: 0 };
       let lastActionError: unknown;
       while (Date.now() <= deadline) {
         result = await this.state.execute(this.plan, "inspect");
-        if (result.count > 1) {
-          throw new Error(`${method}: strict mode violation: ${result.count} elements matched`);
-        }
+        if (result.count > 1) throw await this.strictModeViolation(method, result.count);
         if (result.count === 1) {
           // Playwright actions scroll their target into view. Do this before tagging so
           // Stagehand receives a unique, attached selector without imposing a viewport-
@@ -988,24 +1385,44 @@ export async function createPlaywrightCompatRuntime(
         }
         if (Date.now() < deadline) await this.state.rawPage.waitForTimeout(50);
       }
-      if (lastActionError) throw lastActionError;
+      if (lastActionError) throw describeActionFailure(method, lastActionError, timeout);
       throw new Error(`${method}: no element matched within ${timeout}ms`);
     }
 
+    /**
+     * Playwright lists the competing elements on a strict-mode violation; the
+     * bare count left agents re-issuing the same selector. Describe up to five
+     * candidates so the next attempt can disambiguate.
+     */
+    private async strictModeViolation(method: string, count: number): Promise<Error> {
+      const candidates = await this.state
+        .execute(this.plan, "describe")
+        .then((result) => (result.values as string[] | undefined) ?? [])
+        .catch((): string[] => []);
+      return new Error(strictModeMessage(method, count, candidates));
+    }
+
     async click(options: Record<string, unknown> = {}): Promise<void> {
+      return this.clickAs("locator.click", options);
+    }
+
+    private async clickAs(method: string, options: Record<string, unknown>): Promise<void> {
+      if (options.trial === true) {
+        throw new Error(
+          `${method}: trial clicks are not supported because the Stagehand locator API does not expose actionability checks without dispatching input`,
+        );
+      }
       if (options.force === true) {
         record("calls", "locator.click");
         const result = await this.state.execute(this.plan, "inspect");
-        if (result.count === 0) throw new Error("locator.click: no element matched");
-        if (result.count > 1) {
-          throw new Error(`locator.click: strict mode violation: ${result.count} elements matched`);
-        }
+        if (result.count === 0) throw new Error(`${method}: no element matched`);
+        if (result.count > 1) throw await this.strictModeViolation(method, result.count);
         await this.state.execute(this.plan, "domClick");
         await this.state.refreshUrl();
         return;
       }
       await this.withTaggedTarget(
-        "locator.click",
+        method,
         (locator) =>
           locator.click({
             ...(typeof options.button === "string"
@@ -1109,12 +1526,12 @@ export async function createPlaywrightCompatRuntime(
 
     async check(options: Record<string, unknown> = {}): Promise<void> {
       record("calls", "locator.check");
-      if (!(await this.isChecked())) await this.click(options);
+      if (!(await this.isChecked())) await this.clickAs("locator.check", options);
     }
 
     async uncheck(options: Record<string, unknown> = {}): Promise<void> {
       record("calls", "locator.uncheck");
-      if (await this.isChecked()) await this.click(options);
+      if (await this.isChecked()) await this.clickAs("locator.uncheck", options);
     }
 
     async clear(options: Record<string, unknown> = {}): Promise<void> {
@@ -1219,30 +1636,147 @@ export async function createPlaywrightCompatRuntime(
 
   let waitForNewPage: (options?: { timeout?: number }) => Promise<unknown>;
 
+  // Playwright 1.56 URL globs: * stays within a path segment, ** crosses
+  // segments, {a,b} selects alternatives, and ? is literal. The facade does
+  // not expose a baseURL setting, so relative patterns remain relative.
+  const urlMatcher = (
+    match: string | RegExp | ((url: URL) => boolean),
+  ): ((url: string) => boolean) => {
+    if (match === "") return () => true;
+    if (typeof match === "function") {
+      return (value) => {
+        let url: URL;
+        try {
+          url = new URL(value);
+        } catch {
+          return false;
+        }
+        return match(url);
+      };
+    }
+    if (Object.prototype.toString.call(match) === "[object RegExp]") {
+      return (value) => (match as RegExp).test(value);
+    }
+    if (typeof match !== "string") {
+      throw new Error("page.waitForURL: url parameter should be string, RegExp or function");
+    }
+    let glob = match;
+    if (!glob.startsWith("*")) {
+      // Protect glob syntax from URL escaping while normalizing scheme/host
+      // and dot segments in absolute URLs, as Playwright does.
+      const tokens = new Map<string, string>();
+      const token = (value: string, replacement: string): string => {
+        if (!value) return "";
+        tokens.set(replacement, value);
+        return replacement;
+      };
+      glob = glob.replaceAll(/\\\\\?/g, "?");
+      if (!/^(about|data|chrome|edge|file):/u.test(glob)) {
+        const protectedUrl = glob
+          .split("/")
+          .map((part, index) => {
+            if (part === "." || part === ".." || part === "") return part;
+            if (index === 0 && part.endsWith(":")) return token(part, "http:");
+            const question = part.indexOf("?");
+            return question < 0
+              ? token(part, `$_${index}_$`)
+              : token(part.slice(0, question), `$_${index}_$`) +
+                  token(part.slice(question), `?$_${index}_$`);
+          })
+          .join("/");
+        let normalized = protectedUrl;
+        let origin = "";
+        try {
+          const url = new URL(protectedUrl);
+          normalized = url.toString();
+          origin = url.origin;
+        } catch {
+          // Relative patterns have no base URL in this facade.
+        }
+        for (const [placeholder, original] of tokens) {
+          normalized = normalized.replace(
+            placeholder,
+            origin.includes(placeholder) ? original.toLowerCase() : original,
+          );
+        }
+        glob = normalized;
+      }
+    }
+    const escape = (value: string): string =>
+      /[$^+.*()|\\?{}\[\]]/u.test(value) ? `\\${value}` : value;
+    let pattern = "^";
+    let inGroup = false;
+    for (let index = 0; index < glob.length; index++) {
+      const char = glob[index];
+      if (char === "\\" && index + 1 < glob.length) {
+        pattern += escape(glob[++index]);
+      } else if (char === "*") {
+        const start = index;
+        while (glob[index + 1] === "*") index++;
+        pattern += index > start ? ".*" : "[^/]*";
+      } else if (char === "{") {
+        inGroup = true;
+        pattern += "(";
+      } else if (char === "}") {
+        inGroup = false;
+        pattern += ")";
+      } else if (char === ",") {
+        pattern += inGroup ? "|" : "\\,";
+      } else {
+        pattern += escape(char);
+      }
+    }
+    const regexp = new RegExp(`${pattern}$`);
+    return (value) => regexp.test(value);
+  };
+
   const createPage = async (page: RawPage): Promise<unknown> => {
     const key = pageKey(page);
     const existing = compatPages.get(key);
     if (existing) return existing;
+    const accessibilityFallbacks = new Map<string, { at: number; plan: QueryStep[] | null }>();
     const state: PageState = {
       rawPage: page,
       cachedUrl: await page.url(),
       viewport: await page.evaluate("({ width: innerWidth, height: innerHeight })"),
       closed: false,
       execute: async (plan, operation, extra = {}) => {
-        const result = await page.evaluate<QueryResult>(
-          buildQueryEvaluationExpression({ plan, operation, ...extra }),
-        );
-        if (result.error) {
-          const error = new Error(result.error.message);
-          error.name = result.error.name;
-          if (result.error.stack) error.stack = result.error.stack;
-          throw error;
+        const run = async (steps: QueryStep[]): Promise<QueryResult> => {
+          const result = await page.evaluate<QueryResult>(
+            buildQueryEvaluationExpression({ plan: steps, operation, ...extra }),
+          );
+          if (result.error) {
+            const error = new Error(result.error.message);
+            error.name = result.error.name;
+            if (result.error.stack) error.stack = result.error.stack;
+            throw error;
+          }
+          return result;
+        };
+        const result = await run(plan);
+        if (result.count !== 0 || plan.length === 0 || !planHasRoleStep(plan)) return result;
+
+        // Nothing matched in the DOM; consult the accessibility tree. Cache per
+        // plan briefly so the inspect → tag → action sequence inside one
+        // locator action (and the 50 ms retry loop) reuses a single snapshot.
+        const cacheKey = JSON.stringify(plan);
+        const cached = accessibilityFallbacks.get(cacheKey);
+        let resolved: QueryStep[] | null;
+        if (cached && Date.now() - cached.at < ACCESSIBILITY_FALLBACK_CACHE_TTL_MS) {
+          resolved = cached.plan;
+        } else {
+          resolved = await resolvePlanWithAccessibilityTree(page, plan);
+          accessibilityFallbacks.set(cacheKey, { at: Date.now(), plan: resolved });
         }
-        return result;
+        if (!resolved) return result;
+        const fallbackResult = await run(resolved);
+        if (fallbackResult.count > 0) record("calls", "locator.getByRole.accessibilityTree");
+        else record("misses", "getByRole.accessibilityTree:unresolvedXPath");
+        return fallbackResult;
       },
       refreshUrl: async () => {
         state.cachedUrl = await page.url();
-        for (const candidate of await rawContext.pages()) await createPage(candidate);
+        for (const candidate of await visibleRawPages()) await createPage(candidate);
       },
     };
     const root = (): CompatLocator => locatorProxy(new CompatLocator([], state));
@@ -1708,11 +2242,77 @@ export async function createPlaywrightCompatRuntime(
       waitForTimeout: async (ms: number) => {
         record("calls", "page.waitForTimeout");
         await page.waitForTimeout(ms);
-        for (const candidate of await rawContext.pages()) await createPage(candidate);
+        for (const candidate of await visibleRawPages()) await createPage(candidate);
       },
       waitForLoadState: (state = "load", options: { timeout?: number } = {}) => {
         record("calls", "page.waitForLoadState");
         return page.waitForLoadState(state, options.timeout);
+      },
+      waitForURL: async (
+        url: string | RegExp | ((url: URL) => boolean),
+        options: { timeout?: number; waitUntil?: string } = {},
+      ): Promise<void> => {
+        record("calls", "page.waitForURL");
+        const matches = urlMatcher(url);
+        const waitUntil = options.waitUntil ?? "load";
+        if (!["load", "domcontentloaded", "networkidle"].includes(waitUntil)) {
+          throw new Error(`page.waitForURL: unsupported waitUntil ${JSON.stringify(waitUntil)}`);
+        }
+        const timeout = options.timeout ?? 30_000;
+        if (!Number.isFinite(timeout) || timeout < 0) {
+          throw new Error("page.waitForURL: timeout must be a non-negative finite number");
+        }
+        const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
+        const timeoutError = (): Error => {
+          const error = new Error(`page.waitForURL: timed out after ${timeout}ms`);
+          error.name = "TimeoutError";
+          return error;
+        };
+        let stopped = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const wait = async (): Promise<void> => {
+          while (!stopped) {
+            const currentUrl = await page.url();
+            if (stopped || Date.now() >= deadline) throw timeoutError();
+            if (matches(currentUrl)) {
+              state.cachedUrl = currentUrl;
+              while (!stopped) {
+                const remaining = deadline - Date.now();
+                if (remaining <= 0) throw timeoutError();
+                // Raw Stagehand rejects timeout: 0. Renew bounded load waits
+                // when the caller disables this method's timeout; the outer
+                // callback batch still imposes its own deadline.
+                const loadTimeout = timeout === 0 ? 30_000 : Math.max(1, Math.ceil(remaining));
+                try {
+                  await page.waitForLoadState(waitUntil, loadTimeout);
+                  return;
+                } catch (error) {
+                  const isTimeout =
+                    error instanceof Error &&
+                    (error.name === "TimeoutError" ||
+                      /^waitForMainLoadState\([^)]*\) timed out after \d+ms$/u.test(error.message));
+                  if (!isTimeout) throw error;
+                  if (timeout !== 0) throw timeoutError();
+                }
+              }
+            }
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.min(50, Math.max(1, deadline - Date.now()))),
+            );
+          }
+        };
+        try {
+          if (timeout === 0) return await wait();
+          await Promise.race([
+            wait(),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(() => reject(timeoutError()), timeout);
+            }),
+          ]);
+        } finally {
+          stopped = true;
+          clearTimeout(timer);
+        }
       },
       waitForSelector: async (selector: string, options?: Record<string, unknown>) => {
         record("calls", "page.waitForSelector");
@@ -2017,8 +2617,9 @@ export async function createPlaywrightCompatRuntime(
     contexts: () => [context],
     isConnected: () => !closeRequested,
     // Do not close Chrome from inside experimentalBatch — the callback is
-    // running in that browser. Host-side run() reads closeRequested() and
-    // tears down Stagehand + the keep-alive session after the batch returns.
+    // running in that browser. The host reads closeRequested() from the batch
+    // envelope and tears down Stagehand + the keep-alive session after the
+    // batch returns.
     close: async () => {
       record("calls", "browser.close");
       closeRequested = true;
