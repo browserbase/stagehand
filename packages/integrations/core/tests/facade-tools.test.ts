@@ -7,7 +7,11 @@ import {
   BROWSER_SESSION_LOST_ERROR_PREFIX,
   type FacadeSessionLoss,
 } from "../src/facade/contract.js";
-import { StagehandFacadeSessionLostError, StagehandFacadeTools, type StagehandFacadeRunReport } from "../src/facade/tools.js";
+import {
+  StagehandFacadeSessionLostError,
+  StagehandFacadeTools,
+  type StagehandFacadeRunReport,
+} from "../src/facade/tools.js";
 
 type FakePage = ReturnType<typeof createFakePage>;
 
