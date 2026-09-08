@@ -10,7 +10,7 @@ import {
   normalizeAgentModelEntries,
 } from "../utils.js";
 
-/** Core is the default; extended includes core, while holdout is opt-in. */
+/** Core is the default; extended includes all shipped tasks. */
 export const buildHardBenchmarkTestcases = (models: string[] | AgentModelEntry[]): Testcase[] => {
   const datasetPath = getPackageRootDir() + "/datasets/hardbenchmark/HardBenchmark_data.jsonl";
 
@@ -22,7 +22,7 @@ export const buildHardBenchmarkTestcases = (models: string[] | AgentModelEntry[]
     category?: string;
     web?: string;
     precomputed_rubric?: unknown;
-    set: "core" | "extended" | "holdout";
+    set: "core" | "extended";
     slug?: string;
     rubric_version?: string;
     clarifications?: string[];
@@ -40,10 +40,9 @@ export const buildHardBenchmarkTestcases = (models: string[] | AgentModelEntry[]
   const setFilter: Record<HardBenchmarkSet, (row: HardBenchmarkRow) => boolean> = {
     core: (r) => r.set === "core",
     extended: (r) => r.set === "core" || r.set === "extended",
-    holdout: (r) => r.set === "holdout",
   };
   if (!Object.hasOwn(setFilter, set)) {
-    throw new EvalsError("EVAL_HARDBENCHMARK_SET must be one of core | extended | holdout.");
+    throw new EvalsError("EVAL_HARDBENCHMARK_SET must be one of core | extended.");
   }
   const candidates = allRows.filter(setFilter[set]);
 
