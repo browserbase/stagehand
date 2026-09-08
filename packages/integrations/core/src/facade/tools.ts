@@ -1,4 +1,5 @@
 import fsp from "node:fs/promises";
+import { constants } from "node:fs";
 import path from "node:path";
 import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/stagehand";
 import { sanitizeErrorMessage } from "../harness/redact.js";
@@ -37,7 +38,7 @@ export type StagehandFacadeRunReport = {
 };
 
 export type StagehandFacadeToolsOptions = {
-  /** Directory that relative `page.screenshot({ path })` paths resolve against. Defaults to process.cwd(). */
+  /** Owned directory for screenshot artifacts; paths must stay within it. Defaults to process.cwd(). */
   artifactRoot?: string;
   /** Observes every completed `run` batch (including ones whose code threw). */
   onRunReport?: (report: StagehandFacadeRunReport) => void;
@@ -154,6 +155,8 @@ export class StagehandFacadeTools {
   private consecutiveDeadlines = 0;
   private static readonly MAX_CONSECUTIVE_DEADLINES = 3;
 
+  private closed = false;
+  private closePromise: Promise<void> | undefined;
   constructor(
     private readonly stagehand: Stagehand,
     private readonly options: StagehandFacadeToolsOptions = {},
@@ -162,6 +165,26 @@ export class StagehandFacadeTools {
   /** Set once a call has proven the browser session is gone; never cleared. */
   get sessionLoss(): FacadeSessionLoss | undefined {
     return this.loss;
+  }
+
+  /** Closes both the client and its owned browser, including keep-alive sessions. */
+  close(): Promise<void> {
+    this.closed = true;
+    return (this.closePromise ??= (async () => {
+      const failures: unknown[] = [];
+      for (const close of [() => this.stagehand.close(), () => this.stagehand.browser.close()]) {
+        try {
+          await close();
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (failures.length) {
+        throw new Error("Failed to close the Stagehand facade browser.", {
+          cause: new AggregateError(failures, "Facade browser cleanup failures"),
+        });
+      }
+    })());
   }
 
   snapshot(options: { includeIframes?: boolean } = {}): Promise<string> {
@@ -261,25 +284,31 @@ export class StagehandFacadeTools {
     const keeperPageId = await this.keeper;
     const input: RunInput = keeperPageId ? { hiddenPageIds: [keeperPageId] } : {};
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
-    this.options.onRunReport?.({
-      telemetry: envelope.telemetry,
-      batchRoundTripMs: performance.now() - startedAt,
-      batchRuntimeMs: envelope.batchRuntimeMs,
-      closeRequested: envelope.closeRequested,
-    });
-    await this.writeScreenshotArtifacts(envelope.artifacts);
-    if (envelope.executionError) {
-      // Thrown by the agent's own code inside the browser, so its message can
-      // never be evidence about this process's connection to the browser.
-      const error = new Error(envelope.executionError.message) as Error & {
-        facadeExecutionError: true;
-      };
-      error.name = envelope.executionError.name;
-      if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
-      error.facadeExecutionError = true;
-      throw error;
+    try {
+      this.options.onRunReport?.({
+        telemetry: envelope.telemetry,
+        batchRoundTripMs: performance.now() - startedAt,
+        batchRuntimeMs: envelope.batchRuntimeMs,
+        closeRequested: envelope.closeRequested,
+      });
+      await this.writeScreenshotArtifacts(envelope.artifacts);
+      if (envelope.executionError) {
+        // Thrown by the agent's own code inside the browser, so its message can
+        // never be evidence about this process's connection to the browser.
+        const error = new Error(envelope.executionError.message) as Error & {
+          facadeExecutionError: true;
+        };
+        error.name = envelope.executionError.name;
+        if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
+        error.facadeExecutionError = true;
+        throw error;
+      }
+      return envelope.value;
+    } finally {
+      // The batch must finish before closing its own transport. This also
+      // honors close requests when agent code or artifact persistence failed.
+      if (envelope.closeRequested) await this.close();
     }
-    return envelope.value;
   }
 
   /**
@@ -311,13 +340,44 @@ export class StagehandFacadeTools {
   }
 
   private async writeScreenshotArtifacts(artifacts: ScreenshotArtifact[]): Promise<void> {
-    const root = this.options.artifactRoot ?? process.cwd();
+    if (artifacts.length === 0) return;
+    const configuredRoot = path.resolve(this.options.artifactRoot ?? process.cwd());
+    await fsp.mkdir(configuredRoot, { recursive: true });
+    const root = await fsp.realpath(configuredRoot);
     for (const artifact of artifacts) {
-      const target = path.isAbsolute(artifact.path)
-        ? artifact.path
-        : path.resolve(root, artifact.path);
-      await fsp.mkdir(path.dirname(target), { recursive: true });
-      await fsp.writeFile(target, Buffer.from(artifact.base64, "base64"));
+      const target = path.resolve(configuredRoot, artifact.path);
+      const relative = path.relative(configuredRoot, target);
+      if (
+        !relative ||
+        relative === ".." ||
+        relative.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relative)
+      ) {
+        throw new Error("Screenshot artifact path must stay within artifactRoot.");
+      }
+      // Reject symlink traversal before creating nested directories or opening
+      // the output. O_NOFOLLOW also refuses an existing symlink at the file.
+      let directory = root;
+      const components = relative.split(path.sep);
+      for (const component of components.slice(0, -1)) {
+        directory = path.join(directory, component);
+        await fsp.mkdir(directory).catch((error: NodeJS.ErrnoException) => {
+          if (error.code !== "EEXIST") throw error;
+        });
+        if (!(await fsp.lstat(directory)).isDirectory()) {
+          throw new Error("Screenshot artifact directory must not be a symlink.");
+        }
+      }
+      const file = await fsp.open(
+        path.join(directory, components.at(-1)!),
+        constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | constants.O_NOFOLLOW,
+        0o600,
+      );
+      try {
+        await file.writeFile(Buffer.from(artifact.base64, "base64"));
+      } finally {
+        await file.close();
+      }
     }
   }
 
@@ -367,6 +427,7 @@ export class StagehandFacadeTools {
   private enqueue<Result>(tool: string, operation: () => Promise<Result>): Promise<Result> {
     const guarded = async (): Promise<Result> => {
       if (this.loss) throw new StagehandFacadeSessionLostError(this.loss);
+      if (this.closed) throw new Error("Stagehand facade browser is closed.");
       try {
         await this.ensureKeeperPage();
         const value = await operation();
@@ -382,13 +443,13 @@ export class StagehandFacadeTools {
           }
           const cause = `executor unresponsive: ${this.consecutiveDeadlines} consecutive capture timeouts (last: ${error.message})`;
           this.loss = { cause, tool, at: new Date().toISOString() };
-          this.options.onSessionLost?.(this.loss);
+          this.notifySessionLost(this.loss);
           throw new StagehandFacadeSessionLostError(this.loss);
         }
         const cause = sessionLossCause(error);
         if (cause === undefined) throw error;
         this.loss = { cause, tool, at: new Date().toISOString() };
-        this.options.onSessionLost?.(this.loss);
+        this.notifySessionLost(this.loss);
         throw new StagehandFacadeSessionLostError(this.loss);
       }
     };
@@ -398,6 +459,15 @@ export class StagehandFacadeTools {
       () => undefined,
     );
     return result;
+  }
+
+  private notifySessionLost(loss: FacadeSessionLoss): void {
+    // Diagnostic observers cannot replace the terminal error or reopen the queue.
+    try {
+      void Promise.resolve(this.options.onSessionLost?.(loss)).catch(() => undefined);
+    } catch {
+      // Preserve the first browser failure when an observer throws synchronously.
+    }
   }
 }
 

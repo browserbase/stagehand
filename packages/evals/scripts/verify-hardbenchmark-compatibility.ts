@@ -15,6 +15,10 @@ import type { TaskResult } from "../framework/types.js";
 import type { EvalLogger } from "../logger.js";
 import {
   createLiveVerifierFetch,
+  assertVerifierEndpoint,
+  verifierRequestSchema,
+  HardBenchmarkGateError,
+  sanitizeGateError,
   type VerifierRequestEvidence,
 } from "./hardbenchmark-request-evidence.js";
 
@@ -48,7 +52,7 @@ type GateOptions = {
 };
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 function assert(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(message);
+  if (!condition) throw new HardBenchmarkGateError(message);
 }
 
 /** Reject both adapter errors and V3's synthesized evidence-insufficient result. */
@@ -58,7 +62,7 @@ export function assertVerifiedResult(
   rubric: Rubric,
   expected: Pick<Fixture, "expectedOutcome" | "expectedProcess">,
 ) {
-  assert(!result.verifierError, `verifierError: ${String(result.verifierError)}`);
+  assert(!result.verifierError, `verifierError: ${sanitizeGateError(result.verifierError)}`);
   assert(verdict?.rawSteps?.rubricSource === "precomputed", "rubric was not precomputed");
   assert(typeof verdict.outcomeSuccess === "boolean", "missing boolean verdict");
   assert(
@@ -215,19 +219,11 @@ export async function runCompatibilityGate(options: GateOptions) {
       process.env.OPENAI_API_KEY = "offline-gate-not-a-secret";
       globalThis.fetch = async (input, init) => {
         const request = new Request(input, init);
+        // No request reaches the network. Transport/schema changes fail closed.
+        assertVerifierEndpoint(request, "openai");
         const body = JSON.parse(await request.text());
-        const schema = body.text?.format?.schema ?? body.response_format?.json_schema?.schema;
-        const kind = schema?.properties?.per_criterion
-          ? "FusedJudgment"
-          : schema?.properties?.items
-            ? "BatchedRelevance"
-            : "unexpected";
+        const kind = verifierRequestSchema(body);
         requests.push({ caseId: active.id, schema: kind, body });
-        // No request reaches the network, including unexpected endpoints.
-        assert(
-          new URL(request.url).hostname === "api.openai.com" && kind !== "unexpected",
-          "unexpected provider/rubric-generation request",
-        );
         if (active.transport === "provider-error") {
           transportFailures++;
           return new Response(
@@ -391,7 +387,10 @@ export async function runCompatibilityGate(options: GateOptions) {
         let verdict: EvaluationResult | undefined;
         let error: string | undefined;
         try {
-          assert(!result.verifierError, `verifierError: ${String(result.verifierError)}`);
+          assert(
+            !result.verifierError,
+            `verifierError: ${sanitizeGateError(result.verifierError)}`,
+          );
           assert(typeof result.trajectoryDir === "string", "missing persisted trajectory");
           verdict = JSON.parse(
             await readFile(path.join(result.trajectoryDir, "scores/result.json"), "utf8"),
@@ -427,7 +426,7 @@ export async function runCompatibilityGate(options: GateOptions) {
             );
           }
         } catch (e) {
-          error = e instanceof Error ? e.message : String(e);
+          error = sanitizeGateError(e, judgeApiKey ? [judgeApiKey] : []);
         }
         reports.push({
           id: fixture.id,
@@ -442,7 +441,18 @@ export async function runCompatibilityGate(options: GateOptions) {
           error,
           injectedFault: fixture.transport,
           faultRejected: fixture.transport ? Boolean(error) : undefined,
-          result,
+          result: {
+            ...result,
+            ...(result.error !== undefined && {
+              error: sanitizeGateError(result.error, judgeApiKey ? [judgeApiKey] : []),
+            }),
+            ...(result.verifierError !== undefined && {
+              verifierError: sanitizeGateError(
+                result.verifierError,
+                judgeApiKey ? [judgeApiKey] : [],
+              ),
+            }),
+          },
           verdict,
           requestCount: requests.length - requestStart,
         });
@@ -503,7 +513,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     },
   });
   if (!values.repo || !values.dataset || !values.fixtures || !values.out)
-    throw new Error(
+    throw new HardBenchmarkGateError(
       "Required: --repo --dataset --fixtures --out [--live --judge-model provider/model]",
     );
   try {
@@ -525,7 +535,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     );
     if (!report.passed) process.exitCode = 1;
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(sanitizeGateError(error));
     process.exitCode = 1;
   }
 }

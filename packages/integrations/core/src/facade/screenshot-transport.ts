@@ -45,9 +45,10 @@ export async function captureScreenshotWithinBase64Budget(
   const attempts = screenshotAttempts(requested);
   for (const [index, options] of attempts.entries()) {
     const image = await capture(options);
+    if (Buffer.byteLength(image.data, "utf8") > maxBase64Bytes) continue;
     const size = imageDimensions(image);
     const tooLarge = size !== undefined && Math.max(size.width, size.height) > maxSidePx;
-    if (!tooLarge && Buffer.byteLength(image.data, "utf8") <= maxBase64Bytes) {
+    if (!tooLarge) {
       return { image, options, adjusted: index > 0 || !sameOptions(options, requested) };
     }
   }

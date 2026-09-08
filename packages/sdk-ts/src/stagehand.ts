@@ -1,4 +1,5 @@
-import { RPCClient, RPCResponseTimeoutError } from "./rpcClient.js";
+import { RPCClient } from "./rpcClient.js";
+import { RPCResponseTimeoutError } from "./rpcErrors.js";
 import {
   DefaultExtractDataSchema,
   MAX_CALLBACK_BATCH_TIMEOUT_MS,

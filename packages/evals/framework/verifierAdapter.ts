@@ -41,6 +41,20 @@ export interface PersistedEvaluationResult extends EvaluationResult {
   judge: EvaluationResult;
 }
 
+/** Retain a failed judge response for audit without presenting its synthetic scores as a grade. */
+export function getUngradedVerifierResult(
+  evaluation: EvaluationResult,
+): { graded: false; verifierError: string; judge: EvaluationResult } | undefined {
+  if (!evaluation.findings?.some((finding) => finding.category === "verifier_uncertainty")) {
+    return undefined;
+  }
+  return {
+    graded: false,
+    verifierError: "Verifier returned an uncertainty result; no trustworthy grade was produced.",
+    judge: evaluation,
+  };
+}
+
 export function buildPersistedEvaluationResult(
   evaluation: EvaluationResult,
   gates: VerdictGates,
@@ -66,10 +80,11 @@ export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.5-flash";
 /**
  * Build the shared rubric verifier. EVAL_VERIFIER_MODEL makes the verifier
  * independently selectable for external harnesses and normal Stagehand runs
- * alike; otherwise DEFAULT_VERIFIER_MODEL applies.
+ * alike; otherwise DEFAULT_VERIFIER_MODEL applies. A command-line modelOverride
+ * takes precedence over the environment without mutating process-wide policy.
  */
-export function createVerifierEvaluator(v3: V3): V3Evaluator {
-  const explicitModel = process.env[VERIFIER_MODEL_ENV]?.trim();
+export function createVerifierEvaluator(v3: V3, modelOverride?: string): V3Evaluator {
+  const explicitModel = modelOverride?.trim() || process.env[VERIFIER_MODEL_ENV]?.trim();
   const modelName = explicitModel || DEFAULT_VERIFIER_MODEL;
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
@@ -78,7 +93,7 @@ export function createVerifierEvaluator(v3: V3): V3Evaluator {
   // V3Evaluator resolve credentials itself (tests and keyless environments).
   if (explicitModel && !apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
     throw new Error(
-      `${VERIFIER_MODEL_ENV} is set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
+      `Verifier model is explicitly set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
     );
   }
 
@@ -179,13 +194,18 @@ export async function verifyTraced(
     async (span) => {
       const v = await evaluator.verify(trajectory);
       const rawSteps = asRecord(v.rawSteps);
+      const ungraded = getUngradedVerifierResult(v);
       span.log({
         output: v,
-        scores: {
-          outcome: v.outcomeSuccess ? 1 : 0,
-          process: v.processScore,
-        },
+        ...(!ungraded && {
+          scores: {
+            outcome: v.outcomeSuccess ? 1 : 0,
+            process: v.processScore,
+          },
+        }),
         metadata: {
+          graded: !ungraded,
+          ...(ungraded && { verifierError: ungraded.verifierError }),
           taskId: meta.taskId,
           dataset: meta.dataset,
           stepCount: trajectory.steps.length,
@@ -294,10 +314,9 @@ export async function gradeExternalTrajectory({
       dataset: verifier.dataset,
     });
     rawEvaluation = evaluationResult;
-    if (evaluationResult.findings?.some((finding) => finding.category === "verifier_uncertainty")) {
-      throw new Error(
-        "Verifier returned an uncertainty result; no trustworthy grade was produced.",
-      );
+    const ungraded = getUngradedVerifierResult(evaluationResult);
+    if (ungraded) {
+      throw new Error(ungraded.verifierError);
     }
     const traceLines = traceOn
       ? selectVerifierTraceLines(logger.getLogs({ maxLevel: 2 }), logCountBefore)
