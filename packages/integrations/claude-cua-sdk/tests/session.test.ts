@@ -395,6 +395,68 @@ describe("runClaudeCuaSession", () => {
     expect(tools.calls).toEqual([]);
   });
 
+  it("compresses API history without removing screenshots from retained events", async () => {
+    const client = scriptedClient([
+      { content: [toolUse("tu_1", "screenshot", {})], stop_reason: "tool_use" },
+      { content: [toolUse("tu_2", "screenshot", {})], stop_reason: "tool_use" },
+      { content: [{ type: "text", text: "done" }], stop_reason: "end_turn" },
+    ]);
+    let screenshot = 0;
+    const result = await runClaudeCuaSession({
+      prompt: "inspect both pages",
+      model: "claude-sonnet-5",
+      logger,
+      maxTurns: 3,
+      keepRecentImages: 1,
+      client,
+      tools: {
+        execute: async () => ({
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: "image/png",
+                data: `screenshot-${++screenshot}`,
+              },
+            },
+          ],
+        }),
+      },
+    });
+
+    expect(result.status).toBe("completed");
+    const messages = client.requests[2]!.messages as Array<{ role: string; content: unknown }>;
+    const historyResults = messages
+      .filter((message) => message.role === "user" && Array.isArray(message.content))
+      .flatMap((message) => message.content as Array<{ content: unknown[] }>);
+    expect(historyResults.map((entry) => entry.content)).toEqual([
+      [{ type: "text", text: "[earlier screenshot omitted]" }],
+      [
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data: "screenshot-2" },
+        },
+      ],
+    ]);
+    expect(
+      result.events.filter((event) => event.type === "tool_result").map((event) => event.content),
+    ).toEqual([
+      [
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data: "screenshot-1" },
+        },
+      ],
+      [
+        {
+          type: "image",
+          source: { type: "base64", media_type: "image/png", data: "screenshot-2" },
+        },
+      ],
+    ]);
+  });
+
   it("keeps only the most recent screenshots in the transcript", () => {
     const image = (n: number) => ({
       type: "tool_result",
