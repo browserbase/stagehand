@@ -3,7 +3,13 @@
  * Preserve the judge's verdict for auditing. Execution status and blocker
  * wording alone cannot establish whether a rubric requirement was completed.
  */
-import type { CriterionScore, EvaluationResult, Trajectory, TrajectoryStep } from "stagehand-v3";
+import type {
+  CriterionScore,
+  EvaluationResult,
+  ProbeEvidence,
+  Trajectory,
+  TrajectoryStep,
+} from "stagehand-v3";
 
 export type OutcomeGate = "no_final_answer" | "no_browser_use" | "ungrounded_answer";
 
@@ -15,6 +21,10 @@ export interface GroundingDatum {
   kind: GroundingDatumKind;
   /** Index of the first non-search-engine step whose output contains it. */
   groundedAtStep?: number;
+  /** Matching captured text came from the terminal observation, not a tool step. */
+  groundedAtFinalObservation?: true;
+  /** Matching text existed but its page URL was unknown, so it could not ground the answer. */
+  seenOnUnknownPage?: true;
   /** True when the datum only ever appeared in search-engine step outputs. */
   onlyInSearchEngine: boolean;
   /** Echoed from the task instruction; reported but never gates. */
@@ -70,7 +80,7 @@ export interface VerdictGates {
 
 export interface ApplyVerdictGatesInput {
   evaluation: EvaluationResult;
-  trajectory: Pick<Trajectory, "steps" | "status" | "finalAnswer"> & {
+  trajectory: Pick<Trajectory, "steps" | "status" | "finalAnswer" | "finalObservation"> & {
     task?: { instruction?: string };
   };
   /** Matcher for mounted-browser (facade) tool names; enables `no_browser_use`. */
@@ -106,7 +116,12 @@ export function applyVerdictGates({
   }
 
   const grounding = finalAnswer
-    ? checkAnswerGrounding(finalAnswer, trajectory.steps, trajectory.task?.instruction ?? "")
+    ? checkAnswerGrounding(
+        finalAnswer,
+        trajectory.steps,
+        trajectory.task?.instruction ?? "",
+        trajectory.finalObservation,
+      )
     : undefined;
   if (requireGrounding && grounding?.gatesOutcome) {
     outcomeGates.push("ungrounded_answer");
@@ -137,9 +152,7 @@ export function applyVerdictGates({
 }
 
 /**
- * Resolve EVAL_REQUIRE_GROUNDING. Defaults on for datasets whose tasks ship
- * precomputed rubrics (factual lookups where a snippet-lifted number is the
- * dominant false positive) and off elsewhere.
+ * Resolve EVAL_REQUIRE_GROUNDING. Grounding is advisory unless explicitly enabled.
  */
 export function resolveRequireGrounding(
   dataset: string,
@@ -410,7 +423,11 @@ function safeStringify(value: unknown): string {
 }
 
 function toolOutputText(step: TrajectoryStep): string {
-  const parts = [safeStringify(step.toolOutput?.result), step.toolOutput?.error ?? ""];
+  const parts = [
+    safeStringify(step.toolOutput?.result),
+    step.toolOutput?.error ?? "",
+    step.probeEvidence?.ariaTree ?? "",
+  ];
   for (const modality of step.agentEvidence?.modalities ?? []) {
     if (modality.type === "text") parts.push(modality.content);
     else if (modality.type === "json") parts.push(safeStringify(modality.content));
@@ -427,51 +444,77 @@ export function checkAnswerGrounding(
   finalAnswer: string,
   steps: TrajectoryStep[],
   instruction = "",
+  finalObservation?: ProbeEvidence,
 ): GroundingResult | undefined {
   const datums = extractGroundingDatums(finalAnswer, instruction);
   if (datums.length === 0) return undefined;
 
   // Steps with no URL hint (a snapshot after navigation) inherit the page of
   // the step before them.
-  const stepTexts: Array<{ text: string; searchEngine: boolean }> = [];
+  const evidenceTexts: Array<{
+    text: string;
+    source: "unknown" | "search" | "page";
+    stepIndex?: number;
+  }> = [];
+  const source = (url: string | undefined) =>
+    !url ? "unknown" : isSearchEngineUrl(url) ? "search" : "page";
   let currentUrl: string | undefined;
-  for (const step of steps) {
+  for (const [stepIndex, step] of steps.entries()) {
     const hint = stepUrlHint(step);
     if (hint) currentUrl = hint;
-    stepTexts.push({
+    evidenceTexts.push({
       text: normalizeForGrounding(toolOutputText(step)),
-      searchEngine: isSearchEngineUrl(currentUrl),
+      source: source(currentUrl),
+      stepIndex,
+    });
+  }
+  if (finalObservation?.ariaTree) {
+    evidenceTexts.push({
+      text: normalizeForGrounding(finalObservation.ariaTree),
+      source: source(finalObservation.url || currentUrl),
     });
   }
 
   const checked: GroundingDatum[] = datums.map((datum) => {
     let groundedAtStep: number | undefined;
+    let groundedAtFinalObservation: true | undefined;
     let seenInSearch = false;
-    for (let index = 0; index < stepTexts.length; index += 1) {
-      const { text, searchEngine } = stepTexts[index];
+    let seenOnUnknownPage = false;
+    for (const { text, source, stepIndex } of evidenceTexts) {
       if (!datum.patterns.some((pattern) => pattern.test(text))) continue;
-      if (searchEngine) {
+      if (source === "unknown") {
+        seenOnUnknownPage = true;
+        continue;
+      }
+      if (source === "search") {
         seenInSearch = true;
         continue;
       }
-      groundedAtStep = index;
+      if (stepIndex === undefined) groundedAtFinalObservation = true;
+      else groundedAtStep = stepIndex;
       break;
     }
     return {
       text: datum.text,
       kind: datum.kind,
       ...(groundedAtStep !== undefined && { groundedAtStep }),
-      onlyInSearchEngine: groundedAtStep === undefined && seenInSearch,
+      ...(groundedAtFinalObservation && { groundedAtFinalObservation }),
+      ...(seenOnUnknownPage && { seenOnUnknownPage: true as const }),
+      onlyInSearchEngine:
+        groundedAtStep === undefined &&
+        !groundedAtFinalObservation &&
+        seenInSearch &&
+        !seenOnUnknownPage,
       ...(datum.fromInstruction && { fromInstruction: true }),
     };
   });
 
-  const ungrounded = checked.filter((datum) => datum.groundedAtStep === undefined);
+  const isGrounded = (datum: GroundingDatum) =>
+    datum.groundedAtStep !== undefined || datum.groundedAtFinalObservation === true;
+  const ungrounded = checked.filter((datum) => !isGrounded(datum));
   const gating = new Set(datums.filter((d) => d.gates).map((d) => `${d.kind}:${d.text}`));
   const isGating = (d: GroundingDatum) => gating.has(`${d.kind}:${d.text}`);
-  const groundedNumeric = checked.filter(
-    (d) => isGating(d) && d.groundedAtStep !== undefined,
-  ).length;
+  const groundedNumeric = checked.filter((d) => isGating(d) && isGrounded(d)).length;
   const ungroundedNumeric = ungrounded.filter(isGating).length;
   return {
     checked,

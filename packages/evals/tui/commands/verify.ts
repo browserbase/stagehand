@@ -21,16 +21,19 @@ import { V3, loadTrajectoryFromDisk, nextResultFilename, type LogLine } from "st
 
 import {
   buildPersistedEvaluationResult,
+  buildUngradedVerifierResult,
   createVerifierEvaluator,
   DEFAULT_VERIFIER_MODEL,
   getUngradedVerifierResult,
   type PersistedEvaluationResult,
+  type UngradedVerifierResult,
 } from "../../framework/verifierAdapter.js";
 import { applyVerdictGates, resolveRequireGrounding } from "../../framework/verifierGates.js";
 import {
   selectVerifierTraceLines,
   verifierTraceEnabled,
   writeVerifierTrace,
+  validateVerifierLabel,
 } from "../../framework/verifierTrace.js";
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 
@@ -113,6 +116,7 @@ function parseArgs(args: string[]): ParsedArgs {
 
 export async function handleVerify(args: string[]): Promise<void> {
   const parsed = parseArgs(args);
+  validateVerifierLabel(parsed.label);
   if (parsed.help || !parsed.trajectoryDir) {
     printVerifyHelp();
     if (!parsed.trajectoryDir) {
@@ -158,7 +162,10 @@ export async function handleVerify(args: string[]): Promise<void> {
     );
   }
   const startMs = Date.now();
-  const judgeResult = await evaluator.verify(trajectory);
+  const verification = await evaluator.verify(trajectory).then(
+    (judge) => ({ judge }),
+    (error: unknown) => ({ error }),
+  );
   const elapsedMs = Date.now() - startMs;
   if (traceOn && !parsed.dryRun) {
     const kept = selectVerifierTraceLines(traceLines, 0);
@@ -169,25 +176,21 @@ export async function handleVerify(args: string[]): Promise<void> {
       `${dim("▸")} verifier trace captured (${traceLines.length} lines, not written: --dry-run)`,
     );
   }
+  if ("error" in verification) {
+    return finishUngradedVerification(
+      buildUngradedVerifierResult(
+        verification.error instanceof Error
+          ? verification.error.message
+          : String(verification.error),
+      ),
+      parsed,
+      dir,
+    );
+  }
+  const judgeResult = verification.judge;
   const ungraded = getUngradedVerifierResult(judgeResult);
   if (ungraded) {
-    process.exitCode = 1;
-    if (parsed.json) {
-      process.stdout.write(JSON.stringify(ungraded, null, 2) + "\n");
-    } else {
-      console.log(`${yellow("Ungraded")} ${ungraded.verifierError}`);
-      if (parsed.dryRun) {
-        console.log(dim("dry-run: result not written to disk"));
-      } else {
-        const outPath = path.join(dir, "scores", nextResultFilename(parsed.label));
-        await fs.mkdir(path.dirname(outPath), { recursive: true });
-        await fs.writeFile(outPath, JSON.stringify(ungraded, null, 2));
-        console.log(
-          `${cyan("▸")} wrote ungraded judge evidence to ${cyan(path.relative(process.cwd(), outPath))}`,
-        );
-      }
-    }
-    return;
+    return finishUngradedVerification(ungraded, parsed, dir);
   }
   const rubricItemCount = trajectory.task.precomputedRubric?.items.length;
   const gates = applyVerdictGates({
@@ -257,6 +260,29 @@ export async function handleVerify(args: string[]): Promise<void> {
   await fs.writeFile(outPath, JSON.stringify(result, null, 2));
   console.log();
   console.log(`${green("✓")} wrote ${cyan(path.relative(process.cwd(), outPath))}`);
+}
+
+async function finishUngradedVerification(
+  result: UngradedVerifierResult,
+  parsed: ParsedArgs,
+  dir: string,
+): Promise<void> {
+  process.exitCode = 1;
+  if (parsed.json) {
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    return;
+  }
+  console.log(`${yellow("Ungraded")} ${result.verifierError}`);
+  if (parsed.dryRun) {
+    console.log(dim("dry-run: result not written to disk"));
+    return;
+  }
+  const outPath = path.join(dir, "scores", nextResultFilename(parsed.label));
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  await fs.writeFile(outPath, JSON.stringify(result, null, 2));
+  console.log(
+    `${cyan("▸")} wrote ungraded judge evidence to ${cyan(path.relative(process.cwd(), outPath))}`,
+  );
 }
 
 /** Gated verdict first, with the judge's own verdict beside it when they differ. */
