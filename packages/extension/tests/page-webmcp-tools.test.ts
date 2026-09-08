@@ -512,4 +512,95 @@ describe("Page WebMCP tool discovery", () => {
     expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
     await expect(page.listWebMCPTools()).rejects.toThrow("disposed");
   });
+
+  it("activates after initialization without replay and keeps tracking after unsubscribe", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.enable": (active) =>
+        active.emit("WebMCP.toolsAdded", {
+          tools: [{ name: "initial", description: "Initial", frameId: "frame-1" }],
+        }),
+    });
+    const page = createPage(session);
+    const first = vi.fn();
+    const second = vi.fn();
+    const unsubscribe = await page.subscribeWebMCPToolsChanged(first);
+    await page.subscribeWebMCPToolsChanged(second);
+    await page.listWebMCPTools({ timeout: 0 });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+    unsubscribe();
+    session.emit("WebMCP.toolsRemoved", { tools: [{ name: "initial", frameId: "frame-1" }] });
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+    await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([]);
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
+    expect(session.listenerCount("WebMCP.toolsAdded")).toBe(1);
+  });
+
+  it("cancels one waiting listener without canceling initialization or another listener", async () => {
+    let finishEnable!: () => void;
+    const session = new FakeCDPSession({
+      "WebMCP.enable": () =>
+        new Promise<void>((resolve) => {
+          finishEnable = resolve;
+        }),
+    });
+    const page = createPage(session);
+    const controller = new AbortController();
+    const canceled = vi.fn();
+    const active = vi.fn();
+    const first = expect(
+      page.subscribeWebMCPToolsChanged(canceled, controller.signal),
+    ).rejects.toThrow("canceled");
+    const second = page.subscribeWebMCPToolsChanged(active);
+    await vi.waitFor(() => expect(finishEnable).toBeTypeOf("function"));
+    controller.abort();
+    await first;
+    expect(session.listenerCount("WebMCP.toolsAdded")).toBe(1);
+    finishEnable();
+    await second;
+    session.emit("WebMCP.toolsAdded", {
+      tools: [{ name: "live", description: "Live", frameId: "frame-1" }],
+    });
+    expect(canceled).not.toHaveBeenCalled();
+    expect(active).toHaveBeenCalledTimes(1);
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
+  });
+
+  it("rejects pending listener activation on disposal and ignores late readiness", async () => {
+    let finishEnable!: () => void;
+    const session = new FakeCDPSession({
+      "WebMCP.enable": () =>
+        new Promise<void>((resolve) => {
+          finishEnable = resolve;
+        }),
+    });
+    const page = createPage(session);
+    const listener = vi.fn();
+    const pending = expect(page.subscribeWebMCPToolsChanged(listener)).rejects.toThrow("canceled");
+    await vi.waitFor(() => expect(finishEnable).toBeTypeOf("function"));
+    page.dispose();
+    await pending;
+    finishEnable();
+    await Promise.resolve();
+    session.emit("WebMCP.toolsAdded", {
+      tools: [{ name: "late", description: "Late", frameId: "frame-1" }],
+    });
+    expect(listener).not.toHaveBeenCalled();
+    await expect(page.subscribeWebMCPToolsChanged(listener)).rejects.toThrow("disposed");
+  });
+
+  it("surfaces tracker failure to subscribers without preventing console subscriptions", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.enable": () => {
+        throw new Error("Unavailable");
+      },
+    });
+    const page = createPage(session);
+    await expect(page.subscribeWebMCPToolsChanged(vi.fn())).rejects.toThrow("Unavailable");
+    const unsubscribe = await page.subscribeCDPEvent("console", vi.fn());
+    expect(session.listenerCount("Runtime.consoleAPICalled")).toBe(1);
+    unsubscribe();
+    expect(session.listenerCount("Runtime.consoleAPICalled")).toBe(0);
+  });
 });

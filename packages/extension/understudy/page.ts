@@ -198,6 +198,7 @@ export class Page {
   private readonly webMCPToolsChanged = new Set<() => void>();
   private disposed = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
+  private readonly pageEventDisposers = new Set<() => void>();
 
   private onWebMCPToolResponded(
     session: CDPSessionLike,
@@ -558,7 +559,83 @@ export class Page {
   }
 
   /** Subscribe to events on every session owned by this page. */
-  public subscribeCDPEvent(
+  public async subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      undefined,
+      () => this.attachCDPEventListener(pageEventName, listener),
+      signal,
+    );
+  }
+
+  /** Activate against future shared-state changes, without replaying initial tools. */
+  public async subscribeWebMCPToolsChanged(
+    listener: () => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      () =>
+        Promise.all(
+          [...new Set([this.mainSession, ...this.sessions.values()])].map((session) =>
+            this.ensureWebMCPToolTracking(session),
+          ),
+        ),
+      () => {
+        const handler = () => {
+          if (!this.webMCPToolsChanged.has(handler)) return;
+          try {
+            listener();
+          } catch (error) {
+            this.logger.error("WebMCP state listener failed", {
+              pageId: this.pageId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        };
+        this.webMCPToolsChanged.add(handler);
+        return () => {
+          this.webMCPToolsChanged.delete(handler);
+        };
+      },
+      signal,
+    );
+  }
+
+  private async subscribeWhenReady(
+    ready: (() => Promise<unknown>) | undefined,
+    activate: () => () => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    if (this.disposed) throw new Error("Page is disposed");
+    signal?.throwIfAborted();
+    const canceled = createDeferred<never>();
+    let active = true;
+    let disposeListener: (() => void) | undefined;
+    const dispose = () => {
+      if (!active) return;
+      active = false;
+      signal?.removeEventListener("abort", dispose);
+      this.pageEventDisposers.delete(dispose);
+      disposeListener?.();
+      canceled.reject(new Error("Page event subscription was canceled"));
+    };
+    this.pageEventDisposers.add(dispose);
+    signal?.addEventListener("abort", dispose, { once: true });
+    try {
+      if (ready) await Promise.race([ready(), canceled.promise]);
+      if (!active) throw new Error("Page event subscription was canceled");
+      disposeListener = activate();
+      return dispose;
+    } catch (error) {
+      dispose();
+      throw error;
+    }
+  }
+
+  private attachCDPEventListener(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
   ): () => void {
@@ -569,12 +646,8 @@ export class Page {
       sessionHandlers: new Map(),
     };
     this.cdpEventSubscriptions.add(subscription);
-    for (const session of this.sessions.values()) {
-      this.attachCDPEventSubscription(subscription, session);
-    }
-
     let active = true;
-    return () => {
+    const dispose = () => {
       if (!active) return;
       active = false;
       this.cdpEventSubscriptions.delete(subscription);
@@ -582,6 +655,15 @@ export class Page {
         this.detachCDPEventSubscription(subscription, sessionId);
       }
     };
+    try {
+      for (const session of this.sessions.values()) {
+        this.attachCDPEventSubscription(subscription, session);
+      }
+      return dispose;
+    } catch (error) {
+      dispose();
+      throw error;
+    }
   }
 
   private attachCDPEventSubscription(
@@ -591,6 +673,11 @@ export class Page {
     const sessionId = session.id ?? "root";
     if (subscription.sessionHandlers.has(sessionId)) return;
     const handler = (params: unknown): void => {
+      if (
+        !this.cdpEventSubscriptions.has(subscription) ||
+        subscription.sessionHandlers.get(sessionId)?.handler !== handler
+      )
+        return;
       const normalizedParams =
         params !== null && typeof params === "object" && !Array.isArray(params)
           ? (params as Record<string, unknown>)
@@ -989,13 +1076,8 @@ export class Page {
   /** Release page-scoped listeners, pending work, and network tracking. */
   public dispose(): void {
     this.disposed = true;
+    for (const dispose of this.pageEventDisposers) dispose();
     for (const session of this.webMCPToolSessions.keys()) this.stopWebMCPToolTracking(session);
-    for (const subscription of this.cdpEventSubscriptions) {
-      this.cdpEventSubscriptions.delete(subscription);
-      for (const sessionId of subscription.sessionHandlers.keys()) {
-        this.detachCDPEventSubscription(subscription, sessionId);
-      }
-    }
     this.teardownWebMCPInvocations();
     this.networkManager.dispose();
   }
