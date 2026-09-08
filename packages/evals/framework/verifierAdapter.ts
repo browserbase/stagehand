@@ -194,13 +194,18 @@ export async function verifyTraced(
     async (span) => {
       const v = await evaluator.verify(trajectory);
       const rawSteps = asRecord(v.rawSteps);
+      const ungraded = getUngradedVerifierResult(v);
       span.log({
         output: v,
-        scores: {
-          outcome: v.outcomeSuccess ? 1 : 0,
-          process: v.processScore,
-        },
+        ...(!ungraded && {
+          scores: {
+            outcome: v.outcomeSuccess ? 1 : 0,
+            process: v.processScore,
+          },
+        }),
         metadata: {
+          graded: !ungraded,
+          ...(ungraded && { verifierError: ungraded.verifierError }),
           taskId: meta.taskId,
           dataset: meta.dataset,
           stepCount: trajectory.steps.length,
