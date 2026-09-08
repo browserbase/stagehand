@@ -8,6 +8,7 @@ import {
   validateCodexSandboxMode,
   type CodexSdk,
   type CodexTokenUsage,
+  type ModelReasoningEffort,
 } from "@browserbasehq/stagehand-integrations-codex-sdk";
 import type { AvailableModel } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
@@ -73,6 +74,7 @@ export async function runCodexAgent({
   sdk,
   verifier,
 }: CodexRunnerInput): Promise<TaskResult> {
+  const reasoningEffort = validateCodexReasoningEffort(process.env.EVAL_CODEX_REASONING_EFFORT);
   const adapterLike: ExternalHarnessToolAdapterLike | undefined = toolAdapter && {
     promptInstructions: toolAdapter.promptInstructions,
     captureEvidence: "captureEvidence" in toolAdapter ? toolAdapter.captureEvidence : undefined,
@@ -101,9 +103,7 @@ export async function runCodexAgent({
     stepBudget: maxToolSteps,
     stepBudgetUnit: "tool_calls",
     configuration: {
-      requestedReasoningEffort: validateCodexReasoningEffort(
-        process.env.EVAL_CODEX_REASONING_EFFORT,
-      ),
+      requestedReasoningEffort: reasoningEffort,
       requestedReasoningSummary: readReasoningSummary() ?? "off",
     },
     // A caller-owned SDK is already constructed, so its developer config
@@ -128,11 +128,7 @@ export async function runCodexAgent({
           networkAccessEnabled: readBooleanEnv("EVAL_CODEX_NETWORK_ACCESS", true),
           webSearchMode: "disabled",
           skipGitRepoCheck: true,
-          ...(validateCodexReasoningEffort(process.env.EVAL_CODEX_REASONING_EFFORT) && {
-            modelReasoningEffort: validateCodexReasoningEffort(
-              process.env.EVAL_CODEX_REASONING_EFFORT,
-            ),
-          }),
+          ...(reasoningEffort && { modelReasoningEffort: reasoningEffort }),
         },
         outputSchema: EVAL_RESULT_SCHEMA,
         maxToolSteps,
@@ -210,7 +206,7 @@ const CODEX_REASONING_EFFORTS = [
   "max",
   "ultra",
   "persistent",
-] as const;
+] as const satisfies readonly ModelReasoningEffort[];
 
 /** Validate EVAL_CODEX_REASONING_EFFORT; undefined leaves the codex per-model default. */
 export function validateCodexReasoningEffort(
