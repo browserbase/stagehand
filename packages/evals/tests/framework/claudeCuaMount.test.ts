@@ -23,7 +23,8 @@ const input = {
 describe("Claude native mount ownership", () => {
   it("uses the supplied browser and typed bridge, preserves loss metadata, and cleans up once", async () => {
     const cleanup = vi.fn(async () => {});
-    const loss = (): undefined => undefined;
+    let currentLoss: { cause: string } | undefined;
+    const loss = () => currentLoss;
     const callTool = vi.fn(async () => ({
       content: [{ type: "text", text: '[0-1] button "Submit"' }],
     }));
@@ -56,6 +57,11 @@ describe("Claude native mount ownership", () => {
       { includeIframes: true },
       { timeoutMs: 90_000 },
     );
+    currentLoss = { cause: "closed" };
+    await expect(
+      adapter.executor.execute("read_page", {}, { toolUseId: "after-loss" }),
+    ).rejects.toThrow("Browser session lost (confirmed by eval runner)");
+    expect(callTool).toHaveBeenCalledOnce();
     await Promise.all([adapter.cleanup(), adapter.cleanup()]);
     expect(cleanup).toHaveBeenCalledOnce();
   });

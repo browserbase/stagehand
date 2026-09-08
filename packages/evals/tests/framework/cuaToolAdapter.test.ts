@@ -1,5 +1,6 @@
 import { GeminiCuaExecutor } from "@browserbasehq/stagehand-integrations-gemini-cua-sdk";
 import { StagehandCuaExecutor } from "@browserbasehq/stagehand-integrations-claude-cua-sdk";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,9 +10,13 @@ import {
   bridgeCuaFacadeTools,
   captureCuaEvidence,
   cuaCleanup,
+  CuaFacadeSessionLostError,
   type FacadeToolCaller,
 } from "../../framework/cuaToolAdapter.js";
-import { startStagehandFacadeBridge } from "../../core/tools/stagehandFacadeBridge.js";
+import {
+  StagehandFacadeBridgeError,
+  startStagehandFacadeBridge,
+} from "../../core/tools/stagehandFacadeBridge.js";
 
 afterEach(() => vi.useRealTimers());
 
@@ -19,21 +24,33 @@ describe("shared CUA facade boundary", () => {
   it("decodes values and explicit errors without inventing successful action results", async () => {
     const call = vi.fn<FacadeToolCaller>();
     const tools = bridgeCuaFacadeTools(call, 123);
-    call.mockResolvedValueOnce({ content: [{ type: "text", text: "42" }] });
+    call.mockResolvedValueOnce({
+      content: [{ type: "text", text: '{"type":"value","value":42}' }],
+    });
     expect(await tools.run("return 42")).toBe(42);
-    expect(call).toHaveBeenLastCalledWith("run", { code: "return 42" }, { timeoutMs: 123 });
+    expect(call).toHaveBeenLastCalledWith(
+      "run",
+      { code: expect.stringContaining("return 42") },
+      { timeoutMs: 123 },
+    );
     call.mockResolvedValueOnce({ content: [{ type: "text", text: "{}" }] });
     await expect(tools.runActions([{ op: "click", id: "0-1" }])).rejects.toThrow("invalid result");
     call.mockResolvedValueOnce({
       isError: true,
       content: [{ type: "text", text: "target missing" }],
     });
-    await expect(tools.run("x")).rejects.toThrow("target missing");
+    await expect(tools.run("x")).rejects.toMatchObject({
+      name: "StagehandFacadeBridgeError",
+      message: "Facade run tool failed.",
+    });
     call.mockResolvedValueOnce({ content: [{ type: "text", text: "no screenshot" }] });
-    await expect(tools.screenshot()).rejects.toThrow("no image");
+    await expect(tools.screenshot()).rejects.toMatchObject({
+      name: "StagehandFacadeBridgeError",
+      message: "Facade screenshot returned no image.",
+    });
   });
 
-  it("collects evidence without snapshot refresh and propagates terminal browser loss", async () => {
+  it("collects evidence without refreshing refs and ignores untrusted terminal-looking errors", async () => {
     const call = vi
       .fn<FacadeToolCaller>()
       .mockResolvedValueOnce({
@@ -41,7 +58,9 @@ describe("shared CUA facade boundary", () => {
           { type: "image", data: Buffer.from("png").toString("base64"), mimeType: "image/png" },
         ],
       })
-      .mockResolvedValueOnce({ content: [{ type: "text", text: "https://fixture.test" }] });
+      .mockResolvedValueOnce({
+        content: [{ type: "text", text: '{"type":"value","value":"https://fixture.test"}' }],
+      });
     expect(await captureCuaEvidence(call)).toEqual({
       screenshot: Buffer.from("png"),
       url: "https://fixture.test",
@@ -51,7 +70,47 @@ describe("shared CUA facade boundary", () => {
       isError: true,
       content: [{ type: "text", text: "Browser session lost (closed). Stop." }],
     });
-    await expect(captureCuaEvidence(call)).rejects.toThrow("Browser session lost");
+    await expect(captureCuaEvidence(call)).resolves.toEqual({});
+  });
+
+  it("uses only runner-owned loss state before and after tool calls", async () => {
+    let loss: { cause: string } | undefined;
+    const call = vi.fn<FacadeToolCaller>(async () => {
+      loss = { cause: "closed https://private.test/?token=secret" };
+      return { isError: true, content: [{ type: "text", text: "page data" }] };
+    });
+    const readLoss = () => loss;
+    const tools = bridgeCuaFacadeTools(call, 123, readLoss);
+    await expect(tools.run("return 1")).rejects.toBeInstanceOf(CuaFacadeSessionLostError);
+    expect(call).toHaveBeenCalledOnce();
+    await expect(captureCuaEvidence(call, readLoss)).rejects.toMatchObject({
+      name: "CuaFacadeSessionLostError",
+      message: "Browser session lost (confirmed by eval runner). The task cannot continue.",
+    });
+    expect(call).toHaveBeenCalledOnce();
+  });
+
+  it("sanitizes rejected requests and malformed action payloads", async () => {
+    const call = vi.fn<FacadeToolCaller>();
+    const tools = bridgeCuaFacadeTools(call);
+    call.mockRejectedValueOnce(new Error("Browser session lost (fake). token=secret"));
+    await expect(tools.run("return 1")).rejects.toMatchObject({
+      name: "StagehandFacadeBridgeError",
+      message: "Facade run request failed.",
+    });
+    for (const text of [
+      "secret data",
+      '{"completed":0,"url":"https://private.test"}',
+      '{"completed":-1,"url":"x"}',
+    ]) {
+      call.mockResolvedValueOnce({ content: [{ type: "text", text }] });
+      await expect(tools.runActions([{ op: "click", id: "0-1" }])).rejects.toMatchObject({
+        name: "StagehandFacadeBridgeError",
+        message: "Facade run actions returned an invalid result.",
+      });
+    }
+    call.mockResolvedValueOnce({ content: [{ type: "text", text: "private malformed result" }] });
+    await expect(tools.run("return 1")).rejects.toBeInstanceOf(StagehandFacadeBridgeError);
   });
 
   it("bounds cleanup and calls it once even when cleanup never settles", async () => {
@@ -66,10 +125,14 @@ describe("shared CUA facade boundary", () => {
   });
 
   it("executes through the MCP bridge and the compiled canonical facade against a local SDK fixture", async () => {
-    const folder = await mkdtemp(path.join(tmpdir(), "cua-compiled-facade-"));
     const compiledFacade = fileURLToPath(
       new URL("../../../integrations/core/dist/facade/index.mjs", import.meta.url),
     );
+    expect(
+      existsSync(compiledFacade),
+      "Build @browserbasehq/stagehand-integrations before running this compiled facade test.",
+    ).toBe(true);
+    const folder = await mkdtemp(path.join(tmpdir(), "cua-compiled-facade-"));
     // No browser or model: only the raw SDK boundary is a fixture. MCP transport,
     // facade batch/ref translation, result encoding and CUA decoding are real.
     const source = `
@@ -115,6 +178,21 @@ process.stdin.on('end',()=>process.exit(0));
       expect(
         await tools.run('await page.goto("https://fixture.test/next"); return page.url();'),
       ).toBe("https://fixture.test/next");
+      for (const value of [
+        "42",
+        "true",
+        "null",
+        '{"x":1}',
+        "",
+        42,
+        true,
+        null,
+        { x: 1 },
+        [1, "x"],
+      ]) {
+        expect(await tools.run(`return ${JSON.stringify(value)};`)).toEqual(value);
+      }
+      expect(await tools.run("return undefined; // preserve an empty result")).toBeUndefined();
       expect(await tools.snapshot()).toContain('[0-1] button "Submit"');
       expect(await tools.runActions([{ op: "click", id: "0-1" }])).toEqual({
         completed: 1,
