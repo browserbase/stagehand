@@ -1242,7 +1242,7 @@ export async function createPlaywrightCompatRuntime(
       },
       refreshUrl: async () => {
         state.cachedUrl = await page.url();
-        for (const candidate of await rawContext.pages()) await createPage(candidate);
+        for (const candidate of await visibleRawPages()) await createPage(candidate);
       },
     };
     const root = (): CompatLocator => locatorProxy(new CompatLocator([], state));
@@ -1708,7 +1708,7 @@ export async function createPlaywrightCompatRuntime(
       waitForTimeout: async (ms: number) => {
         record("calls", "page.waitForTimeout");
         await page.waitForTimeout(ms);
-        for (const candidate of await rawContext.pages()) await createPage(candidate);
+        for (const candidate of await visibleRawPages()) await createPage(candidate);
       },
       waitForLoadState: (state = "load", options: { timeout?: number } = {}) => {
         record("calls", "page.waitForLoadState");

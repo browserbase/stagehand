@@ -200,10 +200,7 @@ async function shutdown(code: number): Promise<void> {
     ...(resources
       ? [
           {
-            close: async () => {
-              await resources.stagehand.close().catch(() => undefined);
-              await resources.browser.close();
-            },
+            close: () => resources.tools.close(),
           },
         ]
       : []),
