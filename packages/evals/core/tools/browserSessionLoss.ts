@@ -18,7 +18,7 @@ export function isBrowserSessionLostError(message: string): boolean {
 /** Extracts the cause from "Browser session lost (<cause>). ..." */
 export function browserSessionLostCause(message: string): string | undefined {
   if (!isBrowserSessionLostError(message)) return undefined;
-  return sanitizeErrorMessage(/^Browser session lost \((.*)\)\./u.exec(message)?.[1] ?? message);
+  return sanitizeErrorMessage(/^Browser session lost \((.*?)\)\./su.exec(message)?.[1] ?? message);
 }
 
 export function parseSessionLossTelemetry(line: string): BrowserSessionLoss | undefined {
@@ -33,6 +33,22 @@ export function parseSessionLossTelemetry(line: string): BrowserSessionLoss | un
       cause: sanitizeErrorMessage(parsed.cause),
       ...(typeof parsed.tool === "string" && { tool: parsed.tool }),
       ...(typeof parsed.at === "string" && { at: parsed.at }),
+      ...((parsed.provider === "local" || parsed.provider === "browserbase") && {
+        provider: parsed.provider,
+      }),
+      ...(typeof parsed.sessionId === "string" && {
+        sessionId: sanitizeErrorMessage(parsed.sessionId),
+      }),
+      ...(typeof parsed.sessionAgeMs === "number" &&
+        Number.isFinite(parsed.sessionAgeMs) &&
+        parsed.sessionAgeMs >= 0 && {
+          sessionAgeMs: parsed.sessionAgeMs,
+        }),
+      ...(typeof parsed.sessionTimeoutMs === "number" &&
+        Number.isFinite(parsed.sessionTimeoutMs) &&
+        parsed.sessionTimeoutMs >= 0 && {
+          sessionTimeoutMs: parsed.sessionTimeoutMs,
+        }),
     };
   } catch {
     return undefined;

@@ -4,7 +4,7 @@ import type { ProbeEvidence } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { EvalsError } from "../../errors.js";
 import type { EvalLogger } from "../../logger.js";
-import { browserSessionLostCause, parseSessionLossTelemetry } from "./browserSessionLoss.js";
+import { parseSessionLossTelemetry } from "./browserSessionLoss.js";
 import type { BrowserSessionLoss, RunnerToolCallResult } from "../contracts/tool.js";
 
 export const STAGEHAND_FACADE_BRIDGE_PORT_ENV = "STAGEHAND_EVALS_FACADE_BRIDGE_PORT";
@@ -81,6 +81,7 @@ export const FACADE_RELAY_SCRIPT = `const net=require("node:net");const port=Num
 type JsonRpcMessage = {
   id?: unknown;
   method?: unknown;
+  params?: unknown;
   result?: unknown;
   error?: unknown;
 };
@@ -516,6 +517,25 @@ class AgentRelayServer {
     }
     if (message.method === "notifications/initialized") return;
 
+    if (
+      message.method === "tools/call" &&
+      message.params !== null &&
+      typeof message.params === "object" &&
+      "name" in message.params &&
+      message.params.name === "session_info"
+    ) {
+      if (hasOwn(message, "id") && socket.writable) {
+        socket.write(
+          `${JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            error: { code: -32601, message: "Unknown tool: session_info" },
+          })}\n`,
+        );
+      }
+      return;
+    }
+
     let outbound = line;
     if (isRequest) {
       const bridgeId = `${AGENT_REQUEST_ID_PREFIX}${this.counter++}`;
@@ -741,10 +761,8 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
       this.log(`Dropped non-JSON facade stdout line: ${rawLine}`);
       return;
     }
-    if (isToolError(message.result)) {
-      const cause = browserSessionLostCause(firstTextBlock(message.result) ?? "");
-      if (cause) this.sessionLoss ??= { cause };
-    }
+    // Terminal connection loss comes only from runner-owned stderr telemetry.
+    // Error text can be thrown by agent code and cannot establish transport state.
     if (!hasOwn(message, "id")) {
       this.relay.broadcast(rawLine);
     } else if (RunnerRpcClient.ownsId(message.id)) {
