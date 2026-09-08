@@ -69,6 +69,7 @@ async def test_mcp_setup_deadline_cancels_setup_before_starting_agent(
     assert result == 1
     assert cancelled and session_closed
     assert [event["kind"] for event in events if event["type"] == "error"] == ["mcp_setup_timeout"]
+    assert "0.02s" in next(event["message"] for event in events if event["type"] == "error")
     assert events[-2]["type"] == "final"
     assert events[-1]["type"] == "usage"
 
@@ -101,6 +102,7 @@ async def test_shorter_deadline_wins_when_both_guards_are_enabled(
     assert result == 0
     assert closed
     assert [event["kind"] for event in events if event["type"] == "error"] == [expected]
+    assert "0.02s" in next(event["message"] for event in events if event["type"] == "error")
 
 
 @pytest.mark.parametrize("value", ["nan", "inf", "-1", "invalid"])
@@ -268,3 +270,58 @@ async def test_stalled_cleanup_keeps_its_deadline_and_completed_result(
     assert result == 0
     assert cleanup_cancelled
     assert not [event for event in events if event["type"] == "error"]
+
+
+@pytest.mark.parametrize("phase", ["mcp", "stream"])
+@pytest.mark.parametrize("timeout", [0, 1])
+async def test_inner_timeout_is_not_reported_as_watchdog_expiration(
+    monkeypatch: pytest.MonkeyPatch, phase: str, timeout: float,
+) -> None:
+    class Client:
+        @asynccontextmanager
+        async def session(self, _name: str):
+            yield object()
+
+    async def load_tools(_session: object, *, server_name: str):
+        raise asyncio.TimeoutError("inner MCP request timeout")
+
+    class Agent:
+        async def astream(self, *_args: object, **_kwargs: object):
+            raise asyncio.TimeoutError("inner provider timeout")
+            yield {}
+
+    monkeypatch.setattr(runner, "MultiServerMCPClient", lambda _: Client())
+    monkeypatch.setattr(runner, "load_mcp_tools", load_tools)
+    monkeypatch.setattr(runner, "MCP_SETUP_TIMEOUT_S", timeout)
+    monkeypatch.setattr(runner, "INACTIVITY_TIMEOUT_S", timeout)
+    monkeypatch.setattr(runner, "WALL_TIMEOUT_S", timeout * 5)
+    events: list[dict[str, Any]] = []
+    result = await runner.run(
+        config(mcp=phase == "mcp"), build_agent=lambda *_: Agent(), emit=events.append,
+    )
+    assert result == 1
+    errors = [event for event in events if event["type"] == "error"]
+    assert [event["kind"] for event in errors] == ["exception"]
+    assert errors[0]["message"] == (
+        "inner MCP request timeout" if phase == "mcp" else "inner provider timeout"
+    )
+
+
+async def test_reports_selected_inactivity_guard_even_if_cleanup_crosses_wall_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Agent:
+        async def astream(self, *_args: object, **_kwargs: object):
+            try:
+                await asyncio.Event().wait()
+                yield {}
+            finally:
+                await asyncio.sleep(0.05)
+
+    monkeypatch.setattr(runner, "INACTIVITY_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(runner, "WALL_TIMEOUT_S", 0.04)
+    events: list[dict[str, Any]] = []
+    await asyncio.wait_for(runner.run(config(), build_agent=lambda *_: Agent(), emit=events.append), 1)
+    errors = [event for event in events if event["type"] == "error"]
+    assert [event["kind"] for event in errors] == ["inactivity_timeout"]
+    assert "0.01s" in errors[0]["message"]
