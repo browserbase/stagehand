@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { LogLine } from "stagehand-v3";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 
 type TraceLine = LogLine & { parsedAuxiliary?: unknown };
 
@@ -32,11 +33,18 @@ export function selectVerifierTraceLines(
     .filter((line) => TRACE_CATEGORIES.has(String(line.category ?? "")));
 }
 
+export function validateVerifierLabel(label: string | undefined): void {
+  if (label !== undefined && (/[\\/\0]/u.test(label) || label === "." || label === "..")) {
+    throw new Error("Verifier label must be a single filename component without path separators.");
+  }
+}
+
 export async function writeVerifierTrace(
   trajectoryDir: string,
   lines: TraceLine[],
   label?: string,
 ): Promise<string | undefined> {
+  validateVerifierLabel(label);
   if (lines.length === 0) return undefined;
   const file = path.join(
     trajectoryDir,
@@ -47,7 +55,12 @@ export async function writeVerifierTrace(
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
     return file;
-  } catch {
+  } catch (error) {
+    console.warn(
+      sanitizeErrorMessage(
+        `Could not write verifier trace ${file}: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
     return undefined;
   }
 }

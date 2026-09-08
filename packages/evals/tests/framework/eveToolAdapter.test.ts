@@ -58,6 +58,20 @@ describe("Eve tool adapter helpers", () => {
     expect(() => resolveEveModelProvider("alibaba/")).toThrow(EvalsError);
   });
 
+  it.each([
+    "gateway//",
+    "gateway/openai/",
+    "gateway//model",
+    "gateway/open ai/model",
+    "gateway/openai/model/extra",
+    "openai/",
+    "anthropic/",
+    "google/",
+    "/model",
+  ])("rejects incomplete provider identifiers (%s)", (model) => {
+    expect(() => resolveEveModelProvider(model)).toThrow(EvalsError);
+  });
+
   it("builds a gateway agent definition without a first-party provider import", () => {
     const source = buildEveAgentDefinitionSource("alibaba/qwen3.8-flash", {
       modelContextWindowTokens: 128_000,

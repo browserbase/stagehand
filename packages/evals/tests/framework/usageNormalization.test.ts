@@ -6,6 +6,37 @@ import {
 } from "../../framework/usageNormalization.js";
 
 describe("normalizeUsage", () => {
+  it.each(["constructor", "__proto__", "toString"])(
+    "defaults safely for unknown harness %s",
+    (harness) => {
+      expect(usageConventionFor(harness)).toBe("openai_cached_subset");
+      expect(
+        normalizeUsage({ harness, raw: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } }),
+      ).toMatchObject({ input_total: 10, output: 5, convention: "openai_cached_subset" });
+    },
+  );
+
+  it("keeps FX reasoning outside output without duplicating cached input", () => {
+    const usage = normalizeUsage({
+      harness: "fx",
+      raw: {
+        inputTokens: 1000,
+        cachedInputTokens: 600,
+        outputTokens: 200,
+        reasoningOutputTokens: 50,
+        totalTokens: 1250,
+      },
+    });
+    expect(usage).toMatchObject({
+      input_total: 1000,
+      input_uncached: 400,
+      output: 200,
+      reasoning: 50,
+      reasoning_in_output: false,
+    });
+    expect(usage.input_total + usage.output + usage.reasoning).toBe(1250);
+  });
+
   it.each(["eve", "mastra", "pi", "codex", "cursor", "cursor_sdk"])(
     "treats zero-filled %s telemetry with no presence flag as unknown",
     (harness) => {
@@ -95,7 +126,7 @@ describe("normalizeUsage", () => {
   });
 
   it("treats OpenAI-style cached tokens as a subset of input (codex, mastra, eve, deepagents, fx)", () => {
-    for (const harness of ["codex", "mastra", "eve", "deepagents", "fx"]) {
+    for (const harness of ["codex", "mastra", "eve", "deepagents"]) {
       const usage = normalizeUsage({
         harness,
         raw: {

@@ -36,6 +36,9 @@ export function openAiReasoningProviderOptions(
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, Record<string, unknown>> | undefined {
   const summary = readReasoningSummary(env);
-  if (!summary || !isOpenAiModel(model)) return undefined;
+  const name = model.replace(/^openai\//u, "");
+  const supportsReasoning =
+    /^(?:gpt-[56]|o[134])(?:[.-]|$)/u.test(name) && !name.startsWith("gpt-5-chat");
+  if (!summary || !isOpenAiModel(model) || !supportsReasoning) return undefined;
   return { openai: { reasoningSummary: summary } };
 }

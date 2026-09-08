@@ -38,6 +38,14 @@ describe("browser session info", () => {
     ).toMatchObject({ sessionId: "xyz" });
   });
 
+  it("encodes a session identifier as one URL path segment", () => {
+    expect(
+      browserSessionFromMetadata({ browserbaseSessionId: "id/with?#spaces " }, "BROWSERBASE"),
+    ).toMatchObject({
+      sessionUrl: "https://www.browserbase.com/sessions/id%2Fwith%3F%23spaces%20",
+    });
+  });
+
   it("falls back to the bare provider", () => {
     expect(browserSessionFromMetadata({ browserbaseSessionId: "ignored" }, "LOCAL")).toEqual({
       provider: "local",

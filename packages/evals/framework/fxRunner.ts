@@ -154,14 +154,14 @@ function normalizeFxUsage(usage: FxTokenUsage) {
   const cachedInputTokens = toFiniteNumber(usage.cached_input_tokens);
   const outputTokens = toFiniteNumber(usage.output_tokens);
   const reasoningOutputTokens = toFiniteNumber(usage.reasoning_output_tokens);
-  // fx reports cached input and reasoning output as separate token buckets.
+  // Cached input is a subset of input; reasoning is separate from output.
   return {
     reported: usage.reported,
     inputTokens,
     cachedInputTokens,
     outputTokens,
     reasoningOutputTokens,
-    totalTokens: inputTokens + cachedInputTokens + outputTokens + reasoningOutputTokens,
+    totalTokens: inputTokens + outputTokens + reasoningOutputTokens,
   };
 }
 

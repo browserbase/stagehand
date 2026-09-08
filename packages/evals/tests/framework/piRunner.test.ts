@@ -116,6 +116,42 @@ describe("pi runner", () => {
     expect(result.harnessConfiguration).not.toHaveProperty("requestedThinkingLevel");
   });
 
+  it("prices pi/default using its normalized model when the SDK omits cost", async () => {
+    const result = await runPiAgent({
+      plan,
+      model: "pi/default" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk: {
+        async createSession() {
+          let listener: (event: Record<string, unknown>) => void = () => {};
+          return {
+            agent: { state: {} },
+            subscribe(next) {
+              listener = next;
+              return () => {};
+            },
+            async prompt() {
+              listener({
+                type: "message_end",
+                message: {
+                  role: "assistant",
+                  content: [{ type: "text", text: 'EVAL_RESULT: {"success":true}' }],
+                  stopReason: "stop",
+                  usage: { input: 1000, output: 200, totalTokens: 1200 },
+                },
+              });
+              listener({ type: "turn_end" });
+            },
+            async abort() {},
+            dispose() {},
+          };
+        },
+      },
+    });
+    expect(result.cost_source).toBe("computed");
+    expect(result.cost_usd).toBeGreaterThan(0);
+  });
+
   it("returns a failed task result for SDK failures", async () => {
     const sdk: PiSdk = {
       async createSession() {
