@@ -1674,7 +1674,7 @@ class PageOnParams(WireModel):
     )
     page_id: StrictStr
     subscription_id: Annotated[StrictStr, Field(min_length=1)]
-    event: PageEventName
+    event: PageSubscriptionEventName
 
 
 class PageRef(WireModel):
@@ -1824,8 +1824,46 @@ class PageSnapshotParams(WireModel):
     options: Optional[PageSnapshotOptions] = None
 
 
+class PageSubscriptionEventName(StrEnum):
+    console = "console"
+    toolsadded = "toolsadded"
+    toolsremoved = "toolsremoved"
+
+
 class PageTitleResult(RootModel[StrictStr]):
     root: StrictStr
+
+
+class PageToolsAddedNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Literal["toolsadded"]
+    tools: list[WebMCPToolDescriptor]
+
+
+class PageToolsRemovedNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Literal["toolsremoved"]
+    tools: list[WebMCPToolIdentity]
+
+
+class PageEventNotification(
+    RootModel[Union[PageToolsAddedNotification, PageToolsRemovedNotification]]
+):
+    root: Union[PageToolsAddedNotification, PageToolsRemovedNotification]
 
 
 class PageTypeOptions(WireModel):
@@ -2330,6 +2368,15 @@ class WebMCPToolDescriptor(WireModel):
     backend_node_id: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
         None
     )
+
+
+class WebMCPToolIdentity(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    name: Annotated[StrictStr, Field(min_length=1)]
 
 
 class WebMCPToolResponse(WireModel):

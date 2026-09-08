@@ -744,6 +744,9 @@ export class StagehandRuntime {
   }
 
   pageOn(params: PageOnParams): PageVoidResult {
+    if (params.event !== "console") {
+      throw new Error(`Page event "${params.event}" is not implemented`);
+    }
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
       throw new DuplicatePageEventSubscriptionError();
     }

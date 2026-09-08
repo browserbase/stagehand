@@ -1443,6 +1443,10 @@ export const ResponseFinishedResultSchema = z
 
 export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
 
+export const PageSubscriptionEventNameSchema = z
+  .enum(["console", "toolsadded", "toolsremoved"])
+  .meta({ id: "PageSubscriptionEventName" });
+
 export const PageCDPEventParamsSchema = z
   .record(z.string(), z.json())
   .meta({ id: "PageCDPEventParams" });
@@ -1484,6 +1488,43 @@ export const WebMCPToolDescriptorSchema = z
     backendNodeId: z.number().int().nonnegative().optional(),
   })
   .meta({ id: "WebMCPToolDescriptor" });
+
+export const WebMCPToolIdentitySchema = z
+  .strictObject({
+    frameId: z.string().min(1),
+    name: z.string().min(1),
+  })
+  .meta({ id: "WebMCPToolIdentity" });
+
+const pageEventRoutingShape = {
+  subscriptionId: z.string().min(1),
+  pageId: z.string().min(1),
+  sessionId: z.string().min(1),
+  targetId: z.string().min(1),
+};
+
+export const PageToolsAddedNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("toolsadded"),
+    tools: z.array(WebMCPToolDescriptorSchema),
+  })
+  .meta({ id: "PageToolsAddedNotification" });
+
+export const PageToolsRemovedNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("toolsremoved"),
+    tools: z.array(WebMCPToolIdentitySchema),
+  })
+  .meta({ id: "PageToolsRemovedNotification" });
+
+export const PageEventNotificationSchema = z
+  .discriminatedUnion("event", [
+    PageToolsAddedNotificationSchema,
+    PageToolsRemovedNotificationSchema,
+  ])
+  .meta({ id: "PageEventNotification" });
 
 export const WebMCPToolsOptionsSchema = z
   .strictObject({
@@ -1729,7 +1770,7 @@ export const PageIdParamsSchema = z
 
 export const PageOnParamsSchema = PageIdParamsSchema.extend({
   subscriptionId: z.string().min(1),
-  event: PageEventNameSchema,
+  event: PageSubscriptionEventNameSchema,
 }).meta({ id: "PageOnParams" });
 
 export const PageOffParamsSchema = z
