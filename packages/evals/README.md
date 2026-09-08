@@ -45,6 +45,12 @@ Inside the REPL (or as `evals <command>` from your shell):
 
 Use `Esc` to abort an in-flight run without exiting the REPL.
 
+### Onboarding
+
+`evals welcome` runs a guided first-run flow built on the agent benchmarks: an animated intro (the Stagehand mark, what evals measures, the top of the board), then a deterministic replay of a real WebVoyager task — three models in lanes (the fastest fails on a wrong condition filter; timings and costs are illustrative), a podium by accuracy · speed · cost, and a chat-style look inside the winning run. It ends on a real `run b:webvoyager -l 3 --harness claude_code -e local` (`--harness codex` when the key is OpenAI's; `-e browserbase` when that's the available browser) when an Anthropic or OpenAI key and a browser exist, or hands off to `evals setup`, a guided flow that asks only for what's missing (Anthropic/OpenAI key, browser), writes `packages/evals/.env`, and offers the first real run.
+
+Set `EVALS_WELCOME_WIZARD=1` to auto-run the flow on the first REPL launch; `EVALS_NO_WELCOME=1` suppresses the first-run welcome. Any key advances the intro, Esc skips ahead, Ctrl+C cancels.
+
 ## Run targets
 
 `evals run` accepts any of these shapes:
