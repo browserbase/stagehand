@@ -63,6 +63,8 @@ export const READ_ONLY_TOOLSET_MEMBERS: ReadonlySet<string> = new Set<string>([
  */
 export const UNSUPPORTED_TOOLSET_MEMBERS: ReadonlySet<string> = new Set<string>([
   "hold_key",
+  "left_mouse_down",
+  "left_mouse_up",
   "file_upload",
   "read_console",
   "read_network",
@@ -183,7 +185,11 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
       if (UNSUPPORTED_TOOLSET_MEMBERS.has(member)) {
         throw new Error(
           `${member} is not available on this browser${
-            member === "hold_key" ? '; use key (e.g. "shift+Tab") instead' : ""
+            member === "hold_key"
+              ? '; use key (e.g. "shift+Tab") instead'
+              : member === "left_mouse_down" || member === "left_mouse_up"
+                ? "; use left_click_drag for a complete drag or left_click for a click instead"
+                : ""
           }.`,
         );
       }
@@ -230,9 +236,6 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
         return this.hover(input);
       case "left_click_drag":
         return this.drag(input);
-      case "left_mouse_down":
-      case "left_mouse_up":
-        return this.mouseButton(member, input);
       case "mouse_move":
         return this.mouseMove(input);
       case "scroll":
@@ -470,38 +473,13 @@ if (__wasActive) {
       throw new Error("left_click_drag requires coordinate targets in from and target.");
     }
     this.lastMouse = { x: to.x, y: to.y };
+    // The SDK owns the full press/move/release sequence. Two movement steps
+    // preserve the midpoint used by this executor before the endpoint.
     const { tabs } = await this.runWithTabs(
-      `const __p = batchStagehand.page;
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: ${from.x}, y: ${from.y}, button: "none" });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mousePressed", x: ${from.x}, y: ${from.y}, button: "left", clickCount: 1 });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: ${(from.x + to.x) / 2}, y: ${(from.y + to.y) / 2}, button: "left" });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: ${to.x}, y: ${to.y}, button: "left" });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseReleased", x: ${to.x}, y: ${to.y}, button: "left", clickCount: 1 });`,
+      `await batchStagehand.page.dragAndDrop(${from.x}, ${from.y}, ${to.x}, ${to.y}, { steps: 2 });`,
     );
     return this.withState(
       `Dragged from (${Math.round(from.x)}, ${Math.round(from.y)}) to (${Math.round(to.x)}, ${Math.round(to.y)}).`,
-      tabs,
-    );
-  }
-
-  private async mouseButton(
-    member: string,
-    input: Record<string, unknown>,
-  ): Promise<CuaToolResult> {
-    const target = parseTarget(input, { allowRef: false }) ?? {
-      type: "coordinate" as const,
-      ...this.lastMouse,
-    };
-    if (target.type !== "coordinate") throw new Error(`${member} requires a coordinate target.`);
-    const type = member === "left_mouse_down" ? "mousePressed" : "mouseReleased";
-    this.lastMouse = { x: target.x, y: target.y };
-    const { tabs } = await this.runWithTabs(
-      `const __p = batchStagehand.page;
-${type === "mousePressed" ? `await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: ${target.x}, y: ${target.y}, button: "none" });` : ""}
-await __p.sendCDP("Input.dispatchMouseEvent", { type: ${JSON.stringify(type)}, x: ${target.x}, y: ${target.y}, button: "left", clickCount: 1 });`,
-    );
-    return this.withState(
-      `${type === "mousePressed" ? "Pressed" : "Released"} left mouse button at (${Math.round(target.x)}, ${Math.round(target.y)}).`,
       tabs,
     );
   }
