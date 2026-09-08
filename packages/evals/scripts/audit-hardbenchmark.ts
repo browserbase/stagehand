@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { EvalsError } from "../errors.js";
 
 type Row = {
@@ -69,7 +70,12 @@ export function auditRows(rows: Row[]) {
       !row.ques.trim()
     )
       throw new EvalsError("Every row needs a nonempty id and question");
-    if (ids.has(row.id)) throw new EvalsError("Duplicate task id");
+    if (ids.has(row.id)) {
+      const id = sanitizeErrorMessage(row.id);
+      throw new EvalsError(
+        `Duplicate task id: ${JSON.stringify(id.slice(0, 120))}${id.length > 120 ? "…" : ""}`,
+      );
+    }
     ids.add(row.id);
     const problems = checkRubric(row.precomputed_rubric);
     return {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { auditRows, checkRubric } from "../../scripts/audit-hardbenchmark.js";
+import { EvalsError } from "../../errors.js";
 
 const rubric = {
   items: [
@@ -20,7 +21,24 @@ describe("offline HardBench audit", () => {
         { id: "x", ques: "Task" },
         { id: "x", ques: "Task" },
       ]),
-    ).toThrow(/Duplicate/);
+    ).toThrow('Duplicate task id: "x"');
+  });
+  it("bounds and sanitizes duplicate IDs without hiding the identifying prefix", () => {
+    const id = "duplicate?token=private-secret\n" + "x".repeat(200);
+    const row = { id, ques: "Task", precomputed_rubric: rubric };
+    let thrown: unknown;
+    try {
+      auditRows([row, row]);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(EvalsError);
+    const message = (thrown as EvalsError).message;
+    expect(message).toContain("duplicate?token=[redacted]");
+    expect(message).not.toContain("private-secret");
+    expect(message).not.toContain("\n");
+    expect(message.length).toBeLessThan(160);
+    expect(message.endsWith("…")).toBe(true);
   });
   it("flags a stop-boundary ambiguity without invalidating the task", () => {
     const row = { id: "x", ques: "Buy the item", precomputed_rubric: rubric };
