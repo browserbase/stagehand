@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
@@ -105,7 +108,11 @@ describe("fx runner helpers", () => {
     expect(metrics.harness_cost_usd).toBeUndefined();
   });
 
-  it("grades the agent's conclusion, not its narration, when fx joins every assistant turn", async () => {
+  it("grades the agent's conclusion, not its narration, when fx joins every assistant turn", async ({
+    onTestFinished,
+  }) => {
+    const trajectoryRoot = await mkdtemp(path.join(tmpdir(), "stagehand-runner-test-"));
+    onTestFinished(() => rm(trajectoryRoot, { recursive: true, force: true }));
     // Mirrors the observed events.jsonl shape: tool steps carrying opening and
     // interstitial narration, then a committed turn whose assistant text is
     // the structured report. fx's `ask --json` output joins all of them.
@@ -160,6 +167,7 @@ describe("fx runner helpers", () => {
       // Malformed rubric: the trajectory is still built and traced before the
       // verifier integration fails, which is what this test inspects.
       verifier: {
+        trajectoryRoot,
         v3: {} as never,
         taskSpec: { id: "wv-fx-1", instruction: plan.instruction, precomputedRubric: {} as never },
         dataset: "webvoyager",

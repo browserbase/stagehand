@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { logMastraEvent } from "../src/index.js";
+import { describe, expect, it, vi } from "vitest";
+import { logMastraEvent, buildMastraTranscript } from "../src/index.js";
 
 function recordingLogger() {
   const lines: Array<{ level?: number; message: string }> = [];
@@ -8,6 +8,21 @@ function recordingLogger() {
 }
 
 describe("mastra event log levels", () => {
+  it.each(["tool-call", "tool-result", "tool-error", "error"])(
+    "bounds %s log details without truncating trajectory data",
+    (type) => {
+      const text = "x".repeat(10_000);
+      const event = {
+        type,
+        payload: { toolName: "fixture", args: { text }, result: text, error: text },
+      };
+      const log = vi.fn();
+      logMastraEvent({ log, warn: log, error: log }, event);
+      expect(log.mock.calls[0][0].auxiliary.detail.value.length).toBeLessThanOrEqual(2_000);
+      expect(buildMastraTranscript([event])).toContain(text);
+      expect(event.payload.result).toBe(text);
+    },
+  );
   it("drops stream deltas and bare start/end markers", () => {
     const { lines, logger } = recordingLogger();
     for (const type of [
