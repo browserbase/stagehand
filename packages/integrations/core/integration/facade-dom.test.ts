@@ -290,18 +290,20 @@ describe("facade DOM compatibility against native Playwright", () => {
           results.push({ name, pass: false, detail: String(error) });
         }
       };
+      // Strictness should be reported before a busy CI browser exhausts its command budget.
+      const strictTimeout = 5000;
       const methods: Array<[string, (locator: Locator) => Promise<unknown>]> = [
-        ["textContent", (locator) => locator.textContent({ timeout: 150 })],
-        ["innerText", (locator) => locator.innerText({ timeout: 150 })],
-        ["innerHTML", (locator) => locator.innerHTML({ timeout: 150 })],
-        ["inputValue", (locator) => locator.inputValue({ timeout: 150 })],
-        ["getAttribute", (locator) => locator.getAttribute("value", { timeout: 150 })],
-        ["isChecked", (locator) => locator.isChecked({ timeout: 150 })],
-        ["isDisabled", (locator) => locator.isDisabled({ timeout: 150 })],
-        ["isEnabled", (locator) => locator.isEnabled({ timeout: 150 })],
+        ["textContent", (locator) => locator.textContent({ timeout: strictTimeout })],
+        ["innerText", (locator) => locator.innerText({ timeout: strictTimeout })],
+        ["innerHTML", (locator) => locator.innerHTML({ timeout: strictTimeout })],
+        ["inputValue", (locator) => locator.inputValue({ timeout: strictTimeout })],
+        ["getAttribute", (locator) => locator.getAttribute("value", { timeout: strictTimeout })],
+        ["isChecked", (locator) => locator.isChecked({ timeout: strictTimeout })],
+        ["isDisabled", (locator) => locator.isDisabled({ timeout: strictTimeout })],
+        ["isEnabled", (locator) => locator.isEnabled({ timeout: strictTimeout })],
         ["isVisible", (locator) => locator.isVisible()],
-        ["boundingBox", (locator) => locator.boundingBox({ timeout: 150 })],
-        ["focus", (locator) => locator.focus({ timeout: 150 })],
+        ["boundingBox", (locator) => locator.boundingBox({ timeout: strictTimeout })],
+        ["focus", (locator) => locator.focus({ timeout: strictTimeout })],
         ["evaluate", (locator) => locator.evaluate((el) => el.setAttribute("data-mutated", "yes"))],
         [
           "evaluateHandle",
