@@ -1,4 +1,7 @@
-import { Agent, JsonlLocalAgentStore, type AgentOptions, type RunResult } from "@cursor/sdk";
+import {
+  runCursorSdkAgentSession,
+  type CursorSdkAgentFactory,
+} from "@browserbasehq/stagehand-integrations-cursor-sdk";
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -17,41 +20,6 @@ export function buildAllowlistedEnv(
   return env;
 }
 
-export function buildCursorAgentOptions(
-  workspaceDirectory: string,
-  facadeServerPath: string,
-  source: NodeJS.ProcessEnv = process.env,
-): AgentOptions {
-  const apiKey = source.CURSOR_API_KEY?.trim();
-  const model = source.CURSOR_STAGEHAND_MODEL?.trim() || DEFAULT_CURSOR_MODEL;
-  return {
-    ...(apiKey ? { apiKey } : {}),
-    model: { id: model },
-    name: "Stagehand browser task",
-    local: {
-      cwd: workspaceDirectory,
-      // Do not inherit project/user MCP servers, hooks, skills, or other
-      // ambient Cursor configuration into this isolated example run.
-      settingSources: [],
-      // Keep Cursor's durable local-agent records inside the disposable
-      // workspace instead of writing them to the user's default SDK store.
-      store: new JsonlLocalAgentStore(join(workspaceDirectory, ".cursor-sdk-store")),
-    },
-    // Cursor treats "mcp" as the capability group for all MCP tools. Because
-    // the isolated agent has exactly one inline server, this leaves only the
-    // Stagehand facade's run, snapshot, and screenshot tools available.
-    tools: ["mcp"],
-    mcpServers: {
-      stagehand: {
-        type: "stdio",
-        command: process.execPath,
-        args: [facadeServerPath],
-        env: buildAllowlistedEnv(source),
-      },
-    },
-  };
-}
-
 export function buildCursorPrompt(instruction: string): string {
   return `${FACADE_AGENT_INSTRUCTIONS}\n\nTask:\n${instruction}`;
 }
@@ -59,18 +27,6 @@ export function buildCursorPrompt(instruction: string): string {
 export function resolveInstruction(args: string[]): string {
   return (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
 }
-
-type CursorRunResult = Pick<RunResult, "status" | "result" | "error">;
-
-export type CursorRuntimeRun = {
-  wait(): Promise<CursorRunResult>;
-  cancel(): Promise<void>;
-};
-
-export type CursorRuntimeAgent = {
-  send(message: string): Promise<CursorRuntimeRun>;
-  [Symbol.asyncDispose](): Promise<void>;
-};
 
 export class CursorInterruptionError extends Error {
   readonly signal: NodeJS.Signals | undefined;
@@ -86,7 +42,7 @@ export type RunCursorOptions = {
   env?: NodeJS.ProcessEnv;
   facadeServerPath?: string;
   makeWorkspaceDirectory?: () => Promise<string>;
-  createAgent?: (options: AgentOptions) => Promise<CursorRuntimeAgent>;
+  createAgent?: CursorSdkAgentFactory;
 };
 
 export async function runCursor(
@@ -98,43 +54,44 @@ export async function runCursor(
     options.facadeServerPath ??
     fileURLToPath(import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"));
   const workspaceDirectory = await (options.makeWorkspaceDirectory ?? createWorkspaceDirectory)();
-  let agent: CursorRuntimeAgent | undefined;
-  let activeRun: CursorRuntimeRun | undefined;
+  const controller = new AbortController();
   let interruptedBy: NodeJS.Signals | undefined;
-
   const removeSignalHandlers = forwardTerminationSignals((signal) => {
-    interruptedBy = signal;
-    if (activeRun) void activeRun.cancel().catch(() => undefined);
+    interruptedBy ??= signal;
+    controller.abort(new CursorInterruptionError(interruptedBy));
   });
 
   try {
-    const createAgent = options.createAgent ?? ((agentOptions) => Agent.create(agentOptions));
-    agent = await createAgent(buildCursorAgentOptions(workspaceDirectory, facadeServerPath, env));
+    const result = await runCursorSdkAgentSession({
+      prompt: buildCursorPrompt(instruction),
+      model: env.CURSOR_STAGEHAND_MODEL?.trim() || DEFAULT_CURSOR_MODEL,
+      apiKey: env.CURSOR_API_KEY?.trim() ?? "",
+      cwd: workspaceDirectory,
+      mcpServers: {
+        stagehand: {
+          type: "stdio",
+          command: process.execPath,
+          args: [facadeServerPath],
+          env: buildAllowlistedEnv(env),
+        },
+      },
+      // The example prints one final result; the reusable SDK owns event logging,
+      // cancellation, disposal, settings isolation and its disposable local store.
+      logger: { log: () => {}, warn: () => {}, error: () => {} },
+      signal: controller.signal,
+      ...(options.createAgent && { createAgent: options.createAgent }),
+    });
     if (interruptedBy) throw new CursorInterruptionError(interruptedBy);
-    activeRun = await agent.send(buildCursorPrompt(instruction));
-    if (interruptedBy) {
-      await activeRun.cancel().catch(() => undefined);
-      throw new CursorInterruptionError(interruptedBy);
+    if (result.raw.status === "cancelled") throw new CursorInterruptionError();
+    if (result.status !== "completed") {
+      throw new Error(`Cursor run failed${result.stopReason ? `: ${result.stopReason}` : "."}`);
     }
-
-    const result = await activeRun.wait();
-    if (interruptedBy) throw new CursorInterruptionError(interruptedBy);
-    if (result.status === "cancelled") throw new CursorInterruptionError();
-    if (result.status === "error") {
-      const detail = result.error?.message?.trim();
-      throw new Error(detail ? `Cursor run failed: ${detail}` : "Cursor run failed.");
-    }
-
-    const text = result.result?.trim();
+    const text = result.resultText.trim();
     if (!text) throw new Error("Cursor returned no assistant text.");
     return text;
   } finally {
     removeSignalHandlers();
-    try {
-      if (agent) await agent[Symbol.asyncDispose]();
-    } finally {
-      await rm(workspaceDirectory, { recursive: true, force: true });
-    }
+    await rm(workspaceDirectory, { recursive: true, force: true });
   }
 }
 

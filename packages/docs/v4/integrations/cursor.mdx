@@ -3,7 +3,7 @@ title: "Cursor"
 description: "Give a local Cursor SDK agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The Cursor integration creates a local agent through `@cursor/sdk` and mounts the Stagehand facade as one MCP/stdio server. One Cursor agent and one facade process own the browser across `run`, `snapshot`, and `screenshot` calls, preserving page state and snapshot IDs.
+The Cursor integration uses the same shared Cursor SDK session library as the eval harness, built on `@cursor/sdk`, and mounts the Stagehand facade as one MCP/stdio server. One Cursor agent and one facade process own the browser across `run`, `snapshot`, and `screenshot` calls, preserving page state and snapshot IDs.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
@@ -25,7 +25,7 @@ git clone https://github.com/browserbase/stagehand.git
 cd stagehand
 pnpm install --frozen-lockfile
 pnpm exec turbo run build \
-  --filter @browserbasehq/stagehand-integrations
+  --filter @browserbasehq/stagehand-integrations-cursor-sdk
 ```
   </Step>
   <Step title="Authenticate Cursor">
@@ -71,7 +71,7 @@ This V1 integration uses Cursor's local runtime. The agent loop and temporary wo
 
 The example creates an isolated temporary workspace, disables ambient Cursor setting sources, and enables only Cursor's `mcp` capability group. Its only inline server is the Stagehand facade, so the model receives `run`, `snapshot`, and `screenshot` without shell, file-editing, user MCP, or project MCP tools. The example prefixes the canonical Stagehand tool instructions to the task because the main Cursor agent API does not expose a separate system-prompt option.
 
-The facade process remains attached to one Cursor agent for the full run. On completion or failure, the example disposes the agent and deletes its temporary workspace. `SIGINT` and `SIGTERM` first cancel the active run so in-flight MCP calls stop cleanly.
+The shared session library owns SDK event consumption, cancellation, and agent disposal. The facade process remains attached to one Cursor agent for the full run. On completion or failure, the example disposes the agent and deletes its temporary workspace. `SIGINT` and `SIGTERM` first cancel the active run so in-flight MCP calls stop cleanly.
 
 Only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables cross into the MCP child. The Cursor API key and unrelated host secrets remain in the agent process.
 

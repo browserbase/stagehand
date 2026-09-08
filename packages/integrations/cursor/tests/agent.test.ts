@@ -5,23 +5,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { JsonlLocalAgentStore } from "@cursor/sdk";
+import type {
+  CursorSdkAgent,
+  CursorSdkAgentFactory,
+  CursorSdkRun,
+} from "@browserbasehq/stagehand-integrations-cursor-sdk";
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 
 import {
   buildAllowlistedEnv,
-  buildCursorAgentOptions,
   buildCursorPrompt,
   CursorInterruptionError,
   resolveInstruction,
   runCursor,
-  type CursorRuntimeAgent,
-  type CursorRuntimeRun,
 } from "../src/agent.ts";
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })),
   );
@@ -43,18 +45,26 @@ describe("cursor stagehand example", () => {
     });
   });
 
-  it("configures one isolated MCP-only local agent", () => {
-    const options = buildCursorAgentOptions("/tmp/workspace", "/tmp/facade-server.mjs", {
-      CURSOR_API_KEY: "cursor-secret",
-      STAGEHAND_BROWSER: "local",
-      HOST_SECRET: "host-secret",
+  it("configures one isolated MCP-only local agent through the shared SDK", async () => {
+    const directory = await makeTemporaryDirectory();
+    const fake = fakeAgent({ status: "finished", result: "done" });
+    const createAgent = vi.fn<CursorSdkAgentFactory>(async () => fake.agent);
+    await runCursor("browse", {
+      env: {
+        CURSOR_API_KEY: "cursor-secret",
+        STAGEHAND_BROWSER: "local",
+        HOST_SECRET: "host-secret",
+      },
+      facadeServerPath: "/tmp/facade-server.mjs",
+      makeWorkspaceDirectory: async () => directory,
+      createAgent,
     });
-
+    const options = createAgent.mock.calls[0]?.[0];
     expect(options).toMatchObject({
       apiKey: "cursor-secret",
       model: { id: "composer-2.5" },
       tools: ["mcp"],
-      local: { cwd: "/tmp/workspace", settingSources: [] },
+      local: { cwd: directory, settingSources: [] },
       mcpServers: {
         stagehand: {
           type: "stdio",
@@ -64,17 +74,46 @@ describe("cursor stagehand example", () => {
         },
       },
     });
-    expect(JSON.stringify(options.mcpServers)).not.toContain("cursor-secret");
-    expect(JSON.stringify(options.mcpServers)).not.toContain("host-secret");
-    expect(options.local?.store).toBeInstanceOf(JsonlLocalAgentStore);
+    expect(JSON.stringify(options?.mcpServers)).not.toContain("cursor-secret");
+    expect(JSON.stringify(options?.mcpServers)).not.toContain("host-secret");
+    expect(options?.local?.store).toBeDefined();
   });
 
-  it("uses an optional model override without requiring an explicit API key", () => {
-    const options = buildCursorAgentOptions("/tmp/workspace", "/tmp/server.mjs", {
-      CURSOR_STAGEHAND_MODEL: "custom-model",
+  it("uses a model override without falling back to keys outside the supplied environment", async () => {
+    vi.stubEnv("CURSOR_API_KEY", "ambient-secret");
+    const directory = await makeTemporaryDirectory();
+    const fake = fakeAgent({ status: "finished", result: "done" });
+    const createAgent = vi.fn<CursorSdkAgentFactory>(async () => fake.agent);
+    await runCursor("browse", {
+      env: { CURSOR_STAGEHAND_MODEL: "custom-model" },
+      facadeServerPath: "/tmp/facade-server.mjs",
+      makeWorkspaceDirectory: async () => directory,
+      createAgent,
     });
-    expect(options.model).toEqual({ id: "custom-model" });
-    expect(options).not.toHaveProperty("apiKey");
+    expect(createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: { id: "custom-model" },
+        apiKey: "",
+      }),
+    );
+  });
+
+  it("consumes the SDK event stream before returning the final result", async () => {
+    const directory = await makeTemporaryDirectory();
+    const fake = fakeAgent({ status: "finished", result: "done" });
+    const stream = vi.fn(async function* () {
+      yield { type: "thinking", text: "Inspect the page." };
+    });
+    fake.send.mockResolvedValue({ wait: fake.wait, cancel: fake.cancel, stream });
+    await expect(
+      runCursor("browse", {
+        env: {},
+        facadeServerPath: "/tmp/facade-server.mjs",
+        makeWorkspaceDirectory: async () => directory,
+        createAgent: async () => fake.agent,
+      }),
+    ).resolves.toBe("done");
+    expect(stream).toHaveBeenCalledOnce();
   });
 
   it("prefixes the task with canonical Stagehand instructions", () => {
@@ -90,7 +129,7 @@ describe("cursor stagehand example", () => {
   it("returns final assistant text and cleans up the agent and workspace", async () => {
     const directory = await makeTemporaryDirectory();
     const fake = fakeAgent({ status: "finished", result: "  done  " });
-    const createAgent = vi.fn(async () => fake.agent);
+    const createAgent = vi.fn<CursorSdkAgentFactory>(async () => fake.agent);
 
     await expect(
       runCursor("browse", {
@@ -116,7 +155,7 @@ describe("cursor stagehand example", () => {
     [{ status: "finished" as const }, "Cursor returned no assistant text."],
     [
       { status: "error" as const, error: { message: "backend unavailable" } },
-      "Cursor run failed: backend unavailable",
+      /backend unavailable/,
     ],
     [{ status: "cancelled" as const }, "Cursor run interrupted."],
   ])("reports terminal result failures and still cleans up", async (result, message) => {
@@ -152,7 +191,7 @@ describe("cursor stagehand example", () => {
   it("disposes the agent and removes the workspace when send fails", async () => {
     const directory = await makeTemporaryDirectory();
     const dispose = vi.fn(async () => undefined);
-    const agent: CursorRuntimeAgent = {
+    const agent: CursorSdkAgent = {
       send: vi.fn(async () => {
         throw new Error("send failed");
       }),
@@ -180,7 +219,7 @@ describe("cursor stagehand example", () => {
     });
     const createAgent = vi.fn(
       () =>
-        new Promise<CursorRuntimeAgent>((resolve) => {
+        new Promise<CursorSdkAgent>((resolve) => {
           finishCreation = () => resolve(fake.agent);
           notifyCreationStarted();
         }),
@@ -208,14 +247,14 @@ describe("cursor stagehand example", () => {
     const sendStarted = new Promise<void>((resolve) => {
       notifySendStarted = resolve;
     });
-    const wait = vi.fn(() => new Promise<never>(() => undefined));
+    const wait = vi.fn(async () => ({ status: "cancelled" as const }));
     const cancel = vi.fn(async () => undefined);
     const dispose = vi.fn(async () => undefined);
-    const pendingRun: CursorRuntimeRun = { wait, cancel };
-    const agent: CursorRuntimeAgent = {
+    const pendingRun: CursorSdkRun = { wait, cancel };
+    const agent: CursorSdkAgent = {
       send: vi.fn(
         () =>
-          new Promise<CursorRuntimeRun>((resolve) => {
+          new Promise<CursorSdkRun>((resolve) => {
             finishSend = () => resolve(pendingRun);
             notifySendStarted();
           }),
@@ -234,8 +273,8 @@ describe("cursor stagehand example", () => {
 
     await expect(running).rejects.toThrow("Cursor run interrupted.");
     expect(cancel).toHaveBeenCalledOnce();
-    expect(wait).not.toHaveBeenCalled();
-    expect(dispose).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(wait).toHaveBeenCalled());
+    expect(dispose).toHaveBeenCalled();
     await expect(access(directory)).rejects.toThrow();
   });
 
@@ -244,15 +283,13 @@ describe("cursor stagehand example", () => {
     async (signal) => {
       const directory = await makeTemporaryDirectory();
       let resolveWait: ((value: { status: "cancelled" }) => void) | undefined;
-      const wait = vi.fn(
-        () =>
-          new Promise<{ status: "cancelled" }>((resolve) => {
-            resolveWait = resolve;
-          }),
-      );
+      const completion = new Promise<{ status: "cancelled" }>((resolve) => {
+        resolveWait = resolve;
+      });
+      const wait = vi.fn(() => completion);
       const cancel = vi.fn(async () => resolveWait?.({ status: "cancelled" }));
       const dispose = vi.fn(async () => undefined);
-      const agent: CursorRuntimeAgent = {
+      const agent: CursorSdkAgent = {
         send: vi.fn(async () => ({ wait, cancel })),
         [Symbol.asyncDispose]: dispose,
       };
@@ -316,9 +353,9 @@ function fakeAgent(result: {
 }) {
   const wait = vi.fn(async () => result);
   const cancel = vi.fn(async () => undefined);
-  const send = vi.fn(async () => ({ wait, cancel }));
+  const send = vi.fn<NonNullable<CursorSdkAgent["send"]>>(async () => ({ wait, cancel }));
   const dispose = vi.fn(async () => undefined);
-  const agent: CursorRuntimeAgent = { send, [Symbol.asyncDispose]: dispose };
+  const agent: CursorSdkAgent = { send, [Symbol.asyncDispose]: dispose };
   return { agent, send, wait, cancel, dispose };
 }
 

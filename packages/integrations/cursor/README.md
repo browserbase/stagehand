@@ -1,6 +1,7 @@
 # Cursor SDK + Stagehand facade over MCP/stdio
 
-A runnable example embedding Cursor through `@cursor/sdk`, with the Stagehand facade
+A runnable example using the shared `@browserbasehq/stagehand-integrations-cursor-sdk`
+session library, built on `@cursor/sdk`, with the Stagehand facade
 (`run` / `snapshot` / `screenshot`) mounted as the local agent's only MCP server. One Cursor
 agent and one facade process stay alive for the full task, so browser state and snapshot IDs
 survive across tool calls.
@@ -8,11 +9,11 @@ survive across tool calls.
 ## Setup
 
 Use Node.js 24 or later. From the repository root, install dependencies and build the shared
-integration package:
+Cursor SDK package and its dependencies:
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-cursor-sdk
 ```
 
 Export a Cursor user or service-account API key. Browserbase is the recommended browser backend
