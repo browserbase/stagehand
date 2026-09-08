@@ -287,7 +287,7 @@ export class CDPClient {
       age_ms: now - this.connectedAt,
       pending: this.pending.size,
       last_method: /^[A-Za-z][A-Za-z0-9_.]*$/u.test(this.lastMethod) ? this.lastMethod : "",
-      reason: sanitizeCdpDiagnostic(reason.message).slice(0, 160),
+      reason: cdpDiagnosticReason(reason),
     })}\n`;
     // Diagnostics never change the connection's terminal outcome.
     try {
@@ -819,6 +819,30 @@ function cdpHeartbeatMs(raw: string | undefined): number {
   return raw?.trim() && Number.isInteger(value) && value >= 1_000 && value <= 2_147_483_647
     ? value
     : 20_000;
+}
+
+/** Keep transport causes useful without serializing errors, payloads or arbitrary objects. */
+function cdpDiagnosticReason(reason: Error): string {
+  const messages: string[] = [];
+  const seen = new Set<Error>();
+  let current: unknown = reason;
+  for (let depth = 0; depth < 4; depth++) {
+    try {
+      if (typeof current === "string") {
+        messages.push(sanitizeCdpDiagnostic(current));
+        break;
+      }
+      if (!(current instanceof Error) || seen.has(current)) break;
+      seen.add(current);
+      if (typeof current.message === "string" && current.message)
+        messages.push(sanitizeCdpDiagnostic(current.message));
+      current = current.cause;
+    } catch {
+      // A diagnostic accessor must not interrupt rejection or transport cleanup.
+      break;
+    }
+  }
+  return (messages.join(": ") || "CDP connection closed").slice(0, 160);
 }
 
 /** The diagnostic contains no payloads or connection URLs, including close text URLs. */

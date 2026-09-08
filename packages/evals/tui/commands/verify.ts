@@ -11,21 +11,19 @@
  * tool matcher and is not applied offline.
  *
  * Output: writes a new result file under `scores/result_<label>.json`.
+ * Judge uncertainty is saved as { graded: false, verifierError, judge } with no
+ * top-level scores; the command exits nonzero. JSON output follows the same shape.
  */
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  V3,
-  V3Evaluator,
-  loadTrajectoryFromDisk,
-  nextResultFilename,
-  type AvailableModel,
-  type LogLine,
-} from "stagehand-v3";
+import { V3, loadTrajectoryFromDisk, nextResultFilename, type LogLine } from "stagehand-v3";
 
 import {
   buildPersistedEvaluationResult,
+  createVerifierEvaluator,
+  DEFAULT_VERIFIER_MODEL,
+  getUngradedVerifierResult,
   type PersistedEvaluationResult,
 } from "../../framework/verifierAdapter.js";
 import { applyVerdictGates, resolveRequireGrounding } from "../../framework/verifierGates.js";
@@ -39,7 +37,7 @@ import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 export interface VerifyOptions {
   /** Absolute or cwd-relative path to a `<group>/<task-id>/<run-id>/` directory. */
   trajectoryDir: string;
-  /** Override the verifier model. Defaults to whatever V3Evaluator picks. */
+  /** Override EVAL_VERIFIER_MODEL and the shared live verifier default. */
   model?: string;
   /** Label appended to the output result filename (default: timestamp). */
   label?: string;
@@ -63,8 +61,7 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
                            is <experiment>__<model>__<runToken> or "default").
 
   ${cyan("Options")}
-    --model <name>         Override the verifier LLM (default: V3Evaluator's default,
-                           default google/gemini-3.5-flash).
+    --model <name>         Override EVAL_VERIFIER_MODEL (default: ${DEFAULT_VERIFIER_MODEL}).
     --label <text>         Label appended to the output filename
                            (default: rescore-<ISO timestamp>).
                            File written to scores/result_<label>.json.
@@ -151,13 +148,9 @@ export async function handleVerify(args: string[]): Promise<void> {
     disableAPI: true,
     disablePino: true,
     ...(traceOn ? { logger: (line: LogLine) => void traceLines.push(line) } : {}),
-    ...(parsed.model ? { model: parsed.model as AvailableModel } : {}),
   });
 
-  const evaluator = new V3Evaluator(v3, {
-    backend: "verifier",
-    ...(parsed.model ? { modelName: parsed.model as AvailableModel } : {}),
-  });
+  const evaluator = createVerifierEvaluator(v3, parsed.model);
 
   if (!parsed.json) {
     console.log(
@@ -175,6 +168,26 @@ export async function handleVerify(args: string[]): Promise<void> {
     console.log(
       `${dim("▸")} verifier trace captured (${traceLines.length} lines, not written: --dry-run)`,
     );
+  }
+  const ungraded = getUngradedVerifierResult(judgeResult);
+  if (ungraded) {
+    process.exitCode = 1;
+    if (parsed.json) {
+      process.stdout.write(JSON.stringify(ungraded, null, 2) + "\n");
+    } else {
+      console.log(`${yellow("Ungraded")} ${ungraded.verifierError}`);
+      if (parsed.dryRun) {
+        console.log(dim("dry-run: result not written to disk"));
+      } else {
+        const outPath = path.join(dir, "scores", nextResultFilename(parsed.label));
+        await fs.mkdir(path.dirname(outPath), { recursive: true });
+        await fs.writeFile(outPath, JSON.stringify(ungraded, null, 2));
+        console.log(
+          `${cyan("▸")} wrote ungraded judge evidence to ${cyan(path.relative(process.cwd(), outPath))}`,
+        );
+      }
+    }
+    return;
   }
   const rubricItemCount = trajectory.task.precomputedRubric?.items.length;
   const gates = applyVerdictGates({
