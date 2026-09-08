@@ -11,6 +11,7 @@ import {
 } from "@browserbasehq/stagehand-integrations-codex-sdk";
 import type { AvailableModel } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
@@ -220,8 +221,8 @@ export function validateCodexReasoningEffort(
   if ((CODEX_REASONING_EFFORTS as readonly string[]).includes(v)) {
     return v as (typeof CODEX_REASONING_EFFORTS)[number];
   }
-  throw new Error(
-    `EVAL_CODEX_REASONING_EFFORT must be one of ${CODEX_REASONING_EFFORTS.join(", ")} (got "${raw}").`,
+  throw new EvalsError(
+    `EVAL_CODEX_REASONING_EFFORT must be one of ${CODEX_REASONING_EFFORTS.join(", ")}.`,
   );
 }
 
@@ -233,7 +234,7 @@ export function buildEvalCodexConfig(
   const reasoningEffort = validateCodexReasoningEffort(env.EVAL_CODEX_REASONING_EFFORT);
   const configuredInstructions = extraConfig?.developer_instructions;
   if (configuredInstructions !== undefined && typeof configuredInstructions !== "string") {
-    throw new Error("Codex developer_instructions must be a string.");
+    throw new EvalsError("Codex developer_instructions must be a string.");
   }
   const developerInstructions =
     typeof configuredInstructions === "string" ? configuredInstructions : "";
