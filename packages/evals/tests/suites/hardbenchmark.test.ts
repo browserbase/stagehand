@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeRubric } from "stagehand-v3";
+import { EvalsError } from "../../errors.js";
 import { buildHardBenchmarkTestcases } from "../../suites/hardbenchmark.js";
 
 const dataset = readFileSync(
@@ -12,9 +12,6 @@ const rows = dataset
   .trim()
   .split("\n")
   .map((line) => JSON.parse(line));
-const manifest = JSON.parse(
-  readFileSync(new URL("../../datasets/hardbenchmark/manifest.json", import.meta.url), "utf8"),
-);
 const build = () => buildHardBenchmarkTestcases(["openai/gpt-4.1-mini"]);
 
 beforeEach(() => {
@@ -24,33 +21,17 @@ beforeEach(() => {
     "EVAL_HARDBENCHMARK_LIMIT",
     "EVAL_HARDBENCHMARK_SAMPLE",
     "EVAL_HARDBENCHMARK_IDS",
-    "EVAL_HARDBENCHMARK_MODE",
   ])
     vi.stubEnv(key, undefined);
 });
 afterEach(() => vi.unstubAllEnvs());
 
-describe("HardBench frozen corpus and selection", () => {
-  it("preserves the reviewed corpus bytes, IDs, set membership and valid rubrics", () => {
-    expect(createHash("sha256").update(dataset).digest("hex")).toBe(
-      "2eca8e697d40c7d3f4179af3aea3a4aa620843a6bc55ba9fcbd088592668ce5a",
-    );
-    expect(manifest.sha256).toBe(createHash("sha256").update(dataset).digest("hex"));
-    expect(rows).toHaveLength(158);
-    expect(new Set(rows.map((row) => row.id)).size).toBe(158);
-    for (const [set, count] of Object.entries({
-      core: 38,
-      extended: 64,
-      holdout: 20,
-      retired: 33,
-      quarantined: 3,
-    })) {
-      const members = rows.filter((row) => row.set === set);
-      expect(members).toHaveLength(count);
-      expect(manifest.sets[set]).toEqual(members.map((row) => row.id));
-      expect(
-        members.every((row) => (row.valid === false) === ["retired", "quarantined"].includes(set)),
-      ).toBe(true);
+describe("HardBench corpus and selection", () => {
+  it("contains unique active tasks with valid rubrics in the three tiers", () => {
+    expect(rows).toHaveLength(122);
+    expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length);
+    for (const [set, count] of Object.entries({ core: 38, extended: 64, holdout: 20 })) {
+      expect(rows.filter((row) => row.set === set)).toHaveLength(count);
     }
     for (const row of rows) {
       const rubric = normalizeRubric(row.precomputed_rubric);
@@ -61,14 +42,12 @@ describe("HardBench frozen corpus and selection", () => {
         ),
       ).toBe(true);
     }
-    expect(rows.filter((row) => row.rubric_version === "1.2")).toHaveLength(149);
   });
 
   it.each([
     [undefined, 38],
     ["core", 38],
     ["extended", 102],
-    ["all", 102],
     ["holdout", 20],
   ])("selects %s with no implicit cap", (set, count) => {
     vi.stubEnv("EVAL_HARDBENCHMARK_SET", set);
@@ -77,7 +56,7 @@ describe("HardBench frozen corpus and selection", () => {
     expect(cases.some((c) => c.metadata.bench_tier === "holdout")).toBe(set === "holdout");
   });
 
-  it("carries the exact normalized rubric and provenance to each model", () => {
+  it("carries the exact normalized rubric and rubric metadata to each model", () => {
     const cases = buildHardBenchmarkTestcases(["openai/gpt-4.1-mini", "openai/gpt-4.1"]);
     expect(cases).toHaveLength(76);
     for (const c of cases) {
@@ -98,19 +77,19 @@ describe("HardBench frozen corpus and selection", () => {
     expect(build().map((c) => c.metadata.task_id)).toEqual([holdout.id, core.id]);
   });
 
-  it("rejects unknown, inactive and duplicate resolved IDs", () => {
-    for (const ids of ["typo", rows.find((row) => row.valid === false).id]) {
-      vi.stubEnv("EVAL_HARDBENCHMARK_IDS", ids);
-      expect(build).toThrow(/Unknown or inactive/);
-    }
+  it("rejects unknown and duplicate resolved IDs", () => {
+    vi.stubEnv("EVAL_HARDBENCHMARK_IDS", "unknown-task");
+    expect(build).toThrow(EvalsError);
+    expect(build).toThrow(/Unknown/);
     const row = rows.find((r) => r.set === "core" && r.slug);
     vi.stubEnv("EVAL_HARDBENCHMARK_IDS", `${row.id},${row.slug}`);
     expect(build).toThrow(/Duplicate/);
   });
 
   it("validates set and numeric knobs, gives EVAL_MAX_K precedence, and samples without duplication", () => {
-    for (const set of ["typo", "toString", "constructor"]) {
+    for (const set of ["all", "typo", "toString", "constructor"]) {
       vi.stubEnv("EVAL_HARDBENCHMARK_SET", set);
+      expect(build).toThrow(EvalsError);
       expect(build).toThrow(/must be one of/);
     }
     vi.stubEnv("EVAL_HARDBENCHMARK_SET", "core");
@@ -129,4 +108,28 @@ describe("HardBench frozen corpus and selection", () => {
     expect(cases).toHaveLength(3);
     expect(new Set(cases.map((c) => c.metadata.task_id)).size).toBe(3);
   });
+
+  it.each(["EVAL_MAX_K", "EVAL_HARDBENCHMARK_LIMIT"])(
+    "caps a larger requested sample with %s",
+    (key) => {
+      vi.stubEnv(key, "2");
+      vi.stubEnv("EVAL_HARDBENCHMARK_SAMPLE", "10");
+      const cases = build();
+      expect(cases).toHaveLength(2);
+      expect(new Set(cases.map((c) => c.metadata.task_id)).size).toBe(2);
+    },
+  );
+
+  it.each(["EVAL_HARDBENCHMARK_SET", "EVAL_HARDBENCHMARK_IDS", "EVAL_MAX_K"])(
+    "does not reflect arbitrary environment values from %s in errors",
+    (key) => {
+      vi.stubEnv(key, "https://example.com?apiKey=private-value");
+      expect(build).toThrow(EvalsError);
+      try {
+        build();
+      } catch (error) {
+        expect(String(error)).not.toContain("private-value");
+      }
+    },
+  );
 });

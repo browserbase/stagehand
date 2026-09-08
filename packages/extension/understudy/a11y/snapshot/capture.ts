@@ -361,7 +361,9 @@ export async function collectPerFrameMaps(
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
-    const isIgnoredBackendNode = makeIsIgnoredBackendNode(frameId, idx, exclusionIntervalsByFrame);
+    const isExcluded = makeIsIgnoredBackendNode(frameId, idx, exclusionIntervalsByFrame);
+    const isIgnoredBackendNode = (backendId: number): boolean =>
+      isExcluded?.(backendId) === true || (!pierce && idx.docRootOf.get(backendId) !== docRootBe);
     const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
     const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
 
