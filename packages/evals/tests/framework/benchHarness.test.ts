@@ -227,6 +227,11 @@ describe("bench harness registry", () => {
   it("defines the shared external lifecycle and cleans up when the agent throws", async () => {
     let cleanupCalled = false;
     const adapter = {
+      browserSession: {
+        provider: "browserbase" as const,
+        sessionId: "session-a",
+        sessionUrl: "https://www.browserbase.com/sessions/session-a",
+      },
       cleanup: async (): Promise<void> => {
         cleanupCalled = true;
       },
@@ -289,7 +294,14 @@ describe("bench harness registry", () => {
     expect(harness.supportsApi).toBe(false);
     await expect(
       harness.execute?.({ task, input, row, logger: new EvalLogger(false) }),
-    ).rejects.toThrow("agent failed");
+    ).resolves.toMatchObject({
+      _success: false,
+      error: "agent failed",
+      harnessStatus: "sdk_error",
+      browserProvider: "browserbase",
+      browserbaseSessionId: "session-a",
+      sessionUrl: "https://www.browserbase.com/sessions/session-a",
+    });
     expect(preparedInput).toMatchObject({
       toolSurface: "browse_cli",
       startupProfile: "tool_create_browserbase",

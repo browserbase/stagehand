@@ -18,7 +18,7 @@ Blocker wording is recorded as `blockerMentioned` on criterion diagnostics. It n
 
 ## Reporting
 
-- `facade_tool_calls`, `facade_tool_call_failures` and `facade_tool_calls_after_session_lost` distinguish attempted browser work from repeated terminal failures.
+- `facade_tool_calls` and `facade_tool_call_failures` count attempted and failed browser work. Run-level browser loss comes from runner-owned telemetry. Normalized steps do not provide trusted per-call loss attribution, so tool-output text cannot exclude failures or synthesize a count after session loss.
 - Agent, evidence-capture and verifier wall times are reported separately.
 - Normalized usage records the SDK's cache convention. Missing usage is unavailable; historical Cursor CLI records remain unreported.
 - `cost_source=reported` means the harness reported dollars. `computed` is an estimate using the dated catalog snapshot in `pricing/pricing.json`; it is not an invoice. Unknown or subscription costs are unavailable, never inferred as zero.

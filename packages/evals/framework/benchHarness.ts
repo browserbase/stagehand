@@ -1,5 +1,6 @@
 import { V3, normalizeRubric, type AvailableModel, type TaskSpec } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../logger.js";
 import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
@@ -75,7 +76,7 @@ export interface BenchHarness {
   supportsApi: boolean;
   /**
    * Tool surfaces this harness can mount for the agent, in display order; the
-   * first entry is the default when --tool is omitted. An empty list means the
+   * facade is preferred when --tool is omitted, otherwise the first entry. An empty list means the
    * harness does not mount tool surfaces and the planner passes the requested
    * surface/profile through unchanged as row metadata (stagehand harness).
    */
@@ -161,6 +162,9 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
       // the adapter and the carrier.
       const carrierV3 = buildVerifierCarrierV3(logger);
       let toolAdapter: TAdapter | undefined;
+      let browserSession: BrowserSessionInfo = {
+        provider: row.config.environment === "BROWSERBASE" ? "browserbase" : "local",
+      };
       try {
         toolAdapter = await prepareToolAdapter({
           toolSurface: row.config.toolSurface,
@@ -170,9 +174,7 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
           logger,
         });
         const preparedAdapter = toolAdapter;
-        const browserSession: BrowserSessionInfo = preparedAdapter.browserSession ?? {
-          provider: row.config.environment === "BROWSERBASE" ? "browserbase" : "local",
-        };
+        browserSession = preparedAdapter.browserSession ?? browserSession;
         logBrowserSession(logger, browserSession);
         const result = await withHarnessAgentSpan(
           {
@@ -196,6 +198,17 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
             }),
         );
         return withBrowserSession(result, browserSession);
+      } catch (error) {
+        return withBrowserSession(
+          {
+            _success: false,
+            error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+            harnessStatus: "sdk_error",
+            terminationReason: "sdk_error",
+            logs: logger.getLogs(),
+          },
+          browserSession,
+        );
       } finally {
         try {
           await toolAdapter?.cleanup();
