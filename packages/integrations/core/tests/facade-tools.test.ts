@@ -539,6 +539,45 @@ describe("StagehandFacadeTools session loss", () => {
     expect(page.screenshot).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["transport", "throws"],
+    ["transport", "rejects"],
+    ["capture deadlines", "throws"],
+    ["capture deadlines", "rejects"],
+  ])("preserves terminal %s loss when its observer %s", async (failure, observer) => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    const { stagehand, experimentalBatch, context } = createFakeStagehand(page);
+    const onSessionLost = vi.fn(() => {
+      const error = new Error("diagnostic observer failed");
+      if (observer === "throws") throw error;
+      return Promise.reject(error);
+    });
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+    if (failure === "transport") {
+      experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    } else {
+      page.snapshot.mockImplementation(() => new Promise(() => undefined));
+      for (let count = 0; count < 2; count++) {
+        const rejection = expect(tools.snapshot()).rejects.toThrow(
+          "page.snapshot received no response",
+        );
+        await vi.advanceTimersByTimeAsync(120_000);
+        await rejection;
+      }
+    }
+    const pending = failure === "transport" ? tools.run("return 1;") : tools.snapshot();
+    const outcome = pending.catch((error: unknown) => error);
+    if (failure !== "transport") await vi.advanceTimersByTimeAsync(120_000);
+    expect(await outcome).toBeInstanceOf(StagehandFacadeSessionLostError);
+    expect(tools.sessionLoss).toBeDefined();
+    const calls = context.activePage.mock.calls.length;
+    await expect(tools.screenshot()).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
+    expect(context.activePage.mock.calls.length).toBe(calls);
+    expect(page.screenshot).not.toHaveBeenCalled();
+    expect(onSessionLost).toHaveBeenCalledOnce();
+  });
+
   it("does not replay successful actions when a later action fails", async () => {
     const world = createFakeWorld();
     world.snapshot = { formattedTree: "actions", xpathMap: { "0-1": "/first", "0-2": "/second" } };

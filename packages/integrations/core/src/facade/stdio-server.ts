@@ -133,11 +133,11 @@ async function ensureResources(): Promise<FacadeResources> {
 
 async function createResources(): Promise<FacadeResources> {
   const config = stagehandFacadeConfigFromEnv();
+  const launchedAt = Date.now();
   const browser =
     config.browser.type === "browserbase"
       ? await browserbase.launch(config.browser.launchOptions)
       : await localBrowser.launch(config.browser.launchOptions);
-  const launchedAt = Date.now();
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
     const tools = new StagehandFacadeTools(stagehand, {
@@ -146,8 +146,8 @@ async function createResources(): Promise<FacadeResources> {
       // The browser is not recreated on purpose: a fresh session would silently
       // change the evidence trail mid-task. Tools keep answering with the
       // terminal error and the host decides what to do with the run.
-      // sessionAgeMs against the configured session timeout tells a Browserbase
-      // TIMED_OUT apart from a remote close.
+      // Age includes launch and initialization time. Compare it with configured
+      // timeout and remote session status when diagnosing a disconnect.
       onSessionLost: (loss) =>
         process.stderr.write(
           `${SESSION_LOST_TELEMETRY_PREFIX}${JSON.stringify({

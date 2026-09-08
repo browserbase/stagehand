@@ -382,13 +382,13 @@ export class StagehandFacadeTools {
           }
           const cause = `executor unresponsive: ${this.consecutiveDeadlines} consecutive capture timeouts (last: ${error.message})`;
           this.loss = { cause, tool, at: new Date().toISOString() };
-          this.options.onSessionLost?.(this.loss);
+          this.notifySessionLost(this.loss);
           throw new StagehandFacadeSessionLostError(this.loss);
         }
         const cause = sessionLossCause(error);
         if (cause === undefined) throw error;
         this.loss = { cause, tool, at: new Date().toISOString() };
-        this.options.onSessionLost?.(this.loss);
+        this.notifySessionLost(this.loss);
         throw new StagehandFacadeSessionLostError(this.loss);
       }
     };
@@ -398,6 +398,15 @@ export class StagehandFacadeTools {
       () => undefined,
     );
     return result;
+  }
+
+  private notifySessionLost(loss: FacadeSessionLoss): void {
+    // Diagnostic observers cannot replace the terminal error or reopen the queue.
+    try {
+      void Promise.resolve(this.options.onSessionLost?.(loss)).catch(() => undefined);
+    } catch {
+      // Preserve the first browser failure when an observer throws synchronously.
+    }
   }
 }
 
