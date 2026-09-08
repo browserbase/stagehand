@@ -47,7 +47,7 @@ describe("Browserbase extension client", () => {
     await client.deleteExtension("ext_uploaded");
 
     expect(createSdk).toHaveBeenCalledWith("bb_key");
-    expect(create).toHaveBeenCalledWith({ file: expect.anything() });
+    expect(create).toHaveBeenCalledWith({ file: expect.anything() }, { maxRetries: 0 });
     expect(remove).toHaveBeenCalledWith("ext_uploaded", {
       headers: { "Content-Type": null },
     });
@@ -72,7 +72,7 @@ describe("Browserbase extension provisioning", () => {
   });
 
   it("preserves an upload failure as the cause and names it in the message", async () => {
-    const uploadError = new Error("Browserbase unavailable");
+    const uploadError = Object.assign(new Error("Rate limited"), { status: 429 });
     const uploadExtension = vi.fn(async () => {
       throw uploadError;
     });
@@ -92,8 +92,8 @@ describe("Browserbase extension provisioning", () => {
   it("retries a burst-rejected upload with backoff before giving up", async () => {
     const uploadExtension = vi
       .fn<() => Promise<{ id: string }>>()
-      .mockRejectedValueOnce(new Error("429 Too Many Requests"))
-      .mockRejectedValueOnce(new Error("429 Too Many Requests"))
+      .mockRejectedValueOnce(Object.assign(new Error("429 Too Many Requests"), { status: 429 }))
+      .mockRejectedValueOnce(Object.assign(new Error("429 Too Many Requests"), { status: 429 }))
       .mockResolvedValueOnce({ id: "ext_after_retry" });
     const sleeps: number[] = [];
     const client: BrowserbaseExtensionClient = { uploadExtension, async deleteExtension() {} };
@@ -105,6 +105,27 @@ describe("Browserbase extension provisioning", () => {
     expect(uploadExtension).toHaveBeenCalledTimes(3);
     expect(sleeps).toStrictEqual([500, 1500]);
   });
+
+  it.each([401, 403, 500, 503, undefined])(
+    "does not replay ambiguous or permanent upload failures (%s)",
+    async (status) => {
+      const failure = Object.assign(new Error("upload failed"), { status });
+      const uploadExtension = vi.fn().mockRejectedValue(failure);
+      const sleep = vi.fn();
+      await expect(
+        provisionBrowserbaseExtension(
+          { uploadExtension, deleteExtension: vi.fn() },
+          "/archive.zip",
+          { sleep },
+        ),
+      ).rejects.toMatchObject({
+        message: "Failed to upload the Stagehand extension to Browserbase after 1 attempt(s).",
+        cause: failure,
+      });
+      expect(uploadExtension).toHaveBeenCalledOnce();
+      expect(sleep).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects an empty extension ID", async () => {
     const client: BrowserbaseExtensionClient = {

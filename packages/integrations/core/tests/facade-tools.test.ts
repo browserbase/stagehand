@@ -3,10 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { type Stagehand } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  BROWSER_SESSION_LOST_ERROR_PREFIX,
-  type FacadeSessionLoss,
-} from "../src/facade/contract.js";
 import { StagehandFacadeTools, type StagehandFacadeRunReport } from "../src/facade/tools.js";
 
 type FakePage = ReturnType<typeof createFakePage>;
@@ -134,7 +130,11 @@ function createFakeStagehand(page: FakePage) {
     ) => callback({ page, context }, input),
   );
   return {
-    stagehand: { browser: { context }, experimentalBatch } as unknown as Stagehand,
+    stagehand: {
+      browser: { context, close: vi.fn(async () => undefined) },
+      close: vi.fn(async () => undefined),
+      experimentalBatch,
+    } as unknown as Stagehand,
     context,
     experimentalBatch,
     keeper,
@@ -235,6 +235,66 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     expect(reports[0].telemetry.calls["browser.close"]).toBe(1);
   });
 
+  it("closes owned resources only after the batch finishes and refuses later calls", async () => {
+    const { stagehand, experimentalBatch } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand);
+    await expect(tools.run(`await browser.close(); return "finished";`)).resolves.toBe("finished");
+    expect(stagehand.close).toHaveBeenCalledOnce();
+    expect(stagehand.browser.close).toHaveBeenCalledOnce();
+    await tools.close();
+    await expect(tools.snapshot()).rejects.toThrow("browser is closed");
+    expect(experimentalBatch).toHaveBeenCalledOnce();
+    expect(stagehand.browser.close).toHaveBeenCalledOnce();
+  });
+
+  it("still releases the browser when client cleanup fails", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    vi.mocked(stagehand.close).mockRejectedValue(new Error("apiKey=private-key"));
+    const tools = new StagehandFacadeTools(stagehand);
+    await expect(tools.run(`await browser.close();`)).rejects.toThrow(
+      "Failed to close the Stagehand facade browser.",
+    );
+    expect(stagehand.browser.close).toHaveBeenCalledOnce();
+    await expect(tools.run("return 1")).rejects.toThrow("browser is closed");
+  });
+
+  it("honors browser.close even when subsequent agent code throws", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand);
+    await expect(
+      tools.run(`await browser.close(); throw new Error("agent failure");`),
+    ).rejects.toThrow("agent failure");
+    expect(stagehand.browser.close).toHaveBeenCalledOnce();
+  });
+
+  it("confines artifacts across traversal, absolute paths, and symlinks", async () => {
+    const root = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-paths-"));
+    tempDirs.push(root);
+    const artifactRoot = path.join(root, "artifacts");
+    await fsp.mkdir(artifactRoot);
+    const outside = path.join(root, "outside");
+    await fsp.mkdir(outside);
+    const existing = path.join(outside, "existing.png");
+    await fsp.writeFile(existing, "preserve");
+    await fsp.symlink(outside, path.join(artifactRoot, "linked-directory"));
+    await fsp.symlink(existing, path.join(artifactRoot, "linked-file.png"));
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand, { artifactRoot });
+    for (const requestedPath of [
+      "../escape.png",
+      path.join(outside, "absolute.png"),
+      "linked-directory/created/sub.png",
+      "linked-file.png",
+    ]) {
+      await expect(
+        tools.run(`await page.screenshot({ path: ${JSON.stringify(requestedPath)} });`),
+      ).rejects.toThrow();
+    }
+    expect(await fsp.readdir(outside)).toEqual(["existing.png"]);
+    expect(await fsp.readFile(existing, "utf8")).toBe("preserve");
+    expect(await fsp.readdir(root)).toEqual(["artifacts", "outside"]);
+  });
+
   it("retries without a page target when the batch page vanished", async () => {
     const page = createFakePage();
     const { stagehand, context, experimentalBatch, keeper } = createFakeStagehand(page);
@@ -285,6 +345,16 @@ describe("StagehandFacadeTools keeper tab", () => {
     // The keeper never reaches agent code.
     await expect(tools.run(`return context.pages().length;`)).resolves.toBe(1);
     expect(keeper.pageId).toBe("keeper-page");
+  });
+
+  it("keeps the keeper hidden after navigation and timeout rediscovery", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand);
+    await expect(
+      tools.run(
+        `await page.goto("https://example.com"); await page.waitForTimeout(1); return context.pages().length;`,
+      ),
+    ).resolves.toBe(1);
   });
 
   it("gives the agent a fresh page when its only tab is gone and the keeper remains", async () => {
