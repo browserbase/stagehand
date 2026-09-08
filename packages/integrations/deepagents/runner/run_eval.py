@@ -405,11 +405,16 @@ def build_eval_model(config: RunnerConfig) -> str | BaseChatModel:
     if config.model.startswith("xai/") or config.model.startswith("xai:"):
         from langchain_openai import ChatOpenAI
 
+        api_key = os.environ.get("XAI_API_KEY")
+        if not api_key or not api_key.strip():
+            # ChatOpenAI otherwise falls back to OPENAI_API_KEY, including when
+            # base_url selects another provider. Never send that key to xAI.
+            raise ValueError("XAI_API_KEY is required for xAI models.")
         model_id = config.model.split("/", 1)[-1].split(":", 1)[-1]
         return ChatOpenAI(
             model=model_id,
             base_url="https://api.x.ai/v1",
-            api_key=os.environ.get("XAI_API_KEY"),
+            api_key=api_key,
         )
     return config.model
 
