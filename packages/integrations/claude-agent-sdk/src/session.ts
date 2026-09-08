@@ -286,7 +286,13 @@ export function logClaudeCodeMessage(logger: HarnessLogger, message: ClaudeSdkMe
   const level = harnessEventLogLevel(type, {
     isError:
       (type === "result" && message.subtype !== undefined && message.subtype !== "success") ||
-      message.is_error === true,
+      message.is_error === true ||
+      (type === "user" &&
+        isRecord(message.message) &&
+        Array.isArray(message.message.content) &&
+        message.message.content.some(
+          (block) => isRecord(block) && block.type === "tool_result" && block.is_error === true,
+        )),
     hasContent: type === "assistant" || type === "user" || type === "result",
   });
   if (level === undefined) return;

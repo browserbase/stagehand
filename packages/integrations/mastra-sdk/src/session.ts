@@ -415,6 +415,7 @@ export function logMastraEvent(logger: HarnessLogger, event: MastraEvent): void 
   });
   if (level === undefined) return;
   const summary = summarizeMastraEvent(event);
+  if (summary.detail) summary.detail = clip(summary.detail, MAX_EVENT_DETAIL_CHARS);
   logger.log({
     category: "mastra",
     message: summary.message,
@@ -462,10 +463,7 @@ export function summarizeMastraEvent(event: MastraEvent): {
     return sanitizeMastraSummary(`error: ${clip(message, 500)}`, message);
   }
   const detail = safeJson(compactMastraEvent(event));
-  return sanitizeMastraSummary(
-    `${type} event`,
-    detail === undefined ? undefined : clip(detail, MAX_EVENT_DETAIL_CHARS),
-  );
+  return sanitizeMastraSummary(`${type} event`, detail);
 }
 
 const MAX_EVENT_DETAIL_CHARS = 2_000;

@@ -32,4 +32,16 @@ describe("eve event log levels", () => {
       [1, "turn failed: boom"],
     ]);
   });
+  it.each([
+    { status: "completed", isError: false, level: 2 },
+    { status: "failed", isError: false, level: 1 },
+    { status: "completed", isError: true, level: 1 },
+  ])("classifies action.result $status isError=$isError", ({ status, isError, level }) => {
+    const { lines, logger } = recordingLogger();
+    logEveEvent(logger, {
+      type: "action.result",
+      data: { status, result: { toolName: "run", isError } },
+    });
+    expect(lines[0].level).toBe(level);
+  });
 });

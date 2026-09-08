@@ -40,4 +40,17 @@ describe("codex event log levels", () => {
     logCodexEvent(logger, { type: "item.completed", item: { type: "error", message: "bad" } });
     expect(lines.map((line) => line.level)).toEqual([1, 1, 1]);
   });
+  it.each([0, 1, -1])("classifies completed command exit_code=%s", (exitCode) => {
+    const { lines, logger } = recordingLogger();
+    logCodexEvent(logger, {
+      type: "item.completed",
+      item: {
+        type: "command_execution",
+        status: "completed",
+        command: "fixture",
+        exit_code: exitCode,
+      },
+    });
+    expect(lines[0].level).toBe(exitCode === 0 ? 2 : 1);
+  });
 });
