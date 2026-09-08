@@ -25,9 +25,10 @@ const input = {
 describe("Gemini native mount ownership", () => {
   it("uses the supplied browser and typed bridge, preserves loss metadata, and cleans up once", async () => {
     const cleanup = vi.fn(async () => {});
-    const loss = (): undefined => undefined;
+    let currentLoss: { cause: string } | undefined;
+    const loss = () => currentLoss;
     const callTool = vi.fn(async () => ({
-      content: [{ type: "text", text: "{}" }],
+      content: [{ type: "text", text: '{"type":"undefined"}' }],
     }));
     const browserSession = { provider: "local" as const, sessionId: "owned-fixture" };
     vi.mocked(startAgentToolRuntime).mockResolvedValue({
@@ -64,6 +65,15 @@ describe("Gemini native mount ownership", () => {
       { code: expect.stringContaining('page.goto("https://fixture.test"') },
       { timeoutMs: 90_000 },
     );
+    currentLoss = { cause: "closed" };
+    await expect(
+      adapter.executor.execute(
+        "navigate",
+        { url: "https://fixture.test" },
+        { toolUseId: "after-loss" },
+      ),
+    ).rejects.toThrow("Browser session lost (confirmed by eval runner)");
+    expect(callTool).toHaveBeenCalledOnce();
     await Promise.all([adapter.cleanup(), adapter.cleanup()]);
     expect(cleanup).toHaveBeenCalledOnce();
   });
