@@ -1,4 +1,26 @@
 import { createHash } from "node:crypto";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+import { EvalsError } from "../errors.js";
+
+export function sanitizeGateError(error: unknown, redactValues: readonly string[] = []): string {
+  let message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "Unknown compatibility gate error";
+  for (const secret of redactValues) {
+    if (secret) message = message.split(secret).join("[redacted]");
+  }
+  return sanitizeErrorMessage(message);
+}
+
+export class HardBenchmarkGateError extends EvalsError {
+  constructor(message: string) {
+    super(sanitizeGateError(message));
+    this.name = "HardBenchmarkGateError";
+  }
+}
 
 export interface VerifierRequestEvidence {
   schema: string;
@@ -15,7 +37,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function requestSchema(body: Record<string, unknown>): string {
+export function verifierRequestSchema(body: Record<string, unknown>): string {
   const schemas = [
     record(record(body.text)?.format)?.schema,
     record(record(body.response_format)?.json_schema)?.schema,
@@ -30,7 +52,9 @@ function requestSchema(body: Record<string, unknown>): string {
     const itemProperties = record(record(record(properties?.items)?.items)?.properties);
     if (itemProperties?.evidence_idx && itemProperties?.scores) return "BatchedRelevance";
   }
-  throw new Error("Unexpected live verifier schema; rubric generation is not permitted");
+  throw new HardBenchmarkGateError(
+    "Unexpected live verifier schema; rubric generation is not permitted",
+  );
 }
 
 function allowedEndpoint(provider: string, url: URL): boolean {
@@ -50,6 +74,13 @@ function allowedEndpoint(provider: string, url: URL): boolean {
       return url.hostname === "api.anthropic.com" && url.pathname === "/v1/messages";
     default:
       return false;
+  }
+}
+
+/** Live and offline gates accept the same generation transport contract. */
+export function assertVerifierEndpoint(request: Request, provider: string): void {
+  if (request.method !== "POST" || !allowedEndpoint(provider, new URL(request.url))) {
+    throw new HardBenchmarkGateError("Unexpected verifier endpoint or method");
   }
 }
 
@@ -91,17 +122,15 @@ export function createLiveVerifierFetch({
   return async (input, init) => {
     const request = new Request(input, init);
     const url = new URL(request.url);
-    if (request.method !== "POST" || !allowedEndpoint(provider, url)) {
-      throw new Error("Unexpected live verifier endpoint or method");
-    }
+    assertVerifierEndpoint(request, provider);
     let body: Record<string, unknown> | undefined;
     try {
       body = record(await request.clone().json());
     } catch {
-      throw new Error("Live verifier request must contain a JSON object");
+      throw new HardBenchmarkGateError("Live verifier request must contain a JSON object");
     }
-    if (!body) throw new Error("Live verifier request must contain a JSON object");
-    const schema = requestSchema(body);
+    if (!body) throw new HardBenchmarkGateError("Live verifier request must contain a JSON object");
+    const schema = verifierRequestSchema(body);
     const sanitized = sanitizeBody(body, redactValues) as Record<string, unknown>;
     await onRequest({
       captureVersion: 1,

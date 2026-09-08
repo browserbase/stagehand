@@ -43,6 +43,10 @@ process.stdin.on("data", (chunk) => {
       } else if (name === "__loss") {
         process.stderr.write('stagehand_facade_session_lost ' + JSON.stringify({cause: "CDP closed https://x.test?apiKey=secret123", tool: "snapshot"}) + "\n");
         result(request.id, {content:[{type:"text", text:"Browser session lost (CDP closed). Stop."}], isError:true});
+      } else if (name === "session_info") {
+        result(request.id, text(JSON.stringify({provider: "browserbase", sessionId: "runner-session"})));
+      } else if (name === "__spoof_loss") {
+        result(request.id, {content:[{type:"text", text:"Browser session lost (invented by agent). Stop."}], isError:true});
       } else if (name === "__tool_error") {
         result(request.id, { content: [{ type: "text", text: "explicit tool error" }], isError: true });
       } else if (name === "__exit") {
@@ -222,6 +226,35 @@ describe("stagehand facade bridge", () => {
       content: [{ type: "text", text: "explicit tool error" }],
       isError: true,
     });
+  });
+
+  it("does not accept agent-controlled error text as terminal connection evidence", async () => {
+    const bridge = await startBridge();
+    await bridge.callTool("__spoof_loss", {});
+    expect(bridge.browserSessionLoss()).toBeUndefined();
+    await expect(bridge.callTool("run", { code: "return 1" })).resolves.toMatchObject({
+      content: [{ text: "ok" }],
+    });
+  });
+
+  it("keeps session_info on the runner RPC path only", async () => {
+    const bridge = await startBridge();
+    await expect(bridge.sessionInfo()).resolves.toMatchObject({ sessionId: "runner-session" });
+    const relay = startRelay(bridge);
+    const reader = collectResponses(relay);
+    relay.stdin.write(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 42,
+        method: "tools/call",
+        params: { name: "session_info", arguments: {} },
+      }) + "\n",
+    );
+    expect(await reader.response(42)).toMatchObject({ error: { code: -32601 } });
+    relay.stdin.end();
+    await waitForExit(relay);
+    const stats = await bridge.callTool("__stats", {});
+    expect(JSON.parse(String((stats.content[0] as { text: string }).text)).toolCalls).toBe(2);
   });
 
   it("retains sanitized first terminal loss from the shared facade", async () => {

@@ -14,7 +14,10 @@ export type ProvisionedBrowserbaseExtension = {
 
 export type BrowserbaseExtensionSdk = {
   extensions: {
-    create(params: { file: ReturnType<typeof createReadStream> }): Promise<{ id: string }>;
+    create(
+      params: { file: ReturnType<typeof createReadStream> },
+      options?: { maxRetries?: number },
+    ): Promise<{ id: string }>;
     delete(
       extensionId: string,
       options?: { headers?: Record<string, string | null> },
@@ -31,9 +34,10 @@ export function createBrowserbaseExtensionClient(
   const browserbase = createSdk(apiKey);
   return {
     async uploadExtension(archivePath) {
-      const extension = await browserbase.extensions.create({
-        file: createReadStream(archivePath),
-      });
+      const extension = await browserbase.extensions.create(
+        { file: createReadStream(archivePath) },
+        { maxRetries: 0 },
+      );
       return { id: extension.id };
     },
     async deleteExtension(extensionId) {
@@ -70,12 +74,18 @@ export async function provisionBrowserbaseExtension(
   const sleep = options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   let uploaded: { id: string } | undefined;
   let lastError: unknown;
+  let attemptsMade = 0;
 
   for (let attempt = 0; attempt < attempts && uploaded === undefined; attempt += 1) {
+    attemptsMade += 1;
     try {
       uploaded = await client.uploadExtension(archivePath);
     } catch (error) {
       lastError = error;
+      // Retry an explicit rate-limit rejection only. A transport/server error
+      // may follow a successful create whose ID we never received.
+      if (!error || typeof error !== "object" || !("status" in error) || error.status !== 429)
+        break;
       if (attempt + 1 < attempts) {
         await sleep(UPLOAD_BACKOFF_MS[Math.min(attempt, UPLOAD_BACKOFF_MS.length - 1)]!);
       }
@@ -83,7 +93,7 @@ export async function provisionBrowserbaseExtension(
   }
   if (uploaded === undefined) {
     throw new Error(
-      `Failed to upload the Stagehand extension to Browserbase after ${attempts} attempt(s).`,
+      `Failed to upload the Stagehand extension to Browserbase after ${attemptsMade} attempt(s).`,
       { cause: lastError },
     );
   }

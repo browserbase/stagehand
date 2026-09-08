@@ -67,7 +67,9 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
     fallbackErrorMessage: "pi did not report success",
     stepBudget: maxTurns,
     stepBudgetUnit: "turns",
-    configuration: { requestedThinkingLevel: process.env.EVAL_PI_THINKING ?? "medium" },
+    configuration: process.env.EVAL_PI_THINKING
+      ? { requestedThinkingLevel: process.env.EVAL_PI_THINKING }
+      : {},
     systemPromptMode: "native",
     runSession: async (prompt, systemPrompt) => {
       const sessionResult = await runPiSession({

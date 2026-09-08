@@ -9,6 +9,7 @@ import {
   assertVerifiedResult,
   runCompatibilityGate,
 } from "../../scripts/verify-hardbenchmark-compatibility.js";
+import { HardBenchmarkGateError } from "../../scripts/hardbenchmark-request-evidence.js";
 import manifest from "../fixtures/hardbenchmark-compatibility/manifest.json" with { type: "json" };
 
 const repo = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -119,6 +120,25 @@ describe("HardBench real V3 verifier compatibility", () => {
         expectedProcess: undefined,
       }),
     ).toThrow("independent process expectations");
+  });
+
+  it("uses a typed sanitized error for verifier failures", () => {
+    const check = () =>
+      assertVerifiedResult(
+        {
+          _success: false,
+          verifierError: "Provider failed: https://example.com?apiKey=private-value",
+        },
+        undefined,
+        rubric,
+        fixture("fallback-negative"),
+      );
+    expect(check).toThrow(HardBenchmarkGateError);
+    try {
+      check();
+    } catch (error) {
+      expect(String(error)).not.toContain("private-value");
+    }
   });
 
   it("never accepts verifier errors, insufficient evidence or uncertainty sentinels under permissive process bounds", () => {

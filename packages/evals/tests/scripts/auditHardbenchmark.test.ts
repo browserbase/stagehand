@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyAudit, auditRows, checkRubric } from "../../scripts/audit-hardbenchmark.js";
+import { auditRows, checkRubric } from "../../scripts/audit-hardbenchmark.js";
+import { EvalsError } from "../../errors.js";
 
 const rubric = {
   items: [
@@ -20,34 +21,49 @@ describe("offline HardBench audit", () => {
         { id: "x", ques: "Task" },
         { id: "x", ques: "Task" },
       ]),
-    ).toThrow(/Duplicate/);
+    ).toThrow('Duplicate task id: "x"');
+  });
+  it("bounds and sanitizes duplicate IDs without hiding the identifying prefix", () => {
+    const id = "duplicate?token=private-secret\n" + "x".repeat(200);
+    const row = { id, ques: "Task", precomputed_rubric: rubric };
+    let thrown: unknown;
+    try {
+      auditRows([row, row]);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(EvalsError);
+    const message = (thrown as EvalsError).message;
+    expect(message).toContain("duplicate?token=[redacted]");
+    expect(message).not.toContain("private-secret");
+    expect(message).not.toContain("\n");
+    expect(message.length).toBeLessThan(160);
+    expect(message.endsWith("…")).toBe(true);
   });
   it("flags a stop-boundary ambiguity without invalidating the task", () => {
     const row = { id: "x", ques: "Buy the item", precomputed_rubric: rubric };
     expect(auditRows([row])[0]).toMatchObject({ stopBeforePurchase: true, rubricProblems: [] });
-    expect(applyAudit([row], auditRows([row]))[0]).toMatchObject({
-      verdict_review: "stop-before-purchase",
-    });
-    expect(row).not.toHaveProperty("verdict_review");
+    expect(row).toEqual({ id: "x", ques: "Buy the item", precomputed_rubric: rubric });
   });
-  it("preserves manual retirements and rubric version when applying defects", () => {
+  it("reports rubric defects without mutating the corpus or its rubric metadata", () => {
     const rows: Parameters<typeof auditRows>[0] = [
       {
         id: "x",
         ques: "Task",
-        valid: false,
-        invalid_reason: "manual retirement",
+        set: "core",
         rubric_version: "1.2",
         clarifications: ["critical-point"],
         precomputed_rubric: null,
       },
-      { id: "y", ques: "Task", precomputed_rubric: null },
     ];
-    const updated = applyAudit(rows, auditRows(rows));
-    expect(updated[0]).toEqual(rows[0]);
-    expect(updated[1]).toMatchObject({
-      valid: false,
-      invalid_reason: "rubric: precomputed_rubric.items missing or empty",
-    });
+    const before = structuredClone(rows);
+    expect(auditRows(rows)).toEqual([
+      {
+        id: "x",
+        rubricProblems: ["precomputed_rubric.items missing or empty"],
+        stopBeforePurchase: false,
+      },
+    ]);
+    expect(rows).toEqual(before);
   });
 });

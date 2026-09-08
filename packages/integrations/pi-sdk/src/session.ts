@@ -58,7 +58,7 @@ export type PiSessionConfig = {
   systemPrompt?: string;
   /** Appended after pi's stock system prompt (the claude_code preset+append shape). */
   appendSystemPrompt?: string;
-  /** Defaults to "medium" — reasoning on, like every other harness. */
+  /** Overrides the model's thinking suffix; defaults to "medium" when neither is supplied. */
   thinkingLevel?: string;
   maxTurns?: number;
   customTools?: PiToolDefinition[];
@@ -209,7 +209,9 @@ export async function runPiSession(input: {
       ...(input.session.appendSystemPrompt && {
         appendSystemPrompt: input.session.appendSystemPrompt,
       }),
-      thinkingLevel: input.session.thinkingLevel ?? DEFAULT_PI_THINKING_LEVEL,
+      ...(input.session.thinkingLevel !== undefined && {
+        thinkingLevel: input.session.thinkingLevel,
+      }),
       customTools,
     });
     piSession.agent.shouldStopAfterTurn = () => turns >= maxTurns;
