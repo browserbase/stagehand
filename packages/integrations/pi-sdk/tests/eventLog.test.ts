@@ -39,4 +39,12 @@ describe("pi event log levels", () => {
       [1, "tool_execution_end: run"],
     ]);
   });
+  it.each(["error", "stop"])("classifies message_end stopReason=%s", (stopReason) => {
+    const { lines, logger } = recordingLogger();
+    logPiEvent(logger, {
+      type: "message_end",
+      message: { role: "assistant", stopReason, errorMessage: "provider unavailable" },
+    });
+    expect(lines[0].level).toBe(stopReason === "error" ? 1 : 2);
+  });
 });

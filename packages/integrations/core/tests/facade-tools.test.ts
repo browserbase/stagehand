@@ -903,9 +903,11 @@ describe("StagehandFacadeTools.run frameLocator", () => {
       "-32000 Node does not have a layout object",
     );
     const { tools } = setup(world);
-    await expect(
-      tools.run(`await page.frameLocator("#editor").locator(".hidden").click({ timeout: 300 });`),
-    ).rejects.toThrow(/not rendered \(no layout box/u);
+    const result = tools.run(
+      `await page.frameLocator("#editor").locator(".hidden").click({ timeout: 300 });`,
+    );
+    await expect(result).rejects.toThrow(/not rendered \(no layout box/u);
+    await expect(result).rejects.not.toThrow(/-32000|Original:/u);
   });
 
   it("rejects operations that cannot cross the frame boundary with guidance", async () => {

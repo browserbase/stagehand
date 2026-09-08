@@ -3,6 +3,25 @@ import { compactPiEvent } from "@browserbasehq/stagehand-integrations-pi-sdk";
 import { piAdapter } from "../../framework/harnesses/piAdapter.js";
 
 describe("Pi screenshot evidence pipeline", () => {
+  it("keeps explicit omission evidence without re-decoding an over-budget screenshot", () => {
+    const event = compactPiEvent(
+      {
+        type: "tool_execution_end",
+        toolCallId: "oversize",
+        toolName: "screenshot",
+        result: { content: [{ type: "image", data: "AAAA", mimeType: "image/png" }] },
+      },
+      { remainingBytes: 0 },
+    );
+    const trajectory = piAdapter.fromHarnessResult(
+      { events: [event], finalAnswer: "done" },
+      { id: "omitted-image", instruction: "Capture a screenshot." },
+    );
+    const modalities = trajectory.steps[0].agentEvidence.modalities;
+    expect(modalities.filter((modality) => modality.type === "image")).toEqual([]);
+    expect(JSON.stringify(modalities)).toContain("Screenshot omitted");
+    expect(JSON.stringify(event)).not.toContain("AAAA");
+  });
   it.each([false, true])("retains the screenshot after SDK compaction=%s", (compact) => {
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZu0AAAAASUVORK5CYII=",

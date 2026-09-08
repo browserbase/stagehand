@@ -197,6 +197,40 @@ describe("Codex SDK session", () => {
       ).toBeUndefined();
     });
 
+    it.each([
+      {},
+      { input_tokens: 10 },
+      { output_tokens: 5 },
+      { input_tokens: "10", output_tokens: 5 },
+      { input_tokens: null, output_tokens: 5 },
+      { input_tokens: -1, output_tokens: 5 },
+      { input_tokens: 10, output_tokens: -1 },
+      { input_tokens: 10, output_tokens: Number.POSITIVE_INFINITY },
+    ])("ignores incomplete or invalid cumulative usage: %j", (total) => {
+      const incomplete = JSON.stringify({
+        type: "event_msg",
+        payload: { type: "token_count", info: { total_token_usage: total } },
+      });
+      expect(parseCodexRolloutUsage(`${rolloutBody}\n${incomplete}`)).toEqual(
+        parseCodexRolloutUsage(rolloutBody),
+      );
+      expect(parseCodexRolloutUsage(incomplete)).toBeUndefined();
+    });
+
+    it("preserves explicitly reported zero cumulative usage", () => {
+      const zero = JSON.stringify({
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: { total_token_usage: { input_tokens: 0, output_tokens: 0 } },
+        },
+      });
+      expect(parseCodexRolloutUsage(`${rolloutBody}\n${zero}`)).toEqual({
+        input_tokens: 0,
+        output_tokens: 0,
+      });
+    });
+
     it("finds the thread's rollout under CODEX_HOME/sessions", async () => {
       const codexHome = await writeRollout("thread-abc");
       await expect(readCodexRolloutUsage(codexHome, "thread-abc")).resolves.toMatchObject({
