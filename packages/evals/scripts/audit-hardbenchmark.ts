@@ -3,14 +3,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { EvalsError } from "../errors.js";
 
 type Row = {
   id: string;
   ques: string;
   precomputed_rubric?: unknown;
-  valid?: boolean;
-  invalid_reason?: string;
-  verdict_review?: string;
   [key: string]: unknown;
 };
 type Item = { criterion: string; description: string; maxPoints: number };
@@ -70,44 +68,26 @@ export function auditRows(rows: Row[]) {
       typeof row.ques !== "string" ||
       !row.ques.trim()
     )
-      throw new Error("Every row needs a nonempty id and question");
-    if (ids.has(row.id)) throw new Error(`Duplicate task id: ${row.id}`);
+      throw new EvalsError("Every row needs a nonempty id and question");
+    if (ids.has(row.id)) throw new EvalsError("Duplicate task id");
     ids.add(row.id);
     const problems = checkRubric(row.precomputed_rubric);
     return {
       id: row.id,
       rubricProblems: problems,
       stopBeforePurchase: checkStopBeforePurchase(row),
-      active: row.valid !== false,
     };
-  });
-}
-
-/** An audit can flag a rubric defect; it can never reactivate retired rows. */
-export function applyAudit(rows: Row[], audits: ReturnType<typeof auditRows>): Row[] {
-  const byId = new Map(audits.map((audit) => [audit.id, audit]));
-  return rows.map((row) => {
-    const audit = byId.get(row.id);
-    if (!audit) return row;
-    const next = { ...row };
-    if (audit.rubricProblems.length && row.valid !== false) {
-      next.valid = false;
-      next.invalid_reason = `rubric: ${audit.rubricProblems.join("; ")}`;
-    }
-    if (audit.stopBeforePurchase && !next.verdict_review)
-      next.verdict_review = "stop-before-purchase";
-    return next;
   });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const { values } = parseArgs({
-    options: { dataset: { type: "string" }, out: { type: "string" }, apply: { type: "boolean" } },
+    options: { dataset: { type: "string" }, out: { type: "string" } },
   });
   if (!values.dataset || !values.out)
-    throw new Error("Required: --dataset <jsonl> --out <new-json> [--apply]");
+    throw new EvalsError("Required: --dataset <jsonl> --out <new-json>");
   if (path.resolve(values.dataset) === path.resolve(values.out))
-    throw new Error("Dataset and report paths must differ");
+    throw new EvalsError("Dataset and report paths must differ");
   const lines = readFileSync(values.dataset, "utf8")
     .split("\n")
     .filter((line) => line.trim());
@@ -127,15 +107,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     ) + "\n",
     { flag: "wx" },
   );
-  if (values.apply) {
-    const updated = applyAudit(rows, tasks);
-    writeFileSync(
-      values.dataset,
-      updated
-        .map((row, i) =>
-          JSON.stringify(row) === JSON.stringify(rows[i]) ? lines[i] : JSON.stringify(row),
-        )
-        .join("\n") + "\n",
-    );
-  }
 }
