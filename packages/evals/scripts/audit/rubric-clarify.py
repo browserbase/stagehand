@@ -25,7 +25,7 @@ CONVENTIONS = {
     re.compile(r"compar(e|ison|ing)|from (at least )?(one|two|another) (other )?(retailer|carrier|site|service)|competitor", re.I),
     " Source convention: a value about a retailer, carrier, or venue must come from that entity's own page when the trajectory visited it; another company's comparison table is not an authoritative source for that entity's prices or terms."),
   "relative-dates": (
-    re.compile(r"\btomorrow\b|\btoday\b|this coming|this weekend|next (month|day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|run date|following (day|friday|saturday|sunday|monday|tuesday|wednesday|thursday)", re.I),
+    re.compile(r"\btomorrow\b|\btoday\b|this coming|this weekend|next (month|day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|\bmonth\s+after\s+next\b|run date|following (day|friday|saturday|sunday|monday|tuesday|wednesday|thursday)", re.I),
     " Date convention: relative dates resolve against the date the agent's browser showed during the run; a one-day difference from the run's UTC timestamp is not an error."),
 }
 
