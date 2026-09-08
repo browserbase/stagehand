@@ -51,7 +51,10 @@ describe("facade ownership cleanup", () => {
     const sessionClose = vi.spyOn(running.session, "close");
     const first = running.cleanup();
     expect(running.cleanup()).toBe(first);
-    await expect(first).rejects.toBe(failure);
+    await expect(first).rejects.toMatchObject({
+      message: "Failed to clean up the Stagehand facade.",
+      cause: { errors: [failure] },
+    });
     expect(sessionClose).toHaveBeenCalledOnce();
     expect(release).toHaveBeenCalledOnce();
   });
@@ -60,7 +63,23 @@ describe("facade ownership cleanup", () => {
     const running = await makeTool().start(input);
     const failure = new Error("session cleanup failed");
     vi.spyOn(running.session, "close").mockRejectedValue(failure);
-    await expect(running.cleanup()).rejects.toBe(failure);
+    await expect(running.cleanup()).rejects.toMatchObject({
+      message: "Failed to clean up the Stagehand facade.",
+      cause: { errors: [failure] },
+    });
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("retains every cleanup failure behind a fixed public diagnostic", async () => {
+    const running = await makeTool().start(input);
+    const first = new Error("apiKey=private-key");
+    const second = new Error("session failed");
+    bridge.close.mockRejectedValueOnce(first);
+    vi.spyOn(running.session, "close").mockRejectedValueOnce(second);
+    await expect(running.cleanup()).rejects.toMatchObject({
+      message: "Failed to clean up the Stagehand facade.",
+      cause: { errors: [first, second] },
+    });
     expect(release).toHaveBeenCalledOnce();
   });
 

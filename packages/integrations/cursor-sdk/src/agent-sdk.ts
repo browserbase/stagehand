@@ -32,6 +32,8 @@ export type CursorSdkAgentFactory = (options: AgentOptions) => Promise<CursorSdk
 
 export interface CursorSdkSessionInput {
   prompt: string;
+  /** Explicit key for hosts with an isolated environment; empty suppresses ambient fallback. */
+  apiKey?: string;
   model: string;
   cwd: string;
   mcpServers: Record<string, unknown>;
@@ -76,7 +78,7 @@ export async function runCursorSdkAgentSession(
   }
   const createAgent = input.createAgent ?? defaultCreateAgent;
   const options = {
-    apiKey: process.env.CURSOR_API_KEY,
+    apiKey: input.apiKey ?? process.env.CURSOR_API_KEY,
     model: { id: normalizeModel(input.model) },
     local: {
       cwd: input.cwd,

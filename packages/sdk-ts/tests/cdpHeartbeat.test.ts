@@ -142,6 +142,92 @@ describe("CDP heartbeat lifecycle", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("logs sanitized nested socket causes once without changing the terminal error", async () => {
+    vi.stubEnv("STAGEHAND_CDP_LOG", "1");
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const { client, socket } = connect();
+    socket.close.mockImplementation(() => socket.remoteClose("cleanup"));
+    const cause = new Error(
+      "socket hang up wss://browser.test?apiKey=nested-secret sk-nested-secret Bearer bearer-secret",
+    );
+    const transport = new Error("WebSocket failed", { cause });
+    const onerror = vi.fn();
+    client.onerror = onerror;
+    const request = client.sendCommand("Runtime.evaluate");
+    const rejected = expect(request).rejects.toMatchObject({ cause: transport });
+    socket.fail(transport);
+    await rejected;
+    expect(stderr).toHaveBeenCalledOnce();
+    const output = String(stderr.mock.calls[0]![0]);
+    const metadata = JSON.parse(output.slice("CDP_DROP ".length));
+    expect(metadata).toMatchObject({
+      kind: "error",
+      code: null,
+      pending: 1,
+      last_method: "Runtime.evaluate",
+      reason:
+        "CDP connection closed: WebSocket failed: socket hang up [url] [redacted] Bearer [redacted]",
+    });
+    for (const secret of ["nested-secret", "sk-nested-secret", "bearer-secret"])
+      expect(output).not.toContain(secret);
+    expect(onerror).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ cause: transport }));
+    expect(client.closed).toBe(true);
+    expect(client.pending.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("bounds and redacts nested diagnostic text before truncating it", () => {
+    vi.stubEnv("STAGEHAND_CDP_LOG", "1");
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const { socket } = connect();
+    socket.fail(
+      new Error("transport failed", {
+        cause: new Error(`sk-${"s".repeat(300)} ${"detail ".repeat(50)}`),
+      }),
+    );
+    const output = String(stderr.mock.calls[0]![0]);
+    const metadata = JSON.parse(output.slice("CDP_DROP ".length));
+    expect(metadata.reason).toHaveLength(160);
+    expect(metadata.reason).toMatch(
+      /^CDP connection closed: transport failed: \[redacted\] detail /u,
+    );
+    expect(output).not.toContain("ssss");
+  });
+
+  it.each(["cycle", "throwing getter", "unknown object"])(
+    "keeps terminal cleanup and useful text when a nested cause is a %s",
+    (kind) => {
+      vi.stubEnv("STAGEHAND_CDP_LOG", "1");
+      const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      const { client, socket } = connect();
+      const transport = new Error("transport failed");
+      if (kind === "cycle") transport.cause = transport;
+      else if (kind === "throwing getter")
+        Object.defineProperty(transport, "cause", {
+          get: () => {
+            throw new Error("private getter");
+          },
+        });
+      else
+        transport.cause = {
+          message: "private object",
+          toString: () => {
+            throw new Error("private stringifier");
+          },
+        };
+      const onerror = vi.fn();
+      client.onerror = onerror;
+      socket.fail(transport);
+      const output = String(stderr.mock.calls[0]![0]);
+      const metadata = JSON.parse(output.slice("CDP_DROP ".length));
+      expect(metadata.reason).toBe("CDP connection closed: transport failed");
+      expect(output).not.toContain("private");
+      expect(onerror).toHaveBeenCalledOnce();
+      expect(client.closed).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
   it("writes sanitized metadata to stderr and the ESM file sink exactly once", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "cdp-diagnostic-"));
     const file = path.join(directory, "drop.jsonl");

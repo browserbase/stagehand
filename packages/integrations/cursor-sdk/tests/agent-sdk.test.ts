@@ -66,6 +66,17 @@ describe("Cursor SDK shared-mount boundary", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it.each([
+    [undefined, "ambient-key"],
+    ["explicit-key", "explicit-key"],
+    ["", ""],
+  ])("respects explicit API key presence (%s)", async (apiKey, expected) => {
+    vi.stubEnv("CURSOR_API_KEY", "ambient-key");
+    const f = fixture();
+    await runCursorSdkAgentSession({ ...base, apiKey, createAgent: f.createAgent });
+    expect(f.createAgent).toHaveBeenCalledWith(expect.objectContaining({ apiKey: expected }));
+  });
+
   it("requires a supplied mount before creating an agent", async () => {
     const f = fixture();
     await expect(

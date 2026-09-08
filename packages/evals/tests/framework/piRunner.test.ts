@@ -112,7 +112,8 @@ describe("pi runner", () => {
     expect((options?.appendSystemPrompt as string).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
     expect(taskPrompt).toContain(plan.instruction);
     expect(taskPrompt).not.toContain(EVAL_SYSTEM_PROMPT);
-    expect(options?.thinkingLevel).toBe("medium");
+    expect(options?.thinkingLevel).toBeUndefined();
+    expect(result.harnessConfiguration).not.toHaveProperty("requestedThinkingLevel");
   });
 
   it("returns a failed task result for SDK failures", async () => {
