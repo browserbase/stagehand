@@ -82,7 +82,14 @@ export function buildBrowserToolsetDeclaration(
 ): Record<string, unknown> {
   return {
     type: ANTHROPIC_BROWSER_TOOLSET_TYPE,
-    configs: { ...DEFAULT_BROWSER_TOOLSET_CONFIGS, ...(configOverrides ?? {}) },
+    configs: Object.fromEntries(
+      [
+        ...new Set([
+          ...Object.keys(DEFAULT_BROWSER_TOOLSET_CONFIGS),
+          ...Object.keys(configOverrides ?? {}),
+        ]),
+      ].map((member) => [member, effectiveMemberConfig(member, configOverrides)]),
+    ),
   };
 }
 
@@ -91,10 +98,21 @@ export function isBrowserMemberEnabled(
   member: string,
   configOverrides?: BrowserToolsetConfigs,
 ): boolean {
-  const configs = { ...DEFAULT_BROWSER_TOOLSET_CONFIGS, ...(configOverrides ?? {}) };
-  const explicit = configs[member]?.enabled;
+  const explicit = effectiveMemberConfig(member, configOverrides).enabled;
   if (typeof explicit === "boolean") return explicit;
   return (BROWSER_TOOLSET_DEFAULT_MEMBERS as readonly string[]).includes(member);
+}
+
+function effectiveMemberConfig(
+  member: string,
+  overrides?: BrowserToolsetConfigs,
+): BrowserToolsetMemberConfig {
+  return {
+    ...(Object.hasOwn(DEFAULT_BROWSER_TOOLSET_CONFIGS, member)
+      ? DEFAULT_BROWSER_TOOLSET_CONFIGS[member]
+      : {}),
+    ...(overrides && Object.hasOwn(overrides, member) ? overrides[member] : {}),
+  };
 }
 
 /** Content blocks a member may return inside its tool_result. */

@@ -298,9 +298,7 @@ export async function runClaudeCuaSession(
           durationMs,
         });
         log(
-          `${name} ${JSON.stringify(toolInput).slice(0, 200)} → ${result.isError ? "error" : "ok"} (${Math.round(durationMs)}ms)${
-            result.isError ? `: ${summarizeContent(result.content)}` : ""
-          }`,
+          `${name} → ${result.isError ? "error" : "ok"} (${Math.round(durationMs)}ms)`,
           result.isError ? 1 : 2,
         );
         toolResults.push({
@@ -319,7 +317,7 @@ export async function runClaudeCuaSession(
     status = "sdk_error";
     iterationError = error;
     stopReason = input.signal?.aborted
-      ? `aborted: ${abortReason(input.signal)}`
+      ? `aborted: ${sanitizeErrorMessage(abortReason(input.signal))}`
       : sanitizeErrorMessage(stringifyError(error));
     input.logger.warn({
       category: "claude_cua",
@@ -415,15 +413,6 @@ export function compressTranscriptImages(
     const { blocks, index } = images[i]!;
     blocks[index] = { type: "text", text: IMAGE_PLACEHOLDER };
   }
-}
-
-function summarizeContent(content: string | CuaToolResultBlock[]): string {
-  if (typeof content === "string") return content.slice(0, 200);
-  const text = content
-    .filter((block) => block.type === "text")
-    .map((block) => (block as { text: string }).text)
-    .join(" ");
-  return text.slice(0, 200);
 }
 
 function throwIfAborted(signal?: AbortSignal): void {

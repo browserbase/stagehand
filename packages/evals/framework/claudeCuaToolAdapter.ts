@@ -83,6 +83,7 @@ export async function prepareClaudeCuaToolAdapter(
         runtime.running.browserSessionLoss,
       ),
       logger: input.logger,
+      browserSessionLoss: runtime.running.browserSessionLoss,
       ...(harnessObservationsEnabled() && {
         onMutation: async (toolUseId: string) => {
           const evidence = await captureCuaEvidence(callTool, runtime.running.browserSessionLoss);

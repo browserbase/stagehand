@@ -132,6 +132,19 @@ describe("claudeCuaAdapter", () => {
     expect(trajectory.status).toBe("complete");
   });
 
+  it("marks a started call with no result as failed while preserving completed calls", () => {
+    const trajectory = claudeCuaAdapter.fromHarnessResult(
+      { events: events.slice(0, 4), status: "error" },
+      taskSpec,
+    );
+    expect(trajectory.steps[0]!.toolOutput).toMatchObject({ ok: true });
+    expect(trajectory.steps[0]!.toolOutput?.error).toBeUndefined();
+    expect(trajectory.steps[1]!.toolOutput).toMatchObject({
+      ok: false,
+      error: "Tool call ended without a result.",
+    });
+  });
+
   it("prefers the runner's terminal observation and explicit final answer", () => {
     const trajectory = claudeCuaAdapter.fromHarnessResult(
       {

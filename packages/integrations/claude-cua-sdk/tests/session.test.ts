@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ANTHROPIC_BROWSER_TOOLSET_TYPE,
   buildBrowserToolsetDeclaration,
@@ -78,6 +78,17 @@ describe("Browser Use toolset declaration", () => {
     expect(isBrowserMemberEnabled("read_console")).toBe(false);
     expect(isBrowserMemberEnabled("navigate")).toBe(true);
     expect(isBrowserMemberEnabled("navigate", { navigate: { enabled: false } })).toBe(false);
+  });
+
+  it("merges member fields without dropping the default enabled state", () => {
+    const overrides = { javascript_exec: { defer_loading: true } };
+    expect(buildBrowserToolsetDeclaration(overrides)).toMatchObject({
+      configs: { javascript_exec: { enabled: true, defer_loading: true } },
+    });
+    expect(isBrowserMemberEnabled("javascript_exec", overrides)).toBe(true);
+    expect(isBrowserMemberEnabled("javascript_exec", { javascript_exec: { enabled: false } })).toBe(
+      false,
+    );
   });
 
   it("normalizes provider-prefixed model ids", () => {
@@ -366,6 +377,69 @@ describe("runClaudeCuaSession", () => {
     const lastMessages = client.requests[2]!.messages as Array<{ role: string; content: unknown }>;
     expect(lastMessages.at(-1)).toMatchObject({ role: "user" });
     expect(String(lastMessages.at(-1)!.content)).toMatch(/cut off/);
+  });
+
+  it("keeps passwords and tokenized URLs out of diagnostic tool logs", async () => {
+    const log = vi.fn();
+    const result = await runClaudeCuaSession({
+      prompt: "p",
+      model: "claude-sonnet-5",
+      logger: { ...logger, log },
+      maxTurns: 2,
+      tools: recordingExecutor(),
+      client: scriptedClient([
+        {
+          content: [
+            toolUse("typed", "type", { text: "password-fixture-123" }),
+            toolUse("url", "navigate", { url: "https://example.com?apiKey=token-fixture" }),
+          ],
+        },
+        { content: [{ type: "text", text: "done" }] },
+      ]),
+    });
+    expect(result.status).toBe("completed");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("password-fixture-123");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("token-fixture");
+    expect(
+      result.events.some(
+        (event) => event.type === "tool_use" && event.input.text === "password-fixture-123",
+      ),
+    ).toBe(true);
+  });
+
+  it("sanitizes an external abort reason in stopReason and warning logs", async () => {
+    const controller = new AbortController();
+    controller.abort("https://example.com?apiKey=abort-secret");
+    const warn = vi.fn();
+    const result = await runClaudeCuaSession({
+      prompt: "p",
+      model: "claude-sonnet-5",
+      logger: { ...logger, warn },
+      maxTurns: 1,
+      tools: recordingExecutor(),
+      client: scriptedClient([]),
+      signal: controller.signal,
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("aborted:");
+    expect(result.stopReason).not.toContain("abort-secret");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("abort-secret");
+  });
+
+  it("clips result text without splitting a surrogate pair", () => {
+    const text = buildClaudeCuaTranscript([
+      {
+        type: "tool_result",
+        turn: 1,
+        toolUseId: "t",
+        name: "read_page",
+        content: "x".repeat(1998) + "😀" + "y".repeat(10),
+        isError: false,
+        durationMs: 0,
+      },
+    ]);
+    expect(Buffer.from(text).toString("utf8")).toBe(text);
+    expect(text).toContain("…</tool_result>");
   });
 
   it("honors an aborted signal between turns", async () => {

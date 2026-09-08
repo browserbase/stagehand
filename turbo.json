@@ -388,7 +388,10 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
+        "$TURBO_ROOT$/vitest.config.ts",
+        "!dist/**",
+        "!.turbo/**",
+        "!node_modules/**"
       ]
     }
   }

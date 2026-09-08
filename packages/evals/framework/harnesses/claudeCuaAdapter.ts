@@ -66,7 +66,8 @@ export class ClaudeCuaTrajectoryAdapter implements TrajectoryAdapter<ClaudeCuaRu
           name: event.name,
           args: event.input,
           result: undefined,
-          ok: true,
+          ok: false,
+          error: "Tool call ended without a result.",
           reasoning: pendingReasoning.trim() || undefined,
         };
         // Only the first member of a turn carries the turn's reasoning.
@@ -82,7 +83,7 @@ export class ClaudeCuaTrajectoryAdapter implements TrajectoryAdapter<ClaudeCuaRu
       const normalized = normalizeResultContent(event.content);
       call.result = normalized.result;
       call.ok = !event.isError;
-      if (event.isError) call.error = normalized.text || "tool failed";
+      call.error = event.isError ? normalized.text || "tool failed" : undefined;
       if (normalized.images.length > 0) {
         call.images = normalized.images;
         lastImage = normalized.images[normalized.images.length - 1]!.bytes;
