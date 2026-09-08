@@ -19,6 +19,7 @@ class ClarifierTests(unittest.TestCase):
         before = copy.deepcopy(rows)
         updated = module.clarify_rows(rows)
         self.assertEqual(rows, before)
+        self.assertEqual(updated, rows)
         for original, clarified in zip(rows, updated):
             for key in original.keys() - {"precomputed_rubric", "rubric_version", "clarifications"}:
                 self.assertEqual(original[key], clarified[key])
@@ -45,7 +46,7 @@ class ClarifierTests(unittest.TestCase):
 
 
     def test_relative_day_and_month_forms_receive_the_date_convention_once(self):
-        for phrase in ["next month", "next day", "following day"]:
+        for phrase in ["next month", "next day", "following day", "month after next", "MONTH  AFTER NEXT"]:
             with self.subTest(phrase=phrase):
                 row = {"id": "date", "ques": "Find the event", "precomputed_rubric": {"items": [
                     {"criterion": "Match the date", "description": f"Find an event {phrase}.", "maxPoints": 1}
