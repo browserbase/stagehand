@@ -132,6 +132,11 @@ export async function runCodexAgent({
         },
         outputSchema: EVAL_RESULT_SCHEMA,
         maxToolSteps,
+        diagnosticDirectory: process.env.EVAL_CODEX_DIAGNOSTICS_DIR,
+        allowedMcpServers:
+          toolAdapter && "allowedMcpServers" in toolAdapter
+            ? toolAdapter.allowedMcpServers
+            : undefined,
         ...(toolAdapter?.env?.CODEX_HOME && { codexHome: toolAdapter.env.CODEX_HOME }),
         onToolStep:
           toolAdapter && "recordObservation" in toolAdapter

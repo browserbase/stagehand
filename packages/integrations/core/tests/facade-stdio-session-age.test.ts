@@ -69,10 +69,13 @@ it("includes browser launch and Stagehand initialization in measured session age
   vi.spyOn(process, "once").mockReturnValue(process);
   vi.spyOn(process.stdin, "once").mockReturnValue(process.stdin);
   await import("../src/facade/stdio-server.js");
-  const handler = mocks.setRequestHandler.mock.calls.at(-1)?.[1] as (request: {
-    params: { name: string; arguments: object };
-  }) => Promise<unknown>;
-  await handler({ params: { name: "snapshot", arguments: {} } });
+  const handler = mocks.setRequestHandler.mock.calls.at(-1)?.[1] as (
+    request: {
+      params: { name: string; arguments: object };
+    },
+    extra: { requestId: string },
+  ) => Promise<unknown>;
+  await handler({ params: { name: "snapshot", arguments: {} } }, { requestId: "snapshot-1" });
   const telemetry = output.mock.calls
     .map(([chunk]) => String(chunk))
     .find((line) => line.startsWith(SESSION_LOST_TELEMETRY_PREFIX));

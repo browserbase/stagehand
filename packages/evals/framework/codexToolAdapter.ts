@@ -1,6 +1,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex-sdk";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import {
@@ -51,7 +52,8 @@ export interface PreparedCodexCodeAdapter {
    * it to record per-step observations (their tool calls never pass through
    * the workspace bridge).
    */
-  recordObservation?: () => void;
+  recordObservation?: (item: Record<string, unknown>) => Promise<void>;
+  allowedMcpServers?: string[];
   /** Which normalized tool-call names consume observation indexes. */
   observedToolMatcher?: (name: string) => boolean;
   cleanup: () => Promise<void>;
@@ -85,7 +87,7 @@ const STAGEHAND_FACADE_MCP_TIMEOUTS = {
 export const CODEX_MCP_TOOLS_APPROVAL_MODE = "approve";
 
 /** Name of the per-run Codex home directory created inside the adapter cwd. */
-export const CODEX_HOME_DIRNAME = ".codex-home";
+export const CODEX_HOME_DIRNAME = path.join("home", ".codex");
 
 export function buildCodexMcpServers(
   toolSurface: ToolSurface,
@@ -116,15 +118,16 @@ export function buildIsolatedCodexEnv(
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(baseEnv)) {
-    if (value !== undefined) env[key] = value;
+    if (value !== undefined && (!key.startsWith("CODEX_") || key === "CODEX_API_KEY"))
+      env[key] = value;
   }
+  env.HOME = path.dirname(codexHome);
   env.CODEX_HOME = codexHome;
   return env;
 }
 
 async function createIsolatedCodexHome(cwd: string): Promise<string> {
-  const codexHome = path.join(cwd, CODEX_HOME_DIRNAME);
-  await fsp.mkdir(codexHome, { recursive: true });
+  const { CODEX_HOME: codexHome } = await isolatedCodexEnv(cwd);
   // Every setting the run needs arrives as `--config` overrides from the SDK;
   // the file exists only so nothing in this home is inherited from elsewhere.
   await fsp.writeFile(
@@ -248,6 +251,7 @@ export async function prepareCodexToolAdapter(
         promptInstructions: mount.promptInstructions,
         browserSession: runtime.browserSession,
         codexConfig: { mcp_servers: codexMcpServers },
+        allowedMcpServers: serverNames,
         ...(runtime.running.browserSessionLoss && {
           browserSessionLoss: runtime.running.browserSessionLoss,
         }),
@@ -259,7 +263,11 @@ export async function prepareCodexToolAdapter(
             await recorder.settle();
             return recorder.drain();
           },
-          recordObservation: () => void recorder.record(),
+          recordObservation: async (item: Record<string, unknown>) => {
+            if (serverNames.includes(String(item.server))) {
+              await recorder.record(typeof item.id === "string" ? item.id : undefined);
+            }
+          },
         }),
         observedToolMatcher: (name: string) =>
           serverNames.some((server) => name.startsWith(`${server}.`)),
