@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createLiveVerifierFetch,
+  assertVerifierEndpoint,
+  HardBenchmarkGateError,
+  sanitizeGateError,
   type VerifierRequestEvidence,
 } from "../../scripts/hardbenchmark-request-evidence.js";
 
@@ -80,7 +83,7 @@ describe("live verifier request evidence", () => {
       const onRequest = vi.fn();
       const wrapped = createLiveVerifierFetch({ provider: "openai", fetchImpl, onRequest });
       await expect(wrapped(url, { method: "POST", body: JSON.stringify(body) })).rejects.toThrow(
-        /Unexpected live verifier/,
+        /Unexpected (live )?verifier/,
       );
       expect(fetchImpl).not.toHaveBeenCalled();
       expect(onRequest).not.toHaveBeenCalled();
@@ -103,5 +106,37 @@ describe("live verifier request evidence", () => {
       }),
     ).rejects.toThrow("evidence write failed");
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["http://api.openai.com/v1/responses", "POST"],
+    ["https://api.openai.com/v1/files", "POST"],
+    ["https://api.openai.com/v1/responses", "GET"],
+    ["https://api.openai.com/v1/chat/completions", "PUT"],
+  ])("rejects unsupported transport in both live and offline gates: %s %s", (url, method) => {
+    expect(() => assertVerifierEndpoint(new Request(url, { method }), "openai")).toThrow(
+      HardBenchmarkGateError,
+    );
+  });
+
+  it.each(["/v1/responses", "/v1/chat/completions"])(
+    "accepts the supported HTTPS POST generation endpoint: %s",
+    (endpoint) => {
+      expect(() =>
+        assertVerifierEndpoint(
+          new Request(`https://api.openai.com${endpoint}`, { method: "POST" }),
+          "openai",
+        ),
+      ).not.toThrow();
+    },
+  );
+
+  it("sanitizes provider error text and an active credential before reporting", () => {
+    const detail =
+      "https://provider.example?apiKey=private-query Bearer private-token-value active-key";
+    const sanitized = sanitizeGateError(new Error(detail), ["active-key"]);
+    for (const secret of ["private-query", "private-token-value", "active-key"])
+      expect(sanitized).not.toContain(secret);
+    expect(new HardBenchmarkGateError(detail).message).not.toContain("private-query");
   });
 });
