@@ -39,11 +39,19 @@ export function stagehandFacadeConfigFromEnv(
       'BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".',
     );
   }
-  const sessionTimeoutSeconds = browserbaseSessionTimeoutSeconds(
-    env.STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
-  );
-  const proxies = booleanEnv(env.STAGEHAND_BROWSERBASE_PROXIES, "STAGEHAND_BROWSERBASE_PROXIES");
-  const verified = booleanEnv(env.STAGEHAND_BROWSERBASE_VERIFIED, "STAGEHAND_BROWSERBASE_VERIFIED");
+  const browserbaseOptions =
+    browserType === "browserbase"
+      ? {
+          timeout: browserbaseSessionTimeoutSeconds(
+            env.STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
+          ),
+          proxies: booleanEnv(env.STAGEHAND_BROWSERBASE_PROXIES, "STAGEHAND_BROWSERBASE_PROXIES"),
+          verified: booleanEnv(
+            env.STAGEHAND_BROWSERBASE_VERIFIED,
+            "STAGEHAND_BROWSERBASE_VERIFIED",
+          ),
+        }
+      : undefined;
   // A host that launches many facades at once uploads the Stagehand extension
   // once and hands every facade the id; otherwise each session uploads its own.
   const extensionId = nonEmpty(env.STAGEHAND_BROWSERBASE_EXTENSION_ID);
@@ -90,15 +98,19 @@ export function stagehandFacadeConfigFromEnv(
             launchOptions: {
               apiKey: browserbaseApiKey!,
               ...(browserbaseProjectId ? { projectId: browserbaseProjectId } : {}),
-              timeout: sessionTimeoutSeconds,
+              timeout: browserbaseOptions!.timeout,
               // The facade owns shutdown explicitly, including sessions whose
               // client transport has already closed.
               keepAlive: true,
               // Bot-wall parity with Stagehand's native agent path, which runs
               // proxied + verified sessions; unproxied facade sessions were
               // blocked (Akamai/PerimeterX) on sites the native path reached.
-              ...(proxies !== undefined ? { proxies } : {}),
-              ...(verified !== undefined ? { browserSettings: { verified } } : {}),
+              ...(browserbaseOptions!.proxies !== undefined
+                ? { proxies: browserbaseOptions!.proxies }
+                : {}),
+              ...(browserbaseOptions!.verified !== undefined
+                ? { browserSettings: { verified: browserbaseOptions!.verified } }
+                : {}),
               ...(extensionId !== undefined ? { extensionId } : {}),
             },
           }
@@ -114,11 +126,11 @@ function browserbaseSessionTimeoutSeconds(raw: string | undefined): number {
   if (
     !/^\d+$/u.test(value) ||
     !Number.isSafeInteger(parsed) ||
-    parsed <= 0 ||
+    parsed < 60 ||
     parsed > MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS
   ) {
     throw new StagehandFacadeConfigError(
-      `STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS must be a positive integer of at most ${MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS} seconds (got "${value}").`,
+      `STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS must be an integer between 60 and ${MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS} seconds (got "${value}").`,
     );
   }
   return parsed;

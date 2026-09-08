@@ -95,6 +95,25 @@ describe("facade screenshot transport", () => {
     );
     expect(capture).toHaveBeenCalledTimes(3);
   });
+
+  it("rejects over-budget candidates before decoding their image data", async () => {
+    const oversized = "a".repeat(90_000);
+    const bounded = jpeg(640, 480);
+    const capture = vi
+      .fn()
+      .mockResolvedValueOnce({ data: oversized, mimeType: "image/png" })
+      .mockResolvedValueOnce({ data: bounded, mimeType: "image/jpeg" });
+    const decode = vi.spyOn(Buffer, "from");
+    try {
+      await expect(
+        captureScreenshotWithinBase64Budget(capture, { type: "png" }, 60_000),
+      ).resolves.toMatchObject({ image: { data: bounded }, adjusted: true });
+      expect(decode.mock.calls.filter(([data]) => data === oversized)).toHaveLength(0);
+      expect(decode).toHaveBeenCalledWith(bounded, "base64");
+    } finally {
+      decode.mockRestore();
+    }
+  });
 });
 
 function png(width: number, height: number): string {

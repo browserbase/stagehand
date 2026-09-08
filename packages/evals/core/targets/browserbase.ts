@@ -23,9 +23,10 @@ const extensionScopeStorage = new AsyncLocalStorage<ExtensionScope>();
 async function uploadStagehandExtension(
   bb: BrowserbaseClient,
 ): Promise<{ extensionId: string; deleteUpload: () => Promise<void> }> {
-  const uploaded = await bb.extensions.create({
-    file: createReadStream(resolveStagehandExtensionArchivePath()),
-  });
+  const uploaded = await bb.extensions.create(
+    { file: createReadStream(resolveStagehandExtensionArchivePath()) },
+    { maxRetries: 0 },
+  );
   const extensionId = uploaded.id.trim();
   if (!extensionId) {
     throw new Error("Browserbase extension upload returned an empty extension ID");
@@ -148,10 +149,10 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
   const Browserbase = loadBrowserbaseSdk();
   const bb = new Browserbase({ apiKey });
 
+  const sessionOptions = evalBrowserbaseSessionOptions();
   const extension = await acquireStagehandExtension(bb);
   const { extensionId } = extension;
 
-  const sessionOptions = evalBrowserbaseSessionOptions();
   const createPayload: Record<string, unknown> = {
     ...(projectId ? { projectId } : {}),
     extensionId,
@@ -231,7 +232,7 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
   return {
     wsUrl: created.connectUrl,
     sessionId: created.id,
-    sessionUrl: `https://www.browserbase.com/sessions/${created.id}`,
+    sessionUrl: `https://www.browserbase.com/sessions/${encodeURIComponent(created.id)}`,
     debugUrl,
     extensionId,
     cleanup,

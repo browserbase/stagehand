@@ -24,6 +24,17 @@ describe("Stagehand facade contract", () => {
     });
   });
 
+  it("ignores malformed Browserbase-only options in local mode", () => {
+    expect(
+      stagehandFacadeConfigFromEnv({
+        STAGEHAND_BROWSER: "local",
+        STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "invalid",
+        STAGEHAND_BROWSERBASE_PROXIES: "invalid",
+        STAGEHAND_BROWSERBASE_VERIFIED: "invalid",
+      }).browser.type,
+    ).toBe("local");
+  });
+
   it("creates Browserbase sessions with an explicit timeout and keep-alive", () => {
     const env = { BROWSERBASE_API_KEY: "bb-key", BROWSERBASE_PROJECT_ID: "proj" };
     expect(stagehandFacadeConfigFromEnv(env).browser).toStrictEqual({
@@ -36,7 +47,7 @@ describe("Stagehand facade contract", () => {
         STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "21600",
       }).browser.launchOptions,
     ).toMatchObject({ timeout: 21_600 });
-    for (const invalid of ["0", "-1", "90.5", "soon", "21601"]) {
+    for (const invalid of ["0", "1", "59", "-1", "90.5", "soon", "21601"]) {
       expect(() =>
         stagehandFacadeConfigFromEnv({
           ...env,
