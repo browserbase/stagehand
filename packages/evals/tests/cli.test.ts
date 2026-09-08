@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, onTestFinished } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs";
@@ -9,6 +9,7 @@ const exec = promisify(execFile);
 const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const CLI_PATH = path.join(repoRoot, "packages", "evals", "cli.ts");
 const SOURCE_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.json");
+const CLI_CHILD_TIMEOUT_MS = 15_000;
 
 // File-level snapshot/restore: any `evals run …` invocation through the
 // real CLI writes `_meta.firstRunCompletedAt` into the source config
@@ -24,15 +25,20 @@ afterAll(() => {
 
 async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
-    const { stdout, stderr } = await exec(
-      process.execPath,
-      ["--import", "tsx", CLI_PATH, ...args],
-      {
-        cwd: repoRoot,
-        timeout: 15_000,
-        env: { ...process.env, NODE_NO_WARNINGS: "1" },
-      },
-    );
+    const execution = exec(process.execPath, ["--import", "tsx", CLI_PATH, ...args], {
+      cwd: repoRoot,
+      timeout: CLI_CHILD_TIMEOUT_MS,
+      killSignal: "SIGKILL",
+      env: { ...process.env, NODE_NO_WARNINGS: "1" },
+    });
+    // A test timeout must also stop its own CLI child. SIGTERM enters the
+    // CLI's async cleanup path, which is not a bounded subprocess deadline.
+    onTestFinished(() => {
+      if (execution.child.exitCode === null && execution.child.signalCode === null) {
+        execution.child.kill("SIGKILL");
+      }
+    });
+    const { stdout, stderr } = await execution;
     return { stdout, stderr, code: 0 };
   } catch (err: any) {
     return {
@@ -55,15 +61,19 @@ function readSourceWelcomeCompletedAt(): string | undefined {
 }
 
 describe("CLI entrypoint", () => {
-  it("shows help", async () => {
-    const { stdout, code } = await runCli(["-h"]);
-    expect(code).toBe(0);
-    expect(stdout).toContain("Commands:");
-    expect(stdout).toContain("run");
-    expect(stdout).toContain("list");
-    expect(stdout).toContain("config");
-    expect(stdout).toContain("experiments");
-  });
+  it(
+    "shows help",
+    async () => {
+      const { stdout, code } = await runCli(["-h"]);
+      expect(code).toBe(0);
+      expect(stdout).toContain("Commands:");
+      expect(stdout).toContain("run");
+      expect(stdout).toContain("list");
+      expect(stdout).toContain("config");
+      expect(stdout).toContain("experiments");
+    },
+    CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 
   it("shows experiments overview help", async () => {
     const { stdout, code } = await runCli(["experiments"]);
