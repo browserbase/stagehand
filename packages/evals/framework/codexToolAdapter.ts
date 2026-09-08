@@ -14,6 +14,7 @@ import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { buildBridgeClientScript, startCodeBridge } from "./codexCodeBridge.js";
+import { validateCodexReasoningEffort } from "./codexRunner.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import {
   prepareBrowseCliHarnessAdapter,
@@ -176,6 +177,7 @@ function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
 export async function prepareCodexToolAdapter(
   input: CodexToolAdapterInput,
 ): Promise<PreparedCodexToolAdapter> {
+  validateCodexReasoningEffort(process.env.EVAL_CODEX_REASONING_EFFORT);
   const toolSurface = resolveToolSurface(
     { harness: "codex", supportedToolSurfaces: CODEX_TOOL_SURFACES },
     input.toolSurface,
