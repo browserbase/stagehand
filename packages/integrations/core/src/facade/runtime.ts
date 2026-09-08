@@ -62,6 +62,7 @@ type RawLocator = {
   innerHtml(): Promise<string>;
   textContent(): Promise<string>;
   scrollTo(percent: number): Promise<void>;
+  centroid(): Promise<{ x: number; y: number }>;
 };
 
 type CompatSelectOption =
@@ -1923,7 +1924,12 @@ export async function createPlaywrightCompatRuntime(
           pieces.push(query.value.trim());
         } else if (query.kind === "attribute") {
           const css = cssAttributeSelector(query.name, query.matcher);
-          if (css === null) return null;
+          if (css === null) {
+            return frameUnsupported(
+              "locator attribute query",
+              "regular-expression attribute matching is not supported; use a string or a css selector inside the frame",
+            );
+          }
           pieces.push(css);
         } else if (
           query.kind === "text" &&
@@ -1942,7 +1948,7 @@ export async function createPlaywrightCompatRuntime(
         (piece) => /^(?:xpath=|text=|\/|\()/iu.test(piece) || piece.includes(">>"),
       );
       if (nonCss) return null;
-      return pieces.join(" ");
+      return pieces.map((piece) => `:is(${piece})`).join(" ");
     }
 
     private matchesAccessibilityNode(node: { role: string; name: string }): boolean {
@@ -1994,6 +2000,10 @@ export async function createPlaywrightCompatRuntime(
       for (const node of parseAccessibilityTree(snapshot.formattedTree)) {
         const xpath = xpathMap[node.id];
         if (!xpath || !xpath.startsWith(`${prefix}/`)) continue;
+        // Snapshot XPaths include nested documents under their iframe hosts.
+        // A frame locator only searches its own document, never child frames.
+        const relative = xpath.slice(prefix.length);
+        if (/\/(?:iframe|frame)(?:\[\d+\])?\//iu.test(relative)) continue;
         if (!this.matchesAccessibilityNode(node)) continue;
         xpaths.push(xpath.replace(/\/text\(\)(\[\d+\])?$/iu, ""));
         names.push(`${node.role}${node.name ? ` "${node.name}"` : ""}`);
@@ -2194,13 +2204,19 @@ export async function createPlaywrightCompatRuntime(
     async scrollIntoViewIfNeeded(options: Record<string, unknown> = {}): Promise<void> {
       await this.act(
         "frameLocator.locator.scrollIntoViewIfNeeded",
-        (raw) => raw.scrollTo(0),
+        // Native centroid resolves in the owning frame and invokes
+        // DOM.scrollIntoViewIfNeeded; it never scrolls the target's own contents.
+        async (raw) => {
+          await raw.centroid();
+        },
         options,
       );
     }
 
     async focus(options: Record<string, unknown> = {}): Promise<void> {
-      await this.act("frameLocator.locator.focus", (raw) => raw.click(), options);
+      // Native type() focuses before its character loop. Empty text with a
+      // nonzero delay performs that focus and dispatches no input/key events.
+      await this.act("frameLocator.locator.focus", (raw) => raw.type("", { delay: 1 }), options);
     }
 
     async count(): Promise<number> {
@@ -2211,6 +2227,7 @@ export async function createPlaywrightCompatRuntime(
     async all(): Promise<CompatFrameScopedLocator[]> {
       record("calls", "frameLocator.locator.all");
       const count = await this.count();
+      if (this.nthIndex !== undefined) return count === 1 ? [this] : [];
       return Array.from({ length: count }, (_, index) => this.nth(index));
     }
 
