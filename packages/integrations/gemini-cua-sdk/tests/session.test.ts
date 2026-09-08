@@ -3,6 +3,52 @@ import type { CuaFacadeTools } from "../src/executor.js";
 import { runGeminiCuaSession } from "../src/session.js";
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
 describe("runGeminiCuaSession", () => {
+  it.each([
+    ["MAX_TOKENS", { finishReason: "MAX_TOKENS", content: { parts: [{ text: "incomplete" }] } }],
+    ["SAFETY", { finishReason: "SAFETY", content: { parts: [] } }],
+    [
+      "MALFORMED_FUNCTION_CALL",
+      { finishReason: "MALFORMED_FUNCTION_CALL", content: { parts: [] } },
+    ],
+    ["no response candidate", undefined],
+    ["neither tool calls nor an answer", { finishReason: "STOP", content: { parts: [] } }],
+    [
+      "MAX_TOKENS",
+      {
+        finishReason: "MAX_TOKENS",
+        content: { parts: [{ functionCall: { name: "click", args: { x: 1, y: 2 } } }] },
+      },
+    ],
+  ])("does not complete or act on an unusable response (%s)", async (reason, candidate) => {
+    const execute = vi.fn(async () => ({ text: "ok" }));
+    const generateContent = vi.fn(async () => ({
+      candidates: candidate ? [candidate] : [],
+      usageMetadata: { promptTokenCount: 7, candidatesTokenCount: 3 },
+    }));
+    const result = await runGeminiCuaSession({
+      prompt: "p",
+      model: "gemini-3.8-flash",
+      logger,
+      maxTurns: 3,
+      client: { generateContent },
+      tools: { execute },
+      facade: {
+        run: async () => "about:blank",
+        screenshot: async () => {
+          throw new Error("unexpected screenshot");
+        },
+      },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain(reason);
+    expect(result.finalMessage).toBe("");
+    expect(result.iterationError).toBeInstanceOf(Error);
+    expect(result.tokenUsage).toMatchObject({ input: 7, output: 3 });
+    expect(result.events).toHaveLength(1);
+    expect(execute).not.toHaveBeenCalled();
+    expect(generateContent).toHaveBeenCalledOnce();
+  });
+
   it("sends computer use, acknowledges safety, returns screenshot and usage", async () => {
     const requests: Record<string, unknown>[] = [];
     const client = {
@@ -32,7 +78,7 @@ describe("runGeminiCuaSession", () => {
             },
           };
         return {
-          candidates: [{ content: { parts: [{ text: "done" }] } }],
+          candidates: [{ finishReason: "STOP", content: { parts: [{ text: "done" }] } }],
           usageMetadata: { promptTokenCount: 5, candidatesTokenCount: 1 },
         };
       },

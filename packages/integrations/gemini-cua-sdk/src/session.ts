@@ -148,12 +148,20 @@ export async function runGeminiCuaSession(
         .join("\n")
         .trim();
       events.push({ type: "assistant", turn: turns, text, parts, usage: turnUsage });
+      if (!candidate) throw new Error("Gemini returned no response candidate.");
+      // A successful HTTP request can still be blocked or truncated. Retain
+      // its evidence and usage, but do not execute partial calls or report it
+      // as a completed task.
+      if (candidate.finishReason && candidate.finishReason !== "STOP") {
+        throw new Error(`Gemini response ended with ${candidate.finishReason}.`);
+      }
       contents.push({ role: "model", parts });
       const calls = parts
         .filter(isRecord)
         .map((part) => part.functionCall)
         .filter(isRecord);
       if (calls.length === 0) {
+        if (!text) throw new Error("Gemini returned neither tool calls nor an answer.");
         finalMessage = text;
         status = "completed";
         stopReason = candidate?.finishReason;
