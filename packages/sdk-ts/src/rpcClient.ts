@@ -39,6 +39,7 @@ import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 import { abortReason } from "./abort.js";
+import { RPCResponseTimeoutError } from "./rpcErrors.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -57,18 +58,6 @@ type RPCSendOptions = {
   /** Replaces the method's derived response deadline for this one request. */
   responseTimeoutMs?: number;
 };
-
-export class RPCResponseTimeoutError extends Error {
-  readonly method: string;
-  readonly timeoutMs: number;
-
-  constructor(method: string, timeoutMs: number) {
-    super(`RPC response timed out: ${method}`, { cause: { method, timeoutMs } });
-    this.name = "RPCResponseTimeoutError";
-    this.method = method;
-    this.timeoutMs = timeoutMs;
-  }
-}
 
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();

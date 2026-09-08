@@ -146,9 +146,9 @@ describe("pi SDK session", () => {
     expect(fake.createOptions).toMatchObject({
       cwd: "/tmp/pi-test",
       systemPrompt: "system",
-      thinkingLevel: "medium",
       customTools: [customTool],
     });
+    expect(fake.createOptions).not.toHaveProperty("thinkingLevel");
     expect(fake.disposeCount).toBe(1);
   });
 
@@ -163,9 +163,9 @@ describe("pi SDK session", () => {
     });
     expect(fake.createOptions).toMatchObject({
       appendSystemPrompt: "You are being evaluated.",
-      thinkingLevel: "medium",
     });
     expect(fake.createOptions).not.toHaveProperty("systemPrompt");
+    expect(fake.createOptions).not.toHaveProperty("thinkingLevel");
   });
 
   it("honors an explicit thinking level", async () => {

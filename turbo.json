@@ -244,6 +244,9 @@
     "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
       "dependsOn": ["^build"]
     },
+    "@browserbasehq/stagehand-integrations-example-cursor-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-integrations-eve-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -298,6 +301,12 @@
     "//#test:unit": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts", "vitest.config.ts"]
+    },
+    "@browserbasehq/stagehand-integrations#test:browser": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations#build"],
+      "cache": false,
+      "passThroughEnv": ["CHROME_PATH", "PLAYWRIGHT_CHROMIUM_CHANNEL"],
+      "inputs": ["$TURBO_DEFAULT$", "integration/**", "src/**", "vitest.browser.config.ts"]
     },
     "@browserbasehq/stagehand#test:browser": {
       "dependsOn": ["^build", "@browserbasehq/stagehand#build"],

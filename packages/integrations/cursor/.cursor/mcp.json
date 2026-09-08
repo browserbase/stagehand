@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "node",
+      "args": ["../core/dist/facade/stdio-server.mjs"]
+    }
+  }
+}

@@ -8,7 +8,9 @@ import { createPlaywrightCompatRuntime } from "../src/facade/runtime.js";
 let browser: Browser;
 beforeAll(async () => {
   browser = await chromium.launch({
-    channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL ?? "chrome",
+    ...(process.env.CHROME_PATH
+      ? { executablePath: process.env.CHROME_PATH }
+      : { channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL ?? "chrome" }),
     headless: true,
   });
 });
@@ -55,37 +57,110 @@ describe("facade DOM compatibility against native Playwright", () => {
         label: string | RegExp;
         exact?: boolean;
         scope?: string;
+        expected: string[];
       }> = [
-        { name: "Booking child age aria-label", label: "Child 1 age", exact: true },
-        { name: "scoped aria-label", label: "Child 1 age", exact: true, scope: "#booking" },
-        { name: "case-insensitive substring", label: "CHILD 1" },
-        { name: "exact case sensitivity", label: "child 1 age", exact: true },
-        { name: "native label", label: "Native label", exact: true },
-        { name: "wrapped label", label: "Wrapped label", exact: true },
-        { name: "first associated label", label: "First label", exact: true },
-        { name: "second associated label", label: "Second label", exact: true },
-        { name: "labels are not concatenated", label: "First label Second label", exact: true },
-        { name: "first ARIA reference", label: "First reference", exact: true },
-        { name: "second ARIA reference", label: "Second reference", exact: true },
+        {
+          name: "Booking child age aria-label",
+          expected: ["age"],
+          label: "Child 1 age",
+          exact: true,
+        },
+        {
+          name: "scoped aria-label",
+          expected: ["age"],
+          label: "Child 1 age",
+          exact: true,
+          scope: "#booking",
+        },
+        { name: "case-insensitive substring", expected: ["age"], label: "CHILD 1" },
+        { name: "exact case sensitivity", expected: [], label: "child 1 age", exact: true },
+        { name: "native label", expected: ["native"], label: "Native label", exact: true },
+        { name: "wrapped label", expected: ["wrapped"], label: "Wrapped label", exact: true },
+        { name: "first associated label", expected: ["multi"], label: "First label", exact: true },
+        {
+          name: "second associated label",
+          expected: ["multi"],
+          label: "Second label",
+          exact: true,
+        },
+        {
+          name: "labels are not concatenated",
+          expected: [],
+          label: "First label Second label",
+          exact: true,
+        },
+        { name: "first ARIA reference", expected: ["refs"], label: "First reference", exact: true },
+        {
+          name: "second ARIA reference",
+          expected: ["refs"],
+          label: "Second reference",
+          exact: true,
+        },
         {
           name: "ARIA references are not concatenated",
+          expected: [],
           label: "First reference Second reference",
           exact: true,
         },
-        { name: "labelledby takes priority", label: "Overridden ARIA", exact: true },
-        { name: "empty referenced label takes priority", label: "Ignored fallback", exact: true },
-        { name: "ARIA takes priority over native label", label: "Ignored native", exact: true },
-        { name: "ARIA priority match", label: "ARIA wins", exact: true },
-        { name: "broken labelledby falls back", label: "Fallback label", exact: true },
-        { name: "normalized string whitespace", label: "Child 2 age", exact: true },
-        { name: "empty ARIA falls back", label: "Empty ARIA fallback", exact: true },
-        { name: "label text excludes script/style", label: "Clean label", exact: true },
-        { name: "regular expression", label: /^child 1 age$/i },
-        { name: "regex keeps original whitespace", label: /^Line\nBreak$/ },
-        { name: "empty query excludes unlabeled elements", label: "", exact: true },
-        { name: "shadow-root reference", label: "Shadow label", exact: true },
-        { name: "shadow-root ARIA", label: "Shadow ARIA", exact: true },
-        { name: "reference cannot cross shadow boundary", label: "Wrong outer label", exact: true },
+        { name: "labelledby takes priority", expected: [], label: "Overridden ARIA", exact: true },
+        {
+          name: "empty referenced label takes priority",
+          expected: [],
+          label: "Ignored fallback",
+          exact: true,
+        },
+        {
+          name: "ARIA takes priority over native label",
+          expected: [],
+          label: "Ignored native",
+          exact: true,
+        },
+        { name: "ARIA priority match", expected: ["aria-first"], label: "ARIA wins", exact: true },
+        {
+          name: "broken labelledby falls back",
+          expected: ["broken-ref"],
+          label: "Fallback label",
+          exact: true,
+        },
+        {
+          name: "normalized string whitespace",
+          expected: ["spaces"],
+          label: "Child 2 age",
+          exact: true,
+        },
+        {
+          name: "empty ARIA falls back",
+          expected: ["empty-aria"],
+          label: "Empty ARIA fallback",
+          exact: true,
+        },
+        {
+          name: "label text excludes script/style",
+          expected: ["mixed"],
+          label: "Clean label",
+          exact: true,
+        },
+        { name: "regular expression", expected: ["age"], label: /^child 1 age$/i },
+        { name: "regex keeps original whitespace", expected: ["regex"], label: /^Line\nBreak$/ },
+        {
+          name: "empty query excludes unlabeled elements",
+          expected: ["blank-ref"],
+          label: "",
+          exact: true,
+        },
+        {
+          name: "shadow-root reference",
+          expected: ["shadow-input"],
+          label: "Shadow label",
+          exact: true,
+        },
+        { name: "shadow-root ARIA", expected: ["shadow-aria"], label: "Shadow ARIA", exact: true },
+        {
+          name: "reference cannot cross shadow boundary",
+          expected: [],
+          label: "Wrong outer label",
+          exact: true,
+        },
       ];
       const results = [];
       for (const test of cases) {
@@ -102,15 +177,95 @@ describe("facade DOM compatibility against native Playwright", () => {
           name: test.name,
           native,
           actual,
-          pass: JSON.stringify(native) === JSON.stringify(actual),
+          expected: test.expected,
+          pass:
+            JSON.stringify(native) === JSON.stringify(actual) &&
+            JSON.stringify(actual) === JSON.stringify(test.expected),
         });
       }
       assert.ok(
         results.every((r) => r.pass),
-        "Facade getByLabel differs from Playwright",
+        `Facade label mismatch: ${JSON.stringify(results.filter((result) => !result.pass))}`,
       );
       await facade.getByLabel("Child 1 age", { exact: true }).selectOption("8");
       assert.equal(await page.locator("#age").inputValue(), "8");
+    } finally {
+      await page.close();
+    }
+  });
+  it("resolves nested role filters before applying hasNot or invoking callbacks", async () => {
+    const page = await browser.newPage();
+    try {
+      await page.setContent(`
+        <section id="pay"><div><button><img alt="Pay now"></button></div></section>
+        <section id="cancel"><div><button><img alt="Cancel order"></button></div></section>
+      `);
+      // This snapshot is the browser-computed name that the DOM approximation
+      // misses for image-only buttons. Native Playwright independently checks it.
+      const rawPage = {
+        url: () => page.url(),
+        evaluate: page.evaluate.bind(page),
+        snapshot: async () => ({
+          formattedTree: "[1] button: Pay now\n[2] button: Cancel order",
+          xpathMap: {
+            "1": "/html/body/section[1]/div/button",
+            "2": "/html/body/section[2]/div/button",
+          },
+        }),
+      };
+      const runtime = await createPlaywrightCompatRuntime({
+        page: rawPage,
+        context: { pages: async () => [rawPage] },
+      } as unknown as Parameters<typeof createPlaywrightCompatRuntime>[0]);
+      const facade = runtime.page as Page;
+      for (const scope of [page, facade]) {
+        const pay = scope.getByRole("button", { name: "Pay now", exact: true });
+        assert.deepEqual(
+          await scope
+            .locator("section")
+            .filter({ has: pay })
+            .evaluateAll((els) => els.map((el) => el.id)),
+          ["pay"],
+        );
+        assert.deepEqual(
+          await scope
+            .locator("section")
+            .filter({ hasNot: pay })
+            .evaluateAll((els) => els.map((el) => el.id)),
+          ["cancel"],
+        );
+        assert.deepEqual(
+          await scope
+            .locator("section")
+            .filter({
+              has: scope.locator("div").filter({ has: pay }),
+            })
+            .evaluateAll((els) => els.map((el) => el.id)),
+          ["pay"],
+        );
+        assert.deepEqual(
+          await scope
+            .locator("section")
+            .filter({
+              hasNot: scope.getByRole("button", { name: "Missing", exact: true }),
+            })
+            .evaluateAll((els) => els.map((el) => el.id)),
+          ["pay", "cancel"],
+        );
+      }
+      await facade
+        .locator("section")
+        .filter({
+          hasNot: facade.getByRole("button", {
+            name: "Pay now",
+            exact: true,
+          }),
+        })
+        .evaluate((el) => el.setAttribute("data-mutated", "yes"));
+      assert.deepEqual(
+        await page.locator("[data-mutated]").evaluateAll((els) => els.map((el) => el.id)),
+        ["cancel"],
+      );
     } finally {
       await page.close();
     }
@@ -135,18 +290,20 @@ describe("facade DOM compatibility against native Playwright", () => {
           results.push({ name, pass: false, detail: String(error) });
         }
       };
+      // Strictness should be reported before a busy CI browser exhausts its command budget.
+      const strictTimeout = 5000;
       const methods: Array<[string, (locator: Locator) => Promise<unknown>]> = [
-        ["textContent", (locator) => locator.textContent({ timeout: 150 })],
-        ["innerText", (locator) => locator.innerText({ timeout: 150 })],
-        ["innerHTML", (locator) => locator.innerHTML({ timeout: 150 })],
-        ["inputValue", (locator) => locator.inputValue({ timeout: 150 })],
-        ["getAttribute", (locator) => locator.getAttribute("value", { timeout: 150 })],
-        ["isChecked", (locator) => locator.isChecked({ timeout: 150 })],
-        ["isDisabled", (locator) => locator.isDisabled({ timeout: 150 })],
-        ["isEnabled", (locator) => locator.isEnabled({ timeout: 150 })],
+        ["textContent", (locator) => locator.textContent({ timeout: strictTimeout })],
+        ["innerText", (locator) => locator.innerText({ timeout: strictTimeout })],
+        ["innerHTML", (locator) => locator.innerHTML({ timeout: strictTimeout })],
+        ["inputValue", (locator) => locator.inputValue({ timeout: strictTimeout })],
+        ["getAttribute", (locator) => locator.getAttribute("value", { timeout: strictTimeout })],
+        ["isChecked", (locator) => locator.isChecked({ timeout: strictTimeout })],
+        ["isDisabled", (locator) => locator.isDisabled({ timeout: strictTimeout })],
+        ["isEnabled", (locator) => locator.isEnabled({ timeout: strictTimeout })],
         ["isVisible", (locator) => locator.isVisible()],
-        ["boundingBox", (locator) => locator.boundingBox({ timeout: 150 })],
-        ["focus", (locator) => locator.focus({ timeout: 150 })],
+        ["boundingBox", (locator) => locator.boundingBox({ timeout: strictTimeout })],
+        ["focus", (locator) => locator.focus({ timeout: strictTimeout })],
         ["evaluate", (locator) => locator.evaluate((el) => el.setAttribute("data-mutated", "yes"))],
         [
           "evaluateHandle",
@@ -224,7 +381,7 @@ describe("facade DOM compatibility against native Playwright", () => {
       });
       assert.ok(
         results.every((result) => result.pass),
-        "Facade locator behavior differs from Playwright",
+        `Facade locator mismatch: ${JSON.stringify(results.filter((result) => !result.pass))}`,
       );
     } finally {
       await page.close();

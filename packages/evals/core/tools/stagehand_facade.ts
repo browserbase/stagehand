@@ -106,7 +106,7 @@ export function buildStagehandFacadeEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
   return {
-    ...buildAllowlistedEnv(),
+    ...buildAllowlistedEnv(env),
     STAGEHAND_BROWSER: environment === "BROWSERBASE" ? "browserbase" : "local",
     ...(explicitSnapshotActionsEnabled(env) && { EXPLICIT_SNAPSHOT_ACTIONS: "1" }),
     ...(environment === "BROWSERBASE" && {
@@ -244,7 +244,7 @@ export class StagehandFacadeTool implements CoreTool {
       browserSession = info?.sessionId
         ? {
             browserbaseSessionId: info.sessionId,
-            browserbaseSessionUrl: `https://www.browserbase.com/sessions/${info.sessionId}`,
+            browserbaseSessionUrl: `https://www.browserbase.com/sessions/${encodeURIComponent(info.sessionId)}`,
           }
         : {};
     } catch (error) {
@@ -273,14 +273,22 @@ export class StagehandFacadeTool implements CoreTool {
       browserSessionLoss: () => bridge.browserSessionLoss(),
       cleanup: () =>
         (cleanupPromise ??= (async () => {
-          try {
-            await bridge.close();
-          } finally {
+          const failures: unknown[] = [];
+          for (const close of [
+            () => bridge.close(),
+            () => session.close(),
+            () => sharedExtension?.release(),
+          ]) {
             try {
-              await session.close();
-            } finally {
-              await sharedExtension?.release();
+              await close();
+            } catch (error) {
+              failures.push(error);
             }
+          }
+          if (failures.length) {
+            throw new StagehandFacadeToolError("Failed to clean up the Stagehand facade.", {
+              cause: new AggregateError(failures, "Facade cleanup failures"),
+            });
           }
         })()),
       metadata: {

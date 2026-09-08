@@ -39,7 +39,7 @@ export {
 } from "./response.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export { CDPConnectionClosedError } from "./cdpClient.js";
-export { RPCResponseTimeoutError } from "./rpcClient.js";
+export { RPCResponseTimeoutError } from "./rpcErrors.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export {

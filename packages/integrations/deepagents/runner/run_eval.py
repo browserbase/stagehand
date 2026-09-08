@@ -56,10 +56,11 @@ CLEANUP_TIMEOUT_S = 5.0
 
 
 async def _with_optional_timeout(coro: Any, timeout: float) -> Any:
-    """Await `coro`, applying `asyncio.wait_for` only when timeout > 0."""
-    if timeout > 0:
-        return await asyncio.wait_for(coro, timeout=timeout)
-    return await coro
+    """Apply a deadline without moving MCP or stream contexts to another task."""
+    # AnyIO cancel scopes (including MCP ClientSession) must be entered and
+    # exited by the same task. wait_for(coro) creates a new task on every call.
+    async with asyncio.timeout(timeout if timeout > 0 else None):
+        return await coro
 
 
 async def _open_mcp_server(
@@ -74,7 +75,7 @@ async def _aclose_quietly(stream: object) -> None:
     if aclose is None:
         return
     try:
-        await asyncio.wait_for(aclose(), timeout=CLEANUP_TIMEOUT_S)
+        await _with_optional_timeout(aclose(), CLEANUP_TIMEOUT_S)
     except Exception:  # noqa: BLE001
         pass
 
@@ -467,11 +468,16 @@ def build_eval_model(config: RunnerConfig) -> str | BaseChatModel:
     if config.model.startswith("xai/") or config.model.startswith("xai:"):
         from langchain_openai import ChatOpenAI
 
+        api_key = os.environ.get("XAI_API_KEY")
+        if not api_key or not api_key.strip():
+            # ChatOpenAI otherwise falls back to OPENAI_API_KEY, including when
+            # base_url selects another provider. Never send that key to xAI.
+            raise ValueError("XAI_API_KEY is required for xAI models.")
         model_id = config.model.split("/", 1)[-1].split(":", 1)[-1]
         return ChatOpenAI(
             model=model_id,
             base_url="https://api.x.ai/v1",
-            api_key=os.environ.get("XAI_API_KEY"),
+            api_key=api_key,
         )
     if config.reasoning_summary is None or not config.model.startswith("openai:"):
         return config.model
@@ -663,7 +669,7 @@ async def run(
         # (the Node side maps any nonzero exit to sdk_error) or emit an
         # error event that overwrites the real stop classification.
         try:
-            await asyncio.wait_for(stack.aclose(), timeout=CLEANUP_TIMEOUT_S)
+            await _with_optional_timeout(stack.aclose(), CLEANUP_TIMEOUT_S)
         except Exception:  # noqa: BLE001
             pass
 
