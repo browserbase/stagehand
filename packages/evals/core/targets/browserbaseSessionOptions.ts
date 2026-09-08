@@ -15,11 +15,11 @@ export function evalBrowserbaseSessionTimeoutSeconds(raw: string | undefined): n
   if (
     !/^\d+$/u.test(value) ||
     !Number.isSafeInteger(parsed) ||
-    parsed <= 0 ||
+    parsed < 60 ||
     parsed > MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS
   ) {
     throw new EvalsError(
-      `EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS must be a positive integer of at most ${MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS} seconds (got "${value}").`,
+      `EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS must be an integer between 60 and ${MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS} seconds (got "${value}").`,
     );
   }
   return parsed;

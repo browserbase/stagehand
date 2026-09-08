@@ -18,7 +18,7 @@ export function isBrowserSessionLostError(message: string): boolean {
 /** Extracts the cause from "Browser session lost (<cause>). ..." */
 export function browserSessionLostCause(message: string): string | undefined {
   if (!isBrowserSessionLostError(message)) return undefined;
-  return sanitizeErrorMessage(/^Browser session lost \((.*)\)\./u.exec(message)?.[1] ?? message);
+  return sanitizeErrorMessage(/^Browser session lost \((.*?)\)\./su.exec(message)?.[1] ?? message);
 }
 
 export function parseSessionLossTelemetry(line: string): BrowserSessionLoss | undefined {
