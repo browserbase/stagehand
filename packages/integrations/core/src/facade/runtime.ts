@@ -62,6 +62,7 @@ type RawLocator = {
   innerHtml(): Promise<string>;
   textContent(): Promise<string>;
   scrollTo(percent: number): Promise<void>;
+  centroid(): Promise<{ x: number; y: number }>;
 };
 
 type CompatSelectOption =
@@ -241,7 +242,7 @@ export async function createPlaywrightCompatRuntime(
     step: RoleStep,
     nodes: AccessibilityTreeNode[],
     xpathMap: Record<string, string>,
-  ): QueryStep | null => {
+  ): QueryStep => {
     const roles = new Set(ACCESSIBILITY_ROLE_ALIASES[step.role] ?? [step.role]);
     const values = nodes
       .filter(
@@ -250,15 +251,15 @@ export async function createPlaywrightCompatRuntime(
       )
       .map((node) => xpathMap[node.id])
       .filter((xpath): xpath is string => typeof xpath === "string" && xpath.length > 0);
-    if (values.length === 0) return null;
+    if (values.length === 0) record("misses", "getByRole.accessibilityTree:noCandidates");
     const { kind: _kind, role: _role, name: _name, includeHidden: _hidden, ...state } = step;
     return { kind: "xpaths", values, ...state };
   };
 
   /**
-   * Returns a copy of `plan` whose top-level role steps are replaced by
-   * accessibility-tree resolved XPath steps, or null when the tree has no
-   * candidate for at least one of them (or no tree is available).
+   * Resolve role steps recursively, including has/hasNot filters. Empty XPath
+   * sets preserve negative-filter semantics when no role candidate exists.
+   * Return null only when no tree is available or the plan contains no roles.
    */
   const resolvePlanWithAccessibilityTree = async (
     page: RawPage,
@@ -288,20 +289,22 @@ export async function createPlaywrightCompatRuntime(
     const nodes = parseAccessibilityTree(tree.formattedTree);
     const xpathMap = tree.xpathMap as Record<string, string>;
     let replaced = false;
-    const resolved: QueryStep[] = [];
-    for (const step of plan) {
-      if (step.kind !== "role") {
-        resolved.push(step);
-        continue;
-      }
-      const fallback = resolveRoleStepWithTree(step, nodes, xpathMap);
-      if (!fallback) {
-        record("misses", "getByRole.accessibilityTree:noCandidates");
-        return null;
-      }
-      resolved.push(fallback);
-      replaced = true;
-    }
+    const resolve = (steps: QueryStep[]): QueryStep[] =>
+      steps.map((step) => {
+        if (step.kind === "role") {
+          replaced = true;
+          return resolveRoleStepWithTree(step, nodes, xpathMap);
+        }
+        if (step.kind === "filter") {
+          return {
+            ...step,
+            ...(step.has ? { has: resolve(step.has) } : {}),
+            ...(step.hasNot ? { hasNot: resolve(step.hasNot) } : {}),
+          };
+        }
+        return step;
+      });
+    const resolved = resolve(plan);
     return replaced ? resolved : null;
   };
 
@@ -1011,14 +1014,22 @@ export async function createPlaywrightCompatRuntime(
    * "-32000 Node does not have a layout object". After the retry window that
    * is what the agent saw; say what it means instead.
    */
+  class StagehandFacadeActionError extends Error {
+    override name = "StagehandFacadeActionError";
+  }
+
   const describeActionFailure = (method: string, error: unknown, timeout: number): Error => {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!LAYOUT_ERROR_RE.test(message)) return error instanceof Error ? error : new Error(message);
-    const described = new Error(
-      `${method}: element matched but is not rendered (no layout box: display:none, zero size, or detached) after ${timeout}ms. Wait for it to become visible, or target the visible element instead. Original: ${message}`,
+    const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+    if (!LAYOUT_ERROR_RE.test(message)) {
+      return error instanceof Error
+        ? error
+        : new StagehandFacadeActionError(`${method}: action failed after ${timeout}ms`);
+    }
+    // The callback runtime is serialized, so keep this error self-contained.
+    // The known layout failure needs no raw error text (which may contain secrets).
+    return new StagehandFacadeActionError(
+      `${method}: element matched but is not rendered (no layout box: display:none, zero size, or detached) after ${timeout}ms. Wait for it to become visible, or target the visible element instead.`,
     );
-    described.name = error instanceof Error ? error.name : "Error";
-    return described;
   };
 
   class CompatLocator {
@@ -1374,7 +1385,7 @@ export async function createPlaywrightCompatRuntime(
       // page". 10 s (the original facade default) bounds that tail; callers
       // that genuinely need longer pass `timeout` explicitly.
       const timeout = options.timeout ?? 10_000;
-      const deadline = Date.now() + timeout;
+      const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
       let result: QueryResult = { count: 0 };
       let lastActionError: unknown;
       while (Date.now() <= deadline) {
@@ -1398,7 +1409,8 @@ export async function createPlaywrightCompatRuntime(
               /(?:not found|could not find|no (?:element|node)|detached|not visible|(?:box model|layout object)|execution context|session|target closed|timed? out|timeout)/iu.test(
                 message,
               );
-            if (!retryable || Date.now() >= deadline) throw error;
+            if (!retryable || Date.now() >= deadline)
+              throw describeActionFailure(method, error, timeout);
           } finally {
             await this.state.execute([], "untag", { token }).catch((): undefined => undefined);
           }
@@ -1407,7 +1419,8 @@ export async function createPlaywrightCompatRuntime(
             return;
           }
         }
-        if (Date.now() < deadline) await this.state.rawPage.waitForTimeout(50);
+        if (Date.now() < deadline)
+          await this.state.rawPage.waitForTimeout(Math.max(1, Math.min(50, deadline - Date.now())));
       }
       if (lastActionError) throw describeActionFailure(method, lastActionError, timeout);
       throw new Error(`${method}: no element matched within ${timeout}ms`);
@@ -1548,14 +1561,25 @@ export async function createPlaywrightCompatRuntime(
       );
     }
 
+    private async setChecked(checked: boolean, options: Record<string, unknown>): Promise<void> {
+      const method = checked ? "locator.check" : "locator.uncheck";
+      record("calls", method);
+      const timeout = typeof options.timeout === "number" ? options.timeout : 10_000;
+      const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
+      if ((await this.isChecked({ timeout })) === checked) return;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new StagehandFacadeActionError(`${method}: timed out after ${timeout}ms`);
+      }
+      await this.clickAs(method, { ...options, timeout: timeout === 0 ? 0 : remaining });
+    }
+
     async check(options: Record<string, unknown> = {}): Promise<void> {
-      record("calls", "locator.check");
-      if (!(await this.isChecked())) await this.clickAs("locator.check", options);
+      await this.setChecked(true, options);
     }
 
     async uncheck(options: Record<string, unknown> = {}): Promise<void> {
-      record("calls", "locator.uncheck");
-      if (await this.isChecked()) await this.clickAs("locator.uncheck", options);
+      await this.setChecked(false, options);
     }
 
     async clear(options: Record<string, unknown> = {}): Promise<void> {
@@ -1900,7 +1924,12 @@ export async function createPlaywrightCompatRuntime(
           pieces.push(query.value.trim());
         } else if (query.kind === "attribute") {
           const css = cssAttributeSelector(query.name, query.matcher);
-          if (css === null) return null;
+          if (css === null) {
+            return frameUnsupported(
+              "locator attribute query",
+              "regular-expression attribute matching is not supported; use a string or a css selector inside the frame",
+            );
+          }
           pieces.push(css);
         } else if (
           query.kind === "text" &&
@@ -1919,7 +1948,7 @@ export async function createPlaywrightCompatRuntime(
         (piece) => /^(?:xpath=|text=|\/|\()/iu.test(piece) || piece.includes(">>"),
       );
       if (nonCss) return null;
-      return pieces.join(" ");
+      return pieces.map((piece) => `:is(${piece})`).join(" ");
     }
 
     private matchesAccessibilityNode(node: { role: string; name: string }): boolean {
@@ -1971,6 +2000,10 @@ export async function createPlaywrightCompatRuntime(
       for (const node of parseAccessibilityTree(snapshot.formattedTree)) {
         const xpath = xpathMap[node.id];
         if (!xpath || !xpath.startsWith(`${prefix}/`)) continue;
+        // Snapshot XPaths include nested documents under their iframe hosts.
+        // A frame locator only searches its own document, never child frames.
+        const relative = xpath.slice(prefix.length);
+        if (/\/(?:iframe|frame)(?:\[\d+\])?\//iu.test(relative)) continue;
         if (!this.matchesAccessibilityNode(node)) continue;
         xpaths.push(xpath.replace(/\/text\(\)(\[\d+\])?$/iu, ""));
         names.push(`${node.role}${node.name ? ` "${node.name}"` : ""}`);
@@ -2171,13 +2204,19 @@ export async function createPlaywrightCompatRuntime(
     async scrollIntoViewIfNeeded(options: Record<string, unknown> = {}): Promise<void> {
       await this.act(
         "frameLocator.locator.scrollIntoViewIfNeeded",
-        (raw) => raw.scrollTo(0),
+        // Native centroid resolves in the owning frame and invokes
+        // DOM.scrollIntoViewIfNeeded; it never scrolls the target's own contents.
+        async (raw) => {
+          await raw.centroid();
+        },
         options,
       );
     }
 
     async focus(options: Record<string, unknown> = {}): Promise<void> {
-      await this.act("frameLocator.locator.focus", (raw) => raw.click(), options);
+      // Native type() focuses before its character loop. Empty text with a
+      // nonzero delay performs that focus and dispatches no input/key events.
+      await this.act("frameLocator.locator.focus", (raw) => raw.type("", { delay: 1 }), options);
     }
 
     async count(): Promise<number> {
@@ -2188,6 +2227,7 @@ export async function createPlaywrightCompatRuntime(
     async all(): Promise<CompatFrameScopedLocator[]> {
       record("calls", "frameLocator.locator.all");
       const count = await this.count();
+      if (this.nthIndex !== undefined) return count === 1 ? [this] : [];
       return Array.from({ length: count }, (_, index) => this.nth(index));
     }
 
@@ -2484,21 +2524,36 @@ export async function createPlaywrightCompatRuntime(
           }
           return result;
         };
+        const resolveFallback = async (): Promise<QueryStep[] | null> => {
+          const cacheKey = JSON.stringify(plan);
+          const cached = accessibilityFallbacks.get(cacheKey);
+          if (cached && Date.now() - cached.at < ACCESSIBILITY_FALLBACK_CACHE_TTL_MS) {
+            return cached.plan;
+          }
+          const resolved = await resolvePlanWithAccessibilityTree(page, plan);
+          accessibilityFallbacks.set(cacheKey, { at: Date.now(), plan: resolved });
+          return resolved;
+        };
+        // A missed role inside hasNot can produce false positives, so resolve
+        // nested role filters before any callback or action uses their result.
+        const hasRoleFilter = plan.some(
+          (step) =>
+            step.kind === "filter" &&
+            ((step.has && planHasRoleStep(step.has)) ||
+              (step.hasNot && planHasRoleStep(step.hasNot))),
+        );
+        if (hasRoleFilter) {
+          const resolved = await resolveFallback();
+          if (resolved) {
+            record("calls", "locator.getByRole.accessibilityTree");
+            return run(resolved);
+          }
+        }
         const result = await run(plan);
         if (result.count !== 0 || plan.length === 0 || !planHasRoleStep(plan)) return result;
 
-        // Nothing matched in the DOM; consult the accessibility tree. Cache per
-        // plan briefly so the inspect → tag → action sequence inside one
-        // locator action (and the 50 ms retry loop) reuses a single snapshot.
-        const cacheKey = JSON.stringify(plan);
-        const cached = accessibilityFallbacks.get(cacheKey);
-        let resolved: QueryStep[] | null;
-        if (cached && Date.now() - cached.at < ACCESSIBILITY_FALLBACK_CACHE_TTL_MS) {
-          resolved = cached.plan;
-        } else {
-          resolved = await resolvePlanWithAccessibilityTree(page, plan);
-          accessibilityFallbacks.set(cacheKey, { at: Date.now(), plan: resolved });
-        }
+        // Cache the fallback briefly across inspect → tag → action and retries.
+        const resolved = await resolveFallback();
         if (!resolved) return result;
         const fallbackResult = await run(resolved);
         if (fallbackResult.count > 0) record("calls", "locator.getByRole.accessibilityTree");

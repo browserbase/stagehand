@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 
 type BrowserbaseConstructor = new (options: { apiKey: string }) => {
   extensions: {
-    create: (payload: { file: ReadStream }) => Promise<{ id: string }>;
+    create: (
+      payload: { file: ReadStream },
+      options?: { maxRetries?: number },
+    ) => Promise<{ id: string }>;
     delete: (
       extensionId: string,
       options?: { headers?: Record<string, string | null> },
