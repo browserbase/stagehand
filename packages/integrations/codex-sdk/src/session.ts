@@ -380,7 +380,11 @@ export function logCodexEvent(logger: HarnessLogger, event: CodexEvent): void {
       type === "turn.failed" ||
       type === "error" ||
       item?.type === "error" ||
-      (type === "item.completed" && item?.status === "failed"),
+      (type === "item.completed" &&
+        (item?.status === "failed" ||
+          (item?.type === "command_execution" &&
+            typeof item.exit_code === "number" &&
+            item.exit_code !== 0))),
     hasContent: type === "item.completed" || type === "turn.completed",
   });
   if (level === undefined) return;

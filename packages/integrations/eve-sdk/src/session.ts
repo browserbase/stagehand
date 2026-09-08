@@ -380,7 +380,12 @@ export function buildEveTranscript(events: EveEvent[]): string {
 
 export function logEveEvent(logger: HarnessLogger, event: EveEvent): void {
   const level = harnessEventLogLevel(event.type, {
-    isError: event.type.endsWith(".failed"),
+    isError:
+      event.type.endsWith(".failed") ||
+      (event.type === "action.result" &&
+        isRecord(event.data) &&
+        (event.data.status !== "completed" ||
+          (isRecord(event.data.result) && event.data.result.isError === true))),
     hasContent: event.type.endsWith(".completed") || event.type === "action.result",
   });
   if (level === undefined) return;

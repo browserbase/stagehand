@@ -54,12 +54,22 @@ MCP_SETUP_TIMEOUT_S = _env_float("DEEPAGENTS_MCP_SETUP_TIMEOUT_S", 120.0)
 CLEANUP_TIMEOUT_S = 5.0
 
 
+class _WatchdogExpired(TimeoutError):
+    """Only a deadline owned by this runner expired, not an inner operation."""
+
+
 async def _with_optional_timeout(coro: Any, timeout: float) -> Any:
     """Apply a deadline without moving MCP or stream contexts to another task."""
     # AnyIO cancel scopes (including MCP ClientSession) must be entered and
     # exited by the same task. wait_for(coro) creates a new task on every call.
-    async with asyncio.timeout(timeout if timeout > 0 else None):
-        return await coro
+    deadline = asyncio.timeout(timeout if timeout > 0 else None)
+    try:
+        async with deadline:
+            return await coro
+    except TimeoutError as error:
+        if deadline.expired():
+            raise _WatchdogExpired from error
+        raise
 
 
 async def _open_mcp_server(
@@ -486,14 +496,14 @@ async def run(
                 )
                 try:
                     server_tools = await setup
-                except asyncio.TimeoutError:
+                except _WatchdogExpired:
                     emit_event(
                         {
                             "type": "error",
                             "kind": "mcp_setup_timeout",
                             "message": (
                                 f"MCP server '{name}' did not become ready within "
-                                f"{MCP_SETUP_TIMEOUT_S:.0f}s"
+                                f"{MCP_SETUP_TIMEOUT_S:g}s"
                             ),
                         }
                     )
@@ -510,39 +520,50 @@ async def run(
             stream_mode="updates",
         )
         iterator = stream.__aiter__()
-        run_deadline = (time.monotonic() + WALL_TIMEOUT_S) if WALL_TIMEOUT_S > 0 else None
+        loop = asyncio.get_running_loop()
+        run_deadline = (loop.time() + WALL_TIMEOUT_S) if WALL_TIMEOUT_S > 0 else None
         while True:
-            if run_deadline is not None and time.monotonic() >= run_deadline:
+            remaining = run_deadline - loop.time() if run_deadline is not None else None
+            if remaining is not None and remaining <= 0:
                 emit_event(
                     {
                         "type": "error",
                         "kind": "wall_timeout",
                         "message": (
                             "deepagents runner exceeded its wall-clock budget "
-                            f"({WALL_TIMEOUT_S:.0f}s)"
+                            f"({WALL_TIMEOUT_S:g}s)"
                         ),
                     }
                 )
                 break
             try:
-                remaining = run_deadline - time.monotonic() if run_deadline else None
-                limits = [value for value in (INACTIVITY_TIMEOUT_S, remaining) if value is not None and value > 0]
-                next_timeout = min(limits) if limits else 0
+                limits = [
+                    (value, kind)
+                    for value, kind in (
+                        (remaining, "wall_timeout"),
+                        (INACTIVITY_TIMEOUT_S, "inactivity_timeout"),
+                    )
+                    if value is not None and value > 0
+                ]
+                # Keep the selected guard: cancellation cleanup may finish after
+                # another deadline, but that does not change which timer fired.
+                next_timeout, watchdog_kind = (
+                    min(limits, key=lambda item: item[0]) if limits else (0, None)
+                )
                 chunk = await _with_optional_timeout(
                     iterator.__anext__(), next_timeout
                 )
             except StopAsyncIteration:
                 break
-            except asyncio.TimeoutError:
-                wall_expired = run_deadline is not None and time.monotonic() >= run_deadline
+            except _WatchdogExpired:
                 emit_event(
                     {
                         "type": "error",
-                        "kind": "wall_timeout" if wall_expired else "inactivity_timeout",
+                        "kind": watchdog_kind,
                         "message": (
-                            f"deepagents runner exceeded its wall-clock budget ({WALL_TIMEOUT_S:.0f}s)"
-                            if wall_expired else
-                            f"no agent activity for {INACTIVITY_TIMEOUT_S:.0f}s (model or tool call stalled)"
+                            f"deepagents runner exceeded its wall-clock budget ({WALL_TIMEOUT_S:g}s)"
+                            if watchdog_kind == "wall_timeout" else
+                            f"no agent activity for {INACTIVITY_TIMEOUT_S:g}s (model or tool call stalled)"
                         ),
                     }
                 )
