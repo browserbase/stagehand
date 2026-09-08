@@ -177,7 +177,7 @@ export async function handleConfig(args: string[], entryDir: string): Promise<vo
 
   if (sub === "help" || sub === "-h" || sub === "--help") {
     const { printConfigHelp } = await import("./help.js");
-    printConfigHelp();
+    await printConfigHelp();
     return;
   }
 
@@ -199,7 +199,7 @@ export async function handleConfig(args: string[], entryDir: string): Promise<vo
   // unchanged. Core has its own help and is handled above.
   if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
     const { printConfigHelp } = await import("./help.js");
-    printConfigHelp();
+    await printConfigHelp();
     return;
   }
 
