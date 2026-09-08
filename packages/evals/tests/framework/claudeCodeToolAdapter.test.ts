@@ -22,8 +22,8 @@ describe("claude code tool adapter resolution", () => {
     delete process.env.EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL;
   });
 
-  it("defaults Claude Code to browse_cli", () => {
-    expect(resolveToolSurface(claudeCodeHarness)).toBe("browse_cli");
+  it("defaults Claude Code to the facade", () => {
+    expect(resolveToolSurface(claudeCodeHarness)).toBe("stagehand_facade");
   });
 
   it("defaults browse_cli startup by environment", () => {
@@ -46,7 +46,7 @@ describe("claude code tool adapter resolution", () => {
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveToolSurface(claudeCodeHarness, "understudy_code")).toThrow(
-      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
+      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, stagehand_facade, or stagehand_facade_legacy; received "understudy_code"/,
     );
   });
 
@@ -68,7 +68,7 @@ describe("claude code tool adapter resolution", () => {
   });
 
   it("supports browse_cli and the code surfaces on Codex", () => {
-    expect(resolveToolSurface(codexHarness)).toBe("browse_cli");
+    expect(resolveToolSurface(codexHarness)).toBe("stagehand_facade");
     expect(resolveToolSurface(codexHarness, "browse_cli")).toBe("browse_cli");
     expect(resolveToolSurface(codexHarness, "stagehand_code")).toBe("stagehand_code");
     expect(resolveToolSurface(codexHarness, "playwright_code")).toBe("playwright_code");
@@ -78,7 +78,7 @@ describe("claude code tool adapter resolution", () => {
       "runner_provided_browserbase_cdp",
     );
     expect(() => resolveToolSurface(codexHarness, "understudy_code")).toThrow(
-      /Harness "codex" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
+      /Harness "codex" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, stagehand_facade, or stagehand_facade_legacy; received "understudy_code"/,
     );
     expect(resolveStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
     expect(resolveStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");

@@ -40,6 +40,7 @@ describe("pi tool adapter", () => {
   it("publishes the supported surfaces in default order", () => {
     expect(PI_TOOL_SURFACES).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
       "stagehand_code",

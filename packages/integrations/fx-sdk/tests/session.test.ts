@@ -4,6 +4,7 @@ import type { ChildProcess } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
+  extractFxTokenUsage,
   buildFxTranscript,
   createFxProcessRunner,
   normalizeFxModel,
@@ -21,7 +22,7 @@ function jsonl(...events: unknown[]): string {
   return events.map((event) => JSON.stringify(event)).join("\n");
 }
 
-function committedEvent(terminalReason = "completed") {
+function committedEvent(terminalReason = "completed", assistant = "turn answer") {
   return {
     kind: "history_turn_committed",
     payload: {
@@ -29,7 +30,7 @@ function committedEvent(terminalReason = "completed") {
       total_output_tokens: 4,
       turn: {
         kind: "completed",
-        assistant: "turn answer",
+        assistant,
         terminal_reason: terminalReason,
         execution: {
           schema_version: 3,
@@ -120,6 +121,7 @@ describe("fx CLI session", () => {
       "ask_result",
     ]);
     expect(result.tokenUsage).toEqual({
+      reported: true,
       input_tokens: 100,
       cached_input_tokens: 30,
       output_tokens: 20,
@@ -127,8 +129,49 @@ describe("fx CLI session", () => {
       total_cost: 0.25,
     });
     expect(result.status).toBe("completed");
-    expect(result.finalMessage).toContain('"success":true');
+    expect(result.finalMessage).toBe("turn answer");
     expect(result.observedToolCallKeys).toEqual([]);
+  });
+
+  it("takes the final message from the committed turn, not the joined ask output", async () => {
+    // fx's `ask --json` output concatenates every assistant message of the
+    // turn; the committed turn's `assistant` is the conclusion alone.
+    const narration = "I’ll open AirAsia’s booking flow and inspect the seat price.";
+    const report = '{"success":true,"summary":"Searched.","finalAnswer":"No direct flights."}';
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger,
+      runProcess: async () => ({
+        stdout: JSON.stringify({ output: `${narration}\n\n${report}`, exit_code: 0 }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: fakeStore(jsonl(committedEvent("completed", report))),
+    });
+    expect(result.status).toBe("completed");
+    expect(result.finalMessage).toBe(report);
+    const assistant = result.events.find((event) => event.type === "assistant");
+    expect(assistant).toEqual({ type: "assistant", text: report });
+  });
+
+  it("falls back to the ask output when the committed turn carries no assistant text", async () => {
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: "/fake/workspace",
+      home: "/fake/home",
+      env: {},
+      logger,
+      runProcess: async () => ({
+        stdout: JSON.stringify({ output: "only output", exit_code: 0 }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: fakeStore(jsonl(committedEvent("completed", ""))),
+    });
+    expect(result.finalMessage).toBe("only output");
   });
 
   it("reports missing credentials as an SDK error", async () => {
@@ -543,5 +586,48 @@ describe("fx CLI session", () => {
     expect(details).not.toContain("1234567890");
     expect(buildFxTranscript(result.events)).toContain("[redacted]");
     expect(buildFxTranscript(result.events)).not.toContain("1234567890");
+  });
+});
+
+describe("FX token usage presence", () => {
+  it.each([null, undefined, -1, NaN, Infinity, "invalid"])(
+    "omits invalid reported bills: %j",
+    (total_cost) => {
+      expect(extractFxTokenUsage([], { total_cost })).not.toHaveProperty("total_cost");
+    },
+  );
+  it("preserves an explicitly reported zero-dollar bill", () => {
+    expect(extractFxTokenUsage([], { total_cost: 0 })).toMatchObject({
+      total_cost: 0,
+      reported: false,
+    });
+  });
+  it.each([undefined, {}, { total_cost: 0 }, { input_tokens: null, output_tokens: -1 }])(
+    "keeps missing or cost-only telemetry unreported: %j",
+    (snapshot) => {
+      expect(extractFxTokenUsage([], snapshot).reported).toBe(false);
+    },
+  );
+  it("preserves observed zero in snapshots, committed totals and checkpoints", () => {
+    expect(
+      extractFxTokenUsage([], { snapshot: { input_tokens: 0, output_tokens: "0" } }),
+    ).toMatchObject({ reported: true, input_tokens: 0, output_tokens: 0 });
+    const committed = committedEvent();
+    committed.payload.total_input_tokens = 0;
+    committed.payload.total_output_tokens = 0;
+    expect(extractFxTokenUsage([committed]).reported).toBe(true);
+    expect(
+      extractFxTokenUsage([
+        { kind: "usage_checkpointed", payload: { usage: { input_tokens: 0, output_tokens: 0 } } },
+      ]).reported,
+    ).toBe(true);
+    expect(
+      extractFxTokenUsage([
+        {
+          kind: "history_turn_committed",
+          payload: { turn: { kind: "completed", assistant: "done" } },
+        },
+      ]).reported,
+    ).toBe(false);
   });
 });

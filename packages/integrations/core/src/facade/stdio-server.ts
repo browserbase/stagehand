@@ -14,9 +14,10 @@ import { sanitizeErrorMessage } from "../harness/redact.js";
 import { stagehandFacadeConfigFromEnv } from "./config.js";
 import {
   CodeModeRunInputSchema,
-  FACADE_TOOLS,
-  SCREENSHOT_TOOL_DESCRIPTION,
-  SNAPSHOT_TOOL_DESCRIPTION,
+  facadeSurfaceFromArgs,
+  facadeToolsFor,
+  SESSION_INFO_TOOL_NAME,
+  SESSION_LOST_TELEMETRY_PREFIX,
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
@@ -34,27 +35,28 @@ type FacadeResources = {
 
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
+const facadeTools = facadeToolsFor(facadeSurfaceFromArgs(process.argv.slice(2)));
 let resourcesPromise: Promise<FacadeResources> | undefined;
 let closing = false;
 
 server.registerTool(
   "run",
-  { description: FACADE_TOOLS[0].description, inputSchema: CodeModeRunInputSchema },
+  { description: facadeTools[0].description, inputSchema: CodeModeRunInputSchema },
   async () => ({ content: [] }),
 );
 server.registerTool(
   "snapshot",
-  { description: SNAPSHOT_TOOL_DESCRIPTION, inputSchema: SnapshotInputSchema },
+  { description: facadeTools[1].description, inputSchema: SnapshotInputSchema },
   async () => ({ content: [] }),
 );
 server.registerTool(
   "screenshot",
-  { description: SCREENSHOT_TOOL_DESCRIPTION, inputSchema: ScreenshotInputSchema },
+  { description: facadeTools[2].description, inputSchema: ScreenshotInputSchema },
   async () => ({ content: [] }),
 );
 
 server.server.removeRequestHandler("tools/list");
-server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [...FACADE_TOOLS] }));
+server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [...facadeTools] }));
 server.server.removeRequestHandler("tools/call");
 server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
@@ -101,6 +103,18 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ],
         };
       }
+      case SESSION_INFO_TOOL_NAME: {
+        // Runner-side only (absent from tools/list): launches the browser if
+        // needed and reports where it lives so the harness can log the
+        // Browserbase session URL before the agent's first call.
+        const browser = (await ensureResources()).browser;
+        return textResult(
+          JSON.stringify({
+            provider: browser.provider,
+            ...(browser.sessionId && { sessionId: browser.sessionId }),
+          }),
+        );
+      }
       default:
         throw new Error(`Unknown tool: ${request.params.name}`);
     }
@@ -123,9 +137,33 @@ async function createResources(): Promise<FacadeResources> {
     config.browser.type === "browserbase"
       ? await browserbase.launch(config.browser.launchOptions)
       : await localBrowser.launch(config.browser.launchOptions);
+  const launchedAt = Date.now();
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
-    return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+    const tools = new StagehandFacadeTools(stagehand, {
+      onRunReport: (report) =>
+        process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
+      // The browser is not recreated on purpose: a fresh session would silently
+      // change the evidence trail mid-task. Tools keep answering with the
+      // terminal error and the host decides what to do with the run.
+      // sessionAgeMs against the configured session timeout tells a Browserbase
+      // TIMED_OUT apart from a remote close.
+      onSessionLost: (loss) =>
+        process.stderr.write(
+          `${SESSION_LOST_TELEMETRY_PREFIX}${JSON.stringify({
+            ...loss,
+            cause: sanitizeErrorMessage(loss.cause),
+            provider: browser.provider,
+            ...(browser.sessionId && { sessionId: browser.sessionId }),
+            sessionAgeMs: Date.now() - launchedAt,
+            ...(config.browser.type === "browserbase" &&
+              typeof config.browser.launchOptions.timeout === "number" && {
+                sessionTimeoutMs: config.browser.launchOptions.timeout * 1000,
+              }),
+          })}\n`,
+        ),
+    });
+    return { browser, stagehand, tools };
   } catch (error) {
     await browser.close().catch(() => undefined);
     throw error;

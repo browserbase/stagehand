@@ -4,6 +4,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -62,6 +63,8 @@ export type FxEvent =
   | { type: "turn_committed"; terminal_reason?: string; turn_kind?: string };
 
 export type FxTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   input_tokens: number;
   cached_input_tokens: number;
   output_tokens: number;
@@ -474,7 +477,15 @@ export async function runFxSession(input: {
   const committed = findLastCommittedTurn(logEvents);
   const turn = committed?.turn;
   const turnAssistant = typeof turn?.assistant === "string" ? turn.assistant : undefined;
-  const finalMessage = typeof ask?.output === "string" ? ask.output : (turnAssistant ?? "");
+  // `ask.output` is every assistant message of the turn joined together —
+  // opening narration, interstitial commentary and the conclusion — while the
+  // committed turn's `assistant` is the conclusion alone. The narration belongs
+  // to the tool steps that carry it, so the final message must be the latter.
+  const finalMessage = turnAssistant?.trim()
+    ? turnAssistant
+    : typeof ask?.output === "string"
+      ? ask.output
+      : "";
   if (turnAssistant || finalMessage) {
     const event: FxEvent = { type: "assistant", text: turnAssistant ?? finalMessage };
     events.push(event);
@@ -602,6 +613,9 @@ export function extractFxTokenUsage(
   const committed = findLastCommittedTurn(events);
   if (committed) {
     return {
+      reported: [committed.payload.total_input_tokens, committed.payload.total_output_tokens].some(
+        isTokenCount,
+      ),
       input_tokens: toFiniteNumber(committed.payload.total_input_tokens),
       cached_input_tokens: 0,
       output_tokens: toFiniteNumber(committed.payload.total_output_tokens),
@@ -703,11 +717,19 @@ export function buildFxTranscript(events: FxEvent[]): string {
 }
 
 export function logFxEvent(logger: HarnessLogger, event: FxEvent): void {
+  const level = harnessEventLogLevel(event.type, {
+    isError:
+      (event.type === "stderr" && /\b(?:error|fatal|failed|panic)\b/iu.test(event.line)) ||
+      (event.type === "tool_step" &&
+        event.tool_results.some((result) => /^(?:error|failed)$/iu.test(result.status ?? ""))),
+    hasContent: true,
+  });
+  if (level === undefined) return;
   const summary = summarizeFxEvent(event);
   logger.log({
     category: "fx",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: event.type, type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
@@ -783,13 +805,15 @@ function hasUsageFields(record: Record<string, unknown>): boolean {
 
 function usageFromRecord(record?: Record<string, unknown>): FxTokenUsage {
   return {
+    reported: [record?.input_tokens, record?.output_tokens].some(isTokenCount),
     input_tokens: toFiniteNumber(record?.input_tokens),
     cached_input_tokens: toFiniteNumber(record?.cache_read_tokens),
     output_tokens: toFiniteNumber(record?.output_tokens),
     reasoning_output_tokens: toFiniteNumber(record?.reasoning_tokens),
-    ...(record &&
-      "total_cost" in record && {
-        total_cost: toFiniteNumber(record.total_cost),
+    ...(typeof record?.total_cost === "number" &&
+      Number.isFinite(record.total_cost) &&
+      record.total_cost >= 0 && {
+        total_cost: record.total_cost,
       }),
   };
 }
@@ -847,4 +871,12 @@ export function stringifyError(value: unknown): string {
 
 export function clip(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

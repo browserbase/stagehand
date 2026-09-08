@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   CodeModeRunInputSchema,
+  FACADE_AGENT_INSTRUCTIONS,
+  FACADE_LEGACY_TOOLS,
   FACADE_TOOLS,
+  facadeSurfaceFromArgs,
+  facadeToolsFor,
+  facadeToolsForSurface,
+  LEGACY_FACADE_AGENT_INSTRUCTIONS,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   STALE_SNAPSHOT_ID_ERROR,
+  explicitSnapshotActionsEnabled,
+  facadeAgentInstructions,
 } from "../src/facade/contract.js";
-import { stagehandFacadeConfigFromEnv } from "../src/facade/config.js";
+import { StagehandFacadeConfigError, stagehandFacadeConfigFromEnv } from "../src/facade/config.js";
 
 describe("Stagehand facade contract", () => {
   it("defaults local browser launches to headed mode", () => {
@@ -14,6 +22,77 @@ describe("Stagehand facade contract", () => {
       type: "local",
       launchOptions: { headless: false },
     });
+  });
+
+  it("creates Browserbase sessions with an explicit timeout and keep-alive", () => {
+    const env = { BROWSERBASE_API_KEY: "bb-key", BROWSERBASE_PROJECT_ID: "proj" };
+    expect(stagehandFacadeConfigFromEnv(env).browser).toStrictEqual({
+      type: "browserbase",
+      launchOptions: { apiKey: "bb-key", projectId: "proj", timeout: 3600, keepAlive: true },
+    });
+    expect(
+      stagehandFacadeConfigFromEnv({
+        ...env,
+        STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "21600",
+      }).browser.launchOptions,
+    ).toMatchObject({ timeout: 21_600 });
+    for (const invalid of ["0", "-1", "90.5", "soon", "21601"]) {
+      expect(() =>
+        stagehandFacadeConfigFromEnv({
+          ...env,
+          STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: invalid,
+        }),
+      ).toThrow(StagehandFacadeConfigError);
+    }
+  });
+
+  it("passes proxies/verified through to the Browserbase session when configured", () => {
+    const env = { BROWSERBASE_API_KEY: "bb-key" };
+    expect(stagehandFacadeConfigFromEnv(env).browser.launchOptions).not.toHaveProperty("proxies");
+    expect(
+      stagehandFacadeConfigFromEnv({
+        ...env,
+        STAGEHAND_BROWSERBASE_PROXIES: "1",
+        STAGEHAND_BROWSERBASE_VERIFIED: "true",
+      }).browser.launchOptions,
+    ).toMatchObject({ proxies: true, browserSettings: { verified: true } });
+    expect(
+      stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_PROXIES: "off" }).browser
+        .launchOptions,
+    ).toMatchObject({ proxies: false });
+    expect(() =>
+      stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_VERIFIED: "maybe" }),
+    ).toThrow(/STAGEHAND_BROWSERBASE_VERIFIED must be a boolean/);
+  });
+
+  it("uses a host-provided extension id instead of uploading per session", () => {
+    const env = { BROWSERBASE_API_KEY: "bb-key" };
+    expect(stagehandFacadeConfigFromEnv(env).browser.launchOptions).not.toHaveProperty(
+      "extensionId",
+    );
+    expect(
+      stagehandFacadeConfigFromEnv({ ...env, STAGEHAND_BROWSERBASE_EXTENSION_ID: " ext_shared " })
+        .browser.launchOptions,
+    ).toMatchObject({ extensionId: "ext_shared" });
+  });
+
+  it("adds snapshot/screenshot routing guidance only when EXPLICIT_SNAPSHOT_ACTIONS is on", () => {
+    expect(explicitSnapshotActionsEnabled({})).toBe(false);
+    expect(explicitSnapshotActionsEnabled({ EXPLICIT_SNAPSHOT_ACTIONS: "1" })).toBe(true);
+    expect(facadeAgentInstructions({})).toBe(FACADE_AGENT_INSTRUCTIONS);
+    const explicit = facadeAgentInstructions({ EXPLICIT_SNAPSHOT_ACTIONS: "1" });
+    expect(explicit.startsWith(FACADE_AGENT_INSTRUCTIONS)).toBe(true);
+    expect(explicit).toContain("act by snapshot ID");
+    expect(explicit).toContain("Call screenshot before declaring success");
+    expect(facadeToolsFor("playwright", {})).toBe(FACADE_TOOLS);
+    const tools = facadeToolsFor("playwright", { EXPLICIT_SNAPSHOT_ACTIONS: "true" });
+    expect(tools.map((t) => t.name)).toEqual(["run", "snapshot", "screenshot"]);
+    expect(tools[0].description).toContain('Prefer "actions" with snapshot IDs');
+    expect(tools[1].description).toContain("before acting by ID");
+    expect(tools[2].description).toContain("before reporting done");
+    // Same input schemas — prompt-only variant, not a new surface.
+    expect(tools.map((t) => t.inputSchema)).toEqual(FACADE_TOOLS.map((t) => t.inputSchema));
+    expect(facadeToolsFor("legacy", { EXPLICIT_SNAPSHOT_ACTIONS: "1" })).toBe(FACADE_LEGACY_TOOLS);
   });
 
   it("pins the three tool names and descriptions", () => {
@@ -31,6 +110,45 @@ describe("Stagehand facade contract", () => {
       '{"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}',
     );
     expect(FACADE_TOOLS[2].description).toContain('{"type":"jpeg","quality":40,"fullPage":false}');
+  });
+
+  it("advertises the Playwright idiom and no Stagehand AI methods", () => {
+    expect(FACADE_TOOLS[0].description).toContain("page, context, and browser in scope");
+    expect(FACADE_TOOLS[0].description).toContain("Playwright-shaped API");
+    expect(FACADE_AGENT_INSTRUCTIONS).toContain("Playwright page, context, and browser");
+    expect(FACADE_AGENT_INSTRUCTIONS).toContain("page.getByRole(");
+    for (const text of [FACADE_TOOLS[0].description, FACADE_AGENT_INSTRUCTIONS]) {
+      expect(text).not.toMatch(/\b(act|extract|observe)\(/u);
+      expect(text).not.toContain("stagehand.");
+    }
+  });
+
+  it("keeps the legacy surface byte-identical except for the run description", () => {
+    expect(FACADE_LEGACY_TOOLS.map((tool) => tool.name)).toStrictEqual([
+      "run",
+      "snapshot",
+      "screenshot",
+    ]);
+    expect(FACADE_LEGACY_TOOLS[0].description).toBe(
+      'Browse and automate websites in the persistent Stagehand browser. Navigate with JavaScript such as await page.goto("https://example.com"); there is no separate navigate or start tool. Execute either a JavaScript workflow against the Stagehand Playwright facade or a batch of actions using IDs from the latest snapshot. Provide exactly one of code or actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the bracketed snapshot ID as a string. Examples: {"actions":[{"op":"click","id":"1-42"}]}, {"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, {"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.',
+    );
+    expect(FACADE_LEGACY_TOOLS[0].inputSchema).toBe(FACADE_TOOLS[0].inputSchema);
+    expect(FACADE_LEGACY_TOOLS[1]).toBe(FACADE_TOOLS[1]);
+    expect(FACADE_LEGACY_TOOLS[2]).toBe(FACADE_TOOLS[2]);
+    expect(LEGACY_FACADE_AGENT_INSTRUCTIONS).toContain(
+      "Use snapshot actions for simple interactions",
+    );
+    expect(LEGACY_FACADE_AGENT_INSTRUCTIONS).not.toBe(FACADE_AGENT_INSTRUCTIONS);
+  });
+
+  it("selects the surface from --surface", () => {
+    expect(facadeSurfaceFromArgs([])).toBe("playwright");
+    expect(facadeSurfaceFromArgs(["--max-screenshot-base64-bytes=4096"])).toBe("playwright");
+    expect(facadeSurfaceFromArgs(["--surface=legacy"])).toBe("legacy");
+    expect(facadeSurfaceFromArgs(["--surface=playwright"])).toBe("playwright");
+    expect(() => facadeSurfaceFromArgs(["--surface=codemode"])).toThrow("--surface=");
+    expect(facadeToolsForSurface("legacy")).toBe(FACADE_LEGACY_TOOLS);
+    expect(facadeToolsForSurface("playwright")).toBe(FACADE_TOOLS);
   });
 
   it("pins snapshot error punctuation", () => {

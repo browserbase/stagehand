@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  extractPiTokenUsage,
   buildPiMcpToolName,
   buildPiTranscript,
   definePiCodeRunTool,
@@ -132,6 +133,7 @@ describe("pi SDK session", () => {
     expect(result.turns).toBe(2);
     expect(result.events.some((event) => event.type === "message_update")).toBe(false);
     expect(result.tokenUsage).toEqual({
+      reported: true,
       inputTokens: 15,
       outputTokens: 8,
       cacheReadTokens: 4,
@@ -144,9 +146,38 @@ describe("pi SDK session", () => {
     expect(fake.createOptions).toMatchObject({
       cwd: "/tmp/pi-test",
       systemPrompt: "system",
+      thinkingLevel: "medium",
       customTools: [customTool],
     });
     expect(fake.disposeCount).toBe(1);
+  });
+
+  it("keeps pi's stock system prompt and appends evaluation guidance by default", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { appendSystemPrompt: "You are being evaluated." },
+    });
+    expect(fake.createOptions).toMatchObject({
+      appendSystemPrompt: "You are being evaluated.",
+      thinkingLevel: "medium",
+    });
+    expect(fake.createOptions).not.toHaveProperty("systemPrompt");
+  });
+
+  it("honors an explicit thinking level", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { thinkingLevel: "off" },
+    });
+    expect(fake.createOptions).toMatchObject({ thinkingLevel: "off" });
   });
 
   it("stops at the turn budget", async () => {
@@ -288,27 +319,75 @@ describe("pi SDK session", () => {
     expect(result.stopReason).toBe("cancelled");
   });
 
-  it("forwards an active abort and removes the signal listener", async () => {
-    const fake = scriptedSdk([], { promptUntilAbort: true });
-    const controller = new AbortController();
-    const removeListener = vi.spyOn(controller.signal, "removeEventListener");
-    const execution = runPiSession({
+  it("retains screenshots once as bytes and keeps base64 out of logs", async () => {
+    const png = Buffer.alloc(300_000, 7);
+    const base64 = png.toString("base64");
+    const toolResult = {
+      content: [
+        { type: "text", text: "Screenshot captured." },
+        { type: "image", data: base64, mimeType: "image/png" },
+      ],
+      details: {},
+    };
+    const log = vi.fn();
+    const fake = scriptedSdk([
+      {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "1", name: "mcp__stagehand__screenshot" }],
+          usage: { input: 1, output: 1 },
+          stopReason: "toolUse",
+        },
+      },
+      { type: "tool_execution_end", toolCallId: "1", toolName: "shot", result: toolResult },
+      {
+        type: "message_end",
+        message: {
+          role: "toolResult",
+          toolCallId: "1",
+          content: [
+            { type: "text", text: "Screenshot captured." },
+            { type: "image", data: base64, mimeType: "image/png" },
+          ],
+        },
+      },
+      { type: "turn_end" },
+      assistant("done", { input: 1, output: 1 }),
+      { type: "turn_end" },
+    ]);
+    const result = await runPiSession({
       prompt: "task",
-      model: "model",
+      model: "openai/gpt-5.4-mini",
       sdk: fake.sdk,
-      signal: controller.signal,
-      logger,
+      logger: { ...logger, log },
       session: {},
     });
-    await vi.waitFor(() => expect(fake.createOptions).toBeDefined());
 
-    controller.abort(new Error("active cancellation"));
-    const result = await execution;
+    const toolEnd = result.events.find((event) => event.type === "tool_execution_end");
+    const image = (toolEnd?.result as { content: Array<Record<string, unknown>> }).content[1];
+    expect(Buffer.isBuffer(image.bytes)).toBe(true);
+    expect((image.bytes as Buffer).equals(png)).toBe(true);
+    expect(image.data).toBeUndefined();
+    expect(image.mimeType).toBe("image/png");
+    // The original event object handed to pi is left intact.
+    expect(toolResult.content[1]).toMatchObject({ data: base64 });
 
-    expect(fake.abortCount).toBe(1);
-    expect(result.status).toBe("sdk_error");
-    expect(result.stopReason).toBe("active cancellation");
-    expect(removeListener).toHaveBeenCalledWith("abort", expect.any(Function));
+    const toolMessage = result.events.find(
+      (event) =>
+        event.type === "message_end" && (event.message as { role: string }).role === "toolResult",
+    );
+    const serialized = JSON.stringify(result.events, (_key, value) =>
+      Buffer.isBuffer(value) ? "<buffer>" : value,
+    );
+    expect(serialized).not.toContain(base64.slice(0, 1_000));
+    expect(JSON.stringify(toolMessage)).toContain("[image 300000 bytes]");
+
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).not.toContain(base64.slice(0, 1_000));
+    expect(logged).toContain("[image 300000 bytes]");
+    expect(buildPiTranscript(result.events)).not.toContain(base64.slice(0, 1_000));
+    expect(result.status).toBe("completed");
   });
 
   it("normalizes models, MCP names/results, code tools, and statuses", async () => {
@@ -355,5 +434,53 @@ describe("pi SDK session", () => {
     expect(resolvePiStatus({ iterationError: new Error("x"), budgetExhausted: false })).toBe(
       "sdk_error",
     );
+  });
+
+  it("forwards an active abort and removes the signal listener", async () => {
+    const fake = scriptedSdk([], { promptUntilAbort: true });
+    const controller = new AbortController();
+    const removeListener = vi.spyOn(controller.signal, "removeEventListener");
+    const execution = runPiSession({
+      prompt: "task",
+      model: "model",
+      sdk: fake.sdk,
+      signal: controller.signal,
+      logger,
+      session: {},
+    });
+    await vi.waitFor(() => expect(fake.createOptions).toBeDefined());
+
+    controller.abort(new Error("active cancellation"));
+    const result = await execution;
+
+    expect(fake.abortCount).toBe(1);
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toBe("active cancellation");
+    expect(removeListener).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+});
+
+describe("Pi token usage presence", () => {
+  const event = (usage: Record<string, unknown>) => ({
+    type: "message_end",
+    message: { role: "assistant", usage },
+  });
+  it.each([{}, { cost: { total: 0 } }, { totalTokens: 0 }, { input: null, output: -1 }])(
+    "does not infer tokens from absent or invalid telemetry: %j",
+    (usage) => {
+      expect(extractPiTokenUsage([event(usage)]).reported).toBe(false);
+    },
+  );
+  it("preserves observed zero and presence across later missing usage", () => {
+    expect(extractPiTokenUsage([]).reported).toBe(false);
+    expect(extractPiTokenUsage([event({ input: 0, output: "0" }), event({})])).toMatchObject({
+      reported: true,
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+    expect(
+      extractPiTokenUsage([{ type: "message_end", message: { role: "user", usage: { input: 1 } } }])
+        .reported,
+    ).toBe(false);
   });
 });

@@ -10,29 +10,73 @@ import {
   type V3,
 } from "stagehand-v3";
 
+import fs from "node:fs/promises";
+import path from "node:path";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
+
 import type { EvalLogger } from "../logger.js";
 import { tracedSpan } from "./braintrust.js";
 import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
+import {
+  selectVerifierTraceLines,
+  verifierTraceEnabled,
+  writeVerifierTrace,
+} from "./verifierTrace.js";
+import type { HarnessTrajectory } from "./harnesses/trajectoryAdapter.js";
 import { RubricCache } from "./rubricCache.js";
 import type { TaskResult } from "./types.js";
+import { applyVerdictGates, resolveRequireGrounding, type VerdictGates } from "./verifierGates.js";
+
+/**
+ * What scores/result.json holds: the judge's EvaluationResult shape with the
+ * gated verdict at the top level, so a reader of result.json alone sees the
+ * same outcome as the Braintrust row. The judge's untouched verdict is kept
+ * under `judge` (and as `judgeOutcomeSuccess` / `processScoreLenient`).
+ */
+export interface PersistedEvaluationResult extends EvaluationResult {
+  judgeOutcomeSuccess: boolean;
+  outcomeGates: VerdictGates["outcomeGates"];
+  processScoreStrict: number | undefined;
+  processScoreLenient: number | undefined;
+  judge: EvaluationResult;
+}
+
+export function buildPersistedEvaluationResult(
+  evaluation: EvaluationResult,
+  gates: VerdictGates,
+): PersistedEvaluationResult {
+  return {
+    ...evaluation,
+    outcomeSuccess: gates.outcomeSuccess,
+    processScore: gates.processScore,
+    ...(gates.perCriterion && { perCriterion: gates.perCriterion }),
+    judgeOutcomeSuccess: gates.judgeOutcomeSuccess,
+    outcomeGates: gates.outcomeGates,
+    processScoreStrict: gates.processScoreStrict,
+    processScoreLenient: gates.processScoreLenient,
+    judge: evaluation,
+  };
+}
 
 const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
+/** Campaign-validated default; callers can pin the judge independently. */
+export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.5-flash";
 
 /**
- * Build the shared rubric verifier. By default V3Evaluator keeps its existing
- * model selection; EVAL_VERIFIER_MODEL makes the verifier independently
- * selectable for external harnesses and normal Stagehand runs alike.
+ * Build the shared rubric verifier. EVAL_VERIFIER_MODEL makes the verifier
+ * independently selectable for external harnesses and normal Stagehand runs
+ * alike; otherwise DEFAULT_VERIFIER_MODEL applies.
  */
 export function createVerifierEvaluator(v3: V3): V3Evaluator {
-  const modelName = process.env[VERIFIER_MODEL_ENV]?.trim();
-  if (!modelName) {
-    return new V3Evaluator(v3, { backend: "verifier" });
-  }
+  const explicitModel = process.env[VERIFIER_MODEL_ENV]?.trim();
+  const modelName = explicitModel || DEFAULT_VERIFIER_MODEL;
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const apiKey = loadApiKeyFromEnv(provider, () => {});
-  if (!apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
+  // Only an explicit override fails loudly on a missing key; the default lets
+  // V3Evaluator resolve credentials itself (tests and keyless environments).
+  if (explicitModel && !apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
     throw new Error(
       `${VERIFIER_MODEL_ENV} is set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
     );
@@ -192,7 +236,7 @@ export interface ExternalHarnessVerifierConfig {
 
 export interface GradeExternalTrajectoryOptions {
   /** Builds the harness-specific Trajectory; runs inside the guarded block. */
-  buildTrajectory: () => Trajectory;
+  buildTrajectory: () => HarnessTrajectory;
   verifier: ExternalHarnessVerifierConfig;
   /** The agent's self-reported result to fold the verdict into. */
   baseResult: TaskResult;
@@ -201,13 +245,18 @@ export interface GradeExternalTrajectoryOptions {
   /** Logger category ("claude_code" | "codex"). */
   category: string;
   logger: EvalLogger;
+  /**
+   * Matcher for mounted-browser (facade) tool names. When present, a judge
+   * pass with zero facade steps is gated (`no_browser_use`).
+   */
+  isFacadeTool?: (name: string) => boolean;
 }
 
 /**
  * Grade an external-harness run with the rubric verifier and fold the verdict
  * into the TaskResult. Never throws: on any failure in the verifier path the
- * self-reported result is returned with `verifierError` set, so downstream
- * consumers can tell an ungraded run apart from a graded one.
+ * result fails closed with `verifierError` set and the agent report preserved
+ * separately, so downstream consumers can distinguish ungraded runs.
  */
 export async function gradeExternalTrajectory({
   buildTrajectory,
@@ -216,9 +265,14 @@ export async function gradeExternalTrajectory({
   errorMessage,
   category,
   logger,
+  isFacadeTool,
 }: GradeExternalTrajectoryOptions): Promise<TaskResult> {
+  let capturedTrajectory: HarnessTrajectory | undefined;
+  let rawEvaluation: EvaluationResult | undefined;
+  let savedDirectory: string | undefined;
   try {
     const trajectory = buildTrajectory();
+    capturedTrajectory = trajectory;
     const evaluator = createVerifierEvaluator(verifier.v3);
 
     // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
@@ -230,42 +284,127 @@ export async function gradeExternalTrajectory({
       ...verifier.taskSpec,
       precomputedRubric: rubric,
     };
-    const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
+    const hydratedTrajectory: HarnessTrajectory = { ...trajectory, task: hydratedSpec };
+    capturedTrajectory = hydratedTrajectory;
 
+    const traceOn = verifierTraceEnabled();
+    const logCountBefore = traceOn ? logger.getLogs({ maxLevel: 2 }).length : 0;
     const evaluationResult = await verifyTraced(evaluator, hydratedTrajectory, {
       taskId: hydratedSpec.id,
       dataset: verifier.dataset,
     });
+    rawEvaluation = evaluationResult;
+    if (evaluationResult.findings?.some((finding) => finding.category === "verifier_uncertainty")) {
+      throw new Error(
+        "Verifier returned an uncertainty result; no trustworthy grade was produced.",
+      );
+    }
+    const traceLines = traceOn
+      ? selectVerifierTraceLines(logger.getLogs({ maxLevel: 2 }), logCountBefore)
+      : [];
+    // The judge's verdict is not the final word: deterministic gates fold in
+    // what the trajectory itself proves (an answer exists, the run finished,
+    // the browser was used, the numbers came from the target site) and a
+    // strict process score that does not credit blocker-walled criteria. See
+    // verifierGates.ts for why each exists.
+    const gates = applyVerdictGates({
+      evaluation: evaluationResult,
+      trajectory: hydratedTrajectory,
+      isFacadeTool,
+      requireGrounding: resolveRequireGrounding(
+        verifier.dataset,
+        Boolean(verifier.taskSpec.precomputedRubric),
+      ),
+      rubricItemCount: rubric.items.length,
+    });
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = evaluationResultToSuccess(evaluationResult, successMode);
+    const verifiedSuccess = evaluationResultToSuccess(
+      {
+        ...evaluationResult,
+        outcomeSuccess: gates.outcomeSuccess,
+        processScore: gates.processScore,
+      },
+      successMode,
+    );
 
-    const { directory: trajectoryDir } = await persistAdapterTrajectory({
+    const { directory: trajectoryDir, persisted } = await persistAdapterTrajectory({
       trajectory: hydratedTrajectory,
       taskSpec: hydratedSpec,
-      evaluationResult,
+      evaluationResult: buildPersistedEvaluationResult(evaluationResult, gates),
       outputRoot: verifier.trajectoryRoot,
       runId: verifier.runId,
     });
+    savedDirectory = trajectoryDir;
+    if (persisted) await writeGatesFile(trajectoryDir, gates);
+    if (persisted && traceLines.length) {
+      const file = await writeVerifierTrace(trajectoryDir, traceLines);
+      if (file) logger.log({ category, message: `verifier trace: ${file}`, level: 1 });
+    }
 
+    const gateSuffix = gates.outcomeGates.length ? ` gated=${gates.outcomeGates.join(",")}` : "";
     logger.log({
       category,
-      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${hydratedTrajectory.steps.length}`,
+      message: `result: outcome=${gates.outcomeSuccess} (judge=${gates.judgeOutcomeSuccess}${gateSuffix}) process=${formatProcessScore(gates.processScore)} (lenient=${formatProcessScore(gates.processScoreLenient)}) steps=${hydratedTrajectory.steps.length}`,
       level: 1,
     });
 
     return {
       ...baseResult,
       _success: verifiedSuccess,
-      error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
-      outcomeSuccess: evaluationResult.outcomeSuccess,
-      processScore: evaluationResult.processScore,
+      error: verifiedSuccess
+        ? undefined
+        : gates.outcomeGates.length > 0 && gates.judgeOutcomeSuccess
+          ? // The judge passed this row; a deterministic gate flipped it. Say
+            // so where the row error is read, instead of echoing the agent's
+            // (often confident) self-report.
+            `${describeOutcomeGates(gates)} (judge passed; agent said: ${clipError(String(baseResult.error ?? errorMessage))})`
+          : (baseResult.error ?? errorMessage),
+      outcomeSuccess: gates.outcomeSuccess,
+      judgeOutcomeSuccess: gates.judgeOutcomeSuccess,
+      outcomeGates: gates.outcomeGates,
+      processScore: gates.processScore,
+      processScoreStrict: gates.processScoreStrict,
+      processScoreLenient: gates.processScoreLenient,
+      perCriterion: gates.perCriterion,
       evidenceInsufficient: evaluationResult.evidenceInsufficient,
+      ...(gates.grounding && { grounding: gates.grounding }),
+      scoringIncomplete: gates.scoringIncomplete,
       criterionCount: rubric.items.length,
       stepCount: hydratedTrajectory.steps.length,
       trajectoryDir,
+      metrics: {
+        ...(asRecord(baseResult.metrics) ?? {}),
+        ...gateMetrics(gates),
+      },
     };
   } catch (verifyError) {
-    const message = stringifyVerifierError(verifyError);
+    const message = sanitizeErrorMessage(stringifyVerifierError(verifyError));
+    // Failed verification still needs the captured browser evidence and raw
+    // judge response for diagnosis. This path never accepts the result as a grade.
+    if (capturedTrajectory && !savedDirectory) {
+      try {
+        const saved = await persistAdapterTrajectory({
+          trajectory: capturedTrajectory,
+          taskSpec: capturedTrajectory.task ?? verifier.taskSpec,
+          ...(rawEvaluation && { evaluationResult: rawEvaluation }),
+          outputRoot: verifier.trajectoryRoot,
+          runId: verifier.runId,
+        });
+        savedDirectory = saved.directory;
+        if (saved.persisted) {
+          await fs.writeFile(
+            path.join(saved.directory, "scores", "verifier-error.json"),
+            JSON.stringify({ verifierError: message, graded: false }, null, 2),
+          );
+        }
+      } catch (persistenceError) {
+        logger.warn({
+          category,
+          level: 1,
+          message: `could not persist failed verification: ${sanitizeErrorMessage(stringifyVerifierError(persistenceError))}`,
+        });
+      }
+    }
     logger.warn({
       category,
       message: `verifier integration failed: ${message}`,
@@ -274,15 +413,53 @@ export async function gradeExternalTrajectory({
         error: { value: message, type: "string" },
       },
     });
-    // Surface the failure on the result — `_success` falls back to the
-    // agent's self-report, and downstream consumers must be able to tell
-    // this run apart from one the verifier actually graded.
-    return { ...baseResult, verifierError: message };
+    // A requested verification that failed cannot produce a verified pass.
+    // Preserve the agent's report separately for diagnosis.
+    return {
+      ...baseResult,
+      _success: false,
+      agentReportedSuccess: baseResult._success,
+      verifierError: message,
+      error: `Verification failed: ${message}`,
+      ...(savedDirectory && { trajectoryDir: savedDirectory }),
+    };
   }
 }
 
 function formatProcessScore(score: number | undefined): string {
   return typeof score === "number" ? score.toFixed(2) : "n/a";
+}
+
+/**
+ * Braintrust-filterable 0/1 metrics for the gates. `answer_grounded` is only
+ * emitted when the answer had numeric datums to check, so its average is not
+ * diluted by rows the check skipped.
+ */
+function gateMetrics(gates: VerdictGates): Record<string, { count: number; value: number }> {
+  const flag = (value: boolean) => ({ count: 1, value: value ? 1 : 0 });
+  return {
+    outcome_gated: flag(gates.outcomeGates.length > 0),
+    scoring_incomplete: flag(gates.scoringIncomplete),
+    blocked_criteria: { count: 1, value: gates.blockedCriteria },
+    ...(typeof gates.processScoreLenient === "number" && {
+      process_score_lenient: { count: 1, value: gates.processScoreLenient },
+    }),
+    ...(gates.grounding && {
+      answer_grounded: flag(!gates.grounding.gatesOutcome),
+    }),
+  };
+}
+
+/** Sidecar next to scores/result.json so audits can diff judge vs gated verdicts. */
+async function writeGatesFile(trajectoryDir: string, gates: VerdictGates): Promise<void> {
+  try {
+    await fs.writeFile(
+      path.join(trajectoryDir, "scores", "gates.json"),
+      JSON.stringify(gates, null, 2),
+    );
+  } catch {
+    // Best-effort: the TaskResult already carries the same data.
+  }
 }
 
 /** Always non-empty, so a set `verifierError` is reliably truthy downstream. */
@@ -341,4 +518,21 @@ export function evaluationResultToSuccess(
     case "both":
       return outcomeOk && processOk;
   }
+}
+
+const GATE_DESCRIPTIONS: Record<string, string> = {
+  no_final_answer: "agent produced no final answer",
+  trajectory_error: "trajectory ended in error",
+  no_browser_use: "no browser tool calls",
+  ungrounded_answer: "answer datums only in search-engine results, never on a target page",
+};
+
+function describeOutcomeGates(gates: { outcomeGates: string[] }): string {
+  const parts = gates.outcomeGates.map((g) => GATE_DESCRIPTIONS[g] ?? g);
+  return `gated: ${gates.outcomeGates.join(",")} — ${parts.join("; ")}`;
+}
+
+function clipError(value: string | undefined): string {
+  const text = (value ?? "").replace(/\s+/g, " ").trim();
+  return text.length > 160 ? `${text.slice(0, 159)}…` : text;
 }

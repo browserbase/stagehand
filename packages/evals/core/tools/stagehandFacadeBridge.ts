@@ -4,6 +4,8 @@ import type { ProbeEvidence } from "stagehand-v3";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import { EvalsError } from "../../errors.js";
 import type { EvalLogger } from "../../logger.js";
+import { browserSessionLostCause, parseSessionLossTelemetry } from "./browserSessionLoss.js";
+import type { BrowserSessionLoss, RunnerToolCallResult } from "../contracts/tool.js";
 
 export const STAGEHAND_FACADE_BRIDGE_PORT_ENV = "STAGEHAND_EVALS_FACADE_BRIDGE_PORT";
 
@@ -50,7 +52,19 @@ export interface StagehandFacadeBridge {
   /** Whether any agent tools/call request has passed through. */
   sawAgentToolCall(): boolean;
   /** Raw JSON-RPC request from the runner side. */
-  call(method: string, params?: Record<string, unknown>): Promise<unknown>;
+  call(
+    method: string,
+    params?: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ): Promise<unknown>;
+  /** Calls a tool on the existing facade, retaining content and MCP error flags. */
+  callTool(
+    name: string,
+    args: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ): Promise<RunnerToolCallResult>;
+  sessionInfo(): Promise<{ provider: "local" | "browserbase"; sessionId?: string }>;
+  browserSessionLoss(): BrowserSessionLoss | undefined;
   /** Best-effort terminal/step evidence from the shared browser. */
   captureEvidence(): Promise<ProbeEvidence>;
   /** Idempotently closes the relay and facade process. */
@@ -185,6 +199,7 @@ class FacadeProcess {
     private readonly onLine: (line: string) => void,
     /** Invoked once when the process exits or fails to spawn, with the error pending callers should see. */
     private readonly onExit: (error: StagehandFacadeBridgeError) => void,
+    private readonly onStderr: (line: string) => void,
   ) {
     this.child = spawn(server.command, server.args, {
       stdio: ["pipe", "pipe", "pipe"],
@@ -293,9 +308,10 @@ class FacadeProcess {
 
   private rememberStderr(line: string | undefined): void {
     if (!line) return;
-    this.stderrTail.push(line);
+    this.onStderr(line);
+    this.stderrTail.push(sanitizeErrorMessage(line));
     if (this.stderrTail.length > STDERR_TAIL_LINES) this.stderrTail.shift();
-    this.log(line);
+    this.log(sanitizeErrorMessage(line));
   }
 }
 
@@ -327,17 +343,27 @@ class RunnerRpcClient {
     return typeof id === "string" && id.startsWith(RUNNER_REQUEST_ID_PREFIX);
   }
 
-  call(method: string, params?: Record<string, unknown>): Promise<unknown> {
+  call(
+    method: string,
+    params?: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ): Promise<unknown> {
+    const timeoutMs = options?.timeoutMs ?? this.timeoutMs;
+    if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > 2_147_483_647) {
+      return Promise.reject(
+        new StagehandFacadeBridgeError("timeoutMs must be an integer between 1 and 2147483647"),
+      );
+    }
     const id = `${RUNNER_REQUEST_ID_PREFIX}${this.counter++}`;
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(
           new StagehandFacadeBridgeError(
-            `Stagehand facade request "${method}" timed out after ${this.timeoutMs}ms`,
+            `Stagehand facade request "${method}" timed out after ${timeoutMs}ms`,
           ),
         );
-      }, this.timeoutMs);
+      }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       const request = { jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) };
       if (!this.send(JSON.stringify(request))) {
@@ -517,6 +543,8 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
   private initializeResult: unknown;
   private closed = false;
   private closePromise: Promise<void> | undefined;
+  private runnerToolCallSeen = false;
+  private sessionLoss: BrowserSessionLoss | undefined;
 
   private constructor(
     input: StagehandFacadeBridgeInput,
@@ -530,6 +558,9 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
       (error) => {
         this.rpc.rejectAll(error);
         this.relay.disconnectAll();
+      },
+      (line) => {
+        this.sessionLoss ??= parseSessionLossTelemetry(line);
       },
     );
     this.rpc = new RunnerRpcClient((line) => this.facade.writeLine(line), requestTimeoutMs);
@@ -596,10 +627,14 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
   }
 
   sawAgentToolCall(): boolean {
-    return this.relay.sawToolCall;
+    return this.relay.sawToolCall || this.runnerToolCallSeen;
   }
 
-  call(method: string, params?: Record<string, unknown>): Promise<unknown> {
+  call(
+    method: string,
+    params?: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ): Promise<unknown> {
     if (this.closed) {
       return Promise.reject(new StagehandFacadeBridgeError("Stagehand facade bridge is closed"));
     }
@@ -610,24 +645,64 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
         ),
       );
     }
-    return this.rpc.call(method, params);
+    return this.rpc.call(method, params, options);
+  }
+
+  async callTool(
+    name: string,
+    args: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ): Promise<RunnerToolCallResult> {
+    this.runnerToolCallSeen = true;
+    const result = await this.call("tools/call", { name, arguments: args }, options);
+    return {
+      content: contentBlocks(result),
+      ...(result &&
+      typeof result === "object" &&
+      typeof (result as { isError?: unknown }).isError === "boolean"
+        ? { isError: (result as { isError: boolean }).isError }
+        : {}),
+    };
+  }
+
+  async sessionInfo(): Promise<{ provider: "local" | "browserbase"; sessionId?: string }> {
+    const result = await this.call(
+      "tools/call",
+      { name: "session_info", arguments: {} },
+      { timeoutMs: 120_000 },
+    );
+    if (isToolError(result))
+      throw new StagehandFacadeBridgeError(firstTextBlock(result) ?? "Facade session_info failed");
+    const parsed = JSON.parse(firstTextBlock(result) ?? "{}") as Record<string, unknown>;
+    return {
+      provider: parsed.provider === "browserbase" ? "browserbase" : "local",
+      ...(typeof parsed.sessionId === "string" && parsed.sessionId
+        ? { sessionId: parsed.sessionId }
+        : {}),
+    };
+  }
+
+  browserSessionLoss(): BrowserSessionLoss | undefined {
+    return this.sessionLoss;
   }
 
   async captureEvidence(): Promise<ProbeEvidence> {
-    if (!this.relay.sawToolCall) return {};
+    if (!this.sawAgentToolCall()) return {};
     const evidence: ProbeEvidence = {};
 
-    const screenshot = firstImageBlock(await this.callTool("screenshot", {}));
+    const screenshot = firstImageBlock(await this.evidenceTool("screenshot", {}));
     if (screenshot) evidence.screenshot = screenshot;
 
-    const url = firstTextBlock(await this.callTool("run", { code: "return page.url();" }));
+    const url = firstTextBlock(await this.evidenceTool("run", { code: "return page.url();" }));
     if (url !== undefined && /^[a-z][a-z0-9+.-]*:/iu.test(url)) evidence.url = url;
 
     // snapshot re-hydrates the active page's element-ID map ("Every call
     // replaces the active page's ID map"). Capturing it mid-run would make
     // the agent's bracketed IDs stale, so only terminal evidence includes it.
-    if (this.relay.connections === 0) {
-      const ariaTree = firstTextBlock(await this.callTool("snapshot", { includeIframes: true }));
+    if (this.relay.connections === 0 && !this.runnerToolCallSeen) {
+      const ariaTree = firstTextBlock(
+        await this.evidenceTool("snapshot", { includeIframes: true }),
+      );
       if (ariaTree !== undefined) evidence.ariaTree = ariaTree;
     }
     return evidence;
@@ -649,7 +724,7 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
   }
 
   /** Best-effort tools/call; resolves undefined on transport error or tool error. */
-  private async callTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  private async evidenceTool(name: string, args: Record<string, unknown>): Promise<unknown> {
     try {
       const result = await this.call("tools/call", { name, arguments: args });
       return isToolError(result) ? undefined : result;
@@ -665,6 +740,10 @@ class StagehandFacadeBridgeImpl implements StagehandFacadeBridge {
     if (!message) {
       this.log(`Dropped non-JSON facade stdout line: ${rawLine}`);
       return;
+    }
+    if (isToolError(message.result)) {
+      const cause = browserSessionLostCause(firstTextBlock(message.result) ?? "");
+      if (cause) this.sessionLoss ??= { cause };
     }
     if (!hasOwn(message, "id")) {
       this.relay.broadcast(rawLine);

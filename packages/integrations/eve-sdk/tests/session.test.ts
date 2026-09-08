@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
+  extractEveTokenUsage,
   logEveEvent,
   parseEveDevServerUrl,
   runEveSession,
@@ -217,6 +218,7 @@ describe("Eve SDK session", () => {
       sessionId: "session-1",
       serverUrl: "http://eve",
       tokenUsage: {
+        reported: true,
         inputTokens: 15,
         outputTokens: 7,
         cacheReadTokens: 2,
@@ -343,42 +345,34 @@ describe("Eve SDK session", () => {
     expect(result.stopReason).toContain("budget exhausted");
   });
 
-  it("does not count failed tool results against the completed-step budget", async () => {
-    const setup = clientFor([
+  it("does not treat tool-call narration as the final message", async () => {
+    const { client } = clientFor([
       {
-        type: "action.result",
-        data: {
-          status: "failed",
-          result: {
-            kind: "tool-result",
-            toolName: "stagehand__run",
-            isError: true,
-          },
-        },
+        type: "message.completed",
+        data: { finishReason: "tool-calls", message: "Now let me get Walmart's price..." },
+      },
+      {
+        type: "actions.requested",
+        data: { actions: [{ kind: "tool-call", callId: "1", toolName: "stagehand__run" }] },
       },
       {
         type: "action.result",
         data: {
           status: "completed",
-          result: { kind: "tool-result", toolName: "stagehand__run" },
+          result: { kind: "tool-result", callId: "1", toolName: "stagehand__run" },
         },
       },
     ]);
-    const onToolResult = vi.fn();
     const result = await runEveSession({
       prompt: "task",
       model: "gpt",
       logger,
       server: { url: "http://eve" },
-      client: setup.client,
+      client,
       maxToolSteps: 1,
-      onToolResult,
     });
-
-    expect(onToolResult).toHaveBeenCalledTimes(2);
-    expect(result.events).toHaveLength(2);
-    expect(setup.cancel).toHaveBeenCalledOnce();
     expect(result.status).toBe("max_turns");
+    expect(result.finalMessage).toBe("");
   });
 
   it("cancels and errors when Eve requests human input", async () => {
@@ -631,5 +625,63 @@ describe("Eve SDK session", () => {
     expect(setup.cancel).toHaveBeenCalledOnce();
     expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
     expect(JSON.stringify(result)).not.toContain("SUPERSECRET");
+  });
+
+  it("does not count failed tool results against the completed-step budget", async () => {
+    const setup = clientFor([
+      {
+        type: "action.result",
+        data: {
+          status: "failed",
+          result: {
+            kind: "tool-result",
+            toolName: "stagehand__run",
+            isError: true,
+          },
+        },
+      },
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", toolName: "stagehand__run" },
+        },
+      },
+    ]);
+    const onToolResult = vi.fn();
+    const result = await runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      server: { url: "http://eve" },
+      client: setup.client,
+      maxToolSteps: 1,
+      onToolResult,
+    });
+
+    expect(onToolResult).toHaveBeenCalledTimes(2);
+    expect(result.events).toHaveLength(2);
+    expect(setup.cancel).toHaveBeenCalledOnce();
+    expect(result.status).toBe("max_turns");
+  });
+});
+
+describe("Eve token usage presence", () => {
+  it.each([{}, { costUsd: 0 }, { totalTokens: 0 }, { inputTokens: null, outputTokens: -1 }])(
+    "does not infer tokens from missing or invalid telemetry: %j",
+    (usage) => {
+      expect(extractEveTokenUsage([{ type: "step.completed", data: { usage } }]).reported).toBe(
+        false,
+      );
+    },
+  );
+  it("preserves observed zero across missing later steps without inventing cost", () => {
+    expect(extractEveTokenUsage([]).reported).toBe(false);
+    const usage = extractEveTokenUsage([
+      { type: "step.completed", data: { usage: { inputTokens: 0, outputTokens: "0" } } },
+      { type: "step.completed", data: {} },
+    ]);
+    expect(usage).toMatchObject({ reported: true, totalTokens: 0 });
+    expect(usage).not.toHaveProperty("costUsd");
   });
 });

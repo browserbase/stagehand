@@ -1,5 +1,6 @@
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -28,6 +29,8 @@ export type ClaudeSessionConfig = {
 };
 
 export type ClaudeCodeTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheCreationInputTokens: number;
@@ -115,7 +118,11 @@ export async function runClaudeAgentSession(input: {
         permissionMode: input.session.permissionMode ?? "default",
         settingSources: input.session.settingSources ?? [],
         stderr: (data: string) => {
-          input.logger.log({ category: "claude_code", message: data, level: 1 });
+          input.logger.log({
+            category: "claude_code",
+            message: data,
+            level: /\b(?:error|fatal|failed)\b/iu.test(data) ? 1 : 2,
+          });
         },
         ...(systemPrompt !== undefined && { systemPrompt }),
       },
@@ -236,7 +243,23 @@ export function extractClaudeCodeTokenUsage(
   const cacheReadInputTokens =
     readNumber(usage, "cache_read_input_tokens") ??
     sumModelUsage(resultMessage, "cacheReadInputTokens");
+  const reported =
+    [
+      "input_tokens",
+      "output_tokens",
+      "cache_creation_input_tokens",
+      "cache_read_input_tokens",
+    ].some((key) => isTokenCount(usage?.[key])) ||
+    (isRecord(resultMessage?.modelUsage) &&
+      Object.values(resultMessage.modelUsage).some(
+        (value) =>
+          isRecord(value) &&
+          ["inputTokens", "outputTokens", "cacheCreationInputTokens", "cacheReadInputTokens"].some(
+            (key) => isTokenCount(value[key]),
+          ),
+      ));
   return {
+    reported,
     inputTokens,
     outputTokens,
     cacheCreationInputTokens,
@@ -255,18 +278,8 @@ function sumModelUsage(resultMessage: ClaudeSdkMessage | undefined, key: string)
 }
 
 function readNumber(record: Record<string, unknown> | undefined, key: string): number | undefined {
-  if (!record || !(key in record)) return undefined;
-  return toFiniteNumber(record[key]);
-}
-
-function toFiniteNumber(value: unknown): number {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && value.trim()
-        ? Number(value)
-        : 0;
-  return Number.isFinite(parsed) ? parsed : 0;
+  if (!record || !isTokenCount(record[key])) return undefined;
+  return Number(record[key]);
 }
 
 export function buildClaudeCodeTranscript(messages: ClaudeSdkMessage[]): string {
@@ -277,11 +290,19 @@ export function buildClaudeCodeTranscript(messages: ClaudeSdkMessage[]): string 
 }
 
 export function logClaudeCodeMessage(logger: HarnessLogger, message: ClaudeSdkMessage): void {
+  const type = String(message.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError:
+      (type === "result" && message.subtype !== undefined && message.subtype !== "success") ||
+      message.is_error === true,
+    hasContent: type === "assistant" || type === "user" || type === "result",
+  });
+  if (level === undefined) return;
   const summary = summarizeClaudeCodeMessage(message);
   logger.log({
     category: "claude_code",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(message.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
@@ -351,4 +372,12 @@ export function stringifyError(value: unknown): string {
 
 export function clip(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

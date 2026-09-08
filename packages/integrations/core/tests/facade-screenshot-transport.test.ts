@@ -3,6 +3,7 @@ import {
   captureScreenshotWithinBase64Budget,
   screenshotBase64BudgetFromArgs,
   type ScreenshotOptions,
+  imageDimensions,
 } from "../src/facade/screenshot-transport.js";
 
 describe("facade screenshot transport", () => {
@@ -93,5 +94,70 @@ describe("facade screenshot transport", () => {
       "Screenshot exceeds the 60000-byte MCP transport budget",
     );
     expect(capture).toHaveBeenCalledTimes(3);
+  });
+});
+
+function png(width: number, height: number): string {
+  const b = Buffer.alloc(24);
+  b.write("\x89PNG\r\n\x1a\n", 0, "binary");
+  b.writeUInt32BE(13, 8);
+  b.write("IHDR", 12, "ascii");
+  b.writeUInt32BE(width, 16);
+  b.writeUInt32BE(height, 20);
+  return b.toString("base64");
+}
+function jpeg(width: number, height: number): string {
+  // SOI, APP0 (empty), SOF0 with the given size.
+  const b = Buffer.from([
+    0xff,
+    0xd8,
+    0xff,
+    0xe0,
+    0x00,
+    0x02,
+    0xff,
+    0xc0,
+    0x00,
+    0x0b,
+    0x08,
+    (height >> 8) & 0xff,
+    height & 0xff,
+    (width >> 8) & 0xff,
+    width & 0xff,
+    0x01,
+    0x01,
+    0x11,
+    0x00,
+  ]);
+  return b.toString("base64");
+}
+
+describe("screenshot dimension guard", () => {
+  it("parses PNG and JPEG headers", () => {
+    expect(imageDimensions({ data: png(1288, 9400), mimeType: "image/png" })).toStrictEqual({
+      width: 1288,
+      height: 9400,
+    });
+    expect(imageDimensions({ data: jpeg(640, 480), mimeType: "image/jpeg" })).toStrictEqual({
+      width: 640,
+      height: 480,
+    });
+  });
+
+  it("falls back to the viewport when a full-page capture exceeds the side limit", async () => {
+    const calls: Array<{ fullPage?: boolean }> = [];
+    const result = await captureScreenshotWithinBase64Budget(
+      async (options) => {
+        calls.push(options);
+        return options.fullPage
+          ? { data: png(1288, 2400), mimeType: "image/png" as const }
+          : { data: jpeg(1288, 711), mimeType: "image/jpeg" as const };
+      },
+      { fullPage: true, type: "png" },
+      10_000_000,
+    );
+    expect(calls[0]?.fullPage).toBe(true);
+    expect(result.options.fullPage).toBe(false);
+    expect(result.adjusted).toBe(true);
   });
 });

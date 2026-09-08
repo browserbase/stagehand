@@ -1,6 +1,8 @@
 import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
+import { explicitSnapshotActionsEnabled } from "@browserbasehq/stagehand-integrations/facade";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
+import { buildHardBenchmarkTestcases } from "../suites/hardbenchmark.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
 import { buildOdysseysBenchTestcases } from "../suites/odysseysbench.js";
@@ -241,7 +243,7 @@ export function generateBenchTestcases(
         .sort()
         .join(", ");
       throw new EvalsError(
-        `Harness "${harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
+        `Harness "${harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/hardbenchmark, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
       );
     }
     return allTestcases;
@@ -299,6 +301,7 @@ export function generateSuiteTestcases(
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
+    "agent/hardbenchmark": (models) => buildHardBenchmarkTestcases(models),
     "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
 
@@ -364,11 +367,15 @@ function withBenchMetadata(
 }
 
 function buildToolMetadata(row: BenchMatrixRow): Partial<Testcase["metadata"]> {
+  const promptVariant =
+    row.toolSurface === "stagehand_facade" && explicitSnapshotActionsEnabled()
+      ? { promptVariant: "explicit_snapshot_actions" }
+      : {};
   if (
     getBenchHarness(row.harness).supportedToolSurfaces.includes("browse_cli") &&
     row.toolSurface === "browse_cli"
   ) {
-    return getBrowseCliToolMetadata();
+    return { ...getBrowseCliToolMetadata(), ...promptVariant };
   }
-  return {};
+  return promptVariant;
 }

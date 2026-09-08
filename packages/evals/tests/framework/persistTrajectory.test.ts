@@ -82,6 +82,32 @@ describe("persistAdapterTrajectory", () => {
       await fs.rm(tmpRoot, { recursive: true, force: true });
     }
   });
+
+  it("records terminationReason in trajectory.json and metadata.json", async () => {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "persist-adapter-termination-"));
+    try {
+      const taskSpec: TaskSpec = { id: "budget-task", instruction: "Test task" };
+      const { directory } = await persistAdapterTrajectory({
+        trajectory: {
+          ...makeTrajectory(taskSpec),
+          status: "error",
+          terminationReason: "step_budget",
+        },
+        taskSpec,
+        outputRoot: tmpRoot,
+        runId: "budget-run",
+        persist: true,
+      });
+      const trajectory = JSON.parse(
+        await fs.readFile(path.join(directory, "trajectory.json"), "utf8"),
+      );
+      expect(trajectory).toMatchObject({ status: "error", terminationReason: "step_budget" });
+      const metadata = JSON.parse(await fs.readFile(path.join(directory, "metadata.json"), "utf8"));
+      expect(metadata).toMatchObject({ status: "error", terminationReason: "step_budget" });
+    } finally {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 function makeTrajectory(task: TaskSpec): Trajectory {

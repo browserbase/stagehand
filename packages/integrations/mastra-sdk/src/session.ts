@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
+
+/** A native @ai-sdk model instance (all providers share the LanguageModelV2 shape at one AI-SDK major). */
+type NativeMastraModel = ReturnType<ReturnType<typeof createOpenAI>>;
 
 export type MastraEvent = Record<string, unknown>;
 
@@ -58,11 +66,15 @@ export type MastraSessionConfig = {
   agentId?: string;
   agentName?: string;
   modelSettings?: Record<string, unknown>;
+  /** AI SDK provider options forwarded to every model call (e.g. OpenAI reasoning summaries). */
+  providerOptions?: Record<string, Record<string, unknown>>;
   mcpTimeoutMs?: number;
   disconnectTimeoutMs?: number;
 };
 
 export type MastraTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   reasoningTokens: number;
@@ -122,6 +134,56 @@ export async function loadMastraSdk(): Promise<MastraSdk> {
 export function normalizeMastraModel(model: string): string {
   if (model === "mastra/default") return "openai/gpt-5.4-mini";
   return model.includes("/") ? model : `openai/${model}`;
+}
+
+/**
+ * Route first-party models through their native @ai-sdk provider (using the 1p
+ * API keys in the environment) instead of Mastra's default Vercel AI Gateway.
+ * A bare `provider/model` string handed to `createAgent` resolves via the
+ * gateway, which added a failure surface (unparseable error responses ->
+ * sdk_error) and costs more than the native APIs we already hold keys for.
+ * Open models with no native provider (zai/glm, meta/muse, alibaba/qwen, ...)
+ * keep the gateway string. Set MASTRA_FORCE_GATEWAY=1 to disable native routing.
+ */
+export function resolveMastraModel(
+  model: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | NativeMastraModel {
+  const normalized = normalizeMastraModel(model);
+  if ((env.MASTRA_FORCE_GATEWAY ?? "").trim() === "1") return normalized;
+  // An explicit gateway route is part of the caller's model selection.
+  if (/^(?:vercel|gateway)\//.test(normalized)) return normalized;
+  const bare = normalized;
+  const slash = bare.indexOf("/");
+  if (slash < 0) return normalized;
+  const provider = bare.slice(0, slash);
+  const id = bare.slice(slash + 1);
+  switch (provider) {
+    case "openai": {
+      const apiKey = env.OPENAI_API_KEY;
+      return apiKey ? createOpenAI({ apiKey })(id) : normalized;
+    }
+    case "google": {
+      const apiKey = env.GOOGLE_GENERATIVE_AI_API_KEY ?? env.GEMINI_API_KEY ?? env.GOOGLE_API_KEY;
+      return apiKey ? createGoogleGenerativeAI({ apiKey })(id) : normalized;
+    }
+    case "anthropic": {
+      const apiKey = env.ANTHROPIC_API_KEY;
+      return apiKey ? createAnthropic({ apiKey })(id) : normalized;
+    }
+    case "xai": {
+      // xAI's API is OpenAI-compatible but stricter — the full @ai-sdk/openai
+      // request tripped a 422. Use the openai-compatible provider, which emits a
+      // minimal request (no OpenAI-only params xAI rejects). Same @ai-sdk/provider
+      // spec as mastra's openai@4, so it drops in without a version bump.
+      const apiKey = env.XAI_API_KEY;
+      return apiKey
+        ? createOpenAICompatible({ name: "xai", baseURL: "https://api.x.ai/v1", apiKey })(id)
+        : normalized;
+    }
+    default:
+      return normalized; // open models -> Vercel AI Gateway
+  }
 }
 
 export async function runMastraSession(input: {
@@ -198,17 +260,18 @@ export async function runMastraSession(input: {
         name: input.session.agentName ?? "Stagehand Evals Mastra Agent",
         instructions:
           input.session.instructions ?? "Use the available browser/web tools to complete the task.",
-        model: normalizeMastraModel(input.model),
+        model: resolveMastraModel(input.model),
         tools: { ...mcpTools, ...input.session.tools },
       });
       const stream = await agent.stream(input.prompt, {
         maxSteps,
         abortSignal: controller.signal,
         ...(input.session.modelSettings && { modelSettings: input.session.modelSettings }),
+        ...(input.session.providerOptions && { providerOptions: input.session.providerOptions }),
       });
 
       for await (const event of stream.fullStream) {
-        events.push(event);
+        events.push(compactMastraEvent(event));
         logMastraEvent(input.logger, event);
         const payload = isRecord(event.payload) ? event.payload : {};
         if (event.type === "tool-call") {
@@ -252,7 +315,6 @@ export async function runMastraSession(input: {
       if (stream.error && !stopReason) {
         stopReason = sanitizeErrorMessage(stringifyError(stream.error));
       }
-      if (isEmptyTokenUsage(tokenUsage)) tokenUsage = summedStepUsage;
     }
   } catch (error) {
     iterationError = error;
@@ -301,7 +363,7 @@ export async function runMastraSession(input: {
     ...(stopReason && { stopReason: sanitizeErrorMessage(stopReason) }),
     ...(finishReason && { finishReason }),
     stepCount,
-    tokenUsage,
+    tokenUsage: tokenUsage.reported ? tokenUsage : summedStepUsage,
     ...(iterationError !== undefined && { iterationError }),
   };
 }
@@ -329,6 +391,7 @@ export function extractMastraTokenUsage(
   const inputTokens = toFiniteNumber(usage?.inputTokens);
   const outputTokens = toFiniteNumber(usage?.outputTokens);
   return {
+    reported: [usage?.inputTokens, usage?.outputTokens].some(isTokenCount),
     inputTokens,
     outputTokens,
     reasoningTokens: toFiniteNumber(usage?.reasoningTokens),
@@ -350,12 +413,17 @@ export function buildMastraTranscript(events: MastraEvent[]): string {
 }
 
 export function logMastraEvent(logger: HarnessLogger, event: MastraEvent): void {
-  const summary = summarizeMastraEvent(event);
   const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError: type === "error" || type === "tool-error",
+    hasContent: type === "tool-call" || type === "tool-result",
+  });
+  if (level === undefined) return;
+  const summary = summarizeMastraEvent(event);
   logger.log({
     category: "mastra",
     message: summary.message,
-    level: type === "text-delta" || type === "reasoning-delta" ? 2 : 1,
+    level,
     auxiliary: {
       type: { value: type, type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
@@ -388,17 +456,60 @@ export function summarizeMastraEvent(event: MastraEvent): {
   if (type === "reasoning-delta" && typeof payload.text === "string") {
     return sanitizeMastraSummary(`reasoning: ${clip(payload.text, 500)}`, payload.text);
   }
-  if (type === "finish") {
+  if (type === "finish" || type === "step-finish") {
     const stepResult = isRecord(payload.stepResult) ? payload.stepResult : undefined;
     const reason = String(stepResult?.reason ?? "unknown");
     const output = isRecord(payload.output) ? payload.output : undefined;
-    return sanitizeMastraSummary(`finish: ${reason}`, safeJson(output?.usage));
+    return sanitizeMastraSummary(`${type}: ${reason}`, safeJson(output?.usage));
   }
   if (type === "error") {
     const message = stringifyError(payload.error) || "error";
     return sanitizeMastraSummary(`error: ${clip(message, 500)}`, message);
   }
-  return sanitizeMastraSummary(`${type} event`, safeJson(event));
+  const detail = safeJson(compactMastraEvent(event));
+  return sanitizeMastraSummary(
+    `${type} event`,
+    detail === undefined ? undefined : clip(detail, MAX_EVENT_DETAIL_CHARS),
+  );
+}
+
+const MAX_EVENT_DETAIL_CHARS = 2_000;
+
+/** Chunk types the trajectory adapter and transcript read verbatim. */
+const RETAINED_MASTRA_EVENT_TYPES = new Set([
+  "tool-call",
+  "tool-result",
+  "tool-error",
+  "text-delta",
+  "reasoning-delta",
+  "error",
+  "abort",
+]);
+
+/**
+ * Reduce a fullStream chunk to what the session consumers need. Mastra's
+ * `step-finish`/`finish` payloads carry the whole request body (every prior
+ * message and tool result) under `metadata.request`/`response`, so retaining or
+ * stringifying them per step grows quadratically with the conversation.
+ */
+export function compactMastraEvent(event: MastraEvent): MastraEvent {
+  const type = String(event.type ?? "");
+  if (RETAINED_MASTRA_EVENT_TYPES.has(type)) return event;
+  const payload = isRecord(event.payload) ? event.payload : undefined;
+  const output = isRecord(payload?.output) ? payload.output : undefined;
+  const compactPayload: Record<string, unknown> = {
+    ...(payload?.stepResult !== undefined && { stepResult: payload.stepResult }),
+    ...(payload?.reason !== undefined && { reason: payload.reason }),
+    ...(payload?.toolName !== undefined && { toolName: payload.toolName }),
+    ...(payload?.toolCallId !== undefined && { toolCallId: payload.toolCallId }),
+    ...(output?.usage !== undefined && { output: { usage: output.usage } }),
+  };
+  return {
+    type: event.type,
+    ...(event.runId !== undefined && { runId: event.runId }),
+    ...(event.from !== undefined && { from: event.from }),
+    ...(payload !== undefined && { payload: compactPayload }),
+  };
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -511,6 +622,7 @@ function flattenMcpResult(value: unknown): string {
 
 function addTokenUsage(left: MastraTokenUsage, right: MastraTokenUsage): MastraTokenUsage {
   return {
+    reported: left.reported === true || right.reported === true,
     inputTokens: left.inputTokens + right.inputTokens,
     outputTokens: left.outputTokens + right.outputTokens,
     reasoningTokens: left.reasoningTokens + right.reasoningTokens,
@@ -519,6 +631,10 @@ function addTokenUsage(left: MastraTokenUsage, right: MastraTokenUsage): MastraT
   };
 }
 
-function isEmptyTokenUsage(usage: MastraTokenUsage): boolean {
-  return Object.values(usage).every((value) => value === 0);
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

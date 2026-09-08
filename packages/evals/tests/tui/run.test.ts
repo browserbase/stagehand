@@ -8,6 +8,7 @@ import {
 import {
   formatBenchHarnessFlags,
   listBenchHarnessesForTaskKind,
+  listBenchHarnessesForToolSurface,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
 
@@ -209,7 +210,9 @@ describe("deriveCategoryFilter", () => {
         },
         registry,
       ),
-    ).rejects.toThrow(formatBenchHarnessFlags(listBenchHarnessesForTaskKind("suite")));
+    ).rejects.toThrow(
+      formatBenchHarnessFlags(listBenchHarnessesForToolSurface("stagehand_facade")),
+    );
   });
 
   it("prints claude_code dry-run matrices without stagehand agent modes", async () => {
@@ -253,24 +256,24 @@ describe("deriveCategoryFilter", () => {
       dataset: "webvoyager",
       model: "anthropic/claude-sonnet-4-20250514",
       harness: "claude_code",
-      toolSurface: "browse_cli",
+      toolSurface: "stagehand_facade",
       startupProfile: "tool_create_browserbase",
-      toolCommand: "browse",
-      browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      toolCommand: null,
+      browseCliVersion: null,
+      browseCliEntrypoint: null,
       harnessConfig: {
         harness: "claude_code",
         model: "anthropic/claude-sonnet-4-20250514",
         environment: "BROWSERBASE",
         useApi: false,
-        toolSurface: "browse_cli",
+        toolSurface: "stagehand_facade",
         startupProfile: "tool_create_browserbase",
         dataset: "webvoyager",
       },
     });
   });
 
-  it("prints codex dry-run matrices with browse_cli metadata", async () => {
+  it("prints codex dry-run matrices with facade metadata", async () => {
     const registry = makeRegistry([
       makeTask({
         name: "agent/webvoyager",
@@ -311,17 +314,17 @@ describe("deriveCategoryFilter", () => {
       dataset: "webvoyager",
       model: "openai/gpt-5.4-mini",
       harness: "codex",
-      toolSurface: "browse_cli",
+      toolSurface: "stagehand_facade",
       startupProfile: "tool_create_browserbase",
-      toolCommand: "browse",
-      browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      toolCommand: null,
+      browseCliVersion: null,
+      browseCliEntrypoint: null,
       harnessConfig: {
         harness: "codex",
         model: "openai/gpt-5.4-mini",
         environment: "BROWSERBASE",
         useApi: false,
-        toolSurface: "browse_cli",
+        toolSurface: "stagehand_facade",
         startupProfile: "tool_create_browserbase",
         dataset: "webvoyager",
       },

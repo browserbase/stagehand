@@ -459,6 +459,39 @@ describe("Stagehand browser factories", () => {
     expect(closeSource).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { origin: "launched" as const, expectedSessionCloses: 1 },
+    { origin: "connected" as const, expectedSessionCloses: 0 },
+  ])(
+    "releases only a newly $origin Browserbase session when CDP attach fails",
+    async ({ origin, expectedSessionCloses }) => {
+      const closeSession = vi.fn(async () => {});
+      const session = {
+        sessionId: "session_123",
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+        close: closeSession,
+      };
+      const attachError = new Error("extension attach failed");
+      const { browserbase } = createBrowserFactoriesForTest({
+        createBrowserbaseSessionClient: () => ({
+          createSession: async () => session,
+          connectSession: async () => session,
+        }),
+        connectCdp: async () => {
+          throw attachError;
+        },
+      });
+
+      const connecting =
+        origin === "launched"
+          ? browserbase.launch({ apiKey: "bb_key", keepAlive: true })
+          : browserbase.connect({ apiKey: "bb_key", sessionId: session.sessionId });
+
+      await expect(connecting).rejects.toBe(attachError);
+      expect(closeSession).toHaveBeenCalledTimes(expectedSessionCloses);
+    },
+  );
+
   it("closes a connector that resolves after the internal lifecycle deadline", async () => {
     vi.useFakeTimers();
     const connection = deferred<CDPClient>();
