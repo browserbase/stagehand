@@ -721,7 +721,12 @@ export function logFxEvent(logger: HarnessLogger, event: FxEvent): void {
     isError:
       (event.type === "stderr" && /\b(?:error|fatal|failed|panic)\b/iu.test(event.line)) ||
       (event.type === "tool_step" &&
-        event.tool_results.some((result) => /^(?:error|failed)$/iu.test(result.status ?? ""))),
+        event.tool_results.some((result) =>
+          /^(?:error|failed|failure)$/iu.test(result.status ?? ""),
+        )) ||
+      (event.type === "ask_result" &&
+        typeof event.ask.error === "string" &&
+        event.ask.error.length > 0),
     hasContent: true,
   });
   if (level === undefined) return;
