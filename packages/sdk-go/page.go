@@ -270,7 +270,7 @@ func (p *Page) On(
 	}
 	p.addSubscription(subscription)
 
-	params := PageOnParams{PageID: p.PageID(), SubscriptionID: subscriptionID, Event: event}
+	params := PageOnParams{PageID: p.PageID(), SubscriptionID: subscriptionID, Event: PageSubscriptionEventName(event)}
 	var result PageVoidResult
 	if err := p.rpc.call(ctx, "page.on", params, &result); err != nil {
 		removeLocalListener()

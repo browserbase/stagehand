@@ -120,7 +120,7 @@ func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 		t.Fatalf("On() error = %v", err)
 	}
 	onParams, ok := rpc.calls[0].params.(PageOnParams)
-	if !ok || onParams.PageID != "page-1" || onParams.Event != PageEventNameConsole {
+	if !ok || onParams.PageID != "page-1" || onParams.Event != PageSubscriptionEventNameConsole {
 		t.Fatalf("page.on params = %#v", rpc.calls[0].params)
 	}
 	rpc.pageEventHandler(PageCDPEventNotification{
