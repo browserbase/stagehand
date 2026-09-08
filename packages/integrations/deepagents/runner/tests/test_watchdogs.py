@@ -6,6 +6,9 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import anyio
+from langchain_core.messages import AIMessage, ToolMessage
+from mcp import ClientSession
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -104,3 +107,164 @@ async def test_shorter_deadline_wins_when_both_guards_are_enabled(
 def test_invalid_timeout_env_keeps_default(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
     monkeypatch.setenv("DEEPAGENTS_TEST_TIMEOUT", value)
     assert runner._env_float("DEEPAGENTS_TEST_TIMEOUT", 3.0) == 3.0
+
+
+@pytest.mark.parametrize("stall_tools", [False, True])
+async def test_real_mcp_session_closes_in_its_owning_task(
+    monkeypatch: pytest.MonkeyPatch, stall_tools: bool,
+) -> None:
+    closed = False
+    close_errors: list[Exception] = []
+    agent_started = False
+
+    class Client:
+        @asynccontextmanager
+        async def session(self, _name: str):
+            nonlocal closed
+            incoming_send, incoming_receive = anyio.create_memory_object_stream(1)
+            outgoing_send, outgoing_receive = anyio.create_memory_object_stream(1)
+            try:
+                try:
+                    # This opens the real MCP/AnyIO receive task group, without
+                    # initializing a server or sending any network requests.
+                    async with ClientSession(incoming_receive, outgoing_send) as session:
+                        yield session
+                    closed = True
+                except Exception as error:
+                    close_errors.append(error)
+                    raise
+            finally:
+                for stream in (incoming_send, incoming_receive, outgoing_send, outgoing_receive):
+                    await stream.aclose()
+
+    async def load_tools(_session: object, *, server_name: str):
+        if stall_tools:
+            await asyncio.Event().wait()
+        return []
+
+    class Agent:
+        async def astream(self, *_args: object, **_kwargs: object):
+            nonlocal agent_started
+            agent_started = True
+            yield {"agent": {"messages": [AIMessage(content="complete")]}}
+
+    monkeypatch.setattr(runner, "MultiServerMCPClient", lambda _: Client())
+    monkeypatch.setattr(runner, "load_mcp_tools", load_tools)
+    monkeypatch.setattr(runner, "MCP_SETUP_TIMEOUT_S", 0.02)
+    events: list[dict[str, Any]] = []
+    result = await asyncio.wait_for(
+        runner.run(config(mcp=True), build_agent=lambda *_: Agent(), emit=events.append), 1,
+    )
+    assert closed
+    assert close_errors == []
+    assert agent_started is not stall_tools
+    assert result == (1 if stall_tools else 0)
+    assert [event["kind"] for event in events if event["type"] == "error"] == (
+        ["mcp_setup_timeout"] if stall_tools else []
+    )
+
+
+@pytest.mark.parametrize("stop", ["complete", "tool_step_budget"])
+async def test_stream_context_keeps_task_ownership_across_chunks_and_close(
+    monkeypatch: pytest.MonkeyPatch, stop: str,
+) -> None:
+    closed = False
+    close_errors: list[Exception] = []
+
+    class Agent:
+        async def astream(self, *_args: object, **_kwargs: object):
+            nonlocal closed
+            try:
+                async with anyio.create_task_group():
+                    try:
+                        yield {"agent": {"messages": [AIMessage(content="working")]}}
+                        if stop == "tool_step_budget":
+                            for index in range(5):
+                                yield {"tools": {"messages": [ToolMessage(
+                                    content="done", tool_call_id=f"call-{index}", name="run",
+                                )]}}
+                        else:
+                            yield {"agent": {"messages": [AIMessage(content="complete")]}}
+                    except GeneratorExit:
+                        # Closing a well-behaved stream exits its group normally.
+                        pass
+                closed = True
+            except Exception as error:
+                close_errors.append(error)
+                raise
+            finally:
+                # GeneratorExit on the step cap still exits its task group.
+                if not close_errors:
+                    closed = True
+
+    monkeypatch.setattr(runner, "INACTIVITY_TIMEOUT_S", 0.1)
+    monkeypatch.setattr(runner, "WALL_TIMEOUT_S", 0.5)
+    events: list[dict[str, Any]] = []
+    result = await asyncio.wait_for(
+        runner.run(config(), build_agent=lambda *_: Agent(), emit=events.append), 1,
+    )
+    assert closed
+    assert close_errors == []
+    assert result == 0
+    assert [event["kind"] for event in events if event["type"] == "error"] == (
+        ["tool_step_budget"] if stop == "tool_step_budget" else []
+    )
+
+
+async def test_caller_cancellation_still_closes_the_active_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    closed = False
+
+    class Agent:
+        async def astream(self, *_args: object, **_kwargs: object):
+            nonlocal closed
+            try:
+                async with anyio.create_task_group():
+                    started.set()
+                    await asyncio.Event().wait()
+                    yield {}
+            finally:
+                closed = True
+
+    monkeypatch.setattr(runner, "INACTIVITY_TIMEOUT_S", 0.5)
+    events: list[dict[str, Any]] = []
+    task = asyncio.create_task(
+        runner.run(config(), build_agent=lambda *_: Agent(), emit=events.append),
+    )
+    await asyncio.wait_for(started.wait(), 1)
+    task.cancel()
+    assert await asyncio.wait_for(task, 1) == 1
+    assert closed
+    assert [(event["kind"], event["message"]) for event in events if event["type"] == "error"] == [
+        ("exception", "terminated"),
+    ]
+
+
+async def test_stalled_cleanup_keeps_its_deadline_and_completed_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cleanup_cancelled = False
+
+    class Stack:
+        async def aclose(self):
+            nonlocal cleanup_cancelled
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleanup_cancelled = True
+
+    class Agent:
+        async def astream(self, *_args: object, **_kwargs: object):
+            yield {"agent": {"messages": [AIMessage(content="complete")]}}
+
+    monkeypatch.setattr(runner, "AsyncExitStack", Stack)
+    monkeypatch.setattr(runner, "CLEANUP_TIMEOUT_S", 0.02)
+    events: list[dict[str, Any]] = []
+    result = await asyncio.wait_for(
+        runner.run(config(), build_agent=lambda *_: Agent(), emit=events.append), 1,
+    )
+    assert result == 0
+    assert cleanup_cancelled
+    assert not [event for event in events if event["type"] == "error"]

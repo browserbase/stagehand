@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyAudit, auditRows, checkRubric } from "../../scripts/audit-hardbenchmark.js";
+import { auditRows, checkRubric } from "../../scripts/audit-hardbenchmark.js";
 
 const rubric = {
   items: [
@@ -25,29 +25,27 @@ describe("offline HardBench audit", () => {
   it("flags a stop-boundary ambiguity without invalidating the task", () => {
     const row = { id: "x", ques: "Buy the item", precomputed_rubric: rubric };
     expect(auditRows([row])[0]).toMatchObject({ stopBeforePurchase: true, rubricProblems: [] });
-    expect(applyAudit([row], auditRows([row]))[0]).toMatchObject({
-      verdict_review: "stop-before-purchase",
-    });
-    expect(row).not.toHaveProperty("verdict_review");
+    expect(row).toEqual({ id: "x", ques: "Buy the item", precomputed_rubric: rubric });
   });
-  it("preserves manual retirements and rubric version when applying defects", () => {
+  it("reports rubric defects without mutating the corpus or its rubric metadata", () => {
     const rows: Parameters<typeof auditRows>[0] = [
       {
         id: "x",
         ques: "Task",
-        valid: false,
-        invalid_reason: "manual retirement",
+        set: "core",
         rubric_version: "1.2",
         clarifications: ["critical-point"],
         precomputed_rubric: null,
       },
-      { id: "y", ques: "Task", precomputed_rubric: null },
     ];
-    const updated = applyAudit(rows, auditRows(rows));
-    expect(updated[0]).toEqual(rows[0]);
-    expect(updated[1]).toMatchObject({
-      valid: false,
-      invalid_reason: "rubric: precomputed_rubric.items missing or empty",
-    });
+    const before = structuredClone(rows);
+    expect(auditRows(rows)).toEqual([
+      {
+        id: "x",
+        rubricProblems: ["precomputed_rubric.items missing or empty"],
+        stopBeforePurchase: false,
+      },
+    ]);
+    expect(rows).toEqual(before);
   });
 });

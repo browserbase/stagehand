@@ -1,10 +1,8 @@
 # Rubric v1.2 clarification policy
 
-The precomputed rubric is the scoring input. The task question, IDs, validity
-and cohort membership did not change. The following conventions were appended
-to relevant criteria in 149 of 158 rows; `clarifications` records the rules on
-each changed row. The other nine rows are unchanged. The transform is in
-`scripts/audit/rubric-clarify.py` relative to the eval package.
+The precomputed rubric is the scoring input. `clarifications` records the
+following conventions on applicable rows; task questions and IDs are unchanged.
+The authoring transform is `scripts/audit/rubric-clarify.py` relative to the eval package.
 
 1. **Table format.** Consistent delimited records satisfy a table requirement:
    Markdown, HTML, pipe/semicolon/comma records, including a single line.

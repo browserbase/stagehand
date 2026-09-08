@@ -37,3 +37,19 @@ def test_other_provider_routes_remain_unchanged() -> None:
     config = RunnerConfig("task", None, "openai:fixture", {}, 10, 5)
     for model in ["openai:fixture", "anthropic:fixture", "google_genai:fixture"]:
         assert build_eval_model(replace(config, model=model)) == model
+
+
+@pytest.mark.parametrize("xai_key", [None, "", "   "])
+def test_xai_requires_its_own_key_instead_of_falling_back_to_openai(
+    monkeypatch: pytest.MonkeyPatch, xai_key: str | None,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "fixture-openai-key")
+    if xai_key is None:
+        monkeypatch.delenv("XAI_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("XAI_API_KEY", xai_key)
+    config = RunnerConfig("task", None, "xai/grok-fixture", {}, 10, 5)
+    # Use the installed constructor, which otherwise silently picks OPENAI_API_KEY.
+    # Constructing a model does not make a provider request.
+    with pytest.raises(ValueError, match="XAI_API_KEY is required"):
+        build_eval_model(config)
