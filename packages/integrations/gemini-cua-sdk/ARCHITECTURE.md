@@ -13,3 +13,7 @@ The common evaluation policy is sent once via `config.systemInstruction`, the in
 Budgets count API turns, which can contain multiple tool calls. The exact per-action response and image sent to the model are retained on the tool-result event and attached by tool-use ID, so failed calls do not shift observations. The eval adapter uses these returned images rather than capturing another screenshot for each action. Historical index-based observations remain readable by the trajectory adapter. Input/cache/output/reasoning counters retain the provider's separate fields for shared usage normalization.
 
 Coordinate actions use a 1288×711 viewport and Gemini's normalized coordinates. The executor supports the provider actions listed in its switch; unknown actions return explicit errors. It does not add facade reconnection or alternate browser ownership.
+
+Browser gestures use the existing SDK Page primitives through the common facade. Drag uses `dragAndDrop` with two movement steps, preserving the midpoint before the endpoint. Gemini `hotkey` arrays form a single key chord; `wait` honors its seconds argument (default 1), while the legacy `wait_5_seconds` remains 5 seconds. The current `scroll` action defaults to 300 pixels, and legacy `scroll_at` keeps its 800-pixel default.
+
+Blocked, truncated, malformed, missing, and empty terminal responses are recorded as SDK errors with their response events and usage preserved. No action from a truncated response is executed, and incomplete text is not reported as a completed task.

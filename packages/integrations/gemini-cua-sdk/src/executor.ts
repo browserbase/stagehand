@@ -103,7 +103,7 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
         case "press_key":
         case "press_keys":
         case "hotkey":
-          return await this.pressKeys(input);
+          return await this.pressKeys(name, input);
         case "scroll_document":
         case "scroll_at":
         case "scroll":
@@ -117,9 +117,17 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
           await this.runWithTabs("await page.goForward();");
           return { text: "Went forward." };
         case "wait_5_seconds":
-        case "wait":
-          await this.runWithTabs("await page.waitForTimeout(5000);");
-          return { text: "Waited 5 seconds." };
+        case "wait": {
+          const seconds = name === "wait_5_seconds" ? 5 : (input.seconds ?? 1);
+          if (typeof seconds !== "number" || seconds < 0 || !Number.isFinite(seconds * 1000)) {
+            return {
+              text: "Error: wait requires a finite nonnegative duration in seconds.",
+              isError: true,
+            };
+          }
+          await this.runWithTabs(`await page.waitForTimeout(${seconds * 1000});`);
+          return { text: `Waited ${seconds} seconds.` };
+        }
         case "take_screenshot":
         case "screenshot":
           return { text: "Screenshot captured." };
@@ -186,7 +194,7 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
     return { text: `Typed ${JSON.stringify(String(input.text ?? ""))}.` };
   }
 
-  private async pressKeys(input: Record<string, unknown>): Promise<GeminiToolResult> {
+  private async pressKeys(name: string, input: Record<string, unknown>): Promise<GeminiToolResult> {
     const raw = input.keys ?? input.key ?? input.text;
     const values = Array.isArray(raw)
       ? raw
@@ -194,7 +202,12 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
           .split(/\s+/u)
           .filter(Boolean);
     if (values.length === 0) return { text: "Error: no keys supplied.", isError: true };
-    const pressed = values.map((value) => this.chord(value));
+    // Gemini hotkey arrays describe one simultaneous chord, while the legacy
+    // key-sequence aliases still execute their entries one after another.
+    const pressed =
+      name === "hotkey" && Array.isArray(raw)
+        ? [values.map((value) => this.chord(value)).join("+")]
+        : values.map((value) => this.chord(value));
     await this.runWithTabs(
       pressed
         .map((key) => `await batchStagehand.page.keyPress(${JSON.stringify(key)});`)
@@ -217,7 +230,9 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
         ? input.magnitude
         : typeof input.magnitude_in_pixels === "number"
           ? input.magnitude_in_pixels
-          : 800;
+          : name === "scroll"
+            ? 300
+            : 800;
     const deltaX = direction === "left" ? -amount : direction === "right" ? amount : 0;
     const deltaY = direction === "up" ? -amount : direction === "down" ? amount : 0;
     await this.runWithTabs(`await batchStagehand.page.scroll(${x}, ${y}, ${deltaX}, ${deltaY});`);
@@ -248,13 +263,10 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
       denormalizeCoordinate(values[1], HEIGHT),
     ];
     const end = [denormalizeCoordinate(values[2], WIDTH), denormalizeCoordinate(values[3], HEIGHT)];
+    // Delegate the full gesture to the SDK, retaining the midpoint movement
+    // before the destination without relying on a raw CDP method on Page.
     await this.runWithTabs(
-      `const __p = batchStagehand.page;
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: ${start[0]}, y: ${start[1]}, button: "none" });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mousePressed", x: ${start[0]}, y: ${start[1]}, button: "left", clickCount: 1 });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: ${(start[0] + end[0]) / 2}, y: ${(start[1] + end[1]) / 2}, button: "left" });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: ${end[0]}, y: ${end[1]}, button: "left" });
-await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseReleased", x: ${end[0]}, y: ${end[1]}, button: "left", clickCount: 1 });`,
+      `await batchStagehand.page.dragAndDrop(${start[0]}, ${start[1]}, ${end[0]}, ${end[1]}, { steps: 2 });`,
     );
     return { text: `Dragged from (${start[0]}, ${start[1]}) to (${end[0]}, ${end[1]}).` };
   }

@@ -54,19 +54,7 @@ describe("GeminiCuaExecutor", () => {
     expect(calls[1]).toContain('page.keyPress("PageUp")');
     expect(calls[2]).toContain('page.goto("https://www.google.com")');
     expect(calls[3]).toContain(
-      'await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: 0, y: 0, button: "none" });',
-    );
-    expect(calls[3]).toContain(
-      'await __p.sendCDP("Input.dispatchMouseEvent", { type: "mousePressed", x: 0, y: 0, button: "left", clickCount: 1 });',
-    );
-    expect(calls[3]).toContain(
-      'await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: 643, y: 355, button: "left" });',
-    );
-    expect(calls[3]).toContain(
-      'await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1286, y: 710, button: "left" });',
-    );
-    expect(calls[3]).toContain(
-      'await __p.sendCDP("Input.dispatchMouseEvent", { type: "mouseReleased", x: 1286, y: 710, button: "left", clickCount: 1 });',
+      "await batchStagehand.page.dragAndDrop(0, 0, 1286, 710, { steps: 2 });",
     );
   });
 
