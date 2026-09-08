@@ -80,11 +80,12 @@ export async function prepareClaudeCuaToolAdapter(
       tools: bridgeCuaFacadeTools(
         callTool,
         readPositiveIntEnv("EVAL_CLAUDE_CUA_TOOL_TIMEOUT_MS", 90_000),
+        runtime.running.browserSessionLoss,
       ),
       logger: input.logger,
       ...(harnessObservationsEnabled() && {
         onMutation: async (toolUseId: string) => {
-          const evidence = await captureCuaEvidence(callTool);
+          const evidence = await captureCuaEvidence(callTool, runtime.running.browserSessionLoss);
           if (evidence.screenshot || evidence.url) observations.set(toolUseId, evidence);
         },
       }),

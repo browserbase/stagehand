@@ -64,7 +64,7 @@ describe("bridgeCuaFacadeTools", () => {
       }
       if (Array.isArray(args.actions))
         return text(JSON.stringify({ completed: 1, url: "https://x/" }));
-      return text(JSON.stringify({ tabs: [], extra: { n: 1 } }));
+      return text(JSON.stringify({ type: "value", value: { tabs: [], extra: { n: 1 } } }));
     });
     const tools = bridgeCuaFacadeTools(bridge.callTool, 1_234);
 
@@ -80,21 +80,21 @@ describe("bridgeCuaFacadeTools", () => {
     });
 
     expect(bridge.calls).toEqual([
-      { name: "run", args: { code: "return 1;" }, timeoutMs: 1_234 },
+      { name: "run", args: { code: expect.stringContaining("return 1;") }, timeoutMs: 1_234 },
       { name: "run", args: { actions: [{ op: "click", id: "0-9" }] }, timeoutMs: 1_234 },
       { name: "snapshot", args: { includeIframes: true }, timeoutMs: 1_234 },
       { name: "screenshot", args: { type: "png" }, timeoutMs: 1_234 },
     ]);
   });
 
-  it("returns plain strings from run when the batch value is not JSON and throws facade errors", async () => {
+  it("preserves plain string values and returns sanitized facade errors", async () => {
     const bridge = fakeBridge(({ args }) =>
       typeof args.code === "string" && args.code.includes("fail")
         ? { content: [{ type: "text", text: 'Snapshot ID "9-9" is stale' }], isError: true }
-        : text("plain text"),
+        : text(JSON.stringify({ type: "value", value: "plain text" })),
     );
     const tools = bridgeCuaFacadeTools(bridge.callTool);
     expect(await tools.run("return 'x';")).toBe("plain text");
-    await expect(tools.run("fail")).rejects.toThrow('Snapshot ID "9-9" is stale');
+    await expect(tools.run("fail")).rejects.toThrow("Facade run tool failed.");
   });
 });
