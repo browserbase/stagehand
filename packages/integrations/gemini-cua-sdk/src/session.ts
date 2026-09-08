@@ -1,10 +1,11 @@
-import { isBrowserSessionLostError } from "@browserbasehq/stagehand-integrations/facade";
 import { GoogleGenAI, Environment, type GenerateContentConfig } from "@google/genai";
 import {
+  HarnessAdapterError,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
 import type { CuaFacadeTools, GeminiToolExecutor } from "./executor.js";
+import { isTerminalFacadeError, type BrowserSessionLossReader } from "./errors.js";
 
 export type GeminiCuaUsage = {
   input: number;
@@ -39,6 +40,7 @@ export type GeminiCuaSessionInput = {
   systemPrompt?: string;
   signal?: AbortSignal;
   client?: GeminiGenerateClient;
+  browserSessionLoss?: BrowserSessionLossReader;
 };
 export type GeminiCuaSessionResult = {
   events: GeminiCuaSessionEvent[];
@@ -62,10 +64,11 @@ export const GEMINI_CUA_GENERATION_CONFIG = {
 } as const;
 
 export function normalizeGeminiCuaModel(model: string): string {
-  const bare = model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
-  const provider = model.includes("/") ? model.slice(0, model.indexOf("/")) : undefined;
-  if ((provider !== undefined && provider !== "google") || !bare.startsWith("gemini-"))
-    throw new Error(`Gemini Computer Use requires a gemini-* model (received "${model}")`);
+  // Strip the eval catalog alias only. Native model/resource names belong to
+  // Google, which validates support; new identifiers require no client release.
+  const bare = model.startsWith("google/") ? model.slice("google/".length) : model;
+  if (!bare.trim())
+    throw new HarnessAdapterError("Gemini Computer Use requires a non-empty model identifier.");
   return bare;
 }
 
@@ -80,7 +83,6 @@ export function createGeminiClient(options?: { apiKey?: string }): GeminiGenerat
 export async function runGeminiCuaSession(
   input: GeminiCuaSessionInput,
 ): Promise<GeminiCuaSessionResult> {
-  const model = normalizeGeminiCuaModel(input.model);
   const contents: Array<Record<string, unknown>> = [
     { role: "user", parts: [{ text: input.prompt }] },
   ];
@@ -95,6 +97,7 @@ export async function runGeminiCuaSession(
   let iterationError: unknown;
 
   try {
+    const model = normalizeGeminiCuaModel(input.model);
     throwIfAborted(input.signal);
     const client = input.client ?? createGeminiClient();
     await input.facade.run("await page.setViewportSize({ width: 1288, height: 711 });");
@@ -148,20 +151,23 @@ export async function runGeminiCuaSession(
         .join("\n")
         .trim();
       events.push({ type: "assistant", turn: turns, text, parts, usage: turnUsage });
-      if (!candidate) throw new Error("Gemini returned no response candidate.");
+      if (!candidate) throw new HarnessAdapterError("Gemini returned no response candidate.");
       // A successful HTTP request can still be blocked or truncated. Retain
       // its evidence and usage, but do not execute partial calls or report it
       // as a completed task.
       if (candidate.finishReason && candidate.finishReason !== "STOP") {
-        throw new Error(`Gemini response ended with ${candidate.finishReason}.`);
+        throw new HarnessAdapterError(
+          `Gemini response ended with ${sanitizeErrorMessage(candidate.finishReason)}.`,
+        );
       }
       contents.push({ role: "model", parts });
       const calls = parts
         .filter(isRecord)
-        .map((part) => part.functionCall)
-        .filter(isRecord);
+        .filter((part) => "functionCall" in part)
+        .map((part) => validateFunctionCall(part.functionCall));
       if (calls.length === 0) {
-        if (!text) throw new Error("Gemini returned neither tool calls nor an answer.");
+        if (!text)
+          throw new HarnessAdapterError("Gemini returned neither tool calls nor an answer.");
         finalMessage = text;
         status = "completed";
         stopReason = candidate?.finishReason;
@@ -170,8 +176,7 @@ export async function runGeminiCuaSession(
       const results: Record<string, unknown>[] = [];
       for (const call of calls) {
         throwIfAborted(input.signal);
-        const name = typeof call.name === "string" ? call.name : "";
-        const args = isRecord(call.args) ? call.args : {};
+        const { name, args } = call;
         const id = typeof call.id === "string" ? call.id : `call_${toolCalls}`;
         toolCalls += 1;
         events.push({ type: "tool_use", turn: turns, id, name, input: args });
@@ -188,7 +193,7 @@ export async function runGeminiCuaSession(
           error: result.isError === true,
         };
         events.push(resultEvent);
-        const observed = await observePage(input.facade, input.signal);
+        const observed = await observePage(input.facade, input.signal, input.browserSessionLoss);
         const response: Record<string, unknown> = result.isError
           ? { error: result.text }
           : { output: result.text };
@@ -214,8 +219,8 @@ export async function runGeminiCuaSession(
     }
   } catch (error) {
     status = "sdk_error";
-    iterationError = error;
     stopReason = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
+    iterationError = new HarnessAdapterError(stopReason);
     input.logger.warn({
       category: "gemini_cua",
       message: `session ended with error: ${stopReason}`,
@@ -290,11 +295,11 @@ function readUsage(meta: Record<string, unknown>): GeminiCuaUsage {
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new Error("session aborted");
+  if (signal?.aborted) throw new HarnessAdapterError("session aborted");
 }
 
 function isRecord(value: unknown): value is Record<string, any> {
-  return typeof value === "object" && value !== null;
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -306,6 +311,7 @@ function isRecord(value: unknown): value is Record<string, any> {
 async function observePage(
   facade: Pick<CuaFacadeTools, "screenshot" | "run">,
   signal?: AbortSignal,
+  browserSessionLoss?: BrowserSessionLossReader,
 ): Promise<{ shot?: { data: string; mimeType: string }; url: string; error?: string }> {
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -315,11 +321,7 @@ async function observePage(
       const urlValue = await facade.run("return page.url();");
       return { shot, url: typeof urlValue === "string" ? urlValue : "" };
     } catch (error) {
-      if (
-        signal?.aborted ||
-        isBrowserSessionLostError(error instanceof Error ? error.message : String(error))
-      )
-        throw error;
+      if (signal?.aborted || isTerminalFacadeError(error, browserSessionLoss)) throw error;
       lastError = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
       if (attempt === 0) await pause(1500, signal);
     }
@@ -338,8 +340,29 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
     const aborted = () => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", aborted);
-      reject(new Error("session aborted"));
+      reject(new HarnessAdapterError("session aborted"));
     };
     signal?.addEventListener("abort", aborted, { once: true });
   });
+}
+
+/** Validate the entire response before executing any member of its call batch. */
+function validateFunctionCall(value: unknown): {
+  name: string;
+  args: Record<string, unknown>;
+  id?: string;
+} {
+  if (
+    !isRecord(value) ||
+    typeof value.name !== "string" ||
+    !value.name.trim() ||
+    (value.args !== undefined && !isRecord(value.args)) ||
+    (value.id !== undefined && (typeof value.id !== "string" || !value.id.trim()))
+  )
+    throw new HarnessAdapterError("Gemini returned a malformed function call.");
+  return {
+    name: value.name,
+    args: value.args ?? {},
+    ...(value.id !== undefined && { id: value.id }),
+  };
 }

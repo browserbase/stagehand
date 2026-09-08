@@ -88,7 +88,7 @@ A live run paints an in-place progress table, then prints a final summary with a
 
 See [the harness contract](docs/harness-contract.md) for tool surfaces, prompt policy,
 budget units, session diagnostics, verification, and usage accounting.
-See [HardBench](datasets/hardbenchmark/MANIFEST.md) for corpus selection and rubric v1.2.
+See [HardBench](datasets/hardbenchmark/README.md) for corpus selection and rubric v1.2.
 
 ## Adding a bench task
 

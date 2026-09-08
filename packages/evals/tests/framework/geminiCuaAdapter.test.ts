@@ -146,3 +146,56 @@ it("preserves the exact model-visible response image and URL under the matching 
   expect(buildGeminiCuaTranscript(result.events)).toContain("https://fixture.test/visible");
   expect(buildGeminiCuaTranscript(result.events)).toContain("[image: image/png]");
 });
+
+it("keeps an explicitly empty answer and marks an unmatched call failed", () => {
+  const trajectory = geminiCuaAdapter.fromHarnessResult(
+    {
+      finalAnswer: "",
+      status: "error",
+      events: [
+        {
+          type: "assistant",
+          turn: 1,
+          text: "I will finish now",
+          parts: [],
+          usage: { input: 0, output: 0, reasoning: 0, cached_input: 0, total: 0 },
+        },
+        { type: "tool_use", turn: 1, id: "unfinished", name: "click", input: {} },
+      ],
+    },
+    { id: "incomplete", instruction: "act" },
+  );
+  expect(trajectory.finalAnswer).toBe("");
+  expect(trajectory.steps[0]?.toolOutput).toMatchObject({ ok: false });
+});
+
+it("uses the last recorded tool screenshot without losing final metadata or replacing a final capture", () => {
+  const shot = Buffer.from("last screenshot");
+  const events: GeminiCuaSessionEvent[] = [
+    { type: "tool_use", turn: 1, id: "one", name: "click", input: {} },
+    {
+      type: "tool_result",
+      turn: 1,
+      id: "one",
+      name: "click",
+      text: "ok",
+      error: false,
+      image: { data: shot.toString("base64"), mimeType: "image/png" },
+    },
+  ];
+  const result = {
+    events,
+    finalObservation: { url: "https://fixture.test", ariaTree: "button Done" },
+  };
+  const fallback = geminiCuaAdapter.fromHarnessResult(result, {
+    id: "last-image",
+    instruction: "act",
+  });
+  expect(fallback.finalObservation).toMatchObject({ ...result.finalObservation, screenshot: shot });
+  const final = Buffer.from("terminal capture");
+  const captured = geminiCuaAdapter.fromHarnessResult(
+    { ...result, finalObservation: { ...result.finalObservation, screenshot: final } },
+    { id: "final", instruction: "act" },
+  );
+  expect(captured.finalObservation?.screenshot).toEqual(final);
+});

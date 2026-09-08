@@ -1,5 +1,7 @@
 import { GEMINI_CUA_TOOL_INSTRUCTIONS } from "../../framework/geminiCuaToolAdapter.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EvalsError } from "../../errors.js";
+afterEach(() => vi.unstubAllEnvs());
 import type { GeminiGenerateClient } from "@browserbasehq/stagehand-integrations-gemini-cua-sdk";
 import type { AvailableModel } from "stagehand-v3";
 import { runGeminiCuaAgent, assertGeminiCuaModel } from "../../framework/geminiCuaRunner.js";
@@ -8,6 +10,8 @@ import { EvalLogger } from "../../logger.js";
 
 describe("Gemini CUA eval system prompt", () => {
   it("sends the common policy once through the native system channel", async () => {
+    vi.stubEnv("EVAL_GEMINI_CUA_MAX_TURNS", "3");
+    vi.stubEnv("AGENT_EVAL_MAX_STEPS", "9");
     let request: Record<string, unknown> | undefined;
     const client: GeminiGenerateClient = {
       generateContent: async (params) => {
@@ -54,6 +58,7 @@ describe("Gemini CUA eval system prompt", () => {
     });
 
     expect(result._success).toBe(true);
+    expect(result).toMatchObject({ metrics: { step_budget: { value: 3 } } });
     expect(
       String((request?.config as { systemInstruction?: string })?.systemInstruction).split(
         EVAL_SYSTEM_PROMPT,
@@ -75,9 +80,10 @@ describe("Gemini CUA eval system prompt", () => {
   });
 });
 
-it("rejects models from a different provider", () => {
+it("lets the native provider validate model identifiers", () => {
   expect(() => assertGeminiCuaModel("google/gemini-3.8-flash")).not.toThrow();
-  expect(() => assertGeminiCuaModel("anthropic/gemini-3.8-flash")).toThrow(
-    "Google Gemini models only",
-  );
+  expect(() => assertGeminiCuaModel("future-model")).not.toThrow();
+  expect(() => assertGeminiCuaModel("projects/p/models/custom")).not.toThrow();
+  expect(() => assertGeminiCuaModel("other-provider/custom")).not.toThrow();
+  expect(() => assertGeminiCuaModel("google/")).toThrow(EvalsError);
 });

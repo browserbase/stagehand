@@ -1,8 +1,10 @@
+import type { StagehandFacadeTools } from "@browserbasehq/stagehand-integrations/facade";
 import {
-  isBrowserSessionLostError,
-  type StagehandFacadeTools,
-} from "@browserbasehq/stagehand-integrations/facade";
-import type { HarnessLogger } from "@browserbasehq/stagehand-integrations/harness";
+  HarnessAdapterError,
+  sanitizeErrorMessage,
+  type HarnessLogger,
+} from "@browserbasehq/stagehand-integrations/harness";
+import { isTerminalFacadeError, type BrowserSessionLossReader } from "./errors.js";
 
 export type CuaFacadeTools = Pick<StagehandFacadeTools, "run" | "screenshot">;
 
@@ -51,6 +53,7 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
     private readonly tools: CuaFacadeTools,
     private readonly logger: HarnessLogger,
     private readonly onMutation?: (toolUseId: string) => Promise<void>,
+    private readonly browserSessionLoss?: BrowserSessionLossReader,
   ) {}
 
   async execute(
@@ -61,8 +64,7 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
     const result = await this.executeAction(name, input, context);
     if (!result.isError && context.toolUseId && this.onMutation) {
       await this.onMutation(context.toolUseId).catch((error: unknown) => {
-        if (isBrowserSessionLostError(error instanceof Error ? error.message : String(error)))
-          throw error;
+        if (isTerminalFacadeError(error, this.browserSessionLoss)) throw error;
       });
     }
     return result;
@@ -74,7 +76,7 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
     context: { signal?: AbortSignal } = {},
   ): Promise<GeminiToolResult> {
     try {
-      if (context.signal?.aborted) throw new Error("operation aborted");
+      if (context.signal?.aborted) throw new HarnessAdapterError("operation aborted");
       switch (name) {
         case "click_at":
         case "click":
@@ -143,12 +145,9 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
           return { text: `Error: unknown computer-use action "${name}".`, isError: true };
       }
     } catch (error) {
-      if (
-        context.signal?.aborted ||
-        isBrowserSessionLostError(error instanceof Error ? error.message : String(error))
-      )
+      if (context.signal?.aborted || isTerminalFacadeError(error, this.browserSessionLoss))
         throw error;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
       this.logger.warn({ category: "gemini_cua", message: `${name} failed: ${message}`, level: 1 });
       return { text: `Error: ${message}`, isError: true };
     }
@@ -257,7 +256,7 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
       input.end_y ?? input.destination_y,
     ];
     if (!values.every((value) => typeof value === "number" && Number.isFinite(value)))
-      throw new Error("drag requires four finite coordinates");
+      throw new HarnessAdapterError("drag requires four finite coordinates");
     const start = [
       denormalizeCoordinate(values[0], WIDTH),
       denormalizeCoordinate(values[1], HEIGHT),
@@ -278,7 +277,7 @@ export class GeminiCuaExecutor implements GeminiToolExecutor {
       typeof input.y !== "number" ||
       !Number.isFinite(input.y)
     )
-      throw new Error("missing or invalid coordinates (x, y)");
+      throw new HarnessAdapterError("missing or invalid coordinates (x, y)");
     return [denormalizeCoordinate(input.x, WIDTH), denormalizeCoordinate(input.y, HEIGHT)];
   }
 

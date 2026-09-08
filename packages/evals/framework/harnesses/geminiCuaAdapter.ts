@@ -23,17 +23,19 @@ export class GeminiCuaTrajectoryAdapter implements TrajectoryAdapter<GeminiCuaRu
     const byId = new Map<string, NormalizedToolCall>();
     let pendingReasoning = "";
     let finalAnswer = result.finalAnswer;
+    let lastImage: Buffer | undefined;
 
     for (const event of result.events) {
       if (event.type === "assistant") {
         pendingReasoning = event.text;
-        if (!result.finalAnswer && event.text) finalAnswer = event.text;
+        if (result.finalAnswer === undefined && event.text) finalAnswer = event.text;
       } else if (event.type === "tool_use") {
         const call: NormalizedToolCall = {
           name: event.name,
           args: event.input,
           result: undefined,
-          ok: true,
+          ok: false,
+          error: "Tool call did not return a result.",
           reasoning: pendingReasoning.trim() || undefined,
           probeEvidence:
             result.stepObservationsByToolUse?.get(event.id) ??
@@ -48,14 +50,20 @@ export class GeminiCuaTrajectoryAdapter implements TrajectoryAdapter<GeminiCuaRu
         const call = byId.get(event.id);
         if (!call) continue;
         call.result = event.response ?? event.text;
-        if (event.image?.data)
-          call.images = [
-            { bytes: Buffer.from(event.image.data, "base64"), mediaType: event.image.mimeType },
-          ];
+        if (event.image?.data) {
+          lastImage = Buffer.from(event.image.data, "base64");
+          call.images = [{ bytes: lastImage, mediaType: event.image.mimeType }];
+        }
         call.ok = !event.error;
-        if (event.error) call.error = event.text;
+        call.error = event.error ? event.text : undefined;
       }
     }
+
+    const finalObservation = result.finalObservation?.screenshot
+      ? result.finalObservation
+      : lastImage
+        ? { ...result.finalObservation, screenshot: lastImage }
+        : result.finalObservation;
 
     return buildTrajectory({
       taskSpec,
@@ -63,7 +71,7 @@ export class GeminiCuaTrajectoryAdapter implements TrajectoryAdapter<GeminiCuaRu
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
-      ...(result.finalObservation && { finalObservation: result.finalObservation }),
+      ...(finalObservation && { finalObservation }),
     });
   }
 }

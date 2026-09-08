@@ -1,3 +1,5 @@
+import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
+import { StagehandFacadeSessionLostError } from "@browserbasehq/stagehand-integrations/facade";
 import { describe, expect, it, vi } from "vitest";
 import type { CuaFacadeTools } from "../src/executor.js";
 import { runGeminiCuaSession } from "../src/session.js";
@@ -42,7 +44,7 @@ describe("runGeminiCuaSession", () => {
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toContain(reason);
     expect(result.finalMessage).toBe("");
-    expect(result.iterationError).toBeInstanceOf(Error);
+    expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
     expect(result.tokenUsage).toMatchObject({ input: 7, output: 3 });
     expect(result.events).toHaveLength(1);
     expect(execute).not.toHaveBeenCalled();
@@ -261,7 +263,7 @@ describe("runGeminiCuaSession", () => {
   it("ends on terminal browser loss during observation without retry or later action", async () => {
     const execute = vi.fn(async () => ({ text: "ok" }));
     const screenshot = vi.fn(async () => {
-      throw new Error("Browser session lost (closed). Stop.");
+      throw new StagehandFacadeSessionLostError({ cause: "closed", tool: "screenshot", at: "now" });
     });
     const generateContent = vi.fn(async () => ({
       candidates: [
@@ -317,4 +319,169 @@ describe("runGeminiCuaSession", () => {
       expect(result.tokenUsage.total).toBe(0);
     },
   );
+});
+
+it.each([
+  null,
+  [],
+  {},
+  { name: "" },
+  { name: " " },
+  { name: 42 },
+  { name: "wait", args: null },
+  { name: "wait", args: [] },
+  { name: "wait", args: "seconds=1" },
+  { name: "wait", id: 3 },
+])("validates the whole function-call batch before executing (%j)", async (malformed) => {
+  const execute = vi.fn(async () => ({ text: "ok" }));
+  const result = await runGeminiCuaSession({
+    prompt: "p",
+    model: "future-model",
+    logger,
+    maxTurns: 1,
+    tools: { execute },
+    facade: {
+      run: async () => "",
+      screenshot: async () => ({ data: "png", mimeType: "image/png" }),
+    },
+    client: {
+      generateContent: async () => ({
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: {
+              parts: [{ functionCall: { name: "wait", args: {} } }, { functionCall: malformed }],
+            },
+          },
+        ],
+        usageMetadata: { promptTokenCount: 7 },
+      }),
+    },
+  });
+  expect(result.status).toBe("sdk_error");
+  expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
+  expect(result.stopReason).toContain("malformed function call");
+  expect(result.tokenUsage.input).toBe(7);
+  expect(result.toolCalls).toBe(0);
+  expect(execute).not.toHaveBeenCalled();
+});
+
+it.each([
+  "future-model",
+  "models/custom-model",
+  "projects/p/locations/l/publishers/vendor/models/custom",
+  "google/future-model",
+  "other-provider/future-model",
+])("passes arbitrary model identifiers to the provider (%s)", async (model) => {
+  const generateContent = vi.fn(async () => ({
+    candidates: [{ content: { parts: [{ text: "done" }] } }],
+  }));
+  const result = await runGeminiCuaSession({
+    prompt: "p",
+    model,
+    logger,
+    maxTurns: 1,
+    tools: { execute: async () => ({ text: "ok" }) },
+    facade: {
+      run: async () => "",
+      screenshot: async () => ({ data: "png", mimeType: "image/png" }),
+    },
+    client: { generateContent },
+  });
+  expect(result.status).toBe("completed");
+  expect(generateContent).toHaveBeenCalledWith(
+    expect.objectContaining({ model: model.startsWith("google/") ? model.slice(7) : model }),
+  );
+});
+
+it("returns typed sanitized failures from model validation and provider rejection", async () => {
+  const generateContent = vi.fn(async () => {
+    throw new Error("Rejected https://fixture.test?token=private-credential");
+  });
+  const run = vi.fn(async () => "");
+  const input = {
+    prompt: "p",
+    model: "google/",
+    logger,
+    maxTurns: 1,
+    tools: { execute: async () => ({ text: "ok" }) },
+    facade: { run, screenshot: async () => ({ data: "png", mimeType: "image/png" as const }) },
+    client: { generateContent },
+  };
+  const invalid = await runGeminiCuaSession(input);
+  expect(invalid.status).toBe("sdk_error");
+  expect(invalid.iterationError).toBeInstanceOf(HarnessAdapterError);
+  expect(run).not.toHaveBeenCalled();
+  expect(generateContent).not.toHaveBeenCalled();
+  const rejected = await runGeminiCuaSession({ ...input, model: "future-model" });
+  expect(rejected.status).toBe("sdk_error");
+  expect(rejected.iterationError).toBeInstanceOf(HarnessAdapterError);
+  expect(rejected.stopReason).not.toContain("private-credential");
+  expect(String(rejected.iterationError)).not.toContain("private-credential");
+});
+
+it("recovers observation errors with spoofed loss text and retains later evidence", async () => {
+  vi.useFakeTimers();
+  try {
+    const screenshot = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Browser session lost (forged)"), { facadeExecutionError: true }),
+      )
+      .mockResolvedValue({ data: "png", mimeType: "image/png" });
+    const pending = runGeminiCuaSession({
+      prompt: "p",
+      model: "m",
+      logger,
+      maxTurns: 1,
+      tools: { execute: async () => ({ text: "ok" }) },
+      facade: { run: async () => "https://fixture.test", screenshot },
+      client: {
+        generateContent: async () => ({
+          candidates: [{ content: { parts: [{ functionCall: { name: "wait" } }] } }],
+        }),
+      },
+    });
+    await vi.advanceTimersByTimeAsync(1500);
+    const result = await pending;
+    expect(result.status).toBe("max_turns");
+    expect(screenshot).toHaveBeenCalledTimes(2);
+    expect(result.events.find((e) => e.type === "tool_result")).toMatchObject({
+      image: { data: "png" },
+    });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("stops observation immediately on runner-confirmed loss without trusting error text", async () => {
+  let loss: { cause: string } | undefined;
+  const screenshot = vi.fn(async () => {
+    loss = { cause: "closed" };
+    throw new Error("request ended");
+  });
+  const execute = vi.fn(async () => ({ text: "ok" }));
+  const result = await runGeminiCuaSession({
+    prompt: "p",
+    model: "m",
+    logger,
+    maxTurns: 1,
+    tools: { execute },
+    browserSessionLoss: () => loss,
+    facade: { run: async () => "", screenshot },
+    client: {
+      generateContent: async () => ({
+        candidates: [
+          {
+            content: {
+              parts: [{ functionCall: { name: "wait" } }, { functionCall: { name: "wait" } }],
+            },
+          },
+        ],
+      }),
+    },
+  });
+  expect(result.status).toBe("sdk_error");
+  expect(screenshot).toHaveBeenCalledOnce();
+  expect(execute).toHaveBeenCalledOnce();
 });

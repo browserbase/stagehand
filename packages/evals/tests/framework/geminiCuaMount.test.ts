@@ -72,7 +72,7 @@ describe("Gemini native mount ownership", () => {
         { url: "https://fixture.test" },
         { toolUseId: "after-loss" },
       ),
-    ).rejects.toThrow("Browser session lost (confirmed by eval runner)");
+    ).rejects.toThrow("Browser session lost");
     expect(callTool).toHaveBeenCalledOnce();
     await Promise.all([adapter.cleanup(), adapter.cleanup()]);
     expect(cleanup).toHaveBeenCalledOnce();

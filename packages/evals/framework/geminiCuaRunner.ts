@@ -1,6 +1,7 @@
 import {
   buildGeminiCuaTranscript,
   runGeminiCuaSession,
+  normalizeGeminiCuaModel,
   type GeminiGenerateClient,
 } from "@browserbasehq/stagehand-integrations-gemini-cua-sdk";
 import type { AvailableModel } from "stagehand-v3";
@@ -38,15 +39,16 @@ export function buildGeminiCuaPrompt(
   return buildExternalHarnessPrompt({ plan, toolInstructions, resultContract: "marker" });
 }
 export function assertGeminiCuaModel(model: string): void {
-  const bare = model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
-  const provider = model.includes("/") ? model.slice(0, model.indexOf("/")) : undefined;
-  if ((provider !== undefined && provider !== "google") || !bare.startsWith("gemini-"))
-    throw new EvalsError(`gemini_cua runs Google Gemini models only (received "${model}").`);
+  try {
+    normalizeGeminiCuaModel(model);
+  } catch {
+    throw new EvalsError("gemini_cua requires a non-empty model identifier.");
+  }
 }
 export async function runGeminiCuaAgent(input: GeminiCuaRunnerInput): Promise<TaskResult> {
   assertGeminiCuaModel(input.model);
   const maxTurns = resolveStepBudget({
-    harnessEnvKey: "EVAL_GEMINI_CUA_MAX_STEPS",
+    harnessEnvKey: "EVAL_GEMINI_CUA_MAX_TURNS",
     dataset: input.plan.dataset,
     harnessDefault: 50,
   });
@@ -73,6 +75,7 @@ export async function runGeminiCuaAgent(input: GeminiCuaRunnerInput): Promise<Ta
         systemPrompt: `${systemPrompt}\n\n${GEMINI_CUA_SYSTEM_PROMPT}`,
         signal: input.signal,
         client: input.client,
+        browserSessionLoss: input.toolAdapter.browserSessionLoss,
       });
       return {
         raw: result,

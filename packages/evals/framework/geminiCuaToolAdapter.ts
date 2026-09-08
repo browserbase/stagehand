@@ -60,7 +60,12 @@ export async function prepareGeminiCuaToolAdapter(input: {
     if (!callTool || !mount)
       throw new EvalsError(`Tool surface "${toolSurface}" does not expose runner-side tool calls.`);
     const facade = bridgeCuaFacadeTools(callTool, undefined, runtime.running.browserSessionLoss);
-    const executor = new GeminiCuaExecutor(facade, input.logger);
+    const executor = new GeminiCuaExecutor(
+      facade,
+      input.logger,
+      undefined,
+      runtime.running.browserSessionLoss,
+    );
     return {
       toolSurface,
       startupProfile,

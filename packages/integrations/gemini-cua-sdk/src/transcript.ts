@@ -21,5 +21,10 @@ export function buildGeminiCuaTranscript(events: GeminiCuaSessionEvent[]): strin
 }
 
 function clip(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+  if (value.length <= max) return value;
+  let end = max - 1;
+  // Do not leave half of a UTF-16 pair at the persisted text boundary.
+  const last = value.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${value.slice(0, end)}…`;
 }

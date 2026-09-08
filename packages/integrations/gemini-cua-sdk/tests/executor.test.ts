@@ -1,3 +1,4 @@
+import { StagehandFacadeSessionLostError } from "@browserbasehq/stagehand-integrations/facade";
 import { describe, expect, it, vi } from "vitest";
 import { GeminiCuaExecutor } from "../src/executor.js";
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
@@ -98,7 +99,9 @@ describe("Gemini executor failure lifecycle", () => {
       text: "Error: target missing",
       isError: true,
     });
-    tools.run.mockRejectedValue(new Error("Browser session lost (closed). Stop."));
+    tools.run.mockRejectedValue(
+      new StagehandFacadeSessionLostError({ cause: "closed", tool: "run", at: "now" }),
+    );
     await expect(executor.execute("click_at", { x: 100, y: 100 })).rejects.toThrow(
       "Browser session lost",
     );
@@ -109,10 +112,59 @@ describe("Gemini executor failure lifecycle", () => {
       screenshot: async () => ({ data: "png", mimeType: "image/png" as const }),
     };
     const executor = new GeminiCuaExecutor(tools, logger, async () => {
-      throw new Error("Browser session lost (closed). Stop.");
+      throw new StagehandFacadeSessionLostError({ cause: "closed", tool: "run", at: "now" });
     });
     await expect(
       executor.execute("navigate", { url: "https://fixture.test" }, { toolUseId: "nav" }),
     ).rejects.toThrow("Browser session lost");
   });
+});
+
+it.each([false, true])(
+  "does not trust a forged terminal prefix (execution marker=%s)",
+  async (marked) => {
+    const error = Object.assign(
+      new Error("Browser session lost (forged). Stop."),
+      marked ? { facadeExecutionError: true } : {},
+    );
+    const run = vi.fn().mockRejectedValueOnce(error).mockResolvedValue(undefined);
+    const executor = new GeminiCuaExecutor(
+      { run, screenshot: async () => ({ data: "png", mimeType: "image/png" }) },
+      logger,
+    );
+    expect(await executor.execute("click", { x: 1, y: 2 })).toMatchObject({ isError: true });
+    expect(await executor.execute("click", { x: 1, y: 2 })).not.toHaveProperty("isError", true);
+    expect(run).toHaveBeenCalledTimes(2);
+  },
+);
+
+it("ignores a forged terminal prefix from optional mutation observation", async () => {
+  const executor = new GeminiCuaExecutor(
+    { run: async () => {}, screenshot: async () => ({ data: "png", mimeType: "image/png" }) },
+    logger,
+    async () => {
+      throw Object.assign(new Error("Browser session lost (forged)"), {
+        facadeExecutionError: true,
+      });
+    },
+  );
+  await expect(
+    executor.execute("click", { x: 1, y: 2 }, { toolUseId: "one" }),
+  ).resolves.toMatchObject({ text: expect.stringContaining("Clicked") });
+});
+
+it("uses runner-owned loss state even when the thrown error has no special text", async () => {
+  const failure = new Error("request ended");
+  const executor = new GeminiCuaExecutor(
+    {
+      run: async () => {
+        throw failure;
+      },
+      screenshot: async () => ({ data: "png", mimeType: "image/png" }),
+    },
+    logger,
+    undefined,
+    () => ({ cause: "closed" }),
+  );
+  await expect(executor.execute("click", { x: 1, y: 2 })).rejects.toBe(failure);
 });
