@@ -37,7 +37,7 @@ describe("gradeExternalTrajectory", () => {
   it("counts a missing V3 criterion score in the denominator", async () => {
     mockState.evaluationResult = {
       outcomeSuccess: true,
-      processScore: 1 / 3,
+      processScore: 0.9,
       perCriterion: [
         { criterion: "step one", maxPoints: 1, earnedPoints: 1 },
         { criterion: "step two", maxPoints: 2, earnedPoints: null, evidenceInsufficient: true },
@@ -47,6 +47,7 @@ describe("gradeExternalTrajectory", () => {
     const result = await grade({ _success: true });
     expect(result.verifierError).toBeUndefined();
     expect(result.processScoreStrict).toBeCloseTo(1 / 3);
+    expect(result.processScoreLenient).toBe(0.9);
     expect(result._success).toBe(false);
   });
 
@@ -74,10 +75,15 @@ describe("gradeExternalTrajectory", () => {
       expect(
         JSON.parse(await fs.readFile(path.join(dir, "trajectory.json"), "utf8")).steps,
       ).toHaveLength(3);
+      const persisted = JSON.parse(
+        await fs.readFile(path.join(dir, "scores", "result.json"), "utf8"),
+      );
+      expect(persisted).toMatchObject({ graded: false, judge: mockState.evaluationResult });
+      expect(persisted).not.toHaveProperty("outcomeSuccess");
+      expect(persisted).not.toHaveProperty("processScore");
       expect(
-        JSON.parse(await fs.readFile(path.join(dir, "scores", "result.json"), "utf8")).findings[0]
-          .category,
-      ).toBe("verifier_uncertainty");
+        JSON.parse(await fs.readFile(path.join(dir, "task_data.json"), "utf8")).result,
+      ).toEqual(persisted);
       expect(
         JSON.parse(await fs.readFile(path.join(dir, "scores", "verifier-error.json"), "utf8"))
           .graded,

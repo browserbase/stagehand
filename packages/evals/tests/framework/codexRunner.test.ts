@@ -1,7 +1,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildCodexPrompt,
@@ -9,10 +9,14 @@ import {
   runCodexAgent,
   type CodexSdk,
   buildEvalCodexConfig,
+  validateCodexReasoningEffort,
 } from "../../framework/codexRunner.js";
+import { EvalsError } from "../../errors.js";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
+
+afterEach(() => vi.unstubAllEnvs());
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -49,6 +53,38 @@ describe("codex runner helpers", () => {
     );
     expect(() => buildEvalCodexConfig({ developer_instructions: {} }, {})).toThrow(
       "developer_instructions must be a string",
+    );
+  });
+
+  it("uses typed configuration errors without echoing invalid environment values", () => {
+    const invalid = "secret https://private.test";
+    expect(() => validateCodexReasoningEffort(invalid)).toThrow(EvalsError);
+    expect(() => validateCodexReasoningEffort(invalid)).not.toThrow(invalid);
+    expect(() => buildEvalCodexConfig({ developer_instructions: {} }, {})).toThrow(EvalsError);
+    expect(validateCodexReasoningEffort(" XHIGH ")).toBe("xhigh");
+  });
+
+  it("passes reasoning effort through a caller-owned SDK", async () => {
+    vi.stubEnv("EVAL_CODEX_REASONING_EFFORT", "high");
+    const startThread = vi.fn(() => ({
+      runStreamed: async () => ({
+        events: (async function* () {
+          yield {
+            type: "item.completed",
+            item: { type: "agent_message", text: '{"success":true}' },
+          };
+          yield { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
+        })(),
+      }),
+    }));
+    await runCodexAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk: { startThread },
+    });
+    expect(startThread).toHaveBeenCalledWith(
+      expect.objectContaining({ modelReasoningEffort: "high" }),
     );
   });
 

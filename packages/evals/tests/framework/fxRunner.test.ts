@@ -38,13 +38,13 @@ describe("fx runner helpers", () => {
     ).toMatchObject({ success: true, summary: "done" });
   });
 
-  it("runs a fake fx session into a successful task result", async () => {
+  it("reports FX totals without counting cached input twice", async () => {
     const finalOutput = '{"success":true,"summary":"done","finalAnswer":"Example Domain"}';
     const events = JSON.stringify({
       kind: "history_turn_committed",
       payload: {
-        total_input_tokens: 42,
-        total_output_tokens: 8,
+        total_input_tokens: 1000,
+        total_output_tokens: 200,
         turn: {
           kind: "completed",
           assistant: finalOutput,
@@ -84,10 +84,10 @@ describe("fx runner helpers", () => {
         readEventsJsonl: async () => events,
         readUsageSnapshot: async () => ({
           snapshot: {
-            input_tokens: 42,
-            output_tokens: 8,
-            cache_read_tokens: 5,
-            reasoning_tokens: 2,
+            input_tokens: 1000,
+            output_tokens: 200,
+            cache_read_tokens: 600,
+            reasoning_tokens: 50,
           },
         }),
       },
@@ -98,13 +98,13 @@ describe("fx runner helpers", () => {
     expect(result.fxStatus).toBe("completed");
     expect(result.harnessStatus).toBe("completed");
     expect(result.finalAnswer).toBe("Example Domain");
-    expect(metrics.fx_input_tokens.value).toBe(42);
-    expect(metrics.harness_input_tokens.value).toBe(42);
-    expect(metrics.harness_output_tokens.value).toBe(8);
-    expect(metrics.harness_cached_input_tokens.value).toBe(5);
-    expect(metrics.harness_reasoning_output_tokens.value).toBe(2);
-    expect(metrics.fx_total_tokens.value).toBe(57);
-    expect(metrics.harness_total_tokens.value).toBe(57);
+    expect(metrics.fx_input_tokens.value).toBe(1000);
+    expect(metrics.harness_input_tokens.value).toBe(1000);
+    expect(metrics.harness_output_tokens.value).toBe(200);
+    expect(metrics.harness_cached_input_tokens.value).toBe(600);
+    expect(metrics.harness_reasoning_output_tokens.value).toBe(50);
+    expect(metrics.fx_total_tokens.value).toBe(1250);
+    expect(metrics.harness_total_tokens.value).toBe(1250);
     expect(metrics.harness_cost_usd).toBeUndefined();
   });
 

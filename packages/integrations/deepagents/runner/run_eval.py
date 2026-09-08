@@ -208,7 +208,7 @@ def reasoning_text(content: object) -> str:
         text
         for block in content
         if isinstance(block, dict)
-        and block.get("type") == "reasoning"
+        and block.get("type") in ("reasoning", "thinking")
         and (text := _reasoning_text(block))
     ]
     return "\n".join(parts)
@@ -232,7 +232,7 @@ def flatten_text(content: object) -> str:
             parts.append(block["text"])
         elif isinstance(block, dict) and block.get("type") in _TOOL_CALL_BLOCK_TYPES:
             continue
-        elif isinstance(block, dict) and block.get("type") == "reasoning":
+        elif isinstance(block, dict) and block.get("type") in ("reasoning", "thinking"):
             continue
         elif isinstance(block, dict) and _image_from_block(block) is not None:
             continue

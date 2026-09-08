@@ -19,6 +19,11 @@ describe("reasoning summary switch", () => {
     );
   });
 
+  it.each(["openai/gpt-4.1-mini", "gpt-4o", "text-embedding-3-small", "openai/gpt-5-chat-latest"])(
+    "does not request reasoning on %s",
+    (model) => expect(openAiReasoningProviderOptions(model, {})).toBeUndefined(),
+  );
+
   it("only asks OpenAI models for summaries", () => {
     expect(isOpenAiModel("openai/gpt-5.6-luna")).toBe(true);
     expect(isOpenAiModel("gpt-5.4-mini")).toBe(true);

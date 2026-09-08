@@ -48,6 +48,11 @@ const outcome: TrajectoryTraceInput["outcome"] = {
 };
 
 describe("trajectory trace log", () => {
+  it("normalizes FX MCP facade tool names", () => {
+    expect(shortToolName("mcp_stagehand_run")).toBe("run");
+    expect(shortToolName("mcp_stagehand_browser_snapshot")).toBe("snapshot");
+  });
+
   it("emits one identical-shape line per step plus a result line", () => {
     const lines = buildTrajectoryTraceLines({
       trajectory: threeStepTrajectory(),
