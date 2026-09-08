@@ -633,7 +633,7 @@ class TestNegotiateRuntime:
             ({}, "serverInfo.name=None"),
             (
                 {
-                    "protocolVersion": "2.0.0",
+                    "protocolVersion": f"{int(STAGEHAND_PROTOCOL_VERSION.split('.')[0]) + 1}.0.0",
                     "serverInfo": {"name": "stagehand", "version": "0"},
                 },
                 "major mismatch",

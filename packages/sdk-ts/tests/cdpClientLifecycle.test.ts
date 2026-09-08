@@ -17,6 +17,7 @@ type CdpCall = {
 };
 
 const lifecycleSignal = new AbortController().signal;
+const incompatibleProtocolVersion = `${Number(STAGEHAND_PROTOCOL_VERSION.split(".")[0]) + 1}.0.0`;
 
 type TargetInfo = {
   targetId: string;
@@ -395,7 +396,7 @@ describe("waitForRuntimeReady", () => {
     const controller = new AbortController();
     const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
-      result: { value: runtimeReadiness("2.0.0") },
+      result: { value: runtimeReadiness(incompatibleProtocolVersion) },
     }));
 
     const error = await rejectedError(
@@ -413,7 +414,7 @@ describe("waitForRuntimeReady", () => {
 
   it("throws for an out-of-range attached runtime when fallback installation is disabled", async () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
-      result: { value: runtimeReadiness("2.0.0") },
+      result: { value: runtimeReadiness(incompatibleProtocolVersion) },
     }));
 
     await expect(

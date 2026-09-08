@@ -2,12 +2,20 @@ package stagehand
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestNegotiateRuntimeCompatibility(t *testing.T) {
 	t.Parallel()
+
+	protocolMajor, err := strconv.Atoi(strings.Split(stagehandProtocolVersion, ".")[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	incompatibleProtocolVersion := fmt.Sprintf("%d.0.0", protocolMajor+1)
 
 	tests := []struct {
 		name       string
@@ -17,12 +25,12 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 	}{
 		{
 			name: "compatible",
-			marker: `{
-				"protocolVersion": "1.0.9",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
 				"serverInfo": {"name": "stagehand", "version": "1.0.0"}
-			}`,
+			}`, stagehandProtocolVersion),
 			compatible: true,
-			detail:     "protocolVersion=1.0.9",
+			detail:     "protocolVersion=" + stagehandProtocolVersion,
 		},
 		{
 			name:       "missing marker",
@@ -32,19 +40,19 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 		},
 		{
 			name: "major mismatch",
-			marker: `{
-				"protocolVersion": "2.0.0",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
 				"serverInfo": {"name": "stagehand", "version": "1.0.0"}
-			}`,
+			}`, incompatibleProtocolVersion),
 			compatible: false,
 			detail:     "major mismatch",
 		},
 		{
 			name: "wrong runtime",
-			marker: `{
-				"protocolVersion": "1.0.0",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
 				"serverInfo": {"name": "other", "version": "1.0.0"}
-			}`,
+			}`, stagehandProtocolVersion),
 			compatible: false,
 			detail:     `serverInfo.name="other"`,
 		},
