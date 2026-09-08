@@ -47,7 +47,7 @@ export interface StagehandCuaExecutorOptions {
   /** Runs after a member that may have changed the page; transient evidence failures are ignored. */
   onMutation?: (toolUseId: string) => Promise<void>;
   /** Runner-owned loss telemetry for hosts that call the facade over a bridge. */
-  browserSessionLoss?: () => unknown;
+  browserSessionLoss?: () => { cause: string } | undefined;
 }
 
 /** Members that never mutate the page; `onMutation` is not called after them. */

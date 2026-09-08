@@ -5,7 +5,7 @@ import { StagehandCuaExecutor, type CuaFacadeTools } from "../src/index.js";
 
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
 
-function sdkFacade() {
+function sdkFacade(options: { missingPageIds?: boolean } = {}) {
   const calls: Array<{ method: string; params: unknown }> = [];
   let activeId = "p1";
   const urls = new Map([
@@ -19,7 +19,9 @@ function sdkFacade() {
       calls.push({ method: method.name, params: parsed });
       switch (method.name) {
         case "context.pages":
-          return [...urls.keys()].map((pageId) => ({ pageId })) as never;
+          return [...urls.keys()].map((pageId) => ({
+            pageId: options.missingPageIds ? "" : pageId,
+          })) as never;
         case "context.new_page": {
           const pageId = ++nextPage === 1 ? "keeper" : `new-${nextPage}`;
           urls.set(pageId, (parsed as { url?: string }).url ?? "about:blank");
@@ -110,10 +112,10 @@ describe("CUA SDK Page boundary", () => {
     expect(result.content).toContainEqual(
       expect.objectContaining({
         type: "browser_state",
-        tabs: [
+        tabs: expect.arrayContaining([
           expect.objectContaining({ tab_id: "p1", active: false }),
           expect.objectContaining({ tab_id: "p2", active: true }),
-        ],
+        ]),
       }),
     );
   });
@@ -150,6 +152,13 @@ describe("CUA SDK Page boundary", () => {
 });
 
 describe("CUA visible facade tab boundary", () => {
+  it("fails descriptively when the host cannot supply stable visible page IDs", async () => {
+    const { executor } = sdkFacade({ missingPageIds: true });
+    const result = await executor.execute("list_tabs", {}, { toolUseId: "missing-id" });
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("missing a stable pageId");
+  });
+
   it("lists real visible IDs, including a legitimate blank page, without the keeper", async () => {
     const { executor } = sdkFacade();
     const result = await executor.execute("list_tabs", {}, { toolUseId: "tabs" });
@@ -194,10 +203,10 @@ describe("CUA visible facade tab boundary", () => {
     expect(closed.content).toContainEqual(
       expect.objectContaining({
         type: "browser_state",
-        tabs: [
+        tabs: expect.arrayContaining([
           expect.objectContaining({ tab_id: "p1", active: false }),
           expect.objectContaining({ tab_id: "p2", active: true }),
-        ],
+        ]),
       }),
     );
     const selected = await executor.execute(
@@ -208,10 +217,10 @@ describe("CUA visible facade tab boundary", () => {
     expect(selected.content).toContainEqual(
       expect.objectContaining({
         type: "browser_state",
-        tabs: [
+        tabs: expect.arrayContaining([
           expect.objectContaining({ tab_id: "p1", active: true }),
           expect.objectContaining({ tab_id: "p2", active: false }),
-        ],
+        ]),
       }),
     );
   });

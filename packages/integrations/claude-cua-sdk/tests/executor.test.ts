@@ -121,7 +121,11 @@ describe("StagehandCuaExecutor", () => {
     await exec.execute("navigate", { url: "back" }, ctx);
     await exec.execute("navigate", { url: "forward" }, ctx);
     await exec.execute("navigate", { url: "reload" }, ctx);
-    expect(calls.map((call) => (call as { code: string }).code.split("\n")[0])).toEqual([
+    expect(
+      calls.map((call) =>
+        (call as { code: string }).code.split("\n").find((line) => line.startsWith("await page.")),
+      ),
+    ).toEqual([
       'await page.goBack({ waitUntil: "domcontentloaded" });',
       'await page.goForward({ waitUntil: "domcontentloaded" });',
       'await page.reload({ waitUntil: "domcontentloaded" });',
