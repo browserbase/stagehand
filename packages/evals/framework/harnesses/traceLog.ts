@@ -186,8 +186,8 @@ export function shortToolName(actionName: string): string {
   } else if (name.includes(".")) {
     name = name.slice(name.lastIndexOf(".") + 1);
   }
-  if (/^stagehand_(?:browser_)?(run|snapshot|screenshot)$/u.test(name)) {
-    name = name.replace(/^stagehand_(?:browser_)?/u, "");
+  if (/^(?:mcp_)?stagehand_(?:browser_)?(run|snapshot|screenshot)$/u.test(name)) {
+    name = name.replace(/^(?:mcp_)?stagehand_(?:browser_)?/u, "");
   }
   return name || "tool";
 }

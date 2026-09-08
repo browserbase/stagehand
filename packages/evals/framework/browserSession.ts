@@ -12,7 +12,7 @@ export interface BrowserSessionInfo {
 }
 
 export function browserbaseSessionUrl(sessionId: string): string {
-  return `https://www.browserbase.com/sessions/${sessionId}`;
+  return `https://www.browserbase.com/sessions/${encodeURIComponent(sessionId)}`;
 }
 
 /**

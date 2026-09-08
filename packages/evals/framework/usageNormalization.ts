@@ -62,7 +62,7 @@ export interface NormalizeUsageInput {
  * | mastra      | @mastra/core 1.57 on ai@7: `inputTokens` total, `cachedInputTokens` subset               |
  * | eve         | eve 0.29 reads AI SDK 7 `usage.inputTokens` + `inputTokenDetails.cacheReadTokens`        |
  * | deepagents  | LangChain `usage_metadata.input_tokens` total, `input_token_details.cache_read` subset   |
- * | fx          | `usage-v2.json` snapshot: `cache_read_tokens` 50 624 ⊂ `input_tokens` 58 837 observed    |
+ * | fx          | `usage-v2.json`: cached input is a subset; reasoning_tokens is separate from output_tokens    |
  * | pi          | pi-ai `usage.input` is the uncached remainder; `cacheRead`/`cacheWrite` separate         |
  * | cursor      | SDK input excludes cache; historical CLI records explicitly report no usage            |
  * | cursor_sdk  | SDK `totalTokens` sums input, output, cacheRead and cacheWrite; input excludes cache    |
@@ -86,7 +86,9 @@ const HARNESS_CONVENTIONS: Readonly<Record<string, UsageConvention>> = {
 const DEFAULT_CONVENTION: UsageConvention = "openai_cached_subset";
 
 export function usageConventionFor(harness: string): UsageConvention {
-  return HARNESS_CONVENTIONS[harness] ?? DEFAULT_CONVENTION;
+  return Object.hasOwn(HARNESS_CONVENTIONS, harness)
+    ? HARNESS_CONVENTIONS[harness]
+    : DEFAULT_CONVENTION;
 }
 
 export function normalizeUsage({ harness, raw }: NormalizeUsageInput): NormalizedUsage {
@@ -116,7 +118,7 @@ export function normalizeUsage({ harness, raw }: NormalizeUsageInput): Normalize
         input_uncached: Math.max(0, input - cached - cacheWrite),
         output,
         reasoning,
-        reasoning_in_output: true,
+        reasoning_in_output: harness !== "fx",
         convention,
       };
     case "anthropic_cache_separate":
