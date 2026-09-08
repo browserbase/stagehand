@@ -5,10 +5,11 @@ import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol
 import {
   BrowserContext,
   CALLBACK_BATCH_CLIENT_GRACE_MS,
+  RPCResponseTimeoutError,
   Stagehand,
   StagehandBatchTimeoutError,
 } from "../src/index.js";
-import { RPCClient, RPCResponseTimeoutError, type CDPTransport } from "../src/rpcClient.js";
+import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
 import {
   attachStagehandBrowserContext,
   claimStagehandBrowserHandle,
@@ -72,6 +73,11 @@ describe("experimentalBatch client deadline", () => {
         expect(typed.timeout).toBe(60_000);
         expect(typed.clientTimeout).toBe(60_000 + CALLBACK_BATCH_CLIENT_GRACE_MS);
         expect(typed.cause).toBeInstanceOf(RPCResponseTimeoutError);
+        expect(typed.cause).toMatchObject({
+          message: `RPC response timed out: ${StagehandMethods.stagehandCallbackBatch.name} after 75000ms`,
+          method: StagehandMethods.stagehandCallbackBatch.name,
+          timeoutMs: 75_000,
+        });
         return true;
       });
 

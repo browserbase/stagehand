@@ -202,7 +202,7 @@ export function facadeAgentInstructions(env: NodeJS.ProcessEnv = process.env): s
  */
 export const FACADE_AGENT_INSTRUCTIONS = `Browser tool surface: Stagehand Playwright facade.
 You control one persistent browser through exactly three tools:
-- run: execute JavaScript against an initialized Playwright page, context, and browser (page.goto, page.locator(selector).click()/fill(), page.getByRole(...), page.evaluate(...), page.waitForURL(...), and the rest of the Playwright API). Use await directly and return JSON-serializable values so you can inspect progress. Alternatively, pass snapshot actions.
+- run: execute JavaScript against an initialized Playwright page, context, and browser (page.goto, page.locator(selector).click()/fill(), page.getByRole(...), page.evaluate(...), page.waitForURL(...), and the supported Playwright-shaped API). Use await directly and return JSON-serializable values so you can inspect progress. Alternatively, pass snapshot actions.
 - snapshot: inspect the active page's accessibility tree and hydrate bracketed element IDs for run actions.
 - screenshot: inspect the rendered page visually.
 
