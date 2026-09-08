@@ -1,5 +1,8 @@
 /* eslint-disable require-yield */
 import { describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildClaudeCodePrompt,
@@ -95,7 +98,11 @@ describe("claude code runner helpers", () => {
     });
   });
 
-  it("fails closed when verification fails while preserving the agent report", async () => {
+  it("fails closed when verification fails while preserving the agent report", async ({
+    onTestFinished,
+  }) => {
+    const trajectoryRoot = await mkdtemp(path.join(tmpdir(), "stagehand-runner-test-"));
+    onTestFinished(() => rm(trajectoryRoot, { recursive: true, force: true }));
     const sdk: ClaudeAgentSdk = {
       query: async function* () {
         yield {
@@ -124,6 +131,7 @@ describe("claude code runner helpers", () => {
       logger: new EvalLogger(false),
       sdk,
       verifier: {
+        trajectoryRoot,
         v3: {} as never,
         taskSpec: {
           id: "wv-1",

@@ -33,4 +33,16 @@ describe("claude_code event log levels", () => {
       expect.objectContaining({ level: 1, message: "result: error_max_turns" }),
     ]);
   });
+  it.each([false, true])("classifies nested tool_result is_error=%s", (isError) => {
+    const { lines, logger } = recordingLogger();
+    logClaudeCodeMessage(logger, {
+      type: "user",
+      message: {
+        content: [
+          { type: "tool_result", tool_use_id: "fixture", is_error: isError, content: "result" },
+        ],
+      },
+    });
+    expect(lines[0].level).toBe(isError ? 1 : 2);
+  });
 });
