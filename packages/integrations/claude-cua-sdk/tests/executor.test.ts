@@ -212,21 +212,35 @@ describe("StagehandCuaExecutor", () => {
     });
   });
 
-  it("mouse down/up and drag dispatch CDP mouse events in one batch", async () => {
+  it("drag uses the complete native gesture in one batch", async () => {
     const { exec, calls } = executor();
-    await exec.execute("left_mouse_down", { target: { type: "coordinate", x: 1, y: 2 } }, ctx);
-    expect(calls).toHaveLength(1);
-    expect(lastRun(calls)).toContain('type: "mousePressed", x: 1, y: 2');
-    calls.length = 0;
     await exec.execute(
       "left_click_drag",
       { from: { type: "coordinate", x: 1, y: 2 }, target: { type: "coordinate", x: 30, y: 40 } },
       ctx,
     );
     expect(calls).toHaveLength(1);
-    expect(lastRun(calls)).toContain('type: "mousePressed", x: 1, y: 2');
-    expect(lastRun(calls)).toContain('type: "mouseReleased", x: 30, y: 40');
+    expect(lastRun(calls)).toContain(
+      "await batchStagehand.page.dragAndDrop(1, 2, 30, 40, { steps: 2 })",
+    );
   });
+
+  it.each(["left_mouse_down", "left_mouse_up"])(
+    "%s gives guidance without claiming to hold a button",
+    async (member) => {
+      const { exec, calls } = executor();
+      const result = await exec.execute(
+        member,
+        { target: { type: "coordinate", x: 1, y: 2 } },
+        ctx,
+      );
+      expect(result).toEqual({
+        content: `Error: ${member} is not available on this browser; use left_click_drag for a complete drag or left_click for a click instead.`,
+        isError: true,
+      });
+      expect(calls).toEqual([]);
+    },
+  );
 
   it("screenshot → facade screenshot as an image block; zoom → clipped screenshot in-batch", async () => {
     const { exec, calls } = executor();

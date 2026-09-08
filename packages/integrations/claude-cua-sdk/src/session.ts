@@ -307,7 +307,9 @@ export async function runClaudeCuaSession(
           type: "tool_result",
           tool_use_id: id,
           ...(isBrowserMember && { toolset_name: ANTHROPIC_BROWSER_TOOLSET_NAME }),
-          content: result.content,
+          // Compression replaces blocks in this array. Keep it separate from
+          // the original screenshot evidence retained in session events.
+          content: typeof result.content === "string" ? result.content : [...result.content],
           ...(result.isError && { is_error: true }),
         });
       }
