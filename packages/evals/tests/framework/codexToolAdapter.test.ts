@@ -1,11 +1,42 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCodexMcpServers,
   buildIsolatedCodexEnv,
   CODEX_MCP_TOOLS_APPROVAL_MODE,
+  prepareCodexToolAdapter,
 } from "../../framework/codexToolAdapter.js";
+import { EvalLogger } from "../../logger.js";
+import { startAgentToolRuntime } from "../../framework/agentToolRuntime.js";
+import { prepareBrowseCliHarnessAdapter } from "../../framework/claudeCodeToolAdapter.js";
+
+vi.mock("../../framework/agentToolRuntime.js", () => ({ startAgentToolRuntime: vi.fn() }));
+vi.mock("../../framework/claudeCodeToolAdapter.js", () => ({
+  prepareBrowseCliHarnessAdapter: vi.fn(),
+}));
+afterEach(() => vi.unstubAllEnvs());
 
 describe("codex tool adapter", () => {
+  it.each(["stagehand_facade", "browse_cli"] as const)(
+    "rejects invalid effort before starting the %s browser",
+    async (toolSurface) => {
+      vi.stubEnv("EVAL_CODEX_REASONING_EFFORT", "unsupported");
+      await expect(
+        prepareCodexToolAdapter({
+          toolSurface,
+          environment: "LOCAL",
+          plan: {
+            dataset: "webvoyager",
+            taskId: "smoke",
+            startUrl: "https://example.com",
+            instruction: "Read the page",
+          },
+          logger: new EvalLogger(false),
+        }),
+      ).rejects.toThrow(/EVAL_CODEX_REASONING_EFFORT must be one of/);
+      expect(startAgentToolRuntime).not.toHaveBeenCalled();
+      expect(prepareBrowseCliHarnessAdapter).not.toHaveBeenCalled();
+    },
+  );
   it("pre-approves tools on every runner-mounted MCP server", () => {
     const servers = buildCodexMcpServers("playwright_mcp", {
       playwright: { command: "node", args: ["server.js"] },

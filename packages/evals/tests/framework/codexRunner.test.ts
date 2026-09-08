@@ -64,29 +64,37 @@ describe("codex runner helpers", () => {
     expect(validateCodexReasoningEffort(" XHIGH ")).toBe("xhigh");
   });
 
-  it("passes reasoning effort through a caller-owned SDK", async () => {
-    vi.stubEnv("EVAL_CODEX_REASONING_EFFORT", "high");
-    const startThread = vi.fn(() => ({
-      runStreamed: async () => ({
-        events: (async function* () {
-          yield {
-            type: "item.completed",
-            item: { type: "agent_message", text: '{"success":true}' },
-          };
-          yield { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
-        })(),
-      }),
-    }));
-    await runCodexAgent({
-      plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
-      logger: new EvalLogger(false),
-      sdk: { startThread },
-    });
-    expect(startThread).toHaveBeenCalledWith(
-      expect.objectContaining({ modelReasoningEffort: "high" }),
-    );
-  });
+  it.each(["high", "max", "ultra", "persistent"])(
+    "passes %s reasoning effort through a caller-owned SDK",
+    async (effort) => {
+      vi.stubEnv("EVAL_CODEX_REASONING_EFFORT", effort);
+      expect(
+        buildEvalCodexConfig(undefined, { EVAL_CODEX_REASONING_EFFORT: effort }),
+      ).toMatchObject({
+        model_reasoning_effort: effort,
+      });
+      const startThread = vi.fn(() => ({
+        runStreamed: async () => ({
+          events: (async function* () {
+            yield {
+              type: "item.completed",
+              item: { type: "agent_message", text: '{"success":true}' },
+            };
+            yield { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
+          })(),
+        }),
+      }));
+      await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk: { startThread },
+      });
+      expect(startThread).toHaveBeenCalledWith(
+        expect.objectContaining({ modelReasoningEffort: effort }),
+      );
+    },
+  );
 
   it("builds a browser task prompt with structured result instructions", () => {
     const prompt = buildCodexPrompt(plan, "Use browse only. Discover usage with browse -h.");
