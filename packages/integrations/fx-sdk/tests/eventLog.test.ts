@@ -35,4 +35,16 @@ describe("fx event log levels", () => {
       [1, "tools: run"],
     ]);
   });
+  it("keeps failure-status tool results and structured ask errors visible", () => {
+    const { lines, logger } = recordingLogger();
+    logFxEvent(logger, {
+      type: "tool_step",
+      assistant: "",
+      tool_calls: [],
+      tool_results: [{ status: "failure" }],
+    });
+    logFxEvent(logger, { type: "ask_result", ask: { error: "provider unavailable" } });
+    logFxEvent(logger, { type: "ask_result", ask: { output: "done" } });
+    expect(lines.map((line) => line.level)).toEqual([1, 1, 2]);
+  });
 });
