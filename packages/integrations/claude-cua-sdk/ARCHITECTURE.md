@@ -97,7 +97,7 @@ Every mutating `run` snippet ends with a tab-inventory tail, so the
 | `screenshot`                                         | `screenshot({type:"png"})` → image block                                                                       | 1   |
 | `zoom`                                               | `run`: `page.screenshot({clip})`, base64 built in-batch → image block                                          | 1   |
 | `left_click` (ref)                                   | `runActions [{op:"click"}]`; reported url refreshes cached tab state                                           | 1   |
-| `left/right/middle/double/triple_click` (xy)         | `run`: `batchStagehand.page.click(x,y,{button,clickCount,modifiers})` + tabs                                   | 1   |
+| `left/right/middle/double/triple_click` (xy)         | `run`: `batchStagehand.page.click(x,y,{button,clickCount})` + tabs                                   | 1   |
 | `hover` (ref / xy)                                   | `runActions [{op:"hover"}]` / `run`: `page.hover(x,y)` + tabs                                                  | 1   |
 | `mouse_move`                                         | `run`: `page.hover(x,y)` + tabs                                                                                | 1   |
 | `left_click_drag`                                    | `run`: native `page.dragAndDrop` (press, midpoint, endpoint, release) + tabs                                           | 1   |
@@ -115,12 +115,14 @@ Every mutating `run` snippet ends with a tab-inventory tail, so the
 | `javascript_exec`                                    | `run`: `page.evaluate(script)`; result stringified                                                             | 1   |
 | `new_tab` / `list_tabs` / `switch_tab` / `close_tab` | `run` on `batchStagehand.context` (`newPage` / `pages` / `setActivePage` / `close`); one `browser_state` block | 1   |
 
+An ordinary member with `tab_id` first selects that tab through the shared SDK context (one extra round trip). Unknown tabs fail before the action runs.
+
 No facade equivalent — returned as a recoverable `is_error` naming an
 alternative, never stubbed:
 
 | member / variant                                                  | why                                                                    |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| right/middle/double/triple click **on a ref**, modifiers on a ref | facade ref actions are single left clicks; coordinates still work      |
+| right/middle/double/triple click **on a ref**, all modifier clicks | facade ref actions are single left clicks; SDK clicks have no modifiers      |
 | `left_mouse_down`, `left_mouse_up` | no held-button primitive across tool calls; use `left_click_drag` or `left_click` |
 | `hold_key`                                                        | the facade page exposes no keyDown/keyUp                               |
 | `file_upload`, `read_console`, `read_network`                     | not exposed by the facade (also unsupported by the reference executor) |

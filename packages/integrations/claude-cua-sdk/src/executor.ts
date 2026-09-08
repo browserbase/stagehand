@@ -193,6 +193,14 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
           }.`,
         );
       }
+      if (
+        input.tab_id !== undefined &&
+        !["switch_tab", "close_tab", "new_tab", "list_tabs"].includes(member)
+      ) {
+        // Batch pages are selected when each callback starts. Select the target
+        // first so coordinate actions and hydrated refs use the requested tab.
+        await this.options.tools.run(tabSelectionCode(asString(input.tab_id, "tab_id")));
+      }
       const result = await this.executeMember(member, input);
       if (!READ_ONLY_TOOLSET_MEMBERS.has(member) && this.options.onMutation) {
         await this.options.onMutation(context.toolUseId).catch((error: unknown) => {
@@ -378,9 +386,7 @@ try { batchStagehand.page = __new; } catch {}`,
   private async switchTab(input: Record<string, unknown>): Promise<CuaToolResult> {
     const tabId = asString(input.tab_id, "tab_id");
     const { tabs } = await this.runWithTabs(
-      `const __target = (await batchStagehand.context.pages()).find((p, i) => (p.pageId ?? String(i)) === ${JSON.stringify(tabId)});
-if (!__target) throw new Error(${JSON.stringify(`Unknown tab_id "${tabId}". Call list_tabs to see the open tabs.`)});
-await batchStagehand.context.setActivePage(__target);
+      `${tabSelectionCode(tabId)}
 try { batchStagehand.page = __target; } catch {}`,
     );
     return this.stateOnly(tabs.map((tab) => ({ ...tab, active: String(tab.tab_id) === tabId })));
@@ -425,12 +431,16 @@ if (__wasActive) {
       return this.withState(`${verb} element ${target.ref}.`, tabs);
     }
 
+    if (modifiers.length > 0) {
+      throw new Error(
+        "modifier clicks are not available on this browser; use key for a keyboard shortcut or an unmodified click instead.",
+      );
+    }
     this.lastMouse = { x: target.x, y: target.y };
     const { tabs } = await this.runWithTabs(
       `await batchStagehand.page.click(${target.x}, ${target.y}, ${JSON.stringify({
         button,
         clickCount,
-        ...(modifiers.length > 0 && { modifiers }),
       })});`,
     );
     return this.withState(`${verb} at (${Math.round(target.x)}, ${Math.round(target.y)}).`, tabs);
@@ -717,6 +727,12 @@ try { return JSON.stringify(__value, null, 2) ?? String(__value); } catch { retu
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
+
+function tabSelectionCode(tabId: string): string {
+  return `const __target = (await batchStagehand.context.pages()).find((p, i) => (p.pageId ?? String(i)) === ${JSON.stringify(tabId)});
+if (!__target) throw new Error(${JSON.stringify(`Unknown tab_id "${tabId}". Call list_tabs to see the open tabs.`)});
+await batchStagehand.context.setActivePage(__target);`;
+}
 
 function imageBlock(data: string, mimeType: string): CuaToolResultBlock {
   return { type: "image", source: { type: "base64", media_type: mimeType, data } };
