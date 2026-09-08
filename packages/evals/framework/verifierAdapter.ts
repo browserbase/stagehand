@@ -41,6 +41,23 @@ export interface PersistedEvaluationResult extends EvaluationResult {
   judge: EvaluationResult;
 }
 
+export interface UngradedVerifierResult {
+  graded: false;
+  verifierError: string;
+  judge?: EvaluationResult;
+}
+
+export function buildUngradedVerifierResult(
+  verifierError: string,
+  judge?: EvaluationResult,
+): UngradedVerifierResult {
+  return {
+    graded: false,
+    verifierError: sanitizeErrorMessage(verifierError),
+    ...(judge && { judge }),
+  };
+}
+
 /** Retain a failed judge response for audit without presenting its synthetic scores as a grade. */
 export function getUngradedVerifierResult(
   evaluation: EvaluationResult,
@@ -74,7 +91,7 @@ export function buildPersistedEvaluationResult(
 
 const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
-/** Campaign-validated default; callers can pin the judge independently. */
+/** Shared default; callers can pin the judge independently. */
 export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.5-flash";
 
 /**
@@ -405,7 +422,7 @@ export async function gradeExternalTrajectory({
         const saved = await persistAdapterTrajectory({
           trajectory: capturedTrajectory,
           taskSpec: capturedTrajectory.task ?? verifier.taskSpec,
-          ...(rawEvaluation && { evaluationResult: rawEvaluation }),
+          evaluationResult: buildUngradedVerifierResult(message, rawEvaluation),
           outputRoot: verifier.trajectoryRoot,
           runId: verifier.runId,
         });
