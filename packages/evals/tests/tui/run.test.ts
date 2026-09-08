@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
+import type { RunEvalsResult } from "../../framework/runner.js";
 import {
   canExecuteBenchHarness,
   deriveCategoryFilter,
@@ -13,11 +14,13 @@ import {
 } from "../../framework/benchHarness.js";
 
 const runEvalsMock = vi.hoisted(() =>
-  vi.fn(async () => ({
-    experimentName: "test-experiment",
-    summary: { passed: 0, failed: 0, total: 0 },
-    results: [],
-  })),
+  vi.fn(
+    async (): Promise<RunEvalsResult> => ({
+      experimentName: "test-experiment",
+      summary: { passed: 0, failed: 0, total: 0 },
+      results: [],
+    }),
+  ),
 );
 
 vi.mock("../../framework/runner.js", () => ({
@@ -458,6 +461,63 @@ describe("deriveCategoryFilter", () => {
     expect(output).toContain("Plan: 2 tasks × 1 model × 4 trials = 8 runs");
     expect(output).toContain("Env: BROWSERBASE  Harness: stagehand  Concurrency: 25");
     expect(runEvalsMock).toHaveBeenCalledOnce();
+  });
+
+  it("fails a gated batch when a graded pass has zero facade tool calls", async () => {
+    const previousExitCode = process.exitCode;
+    const previousLimit = process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA;
+    const registry = makeRegistry([makeTask()]);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    runEvalsMock.mockResolvedValueOnce({
+      experimentName: "test-experiment",
+      summary: { passed: 1, failed: 0, total: 1 },
+      results: [
+        {
+          name: "dropdown",
+          input: { name: "dropdown", modelName: "openai/gpt-4.1-mini" },
+          output: {
+            _success: true,
+            criterionCount: 1,
+            evidenceInsufficient: [],
+            metrics: { facade_tool_calls: { value: 0 } },
+          },
+          score: 1,
+        },
+      ],
+    });
+    process.exitCode = undefined;
+    try {
+      await runCommand(
+        {
+          target: "act",
+          normalizedTarget: "act",
+          trials: 1,
+          concurrency: 1,
+          environment: "LOCAL",
+          model: "openai/gpt-4.1-mini",
+          useApi: false,
+          harness: "stagehand",
+          envOverrides: { EVAL_MAX_UNVERIFIABLE_CRITERIA: "0" },
+          dryRun: false,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
+        },
+        registry,
+      );
+
+      expect(runEvalsMock).toHaveBeenCalledOnce();
+      expect(process.exitCode).toBe(1);
+      expect(error.mock.calls.flat().join("\n")).toMatch(
+        /passes without (?:any browser tool call|browser use)/,
+      );
+      expect(process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA).toBe(previousLimit);
+    } finally {
+      process.exitCode = previousExitCode;
+      if (previousLimit === undefined) delete process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA;
+      else process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA = previousLimit;
+    }
   });
 });
 

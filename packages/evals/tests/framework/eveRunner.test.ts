@@ -2,7 +2,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as eveSdk from "@browserbasehq/stagehand-integrations-eve-sdk";
 import type { EveClientLike, EveEvent } from "@browserbasehq/stagehand-integrations-eve-sdk";
 import type { AvailableModel } from "stagehand-v3";
@@ -16,6 +16,8 @@ import { buildEveAgentAppFiles } from "../../framework/eveToolAdapter.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import { EvalLogger } from "../../logger.js";
+
+afterEach(() => vi.unstubAllEnvs());
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -68,6 +70,8 @@ describe("Eve runner helpers", () => {
   });
 
   it("streams an Eve turn into native and normalized metrics", async () => {
+    vi.stubEnv("EVAL_EVE_MAX_STEPS", undefined);
+    vi.stubEnv("AGENT_EVAL_MAX_STEPS", undefined);
     const onPrompt = vi.fn();
     const client = fakeClient(
       [

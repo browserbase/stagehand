@@ -160,7 +160,7 @@ describe("applyVerdictGates — outcome gates", () => {
     expect(gates.outcomeGates).toEqual([]);
   });
 
-  it("stacks multiple gates", () => {
+  it("reports only the missing-answer gate without a facade matcher", () => {
     const gates = applyVerdictGates({
       evaluation: passingJudge,
       trajectory: { steps: goodSteps, status: "error", finalAnswer: "" },
@@ -272,6 +272,43 @@ describe("grounding — datum extraction", () => {
 });
 
 describe("grounding — matching", () => {
+  it("uses captured step probe text as grounding evidence", () => {
+    const captured = step({ url: "https://shop.example.com", output: "" });
+    captured.probeEvidence.ariaTree = "Price: $18.95";
+    expect(checkAnswerGrounding("The price is $18.95", [captured])?.gatesOutcome).toBe(false);
+  });
+
+  it("uses the terminal observation and reports its source separately", () => {
+    const gates = applyVerdictGates({
+      evaluation: passingJudge,
+      trajectory: {
+        steps: [],
+        status: "complete",
+        finalAnswer: "$18.95",
+        finalObservation: { url: "https://shop.example.com", ariaTree: "Price: $18.95" },
+      },
+      requireGrounding: true,
+    });
+    expect(gates.outcomeSuccess).toBe(true);
+    expect(gates.grounding?.checked[0]).toMatchObject({ groundedAtFinalObservation: true });
+    expect(gates.grounding?.checked[0]).not.toHaveProperty("groundedAtStep");
+  });
+
+  it("does not trust matching text without a known page URL", () => {
+    const result = checkAnswerGrounding("The price is $18.95", [step({ output: "Price: $18.95" })]);
+    expect(result?.gatesOutcome).toBe(true);
+    expect(result?.checked[0]).toMatchObject({ seenOnUnknownPage: true });
+  });
+
+  it("does not promote search or unknown terminal observations to page evidence", () => {
+    for (const url of [undefined, "https://www.google.com/search?q=price"]) {
+      const result = checkAnswerGrounding("The price is $18.95", [], "", {
+        url,
+        ariaTree: "Price: $18.95",
+      });
+      expect(result?.gatesOutcome).toBe(true);
+    }
+  });
   it("matches currency with alias, spacing and trailing zeros", () => {
     const steps = [step({ url: "https://shop.example.com", output: "Seat fee: S$ 5.00 each" })];
     const result = checkAnswerGrounding("SGD 5 per sector", steps);
@@ -560,7 +597,7 @@ describe("evidence rows from the 2026-08-31 audit", () => {
     expect(gates.scoringIncomplete).toBe(false);
   });
 
-  it("a0a18ca6 (Macy's bot wall): processScore 1.0 becomes 0 strict", () => {
+  it("blocker wording without evidenceInsufficient leaves the strict score unchanged", () => {
     const blocked = (what: string) =>
       `${what} was impossible due to the uncontrollable platform blocker; full process credit is awarded.`;
     const evaluation: EvaluationResult = {

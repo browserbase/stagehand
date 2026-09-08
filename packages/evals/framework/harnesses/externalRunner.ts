@@ -2,7 +2,6 @@ import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { HarnessTrajectory, TerminationReason } from "./trajectoryAdapter.js";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { BrowserSessionLoss } from "../../core/contracts/tool.js";
-import { isBrowserSessionLostError } from "../../core/tools/browserSessionLoss.js";
 import type { EvalLogger } from "../../logger.js";
 import { EVAL_SYSTEM_PROMPT } from "../evalSystemPrompt.js";
 import { datasetPromptGuidance } from "../externalHarnessPlan.js";
@@ -296,6 +295,7 @@ export async function runExternalHarnessTask<TRaw>({
     .join("\n\n");
   const trustedResultText = outcome.resultText.trim();
   const parsed = { ...(parseResult ?? parseEvalResult)(trustedResultText), raw: rawResult };
+  parsed.finalAnswer = resolveFinalAnswer(parsed, trustedResultText);
   const sanitizedStopReason = outcome.stopReason
     ? sanitizeErrorMessage(outcome.stopReason)
     : undefined;
@@ -400,7 +400,7 @@ export async function runExternalHarnessTask<TRaw>({
       try {
         emitTrajectoryTrace(logger, {
           trajectory,
-          outcome,
+          outcome: { ...outcome, stopReason: sanitizedStopReason },
           usage,
           agentWallMs,
           isFacadeTool,
@@ -467,8 +467,9 @@ function withTerminationReason(
  * "passes" with zero facade calls answered from somewhere else (curl, another
  * MCP server, prior knowledge), which the rubric verifier cannot see.
  *
- * Calls answered with the terminal "Browser session lost" error are counted
- * separately: they are consequences of the browser dying, not agent errors.
+ * Failed calls remain failures even when their text claims session loss. The
+ * run-level loss signal is runner-owned; normalized steps do not currently
+ * carry trusted per-call loss attribution.
  */
 export function buildFacadeToolCallMetrics(
   trajectory: Pick<Trajectory, "steps">,
@@ -476,30 +477,16 @@ export function buildFacadeToolCallMetrics(
 ): Record<string, MetricValue> {
   let calls = 0;
   let failures = 0;
-  let afterSessionLost = 0;
   for (const step of trajectory.steps) {
     if (!isFacadeTool(step.actionName)) continue;
     calls += 1;
     if (step.toolOutput?.ok !== false) continue;
-    if (isSessionLostToolOutput(step.toolOutput)) afterSessionLost += 1;
-    else failures += 1;
+    failures += 1;
   }
   return {
     facade_tool_calls: metricValue(calls),
     facade_tool_call_failures: metricValue(failures),
-    ...(afterSessionLost > 0 && {
-      facade_tool_calls_after_session_lost: metricValue(afterSessionLost),
-    }),
   };
-}
-
-function isSessionLostToolOutput(
-  toolOutput: NonNullable<Trajectory["steps"][number]["toolOutput"]>,
-): boolean {
-  const { error, result } = toolOutput as { error?: unknown; result?: unknown };
-  return [error, result].some(
-    (value) => typeof value === "string" && isBrowserSessionLostError(value),
-  );
 }
 
 /** Wall-clock split so agent speed is never confounded with verifier speed. */

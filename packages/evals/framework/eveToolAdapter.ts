@@ -110,9 +110,9 @@ export function resolveEveModelProvider(model: string): EveModelProvider {
   if (!trimmed) throw new EvalsError("Eve model id must not be empty.");
   if (trimmed.startsWith("gateway/")) {
     const modelId = trimmed.slice("gateway/".length);
-    if (!modelId.includes("/")) {
+    if (!/^[^/\s]+\/[^/\s]+$/u.test(modelId)) {
       throw new EvalsError(
-        `Eve gateway model "${model}" must be "gateway/<creator>/<model>" (AI Gateway ids are creator-prefixed).`,
+        'Eve gateway model must be "gateway/<creator>/<model>" (AI Gateway ids are creator-prefixed).',
       );
     }
     return { pkg: "ai", factory: "gateway", modelId };
@@ -120,14 +120,16 @@ export function resolveEveModelProvider(model: string): EveModelProvider {
   const separator = trimmed.indexOf("/");
   const prefix = separator >= 0 ? trimmed.slice(0, separator) : "openai";
   const modelId = separator >= 0 ? trimmed.slice(separator + 1) : trimmed;
+  if (!prefix || !modelId || /\s/u.test(prefix) || /\s/u.test(modelId)) {
+    throw new EvalsError(
+      "Eve model requires nonempty creator and model identifiers without whitespace.",
+    );
+  }
   if (prefix === "openai") return { pkg: "@ai-sdk/openai", factory: "openai", modelId };
   if (prefix === "anthropic") {
     return { pkg: "@ai-sdk/anthropic", factory: "anthropic", modelId };
   }
   if (prefix === "google") return { pkg: "@ai-sdk/google", factory: "google", modelId };
-  if (!modelId) {
-    throw new EvalsError(`Eve model "${model}" is missing a model id after the creator prefix.`);
-  }
   return { pkg: "ai", factory: "gateway", modelId: trimmed };
 }
 
@@ -152,15 +154,11 @@ export function resolveEveModelContextWindowTokens(
   if (raw) {
     const parsed = Number(raw);
     if (!Number.isInteger(parsed) || parsed <= 0) {
-      throw new EvalsError(
-        `EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS must be a positive integer (got "${raw}").`,
-      );
+      throw new EvalsError("EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS must be a positive integer.");
     }
     return parsed;
   }
-  return resolveEveModelProvider(model).factory === "gateway"
-    ? DEFAULT_EVE_GATEWAY_CONTEXT_WINDOW_TOKENS
-    : undefined;
+  return isEveGatewayModel(model) ? DEFAULT_EVE_GATEWAY_CONTEXT_WINDOW_TOKENS : undefined;
 }
 
 export function buildEveAgentDefinitionSource(

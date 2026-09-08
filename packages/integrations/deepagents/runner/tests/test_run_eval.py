@@ -520,6 +520,17 @@ def test_reasoning_text_accepts_standard_content_blocks() -> None:
     assert flatten_text(content) == "Checking."
 
 
+def test_native_anthropic_thinking_stays_out_of_visible_assistant_text() -> None:
+    content = [
+        {"type": "thinking", "thinking": "Inspect the row before acting.", "signature": "hidden"},
+        {"type": "text", "text": "Opening the row."},
+    ]
+    event, = message_events(AIMessage(content=content), {})
+    assert event["reasoning"] == "Inspect the row before acting."
+    assert event["text"] == "Opening the row."
+    assert "signature" not in event["text"]
+
+
 def _config(model: str, reasoning_summary: str | None) -> RunnerConfig:
     return parse_config(
         {

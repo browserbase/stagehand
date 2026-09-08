@@ -257,13 +257,13 @@ export async function runCommand(
         for (const arm of arms) {
           const ungradedSuffix =
             arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
-          const noBrowserSuffix =
+          const browserlessSuffix =
             arm.passesWithoutBrowserUse > 0
-              ? `, ${arm.passesWithoutBrowserUse} passed without any browser tool call`
+              ? `, ${arm.passesWithoutBrowserUse} passes without browser use`
               : "";
           console.log(
             dim(
-              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}${noBrowserSuffix}`,
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}${browserlessSuffix}`,
             ),
           );
         }
@@ -282,15 +282,13 @@ export async function runCommand(
               `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
             );
           }
-          // A pass the agent reached without the browser surface is not a
-          // browser-benchmark pass, whatever the rubric said.
-          const noBrowser = armsWithPassesWithoutBrowserUse(arms);
-          for (const arm of noBrowser) {
+          const browserless = armsWithPassesWithoutBrowserUse(arms);
+          for (const arm of browserless) {
             console.error(
-              `  ✗ verifiability gate: ${arm.arm} has ${arm.passesWithoutBrowserUse} passes without any browser tool call`,
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.passesWithoutBrowserUse} passes without browser use`,
             );
           }
-          if (over.length > 0 || ungraded.length > 0 || noBrowser.length > 0) {
+          if (over.length > 0 || ungraded.length > 0 || browserless.length > 0) {
             process.exitCode = 1;
           }
         }

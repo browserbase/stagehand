@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   options: [] as Record<string, unknown>[],
   result: {} as Record<string, unknown>,
   key: "fixture-key" as string | undefined,
+  error: undefined as Error | undefined,
 }));
 
 vi.mock("stagehand-v3", async (importOriginal) => {
@@ -21,6 +22,7 @@ vi.mock("stagehand-v3", async (importOriginal) => {
         state.options.push(options);
       }
       async verify() {
+        if (state.error) throw state.error;
         return state.result;
       }
     },
@@ -45,6 +47,7 @@ describe("offline verifier command", () => {
     state.options = [];
     state.result = { outcomeSuccess: true, processScore: 1 };
     state.key = "fixture-key";
+    state.error = undefined;
     output = "";
     previousExitCode = process.exitCode;
     process.exitCode = undefined;
@@ -137,4 +140,38 @@ describe("offline verifier command", () => {
     expect(process.exitCode).toBe(1);
     await expect(fs.stat(path.join(dir, "scores"))).rejects.toThrow();
   });
+
+  it.each(["human", "json", "dry-run"])(
+    "preserves thrown verifier errors as ungraded in %s mode",
+    async (mode) => {
+      state.error = new Error("provider rejected sk-secret1234567890");
+      await handleVerify([
+        dir,
+        ...(mode === "json" ? ["--json"] : mode === "dry-run" ? ["--dry-run"] : []),
+      ]);
+      expect(process.exitCode).toBe(1);
+      if (mode !== "dry-run") {
+        const result = JSON.parse(
+          mode === "json"
+            ? output
+            : await fs.readFile(path.join(dir, "scores/result_fixture.json"), "utf8"),
+        );
+        expect(result.graded).toBe(false);
+        expect(result.verifierError).toContain("provider rejected");
+        expect(result.verifierError).not.toContain("secret1234567890");
+        expect(result).not.toHaveProperty("outcomeSuccess");
+        expect(result).not.toHaveProperty("processScore");
+        expect(result).not.toHaveProperty("judge");
+      }
+      if (mode !== "human") await expect(fs.stat(path.join(dir, "scores"))).rejects.toThrow();
+    },
+  );
+
+  it.each(["../../escape", "..\\escape"])(
+    "rejects unsafe output label %s before verification",
+    async (label) => {
+      await expect(handleVerify([dir, "--label", label])).rejects.toThrow("label");
+      expect(state.options).toEqual([]);
+    },
+  );
 });

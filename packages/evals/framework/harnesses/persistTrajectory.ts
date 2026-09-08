@@ -9,12 +9,13 @@ import {
 } from "../trajectoryGroup.js";
 import type { EvaluationResult, TaskSpec } from "stagehand-v3";
 import type { HarnessTrajectory } from "./trajectoryAdapter.js";
+import type { UngradedVerifierResult } from "../verifierAdapter.js";
 
 export interface PersistAdapterTrajectoryOptions {
   trajectory: HarnessTrajectory;
   taskSpec: TaskSpec;
-  /** EvaluationResult from V3Evaluator.verify(). Written to scores/result.json. */
-  evaluationResult?: EvaluationResult;
+  /** Accepted grade or explicit ungraded audit record. Written to scores/result.json. */
+  evaluationResult?: EvaluationResult | UngradedVerifierResult;
   /**
    * Output directory root. Final layout lives at
    * `<outputRoot>/<group>/<task.id>/<runId>/`. Entrypoints normally generate

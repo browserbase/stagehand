@@ -27,6 +27,7 @@ export type CodexThreadConfig = {
   approvalPolicy?: "never" | "on-request" | "on-failure" | "untrusted";
   networkAccessEnabled?: boolean;
   webSearchMode?: string;
+  modelReasoningEffort?: string;
   skipGitRepoCheck?: boolean;
 };
 
@@ -179,6 +180,9 @@ export async function runCodexSession(input: {
       approvalPolicy: validateCodexApprovalPolicy(input.thread.approvalPolicy),
       networkAccessEnabled: input.thread.networkAccessEnabled ?? true,
       webSearchMode: input.thread.webSearchMode ?? "disabled",
+      ...(input.thread.modelReasoningEffort !== undefined && {
+        modelReasoningEffort: input.thread.modelReasoningEffort,
+      }),
       skipGitRepoCheck: input.thread.skipGitRepoCheck ?? true,
     });
     const streamed = await thread.runStreamed(input.prompt, {

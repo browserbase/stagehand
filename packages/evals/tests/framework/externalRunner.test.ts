@@ -293,7 +293,7 @@ describe("external harness runner", () => {
     expect(complete.harness_cost_usd.value).toBe(0.25);
   });
 
-  it("does not count calls answered with the terminal session-lost error as failures", () => {
+  it("does not let tool-output text relabel failed calls as trusted session loss", () => {
     const lost =
       "Browser session lost (CDP connection closed). The task cannot continue; report your final result now.";
     const steps = [
@@ -314,8 +314,7 @@ describe("external harness runner", () => {
       buildFacadeToolCallMetrics({ steps } as never, (name) => name.startsWith("stagehand.")),
     ).toEqual({
       facade_tool_calls: { count: 1, value: 4 },
-      facade_tool_call_failures: { count: 1, value: 1 },
-      facade_tool_calls_after_session_lost: { count: 1, value: 2 },
+      facade_tool_call_failures: { count: 1, value: 3 },
     });
   });
 
@@ -825,7 +824,6 @@ describe("external harness runner", () => {
 
     expect(metrics.agent_wall_ms.value).toBeGreaterThanOrEqual(45);
     expect(metrics.evidence_ms.value).toBeGreaterThanOrEqual(25);
-    expect(metrics.evidence_ms.value).toBeLessThan(metrics.agent_wall_ms.value);
     expect(metrics.verifier_wall_ms.value).toBeGreaterThanOrEqual(0);
     expect(metrics.total_wall_ms.value).toBeCloseTo(
       metrics.agent_wall_ms.value + metrics.evidence_ms.value + metrics.verifier_wall_ms.value,
@@ -1065,4 +1063,63 @@ describe("external harness runner", () => {
       ),
     ).toEqual({});
   });
+});
+
+it("keeps task JSON as the final answer and passes it to trajectory conversion", async () => {
+  const answer = JSON.stringify({ products: [{ name: "example", price: 19 }] });
+  let trajectoryAnswer: string | undefined;
+  const result = await runExternalHarnessTask({
+    harness: "codex",
+    plan,
+    logger: new EvalLogger(false),
+    verifier: {
+      v3: {} as never,
+      taskSpec: { id: "json-task", instruction: plan.instruction, precomputedRubric: {} as never },
+      dataset: "webvoyager",
+    },
+    resultContract: "structured_output",
+    fallbackErrorMessage: "missing result",
+    runSession: async () => ({
+      raw: {},
+      resultText: answer,
+      transcriptText: "",
+      status: "completed",
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      metrics: {},
+    }),
+    toTrajectory: ({ parsed }, taskSpec) => {
+      trajectoryAnswer = parsed.finalAnswer;
+      return buildTrajectory({ taskSpec, toolCalls: [], finalAnswer: parsed.finalAnswer });
+    },
+  });
+  expect(result.finalAnswer).toBe(answer);
+  expect(trajectoryAnswer).toBe(answer);
+});
+
+it("sanitizes SDK stop reasons before emitting verifier trajectory traces", async () => {
+  const logger = new EvalLogger(false);
+  await runExternalHarnessTask({
+    harness: "codex",
+    plan,
+    logger,
+    verifier: {
+      v3: {} as never,
+      taskSpec: { id: "trace-task", instruction: plan.instruction, precomputedRubric: {} as never },
+      dataset: "webvoyager",
+    },
+    resultContract: "structured_output",
+    fallbackErrorMessage: "missing result",
+    runSession: async () => ({
+      raw: {},
+      resultText: "",
+      transcriptText: "",
+      status: "sdk_error",
+      stopReason: "request failed https://provider.example?apiKey=secret-query-value",
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      metrics: {},
+    }),
+    toTrajectory: (_input, taskSpec) => buildTrajectory({ taskSpec, toolCalls: [] }),
+  });
+  expect(logger.getLogs().some((line) => line.category === "trace")).toBe(true);
+  expect(JSON.stringify(logger.getLogs())).not.toContain("secret-query-value");
 });

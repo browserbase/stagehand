@@ -301,7 +301,7 @@ function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" |
     logger.log({
       category: "pi",
       message: `run console.${level}: ${values.map(stringifyToolResult).join(" ")}`,
-      level: 2,
+      level: 1,
     });
   };
   return {

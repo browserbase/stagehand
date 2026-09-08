@@ -170,10 +170,11 @@
       "cached_input_per_m": 0.15
     },
     "openai/gpt-6-astra": {
-      "input_per_m": 10.0,
-      "cached_input_per_m": 1.0,
-      "output_per_m": 50.0,
-      "source": "https://ai-gateway.vercel.sh/v1/models (openai/gpt-6-astra; tiered >272k not modeled)"
+      "input_per_m": null,
+      "cached_input_per_m": null,
+      "output_per_m": null,
+      "source": "needs owner input",
+      "note": "Astra context-length tiers require per-request accounting; aggregate run usage cannot select the correct rate. Observed base rates were input=10 cached=1 output=50 USD/M. Estimates stay unavailable until tier-aware accounting is implemented."
     }
   }
 }

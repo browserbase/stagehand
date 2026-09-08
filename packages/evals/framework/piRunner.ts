@@ -1,5 +1,6 @@
 import {
   buildPiTranscript,
+  normalizePiModel,
   runPiSession,
   stringifyError,
   type PiSdk,
@@ -59,7 +60,7 @@ export async function runPiAgent(input: PiRunnerInput): Promise<TaskResult> {
   return runExternalHarnessTask({
     harness: "pi",
     plan,
-    model,
+    model: normalizePiModel(model),
     logger,
     toolAdapter,
     verifier,
