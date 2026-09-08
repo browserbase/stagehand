@@ -27,13 +27,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("HardBench corpus and selection", () => {
-  it("contains unique active tasks with valid rubrics in the three tiers", () => {
-    expect(rows).toHaveLength(122);
+  it("ships only core and extended tasks with unique IDs and valid rubrics", () => {
+    expect(rows).toHaveLength(102);
     expect(new Set(rows.map((row) => row.id)).size).toBe(rows.length);
-    for (const [set, count] of Object.entries({ core: 38, extended: 64, holdout: 20 })) {
+    for (const [set, count] of Object.entries({ core: 38, extended: 64 })) {
       expect(rows.filter((row) => row.set === set)).toHaveLength(count);
     }
     for (const row of rows) {
+      expect(["core", "extended"]).toContain(row.set);
       const rubric = normalizeRubric(row.precomputed_rubric);
       expect(rubric?.items.length).toBeGreaterThan(0);
       expect(
@@ -48,12 +49,10 @@ describe("HardBench corpus and selection", () => {
     [undefined, 38],
     ["core", 38],
     ["extended", 102],
-    ["holdout", 20],
   ])("selects %s with no implicit cap", (set, count) => {
     vi.stubEnv("EVAL_HARDBENCHMARK_SET", set);
     const cases = build();
     expect(cases).toHaveLength(count);
-    expect(cases.some((c) => c.metadata.bench_tier === "holdout")).toBe(set === "holdout");
   });
 
   it("carries the exact normalized rubric and rubric metadata to each model", () => {
@@ -69,12 +68,12 @@ describe("HardBench corpus and selection", () => {
     }
   });
 
-  it("allows deliberate holdout selection by slug/ID in requested order, overriding set/limit", () => {
-    const holdout = rows.find((row) => row.set === "holdout");
+  it("selects shipped tasks by slug/ID in requested order, overriding set/limit", () => {
+    const extended = rows.find((row) => row.set === "extended");
     const core = rows.find((row) => row.set === "core");
-    vi.stubEnv("EVAL_HARDBENCHMARK_IDS", `${holdout.slug},${core.id}`);
+    vi.stubEnv("EVAL_HARDBENCHMARK_IDS", `${extended.slug},${core.id}`);
     vi.stubEnv("EVAL_HARDBENCHMARK_LIMIT", "1");
-    expect(build().map((c) => c.metadata.task_id)).toEqual([holdout.id, core.id]);
+    expect(build().map((c) => c.metadata.task_id)).toEqual([extended.id, core.id]);
   });
 
   it("rejects unknown and duplicate resolved IDs", () => {
@@ -87,7 +86,7 @@ describe("HardBench corpus and selection", () => {
   });
 
   it("validates set and numeric knobs, gives EVAL_MAX_K precedence, and samples without duplication", () => {
-    for (const set of ["all", "typo", "toString", "constructor"]) {
+    for (const set of ["holdout", "all", "typo", "toString", "constructor"]) {
       vi.stubEnv("EVAL_HARDBENCHMARK_SET", set);
       expect(build).toThrow(EvalsError);
       expect(build).toThrow(/must be one of/);
