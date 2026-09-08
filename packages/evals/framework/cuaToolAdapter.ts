@@ -1,44 +1,75 @@
 import type { StagehandFacadeTools } from "@browserbasehq/stagehand-integrations/facade";
 import type { ProbeEvidence } from "stagehand-v3";
-import type { RunnerToolCallResult, ToolStartResult } from "../core/contracts/tool.js";
-import { isBrowserSessionLostError } from "../core/tools/browserSessionLoss.js";
+import type {
+  BrowserSessionLoss,
+  RunnerToolCallResult,
+  ToolStartResult,
+} from "../core/contracts/tool.js";
+import { StagehandFacadeBridgeError } from "../core/tools/stagehandFacadeBridge.js";
 
 export type CuaFacadeTools = Pick<
   StagehandFacadeTools,
   "run" | "runActions" | "snapshot" | "screenshot"
 >;
 export type FacadeToolCaller = NonNullable<ToolStartResult["callTool"]>;
+type SessionLossReader = () => BrowserSessionLoss | undefined;
+
+/** Only runner-owned telemetry can create a terminal CUA facade error. */
+export class CuaFacadeSessionLostError extends StagehandFacadeBridgeError {
+  constructor() {
+    super("Browser session lost (confirmed by eval runner). The task cannot continue.");
+    this.name = "CuaFacadeSessionLostError";
+  }
+}
 
 export function bridgeCuaFacadeTools(
   callTool: FacadeToolCaller,
   timeoutMs = 90_000,
+  browserSessionLoss?: SessionLossReader,
 ): CuaFacadeTools {
-  const call = async (name: string, args: Record<string, unknown>) => {
-    const result = await callTool(name, args, { timeoutMs });
-    if (result.isError) throw new Error(resultText(result) || `${name} failed`);
+  const checkSession = () => {
+    if (browserSessionLoss?.()) throw new CuaFacadeSessionLostError();
+  };
+  const call = async (name: "run" | "snapshot" | "screenshot", args: Record<string, unknown>) => {
+    checkSession();
+    let result: RunnerToolCallResult;
+    try {
+      result = await callTool(name, args, { timeoutMs });
+    } catch {
+      checkSession();
+      throw new StagehandFacadeBridgeError(`Facade ${name} request failed.`);
+    }
+    checkSession();
+    if (result.isError) throw new StagehandFacadeBridgeError(`Facade ${name} tool failed.`);
     return result;
   };
   return {
     async run(code) {
-      const value = resultText(await call("run", { code }));
-      if (!value) return undefined;
+      // The canonical facade renders strings raw and objects as JSON. Wrap the
+      // result inside this callback so strings such as "42", "null", and ""
+      // retain their type without changing the shared model-facing tool.
+      const wrapped = `const __cuaValue = await (async () => {\n${code}\n})();\nreturn __cuaValue === undefined ? { type: "undefined" } : { type: "value", value: __cuaValue };`;
+      const result = await call("run", { code: wrapped });
+      let value: unknown;
       try {
-        return JSON.parse(value) as unknown;
+        value = JSON.parse(resultText(result)) as unknown;
       } catch {
-        return value;
+        throw new StagehandFacadeBridgeError("Facade run returned an invalid result.");
       }
+      if (isRecord(value) && value.type === "undefined") return undefined;
+      if (isRecord(value) && value.type === "value" && "value" in value) return value.value;
+      throw new StagehandFacadeBridgeError("Facade run returned an invalid result.");
     },
     async runActions(actions) {
-      const value: unknown = JSON.parse(resultText(await call("run", { actions })));
-      if (
-        !value ||
-        typeof value !== "object" ||
-        !("completed" in value) ||
-        typeof value.completed !== "number" ||
-        !("url" in value) ||
-        typeof value.url !== "string"
-      ) {
-        throw new Error("Facade run actions returned an invalid result.");
+      const result = await call("run", { actions });
+      let value: unknown;
+      try {
+        value = JSON.parse(resultText(result)) as unknown;
+      } catch {
+        throw new StagehandFacadeBridgeError("Facade run actions returned an invalid result.");
+      }
+      if (!isRecord(value) || value.completed !== actions.length || typeof value.url !== "string") {
+        throw new StagehandFacadeBridgeError("Facade run actions returned an invalid result.");
       }
       return { completed: value.completed, url: value.url };
     },
@@ -61,9 +92,13 @@ export function bridgeCuaFacadeTools(
           return { data: block.data, mimeType: block.mimeType };
         }
       }
-      throw new Error("Facade screenshot returned no image.");
+      throw new StagehandFacadeBridgeError("Facade screenshot returned no image.");
     },
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function resultText(result: RunnerToolCallResult): string {
@@ -77,22 +112,23 @@ function resultText(result: RunnerToolCallResult): string {
 }
 
 /** Evidence must not refresh the snapshot/ref map between model actions. */
-export async function captureCuaEvidence(callTool: FacadeToolCaller): Promise<ProbeEvidence> {
-  const facade = bridgeCuaFacadeTools(callTool, 15_000);
+export async function captureCuaEvidence(
+  callTool: FacadeToolCaller,
+  browserSessionLoss?: SessionLossReader,
+): Promise<ProbeEvidence> {
+  const facade = bridgeCuaFacadeTools(callTool, 15_000, browserSessionLoss);
   const evidence: ProbeEvidence = {};
   try {
     const image = await facade.screenshot({ type: "jpeg", quality: 60 });
     evidence.screenshot = Buffer.from(image.data, "base64");
   } catch (error) {
-    if (isBrowserSessionLostError(error instanceof Error ? error.message : String(error)))
-      throw error;
+    if (error instanceof CuaFacadeSessionLostError) throw error;
   }
   try {
     const url = await facade.run("return page.url();");
     if (typeof url === "string" && /^[a-z][a-z0-9+.-]*:/iu.test(url)) evidence.url = url;
   } catch (error) {
-    if (isBrowserSessionLostError(error instanceof Error ? error.message : String(error)))
-      throw error;
+    if (error instanceof CuaFacadeSessionLostError) throw error;
   }
   return evidence;
 }
