@@ -320,7 +320,17 @@ export function parseCodexRolloutUsage(body: string): CodexTokenUsage | undefine
     const payload = isRecord(record.payload) ? record.payload : record;
     if (payload.type !== "token_count" || !isRecord(payload.info)) continue;
     const total = payload.info.total_token_usage;
-    if (isRecord(total)) latest = total;
+    if (
+      isRecord(total) &&
+      typeof total.input_tokens === "number" &&
+      Number.isFinite(total.input_tokens) &&
+      total.input_tokens >= 0 &&
+      typeof total.output_tokens === "number" &&
+      Number.isFinite(total.output_tokens) &&
+      total.output_tokens >= 0
+    ) {
+      latest = total;
+    }
   }
   return latest ? extractCodexTokenUsage(latest) : undefined;
 }
