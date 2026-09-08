@@ -46,6 +46,15 @@ describe("runner-provided Browserbase target", () => {
     process.env = { ...originalEnv };
   });
 
+  it("validates configuration before acquiring an extension", async () => {
+    process.env.EVAL_BROWSERBASE_SESSION_TIMEOUT_SECONDS = "59";
+    const { launchRunnerProvidedBrowserbaseChrome } =
+      await import("../../core/targets/browserbase.js");
+    await expect(launchRunnerProvidedBrowserbaseChrome()).rejects.toThrow("between 60 and 21600");
+    expect(extensionCreateMock).not.toHaveBeenCalled();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
   it("creates and releases a Browserbase session", async () => {
     createMock.mockResolvedValue({
       id: "session-123",
