@@ -15,11 +15,14 @@
  */
 
 import {
-  isBrowserSessionLostError,
+  StagehandFacadeSessionLostError,
   StagehandFacadeTools,
   type RefAction,
 } from "@browserbasehq/stagehand-integrations/facade";
-import type { HarnessLogger } from "@browserbasehq/stagehand-integrations/harness";
+import {
+  sanitizeErrorMessage,
+  type HarnessLogger,
+} from "@browserbasehq/stagehand-integrations/harness";
 import type { Stagehand } from "@browserbasehq/stagehand";
 import {
   isBrowserToolsetMember,
@@ -43,6 +46,8 @@ export interface StagehandCuaExecutorOptions {
   logger: HarnessLogger;
   /** Runs after a member that may have changed the page; transient evidence failures are ignored. */
   onMutation?: (toolUseId: string) => Promise<void>;
+  /** Runner-owned loss telemetry for hosts that call the facade over a bridge. */
+  browserSessionLoss?: () => { cause: string } | undefined;
 }
 
 /** Members that never mutate the page; `onMutation` is not called after them. */
@@ -144,17 +149,19 @@ type BrowserTab = { tab_id: string; title: string; url: string; active: boolean 
 
 /**
  * Tail of every mutating `run` snippet: the tab inventory as the toolset's
- * `browser_state` wants it. Runs against the raw batch client because only it
- * exposes stable page ids.
+ * `browser_state` wants it. The canonical visible context excludes keeper pages;
+ * its readonly pageId is the underlying Stagehand page identity.
  */
 const TABS_SNIPPET = `const __tabs = [];
-const __pages = await batchStagehand.context.pages();
-const __activeId = batchStagehand.page.pageId;
+const __pages = context.pages();
+const __activeId = __reportedPage.pageId;
+if (typeof __activeId !== "string" || !__activeId) throw new Error("Active facade page is missing a stable pageId.");
 for (let __i = 0; __i < __pages.length && __i < 100; __i += 1) {
   const __p = __pages[__i];
+  if (typeof __p.pageId !== "string" || !__p.pageId) throw new Error("Visible facade page is missing a stable pageId.");
   let __title = "";
   try { __title = await __p.title(); } catch {}
-  __tabs.push({ tab_id: __p.pageId ?? String(__i), title: __title, url: await __p.url(), active: __activeId !== undefined ? __p.pageId === __activeId : __i === 0 });
+  __tabs.push({ tab_id: __p.pageId, title: __title, url: __p.url(), active: __p.pageId === __activeId });
 }`;
 
 /** Convenience for in-process hosts: executor over a live Stagehand instance. */
@@ -199,21 +206,20 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
       ) {
         // Batch pages are selected when each callback starts. Select the target
         // first so coordinate actions and hydrated refs use the requested tab.
-        await this.options.tools.run(tabSelectionCode(asString(input.tab_id, "tab_id")));
+        await this.runWithTabs(tabSelectionCode(asString(input.tab_id, "tab_id")));
       }
       const result = await this.executeMember(member, input);
       if (!READ_ONLY_TOOLSET_MEMBERS.has(member) && this.options.onMutation) {
         await this.options.onMutation(context.toolUseId).catch((error: unknown) => {
-          if (isBrowserSessionLostError(error instanceof Error ? error.message : String(error)))
-            throw error;
+          if (this.isSessionLost(error)) throw error;
         });
       }
       return result;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
       // Every later call would fail identically; let the session end instead
       // of feeding the model a stream of terminal errors.
-      if (isBrowserSessionLostError(message)) throw error;
+      if (this.isSessionLost(error)) throw error;
       this.options.logger.log({
         category: "claude_cua",
         level: 1,
@@ -221,6 +227,13 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
       });
       return { content: `Error: ${message}`, isError: true };
     }
+  }
+
+  private isSessionLost(error: unknown): boolean {
+    return (
+      error instanceof StagehandFacadeSessionLostError ||
+      Boolean(this.options.browserSessionLoss?.())
+    );
   }
 
   private async executeMember(
@@ -289,7 +302,7 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
     extra = "{}",
   ): Promise<{ tabs: BrowserTab[]; extra: Record<string, unknown> }> {
     const value = (await this.options.tools.run(
-      `${body}\n${TABS_SNIPPET}\nreturn { tabs: __tabs, extra: ${extra} };`,
+      `let __reportedPage = page;\n${body}\n${TABS_SNIPPET}\nreturn { tabs: __tabs, extra: ${extra} };`,
     )) as { tabs?: BrowserTab[]; extra?: Record<string, unknown> } | undefined;
     if (!value || !Array.isArray(value.tabs)) throw new Error("run returned no browser state");
     this.lastTabs = value.tabs;
@@ -299,14 +312,16 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
   /**
    * One batch: hydrated snapshot actions. The facade reports the active url;
    * the cached tab inventory is updated with it rather than spending a second
-   * round trip on a full tab listing.
+   * round trip on a full tab listing once a real inventory is cached.
    */
   private async runRefActions(actions: RefAction[]): Promise<BrowserTab[]> {
     const { url } = await this.options.tools.runActions(actions);
     if (this.lastTabs.some((tab) => tab.active)) {
       this.lastTabs = this.lastTabs.map((tab) => (tab.active ? { ...tab, url } : tab));
-    } else if (this.lastTabs.length === 0) {
-      this.lastTabs = [{ tab_id: "0", title: "", url, active: true }];
+    } else {
+      // read_page/find do not list tabs. Resolve real IDs on the first ref
+      // action instead of inventing a tab the model cannot later select.
+      await this.runWithTabs("");
     }
     return this.lastTabs;
   }
@@ -368,10 +383,10 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
 
   private async newTab(): Promise<CuaToolResult> {
     const { tabs, extra } = await this.runWithTabs(
-      `const __new = await batchStagehand.context.newPage();
-await batchStagehand.context.setActivePage(__new);
-try { batchStagehand.page = __new; } catch {}`,
-      `{ tab_id: __new.pageId ?? String(__pages.length - 1) }`,
+      `const __new = await context.newPage();
+await __new.bringToFront();
+__reportedPage = __new;`,
+      `{ tab_id: __new.pageId }`,
     );
     const tabId = String(extra.tab_id ?? "");
     this.pendingTabOpened.push(tabId);
@@ -385,25 +400,23 @@ try { batchStagehand.page = __new; } catch {}`,
 
   private async switchTab(input: Record<string, unknown>): Promise<CuaToolResult> {
     const tabId = asString(input.tab_id, "tab_id");
-    const { tabs } = await this.runWithTabs(
-      `${tabSelectionCode(tabId)}
-try { batchStagehand.page = __target; } catch {}`,
-    );
+    const { tabs } = await this.runWithTabs(tabSelectionCode(tabId));
     return this.stateOnly(tabs.map((tab) => ({ ...tab, active: String(tab.tab_id) === tabId })));
   }
 
   private async closeTab(input: Record<string, unknown>): Promise<CuaToolResult> {
     const tabId = asString(input.tab_id, "tab_id");
     const { tabs } = await this.runWithTabs(
-      `const __all = await batchStagehand.context.pages();
-if (__all.length <= 1) throw new Error("Cannot close the last remaining tab.");
-const __target = __all.find((p, i) => (p.pageId ?? String(i)) === ${JSON.stringify(tabId)});
+      `const __all = context.pages();
+const __target = __all.find((p) => p.pageId === ${JSON.stringify(tabId)});
 if (!__target) throw new Error(${JSON.stringify(`Unknown tab_id "${tabId}".`)});
-const __wasActive = __target.pageId === batchStagehand.page.pageId;
+if (__all.length <= 1) throw new Error("Cannot close the last remaining tab.");
+const __wasActive = __target.pageId === page.pageId;
 await __target.close();
 if (__wasActive) {
-  const __rest = (await batchStagehand.context.pages()).filter((p) => p.pageId !== __target.pageId);
-  if (__rest.length > 0) { await batchStagehand.context.setActivePage(__rest[__rest.length - 1]); try { batchStagehand.page = __rest[__rest.length - 1]; } catch {} }
+  const __rest = context.pages();
+  __reportedPage = __rest[__rest.length - 1];
+  await __reportedPage.bringToFront();
 }`,
     );
     return this.stateOnly(tabs.filter((tab) => String(tab.tab_id) !== tabId));
@@ -553,7 +566,8 @@ await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2),
   }
 
   private async pressKeys(input: Record<string, unknown>): Promise<CuaToolResult> {
-    const text = asString(input.text, "text").trim();
+    const raw = asString(input.text, "text");
+    const text = raw === " " ? raw : raw.trim();
     if (!text) throw new Error('"text" must name at least one key.');
     const repeat = Math.min(Math.max(1, Math.floor(asNumber(input.repeat ?? 1, "repeat"))), 100);
     const chords = text === " " ? [" "] : text.split(/\s+/).filter(Boolean);
@@ -669,7 +683,7 @@ return btoa(__bin);`,
         : `Found ${matches.length} element(s) matching "${query}" (text match over the accessibility tree):\n${matches
             .map((m) => `[${m.id}] ${m.description}`)
             .join("\n")}`;
-    return { content: [{ type: "text", text }] };
+    return { content: [{ type: "text", text: truncateText(text) }] };
   }
 
   private async getPageText(): Promise<CuaToolResult> {
@@ -729,9 +743,10 @@ try { return JSON.stringify(__value, null, 2) ?? String(__value); } catch { retu
 // -----------------------------------------------------------------------------
 
 function tabSelectionCode(tabId: string): string {
-  return `const __target = (await batchStagehand.context.pages()).find((p, i) => (p.pageId ?? String(i)) === ${JSON.stringify(tabId)});
+  return `const __target = context.pages().find((p) => p.pageId === ${JSON.stringify(tabId)});
 if (!__target) throw new Error(${JSON.stringify(`Unknown tab_id "${tabId}". Call list_tabs to see the open tabs.`)});
-await batchStagehand.context.setActivePage(__target);`;
+await __target.bringToFront();
+__reportedPage = __target;`;
 }
 
 function imageBlock(data: string, mimeType: string): CuaToolResultBlock {

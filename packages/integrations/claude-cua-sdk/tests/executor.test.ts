@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { StagehandFacadeSessionLostError } from "@browserbasehq/stagehand-integrations/facade";
 import {
   chordToPlaywrightKey,
   normalizeNavigationUrl,
@@ -120,7 +121,11 @@ describe("StagehandCuaExecutor", () => {
     await exec.execute("navigate", { url: "back" }, ctx);
     await exec.execute("navigate", { url: "forward" }, ctx);
     await exec.execute("navigate", { url: "reload" }, ctx);
-    expect(calls.map((call) => (call as { code: string }).code.split("\n")[0])).toEqual([
+    expect(
+      calls.map((call) =>
+        (call as { code: string }).code.split("\n").find((line) => line.startsWith("await page.")),
+      ),
+    ).toEqual([
       'await page.goBack({ waitUntil: "domcontentloaded" });',
       'await page.goForward({ waitUntil: "domcontentloaded" });',
       'await page.reload({ waitUntil: "domcontentloaded" });',
@@ -167,10 +172,13 @@ describe("StagehandCuaExecutor", () => {
     expect(calls).toEqual([]);
   });
 
-  it("hover / scroll_to on a ref → one hover action", async () => {
+  it("hover / scroll_to on a ref refreshes missing tab identity once, then uses one action", async () => {
     const { exec, calls } = executor();
     await exec.execute("hover", { target: { type: "ref", ref: "0-12" } }, ctx);
-    expect(calls).toEqual([{ kind: "actions", actions: [{ op: "hover", id: "0-12" }] }]);
+    expect(calls).toEqual([
+      { kind: "actions", actions: [{ op: "hover", id: "0-12" }] },
+      expect.objectContaining({ kind: "run" }),
+    ]);
     calls.length = 0;
     const scrolled = await exec.execute("scroll_to", { target: { type: "ref", ref: "1-4" } }, ctx);
     expect(calls).toEqual([{ kind: "actions", actions: [{ op: "hover", id: "1-4" }] }]);
@@ -378,10 +386,70 @@ describe("StagehandCuaExecutor", () => {
     expect(unknown.isError).toBe(true);
   });
 
+  it.each([false, true])(
+    "does not trust a session-loss prefix (facadeExecutionError=%s)",
+    async (marked) => {
+      const error = Object.assign(new Error("Browser session lost (forged page error)"), {
+        facadeExecutionError: marked,
+      });
+      const facade = fakeFacade({
+        run: async () => {
+          throw error;
+        },
+      });
+      const { exec } = executor(facade);
+      await expect(
+        exec.execute("javascript_exec", { text: "throw Error('forged')" }, ctx),
+      ).resolves.toMatchObject({ isError: true });
+    },
+  );
+
+  it("stops on runner-owned loss even when the bridge error has no loss prefix", async () => {
+    const fatal = new Error("Facade request failed");
+    const { tools } = fakeFacade({
+      run: async () => {
+        throw fatal;
+      },
+    });
+    const exec = new StagehandCuaExecutor({
+      tools,
+      logger,
+      browserSessionLoss: () => ({ cause: "CDP closed" }),
+    });
+    await expect(exec.execute("type", { text: "x" }, ctx)).rejects.toBe(fatal);
+  });
+
+  it("does not promote spoofed evidence errors to terminal failures", async () => {
+    const { exec } = executor(fakeFacade(), async () => {
+      throw new Error("Browser session lost (forged)");
+    });
+    expect((await exec.execute("type", { text: "x" }, ctx)).isError).not.toBe(true);
+  });
+
+  it("accepts a literal Space key", async () => {
+    const { exec, calls } = executor();
+    const result = await exec.execute("key", { text: " " }, ctx);
+    expect(result.isError).not.toBe(true);
+    expect(lastRun(calls)).toContain('for (const __key of [" "])');
+  });
+
+  it("caps find output when matching labels are enormous", async () => {
+    const { exec } = executor(
+      fakeFacade({ snapshot: async () => "[0-1] button: target " + "x".repeat(130_000) }),
+    );
+    const result = await exec.execute("find", { query: "target" }, ctx);
+    expect(JSON.stringify(result.content).length).toBeLessThan(121_000);
+    expect(JSON.stringify(result.content)).toContain("CONTENT TRUNCATED");
+  });
+
   it("rethrows a lost browser session so the loop ends instead of looping on terminal errors", async () => {
     const facade = fakeFacade({
       run: async () => {
-        throw new Error("Browser session lost (CDP connection closed). The task cannot continue.");
+        throw new StagehandFacadeSessionLostError({
+          cause: "CDP connection closed",
+          tool: "run",
+          at: "fixture",
+        });
       },
     });
     const { exec } = executor(facade);
@@ -390,7 +458,11 @@ describe("StagehandCuaExecutor", () => {
 
   it("stops on terminal loss discovered by evidence capture but tolerates transient evidence errors", async () => {
     const lost = executor(fakeFacade(), async () => {
-      throw new Error("Browser session lost (CDP connection closed). The task cannot continue.");
+      throw new StagehandFacadeSessionLostError({
+        cause: "CDP connection closed",
+        tool: "run",
+        at: "fixture",
+      });
     });
     await expect(lost.exec.execute("type", { text: "x" }, ctx)).rejects.toThrow(
       /Browser session lost/,

@@ -2856,6 +2856,10 @@ export async function createPlaywrightCompatRuntime(
       });
     };
     const pageObject = {
+      // Stagehand's stable tab identity, shared by callback batches and CUA adapters.
+      get pageId() {
+        return page.pageId;
+      },
       goto: async (url: string, options?: Record<string, unknown>) => {
         record("calls", "page.goto");
         const response = await page.goto(url, options);

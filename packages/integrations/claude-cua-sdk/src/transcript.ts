@@ -42,5 +42,9 @@ export function renderResultContent(content: string | CuaToolResultBlock[]): str
 }
 
 function clip(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+  if (value.length <= max) return value;
+  let end = max - 1;
+  if (/[\uD800-\uDBFF]/u.test(value[end - 1] ?? "") && /[\uDC00-\uDFFF]/u.test(value[end] ?? ""))
+    end -= 1;
+  return `${value.slice(0, end)}…`;
 }
