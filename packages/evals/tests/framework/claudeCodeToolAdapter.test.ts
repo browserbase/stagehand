@@ -22,7 +22,7 @@ describe("claude code tool adapter resolution", () => {
     delete process.env.EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL;
   });
 
-  it("defaults Claude Code to the facade", () => {
+  it("defaults Claude Code to the shared facade", () => {
     expect(resolveToolSurface(claudeCodeHarness)).toBe("stagehand_facade");
   });
 

@@ -51,6 +51,18 @@ const compute = (usage: ReturnType<typeof normalizeUsage>, model: string) =>
   computeListCost(usage, model, priceMap);
 
 describe("computeListCost", () => {
+  it("keeps Astra estimates unavailable until per-request context tiers are represented", () => {
+    const usage = normalizeUsage({
+      harness: "codex",
+      raw: {
+        inputTokens: 300_000,
+        outputTokens: 1000,
+        totalTokens: 301_000,
+      },
+    });
+    expect(computeListCost(usage, "openai/gpt-6-astra", loadPriceMap())).toBeUndefined();
+  });
+
   it("prices the OpenAI subset convention: uncached at input, cached at cache rate, reasoning inside output", () => {
     const usage = normalizeUsage({
       harness: "codex",
@@ -301,7 +313,7 @@ describe("resolveBilledCost", () => {
     ).toEqual({ cost_source: "unavailable", billing_channel: "subscription" });
     expect(resolveBilledCost({ harness: "fx", model: "zai/glm-5.3", usage, priceMap })).toEqual({
       cost_source: "unavailable",
-      billing_channel: "zai_api",
+      billing_channel: "fx_gateway",
     });
     expect(
       resolveBilledCost({ harness: "codex", model: "openai/gpt-5.6-luna", usage, priceMap }),

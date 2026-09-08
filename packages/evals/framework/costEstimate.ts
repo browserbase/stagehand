@@ -108,11 +108,14 @@ export function resolveBilledCost({
     };
   }
   const provider = providerOf(model);
-  const channel = SUBSCRIPTION_HARNESSES.has(harness)
-    ? "subscription"
-    : provider
-      ? `${provider}_api`
-      : "none";
+  const channel =
+    harness === "fx"
+      ? "fx_gateway"
+      : SUBSCRIPTION_HARNESSES.has(harness)
+        ? "subscription"
+        : provider
+          ? `${provider}_api`
+          : "none";
   if (!DIRECT_PROVIDER_HARNESSES.has(harness) || usage.convention === "unreported") {
     return { cost_source: "unavailable", billing_channel: channel };
   }
