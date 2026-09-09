@@ -60,9 +60,13 @@ type cdpClientOptions struct {
 	extensionID              string
 	preloadedExtension       bool
 	serviceWorkerURLIncludes string
-	pollInterval             time.Duration
-	activationDelay          time.Duration
-	httpClient               *http.Client
+	// allowFallbackInstall keeps polling when the extension reports an
+	// incompatible protocol instead of failing fast. It is reserved for a
+	// future Browserbase preloaded-extension flow and defaults to false.
+	allowFallbackInstall bool
+	pollInterval         time.Duration
+	activationDelay      time.Duration
+	httpClient           *http.Client
 }
 
 type cdpClient struct {
@@ -299,6 +303,7 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 			ctx,
 			options.serviceWorkerURLIncludes,
 			options.pollInterval,
+			options.allowFallbackInstall,
 		)
 		if err != nil {
 			return err
@@ -371,6 +376,7 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 		ctx,
 		sessionID,
 		options.pollInterval,
+		options.allowFallbackInstall,
 	)
 }
 
@@ -873,6 +879,7 @@ func (c *cdpClient) waitForPreloadedServiceWorker(
 	ctx context.Context,
 	urlIncludes string,
 	pollInterval time.Duration,
+	allowFallbackInstall bool,
 ) (cdpTargetInfo, string, error) {
 	var lastTargets []cdpTargetInfo
 
@@ -889,6 +896,10 @@ func (c *cdpClient) waitForPreloadedServiceWorker(
 			return cdpTargetInfo{}, "", err
 		}
 		lastTargets = targets
+		var incompatibleRuntime *RuntimeIncompatibleError
+		// A compatible worker whose receiver is not installed yet must keep the
+		// sweep polling even when a sibling worker is incompatible.
+		sawCompatibleMarker := false
 		for _, target := range targets {
 			if !isStagehandServiceWorker(target, "", urlIncludes) {
 				continue
@@ -906,8 +917,8 @@ func (c *cdpClient) waitForPreloadedServiceWorker(
 			if err != nil || attached.SessionID == "" {
 				continue
 			}
-			ready, _ := c.evaluateRuntimeReadiness(ctx, attached.SessionID)
-			if ready {
+			readiness := c.evaluateRuntimeReadiness(ctx, attached.SessionID)
+			if readiness.ready {
 				return target, attached.SessionID, nil
 			}
 			c.bestEffortCommand(
@@ -915,6 +926,17 @@ func (c *cdpClient) waitForPreloadedServiceWorker(
 				"Target.detachFromTarget",
 				map[string]any{"sessionId": attached.SessionID},
 			)
+			if readiness.compatibleMarker {
+				sawCompatibleMarker = true
+			}
+			if readiness.incompatible != nil && !allowFallbackInstall {
+				incompatibleRuntime = readiness.incompatible
+			}
+		}
+		// No compatible marker in this sweep and at least one incompatible one:
+		// fail fast instead of re-polling until the initialization deadline.
+		if incompatibleRuntime != nil && !sawCompatibleMarker {
+			return cdpTargetInfo{}, "", incompatibleRuntime
 		}
 		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
 			continue
@@ -942,6 +964,7 @@ func (c *cdpClient) waitForRuntimeReady(
 	ctx context.Context,
 	sessionID string,
 	pollInterval time.Duration,
+	allowFallbackInstall bool,
 ) error {
 	lastError := ""
 	for {
@@ -958,21 +981,44 @@ func (c *cdpClient) waitForRuntimeReady(
 				err,
 			)
 		}
-		ready, detail := c.evaluateRuntimeReadiness(ctx, sessionID)
-		if ready {
+		readiness := c.evaluateRuntimeReadiness(ctx, sessionID)
+		if readiness.ready {
 			return nil
 		}
-		lastError = detail
+		if readiness.incompatible != nil && !allowFallbackInstall {
+			// Fail fast: an incompatible marker will not become compatible
+			// by waiting, so do not sleep for another poll.
+			return readiness.incompatible
+		}
+		lastError = readiness.detail
 		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
 			continue
 		}
 	}
 }
 
+// runtimeReadinessOutcome is one Runtime.evaluate probe of the extension's
+// runtime marker and receiver binding.
+type runtimeReadinessOutcome struct {
+	// ready is true when the runtime is compatible and the receiver is installed.
+	ready bool
+	// compatibleMarker is true when the marker negotiated as compatible, even
+	// if the receiver is not installed yet.
+	compatibleMarker bool
+	// detail explains why the caller should keep waiting when ready is false.
+	detail string
+	// incompatible is set when the marker is present but incompatible so
+	// callers can stop polling; it is nil for absent/unreadable markers and
+	// evaluation failures.
+	incompatible *RuntimeIncompatibleError
+}
+
+// evaluateRuntimeReadiness reads the extension's runtime marker and receiver
+// binding over CDP and classifies the outcome (see runtimeReadinessOutcome).
 func (c *cdpClient) evaluateRuntimeReadiness(
 	ctx context.Context,
 	sessionID string,
-) (bool, string) {
+) runtimeReadinessOutcome {
 	var evaluated cdpRuntimeEvaluateResult
 	err := c.sendCommand(
 		ctx,
@@ -985,30 +1031,36 @@ func (c *cdpClient) evaluateRuntimeReadiness(
 		&evaluated,
 	)
 	if err != nil {
-		return false, err.Error()
+		return runtimeReadinessOutcome{detail: err.Error()}
 	}
 	if evaluated.ExceptionDetails != nil {
-		return false, runtimeExceptionMessage(
+		return runtimeReadinessOutcome{detail: runtimeExceptionMessage(
 			evaluated.ExceptionDetails,
 			"readiness evaluation threw",
-		)
+		)}
 	}
 	if evaluated.Result == nil || len(evaluated.Result.Value) == 0 {
-		return false, "readiness evaluation returned no value"
+		return runtimeReadinessOutcome{detail: "readiness evaluation returned no value"}
 	}
 	var readiness cdpRuntimeReadiness
 	if err := json.Unmarshal(evaluated.Result.Value, &readiness); err != nil {
-		return false, "readiness evaluation returned an invalid value"
+		return runtimeReadinessOutcome{detail: "readiness evaluation returned an invalid value"}
 	}
-	compatible, detail := negotiateRuntimeCompatibility(readiness.Marker)
-	if compatible && readiness.HasReceiver {
-		return true, ""
+	compat := negotiateRuntimeCompatibility(readiness.Marker)
+	compatibleMarker := compat.Kind == runtimeCompatibilityCompatible
+	if compatibleMarker && readiness.HasReceiver {
+		return runtimeReadinessOutcome{ready: true, compatibleMarker: true}
 	}
-	return false, fmt.Sprintf(
-		"runtime %s, __stagehandReceiveFromHost=%t",
-		detail,
-		readiness.HasReceiver,
-	)
+	return runtimeReadinessOutcome{
+		compatibleMarker: compatibleMarker,
+		detail: fmt.Sprintf(
+			"runtime %s (%s), __stagehandReceiveFromHost=%t",
+			compat.Kind,
+			compat.Detail,
+			readiness.HasReceiver,
+		),
+		incompatible: compat.incompatibleError(),
+	}
 }
 
 func (c *cdpClient) bestEffortCommand(ctx context.Context, method string, params any) {

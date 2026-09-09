@@ -12,7 +12,17 @@ from stagehand.cdp_client import (
     STAGEHAND_SEND_TO_HOST_BINDING,
     CDPClient,
     ServiceWorkerInfo,
+    StagehandRuntimeIncompatibleError,
 )
+
+
+def _bump_major(version: str) -> str:
+    """A protocol version one major ahead of the client's: incompatible by definition."""
+    major, rest = version.split(".", 1)
+    return f"{int(major) + 1}.{rest}"
+
+
+INCOMPATIBLE_PROTOCOL_VERSION = _bump_major(STAGEHAND_PROTOCOL_VERSION)
 
 
 def _ready_marker() -> dict[str, object]:
@@ -25,6 +35,23 @@ def _ready_marker() -> dict[str, object]:
         },
         "hasReceiver": True,
     }
+
+
+def _incompatible_marker() -> dict[str, object]:
+    """A ready worker speaking a protocol major this client cannot use."""
+    return {
+        "marker": {
+            "protocolVersion": INCOMPATIBLE_PROTOCOL_VERSION,
+            "serverInfo": {"name": "stagehand", "version": "9.0.0"},
+            "state": "ready",
+        },
+        "hasReceiver": True,
+    }
+
+
+def _unknown_marker() -> dict[str, object]:
+    """A worker that has not published its runtime marker yet."""
+    return {"marker": None, "hasReceiver": False}
 
 
 def test_callback_batch_source_allows_native_code_text() -> None:
@@ -574,9 +601,87 @@ async def test_preloaded_discovery_detaches_stale_worker_then_accepts_ready_work
         await client.close()
 
 
-async def test_preloaded_discovery_detaches_incompatible_worker_then_accepts_ready_worker(
+async def test_preloaded_discovery_keeps_sweeping_when_compatible_worker_lacks_receiver(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A compatible worker without its receiver yet outranks an incompatible sibling.
+
+    Sweep 1 sees [compatible-but-no-receiver, incompatible]; sweep 2 sees the compatible worker
+    ready. The incompatible sibling must not fail the connection fast.
+    """
+    get_targets_calls = 0
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        nonlocal get_targets_calls
+        method = message["method"]
+        if method == "Target.getTargets":
+            get_targets_calls += 1
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": name,
+                            "type": "service_worker",
+                            "title": name,
+                            "url": f"chrome-extension://{name}/service-worker.js",
+                        }
+                        for name in ("pending", "stale")
+                    ]
+                }
+            }
+        if method == "Target.attachToTarget":
+            target_id = cast(dict[str, object], message["params"])["targetId"]
+            return {"result": {"sessionId": f"{target_id}-session"}}
+        if method == "Runtime.evaluate":
+            if message.get("sessionId") == "stale-session":
+                return {"result": {"result": {"value": _incompatible_marker()}}}
+            ready = _ready_marker()
+            if get_targets_calls == 1:
+                ready["hasReceiver"] = False
+            return {"result": {"result": {"value": ready}}}
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    monkeypatch.setattr(cdp_client.asyncio, "sleep", record_sleep)
+    client = await CDPClient.connect(
+        cdp_url="wss://browserbase",
+        preloaded_extension=True,
+    )
+    try:
+        assert client.service_worker.target_id == "pending"
+        assert get_targets_calls == 2
+        assert sleeps == [0.1]
+        detached = [
+            cast(dict[str, object], message["params"])["sessionId"]
+            for message in socket.sent
+            if message["method"] == "Target.detachFromTarget"
+        ]
+        # Sweep 1 detaches both probed workers; sweep 2 returns on the ready worker first.
+        assert detached == ["pending-session", "stale-session"]
+    finally:
+        await client.close()
+
+
+async def test_preloaded_discovery_fails_fast_on_a_foreign_runtime_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A worker naming a foreign runtime is incompatible: detach it and raise on the first sweep.
+
+    Before fail-fast this test expected discovery to keep polling and accept a later ready worker.
+    """
     get_targets_calls = 0
 
     def response_for(message: dict[str, object]) -> dict[str, object]:
@@ -622,16 +727,112 @@ async def test_preloaded_discovery_detaches_incompatible_worker_then_accepts_rea
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
-    client = await CDPClient.connect(
-        cdp_url="wss://browserbase",
-        preloaded_extension=True,
-    )
+    with pytest.raises(StagehandRuntimeIncompatibleError) as raised:
+        await CDPClient.connect(
+            cdp_url="wss://browserbase",
+            preloaded_extension=True,
+        )
+    assert raised.value.reason == "runtime-name-mismatch"
+    assert raised.value.extension_server_info == {"name": "foreign-extension", "version": "1.0.0"}
+    assert get_targets_calls == 1
+    detach = [message for message in socket.sent if message["method"] == "Target.detachFromTarget"]
+    assert cast(dict[str, object], detach[0]["params"])["sessionId"] == "foreign-session"
+    assert socket.closed is True
+
+
+async def test_preloaded_discovery_fails_fast_on_an_incompatible_protocol_major(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        method = message["method"]
+        if method == "Target.getTargets":
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "worker-target",
+                            "type": "service_worker",
+                            "title": "Stagehand",
+                            "url": "chrome-extension://preloaded/service-worker.js",
+                        }
+                    ]
+                }
+            }
+        if method == "Target.attachToTarget":
+            return {"result": {"sessionId": "worker-session"}}
+        if method == "Runtime.evaluate":
+            return {"result": {"result": {"value": _incompatible_marker()}}}
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    monkeypatch.setattr(cdp_client.asyncio, "sleep", record_sleep)
+    with pytest.raises(StagehandRuntimeIncompatibleError) as raised:
+        await CDPClient.connect(
+            cdp_url="wss://browserbase",
+            preloaded_extension=True,
+        )
+    assert raised.value.reason == "protocol-major-mismatch"
+    assert raised.value.extension_protocol_version == INCOMPATIBLE_PROTOCOL_VERSION
+    assert sleeps == [], "the incompatible marker must raise before any second poll"
+    evaluates = [message for message in socket.sent if message["method"] == "Runtime.evaluate"]
+    assert len(evaluates) == 1
+
+
+async def test_preloaded_discovery_keeps_polling_when_fallback_install_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluate_calls = 0
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        nonlocal evaluate_calls
+        method = message["method"]
+        if method == "Target.getTargets":
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "worker-target",
+                            "type": "service_worker",
+                            "title": "Stagehand",
+                            "url": "chrome-extension://preloaded/service-worker.js",
+                        }
+                    ]
+                }
+            }
+        if method == "Target.attachToTarget":
+            return {"result": {"sessionId": "worker-session"}}
+        if method == "Runtime.evaluate":
+            evaluate_calls += 1
+            value = _incompatible_marker() if evaluate_calls < 3 else _ready_marker()
+            return {"result": {"result": {"value": value}}}
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     try:
-        assert client.service_worker.target_id == "ready"
-        detach = [
-            message for message in socket.sent if message["method"] == "Target.detachFromTarget"
-        ]
-        assert cast(dict[str, object], detach[0]["params"])["sessionId"] == "foreign-session"
+        worker, session_id = await asyncio.wait_for(
+            client._wait_for_preloaded_service_worker(
+                "service-worker.js", allow_fallback_install=True
+            ),
+            timeout=5,
+        )
+        assert worker.target_id == "worker-target"
+        assert session_id == "worker-session"
+        assert evaluate_calls == 3
     finally:
         await client.close()
 
@@ -783,6 +984,132 @@ async def test_preloaded_discovery_remains_open_until_the_caller_cancels(
     assert socket.closed is True
 
 
+def _receiver_client(
+    values: list[dict[str, object] | None],
+) -> tuple[CDPClient, FakeWebSocket, list[dict[str, object]]]:
+    """A client whose Runtime.evaluate replies walk `values`; None yields exceptionDetails."""
+    evaluates: list[dict[str, object]] = []
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        if message["method"] != "Runtime.evaluate":
+            return {"result": {}}
+        evaluates.append(message)
+        value = values[min(len(evaluates), len(values)) - 1]
+        if value is None:
+            return {"result": {"exceptionDetails": {"text": "not ready"}}}
+        return {"result": {"result": {"value": value}}}
+
+    socket = FakeWebSocket(response_for)
+    return CDPClient(socket, "ws://127.0.0.1/devtools/browser/test"), socket, evaluates
+
+
+async def test_runtime_receiver_fails_fast_on_the_first_incompatible_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(cdp_client.asyncio, "sleep", record_sleep)
+    client, _, evaluates = _receiver_client([_incompatible_marker()])
+    try:
+        with pytest.raises(StagehandRuntimeIncompatibleError) as raised:
+            await client._wait_for_runtime_receiver("worker-session")
+    finally:
+        await client.close()
+
+    error = raised.value
+    assert error.reason == "protocol-major-mismatch"
+    assert error.client_protocol_version == STAGEHAND_PROTOCOL_VERSION
+    assert error.extension_protocol_version == INCOMPATIBLE_PROTOCOL_VERSION
+    assert error.extension_server_info == {"name": "stagehand", "version": "9.0.0"}
+    assert error.remediation == cdp_client.RUNTIME_INCOMPATIBILITY_REMEDIATION
+    message = str(error)
+    assert message.startswith("Incompatible Stagehand runtime (protocol-major-mismatch): ")
+    assert f"client protocol {STAGEHAND_PROTOCOL_VERSION}" in message
+    assert f"extension protocol {INCOMPATIBLE_PROTOCOL_VERSION}" in message
+    assert "extension stagehand/9.0.0" in message
+    assert message.endswith(cdp_client.RUNTIME_INCOMPATIBILITY_REMEDIATION)
+    assert len(evaluates) == 1
+    assert sleeps == [], "the incompatible marker must raise before any second poll"
+
+
+async def test_runtime_receiver_fails_fast_on_a_wrong_runtime_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def no_sleep(_: float) -> None:
+        raise AssertionError("must not poll again after an incompatible marker")
+
+    monkeypatch.setattr(cdp_client.asyncio, "sleep", no_sleep)
+    foreign = _ready_marker()
+    foreign["marker"] = {
+        "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+        "serverInfo": {"name": "other-runtime", "version": "3.1.4"},
+    }
+    client, _, evaluates = _receiver_client([foreign])
+    try:
+        with pytest.raises(StagehandRuntimeIncompatibleError) as raised:
+            await client._wait_for_runtime_receiver("worker-session")
+    finally:
+        await client.close()
+    assert raised.value.reason == "runtime-name-mismatch"
+    assert raised.value.extension_server_info == {"name": "other-runtime", "version": "3.1.4"}
+    assert len(evaluates) == 1
+
+
+async def test_runtime_receiver_keeps_polling_through_unknown_markers_until_compatible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[float] = []
+
+    async def record_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(cdp_client.asyncio, "sleep", record_sleep)
+    client, _, evaluates = _receiver_client([
+        None,  # Runtime.evaluate exceptionDetails: the worker is still booting
+        _unknown_marker(),
+        _unknown_marker(),
+        _ready_marker(),
+    ])
+    try:
+        await asyncio.wait_for(client._wait_for_runtime_receiver("worker-session"), timeout=5)
+    finally:
+        await client.close()
+    assert len(evaluates) == 4
+    assert sleeps == [0.1, 0.1, 0.1]
+
+
+async def test_runtime_receiver_keeps_polling_on_incompatible_when_fallback_install_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def no_sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr(cdp_client.asyncio, "sleep", no_sleep)
+    client, _, evaluates = _receiver_client([
+        _incompatible_marker(),
+        _incompatible_marker(),
+        _ready_marker(),
+    ])
+    try:
+        await asyncio.wait_for(
+            client._wait_for_runtime_receiver("worker-session", allow_fallback_install=True),
+            timeout=5,
+        )
+    finally:
+        await client.close()
+    assert len(evaluates) == 3
+
+
+def test_runtime_incompatible_error_is_exported_from_the_package() -> None:
+    import stagehand
+
+    assert stagehand.StagehandRuntimeIncompatibleError is StagehandRuntimeIncompatibleError
+    assert "StagehandRuntimeIncompatibleError" in stagehand.__all__
+
+
 class TestNegotiateRuntime:
     """Mirrors the TypeScript negotiation tests so the two SDKs cannot drift apart.
 
@@ -792,21 +1119,22 @@ class TestNegotiateRuntime:
     """
 
     def test_accepts_a_current_marker(self) -> None:
-        compatible, detail = cdp_client._negotiate_runtime({
+        result = cdp_client._negotiate_runtime({
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
             "serverInfo": {"name": "stagehand", "version": "1.0.0"},
         })
-        assert compatible is True
-        assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in detail
+        assert result.kind == "compatible"
+        assert result.compatible is True
+        assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in result.detail
 
     def test_tolerates_unknown_extra_keys(self) -> None:
         # A newer runtime may publish fields this client has never heard of, e.g. `status`.
-        compatible, _ = cdp_client._negotiate_runtime({
+        result = cdp_client._negotiate_runtime({
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
             "serverInfo": {"name": "stagehand", "version": "1.0.0"},
             "status": {"state": "ready"},
         })
-        assert compatible is True
+        assert result.kind == "compatible"
 
     @pytest.mark.parametrize(
         ("marker", "expected"),
@@ -815,49 +1143,162 @@ class TestNegotiateRuntime:
             ({}, "serverInfo.name=None"),
             (
                 {
-                    "protocolVersion": "2.0.0",
+                    "protocolVersion": 1,
+                    "serverInfo": {"name": "stagehand", "version": "1"},
+                },
+                "protocolVersion=1",
+            ),
+            ("string", "no Stagehand runtime marker"),
+            ({"serverInfo": "not-a-mapping"}, "unreadable"),
+            ({"protocolVersion": STAGEHAND_PROTOCOL_VERSION, "serverInfo": None}, "unreadable"),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                    "serverInfo": {"name": "stagehand"},
+                },
+                "serverInfo.version=None",
+            ),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                    "serverInfo": {"name": "stagehand", "version": 1},
+                },
+                "serverInfo.version=1",
+            ),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                    "serverInfo": {"name": "stagehand", "version": ""},
+                },
+                "serverInfo.version=''",
+            ),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                    "serverInfo": {"name": "", "version": "1.0.0"},
+                },
+                "serverInfo.name=''",
+            ),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                    "serverInfo": {"name": 1, "version": "1.0.0"},
+                },
+                "serverInfo.name=1",
+            ),
+            (
+                {"protocolVersion": "", "serverInfo": {"name": "stagehand", "version": "1"}},
+                "protocolVersion=''",
+            ),
+        ],
+    )
+    def test_unreadable_markers_are_unknown_not_incompatible(
+        self, marker: object, expected: str
+    ) -> None:
+        """Absent or unparseable markers mean "not ready yet": the wait loops keep polling."""
+        result = cdp_client._negotiate_runtime(marker)
+        assert result.kind == "unknown"
+        assert result.compatible is False
+        assert result.reason is None
+        assert expected in result.detail
+
+    @pytest.mark.parametrize(
+        ("marker", "reason", "expected"),
+        [
+            (
+                {
+                    "protocolVersion": INCOMPATIBLE_PROTOCOL_VERSION,
                     "serverInfo": {"name": "stagehand", "version": "0"},
                 },
-                "major mismatch",
+                "protocol-major-mismatch",
+                "Protocol major mismatch: "
+                f"client {STAGEHAND_PROTOCOL_VERSION}, server {INCOMPATIBLE_PROTOCOL_VERSION}",
             ),
             (
                 {
                     "protocolVersion": "not-semver",
                     "serverInfo": {"name": "stagehand", "version": "2"},
                 },
-                "invalid protocol version",
+                "protocol-invalid-version",
+                f"Invalid protocol version: client {STAGEHAND_PROTOCOL_VERSION}, server not-semver",
             ),
             (
                 {
                     "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
                     "serverInfo": {"name": "other", "version": "1"},
                 },
-                "name=",
+                "runtime-name-mismatch",
+                'Runtime name mismatch: expected "stagehand", server reported "other"',
             ),
             (
                 {
-                    "protocolVersion": 1,
+                    "protocolVersion": f"{STAGEHAND_PROTOCOL_VERSION}-beta.1",
                     "serverInfo": {"name": "stagehand", "version": "1"},
                 },
-                "protocolVersion=1",
+                "protocol-prerelease-mismatch",
+                "Protocol prereleases must match exactly: "
+                f"client {STAGEHAND_PROTOCOL_VERSION}, server {STAGEHAND_PROTOCOL_VERSION}-beta.1",
             ),
         ],
     )
-    def test_rejects_unusable_markers(self, marker: object, expected: str) -> None:
-        compatible, detail = cdp_client._negotiate_runtime(marker)
-        assert compatible is False
-        assert expected in detail
+    def test_rejected_markers_are_incompatible(
+        self, marker: dict[str, object], reason: str, expected: str
+    ) -> None:
+        """Markers that parse but fail negotiation are incompatible: the wait loops fail fast."""
+        result = cdp_client._negotiate_runtime(marker)
+        assert result.kind == "incompatible"
+        assert result.compatible is False
+        assert result.reason == reason
+        # Exact match: the wording is shared verbatim with the TypeScript SDK.
+        assert result.detail == expected
+        assert result.protocol_version == marker["protocolVersion"]
+        server_info = cast(dict[str, object], marker["serverInfo"])
+        assert result.server_name == server_info["name"]
+        assert result.server_version == server_info["version"]
+        error = StagehandRuntimeIncompatibleError(result)
+        assert error.reason == reason
+        assert error.detail == expected
+        assert error.client_protocol_version == STAGEHAND_PROTOCOL_VERSION
 
     def test_never_raises_on_hostile_input(self) -> None:
-        for marker in ("string", 42, [], {"serverInfo": "not-a-mapping"}, {"serverInfo": None}):
-            assert cdp_client._negotiate_runtime(marker)[0] is False
+        for marker in (
+            "string",
+            42,
+            [],
+            {"serverInfo": "not-a-mapping"},
+            {"serverInfo": None},
+            {"protocolVersion": "1.0.0", "serverInfo": {"name": "", "version": ""}},
+            {"protocolVersion": "1.0.0", "serverInfo": {"name": "stagehand"}},
+        ):
+            assert cdp_client._negotiate_runtime(marker).kind == "unknown"
+
+    def test_incompatible_error_rejects_non_incompatible_results(self) -> None:
+        with pytest.raises(ValueError):
+            StagehandRuntimeIncompatibleError(
+                cdp_client.RuntimeCompatibility(kind="unknown", detail="no marker")
+            )
 
     def test_protocol_semver_directionality(self) -> None:
         assert cdp_client._protocol_compatibility("1.2.4", "1.2.0") is None
         assert cdp_client._protocol_compatibility("1.2.4", "1.9.0") is None
-        assert "older" in (cdp_client._protocol_compatibility("1.2.4", "1.1.99") or "")
-        assert "major mismatch" in (cdp_client._protocol_compatibility("1.2.4", "2.0.0") or "")
+        assert cdp_client._protocol_compatibility("1.2.4", "1.1.99") == (
+            "protocol-server-too-old",
+            "Server protocol 1.1.99 is older than client requirement 1.2.4",
+        )
+        assert cdp_client._protocol_compatibility("1.2.4", "2.0.0") == (
+            "protocol-major-mismatch",
+            "Protocol major mismatch: client 1.2.4, server 2.0.0",
+        )
         assert cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.1") is None
-        assert "match exactly" in (
-            cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.2") or ""
+        assert cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.2") == (
+            "protocol-prerelease-mismatch",
+            "Protocol prereleases must match exactly: client 1.3.0-beta.1, server 1.3.0-beta.2",
+        )
+        assert cdp_client._protocol_compatibility("1.3.0", "not-semver") == (
+            "protocol-invalid-version",
+            "Invalid protocol version: client 1.3.0, server not-semver",
+        )
+        assert cdp_client._protocol_compatibility("1.2.4", "nope") == (
+            "protocol-invalid-version",
+            "Invalid protocol version: client 1.2.4, server nope",
         )

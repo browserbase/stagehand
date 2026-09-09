@@ -60,6 +60,24 @@ describe("negotiateRuntimeCompatibility", () => {
       kind: "incompatible",
       reason: "protocol-invalid-version",
     }));
+  it("reports a non-SemVer server protocol version as incompatible so callers fail fast", () =>
+    expect(negotiateRuntimeCompatibility(requirement, marker("not-semver"))).toMatchObject({
+      kind: "incompatible",
+      reason: "protocol-invalid-version",
+      detail: `Invalid protocol version: client ${requirement.protocolVersion}, server not-semver`,
+      reported: { protocolVersion: "not-semver" },
+    }));
+  it.each([
+    [{ protocolVersion: "", serverInfo: { name: "stagehand", version: "1.0.0" } }],
+    [{ protocolVersion: "1.2.4", serverInfo: { name: "stagehand", version: "" } }],
+    [{ protocolVersion: "1.2.4", serverInfo: { name: "", version: "1.0.0" } }],
+    [{ protocolVersion: "1.2.4", serverInfo: { name: "stagehand" } }],
+  ])("reports an empty or missing marker field as unreadable for %j", (raw) =>
+    expect(negotiateRuntimeCompatibility(requirement, raw)).toMatchObject({
+      kind: "unknown",
+      reason: "unreadable-marker",
+    }),
+  );
   it.each([[null], [undefined]])("reports a missing marker for %s", (raw) =>
     expect(negotiateRuntimeCompatibility(requirement, raw)).toMatchObject({
       kind: "unknown",
@@ -75,15 +93,20 @@ describe("negotiateRuntimeCompatibility", () => {
         reason: "unreadable-marker",
       }),
   );
-  it("reports a foreign marker as unreadable", () =>
+  it("reports a foreign runtime name as incompatible", () =>
     expect(
       negotiateRuntimeCompatibility(requirement, {
         ...marker("1.2.4"),
         serverInfo: { name: "other", version: "1.0.0" },
       }),
     ).toMatchObject({
-      kind: "unknown",
-      reason: "unreadable-marker",
+      kind: "incompatible",
+      reason: "runtime-name-mismatch",
+      required: { protocolVersion: "1.2.4" },
+      reported: {
+        protocolVersion: "1.2.4",
+        serverInfo: { name: "other", version: "1.0.0" },
+      },
     }));
   it("reports unknown marker keys as unreadable", () =>
     expect(

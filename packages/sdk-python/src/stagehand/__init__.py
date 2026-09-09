@@ -58,6 +58,7 @@ from ._generated.models import (
 from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
+from .cdp_client import StagehandRuntimeIncompatibleError
 from .client_models import (
     DefaultExtract,
     ExtractResult,
@@ -141,6 +142,7 @@ __all__ = [
     "StagehandClientLoggingConfig",
     "StagehandMetrics",
     "StagehandResultMetadata",
+    "StagehandRuntimeIncompatibleError",
     "State",
     "TelemetryConfig",
     "Variables",

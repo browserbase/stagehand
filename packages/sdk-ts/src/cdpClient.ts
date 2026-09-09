@@ -8,7 +8,9 @@ import { z } from "zod/v4";
 import {
   DEFAULT_RUNTIME_REQUIREMENT,
   negotiateRuntimeCompatibility,
+  RUNTIME_INCOMPATIBILITY_REMEDIATION,
   type RuntimeCompatibility,
+  type RuntimeIncompatibilityReason,
   type RuntimeRequirement,
 } from "./runtimeCompatibility.js";
 import { abortable, abortableDelay, abortReason, throwIfAborted } from "./abort.js";
@@ -104,23 +106,51 @@ export function stagehandMessageExpression(message: JSONRPCMessage): string {
     : `void globalThis.__stagehandReceiveFromHost(${JSON.stringify(JSON.stringify(message))}); true`;
 }
 
+export type IncompatibleRuntimeCompatibility = Extract<
+  RuntimeCompatibility,
+  { kind: "incompatible" }
+>;
+
+/**
+ * Thrown as soon as the connected Stagehand extension reports a runtime marker
+ * that this SDK cannot talk to (protocol major mismatch, extension too old,
+ * prerelease mismatch, invalid version, or a foreign runtime name).
+ */
 export class StagehandRuntimeIncompatibleError extends Error {
-  readonly reason;
-  constructor(readonly compatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }>) {
+  readonly reason: RuntimeIncompatibilityReason;
+  /** Human-readable negotiation outcome, e.g. the client/server versions that clashed. */
+  readonly detail: string;
+  /** Protocol version this SDK speaks. */
+  readonly clientProtocolVersion: string;
+  /** Protocol version the connected extension reported. */
+  readonly extensionProtocolVersion: string;
+  /** `serverInfo` reported by the connected extension. */
+  readonly extensionServerInfo: { name: string; version: string };
+  readonly remediation = RUNTIME_INCOMPATIBILITY_REMEDIATION;
+
+  constructor(readonly compatibility: IncompatibleRuntimeCompatibility) {
     super(
-      "Incompatible Stagehand runtime: " +
+      "Incompatible Stagehand runtime (" +
+        compatibility.reason +
+        "): " +
         compatibility.detail +
         "; client protocol " +
         compatibility.required.protocolVersion +
-        ", reported protocol " +
+        ", extension protocol " +
         String(compatibility.reported.protocolVersion) +
-        ", server " +
+        ", extension " +
         compatibility.reported.serverInfo.name +
         "/" +
-        compatibility.reported.serverInfo.version,
+        compatibility.reported.serverInfo.version +
+        ". " +
+        RUNTIME_INCOMPATIBILITY_REMEDIATION,
     );
     this.name = "StagehandRuntimeIncompatibleError";
     this.reason = compatibility.reason;
+    this.detail = compatibility.detail;
+    this.clientProtocolVersion = compatibility.required.protocolVersion;
+    this.extensionProtocolVersion = compatibility.reported.protocolVersion;
+    this.extensionServerInfo = { ...compatibility.reported.serverInfo };
   }
 }
 
@@ -487,7 +517,9 @@ export async function waitForRuntimeReady(
         options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
         readiness.marker,
       );
-      if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
+      // Fail fast by default; allowFallbackInstall is reserved for a future
+      // Browserbase preloaded-extension flow that may replace the runtime.
+      if (compatibility.kind === "incompatible" && options.allowFallbackInstall !== true)
         throw new StagehandRuntimeIncompatibleError(compatibility);
       if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
     }
@@ -525,7 +557,10 @@ export async function waitForPreloadedStagehandServiceWorker(
         target.url.startsWith("chrome-extension://") &&
         target.url.includes(workerUrlIncludes),
     );
-    let incompatibleRuntime: Extract<RuntimeCompatibility, { kind: "incompatible" }> | undefined;
+    let incompatibleRuntime: IncompatibleRuntimeCompatibility | undefined;
+    // A compatible worker whose receiver is not installed yet must keep the sweep polling
+    // even when a sibling worker is incompatible.
+    let sawCompatibleMarker = false;
     for (const serviceWorker of candidates) {
       let sessionId: string | undefined;
       let keepAttached = false;
@@ -547,11 +582,14 @@ export async function waitForPreloadedStagehandServiceWorker(
             options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
             readiness.marker,
           );
-          if (compatibility.kind === "compatible" && readiness.hasReceiver) {
-            keepAttached = true;
-            return { serviceWorker, sessionId };
+          if (compatibility.kind === "compatible") {
+            sawCompatibleMarker = true;
+            if (readiness.hasReceiver) {
+              keepAttached = true;
+              return { serviceWorker, sessionId };
+            }
           }
-          if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false) {
+          if (compatibility.kind === "incompatible" && options.allowFallbackInstall !== true) {
             incompatibleRuntime = compatibility;
           }
         }
@@ -567,7 +605,9 @@ export async function waitForPreloadedStagehandServiceWorker(
       }
     }
 
-    if (incompatibleRuntime) {
+    // No compatible marker in this sweep and at least one incompatible one: fail fast
+    // instead of re-polling until the initialization deadline.
+    if (incompatibleRuntime && !sawCompatibleMarker) {
       throw new StagehandRuntimeIncompatibleError(incompatibleRuntime);
     }
     await abortable(delayFn(pollIntervalMs), options.signal);

@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, TypeGuard, cast
 from urllib.request import urlopen
 
 from stagehand._generated.protocol_version import (
@@ -58,42 +58,159 @@ def _callback_source_from_message(message: dict[str, object]) -> str | None:
     return source
 
 
-def _negotiate_runtime(marker: object) -> tuple[bool, str]:
-    """Return (compatible, detail). Never raises: a malformed marker is just incompatible."""
+RuntimeIncompatibilityReason = Literal[
+    "protocol-invalid-version",
+    "protocol-major-mismatch",
+    "protocol-server-too-old",
+    "protocol-prerelease-mismatch",
+    "runtime-name-mismatch",
+]
+
+RUNTIME_INCOMPATIBILITY_REMEDIATION = (
+    "Upgrade the Stagehand SDK and the Stagehand extension together so their protocol majors "
+    "match, or start the session with the extension bundled in this SDK."
+)
+
+
+@dataclass(frozen=True)
+class RuntimeCompatibility:
+    """Outcome of negotiating against the extension's `globalThis.__stagehand_runtime` marker.
+
+    - ``compatible``: the marker parses and satisfies the protocol rules.
+    - ``incompatible``: the marker parses but the protocol rules reject it, or it names a
+      foreign runtime. Callers fail fast on this instead of re-polling.
+    - ``unknown``: the marker is absent, not yet set, or unreadable. Callers keep polling.
+    """
+
+    kind: Literal["compatible", "incompatible", "unknown"]
+    detail: str
+    reason: RuntimeIncompatibilityReason | None = None
+    protocol_version: str | None = None
+    server_name: str | None = None
+    server_version: str | None = None
+
+    @property
+    def compatible(self) -> bool:
+        return self.kind == "compatible"
+
+
+class StagehandRuntimeIncompatibleError(RuntimeError):
+    """Raised as soon as the connected Stagehand extension reports a runtime this SDK cannot use.
+
+    Covers a protocol major mismatch, an extension older than the client requirement, a
+    prerelease mismatch, an invalid protocol version, or a foreign runtime name.
+    """
+
+    def __init__(self, compatibility: RuntimeCompatibility) -> None:
+        if compatibility.kind != "incompatible" or compatibility.reason is None:
+            raise ValueError("StagehandRuntimeIncompatibleError requires an incompatible result")
+        self.compatibility = compatibility
+        self.reason: RuntimeIncompatibilityReason = compatibility.reason
+        self.detail = compatibility.detail
+        self.client_protocol_version = STAGEHAND_PROTOCOL_VERSION
+        self.extension_protocol_version = compatibility.protocol_version
+        self.extension_server_info = {
+            "name": compatibility.server_name,
+            "version": compatibility.server_version,
+        }
+        self.remediation = RUNTIME_INCOMPATIBILITY_REMEDIATION
+        super().__init__(
+            f"Incompatible Stagehand runtime ({self.reason}): {self.detail}; "
+            f"client protocol {self.client_protocol_version}, "
+            f"extension protocol {self.extension_protocol_version}, "
+            f"extension {compatibility.server_name}/{compatibility.server_version}. "
+            f"{RUNTIME_INCOMPATIBILITY_REMEDIATION}"
+        )
+
+
+def _negotiate_runtime(marker: object) -> RuntimeCompatibility:
+    """Classify a runtime marker. Never raises: a malformed marker is ``unknown``."""
     if not isinstance(marker, Mapping):
-        return False, "no Stagehand runtime marker"
+        return RuntimeCompatibility(kind="unknown", detail="no Stagehand runtime marker")
 
     server_info = marker.get("serverInfo")
     name = server_info.get("name") if isinstance(server_info, Mapping) else None
-    if name != _RUNTIME_NAME:
-        return False, f"serverInfo.name={name!r}"
-
+    version = server_info.get("version") if isinstance(server_info, Mapping) else None
     protocol_version = marker.get("protocolVersion")
-    if not isinstance(protocol_version, str):
-        return False, f"protocolVersion={protocol_version!r}"
-    compatibility = _protocol_compatibility(STAGEHAND_PROTOCOL_VERSION, protocol_version)
-    if compatibility is not None:
-        return False, compatibility
+    # Mirrors the protocol's ImplementationInfoSchema: both fields are non-empty strings.
+    # A marker missing either is malformed, not a foreign runtime, so keep polling.
+    if not _non_empty_string(name) or not _non_empty_string(version):
+        return RuntimeCompatibility(
+            kind="unknown",
+            detail=f"unreadable runtime marker: serverInfo.name={name!r} "
+            f"serverInfo.version={version!r}",
+        )
+    if not isinstance(protocol_version, str) or not protocol_version:
+        # Not a marker shape this client can read: the worker may still be publishing it.
+        return RuntimeCompatibility(
+            kind="unknown",
+            detail=f"unreadable runtime marker: protocolVersion={protocol_version!r}",
+        )
 
-    return True, f"protocolVersion={protocol_version}"
+    if name != _RUNTIME_NAME:
+        return RuntimeCompatibility(
+            kind="incompatible",
+            reason="runtime-name-mismatch",
+            detail=f'Runtime name mismatch: expected "{_RUNTIME_NAME}", server reported "{name}"',
+            protocol_version=protocol_version,
+            server_name=name,
+            server_version=version,
+        )
+
+    mismatch = _protocol_compatibility(STAGEHAND_PROTOCOL_VERSION, protocol_version)
+    if mismatch is not None:
+        reason, detail = mismatch
+        return RuntimeCompatibility(
+            kind="incompatible",
+            reason=reason,
+            detail=detail,
+            protocol_version=protocol_version,
+            server_name=name,
+            server_version=version,
+        )
+
+    return RuntimeCompatibility(
+        kind="compatible",
+        detail=f"protocolVersion={protocol_version}",
+        protocol_version=protocol_version,
+        server_name=name,
+        server_version=version,
+    )
 
 
-def _protocol_compatibility(client_version: str, server_version: str) -> str | None:
+def _non_empty_string(value: object) -> TypeGuard[str]:
+    return isinstance(value, str) and value != ""
+
+
+def _protocol_compatibility(
+    client_version: str, server_version: str
+) -> tuple[RuntimeIncompatibilityReason, str] | None:
+    """Return ``(reason, detail)`` when the versions are incompatible, else ``None``."""
     client = _PROTOCOL_SEMVER_PATTERN.fullmatch(client_version)
     server = _PROTOCOL_SEMVER_PATTERN.fullmatch(server_version)
     if client is None or server is None:
-        return f"invalid protocol version: client={client_version!r} server={server_version!r}"
+        return (
+            "protocol-invalid-version",
+            f"Invalid protocol version: client {client_version}, server {server_version}",
+        )
     if client.group(4) is not None or server.group(4) is not None:
         if client_version != server_version:
             return (
-                "protocol prereleases must match exactly: "
-                f"client={client_version} server={server_version}"
+                "protocol-prerelease-mismatch",
+                "Protocol prereleases must match exactly: "
+                f"client {client_version}, server {server_version}",
             )
         return None
     if client.group(1) != server.group(1):
-        return f"protocol major mismatch: client={client_version} server={server_version}"
+        return (
+            "protocol-major-mismatch",
+            f"Protocol major mismatch: client {client_version}, server {server_version}",
+        )
     if int(server.group(2)) < int(client.group(2)):
-        return f"server protocol {server_version} is older than client requirement {client_version}"
+        return (
+            "protocol-server-too-old",
+            f"Server protocol {server_version} is older than client requirement {client_version}",
+        )
     return None
 
 
@@ -453,13 +570,21 @@ class CDPClient:
     async def _wait_for_preloaded_service_worker(
         self,
         url_includes: str,
+        *,
+        allow_fallback_install: bool = False,
     ) -> tuple[ServiceWorkerInfo, str]:
         """Return a discovered worker and its flat CDP session, left attached for the caller.
 
-        Each candidate must be attached to evaluate readiness; unready or incompatible
-        candidates are detached before the next poll.
+        Each candidate must be attached to evaluate readiness; unready candidates are detached
+        before the next poll. A sweep that finds no compatible marker but at least one
+        incompatible one raises ``StagehandRuntimeIncompatibleError`` immediately unless
+        ``allow_fallback_install`` is True (reserved for a future preloaded-extension flow).
         """
         while True:
+            incompatible: RuntimeCompatibility | None = None
+            # A compatible worker whose receiver is not installed yet must keep the sweep
+            # polling even when a sibling worker is incompatible.
+            saw_compatible_marker = False
             response = await self.send_command("Target.getTargets")
             targets = response.get("targetInfos")
             target_infos = cast(list[object], targets) if isinstance(targets, list) else []
@@ -501,8 +626,12 @@ class CDPClient:
                         result = evaluated.get("result")
                         value = result.get("value") if isinstance(result, Mapping) else None
                         if isinstance(value, Mapping):
-                            compatible, _ = _negotiate_runtime(value.get("marker"))
-                            if compatible and value.get("hasReceiver") is True:
+                            compatibility = _negotiate_runtime(value.get("marker"))
+                            if compatibility.kind == "incompatible" and not allow_fallback_install:
+                                incompatible = compatibility
+                            if compatibility.compatible:
+                                saw_compatible_marker = True
+                            if compatibility.compatible and value.get("hasReceiver") is True:
                                 service_worker = ServiceWorkerInfo(
                                     target_id=_required_string(
                                         target_info, "targetId", "Target.getTargets"
@@ -525,9 +654,18 @@ class CDPClient:
                                 "Target.detachFromTarget",
                                 {"sessionId": session_id},
                             )
+            # No compatible marker in this sweep and at least one incompatible one: fail fast
+            # instead of re-polling until the initialization deadline.
+            if incompatible is not None and not saw_compatible_marker:
+                raise StagehandRuntimeIncompatibleError(incompatible)
             await asyncio.sleep(0.1)
 
-    async def _wait_for_runtime_receiver(self, session_id: str) -> None:
+    async def _wait_for_runtime_receiver(
+        self,
+        session_id: str,
+        *,
+        allow_fallback_install: bool = False,
+    ) -> None:
         while True:
             try:
                 evaluated = await self.send_command(
@@ -544,9 +682,15 @@ class CDPClient:
                     value = result.get("value") if isinstance(result, Mapping) else None
                     if isinstance(value, Mapping):
                         has_receiver = value.get("hasReceiver") is True
-                        compatible, _ = _negotiate_runtime(value.get("marker"))
-                        if compatible and has_receiver:
+                        compatibility = _negotiate_runtime(value.get("marker"))
+                        # Fail fast by default; allow_fallback_install is reserved for a future
+                        # Browserbase preloaded-extension flow that may replace the runtime.
+                        if compatibility.kind == "incompatible" and not allow_fallback_install:
+                            raise StagehandRuntimeIncompatibleError(compatibility)
+                        if compatibility.compatible and has_receiver:
                             return
+            except StagehandRuntimeIncompatibleError:
+                raise
             except Exception:
                 pass
             await asyncio.sleep(0.1)
