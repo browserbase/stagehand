@@ -40,6 +40,16 @@ export {
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
+export {
+  StagehandRuntimeIncompatibleError,
+  type IncompatibleRuntimeCompatibility,
+} from "./cdpClient.js";
+export type {
+  ReportedRuntime,
+  RuntimeCompatibility,
+  RuntimeIncompatibilityReason,
+  RuntimeRequirement,
+} from "./runtimeCompatibility.js";
 export type {
   ExperimentalBatchCallback,
   ExperimentalBatchBrowserContext,

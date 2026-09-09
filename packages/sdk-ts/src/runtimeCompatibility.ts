@@ -1,11 +1,25 @@
-import type { ImplementationInfo, RuntimeDescriptor } from "../../protocol/types.js";
-import { RuntimeDescriptorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
-import { checkProtocolCompatibility } from "../../protocol/protocol-version.js";
+import type { ImplementationInfo } from "../../protocol/types.js";
+import { ImplementationInfoSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
+import {
+  checkProtocolCompatibility,
+  StagehandProtocolVersionSchema,
+} from "../../protocol/protocol-version.js";
 import { z } from "zod/v4";
 
 export type RuntimeRequirement = {
   protocolVersion: string;
 };
+/** The runtime marker as reported by the extension, before the runtime name is validated. */
+export type ReportedRuntime = {
+  protocolVersion: string;
+  serverInfo: ImplementationInfo;
+};
+export type RuntimeIncompatibilityReason =
+  | "protocol-invalid-version"
+  | "protocol-major-mismatch"
+  | "protocol-server-too-old"
+  | "protocol-prerelease-mismatch"
+  | "runtime-name-mismatch";
 export type RuntimeCompatibility =
   | {
       kind: "compatible";
@@ -14,14 +28,10 @@ export type RuntimeCompatibility =
     }
   | {
       kind: "incompatible";
-      reason:
-        | "protocol-invalid-version"
-        | "protocol-major-mismatch"
-        | "protocol-server-too-old"
-        | "protocol-prerelease-mismatch";
+      reason: RuntimeIncompatibilityReason;
       detail: string;
       required: RuntimeRequirement;
-      reported: RuntimeDescriptor;
+      reported: ReportedRuntime;
     }
   | {
       kind: "unknown";
@@ -31,6 +41,18 @@ export type RuntimeCompatibility =
 
 export const DEFAULT_RUNTIME_REQUIREMENT: RuntimeRequirement = Object.freeze({
   protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+});
+
+export const STAGEHAND_RUNTIME_NAME = "stagehand";
+
+export const RUNTIME_INCOMPATIBILITY_REMEDIATION =
+  "Upgrade the Stagehand SDK and the Stagehand extension together so their protocol majors match, " +
+  "or start the session with the extension bundled in this SDK.";
+
+// Accepts any runtime name so a foreign runtime is reported as incompatible rather than unknown.
+const ReportedRuntimeSchema = z.strictObject({
+  protocolVersion: StagehandProtocolVersionSchema,
+  serverInfo: ImplementationInfoSchema,
 });
 
 export function negotiateRuntimeCompatibility(
@@ -45,7 +67,7 @@ export function negotiateRuntimeCompatibility(
     };
 
   try {
-    const result = RuntimeDescriptorSchema.safeParse(raw);
+    const result = ReportedRuntimeSchema.safeParse(raw);
     if (!result.success)
       return {
         kind: "unknown",
@@ -54,11 +76,18 @@ export function negotiateRuntimeCompatibility(
       };
 
     const reported = descriptor(result.data);
+    if (reported.serverInfo.name !== STAGEHAND_RUNTIME_NAME)
+      return incompatible(
+        "runtime-name-mismatch",
+        `Runtime name mismatch: expected "${STAGEHAND_RUNTIME_NAME}", server reported "${reported.serverInfo.name}"`,
+        required,
+        reported,
+      );
     const compatibility = checkProtocolCompatibility(
       required.protocolVersion,
       reported.protocolVersion,
     );
-    if (!compatibility.compatible)
+    if (compatibility.compatible === false)
       return incompatible(
         compatibility.reason,
         compatibilityDetail(
@@ -84,7 +113,7 @@ export function negotiateRuntimeCompatibility(
 }
 
 function compatibilityDetail(
-  reason: Extract<RuntimeCompatibility, { kind: "incompatible" }>["reason"],
+  reason: Exclude<RuntimeIncompatibilityReason, "runtime-name-mismatch">,
   clientVersion: string,
   serverVersion: string,
 ): string {
@@ -100,7 +129,7 @@ function compatibilityDetail(
   }
 }
 
-function descriptor(value: RuntimeDescriptor): RuntimeDescriptor {
+function descriptor(value: ReportedRuntime): ReportedRuntime {
   return {
     protocolVersion: value.protocolVersion,
     serverInfo: { ...value.serverInfo },
@@ -108,10 +137,10 @@ function descriptor(value: RuntimeDescriptor): RuntimeDescriptor {
 }
 
 function incompatible(
-  reason: Extract<RuntimeCompatibility, { kind: "incompatible" }>["reason"],
+  reason: RuntimeIncompatibilityReason,
   detail: string,
   required: RuntimeRequirement,
-  reported: RuntimeDescriptor,
+  reported: ReportedRuntime,
 ): RuntimeCompatibility {
   return {
     kind: "incompatible",

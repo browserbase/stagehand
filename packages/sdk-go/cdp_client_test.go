@@ -1010,3 +1010,273 @@ func assertJSONEqual(t *testing.T, actual json.RawMessage, expected string) {
 		t.Fatalf("JSON mismatch\nactual:   %s\nexpected: %s", actual, expected)
 	}
 }
+
+// runtimeMarkerResponse builds a Runtime.evaluate result for the readiness
+// expression with an arbitrary marker payload.
+func runtimeMarkerResponse(marker any, hasReceiver bool) map[string]any {
+	return map[string]any{"result": map[string]any{
+		"result": map[string]any{
+			"value": map[string]any{
+				"marker":      marker,
+				"hasReceiver": hasReceiver,
+			},
+		},
+	}}
+}
+
+func incompatibleRuntimeMarker(t *testing.T) map[string]any {
+	t.Helper()
+	return map[string]any{
+		"protocolVersion": incompatibleMajorProtocolVersion(t),
+		"serverInfo": map[string]any{
+			"name":    stagehandRuntimeName,
+			"version": "9.9.9",
+		},
+	}
+}
+
+func compatibleRuntimeMarker() map[string]any {
+	return map[string]any{
+		"protocolVersion": stagehandProtocolVersion,
+		"serverInfo": map[string]any{
+			"name":    stagehandRuntimeName,
+			"version": stagehandSDKVersion,
+		},
+	}
+}
+
+func runtimeExceptionResponse() map[string]any {
+	return map[string]any{"result": map[string]any{
+		"exceptionDetails": map[string]any{"text": "Uncaught"},
+	}}
+}
+
+// loadedExtensionResponder answers the non-readiness CDP commands issued by
+// initialize() for the extensionDir flow and delegates Runtime.evaluate to
+// evaluate, which is invoked once per readiness poll.
+func loadedExtensionResponder(
+	evaluate func(poll int) map[string]any,
+) (func(string, map[string]json.RawMessage) map[string]any, *atomic.Int32) {
+	var polls atomic.Int32
+	return func(method string, _ map[string]json.RawMessage) map[string]any {
+		switch method {
+		case "Extensions.loadUnpacked":
+			return map[string]any{"result": map[string]any{"id": "stagehand-extension"}}
+		case "Target.getTargets":
+			return map[string]any{"result": map[string]any{
+				"targetInfos": []map[string]any{{
+					"targetId": "worker-target",
+					"type":     "service_worker",
+					"title":    "Stagehand",
+					"url":      "chrome-extension://stagehand-extension/service-worker.js",
+				}},
+			}}
+		case "Target.attachToTarget":
+			return map[string]any{"result": map[string]any{"sessionId": "worker-session"}}
+		case "Runtime.evaluate":
+			return evaluate(int(polls.Add(1)))
+		default:
+			return map[string]any{"result": map[string]any{}}
+		}
+	}, &polls
+}
+
+func TestCDPClientFailsFastOnIncompatibleRuntime(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	responder, polls := loadedExtensionResponder(func(int) map[string]any {
+		return runtimeMarkerResponse(incompatibleRuntimeMarker(t), true)
+	})
+	socket.writeHook = responseHook(t, socket, nil, responder)
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+
+	// A one-hour poll interval proves the loop never slept: if it had, the
+	// context deadline (not the compatibility error) would end the test.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	started := time.Now()
+	err := client.initialize(ctx, normalizeCDPClientOptions(cdpClientOptions{
+		extensionDir: "/tmp/stagehand-extension",
+		pollInterval: time.Hour,
+	}))
+	elapsed := time.Since(started)
+
+	var incompatible *RuntimeIncompatibleError
+	if !errors.As(err, &incompatible) {
+		t.Fatalf("initialize() error = %v (%T), want *RuntimeIncompatibleError", err, err)
+	}
+	if incompatible.Reason != RuntimeIncompatibleReasonMajorMismatch {
+		t.Fatalf("Reason = %q", incompatible.Reason)
+	}
+	if incompatible.ClientProtocolVersion != stagehandProtocolVersion ||
+		incompatible.ExtensionProtocolVersion != incompatibleMajorProtocolVersion(t) ||
+		incompatible.ServerInfo != (ImplementationInfo{Name: stagehandRuntimeName, Version: "9.9.9"}) {
+		t.Fatalf("error fields = %#v", incompatible)
+	}
+	if !strings.Contains(err.Error(), runtimeIncompatibleRemediation) {
+		t.Fatalf("Error() = %q, missing remediation hint", err.Error())
+	}
+	if got := polls.Load(); got != 1 {
+		t.Fatalf("Runtime.evaluate polls = %d, want exactly 1", got)
+	}
+	if elapsed > time.Second {
+		t.Fatalf("initialize() took %s, expected fail-fast", elapsed)
+	}
+}
+
+func TestCDPClientFailsFastOnWrongRuntimeName(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	responder, polls := loadedExtensionResponder(func(int) map[string]any {
+		return runtimeMarkerResponse(map[string]any{
+			"protocolVersion": stagehandProtocolVersion,
+			"serverInfo":      map[string]any{"name": "other-runtime", "version": "1.2.3"},
+		}, true)
+	})
+	socket.writeHook = responseHook(t, socket, nil, responder)
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.initialize(ctx, normalizeCDPClientOptions(cdpClientOptions{
+		extensionDir: "/tmp/stagehand-extension",
+		pollInterval: time.Hour,
+	}))
+
+	var incompatible *RuntimeIncompatibleError
+	if !errors.As(err, &incompatible) {
+		t.Fatalf("initialize() error = %v (%T), want *RuntimeIncompatibleError", err, err)
+	}
+	if incompatible.Reason != RuntimeIncompatibleReasonRuntimeNameMismatch {
+		t.Fatalf("Reason = %q", incompatible.Reason)
+	}
+	if incompatible.ServerInfo != (ImplementationInfo{Name: "other-runtime", Version: "1.2.3"}) {
+		t.Fatalf("ServerInfo = %#v", incompatible.ServerInfo)
+	}
+	if got := polls.Load(); got != 1 {
+		t.Fatalf("Runtime.evaluate polls = %d, want exactly 1", got)
+	}
+}
+
+func TestCDPClientKeepsPollingUnknownRuntimeUntilCompatible(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	responder, polls := loadedExtensionResponder(func(poll int) map[string]any {
+		switch poll {
+		case 1:
+			return runtimeMarkerResponse(nil, false)
+		case 2:
+			return runtimeExceptionResponse()
+		case 3:
+			return runtimeMarkerResponse(compatibleRuntimeMarker(), false)
+		default:
+			return runtimeMarkerResponse(compatibleRuntimeMarker(), true)
+		}
+	})
+	socket.writeHook = responseHook(t, socket, nil, responder)
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.initialize(ctx, normalizeCDPClientOptions(cdpClientOptions{
+		extensionDir: "/tmp/stagehand-extension",
+		pollInterval: time.Millisecond,
+	}))
+	if err != nil {
+		t.Fatalf("initialize() error = %v", err)
+	}
+	if got := polls.Load(); got != 4 {
+		t.Fatalf("Runtime.evaluate polls = %d, want 4", got)
+	}
+}
+
+func TestCDPClientAllowFallbackInstallKeepsPollingIncompatibleRuntime(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	responder, polls := loadedExtensionResponder(func(poll int) map[string]any {
+		if poll <= 2 {
+			return runtimeMarkerResponse(incompatibleRuntimeMarker(t), true)
+		}
+		return runtimeMarkerResponse(compatibleRuntimeMarker(), true)
+	})
+	socket.writeHook = responseHook(t, socket, nil, responder)
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.initialize(ctx, normalizeCDPClientOptions(cdpClientOptions{
+		extensionDir:         "/tmp/stagehand-extension",
+		pollInterval:         time.Millisecond,
+		allowFallbackInstall: true,
+	}))
+	if err != nil {
+		t.Fatalf("initialize() error = %v", err)
+	}
+	if got := polls.Load(); got != 3 {
+		t.Fatalf("Runtime.evaluate polls = %d, want 3", got)
+	}
+}
+
+func TestCDPClientPreloadedExtensionFailsFastOnIncompatibleRuntime(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	methods := make(chan string, 64)
+	var polls atomic.Int32
+	socket.writeHook = responseHook(t, socket, methods, func(
+		method string,
+		_ map[string]json.RawMessage,
+	) map[string]any {
+		switch method {
+		case "Target.getTargets":
+			return map[string]any{"result": map[string]any{
+				"targetInfos": []map[string]any{{
+					"targetId": "worker-target",
+					"type":     "service_worker",
+					"title":    "Stagehand",
+					"url":      "chrome-extension://preloaded-extension/service-worker.js",
+				}},
+			}}
+		case "Target.attachToTarget":
+			return map[string]any{"result": map[string]any{"sessionId": "worker-session"}}
+		case "Runtime.evaluate":
+			polls.Add(1)
+			return runtimeMarkerResponse(incompatibleRuntimeMarker(t), true)
+		default:
+			return map[string]any{"result": map[string]any{}}
+		}
+	})
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.initialize(ctx, normalizeCDPClientOptions(cdpClientOptions{
+		preloadedExtension: true,
+		pollInterval:       time.Hour,
+	}))
+
+	var incompatible *RuntimeIncompatibleError
+	if !errors.As(err, &incompatible) {
+		t.Fatalf("initialize() error = %v (%T), want *RuntimeIncompatibleError", err, err)
+	}
+	if incompatible.Reason != RuntimeIncompatibleReasonMajorMismatch {
+		t.Fatalf("Reason = %q", incompatible.Reason)
+	}
+	if got := polls.Load(); got != 1 {
+		t.Fatalf("Runtime.evaluate polls = %d, want exactly 1", got)
+	}
+	actualMethods := drainMethods(methods)
+	expectedMethods := []string{
+		"Target.getTargets",
+		"Target.attachToTarget",
+		"Runtime.evaluate",
+		"Target.detachFromTarget",
+	}
+	if !reflect.DeepEqual(actualMethods, expectedMethods) {
+		t.Fatalf("CDP methods = %#v, want %#v", actualMethods, expectedMethods)
+	}
+}
