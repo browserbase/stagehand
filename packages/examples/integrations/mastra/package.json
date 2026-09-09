@@ -1,0 +1,28 @@
+{
+  "name": "stagehand-mastra",
+  "version": "1.0.0",
+  "description": "A use Stagehand tools with Mastra",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "mastra dev"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.3.7",
+    "@browserbasehq/stagehand": "^3.2.0",
+    "@mastra/core": "^0.20.2",
+    "@mastra/loggers": "^0.10.15",
+    "@mastra/memory": "^0.15.6",
+    "mastra": "^0.15.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}

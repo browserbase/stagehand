@@ -1,0 +1,25 @@
+{
+  "name": "stagehand-v4-demo-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "node src/cli.mjs",
+    "demo:agent": "node src/agent-harness.mjs",
+    "demo:tools": "node src/cli.mjs tools",
+    "demo:hybrid": "node src/cli.mjs hybrid",
+    "demo:script": "node src/cli.mjs script scripts/research-hacker-news.mjs",
+    "run:script": "node src/cli.mjs script",
+    "serve": "node src/http-server.mjs",
+    "check": "node --check src/agent-harness.mjs && node --check src/cli.mjs && node --check src/session.mjs && node --check src/tools.mjs && node --check src/http-server.mjs && node --test"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.8",
+    "@browserbasehq/stagehand": "4.0.2",
+    "ai": "^7.0.16",
+    "zod": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

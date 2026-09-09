@@ -1,0 +1,19 @@
+{
+  "name": "browserbase-box-compliance-intake",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "^3.7.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.9",
+    "tsx": "^4.19.2",
+    "typescript": "^6.0.2"
+  }
+}

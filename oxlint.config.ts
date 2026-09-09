@@ -2,6 +2,9 @@ import { defineConfig } from "oxlint";
 import { stagehandRuleConfig } from "./rules/oxlint/stagehand-plugin.ts";
 
 export default defineConfig({
+  // These standalone projects retain their own SDK generations and dependencies.
+  // Lint them with packages/examples/oxlint.config.ts after copying or editing.
+  ignorePatterns: ["packages/examples/**"],
   jsPlugins: [{ name: "stagehand", specifier: "./rules/oxlint/stagehand-plugin.ts" }],
   rules: {
     "no-console": "error",

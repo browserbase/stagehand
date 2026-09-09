@@ -1,0 +1,5 @@
+browserbase>=1.7.0
+python-dotenv
+pydantic
+stagehand==4.0.0
+requests

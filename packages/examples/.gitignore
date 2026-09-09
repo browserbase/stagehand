@@ -1,0 +1,13 @@
+# Local runtime output from standalone examples
+.cache/
+__pycache__/
+.venv/
+.next/
+.convex/
+reports/
+screenshots/
+output/
+outputs/
+downloads/
+downloaded_files.zip
+*.tsbuildinfo
