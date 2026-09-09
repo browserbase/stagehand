@@ -11,7 +11,12 @@ from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter
 
-from ._generated.input_types import PageDragAndDropRoutePoint, PageEventName, PageScreenshotClip
+from ._generated.input_types import (
+    PageDragAndDropRoutePoint,
+    PageEventName,
+    PageScreenshotClip,
+    PageSubscriptionEventName,
+)
 from ._generated.models import (
     Animations,
     Caret,
@@ -27,6 +32,7 @@ from ._generated.models import (
     PageDragAndDropParams,
     PageEvaluateParams,
     PageEvaluateResult,
+    PageEventNotification,
     PageGoBackParams,
     PageGoForwardParams,
     PageGotoParams,
@@ -51,6 +57,8 @@ from ._generated.models import (
     PageSnapshotOptions,
     PageSnapshotParams,
     PageTitleResult,
+    PageToolsAddedNotification,
+    PageToolsRemovedNotification,
     PageTypeOptions,
     PageTypeParams,
     PageUrlResult,
@@ -65,6 +73,7 @@ from ._generated.models import (
     Scale,
     SnapshotResult,
     State,
+    WebMCPToolIdentity,
     WebMCPToolsOptions,
 )
 from ._generated.models import (
@@ -77,6 +86,9 @@ from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
 PageEventListener = Callable[[PageCDPEvent], object | Awaitable[object]]
+ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
+ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
+NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
 
 
 class CDPSubscription:
@@ -390,13 +402,51 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
+        return await self._subscribe(
+            event,
+            "page.cdp_event",
+            PageCDPEventNotification,
+            lambda notification: listener(notification.event),
+        )
+
+    async def on_tools_added(self, listener: ToolsAddedListener) -> CDPSubscription:
+        def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
+            event = notification.root
+            if isinstance(event, PageToolsAddedNotification):
+                return listener([
+                    WebMCPTool(self._rpc_client, self.page_id, tool) for tool in event.tools
+                ])
+            return None
+
+        return await self._subscribe("toolsadded", "page.event", PageEventNotification, deliver)
+
+    async def on_tools_removed(self, listener: ToolsRemovedListener) -> CDPSubscription:
+        def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
+            if isinstance(notification.root, PageToolsRemovedNotification):
+                return listener(notification.root.tools)
+            return None
+
+        return await self._subscribe("toolsremoved", "page.event", PageEventNotification, deliver)
+
+    async def _subscribe(
+        self,
+        event: PageSubscriptionEventName,
+        method: str,
+        model: builtins.type[NotificationT],
+        deliver: Callable[[NotificationT], object | Awaitable[object]],
+    ) -> CDPSubscription:
         subscription_id = uuid4().hex
 
-        async def notify(notification: PageCDPEventNotification) -> None:
-            if notification.subscription_id != subscription_id:
+        async def notify(notification: NotificationT) -> None:
+            payload = (
+                notification.root
+                if isinstance(notification, PageEventNotification)
+                else notification
+            )
+            if payload.subscription_id != subscription_id:
                 return
             try:
-                result = listener(notification.event)
+                result = deliver(notification)
                 if inspect.isawaitable(result):
                     await result
             except Exception as error:
@@ -406,8 +456,8 @@ class Page:
                 })
 
         remove_notification_listener = self._rpc_client.on_notification(
-            "page.cdp_event",
-            PageCDPEventNotification,
+            method,
+            model,
             notify,
         )
 
@@ -429,7 +479,7 @@ class Page:
                 }),
                 PageVoidResult,
             )
-        except Exception:
+        except BaseException:
             remove_notification_listener()
             self._event_subscriptions.discard(subscription)
             raise

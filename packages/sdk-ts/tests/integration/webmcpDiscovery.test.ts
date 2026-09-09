@@ -4,7 +4,7 @@ import {
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type { PageEventNotification } from "@browserbasehq/stagehand-protocol/types";
-import type { Stagehand } from "../../src/index.js";
+import { WebMCPTool, type Stagehand, type WebMCPToolIdentity } from "../../src/index.js";
 import {
   closeStagehand,
   createStagehand,
@@ -200,6 +200,41 @@ describe("WebMCP shared discovery", () => {
     } finally {
       await Promise.all(["added", "second-added", "removed"].map(unsubscribe));
       removeListener();
+    }
+  });
+
+  it("invokes event-delivered tools through the public hooks without blocking responses", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(server.url, { waitUntil: "load" });
+    const removed: WebMCPToolIdentity[] = [];
+    let resolve!: (value: unknown) => void;
+    let reject!: (error: unknown) => void;
+    const result = new Promise((resolveResult, rejectResult) => {
+      resolve = resolveResult;
+      reject = rejectResult;
+    });
+    const addedSubscription = await page.onToolsAdded(async (tools) => {
+      try {
+        expect(tools[0]).toBeInstanceOf(WebMCPTool);
+        const invocation = await tools[0]!.invoke({ input: { searchQuery: "from callback" } });
+        resolve(await invocation.result({ timeout: 5_000 }));
+      } catch (error) {
+        reject(error);
+      }
+    });
+    const removedSubscription = await page.onToolsRemoved((tools) => removed.push(...tools));
+    try {
+      await page.evaluate('window.registerTool("callback-tool")');
+      await expect(result).resolves.toMatchObject({
+        status: "Completed",
+        output: { content: [{ type: "text", text: "from callback" }] },
+      });
+      const [tool] = await page.tools();
+      await page.evaluate('window.removeTool("callback-tool")');
+      await expect.poll(() => removed).toEqual([{ name: "callback-tool", frameId: tool!.frameId }]);
+    } finally {
+      await addedSubscription.unsubscribe();
+      await removedSubscription.unsubscribe();
     }
   });
 });

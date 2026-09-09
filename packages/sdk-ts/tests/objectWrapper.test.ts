@@ -18,6 +18,9 @@ import {
   type StagehandMetrics,
   WebMCPInvocation,
   WebMCPTool,
+  type WebMCPToolIdentity,
+  type ToolsAddedListener,
+  type ToolsRemovedListener,
 } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
 import {
@@ -591,6 +594,115 @@ describe("Stagehand TS object wrapper", () => {
     await page.close();
     expect(client.calls.map((call) => call.method)).toStrictEqual(["page.on", "page.close"]);
   });
+
+  it("delivers added tools as callable wrappers and filters unrelated events", async () => {
+    expectTypeOf<Page["onToolsAdded"]>().parameter(0).toEqualTypeOf<ToolsAddedListener>();
+    expectTypeOf<ToolsAddedListener>().parameter(0).toEqualTypeOf<WebMCPTool[]>();
+    expectTypeOf<Page["onToolsRemoved"]>().parameter(0).toEqualTypeOf<ToolsRemovedListener>();
+    expectTypeOf<ToolsRemovedListener>().parameter(0).toEqualTypeOf<WebMCPToolIdentity[]>();
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    client.queueResponse(StagehandMethods.pageWebMCPInvokeTool, {
+      invocationId: "invocation-1",
+      frameId: "child",
+      toolName: "search",
+      input: { searchQuery: "hello" },
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    const calls: unknown[] = [];
+    let invocation: Promise<unknown> | undefined;
+    const subscription = await page.onToolsAdded(async (tools) => {
+      calls.push(tools);
+      expect(tools[0]).toBeInstanceOf(WebMCPTool);
+      invocation = tools[0]!.invoke({ input: { searchQuery: "hello" } });
+      await invocation;
+    });
+    const { subscriptionId } = client.calls[0]!.params as { subscriptionId: string };
+    const params = {
+      subscriptionId,
+      pageId: "page-1",
+      sessionId: "session-child",
+      targetId: "target-child",
+      event: "toolsadded" as const,
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          frameId: "child",
+          inputSchema: { properties: { searchQuery: { type: "string" } } },
+        },
+      ],
+    };
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.event",
+      params: { ...params, subscriptionId: "unrelated" },
+    });
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.event",
+      params: { ...params, event: "toolsremoved", tools: [{ name: "search", frameId: "child" }] },
+    });
+    expect(calls).toHaveLength(0);
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    await invocation;
+    expect(calls).toHaveLength(1);
+    expect(client.calls[1]).toEqual(
+      requestCall(StagehandMethods.pageWebMCPInvokeTool, {
+        pageId: "page-1",
+        frameId: "child",
+        toolName: "search",
+        input: { searchQuery: "hello" },
+      }),
+    );
+    await subscription.unsubscribe();
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("delivers removed identities without callable wrappers", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const listener = vi.fn();
+    const subscription = await page.onToolsRemoved(listener);
+    const { subscriptionId } = client.calls[0]!.params as { subscriptionId: string };
+    const params = {
+      subscriptionId,
+      pageId: "page-1",
+      sessionId: "child",
+      targetId: "child",
+      event: "toolsremoved" as const,
+      tools: [{ name: "search", frameId: "child" }],
+    };
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.event",
+      params: {
+        ...params,
+        event: "toolsadded",
+        tools: [{ ...params.tools[0]!, description: "Search" }],
+      },
+    });
+    expect(listener).not.toHaveBeenCalled();
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    expect(listener).toHaveBeenCalledWith(params.tools);
+    expect(listener.mock.calls[0]![0][0]).not.toBeInstanceOf(WebMCPTool);
+    await subscription.unsubscribe();
+  });
+
+  it.each(["onToolsAdded", "onToolsRemoved"] as const)(
+    "rolls back failed %s registration",
+    async (method) => {
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
+      const page = new Page(client, { pageId: "page-1" });
+      await expect(page[method](() => {})).rejects.toThrow("registration failed");
+      expect(client.listeners).toHaveLength(0);
+    },
+  );
 
   it("retries the remote unsubscribe after a transient failure", async () => {
     const client = new FakeProtocolClient();

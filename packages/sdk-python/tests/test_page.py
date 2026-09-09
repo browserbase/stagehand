@@ -15,6 +15,7 @@ from stagehand._generated.models import (
     PageClickParams,
     PageDragAndDropParams,
     PageEvaluateResult,
+    PageEventNotification,
     PageGotoParams,
     PageHoverParams,
     PageIdParams,
@@ -32,6 +33,7 @@ from stagehand._generated.models import (
     PageWebMCPToolsResult,
     WebMCPInvocationDescriptor,
     WebMCPResultOptions,
+    WebMCPToolIdentity,
     WebMCPToolsOptions,
 )
 from stagehand._generated.models import (
@@ -219,6 +221,112 @@ async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> N
         PageVoidResult,
     )
     assert "page.cdp_event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+async def test_tools_added_delivers_callable_tools_and_filters_events() -> None:
+    recording = RecordingRPCClient({
+        "page.on": {"ok": True},
+        "page.off": {"ok": True},
+        "page.webmcp_invoke_tool": WebMCPInvocationDescriptor.model_validate({
+            "invocation_id": "invocation-1",
+            "frame_id": "child",
+            "tool_name": "search",
+            "input": {"searchQuery": "hello"},
+        }),
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    received: list[WebMCPTool] = []
+
+    async def added(tools: list[WebMCPTool]) -> None:
+        received.extend(tools)
+        await tools[0].invoke(input={"searchQuery": "hello"})
+
+    subscription = await page.on_tools_added(added)
+    params = recording.calls[0][1]
+    assert isinstance(params, PageOnParams)
+    model, raw_listener = recording.notifications["page.event"]
+    assert model is PageEventNotification
+    listener = cast(Callable[[PageEventNotification], Awaitable[None]], raw_listener)
+    payload = {
+        "subscription_id": params.subscription_id,
+        "page_id": "page-1",
+        "session_id": "child",
+        "target_id": "child",
+        "event": "toolsadded",
+        "tools": [
+            {
+                "name": "search",
+                "description": "Search",
+                "frame_id": "child",
+                "input_schema": {"properties": {"searchQuery": {"type": "string"}}},
+            }
+        ],
+    }
+    await listener(PageEventNotification.model_validate({**payload, "subscription_id": "other"}))
+    await listener(
+        PageEventNotification.model_validate({
+            **payload,
+            "event": "toolsremoved",
+            "tools": [{"name": "search", "frame_id": "child"}],
+        })
+    )
+    assert received == []
+    await listener(PageEventNotification.model_validate(payload))
+    assert len(received) == 1
+    assert isinstance(received[0], WebMCPTool)
+    assert received[0].input_schema == {"properties": {"searchQuery": {"type": "string"}}}
+    assert recording.calls[1][1] == PageWebMCPInvokeToolParams.model_validate({
+        "page_id": "page-1",
+        "frame_id": "child",
+        "tool_name": "search",
+        "input": {"searchQuery": "hello"},
+    })
+    await subscription.unsubscribe()
+    assert "page.event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+async def test_tools_removed_delivers_identities_without_wrappers() -> None:
+    recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    received: list[WebMCPToolIdentity] = []
+    subscription = await page.on_tools_removed(received.extend)
+    params = recording.calls[0][1]
+    assert isinstance(params, PageOnParams)
+    listener = cast(
+        Callable[[PageEventNotification], Awaitable[None]], recording.notifications["page.event"][1]
+    )
+    payload = {
+        "subscription_id": params.subscription_id,
+        "page_id": "page-1",
+        "session_id": "child",
+        "target_id": "child",
+        "event": "toolsremoved",
+        "tools": [{"name": "search", "frame_id": "child"}],
+    }
+    await listener(
+        PageEventNotification.model_validate({
+            **payload,
+            "event": "toolsadded",
+            "tools": [{"name": "search", "frame_id": "child", "description": "Search"}],
+        })
+    )
+    assert received == []
+    await listener(PageEventNotification.model_validate(payload))
+    assert received == [WebMCPToolIdentity(name="search", frame_id="child")]
+    assert not hasattr(received[0], "invoke")
+    await subscription.unsubscribe()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["on_tools_added", "on_tools_removed"])
+async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
+    recording = RecordingRPCClient({"page.on": RuntimeError("registration failed")})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    with pytest.raises(RuntimeError, match="registration failed"):
+        await getattr(page, method)(lambda _: None)
+    assert "page.event" not in recording.notifications
 
 
 @pytest.mark.asyncio

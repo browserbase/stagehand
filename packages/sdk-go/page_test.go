@@ -154,6 +154,86 @@ func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 	}
 }
 
+func TestPageToolHooksDeliverTypedPayloads(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on": PageVoidResult{Ok: true}, "page.off": PageVoidResult{Ok: true},
+		"page.webmcp_invoke_tool": WebMCPInvocationDescriptor{InvocationID: "invocation", FrameID: "child", ToolName: "search"},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	var tools []*WebMCPTool
+	subscription, err := page.OnToolsAdded(ctx, func(added []*WebMCPTool) {
+		tools = added
+		if _, err := added[0].Invoke(ctx, WebMCPInput{"searchQuery": "hello"}); err != nil {
+			t.Error(err)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := rpc.calls[0].params.(PageOnParams)
+	added := PageToolsAddedNotification{SubscriptionID: params.SubscriptionID, PageID: "page-1", SessionID: "child", TargetID: "child", Tools: []WebMCPToolDescriptor{{Name: "search", Description: "Search", FrameID: "child"}}}
+	wrongID := added
+	wrongID.SubscriptionID = "other"
+	rpc.toolEventHandler(NewPageToolsAddedNotification(wrongID))
+	rpc.toolEventHandler(NewPageToolsRemovedNotification(PageToolsRemovedNotification{SubscriptionID: params.SubscriptionID}))
+	if len(tools) != 0 {
+		t.Fatal("unrelated event reached callback")
+	}
+	rpc.toolEventHandler(NewPageToolsAddedNotification(added))
+	if len(tools) != 1 || tools[0].Descriptor().FrameID != "child" {
+		t.Fatalf("tools = %#v", tools)
+	}
+	invocation := rpc.calls[1].params.(PageWebMCPInvokeToolParams)
+	if invocation.PageID != "page-1" || invocation.FrameID != "child" || invocation.ToolName != "search" || string(invocation.Input["searchQuery"]) != `"hello"` {
+		t.Fatalf("invocation = %#v", invocation)
+	}
+	if err := subscription.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rpc.toolEventHandler != nil {
+		t.Fatal("listener remained registered")
+	}
+	var identities []WebMCPToolIdentity
+	subscription, err = page.OnToolsRemoved(ctx, func(removed []WebMCPToolIdentity) { identities = removed })
+	if err != nil {
+		t.Fatal(err)
+	}
+	params = rpc.calls[len(rpc.calls)-1].params.(PageOnParams)
+	added.SubscriptionID = params.SubscriptionID
+	rpc.toolEventHandler(NewPageToolsAddedNotification(added))
+	if len(identities) != 0 {
+		t.Fatal("added event reached removal callback")
+	}
+	rpc.toolEventHandler(NewPageToolsRemovedNotification(PageToolsRemovedNotification{SubscriptionID: params.SubscriptionID, Tools: []WebMCPToolIdentity{{Name: "search", FrameID: "child"}}}))
+	if !reflect.DeepEqual(identities, []WebMCPToolIdentity{{Name: "search", FrameID: "child"}}) {
+		t.Fatalf("identities = %#v", identities)
+	}
+	if err := subscription.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPageToolHooksRollBackFailedRegistration(t *testing.T) {
+	t.Parallel()
+	for _, event := range []string{"added", "removed"} {
+		t.Run(event, func(t *testing.T) {
+			rpc := &recordingProtocolClient{callErrors: map[string]error{"page.on": errors.New("registration failed")}}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			var err error
+			if event == "added" {
+				_, err = page.OnToolsAdded(context.Background(), func([]*WebMCPTool) {})
+			} else {
+				_, err = page.OnToolsRemoved(context.Background(), func([]WebMCPToolIdentity) {})
+			}
+			if err == nil || rpc.toolEventHandler != nil {
+				t.Fatalf("err = %v, listener remains = %v", err, rpc.toolEventHandler != nil)
+			}
+		})
+	}
+}
+
 func TestPageOnInvokesEventsInDeliveryOrder(t *testing.T) {
 	t.Parallel()
 
