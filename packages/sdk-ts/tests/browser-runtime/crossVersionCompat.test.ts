@@ -17,7 +17,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   checkProtocolCompatibility,
   STAGEHAND_PROTOCOL_VERSION,
@@ -71,6 +71,10 @@ describe("cross-version compatibility against the last published extension", () 
 
   afterEach(async () => {
     while (cleanups.length > 0) await cleanups.pop()?.();
+  });
+
+  afterAll(async () => {
+    await fixtureServer?.close();
   });
 
   it("negotiates with the published extension exactly as checkProtocolCompatibility predicts", async () => {
