@@ -140,7 +140,7 @@ def _negotiate_runtime(marker: object) -> RuntimeCompatibility:
             detail=f"unreadable runtime marker: serverInfo.name={name!r} "
             f"serverInfo.version={version!r}",
         )
-    if not isinstance(protocol_version, str):
+    if not isinstance(protocol_version, str) or not protocol_version:
         # Not a marker shape this client can read: the worker may still be publishing it.
         return RuntimeCompatibility(
             kind="unknown",
@@ -151,7 +151,7 @@ def _negotiate_runtime(marker: object) -> RuntimeCompatibility:
         return RuntimeCompatibility(
             kind="incompatible",
             reason="runtime-name-mismatch",
-            detail=f"Connected runtime is not Stagehand: serverInfo.name={json.dumps(name)}",
+            detail=f'Runtime name mismatch: expected "{_RUNTIME_NAME}", server reported "{name}"',
             protocol_version=protocol_version,
             server_name=name,
             server_version=version,

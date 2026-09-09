@@ -156,7 +156,7 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) runtimeCompatibility {
 	}
 
 	var protocolVersion string
-	if err := json.Unmarshal(marker["protocolVersion"], &protocolVersion); err != nil {
+	if err := json.Unmarshal(marker["protocolVersion"], &protocolVersion); err != nil || protocolVersion == "" {
 		return runtimeCompatibility{
 			Kind: runtimeCompatibilityUnknown,
 			Detail: fmt.Sprintf(
@@ -171,7 +171,7 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) runtimeCompatibility {
 		return runtimeCompatibility{
 			Kind:                    runtimeCompatibilityIncompatible,
 			Reason:                  RuntimeIncompatibleReasonRuntimeNameMismatch,
-			Detail:                  fmt.Sprintf("Connected runtime is not Stagehand: serverInfo.name=%q", serverInfo.Name),
+			Detail:                  fmt.Sprintf("Runtime name mismatch: expected %q, server reported %q", stagehandRuntimeName, serverInfo.Name),
 			ReportedProtocolVersion: protocolVersion,
 			ServerInfo:              serverInfo,
 		}

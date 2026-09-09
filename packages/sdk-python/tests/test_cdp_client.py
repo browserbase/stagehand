@@ -1186,6 +1186,10 @@ class TestNegotiateRuntime:
                 },
                 "serverInfo.name=1",
             ),
+            (
+                {"protocolVersion": "", "serverInfo": {"name": "stagehand", "version": "1"}},
+                "protocolVersion=''",
+            ),
         ],
     )
     def test_unreadable_markers_are_unknown_not_incompatible(
@@ -1224,7 +1228,7 @@ class TestNegotiateRuntime:
                     "serverInfo": {"name": "other", "version": "1"},
                 },
                 "runtime-name-mismatch",
-                'Connected runtime is not Stagehand: serverInfo.name="other"',
+                'Runtime name mismatch: expected "stagehand", server reported "other"',
             ),
             (
                 {
