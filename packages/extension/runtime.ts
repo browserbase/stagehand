@@ -57,6 +57,7 @@ import type {
   PageCloseResult,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
   PageEventName,
   PageAddInitScriptParams,
   PageDragAndDropParams,
@@ -122,7 +123,7 @@ import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runti
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
-import { Page } from "./understudy/page.js";
+import { Page, type WebMCPToolsEvent } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
@@ -181,6 +182,10 @@ export type UnderstudyRuntimePage = {
   subscribeCDPEvent(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
+  subscribeWebMCPToolsChanged(
+    listener: (event: WebMCPToolsEvent) => void,
     signal?: AbortSignal,
   ): Promise<() => void>;
 };
@@ -267,6 +272,7 @@ export type StagehandRuntimeAdapters = {
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
+  emitPageEvent?: (notification: PageEventNotification) => void;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -290,6 +296,7 @@ export function createStagehandRuntime(
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
+      emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
     },
     tracing,
   );
@@ -749,9 +756,6 @@ export class StagehandRuntime {
   }
 
   async pageOn(params: PageOnParams): Promise<PageVoidResult> {
-    if (params.event !== "console") {
-      throw new Error(`Page event "${params.event}" is not implemented`);
-    }
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
       throw new DuplicatePageEventSubscriptionError();
     }
@@ -762,18 +766,23 @@ export class StagehandRuntime {
     };
     this.pageEventSubscriptions.set(params.subscriptionId, subscription);
     try {
-      subscription.dispose = await page.subscribeCDPEvent(
-        params.event,
-        (event) => {
-          if (
-            this.pageEventSubscriptions.get(params.subscriptionId) !== subscription ||
-            subscription.controller.signal.aborted
-          )
-            return;
-          this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
-        },
-        subscription.controller.signal,
-      );
+      const isActive = () =>
+        this.pageEventSubscriptions.get(params.subscriptionId) === subscription &&
+        !subscription.controller.signal.aborted;
+      subscription.dispose =
+        params.event === "console"
+          ? await page.subscribeCDPEvent(
+              params.event,
+              (event) => {
+                if (!isActive()) return;
+                this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+              },
+              subscription.controller.signal,
+            )
+          : await page.subscribeWebMCPToolsChanged((event) => {
+              if (!isActive() || event.event !== params.event) return;
+              this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+            }, subscription.controller.signal);
       subscription.controller.signal.throwIfAborted();
       return { ok: true };
     } catch (error) {

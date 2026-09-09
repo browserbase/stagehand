@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike } from "../understudy/cdp.js";
 import type { CdpConnection } from "../understudy/cdp.js";
-import { Page } from "../understudy/page.js";
+import { Page, type WebMCPToolsEvent } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
   readonly calls: Array<{ method: string; params?: object }> = [];
@@ -46,9 +46,15 @@ class FakeCDPSession implements CDPSessionLike {
 
 const pages: Page[] = [];
 function createPage(session: FakeCDPSession): Page {
-  const page = new Page({} as CdpConnection, session, "target-1", "frame-1", {
-    error: vi.fn(),
-  } as unknown as StagehandLogger);
+  const page = new Page(
+    { targetIdForSession: (id: string) => `target-${id}` } as CdpConnection,
+    session,
+    "target-1",
+    "frame-1",
+    {
+      error: vi.fn(),
+    } as unknown as StagehandLogger,
+  );
   pages.push(page);
   return page;
 }
@@ -602,5 +608,118 @@ describe("Page WebMCP tool discovery", () => {
     expect(session.listenerCount("Runtime.consoleAPICalled")).toBe(1);
     unsubscribe();
     expect(session.listenerCount("Runtime.consoleAPICalled")).toBe(0);
+  });
+
+  it("delivers normalized batches after updating discovery and isolates subscribers", async () => {
+    const session = new FakeCDPSession();
+    const page = createPage(session);
+    const events: WebMCPToolsEvent[] = [];
+    const snapshots: Array<ReturnType<Page["listWebMCPTools"]>> = [];
+    await page.subscribeWebMCPToolsChanged((event) => {
+      if (event.event === "toolsadded") event.tools[0]!.description = "Changed by listener";
+      throw new Error("listener failed");
+    });
+    await page.subscribeWebMCPToolsChanged((event) => {
+      events.push(event);
+      snapshots.push(page.listWebMCPTools({ timeout: 0 }));
+    });
+    const tools = ["search", "checkout"].map((name) => ({
+      name,
+      description: name,
+      frameId: "frame-1",
+      inputSchema: { properties: { searchQuery: { type: "string" } } },
+    }));
+    session.emit("WebMCP.toolsAdded", {
+      tools: tools.map((tool) => ({ ...tool, stackTrace: { callFrames: [] } })),
+    });
+    expect(events).toEqual([
+      {
+        event: "toolsadded",
+        tools,
+        pageId: "target-1",
+        sessionId: "main",
+        targetId: "target-main",
+      },
+    ]);
+    await expect(snapshots[0]).resolves.toEqual(tools);
+    session.emit("WebMCP.toolsAdded", { tools });
+    expect(events).toHaveLength(1);
+    session.emit("WebMCP.toolsRemoved", {
+      tools: [
+        { frameId: "frame-1", name: "search" },
+        { frameId: "frame-1", name: "unknown" },
+      ],
+    });
+    expect(events[1]).toMatchObject({
+      event: "toolsremoved",
+      tools: [{ frameId: "frame-1", name: "search" }],
+    });
+    await expect(snapshots[1]).resolves.toEqual([tools[1]]);
+  });
+
+  it("emits document invalidations once and retains same-document registrations", async () => {
+    const session = new FakeCDPSession();
+    const page = createPage(session);
+    const frame = {
+      id: "frame-1",
+      loaderId: "one",
+      url: "https://example.test",
+    } as Protocol.Page.Frame;
+    page.onFrameNavigated(frame, session);
+    const events: WebMCPToolsEvent[] = [];
+    await page.subscribeWebMCPToolsChanged((event) => events.push(event));
+    const tools = [{ frameId: "frame-1", name: "search", description: "Search" }];
+    session.emit("WebMCP.toolsAdded", { tools });
+    page.onNavigatedWithinDocument("frame-1", "https://example.test/#hash", session);
+    expect(events).toHaveLength(1);
+    page.onFrameNavigated({ ...frame, loaderId: "two" }, session);
+    session.emit("WebMCP.toolsRemoved", { tools });
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      event: "toolsremoved",
+      tools: [{ frameId: "frame-1", name: "search" }],
+    });
+    session.emit("WebMCP.toolsAdded", { tools });
+    expect(events[2]).toMatchObject({ event: "toolsadded", tools });
+    page.dispose();
+    expect(events).toHaveLength(3);
+  });
+
+  it("delivers future iframe availability and detach removals without restarting tracking", async () => {
+    const page = createPage(new FakeCDPSession());
+    const events: WebMCPToolsEvent[] = [];
+    let afterRemoval: ReturnType<Page["listWebMCPTools"]> | undefined;
+    await page.subscribeWebMCPToolsChanged((event) => {
+      events.push(event);
+      if (event.event === "toolsremoved") afterRemoval = page.listWebMCPTools({ timeout: 0 });
+    });
+    const child = new FakeCDPSession(
+      {
+        "WebMCP.enable": (session) =>
+          session.emit("WebMCP.toolsAdded", {
+            tools: [{ name: "child", description: "Child", frameId: "frame-2" }],
+          }),
+      },
+      "child",
+    );
+    adoptChildSession(page, child);
+    await page.listWebMCPTools({ timeout: 0 });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      event: "toolsadded",
+      sessionId: "child",
+      targetId: "target-child",
+    });
+    page.detachOopifSession("child");
+    await expect(afterRemoval).resolves.toEqual([]);
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      event: "toolsremoved",
+      sessionId: "child",
+      targetId: "target-child",
+      tools: [{ name: "child", frameId: "frame-2" }],
+    });
+    expect(child.callsFor("WebMCP.enable")).toHaveLength(1);
+    expect(child.listenerCount("WebMCP.toolsAdded")).toBe(0);
   });
 });

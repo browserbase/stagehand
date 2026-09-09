@@ -12,6 +12,7 @@ import {
   StagehandSendToHostBindingSchema,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { startStagehandServiceWorker } from "../service-worker.ts";
+import type { WebMCPToolsEvent } from "../understudy/page.js";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
@@ -44,6 +45,7 @@ import type {
   PageEventName,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
   PageDragAndDropParams,
   PageEvaluateParams,
   PageKeyPressParams,
@@ -461,6 +463,17 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
+  readonly toolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
+
+  async subscribeWebMCPToolsChanged(
+    listener: (event: WebMCPToolsEvent) => void,
+  ): Promise<() => void> {
+    this.toolEventListeners.add(listener);
+    return () => {
+      this.toolEventListeners.delete(listener);
+    };
+  }
+
   async subscribeCDPEvent(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
@@ -797,6 +810,57 @@ describe("Stagehand worker clients", () => {
     } catch (error) {
       expect((error as Error).message).not.toContain(subscriptionId);
     }
+  });
+
+  it("routes typed WebMCP events by subscription kind and suppresses late delivery", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const notifications: PageEventNotification[] = [];
+    const consoleNotifications = vi.fn();
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => new FakeBrowserSession([page]),
+      emitPageEvent: (notification) => notifications.push(notification),
+      emitPageCDPEvent: consoleNotifications,
+    });
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+    });
+    await runtime.contextPages();
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "added", event: "toolsadded" });
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "removed", event: "toolsremoved" });
+    const listeners = [...page.toolEventListeners];
+    const added: WebMCPToolsEvent = {
+      pageId: "page-a",
+      sessionId: "child-session",
+      targetId: "child-target",
+      event: "toolsadded",
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          frameId: "child-frame",
+          inputSchema: { properties: { searchQuery: { type: "string" } } },
+        },
+      ],
+    };
+    for (const listener of listeners) listener(added);
+    const removed: WebMCPToolsEvent = {
+      ...added,
+      event: "toolsremoved",
+      tools: [{ name: "search", frameId: "child-frame" }],
+    };
+    for (const listener of listeners) listener(removed);
+    expect(notifications).toEqual([
+      { ...added, subscriptionId: "added" },
+      { ...removed, subscriptionId: "removed" },
+    ]);
+    expect(consoleNotifications).not.toHaveBeenCalled();
+    runtime.pageOff({ subscriptionId: "added" });
+    for (const listener of listeners) listener(added);
+    expect(notifications).toHaveLength(2);
+    await runtime.close();
+    for (const listener of listeners) listener(removed);
+    expect(notifications).toHaveLength(2);
+    expect(page.toolEventListeners.size).toBe(0);
   });
 
   it("reserves pending IDs and cleans up late setup without deleting a replacement", async () => {

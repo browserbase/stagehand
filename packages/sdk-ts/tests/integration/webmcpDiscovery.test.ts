@@ -1,4 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+  StagehandMethods,
+  StagehandNotifications,
+} from "@browserbasehq/stagehand-protocol/schema-registry";
+import type { PageEventNotification } from "@browserbasehq/stagehand-protocol/types";
 import type { Stagehand } from "../../src/index.js";
 import {
   closeStagehand,
@@ -93,5 +98,108 @@ describe("WebMCP shared discovery", () => {
     await expect.poll(async () => (await page.tools()).length).toBe(1);
     await page.goto(server.url, { waitUntil: "load" });
     await expect(page.tools()).resolves.toEqual([]);
+  });
+
+  it("delivers future-only typed notifications through the runtime RPC", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(new URL("registered", server.url).href, { waitUntil: "load" });
+    const events: PageEventNotification[] = [];
+    const removeListener = page.rpcClient.onNotification((notification) => {
+      if (notification.method === StagehandNotifications.pageEvent.name)
+        events.push(notification.params);
+    });
+    const subscribe = (subscriptionId: string, event: "toolsadded" | "toolsremoved") =>
+      page.rpcClient.send(StagehandMethods.pageOn, { pageId: page.pageId, subscriptionId, event });
+    const unsubscribe = (subscriptionId: string) =>
+      page.rpcClient.send(StagehandMethods.pageOff, { subscriptionId });
+    try {
+      await subscribe("added", "toolsadded");
+      await subscribe("removed", "toolsremoved");
+      const initial = await page.tools();
+      expect(initial.map((tool) => tool.name)).toEqual(["initial"]);
+      expect(events).toEqual([]);
+
+      await page.evaluate('window.registerTool("live")');
+      await expect.poll(() => events.length).toBe(1);
+      expect(events[0]).toMatchObject({
+        event: "toolsadded",
+        subscriptionId: "added",
+        pageId: page.pageId,
+        tools: [
+          {
+            name: "live",
+            frameId: initial[0]!.frameId,
+            inputSchema: { properties: { searchQuery: { type: "string" } } },
+          },
+        ],
+      });
+      await subscribe("second-added", "toolsadded");
+      await Promise.all([page.tools(), page.tools()]);
+      expect(events).toHaveLength(1);
+      await page.evaluate('location.hash = "same-document"');
+      await page.tools();
+      expect(events).toHaveLength(1);
+
+      await page.evaluate('window.removeTool("live")');
+      await expect.poll(() => events.length).toBe(2);
+      expect(events[1]).toMatchObject({
+        event: "toolsremoved",
+        subscriptionId: "removed",
+        tools: [{ name: "live", frameId: initial[0]!.frameId }],
+      });
+      await page.evaluate('window.registerTool("live")');
+      await expect.poll(() => events.length).toBe(4);
+      expect(events.slice(2).map((event) => event.subscriptionId)).toEqual([
+        "added",
+        "second-added",
+      ]);
+
+      await page.goto(server.url, { waitUntil: "load" });
+      await page.tools();
+      expect(
+        events
+          .slice(4)
+          .flatMap((event) => event.tools.map((tool) => tool.name))
+          .sort((a, b) => a.localeCompare(b)),
+      ).toEqual(["initial", "live"]);
+      expect(events.slice(4).every((event) => event.event === "toolsremoved")).toBe(true);
+
+      events.length = 0;
+      const childUrl = new URL("registered", server.url);
+      childUrl.hostname = "localhost";
+      await page.evaluate(
+        (url) =>
+          new Promise<void>((resolve) => {
+            const iframe = document.createElement("iframe");
+            iframe.allow = "tools *";
+            iframe.src = url;
+            iframe.onload = () => resolve();
+            document.body.append(iframe);
+          }),
+        childUrl.href,
+      );
+      await expect.poll(() => events.length).toBe(2);
+      const childEvent = events[0]!;
+      expect(childEvent).toMatchObject({ event: "toolsadded", tools: [{ name: "initial" }] });
+      expect(childEvent.tools[0]!.frameId).not.toBe(initial[0]!.frameId);
+      await page.evaluate(() => document.querySelector("iframe")!.remove());
+      await expect.poll(() => events.length).toBe(3);
+      expect(events[2]).toEqual({
+        subscriptionId: "removed",
+        event: "toolsremoved",
+        pageId: page.pageId,
+        sessionId: childEvent.sessionId,
+        targetId: childEvent.targetId,
+        tools: [{ name: "initial", frameId: childEvent.tools[0]!.frameId }],
+      });
+      await unsubscribe("added");
+      await unsubscribe("second-added");
+      await page.evaluate('window.registerTool("after-unsubscribe")');
+      await page.tools();
+      expect(events).toHaveLength(3);
+    } finally {
+      await Promise.all(["added", "second-added", "removed"].map(unsubscribe));
+      removeListener();
+    }
   });
 });
