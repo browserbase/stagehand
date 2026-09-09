@@ -4,4 +4,4 @@
 "@browserbasehq/stagehand-go": patch
 ---
 
-Fail fast with a protocol compatibility error when the connected Stagehand extension reports an incompatible protocol version, instead of polling until the initialization timeout.
+Fail fast on protocol compatibility errors
