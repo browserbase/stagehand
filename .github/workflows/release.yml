@@ -1,9 +1,10 @@
+# v4.0 maintenance branch: stable releases only; alpha publishing is intentionally disabled here so it cannot move the alpha dist-tags owned by main.
 name: Release
 
 on:
   push:
     branches:
-      - main
+      - v4.0
 
 permissions:
   contents: write

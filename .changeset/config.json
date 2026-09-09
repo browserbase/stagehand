@@ -3,7 +3,7 @@
   "commit": false,
   "linked": [],
   "ignore": ["@browserbasehq/stagehand-evals"],
-  "baseBranch": "main",
+  "baseBranch": "v4.0",
   "updateInternalDependencies": "patch",
   "access": "public",
   "changelog": [
