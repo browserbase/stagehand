@@ -580,7 +580,7 @@ async def test_page_wraps_callable_webmcp_tools_and_invocations_with_owned_ident
                         "type": "object",
                         "properties": {"searchQuery": {"type": "string"}},
                     },
-                    "annotations": {"read_only": True},
+                    "annotations": {"read_only": True, "consequential": True},
                     "frame_id": "frame-1",
                     "backend_node_id": 42,
                 }
@@ -610,6 +610,7 @@ async def test_page_wraps_callable_webmcp_tools_and_invocations_with_owned_ident
     }
     assert tool.annotations is not None
     assert tool.annotations.read_only is True
+    assert tool.annotations.consequential is True
     assert tool.frame_id == "frame-1"
     assert tool.backend_node_id == 42
 

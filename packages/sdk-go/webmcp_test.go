@@ -12,6 +12,7 @@ func TestPageWrapsCallableWebMCPToolsWithOwnedIdentity(t *testing.T) {
 	t.Parallel()
 
 	readOnly := true
+	consequential := true
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"page.webmcp_tools": PageWebMCPToolsResult{Tools: []WebMCPToolDescriptor{{
 			Name:        "search",
@@ -19,7 +20,10 @@ func TestPageWrapsCallableWebMCPToolsWithOwnedIdentity(t *testing.T) {
 			InputSchema: WebMCPToolDescriptorInputSchema{
 				"searchQuery": json.RawMessage(`{"type":"string"}`),
 			},
-			Annotations:   &WebMCPAnnotation{ReadOnly: &readOnly},
+			Annotations: &WebMCPAnnotation{
+				ReadOnly:      &readOnly,
+				Consequential: &consequential,
+			},
 			FrameID:       "frame-1",
 			BackendNodeID: intPointer(42),
 		}}},
@@ -56,6 +60,10 @@ func TestPageWrapsCallableWebMCPToolsWithOwnedIdentity(t *testing.T) {
 		descriptor.BackendNodeID == nil ||
 		*descriptor.BackendNodeID != 42 {
 		t.Fatalf("tool descriptor = %#v", descriptor)
+	}
+	if descriptor.Annotations == nil || descriptor.Annotations.Consequential == nil ||
+		!*descriptor.Annotations.Consequential {
+		t.Fatalf("tool consequential annotation = %#v", descriptor.Annotations)
 	}
 
 	invocation, err := tool.Invoke(context.Background(), WebMCPInput{

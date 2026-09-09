@@ -1468,6 +1468,7 @@ export const WebMCPAnnotationSchema = z
   .strictObject({
     readOnly: z.boolean().optional(),
     untrustedContent: z.boolean().optional(),
+    consequential: z.boolean().optional(),
     autosubmit: z.boolean().optional(),
   })
   .meta({ id: "WebMCPAnnotation" });
