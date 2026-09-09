@@ -1,6 +1,7 @@
 package stagehand
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -57,6 +58,9 @@ func (value *PageEventNotification) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("decode page event: %w", err)
 	}
+	if err := validatePageEventNonNullFields(data, event); err != nil {
+		return fmt.Errorf("decode page event: %w", err)
+	}
 	switch event {
 	case "toolsadded":
 		var added PageToolsAddedNotification
@@ -72,6 +76,41 @@ func (value *PageEventNotification) UnmarshalJSON(data []byte) error {
 		*value = NewPageToolsRemovedNotification(removed)
 	default:
 		return fmt.Errorf("decode page event: unknown event %q", event)
+	}
+	return nil
+}
+
+// Required-field presence checks in decodeStrictJSON allow null for nullable protocol fields.
+// These notification fields are required and non-nullable.
+func validatePageEventNonNullFields(data []byte, event string) error {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
+		return err
+	}
+	requireNonNull := func(object map[string]json.RawMessage, names ...string) error {
+		for _, name := range names {
+			raw, present := object[name]
+			if !present || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+				return fmt.Errorf("missing or null required JSON field %q", name)
+			}
+		}
+		return nil
+	}
+	if err := requireNonNull(object, "event", "subscription_id", "page_id", "session_id", "target_id", "tools"); err != nil {
+		return err
+	}
+	var tools []map[string]json.RawMessage
+	if err := json.Unmarshal(object["tools"], &tools); err != nil {
+		return err
+	}
+	fields := []string{"name", "frame_id"}
+	if event == "toolsadded" {
+		fields = append(fields, "description")
+	}
+	for index, tool := range tools {
+		if err := requireNonNull(tool, fields...); err != nil {
+			return fmt.Errorf("tools[%d]: %w", index, err)
+		}
 	}
 	return nil
 }

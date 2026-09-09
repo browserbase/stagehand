@@ -11,8 +11,13 @@ try {
   const added = await page.onToolsAdded((tools) => {
     for (const tool of tools) console.log("Tool added:", tool.name, tool.frameId);
   });
+  let markRemovalReceived!: () => void;
+  const removalReceived = new Promise<void>((resolve) => {
+    markRemovalReceived = resolve;
+  });
   const removed = await page.onToolsRemoved((tools) => {
     for (const tool of tools) console.log("Tool removed:", tool.name, tool.frameId);
+    if (tools.length > 0) markRemovalReceived();
   });
   await page.goto(webMCPTestSite);
 
@@ -31,6 +36,17 @@ try {
 
   // Leaving the document removes its registered tools.
   await page.goto("about:blank");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      removalReceived,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Timed out waiting for tool removal")), 5_000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
   await added.unsubscribe();
   await removed.unsubscribe();
 } finally {

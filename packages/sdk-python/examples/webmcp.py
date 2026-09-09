@@ -10,12 +10,15 @@ def tools_added(tools: list[WebMCPTool]) -> None:
         print("Tool added:", tool.name, tool.frame_id)
 
 
-def tools_removed(tools: list[WebMCPToolIdentity]) -> None:
-    for tool in tools:
-        print("Tool removed:", tool.name, tool.frame_id)
-
-
 async def main() -> None:
+    removal_received = asyncio.Event()
+
+    def tools_removed(tools: list[WebMCPToolIdentity]) -> None:
+        for tool in tools:
+            print("Tool removed:", tool.name, tool.frame_id)
+        if tools:
+            removal_received.set()
+
     browser = await local_browser.launch(headless=False)
     try:
         stagehand = await Stagehand.create(browser=browser)
@@ -43,6 +46,7 @@ async def main() -> None:
 
             # Leaving the document removes its registered tools.
             await page.goto("about:blank")
+            await asyncio.wait_for(removal_received.wait(), timeout=5)
             await added.unsubscribe()
             await removed.unsubscribe()
         finally:

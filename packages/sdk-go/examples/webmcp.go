@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"time"
 
 	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
@@ -53,9 +54,16 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, added.Close(ctx)) }()
+	removalReceived := make(chan struct{}, 1)
 	removed, err := page.OnToolsRemoved(ctx, func(tools []stagehand.WebMCPToolIdentity) {
 		for _, tool := range tools {
 			fmt.Printf("Tool removed: %s (%s)\n", tool.Name, tool.FrameID)
+		}
+		if len(tools) > 0 {
+			select {
+			case removalReceived <- struct{}{}:
+			default:
+			}
 		}
 	})
 	if err != nil {
@@ -92,6 +100,15 @@ func run(ctx context.Context) (err error) {
 
 	fmt.Printf("status: %s\noutput: %s\n", result.Status, result.Output)
 	// Leaving the document removes its registered tools.
-	_, err = page.Goto(ctx, "about:blank", nil)
-	return err
+	if _, err := page.Goto(ctx, "about:blank", nil); err != nil {
+		return err
+	}
+	select {
+	case <-removalReceived:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(5 * time.Second):
+		return errors.New("timed out waiting for tool removal")
+	}
 }

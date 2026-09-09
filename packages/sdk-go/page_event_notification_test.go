@@ -68,3 +68,58 @@ func TestPageEventNotificationRejectsMismatchedPayload(t *testing.T) {
 		}
 	}
 }
+
+func TestPageEventNotificationRejectsNullRequiredFields(t *testing.T) {
+	t.Parallel()
+	for _, event := range []string{"toolsadded", "toolsremoved"} {
+		fields := []string{"event", "subscription_id", "page_id", "session_id", "target_id", "tools", "tool", "name", "frame_id"}
+		if event == "toolsadded" {
+			fields = append(fields, "description")
+		}
+		for _, field := range fields {
+			t.Run(event+"/"+field, func(t *testing.T) {
+				tool := map[string]any{"name": "search", "frame_id": "frame"}
+				if event == "toolsadded" {
+					tool["description"] = "Search"
+				}
+				input := map[string]any{
+					"event": event, "subscription_id": "subscription", "page_id": "page",
+					"session_id": "session", "target_id": "target", "tools": []any{tool},
+				}
+				switch field {
+				case "tool":
+					input["tools"] = []any{nil}
+				case "name", "frame_id", "description":
+					tool[field] = nil
+				default:
+					input[field] = nil
+				}
+				encoded, err := json.Marshal(input)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var notification PageEventNotification
+				if err := json.Unmarshal(encoded, &notification); err == nil {
+					t.Fatalf("accepted null required field: %s", encoded)
+				}
+				if notification.value != nil {
+					t.Fatal("assigned notification variant after failed validation")
+				}
+			})
+		}
+	}
+}
+
+func TestPageEventNotificationAllowsEmptyToolsAndOpaqueNulls(t *testing.T) {
+	t.Parallel()
+	for _, input := range []string{
+		`{"subscription_id":"s","page_id":"p","session_id":"s","target_id":"t","event":"toolsadded","tools":[]}`,
+		`{"subscription_id":"s","page_id":"p","session_id":"s","target_id":"t","event":"toolsremoved","tools":[]}`,
+		`{"subscription_id":"s","page_id":"p","session_id":"s","target_id":"t","event":"toolsadded","tools":[{"name":"search","frame_id":"f","description":"","input_schema":{"default":null}}]}`,
+	} {
+		var notification PageEventNotification
+		if err := json.Unmarshal([]byte(input), &notification); err != nil {
+			t.Fatalf("rejected valid notification: %v", err)
+		}
+	}
+}
