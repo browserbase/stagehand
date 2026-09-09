@@ -1,9 +1,6 @@
 import type { ImplementationInfo } from "../../protocol/types.js";
 import { ImplementationInfoSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
-import {
-  checkProtocolCompatibility,
-  StagehandProtocolVersionSchema,
-} from "../../protocol/protocol-version.js";
+import { checkProtocolCompatibility } from "../../protocol/protocol-version.js";
 import { z } from "zod/v4";
 
 export type RuntimeRequirement = {
@@ -49,9 +46,10 @@ export const RUNTIME_INCOMPATIBILITY_REMEDIATION =
   "Upgrade the Stagehand SDK and the Stagehand extension together so their protocol majors match, " +
   "or start the session with the extension bundled in this SDK.";
 
-// Accepts any runtime name so a foreign runtime is reported as incompatible rather than unknown.
+// Accepts any runtime name and any non-empty protocolVersion string so a foreign runtime or a
+// non-SemVer protocol version is reported as incompatible (fail fast) rather than unknown (poll).
 const ReportedRuntimeSchema = z.strictObject({
-  protocolVersion: StagehandProtocolVersionSchema,
+  protocolVersion: z.string().min(1),
   serverInfo: ImplementationInfoSchema,
 });
 

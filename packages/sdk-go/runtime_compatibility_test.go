@@ -86,20 +86,56 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			marker: runtimeMarkerJSON(stagehandProtocolVersion, "other"),
 			kind:   runtimeCompatibilityIncompatible,
 			reason: RuntimeIncompatibleReasonRuntimeNameMismatch,
-			detail: `serverInfo.name="other"`,
+			detail: `Runtime name mismatch: expected "stagehand", server reported "other"`,
 		},
 		{
 			name:   "non-semver protocol version",
 			marker: runtimeMarkerJSON("not-semver", stagehandRuntimeName),
 			kind:   runtimeCompatibilityIncompatible,
 			reason: RuntimeIncompatibleReasonInvalidVersion,
-			detail: "invalid protocol version",
+			detail: "Invalid protocol version: client " + stagehandProtocolVersion + ", server not-semver",
 		},
 		{
 			name:   "non-string protocol version",
 			marker: runtimeMarkerJSON(1, stagehandRuntimeName),
 			kind:   runtimeCompatibilityUnknown,
 			detail: "protocolVersion=1",
+		},
+		{
+			name:   "empty protocol version",
+			marker: runtimeMarkerJSON("", stagehandRuntimeName),
+			kind:   runtimeCompatibilityUnknown,
+			detail: `protocolVersion=""`,
+		},
+		{
+			name:   "null serverInfo",
+			marker: `{"protocolVersion": "` + stagehandProtocolVersion + `", "serverInfo": null}`,
+			kind:   runtimeCompatibilityUnknown,
+			detail: `serverInfo.name=""`,
+		},
+		{
+			name:   "empty serverInfo name",
+			marker: `{"protocolVersion": "` + stagehandProtocolVersion + `", "serverInfo": {"name": "", "version": "1.0.0"}}`,
+			kind:   runtimeCompatibilityUnknown,
+			detail: `serverInfo.name=""`,
+		},
+		{
+			name:   "empty serverInfo version",
+			marker: `{"protocolVersion": "` + stagehandProtocolVersion + `", "serverInfo": {"name": "stagehand", "version": ""}}`,
+			kind:   runtimeCompatibilityUnknown,
+			detail: `serverInfo.version=""`,
+		},
+		{
+			name:   "missing serverInfo version",
+			marker: `{"protocolVersion": "` + stagehandProtocolVersion + `", "serverInfo": {"name": "stagehand"}}`,
+			kind:   runtimeCompatibilityUnknown,
+			detail: `serverInfo.version=""`,
+		},
+		{
+			name:   "non-string serverInfo version",
+			marker: `{"protocolVersion": "` + stagehandProtocolVersion + `", "serverInfo": {"name": "stagehand", "version": 1}}`,
+			kind:   runtimeCompatibilityUnknown,
+			detail: "serverInfo.name=<nil>",
 		},
 	}
 
@@ -177,12 +213,13 @@ func TestProtocolCompatibility(t *testing.T) {
 	}{
 		{name: "patch ignored", client: "1.2.4", server: "1.2.0", kind: runtimeCompatibilityCompatible},
 		{name: "newer server minor", client: "1.2.4", server: "1.9.0", kind: runtimeCompatibilityCompatible},
-		{name: "server too old", client: "1.2.4", server: "1.1.99", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonServerTooOld, detail: "older"},
-		{name: "major mismatch", client: "1.2.4", server: "2.0.0", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonMajorMismatch, detail: "major mismatch"},
+		// Detail wording is shared verbatim with the TypeScript and Python SDKs.
+		{name: "server too old", client: "1.2.4", server: "1.1.99", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonServerTooOld, detail: "Server protocol 1.1.99 is older than client requirement 1.2.4"},
+		{name: "major mismatch", client: "1.2.4", server: "2.0.0", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonMajorMismatch, detail: "Protocol major mismatch: client 1.2.4, server 2.0.0"},
 		{name: "exact prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.1", kind: runtimeCompatibilityCompatible},
-		{name: "different prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.2", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonPrereleaseMismatch, detail: "match exactly"},
-		{name: "invalid client", client: "not-semver", server: "1.3.0", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonInvalidVersion, detail: "invalid protocol version"},
-		{name: "invalid server", client: "1.3.0", server: "not-semver", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonInvalidVersion, detail: "invalid protocol version"},
+		{name: "different prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.2", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonPrereleaseMismatch, detail: "Protocol prereleases must match exactly: client 1.3.0-beta.1, server 1.3.0-beta.2"},
+		{name: "invalid client", client: "not-semver", server: "1.3.0", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonInvalidVersion, detail: "Invalid protocol version: client not-semver, server 1.3.0"},
+		{name: "invalid server", client: "1.3.0", server: "not-semver", kind: runtimeCompatibilityIncompatible, reason: RuntimeIncompatibleReasonInvalidVersion, detail: "Invalid protocol version: client 1.3.0, server not-semver"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

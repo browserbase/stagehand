@@ -1221,6 +1221,92 @@ func TestCDPClientAllowFallbackInstallKeepsPollingIncompatibleRuntime(t *testing
 	}
 }
 
+func TestCDPClientPreloadedExtensionKeepsSweepingWhenCompatibleWorkerLacksReceiver(t *testing.T) {
+	t.Parallel()
+
+	// Sweep 1: a compatible worker has published its marker but not installed the
+	// receiver yet, and a stale sibling worker is incompatible. Sweep 2: the
+	// compatible worker is ready. The incompatible sibling must not fail fast.
+	socket := newFakeCDPWebSocket()
+	methods := make(chan string, 64)
+	var sweeps atomic.Int32
+	socket.writeHook = responseHook(t, socket, methods, func(
+		method string,
+		command map[string]json.RawMessage,
+	) map[string]any {
+		switch method {
+		case "Target.getTargets":
+			sweeps.Add(1)
+			return map[string]any{"result": map[string]any{
+				"targetInfos": []map[string]any{
+					{
+						"targetId": "pending-target",
+						"type":     "service_worker",
+						"title":    "Stagehand",
+						"url":      "chrome-extension://pending/service-worker.js",
+					},
+					{
+						"targetId": "stale-target",
+						"type":     "service_worker",
+						"title":    "Stagehand (stale)",
+						"url":      "chrome-extension://stale/service-worker.js",
+					},
+				},
+			}}
+		case "Target.attachToTarget":
+			var params struct {
+				TargetID string `json:"targetId"`
+			}
+			if err := json.Unmarshal(command["params"], &params); err != nil {
+				t.Errorf("decode attach params: %v", err)
+			}
+			return map[string]any{"result": map[string]any{
+				"sessionId": strings.TrimSuffix(params.TargetID, "-target") + "-session",
+			}}
+		case "Runtime.evaluate":
+			var sessionID string
+			_ = json.Unmarshal(command["sessionId"], &sessionID)
+			if sessionID == "stale-session" {
+				return runtimeMarkerResponse(incompatibleRuntimeMarker(t), true)
+			}
+			return runtimeMarkerResponse(compatibleRuntimeMarker(), sweeps.Load() > 1)
+		default:
+			return map[string]any{"result": map[string]any{}}
+		}
+	})
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.initialize(ctx, normalizeCDPClientOptions(cdpClientOptions{
+		preloadedExtension: true,
+		pollInterval:       time.Millisecond,
+	}))
+	if err != nil {
+		t.Fatalf("initialize() error = %v, want the compatible worker to be selected", err)
+	}
+
+	client.mu.Lock()
+	service := client.service
+	client.mu.Unlock()
+	if service.ExtensionID != "pending" {
+		t.Fatalf("extension ID = %q, want %q", service.ExtensionID, "pending")
+	}
+	if got := sweeps.Load(); got != 2 {
+		t.Fatalf("Target.getTargets sweeps = %d, want exactly 2", got)
+	}
+	detaches := 0
+	for _, method := range drainMethods(methods) {
+		if method == "Target.detachFromTarget" {
+			detaches++
+		}
+	}
+	// Both probed workers are detached in sweep 1; sweep 2 keeps the ready worker attached.
+	if detaches != 2 {
+		t.Fatalf("Target.detachFromTarget calls = %d, want 2", detaches)
+	}
+}
+
 func TestCDPClientPreloadedExtensionFailsFastOnIncompatibleRuntime(t *testing.T) {
 	t.Parallel()
 

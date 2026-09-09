@@ -118,6 +118,8 @@ export type IncompatibleRuntimeCompatibility = Extract<
  */
 export class StagehandRuntimeIncompatibleError extends Error {
   readonly reason: RuntimeIncompatibilityReason;
+  /** Human-readable negotiation outcome, e.g. the client/server versions that clashed. */
+  readonly detail: string;
   /** Protocol version this SDK speaks. */
   readonly clientProtocolVersion: string;
   /** Protocol version the connected extension reported. */
@@ -145,6 +147,7 @@ export class StagehandRuntimeIncompatibleError extends Error {
     );
     this.name = "StagehandRuntimeIncompatibleError";
     this.reason = compatibility.reason;
+    this.detail = compatibility.detail;
     this.clientProtocolVersion = compatibility.required.protocolVersion;
     this.extensionProtocolVersion = compatibility.reported.protocolVersion;
     this.extensionServerInfo = { ...compatibility.reported.serverInfo };
@@ -555,6 +558,9 @@ export async function waitForPreloadedStagehandServiceWorker(
         target.url.includes(workerUrlIncludes),
     );
     let incompatibleRuntime: IncompatibleRuntimeCompatibility | undefined;
+    // A compatible worker whose receiver is not installed yet must keep the sweep polling
+    // even when a sibling worker is incompatible.
+    let sawCompatibleMarker = false;
     for (const serviceWorker of candidates) {
       let sessionId: string | undefined;
       let keepAttached = false;
@@ -576,9 +582,12 @@ export async function waitForPreloadedStagehandServiceWorker(
             options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
             readiness.marker,
           );
-          if (compatibility.kind === "compatible" && readiness.hasReceiver) {
-            keepAttached = true;
-            return { serviceWorker, sessionId };
+          if (compatibility.kind === "compatible") {
+            sawCompatibleMarker = true;
+            if (readiness.hasReceiver) {
+              keepAttached = true;
+              return { serviceWorker, sessionId };
+            }
           }
           if (compatibility.kind === "incompatible" && options.allowFallbackInstall !== true) {
             incompatibleRuntime = compatibility;
@@ -596,9 +605,9 @@ export async function waitForPreloadedStagehandServiceWorker(
       }
     }
 
-    // No compatible worker in this sweep and at least one incompatible one: fail fast
+    // No compatible marker in this sweep and at least one incompatible one: fail fast
     // instead of re-polling until the initialization deadline.
-    if (incompatibleRuntime) {
+    if (incompatibleRuntime && !sawCompatibleMarker) {
       throw new StagehandRuntimeIncompatibleError(incompatibleRuntime);
     }
     await abortable(delayFn(pollIntervalMs), options.signal);

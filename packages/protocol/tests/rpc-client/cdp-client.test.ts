@@ -29,11 +29,16 @@ type TargetInfo = {
 
 type FakeCdpResult = Record<string, unknown>;
 
+type FakeCdpHandler = (
+  params?: Record<string, unknown>,
+  sessionId?: string,
+) => FakeCdpResult | Promise<FakeCdpResult>;
+
 class FakeCdp {
   readonly calls: CdpCall[] = [];
-  handlers = new Map<string, () => FakeCdpResult | Promise<FakeCdpResult>>();
+  handlers = new Map<string, FakeCdpHandler>();
 
-  on(method: string, handler: () => FakeCdpResult | Promise<FakeCdpResult>): this {
+  on(method: string, handler: FakeCdpHandler): this {
     this.handlers.set(method, handler);
     return this;
   }
@@ -51,7 +56,7 @@ class FakeCdp {
       return {} as Result;
     }
 
-    return (await handler()) as Result;
+    return (await handler(params, sessionId)) as Result;
   }
 }
 
@@ -391,6 +396,44 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       sessionId: undefined,
       signal: lifecycleSignal,
     });
+  });
+  it("keeps sweeping when a compatible worker lacks its receiver even if a sibling is incompatible", async () => {
+    const pendingWorker = target(
+      "pending-worker",
+      "chrome-extension://pendingext/service-worker.js",
+    );
+    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
+    let sweeps = 0;
+    const cdp = new FakeCdp()
+      .on("Target.getTargets", () => {
+        sweeps += 1;
+        return { targetInfos: [pendingWorker, staleWorker] };
+      })
+      .on("Target.attachToTarget", (params) => ({
+        sessionId: `${String(params?.targetId).replace("-worker", "")}-session`,
+      }))
+      .on("Runtime.evaluate", (_params, sessionId) => {
+        if (sessionId === "stale-session") {
+          return { result: { value: runtimeReadiness(NEXT_MAJOR_PROTOCOL_VERSION) } };
+        }
+        return {
+          result: {
+            value: sweeps === 1 ? { ...readyRuntime(), hasReceiver: false } : readyRuntime(),
+          },
+        };
+      })
+      .on("Target.detachFromTarget", () => ({}));
+
+    await expect(
+      waitForPreloadedStagehandServiceWorker(cdp, {
+        delayFn: async () => {},
+        signal: lifecycleSignal,
+      }),
+    ).resolves.toStrictEqual({
+      serviceWorker: pendingWorker,
+      sessionId: "pending-session",
+    });
+    expect(sweeps).toBe(2);
   });
 });
 

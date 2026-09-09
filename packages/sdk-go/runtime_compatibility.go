@@ -153,11 +153,27 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) runtimeCompatibility {
 		}
 	}
 
+	// Mirrors the TypeScript schema: every field must be a non-empty string before
+	// the marker is judged. A null serverInfo or an empty name/version is a marker
+	// shape this client cannot read yet, not a verdict.
+	if serverInfo.Name == "" || serverInfo.Version == "" || protocolVersion == "" {
+		return runtimeCompatibility{
+			Kind: runtimeCompatibilityUnknown,
+			Detail: fmt.Sprintf(
+				"unreadable Stagehand runtime marker: serverInfo.name=%q serverInfo.version=%q protocolVersion=%q",
+				serverInfo.Name,
+				serverInfo.Version,
+				protocolVersion,
+			),
+			ServerInfo: serverInfo,
+		}
+	}
+
 	if serverInfo.Name != stagehandRuntimeName {
 		return runtimeCompatibility{
 			Kind:                    runtimeCompatibilityIncompatible,
 			Reason:                  RuntimeIncompatibleReasonRuntimeNameMismatch,
-			Detail:                  fmt.Sprintf("serverInfo.name=%q is not %q", serverInfo.Name, stagehandRuntimeName),
+			Detail:                  fmt.Sprintf("Runtime name mismatch: expected %q, server reported %q", stagehandRuntimeName, serverInfo.Name),
 			ReportedProtocolVersion: protocolVersion,
 			ServerInfo:              serverInfo,
 		}
@@ -188,7 +204,7 @@ func protocolCompatibility(clientProtocolVersion, serverProtocolVersion string) 
 		return incompatible(
 			RuntimeIncompatibleReasonInvalidVersion,
 			fmt.Sprintf(
-				"invalid protocol version: client=%q server=%q",
+				"Invalid protocol version: client %s, server %s",
 				clientProtocolVersion,
 				serverProtocolVersion,
 			),
@@ -199,7 +215,7 @@ func protocolCompatibility(clientProtocolVersion, serverProtocolVersion string) 
 			return incompatible(
 				RuntimeIncompatibleReasonPrereleaseMismatch,
 				fmt.Sprintf(
-					"protocol prereleases must match exactly: client=%s server=%s",
+					"Protocol prereleases must match exactly: client %s, server %s",
 					clientProtocolVersion,
 					serverProtocolVersion,
 				),
@@ -211,7 +227,7 @@ func protocolCompatibility(clientProtocolVersion, serverProtocolVersion string) 
 		return incompatible(
 			RuntimeIncompatibleReasonMajorMismatch,
 			fmt.Sprintf(
-				"protocol major mismatch: client=%s server=%s",
+				"Protocol major mismatch: client %s, server %s",
 				clientProtocolVersion,
 				serverProtocolVersion,
 			),
@@ -223,7 +239,7 @@ func protocolCompatibility(clientProtocolVersion, serverProtocolVersion string) 
 		return incompatible(
 			RuntimeIncompatibleReasonServerTooOld,
 			fmt.Sprintf(
-				"server protocol %s is older than client requirement %s",
+				"Server protocol %s is older than client requirement %s",
 				serverProtocolVersion,
 				clientProtocolVersion,
 			),
