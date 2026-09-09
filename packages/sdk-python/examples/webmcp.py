@@ -1,8 +1,18 @@
 import asyncio
 
-from stagehand import Stagehand, local_browser
+from stagehand import Stagehand, WebMCPTool, WebMCPToolIdentity, local_browser
 
 WEBMCP_TEST_SITE = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/"
+
+
+def tools_added(tools: list[WebMCPTool]) -> None:
+    for tool in tools:
+        print("Tool added:", tool.name, tool.frame_id)
+
+
+def tools_removed(tools: list[WebMCPToolIdentity]) -> None:
+    for tool in tools:
+        print("Tool removed:", tool.name, tool.frame_id)
 
 
 async def main() -> None:
@@ -13,6 +23,9 @@ async def main() -> None:
             page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
+            # Subscribe before navigation: hooks report future changes, not existing tools.
+            added = await page.on_tools_added(tools_added)
+            removed = await page.on_tools_removed(tools_removed)
             await page.goto(WEBMCP_TEST_SITE)
 
             tools = await page.tools(timeout=5_000)
@@ -27,6 +40,11 @@ async def main() -> None:
             result = await invocation.result()
 
             print(result.model_dump_json(indent=2))
+
+            # Leaving the document removes its registered tools.
+            await page.goto("about:blank")
+            await added.unsubscribe()
+            await removed.unsubscribe()
         finally:
             await stagehand.close()
     finally:
