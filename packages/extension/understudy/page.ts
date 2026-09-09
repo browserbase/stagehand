@@ -23,6 +23,9 @@ import type {
   LocalBrowserLaunchOptions,
   PageEventName,
   PageCDPEvent,
+  PageToolsAddedNotification,
+  PageToolsRemovedNotification,
+  WebMCPToolIdentity,
   PageSnapshotOptions,
   SnapshotResult,
   WebMCPAnnotation,
@@ -78,6 +81,12 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 };
 
 const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
+export type WebMCPToolsEvent =
+  | Omit<PageToolsAddedNotification, "subscriptionId">
+  | Omit<PageToolsRemovedNotification, "subscriptionId">;
+type WebMCPToolsChange =
+  | Pick<PageToolsAddedNotification, "event" | "tools">
+  | Pick<PageToolsRemovedNotification, "event" | "tools">;
 const WEBMCP_SETTLED_INVOCATION_RETENTION_MS = 5 * 60 * 1_000;
 
 type PageCDPEventMethod = PageCDPEvent["method"];
@@ -107,6 +116,7 @@ type WebMCPResponseSessionState = {
 };
 
 type WebMCPToolSessionState = {
+  targetId?: string;
   ready: Deferred<void>;
   tools: Map<string, WebMCPToolDescriptor>;
   added: (event: Protocol.WebMCP.ToolsAddedEvent) => void;
@@ -198,6 +208,7 @@ export class Page {
   private readonly webMCPResponseSessions = new Map<CDPSessionLike, WebMCPResponseSessionState>();
   private readonly webMCPToolSessions = new Map<CDPSessionLike, WebMCPToolSessionState>();
   private readonly webMCPToolsChanged = new Set<() => void>();
+  private readonly webMCPToolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
   private disposed = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
   private readonly pageEventDisposers = new Set<() => void>();
@@ -440,8 +451,8 @@ export class Page {
   public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
     if (this.disposed) return;
     const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
-    if (previous && previous !== childSession) this.stopWebMCPToolTracking(previous);
     if (childSession.id) this.sessions.set(childSession.id, childSession);
+    if (previous && previous !== childSession) this.stopWebMCPToolTracking(previous);
 
     for (const subscription of this.cdpEventSubscriptions) {
       this.attachCDPEventSubscription(subscription, childSession);
@@ -496,6 +507,7 @@ export class Page {
   /** Detach an adopted child session and prune its subtree */
   public detachOopifSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
     if (session) {
       this.stopWebMCPToolTracking(session);
       this.teardownWebMCPInvocationsForSession(
@@ -513,7 +525,6 @@ export class Page {
       this.registry.onFrameDetached(fid, "remove");
       this.frameCache.delete(fid);
     }
-    this.sessions.delete(sessionId);
     this.networkManager.untrackSession(sessionId);
   }
 
@@ -575,7 +586,7 @@ export class Page {
 
   /** Activate against future shared-state changes, without replaying initial tools. */
   public async subscribeWebMCPToolsChanged(
-    listener: () => void,
+    listener: (event: WebMCPToolsEvent) => void,
     signal?: AbortSignal,
   ): Promise<() => void> {
     return this.subscribeWhenReady(
@@ -586,10 +597,13 @@ export class Page {
           ),
         ),
       () => {
-        const handler = () => {
-          if (!this.webMCPToolsChanged.has(handler)) return;
+        for (const [session, state] of this.webMCPToolSessions) {
+          state.targetId ??= this.conn.targetIdForSession(session.id) ?? this._targetId;
+        }
+        const handler = (event: WebMCPToolsEvent) => {
+          if (!this.webMCPToolEventListeners.has(handler)) return;
           try {
-            listener();
+            listener(event);
           } catch (error) {
             this.logger.error("WebMCP state listener failed", {
               pageId: this.pageId,
@@ -597,9 +611,9 @@ export class Page {
             });
           }
         };
-        this.webMCPToolsChanged.add(handler);
+        this.webMCPToolEventListeners.add(handler);
         return () => {
-          this.webMCPToolsChanged.delete(handler);
+          this.webMCPToolEventListeners.delete(handler);
         };
       },
       signal,
@@ -718,6 +732,37 @@ export class Page {
     for (const listener of this.webMCPToolsChanged) listener();
   }
 
+  private emitWebMCPToolsChange(session: CDPSessionLike, change: WebMCPToolsChange): void {
+    this.notifyWebMCPToolsChanged();
+    if (this.disposed || !this.webMCPToolEventListeners.size || !change.tools.length) return;
+    const state = this.webMCPToolSessions.get(session);
+    const targetId = state?.targetId ?? this.conn.targetIdForSession(session.id) ?? this._targetId;
+    if (state) state.targetId = targetId;
+    const event: WebMCPToolsEvent = {
+      ...change,
+      pageId: this.pageId,
+      sessionId: session.id ?? "root",
+      targetId,
+    };
+    // Fix the recipient set at this transition and isolate each listener's payload.
+    const listeners = [...this.webMCPToolEventListeners];
+    for (const listener of listeners) listener(structuredClone(event));
+  }
+
+  private removeWebMCPTools(
+    session: CDPSessionLike,
+    state: WebMCPToolSessionState,
+    matches: (tool: WebMCPToolDescriptor) => boolean = () => true,
+  ): void {
+    const tools: WebMCPToolIdentity[] = [];
+    for (const [key, tool] of state.tools) {
+      if (!matches(tool)) continue;
+      state.tools.delete(key);
+      tools.push({ frameId: tool.frameId, name: tool.name });
+    }
+    if (tools.length) this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools });
+  }
+
   private ownsWebMCPFrame(session: CDPSessionLike, frameId: string): boolean {
     if (this.disposed) return false;
     if (frameId === this.mainFrameId()) return session === this.mainSession;
@@ -742,32 +787,36 @@ export class Page {
         if (this.webMCPToolSessions.get(session) !== state || state.error) return;
         try {
           const tools = event.tools.map(webMCPTool);
-          let changed = false;
+          const added: WebMCPToolDescriptor[] = [];
           for (const tool of tools) {
             if (!this.ownsWebMCPFrame(session, tool.frameId)) continue;
             const key = `${tool.frameId}\u0000${tool.name}`;
             if (JSON.stringify(state.tools.get(key)) === JSON.stringify(tool)) continue;
             state.tools.set(key, tool);
-            changed = true;
+            added.push(tool);
           }
-          if (changed) this.notifyWebMCPToolsChanged();
+          if (added.length)
+            this.emitWebMCPToolsChange(session, { event: "toolsadded", tools: added });
         } catch (error) {
           fail(error);
         }
       },
       removed: (event) => {
         if (this.webMCPToolSessions.get(session) !== state || state.error) return;
-        let changed = false;
+        const removed: WebMCPToolIdentity[] = [];
         for (const tool of event.tools) {
-          changed = state.tools.delete(`${tool.frameId}\u0000${tool.name}`) || changed;
+          if (state.tools.delete(`${tool.frameId}\u0000${tool.name}`)) {
+            removed.push({ frameId: tool.frameId, name: tool.name });
+          }
         }
-        if (changed) this.notifyWebMCPToolsChanged();
+        if (removed.length)
+          this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools: removed });
       },
     };
     const fail = (error: unknown): void => {
       if (this.webMCPToolSessions.get(session) !== state || state.error) return;
       state.error = error instanceof Error ? error : new Error(String(error));
-      state.tools.clear();
+      this.removeWebMCPTools(session, state);
       session.off("WebMCP.toolsAdded", state.added);
       session.off("WebMCP.toolsRemoved", state.removed);
       state.ready.reject(state.error);
@@ -802,10 +851,10 @@ export class Page {
   private stopWebMCPToolTracking(session: CDPSessionLike): void {
     const state = this.webMCPToolSessions.get(session);
     if (!state) return;
-    this.webMCPToolSessions.delete(session);
     session.off("WebMCP.toolsAdded", state.added);
     session.off("WebMCP.toolsRemoved", state.removed);
-    state.tools.clear();
+    this.removeWebMCPTools(session, state);
+    this.webMCPToolSessions.delete(session);
     state.ready.reject(new Error("WebMCP session was detached or disposed"));
     this.notifyWebMCPToolsChanged();
   }
@@ -818,13 +867,9 @@ export class Page {
       for (const child of this.registry.frames.get(id)?.children ?? []) visit(child);
     };
     visit(frameId);
-    let changed = false;
-    for (const state of this.webMCPToolSessions.values()) {
-      for (const [key, tool] of state.tools) {
-        if (frames.has(tool.frameId)) changed = state.tools.delete(key) || changed;
-      }
+    for (const [session, state] of this.webMCPToolSessions) {
+      this.removeWebMCPTools(session, state, (tool) => frames.has(tool.frameId));
     }
-    if (changed) this.notifyWebMCPToolsChanged();
   }
 
   /** Read shared tool state after initialization and the existing bounded quiet window. */
