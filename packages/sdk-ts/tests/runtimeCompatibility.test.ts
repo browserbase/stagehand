@@ -104,6 +104,7 @@ describe("negotiateRuntimeCompatibility", () => {
     ).toMatchObject({
       kind: "incompatible",
       reason: "runtime-name-mismatch",
+      detail: 'Runtime name mismatch: expected "stagehand", server reported "other"',
       required: { protocolVersion: "1.2.4" },
       reported: {
         protocolVersion: "1.2.4",

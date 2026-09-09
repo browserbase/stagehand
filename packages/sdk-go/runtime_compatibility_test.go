@@ -112,7 +112,7 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			}`, stagehandProtocolVersion),
 			kind:   runtimeIncompatible,
 			reason: "runtime-name-mismatch",
-			detail: `Connected runtime is not Stagehand: serverInfo.name="other"`,
+			detail: `Runtime name mismatch: expected "stagehand", server reported "other"`,
 		},
 		{
 			name: "invalid protocol version",
@@ -122,6 +122,15 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			}`,
 			kind:   runtimeUnknown,
 			detail: "protocolVersion=1",
+		},
+		{
+			name: "empty protocol version",
+			marker: `{
+				"protocolVersion": "",
+				"serverInfo": {"name": "stagehand", "version": "1.0.0"}
+			}`,
+			kind:   runtimeUnknown,
+			detail: "protocolVersion=",
 		},
 		{
 			name: "non-semver protocol version",

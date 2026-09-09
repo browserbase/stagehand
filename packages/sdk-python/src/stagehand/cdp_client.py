@@ -128,13 +128,13 @@ def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
         )
 
     protocol_version = marker.get("protocolVersion")
-    if not isinstance(protocol_version, str):
+    if not isinstance(protocol_version, str) or not protocol_version:
         return _RuntimeNegotiation("unknown", f"protocolVersion={protocol_version!r}")
 
     if name != _RUNTIME_NAME:
         return _RuntimeNegotiation(
             "incompatible",
-            f"Connected runtime is not Stagehand: serverInfo.name={json.dumps(name)}",
+            f'Runtime name mismatch: expected "{_RUNTIME_NAME}", server reported "{name}"',
             reason="runtime-name-mismatch",
             protocol_version=protocol_version,
             server_name=name,
