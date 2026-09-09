@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 from urllib.request import urlopen
 
 from stagehand._generated.protocol_version import (
@@ -59,42 +59,132 @@ def _callback_source_from_message(message: dict[str, object]) -> str | None:
     return source
 
 
-def _negotiate_runtime(marker: object) -> tuple[bool, str]:
-    """Return (compatible, detail). Never raises: a malformed marker is just incompatible."""
+RUNTIME_INCOMPATIBLE_REMEDIATION = (
+    "Upgrade the Stagehand SDK and the Stagehand extension together so their protocol majors "
+    "match, or start the session with the extension bundled in this SDK."
+)
+
+
+@dataclass(frozen=True)
+class _RuntimeNegotiation:
+    """Outcome of reading the runtime marker the extension publishes.
+
+    ``kind`` is three-way on purpose: ``"unknown"`` means the marker is absent or not yet
+    readable and the caller should keep polling, while ``"incompatible"`` means the marker
+    parsed but this client can never talk to that runtime, so polling is pointless.
+    """
+
+    kind: Literal["compatible", "incompatible", "unknown"]
+    detail: str
+    reason: str | None = None
+    protocol_version: str | None = None
+    server_name: str | None = None
+    server_version: str | None = None
+
+    @property
+    def compatible(self) -> bool:
+        return self.kind == "compatible"
+
+
+class StagehandRuntimeIncompatibleError(RuntimeError):
+    """The connected Stagehand extension speaks a protocol this SDK cannot use.
+
+    Raised on the first readiness poll that observes the incompatible marker; initialization
+    does not wait for the timeout because the extension will not change its protocol version
+    while the session is open.
+    """
+
+    def __init__(self, negotiation: _RuntimeNegotiation) -> None:
+        self.reason = negotiation.reason or "protocol-incompatible"
+        self.client_protocol_version = STAGEHAND_PROTOCOL_VERSION
+        self.reported_protocol_version = negotiation.protocol_version
+        self.server_name = negotiation.server_name
+        self.server_version = negotiation.server_version
+        self.remediation = RUNTIME_INCOMPATIBLE_REMEDIATION
+        super().__init__(
+            f"Incompatible Stagehand runtime: {negotiation.detail}; "
+            f"client protocol {self.client_protocol_version}, "
+            f"reported protocol {self.reported_protocol_version}, "
+            f"server {self.server_name}/{self.server_version}. "
+            f"{self.remediation}"
+        )
+
+
+def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
+    """Classify the runtime marker. Never raises: hostile input is just ``unknown``."""
     if not isinstance(marker, Mapping):
-        return False, "no Stagehand runtime marker"
+        return _RuntimeNegotiation("unknown", "no Stagehand runtime marker")
 
     server_info = marker.get("serverInfo")
-    name = server_info.get("name") if isinstance(server_info, Mapping) else None
-    if name != _RUNTIME_NAME:
-        return False, f"serverInfo.name={name!r}"
+    if not isinstance(server_info, Mapping):
+        return _RuntimeNegotiation("unknown", f"serverInfo={server_info!r}")
+    name = server_info.get("name")
+    version = server_info.get("version")
+    if not isinstance(name, str) or not isinstance(version, str):
+        return _RuntimeNegotiation("unknown", f"serverInfo.name={name!r}")
 
     protocol_version = marker.get("protocolVersion")
     if not isinstance(protocol_version, str):
-        return False, f"protocolVersion={protocol_version!r}"
-    compatibility = _protocol_compatibility(STAGEHAND_PROTOCOL_VERSION, protocol_version)
-    if compatibility is not None:
-        return False, compatibility
+        return _RuntimeNegotiation("unknown", f"protocolVersion={protocol_version!r}")
 
-    return True, f"protocolVersion={protocol_version}"
+    if name != _RUNTIME_NAME:
+        return _RuntimeNegotiation(
+            "incompatible",
+            f"connected runtime is not Stagehand: serverInfo.name={name!r}",
+            reason="runtime-name-mismatch",
+            protocol_version=protocol_version,
+            server_name=name,
+            server_version=version,
+        )
+
+    incompatibility = _protocol_compatibility(STAGEHAND_PROTOCOL_VERSION, protocol_version)
+    if incompatibility is not None:
+        reason, detail = incompatibility
+        return _RuntimeNegotiation(
+            "incompatible",
+            detail,
+            reason=reason,
+            protocol_version=protocol_version,
+            server_name=name,
+            server_version=version,
+        )
+
+    return _RuntimeNegotiation(
+        "compatible",
+        f"protocolVersion={protocol_version}",
+        protocol_version=protocol_version,
+        server_name=name,
+        server_version=version,
+    )
 
 
-def _protocol_compatibility(client_version: str, server_version: str) -> str | None:
+def _protocol_compatibility(client_version: str, server_version: str) -> tuple[str, str] | None:
+    """Return ``None`` when compatible, otherwise ``(reason, detail)``."""
     client = _PROTOCOL_SEMVER_PATTERN.fullmatch(client_version)
     server = _PROTOCOL_SEMVER_PATTERN.fullmatch(server_version)
     if client is None or server is None:
-        return f"invalid protocol version: client={client_version!r} server={server_version!r}"
+        return (
+            "protocol-invalid-version",
+            f"invalid protocol version: client={client_version!r} server={server_version!r}",
+        )
     if client.group(4) is not None or server.group(4) is not None:
         if client_version != server_version:
             return (
+                "protocol-prerelease-mismatch",
                 "protocol prereleases must match exactly: "
-                f"client={client_version} server={server_version}"
+                f"client={client_version} server={server_version}",
             )
         return None
     if client.group(1) != server.group(1):
-        return f"protocol major mismatch: client={client_version} server={server_version}"
+        return (
+            "protocol-major-mismatch",
+            f"protocol major mismatch: client={client_version} server={server_version}",
+        )
     if int(server.group(2)) < int(client.group(2)):
-        return f"server protocol {server_version} is older than client requirement {client_version}"
+        return (
+            "protocol-server-too-old",
+            f"server protocol {server_version} is older than client requirement {client_version}",
+        )
     return None
 
 
@@ -474,7 +564,17 @@ class CDPClient:
                     "Target.closeTarget", {"targetId": activation_target_id}
                 )
 
-    async def _wait_for_runtime_receiver(self, session_id: str) -> None:
+    async def _wait_for_runtime_receiver(
+        self,
+        session_id: str,
+        *,
+        allow_fallback_install: bool = False,
+    ) -> None:
+        """Poll until the extension runtime is ready.
+
+        ``allow_fallback_install`` is reserved for flows that can replace an incompatible
+        preloaded extension; by default an incompatible marker fails on the first poll.
+        """
         while True:
             try:
                 evaluated = await self.send_command(
@@ -485,17 +585,20 @@ class CDPClient:
                     },
                     session_id=session_id,
                 )
+            except Exception:
+                evaluated = None
+            if evaluated is not None:
                 exception = evaluated.get("exceptionDetails")
                 if not isinstance(exception, Mapping):
                     result = evaluated.get("result")
                     value = result.get("value") if isinstance(result, Mapping) else None
                     if isinstance(value, Mapping):
                         has_receiver = value.get("hasReceiver") is True
-                        compatible, _ = _negotiate_runtime(value.get("marker"))
-                        if compatible and has_receiver:
+                        negotiation = _negotiate_runtime(value.get("marker"))
+                        if negotiation.kind == "incompatible" and not allow_fallback_install:
+                            raise StagehandRuntimeIncompatibleError(negotiation)
+                        if negotiation.compatible and has_receiver:
                             return
-            except Exception:
-                pass
             await asyncio.sleep(0.1)
 
     def _schedule_best_effort_command(self, method: str, params: Mapping[str, object]) -> None:

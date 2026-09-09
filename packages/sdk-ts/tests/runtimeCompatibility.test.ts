@@ -75,15 +75,20 @@ describe("negotiateRuntimeCompatibility", () => {
         reason: "unreadable-marker",
       }),
   );
-  it("reports a foreign marker as unreadable", () =>
+  it("reports a foreign runtime as incompatible", () =>
     expect(
       negotiateRuntimeCompatibility(requirement, {
         ...marker("1.2.4"),
         serverInfo: { name: "other", version: "1.0.0" },
       }),
     ).toMatchObject({
-      kind: "unknown",
-      reason: "unreadable-marker",
+      kind: "incompatible",
+      reason: "runtime-name-mismatch",
+      required: { protocolVersion: "1.2.4" },
+      reported: {
+        protocolVersion: "1.2.4",
+        serverInfo: { name: "other", version: "1.0.0" },
+      },
     }));
   it("reports unknown marker keys as unreadable", () =>
     expect(

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -400,6 +401,186 @@ func TestCDPClientInitializesLoadedExtension(t *testing.T) {
 	}
 	if !reflect.DeepEqual(actualMethods, expectedMethods) {
 		t.Fatalf("CDP methods = %#v, want %#v", actualMethods, expectedMethods)
+	}
+}
+
+func incompatibleProtocolVersionForTest(t *testing.T) string {
+	t.Helper()
+	protocolMajor, err := strconv.Atoi(strings.Split(stagehandProtocolVersion, ".")[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%d.0.0", protocolMajor+1)
+}
+
+func runtimeReadinessResponse(marker map[string]any, hasReceiver bool) map[string]any {
+	value := map[string]any{"hasReceiver": hasReceiver}
+	if marker == nil {
+		value["marker"] = nil
+	} else {
+		value["marker"] = marker
+	}
+	return map[string]any{"result": map[string]any{
+		"result": map[string]any{"value": value},
+	}}
+}
+
+func runtimeMarker(protocolVersion string, name string) map[string]any {
+	return map[string]any{
+		"protocolVersion": protocolVersion,
+		"serverInfo":      map[string]any{"name": name, "version": "1.0.0"},
+	}
+}
+
+// readinessSequence answers Runtime.evaluate with each response in order and
+// repeats the last one forever.
+func readinessSequence(
+	t *testing.T,
+	socket *fakeCDPWebSocket,
+	responses ...map[string]any,
+) (*cdpClient, *atomic.Int32) {
+	t.Helper()
+	var evaluations atomic.Int32
+	socket.writeHook = responseHook(t, socket, nil, func(
+		method string,
+		_ map[string]json.RawMessage,
+	) map[string]any {
+		if method != "Runtime.evaluate" {
+			return map[string]any{"result": map[string]any{}}
+		}
+		index := int(evaluations.Add(1)) - 1
+		if index >= len(responses) {
+			index = len(responses) - 1
+		}
+		return responses[index]
+	})
+	return newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test"), &evaluations
+}
+
+func TestWaitForRuntimeReadyFailsFastOnIncompatibleRuntime(t *testing.T) {
+	t.Parallel()
+
+	incompatibleVersion := incompatibleProtocolVersionForTest(t)
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(runtimeMarker(incompatibleVersion, stagehandRuntimeName), true),
+	)
+
+	// A generous poll interval proves the error is returned before any re-poll wait.
+	started := time.Now()
+	err := client.waitForRuntimeReady(context.Background(), "worker-session", time.Hour, false)
+	if err == nil {
+		t.Fatal("waitForRuntimeReady() error = nil, want RuntimeIncompatibleError")
+	}
+	var incompatible *RuntimeIncompatibleError
+	if !errors.As(err, &incompatible) {
+		t.Fatalf("waitForRuntimeReady() error = %v, want *RuntimeIncompatibleError", err)
+	}
+	if incompatible.Reason != "protocol-major-mismatch" {
+		t.Fatalf("Reason = %q", incompatible.Reason)
+	}
+	if incompatible.ClientProtocolVersion != stagehandProtocolVersion {
+		t.Fatalf("ClientProtocolVersion = %q", incompatible.ClientProtocolVersion)
+	}
+	if incompatible.ReportedProtocolVersion != incompatibleVersion {
+		t.Fatalf("ReportedProtocolVersion = %q", incompatible.ReportedProtocolVersion)
+	}
+	if incompatible.ServerInfo != (ImplementationInfo{Name: stagehandRuntimeName, Version: "1.0.0"}) {
+		t.Fatalf("ServerInfo = %#v", incompatible.ServerInfo)
+	}
+	for _, want := range []string{
+		"client protocol " + stagehandProtocolVersion,
+		"reported protocol " + incompatibleVersion,
+		"Upgrade the Stagehand SDK and the Stagehand extension",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+	if got := evaluations.Load(); got != 1 {
+		t.Fatalf("Runtime.evaluate calls = %d, want 1", got)
+	}
+	if elapsed := time.Since(started); elapsed > 10*time.Second {
+		t.Fatalf("waitForRuntimeReady() waited %s before failing", elapsed)
+	}
+}
+
+func TestWaitForRuntimeReadyFailsFastOnForeignRuntime(t *testing.T) {
+	t.Parallel()
+
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(runtimeMarker(stagehandProtocolVersion, "other"), true),
+	)
+
+	err := client.waitForRuntimeReady(context.Background(), "worker-session", time.Hour, false)
+	var incompatible *RuntimeIncompatibleError
+	if !errors.As(err, &incompatible) {
+		t.Fatalf("waitForRuntimeReady() error = %v, want *RuntimeIncompatibleError", err)
+	}
+	if incompatible.Reason != "runtime-name-mismatch" {
+		t.Fatalf("Reason = %q", incompatible.Reason)
+	}
+	if incompatible.ServerInfo.Name != "other" {
+		t.Fatalf("ServerInfo.Name = %q", incompatible.ServerInfo.Name)
+	}
+	if got := evaluations.Load(); got != 1 {
+		t.Fatalf("Runtime.evaluate calls = %d, want 1", got)
+	}
+}
+
+func TestWaitForRuntimeReadyKeepsPollingUnknownMarkerUntilCompatible(t *testing.T) {
+	t.Parallel()
+
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(nil, false),
+		runtimeReadinessResponse(nil, false),
+		runtimeReadinessResponse(nil, true),
+		readyRuntimeResponse(),
+	)
+
+	err := client.waitForRuntimeReady(
+		context.Background(),
+		"worker-session",
+		time.Millisecond,
+		false,
+	)
+	if err != nil {
+		t.Fatalf("waitForRuntimeReady() error = %v", err)
+	}
+	if got := evaluations.Load(); got != 4 {
+		t.Fatalf("Runtime.evaluate calls = %d, want 4", got)
+	}
+}
+
+func TestWaitForRuntimeReadyKeepsPollingIncompatibleRuntimeWhenFallbackAllowed(t *testing.T) {
+	t.Parallel()
+
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(
+			runtimeMarker(incompatibleProtocolVersionForTest(t), stagehandRuntimeName),
+			true,
+		),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err := client.waitForRuntimeReady(ctx, "worker-session", time.Millisecond, true)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waitForRuntimeReady() error = %v, want context deadline", err)
+	}
+	var incompatible *RuntimeIncompatibleError
+	if errors.As(err, &incompatible) {
+		t.Fatalf("waitForRuntimeReady() returned RuntimeIncompatibleError with fallback allowed")
+	}
+	if got := evaluations.Load(); got < 2 {
+		t.Fatalf("Runtime.evaluate calls = %d, want at least 2", got)
 	}
 }
 

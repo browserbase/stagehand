@@ -322,32 +322,6 @@ describe("waitForRuntimeReady", () => {
     expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(2);
   });
 
-  it("keeps polling a non-Stagehand runtime until initialization is cancelled", async () => {
-    const controller = new AbortController();
-    const reason = new Error("initialization cancelled");
-    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
-      result: {
-        value: {
-          marker: {
-            protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-            serverInfo: { name: "other-extension", version: "1" },
-          },
-          hasReceiver: false,
-        },
-      },
-    }));
-
-    await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
-        pollIntervalMs: 1,
-        signal: controller.signal,
-        delayFn: async () => {
-          controller.abort(reason);
-        },
-      }),
-    ).rejects.toBe(reason);
-  });
-
   it("keeps retrying when readiness evaluation throws", async () => {
     const results = [
       {
@@ -392,7 +366,87 @@ describe("waitForRuntimeReady", () => {
     expect(error).toBe(reason);
   });
 
-  it("keeps polling an out-of-range runtime by default until initialization is cancelled", async () => {
+  it("fails fast on the first poll that reports an incompatible runtime", async () => {
+    let delays = 0;
+    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
+      result: { value: runtimeReadiness(incompatibleProtocolVersion) },
+    }));
+
+    const error = await rejectedError(
+      waitForRuntimeReady(cdp, "worker-session", {
+        pollIntervalMs: 1,
+        signal: lifecycleSignal,
+        delayFn: async () => {
+          delays += 1;
+        },
+      }),
+    );
+
+    expect(error).toBeInstanceOf(StagehandRuntimeIncompatibleError);
+    const incompatible = error as StagehandRuntimeIncompatibleError;
+    expect(incompatible.reason).toBe("protocol-major-mismatch");
+    expect(incompatible.clientProtocolVersion).toBe(STAGEHAND_PROTOCOL_VERSION);
+    expect(incompatible.reportedProtocolVersion).toBe(incompatibleProtocolVersion);
+    expect(incompatible.serverInfo).toStrictEqual({ name: "stagehand", version: "1.0.0" });
+    expect(incompatible.message).toContain(`client protocol ${STAGEHAND_PROTOCOL_VERSION}`);
+    expect(incompatible.message).toContain(`reported protocol ${incompatibleProtocolVersion}`);
+    expect(incompatible.message).toContain("Upgrade the Stagehand SDK and the Stagehand extension");
+    expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(1);
+    expect(delays).toBe(0);
+  });
+
+  it("fails fast when the runtime marker belongs to a different server", async () => {
+    let delays = 0;
+    const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
+      result: {
+        value: {
+          marker: {
+            protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+            serverInfo: { name: "other", version: "1.0.0" },
+          },
+          hasReceiver: true,
+        },
+      },
+    }));
+
+    const error = await rejectedError(
+      waitForRuntimeReady(cdp, "worker-session", {
+        pollIntervalMs: 1,
+        signal: lifecycleSignal,
+        delayFn: async () => {
+          delays += 1;
+        },
+      }),
+    );
+
+    expect(error).toBeInstanceOf(StagehandRuntimeIncompatibleError);
+    expect((error as StagehandRuntimeIncompatibleError).reason).toBe("runtime-name-mismatch");
+    expect((error as StagehandRuntimeIncompatibleError).serverInfo.name).toBe("other");
+    expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(1);
+    expect(delays).toBe(0);
+  });
+
+  it("keeps polling an unknown marker until a compatible runtime appears", async () => {
+    const results = [
+      { result: { value: { marker: null, hasReceiver: false } } },
+      { result: { value: { marker: null, hasReceiver: false } } },
+      { result: { value: { marker: null, hasReceiver: true } } },
+      { result: { value: readyRuntime() } },
+    ];
+    const cdp = new FakeCdp().on("Runtime.evaluate", () => results.shift() ?? {});
+
+    await expect(
+      waitForRuntimeReady(cdp, "worker-session", {
+        pollIntervalMs: 1,
+        delayFn: async () => {},
+        signal: lifecycleSignal,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(4);
+  });
+
+  it("keeps polling an out-of-range runtime when fallback installation is explicitly allowed", async () => {
     const controller = new AbortController();
     const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
@@ -402,6 +456,7 @@ describe("waitForRuntimeReady", () => {
     const error = await rejectedError(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
+        allowFallbackInstall: true,
         signal: controller.signal,
         delayFn: async () => {
           controller.abort(reason);
@@ -410,6 +465,7 @@ describe("waitForRuntimeReady", () => {
     );
 
     expect(error).toBe(reason);
+    expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(1);
   });
 
   it("throws for an out-of-range attached runtime when fallback installation is disabled", async () => {

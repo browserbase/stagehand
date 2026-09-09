@@ -5,10 +5,12 @@ import {
   StagehandSendToHostBindingSchema,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { z } from "zod/v4";
+import type { ImplementationInfo } from "@browserbasehq/stagehand-protocol/types";
 import {
   DEFAULT_RUNTIME_REQUIREMENT,
   negotiateRuntimeCompatibility,
   type RuntimeCompatibility,
+  type RuntimeIncompatibilityReason,
   type RuntimeRequirement,
 } from "./runtimeCompatibility.js";
 import { abortable, abortableDelay, abortReason, throwIfAborted } from "./abort.js";
@@ -104,8 +106,25 @@ export function stagehandMessageExpression(message: JSONRPCMessage): string {
     : `void globalThis.__stagehandReceiveFromHost(${JSON.stringify(JSON.stringify(message))}); true`;
 }
 
+export const RUNTIME_INCOMPATIBLE_REMEDIATION =
+  "Upgrade the Stagehand SDK and the Stagehand extension together so their protocol majors match, " +
+  "or start the session with the extension bundled in this SDK.";
+
+/**
+ * Raised as soon as the connected Stagehand extension publishes a runtime marker this SDK cannot
+ * talk to. Initialization does not keep polling: the extension will not change its protocol
+ * version while the session is open.
+ */
 export class StagehandRuntimeIncompatibleError extends Error {
-  readonly reason;
+  readonly reason: RuntimeIncompatibilityReason;
+  /** Protocol version this SDK speaks. */
+  readonly clientProtocolVersion: string;
+  /** Protocol version the connected extension reported. */
+  readonly reportedProtocolVersion: string;
+  /** `serverInfo` published by the connected runtime (name + version). */
+  readonly serverInfo: ImplementationInfo;
+  readonly remediation = RUNTIME_INCOMPATIBLE_REMEDIATION;
+
   constructor(readonly compatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }>) {
     super(
       "Incompatible Stagehand runtime: " +
@@ -117,10 +136,15 @@ export class StagehandRuntimeIncompatibleError extends Error {
         ", server " +
         compatibility.reported.serverInfo.name +
         "/" +
-        compatibility.reported.serverInfo.version,
+        compatibility.reported.serverInfo.version +
+        ". " +
+        RUNTIME_INCOMPATIBLE_REMEDIATION,
     );
     this.name = "StagehandRuntimeIncompatibleError";
     this.reason = compatibility.reason;
+    this.clientProtocolVersion = compatibility.required.protocolVersion;
+    this.reportedProtocolVersion = compatibility.reported.protocolVersion;
+    this.serverInfo = { ...compatibility.reported.serverInfo };
   }
 }
 
@@ -484,6 +508,11 @@ export async function waitForRuntimeReady(
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     runtimeRequirement?: RuntimeRequirement;
+    /**
+     * Reserved for flows that can replace an incompatible preloaded extension. When not explicitly
+     * `true`, an incompatible marker fails initialization on the first poll instead of polling
+     * until the initialization timeout.
+     */
     allowFallbackInstall?: boolean;
     signal: AbortSignal;
   },
@@ -502,7 +531,7 @@ export async function waitForRuntimeReady(
         options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
         readiness.marker,
       );
-      if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
+      if (compatibility.kind === "incompatible" && options.allowFallbackInstall !== true)
         throw new StagehandRuntimeIncompatibleError(compatibility);
       if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
     }

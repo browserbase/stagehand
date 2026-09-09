@@ -12,6 +12,7 @@ from stagehand.cdp_client import (
     STAGEHAND_SEND_TO_HOST_BINDING,
     CDPClient,
     ServiceWorkerInfo,
+    StagehandRuntimeIncompatibleError,
 )
 
 
@@ -601,6 +602,16 @@ async def test_installed_extension_discovery_propagates_cdp_command_errors() -> 
     assert [message["method"] for message in socket.sent] == ["Extensions.getExtensions"]
 
 
+_INCOMPATIBLE_PROTOCOL_VERSION = f"{int(STAGEHAND_PROTOCOL_VERSION.split('.')[0]) + 1}.0.0"
+
+
+def _marker(protocol_version: str, *, name: str = "stagehand") -> dict[str, object]:
+    return {
+        "protocolVersion": protocol_version,
+        "serverInfo": {"name": name, "version": "1.0.0"},
+    }
+
+
 class TestNegotiateRuntime:
     """Mirrors the TypeScript negotiation tests so the two SDKs cannot drift apart.
 
@@ -610,72 +621,165 @@ class TestNegotiateRuntime:
     """
 
     def test_accepts_a_current_marker(self) -> None:
-        compatible, detail = cdp_client._negotiate_runtime({
-            "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
-        })
-        assert compatible is True
-        assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in detail
+        negotiation = cdp_client._negotiate_runtime(_marker(STAGEHAND_PROTOCOL_VERSION))
+        assert negotiation.kind == "compatible"
+        assert negotiation.compatible is True
+        assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in negotiation.detail
 
     def test_tolerates_unknown_extra_keys(self) -> None:
         # A newer runtime may publish fields this client has never heard of, e.g. `status`.
-        compatible, _ = cdp_client._negotiate_runtime({
-            "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
+        negotiation = cdp_client._negotiate_runtime({
+            **_marker(STAGEHAND_PROTOCOL_VERSION),
             "status": {"state": "ready"},
         })
-        assert compatible is True
+        assert negotiation.kind == "compatible"
 
     @pytest.mark.parametrize(
         ("marker", "expected"),
         [
             (None, "no Stagehand runtime marker"),
-            ({}, "serverInfo.name=None"),
+            ({}, "serverInfo=None"),
+            ({"serverInfo": "not-a-mapping"}, "serverInfo="),
+            ({"serverInfo": {"version": "1"}}, "serverInfo.name=None"),
             (
-                {
-                    "protocolVersion": f"{int(STAGEHAND_PROTOCOL_VERSION.split('.')[0]) + 1}.0.0",
-                    "serverInfo": {"name": "stagehand", "version": "0"},
-                },
-                "major mismatch",
-            ),
-            (
-                {
-                    "protocolVersion": "not-semver",
-                    "serverInfo": {"name": "stagehand", "version": "2"},
-                },
-                "invalid protocol version",
-            ),
-            (
-                {
-                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-                    "serverInfo": {"name": "other", "version": "1"},
-                },
-                "name=",
-            ),
-            (
-                {
-                    "protocolVersion": 1,
-                    "serverInfo": {"name": "stagehand", "version": "1"},
-                },
+                {"protocolVersion": 1, "serverInfo": {"name": "stagehand", "version": "1"}},
                 "protocolVersion=1",
             ),
         ],
     )
-    def test_rejects_unusable_markers(self, marker: object, expected: str) -> None:
-        compatible, detail = cdp_client._negotiate_runtime(marker)
-        assert compatible is False
-        assert expected in detail
+    def test_reports_unreadable_markers_as_unknown(self, marker: object, expected: str) -> None:
+        negotiation = cdp_client._negotiate_runtime(marker)
+        assert negotiation.kind == "unknown"
+        assert negotiation.compatible is False
+        assert negotiation.reason is None
+        assert expected in negotiation.detail
+
+    @pytest.mark.parametrize(
+        ("marker", "reason", "expected"),
+        [
+            (
+                _marker(_INCOMPATIBLE_PROTOCOL_VERSION),
+                "protocol-major-mismatch",
+                "major mismatch",
+            ),
+            (
+                _marker("not-semver"),
+                "protocol-invalid-version",
+                "invalid protocol version",
+            ),
+            (
+                _marker(STAGEHAND_PROTOCOL_VERSION, name="other"),
+                "runtime-name-mismatch",
+                "serverInfo.name='other'",
+            ),
+        ],
+    )
+    def test_reports_unusable_runtimes_as_incompatible(
+        self, marker: dict[str, object], reason: str, expected: str
+    ) -> None:
+        negotiation = cdp_client._negotiate_runtime(marker)
+        assert negotiation.kind == "incompatible"
+        assert negotiation.compatible is False
+        assert negotiation.reason == reason
+        assert expected in negotiation.detail
+        assert negotiation.protocol_version == marker["protocolVersion"]
+        assert negotiation.server_version == "1.0.0"
 
     def test_never_raises_on_hostile_input(self) -> None:
         for marker in ("string", 42, [], {"serverInfo": "not-a-mapping"}, {"serverInfo": None}):
-            assert cdp_client._negotiate_runtime(marker)[0] is False
+            assert cdp_client._negotiate_runtime(marker).kind == "unknown"
 
     def test_protocol_semver_directionality(self) -> None:
-        assert cdp_client._protocol_compatibility("1.2.4", "1.2.0") is None
-        assert cdp_client._protocol_compatibility("1.2.4", "1.9.0") is None
-        assert "older" in (cdp_client._protocol_compatibility("1.2.4", "1.1.99") or "")
-        assert "major mismatch" in (cdp_client._protocol_compatibility("1.2.4", "2.0.0") or "")
-        assert cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.1") is None
-        assert "match exactly" in (
-            cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.2") or ""
-        )
+        def reason(client: str, server: str) -> str | None:
+            result = cdp_client._protocol_compatibility(client, server)
+            return None if result is None else result[0]
+
+        assert reason("1.2.4", "1.2.0") is None
+        assert reason("1.2.4", "1.9.0") is None
+        assert reason("1.2.4", "1.1.99") == "protocol-server-too-old"
+        assert reason("1.2.4", "2.0.0") == "protocol-major-mismatch"
+        assert reason("1.3.0-beta.1", "1.3.0-beta.1") is None
+        assert reason("1.3.0-beta.1", "1.3.0-beta.2") == "protocol-prerelease-mismatch"
+        assert reason("not-semver", "1.3.0") == "protocol-invalid-version"
+
+
+def _readiness_client(
+    responses: list[dict[str, object]],
+) -> tuple[CDPClient, FakeWebSocket]:
+    """A client whose Runtime.evaluate answers are consumed in order (last one repeats)."""
+
+    def response_for(_: dict[str, object]) -> dict[str, object]:
+        envelope = responses.pop(0) if len(responses) > 1 else responses[0]
+        return {"result": envelope}
+
+    socket = FakeWebSocket(response_for)
+    return CDPClient(socket, "ws://127.0.0.1/devtools/browser/test"), socket
+
+
+def _readiness(marker: object, *, has_receiver: bool = True) -> dict[str, object]:
+    return {"result": {"value": {"marker": marker, "hasReceiver": has_receiver}}}
+
+
+async def test_runtime_wait_fails_fast_on_an_incompatible_marker() -> None:
+    client, socket = _readiness_client([_readiness(_marker(_INCOMPATIBLE_PROTOCOL_VERSION))])
+    try:
+        with pytest.raises(StagehandRuntimeIncompatibleError) as raised:
+            await asyncio.wait_for(client._wait_for_runtime_receiver("worker-session"), timeout=1)
+    finally:
+        await client.close()
+
+    error = raised.value
+    assert error.reason == "protocol-major-mismatch"
+    assert error.client_protocol_version == STAGEHAND_PROTOCOL_VERSION
+    assert error.reported_protocol_version == _INCOMPATIBLE_PROTOCOL_VERSION
+    assert (error.server_name, error.server_version) == ("stagehand", "1.0.0")
+    assert f"client protocol {STAGEHAND_PROTOCOL_VERSION}" in str(error)
+    assert f"reported protocol {_INCOMPATIBLE_PROTOCOL_VERSION}" in str(error)
+    assert "Upgrade the Stagehand SDK and the Stagehand extension" in str(error)
+    # Raised on the first poll: exactly one readiness evaluation, no sleep/re-poll.
+    assert [message["method"] for message in socket.sent] == ["Runtime.evaluate"]
+
+
+async def test_runtime_wait_fails_fast_on_a_foreign_runtime() -> None:
+    client, socket = _readiness_client([
+        _readiness(_marker(STAGEHAND_PROTOCOL_VERSION, name="other"))
+    ])
+    try:
+        with pytest.raises(StagehandRuntimeIncompatibleError) as raised:
+            await asyncio.wait_for(client._wait_for_runtime_receiver("worker-session"), timeout=1)
+    finally:
+        await client.close()
+
+    assert raised.value.reason == "runtime-name-mismatch"
+    assert raised.value.server_name == "other"
+    assert [message["method"] for message in socket.sent] == ["Runtime.evaluate"]
+
+
+async def test_runtime_wait_keeps_polling_an_unknown_marker_until_compatible() -> None:
+    client, socket = _readiness_client([
+        _readiness(None, has_receiver=False),
+        _readiness(None, has_receiver=False),
+        _readiness(None, has_receiver=True),
+        {"result": {"value": _ready_marker()}},
+    ])
+    try:
+        await asyncio.wait_for(client._wait_for_runtime_receiver("worker-session"), timeout=5)
+    finally:
+        await client.close()
+
+    assert [message["method"] for message in socket.sent] == ["Runtime.evaluate"] * 4
+
+
+async def test_runtime_wait_keeps_polling_an_incompatible_marker_when_fallback_is_allowed() -> None:
+    client, socket = _readiness_client([_readiness(_marker(_INCOMPATIBLE_PROTOCOL_VERSION))])
+    try:
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(
+                client._wait_for_runtime_receiver("worker-session", allow_fallback_install=True),
+                timeout=0.35,
+            )
+    finally:
+        await client.close()
+
+    assert len(socket.sent) >= 2
+    assert {message["method"] for message in socket.sent} == {"Runtime.evaluate"}
