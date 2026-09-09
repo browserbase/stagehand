@@ -3,6 +3,24 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.0.3
+
+### Patch Changes
+
+- [#2913](https://github.com/browserbase/stagehand/pull/2913) [`ba73d4e`](https://github.com/browserbase/stagehand/commit/ba73d4ebef1021d9ffdf857350b4a8dd9846549f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fail fast on protocol compatibility errors
+
+## Python SDK 4.0.3
+
+### Patch Changes
+
+- [#2913](https://github.com/browserbase/stagehand/pull/2913) [`ba73d4e`](https://github.com/browserbase/stagehand/commit/ba73d4ebef1021d9ffdf857350b4a8dd9846549f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fail fast on protocol compatibility errors
+
+## Go SDK 4.0.3
+
+### Patch Changes
+
+- [#2913](https://github.com/browserbase/stagehand/pull/2913) [`ba73d4e`](https://github.com/browserbase/stagehand/commit/ba73d4ebef1021d9ffdf857350b4a8dd9846549f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fail fast on protocol compatibility errors
+
 ## TypeScript SDK 4.0.2
 
 ### Patch Changes
