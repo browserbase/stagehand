@@ -1100,6 +1100,9 @@ func TestCDPClientFailsFastOnIncompatibleRuntime(t *testing.T) {
 		extensionDir: "/tmp/stagehand-extension",
 		pollInterval: time.Hour,
 	}))
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("initialize() kept polling an incompatible runtime instead of failing fast")
+	}
 	elapsed := time.Since(started)
 
 	var incompatible *RuntimeIncompatibleError
@@ -1144,6 +1147,9 @@ func TestCDPClientFailsFastOnWrongRuntimeName(t *testing.T) {
 		extensionDir: "/tmp/stagehand-extension",
 		pollInterval: time.Hour,
 	}))
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("initialize() kept polling an incompatible runtime instead of failing fast")
+	}
 
 	var incompatible *RuntimeIncompatibleError
 	if !errors.As(err, &incompatible) {
@@ -1344,6 +1350,9 @@ func TestCDPClientPreloadedExtensionFailsFastOnIncompatibleRuntime(t *testing.T)
 		preloadedExtension: true,
 		pollInterval:       time.Hour,
 	}))
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("initialize() kept polling an incompatible runtime instead of failing fast")
+	}
 
 	var incompatible *RuntimeIncompatibleError
 	if !errors.As(err, &incompatible) {

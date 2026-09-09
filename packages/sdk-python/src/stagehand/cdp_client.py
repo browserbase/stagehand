@@ -132,24 +132,26 @@ def _negotiate_runtime(marker: object) -> RuntimeCompatibility:
     name = server_info.get("name") if isinstance(server_info, Mapping) else None
     version = server_info.get("version") if isinstance(server_info, Mapping) else None
     protocol_version = marker.get("protocolVersion")
-    # Mirrors the TypeScript schema: every field must be a non-empty string before the marker
-    # is judged. Anything else is a marker shape this client cannot read yet, not a verdict.
-    if not (
-        _non_empty_string(name)
-        and _non_empty_string(version)
-        and _non_empty_string(protocol_version)
-    ):
+    # Mirrors the protocol's ImplementationInfoSchema: both fields are non-empty strings.
+    # A marker missing either is malformed, not a foreign runtime, so keep polling.
+    if not _non_empty_string(name) or not _non_empty_string(version):
         return RuntimeCompatibility(
             kind="unknown",
             detail=f"unreadable runtime marker: serverInfo.name={name!r} "
-            f"serverInfo.version={version!r} protocolVersion={protocol_version!r}",
+            f"serverInfo.version={version!r}",
+        )
+    if not isinstance(protocol_version, str):
+        # Not a marker shape this client can read: the worker may still be publishing it.
+        return RuntimeCompatibility(
+            kind="unknown",
+            detail=f"unreadable runtime marker: protocolVersion={protocol_version!r}",
         )
 
     if name != _RUNTIME_NAME:
         return RuntimeCompatibility(
             kind="incompatible",
             reason="runtime-name-mismatch",
-            detail=f'Runtime name mismatch: expected "{_RUNTIME_NAME}", server reported "{name}"',
+            detail=f"Connected runtime is not Stagehand: serverInfo.name={json.dumps(name)}",
             protocol_version=protocol_version,
             server_name=name,
             server_version=version,

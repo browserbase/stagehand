@@ -133,11 +133,25 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) runtimeCompatibility {
 		}
 	}
 
+	// Mirrors the protocol's ImplementationInfoSchema: both fields are non-empty
+	// strings. A marker missing either is malformed, not a foreign runtime, so
+	// keep polling.
 	var serverInfo ImplementationInfo
 	if err := json.Unmarshal(marker["serverInfo"], &serverInfo); err != nil {
 		return runtimeCompatibility{
 			Kind:   runtimeCompatibilityUnknown,
 			Detail: "unreadable Stagehand runtime marker: serverInfo.name=<nil>",
+		}
+	}
+	if serverInfo.Name == "" || serverInfo.Version == "" {
+		return runtimeCompatibility{
+			Kind: runtimeCompatibilityUnknown,
+			Detail: fmt.Sprintf(
+				"unreadable Stagehand runtime marker: serverInfo.name=%q serverInfo.version=%q",
+				serverInfo.Name,
+				serverInfo.Version,
+			),
+			ServerInfo: serverInfo,
 		}
 	}
 
@@ -153,27 +167,11 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) runtimeCompatibility {
 		}
 	}
 
-	// Mirrors the TypeScript schema: every field must be a non-empty string before
-	// the marker is judged. A null serverInfo or an empty name/version is a marker
-	// shape this client cannot read yet, not a verdict.
-	if serverInfo.Name == "" || serverInfo.Version == "" || protocolVersion == "" {
-		return runtimeCompatibility{
-			Kind: runtimeCompatibilityUnknown,
-			Detail: fmt.Sprintf(
-				"unreadable Stagehand runtime marker: serverInfo.name=%q serverInfo.version=%q protocolVersion=%q",
-				serverInfo.Name,
-				serverInfo.Version,
-				protocolVersion,
-			),
-			ServerInfo: serverInfo,
-		}
-	}
-
 	if serverInfo.Name != stagehandRuntimeName {
 		return runtimeCompatibility{
 			Kind:                    runtimeCompatibilityIncompatible,
 			Reason:                  RuntimeIncompatibleReasonRuntimeNameMismatch,
-			Detail:                  fmt.Sprintf("Runtime name mismatch: expected %q, server reported %q", stagehandRuntimeName, serverInfo.Name),
+			Detail:                  fmt.Sprintf("Connected runtime is not Stagehand: serverInfo.name=%q", serverInfo.Name),
 			ReportedProtocolVersion: protocolVersion,
 			ServerInfo:              serverInfo,
 		}

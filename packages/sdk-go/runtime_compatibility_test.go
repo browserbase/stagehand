@@ -86,7 +86,7 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			marker: runtimeMarkerJSON(stagehandProtocolVersion, "other"),
 			kind:   runtimeCompatibilityIncompatible,
 			reason: RuntimeIncompatibleReasonRuntimeNameMismatch,
-			detail: `Runtime name mismatch: expected "stagehand", server reported "other"`,
+			detail: `Connected runtime is not Stagehand: serverInfo.name="other"`,
 		},
 		{
 			name:   "non-semver protocol version",
@@ -102,16 +102,16 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			detail: "protocolVersion=1",
 		},
 		{
-			name:   "empty protocol version",
-			marker: runtimeMarkerJSON("", stagehandRuntimeName),
-			kind:   runtimeCompatibilityUnknown,
-			detail: `protocolVersion=""`,
-		},
-		{
 			name:   "null serverInfo",
 			marker: `{"protocolVersion": "` + stagehandProtocolVersion + `", "serverInfo": null}`,
 			kind:   runtimeCompatibilityUnknown,
 			detail: `serverInfo.name=""`,
+		},
+		{
+			name:   "non-object serverInfo",
+			marker: `{"protocolVersion": "` + stagehandProtocolVersion + `", "serverInfo": "stagehand"}`,
+			kind:   runtimeCompatibilityUnknown,
+			detail: "serverInfo.name=<nil>",
 		},
 		{
 			name:   "empty serverInfo name",

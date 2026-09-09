@@ -1180,8 +1180,11 @@ class TestNegotiateRuntime:
                 "serverInfo.name=''",
             ),
             (
-                {"protocolVersion": "", "serverInfo": {"name": "stagehand", "version": "1.0.0"}},
-                "protocolVersion=''",
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                    "serverInfo": {"name": 1, "version": "1.0.0"},
+                },
+                "serverInfo.name=1",
             ),
         ],
     )
@@ -1221,7 +1224,7 @@ class TestNegotiateRuntime:
                     "serverInfo": {"name": "other", "version": "1"},
                 },
                 "runtime-name-mismatch",
-                'Runtime name mismatch: expected "stagehand", server reported "other"',
+                'Connected runtime is not Stagehand: serverInfo.name="other"',
             ),
             (
                 {
@@ -1261,6 +1264,7 @@ class TestNegotiateRuntime:
             {"serverInfo": "not-a-mapping"},
             {"serverInfo": None},
             {"protocolVersion": "1.0.0", "serverInfo": {"name": "", "version": ""}},
+            {"protocolVersion": "1.0.0", "serverInfo": {"name": "stagehand"}},
         ):
             assert cdp_client._negotiate_runtime(marker).kind == "unknown"
 

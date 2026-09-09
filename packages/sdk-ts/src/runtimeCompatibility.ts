@@ -77,7 +77,7 @@ export function negotiateRuntimeCompatibility(
     if (reported.serverInfo.name !== STAGEHAND_RUNTIME_NAME)
       return incompatible(
         "runtime-name-mismatch",
-        `Runtime name mismatch: expected "${STAGEHAND_RUNTIME_NAME}", server reported "${reported.serverInfo.name}"`,
+        `Connected runtime is not Stagehand: serverInfo.name=${JSON.stringify(reported.serverInfo.name)}`,
         required,
         reported,
       );
