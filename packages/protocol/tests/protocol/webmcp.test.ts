@@ -25,6 +25,7 @@ describe("WebMCP protocol data", () => {
         annotations: {
           readOnly: true,
           untrustedContent: true,
+          consequential: true,
           autosubmit: false,
         },
         frameId: "frame-1",
@@ -42,6 +43,7 @@ describe("WebMCP protocol data", () => {
       annotations: {
         readOnly: true,
         untrustedContent: true,
+        consequential: true,
         autosubmit: false,
       },
       frameId: "frame-1",
@@ -58,6 +60,24 @@ describe("WebMCP protocol data", () => {
         stackTrace: { callFrames: [] },
       }),
     ).toThrow();
+  });
+
+  it("preserves false and omitted consequential annotations", () => {
+    expect(
+      WebMCPToolDescriptorSchema.parse({
+        name: "preview",
+        description: "Preview an action",
+        annotations: { consequential: false },
+        frameId: "frame-1",
+      }).annotations,
+    ).toStrictEqual({ consequential: false });
+    expect(
+      WebMCPToolDescriptorSchema.parse({
+        name: "search",
+        description: "Search",
+        frameId: "frame-1",
+      }).annotations,
+    ).toBeUndefined();
   });
 
   it("requires JSON-compatible input schemas", () => {

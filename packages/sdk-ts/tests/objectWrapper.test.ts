@@ -1215,7 +1215,7 @@ describe("Stagehand TS object wrapper", () => {
             type: "object",
             properties: { searchQuery: { type: "string" } },
           },
-          annotations: { readOnly: true },
+          annotations: { readOnly: true, consequential: true },
           frameId: "frame-1",
           backendNodeId: 42,
         },
@@ -1254,7 +1254,7 @@ describe("Stagehand TS object wrapper", () => {
         type: "object",
         properties: { searchQuery: { type: "string" } },
       },
-      annotations: { readOnly: true },
+      annotations: { readOnly: true, consequential: true },
       frameId: "frame-1",
       backendNodeId: 42,
     });
