@@ -4,4 +4,4 @@
 "@browserbasehq/stagehand-go": patch
 ---
 
-Fail fast on a protocol compatibility errors
+Fail fast on protocol compatibility errors
