@@ -479,6 +479,16 @@ class Page:
                 }),
                 PageVoidResult,
             )
+        except asyncio.CancelledError:
+            remove_notification_listener()
+            try:
+                await subscription.unsubscribe()
+            except Exception as error:
+                asyncio.get_running_loop().call_exception_handler({
+                    "message": "Failed to clean up cancelled page subscription",
+                    "exception": error,
+                })
+            raise
         except BaseException:
             remove_notification_listener()
             self._event_subscriptions.discard(subscription)

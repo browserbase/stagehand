@@ -161,12 +161,14 @@ describe("WebMCP shared discovery", () => {
 
       await page.goto(server.url, { waitUntil: "load" });
       await page.tools();
-      expect(
-        events
-          .slice(4)
-          .flatMap((event) => event.tools.map((tool) => tool.name))
-          .sort((a, b) => a.localeCompare(b)),
-      ).toEqual(["initial", "live"]);
+      await expect
+        .poll(() =>
+          events
+            .slice(4)
+            .flatMap((event) => event.tools.map((tool) => tool.name))
+            .sort((a, b) => a.localeCompare(b)),
+        )
+        .toEqual(["initial", "live"]);
       expect(events.slice(4).every((event) => event.event === "toolsremoved")).toBe(true);
 
       events.length = 0;
