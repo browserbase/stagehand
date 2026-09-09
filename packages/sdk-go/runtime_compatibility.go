@@ -106,12 +106,19 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) runtimeNegotiation {
 		return unknownRuntime("unreadable Stagehand runtime marker")
 	}
 
+	// Mirrors the protocol's ImplementationInfoSchema: both fields are non-empty
+	// strings. A marker missing either is malformed, not a foreign runtime, so
+	// keep polling.
 	var serverInfo ImplementationInfo
 	if err := json.Unmarshal(marker["serverInfo"], &serverInfo); err != nil {
 		return unknownRuntime("serverInfo.name=<nil>")
 	}
 	if serverInfo.Name == "" || serverInfo.Version == "" {
-		return unknownRuntime(fmt.Sprintf("serverInfo.name=%q", serverInfo.Name))
+		return unknownRuntime(fmt.Sprintf(
+			"serverInfo.name=%q serverInfo.version=%q",
+			serverInfo.Name,
+			serverInfo.Version,
+		))
 	}
 
 	var protocolVersion string
@@ -130,7 +137,7 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) runtimeNegotiation {
 		negotiation.kind = runtimeIncompatible
 		negotiation.reason = "runtime-name-mismatch"
 		negotiation.detail = fmt.Sprintf(
-			"connected runtime is not Stagehand: serverInfo.name=%q",
+			"Connected runtime is not Stagehand: serverInfo.name=%q",
 			serverInfo.Name,
 		)
 		return negotiation
@@ -156,7 +163,7 @@ func protocolCompatibility(
 	serverVersion := "v" + serverProtocolVersion
 	if !validProtocolVersion(clientProtocolVersion) || !validProtocolVersion(serverProtocolVersion) {
 		return false, "protocol-invalid-version", fmt.Sprintf(
-			"invalid protocol version: client=%q server=%q",
+			"Invalid protocol version: client %s, server %s",
 			clientProtocolVersion,
 			serverProtocolVersion,
 		)
@@ -164,7 +171,7 @@ func protocolCompatibility(
 	if semver.Prerelease(clientVersion) != "" || semver.Prerelease(serverVersion) != "" {
 		if serverProtocolVersion != clientProtocolVersion {
 			return false, "protocol-prerelease-mismatch", fmt.Sprintf(
-				"protocol prereleases must match exactly: client=%s server=%s",
+				"Protocol prereleases must match exactly: client %s, server %s",
 				clientProtocolVersion,
 				serverProtocolVersion,
 			)
@@ -173,7 +180,7 @@ func protocolCompatibility(
 	}
 	if semver.Major(clientVersion) != semver.Major(serverVersion) {
 		return false, "protocol-major-mismatch", fmt.Sprintf(
-			"protocol major mismatch: client=%s server=%s",
+			"Protocol major mismatch: client %s, server %s",
 			clientProtocolVersion,
 			serverProtocolVersion,
 		)
@@ -182,7 +189,7 @@ func protocolCompatibility(
 	serverMinor := semver.MajorMinor(serverVersion) + ".0"
 	if semver.Compare(serverMinor, clientMinor) < 0 {
 		return false, "protocol-server-too-old", fmt.Sprintf(
-			"server protocol %s is older than client requirement %s",
+			"Server protocol %s is older than client requirement %s",
 			serverProtocolVersion,
 			clientProtocolVersion,
 		)

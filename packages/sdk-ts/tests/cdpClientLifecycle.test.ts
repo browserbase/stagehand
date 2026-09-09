@@ -385,6 +385,10 @@ describe("waitForRuntimeReady", () => {
     expect(error).toBeInstanceOf(StagehandRuntimeIncompatibleError);
     const incompatible = error as StagehandRuntimeIncompatibleError;
     expect(incompatible.reason).toBe("protocol-major-mismatch");
+    expect(incompatible.detail).toBe(
+      `Protocol major mismatch: client ${STAGEHAND_PROTOCOL_VERSION}, server ${incompatibleProtocolVersion}`,
+    );
+    expect(incompatible.message).toContain(incompatible.detail);
     expect(incompatible.clientProtocolVersion).toBe(STAGEHAND_PROTOCOL_VERSION);
     expect(incompatible.reportedProtocolVersion).toBe(incompatibleProtocolVersion);
     expect(incompatible.serverInfo).toStrictEqual({ name: "stagehand", version: "1.0.0" });

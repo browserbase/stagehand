@@ -120,8 +120,12 @@ def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
         return _RuntimeNegotiation("unknown", f"serverInfo={server_info!r}")
     name = server_info.get("name")
     version = server_info.get("version")
-    if not isinstance(name, str) or not isinstance(version, str):
-        return _RuntimeNegotiation("unknown", f"serverInfo.name={name!r}")
+    # Mirrors the protocol's ImplementationInfoSchema: both fields are non-empty strings.
+    # A marker missing either is malformed, not a foreign runtime, so keep polling.
+    if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
+        return _RuntimeNegotiation(
+            "unknown", f"serverInfo.name={name!r} serverInfo.version={version!r}"
+        )
 
     protocol_version = marker.get("protocolVersion")
     if not isinstance(protocol_version, str):
@@ -130,7 +134,7 @@ def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
     if name != _RUNTIME_NAME:
         return _RuntimeNegotiation(
             "incompatible",
-            f"connected runtime is not Stagehand: serverInfo.name={name!r}",
+            f"Connected runtime is not Stagehand: serverInfo.name={json.dumps(name)}",
             reason="runtime-name-mismatch",
             protocol_version=protocol_version,
             server_name=name,
@@ -165,25 +169,25 @@ def _protocol_compatibility(client_version: str, server_version: str) -> tuple[s
     if client is None or server is None:
         return (
             "protocol-invalid-version",
-            f"invalid protocol version: client={client_version!r} server={server_version!r}",
+            f"Invalid protocol version: client {client_version}, server {server_version}",
         )
     if client.group(4) is not None or server.group(4) is not None:
         if client_version != server_version:
             return (
                 "protocol-prerelease-mismatch",
-                "protocol prereleases must match exactly: "
-                f"client={client_version} server={server_version}",
+                "Protocol prereleases must match exactly: "
+                f"client {client_version}, server {server_version}",
             )
         return None
     if client.group(1) != server.group(1):
         return (
             "protocol-major-mismatch",
-            f"protocol major mismatch: client={client_version} server={server_version}",
+            f"Protocol major mismatch: client {client_version}, server {server_version}",
         )
     if int(server.group(2)) < int(client.group(2)):
         return (
             "protocol-server-too-old",
-            f"server protocol {server_version} is older than client requirement {client_version}",
+            f"Server protocol {server_version} is older than client requirement {client_version}",
         )
     return None
 

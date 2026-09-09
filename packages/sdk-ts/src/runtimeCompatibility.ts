@@ -3,10 +3,7 @@ import {
   ImplementationInfoSchema,
   STAGEHAND_PROTOCOL_VERSION,
 } from "@browserbasehq/stagehand-protocol/schemas";
-import {
-  checkProtocolCompatibility,
-  StagehandProtocolVersionSchema,
-} from "@browserbasehq/stagehand-protocol/protocol-version";
+import { checkProtocolCompatibility } from "@browserbasehq/stagehand-protocol/protocol-version";
 import { z } from "zod/v4";
 
 export const STAGEHAND_RUNTIME_NAME = "stagehand";
@@ -48,9 +45,11 @@ export type RuntimeCompatibility =
       detail: string;
     };
 
-// Accepts any server name so negotiation can distinguish a foreign runtime from garbage.
+// Accepts any server name so negotiation can distinguish a foreign runtime from garbage, and any
+// non-empty protocolVersion string so a non-SemVer version is reported as incompatible
+// (protocol-invalid-version) instead of being polled until the initialization timeout.
 const ReportedRuntimeDescriptorSchema = z.strictObject({
-  protocolVersion: StagehandProtocolVersionSchema,
+  protocolVersion: z.string().min(1),
   serverInfo: ImplementationInfoSchema,
 });
 

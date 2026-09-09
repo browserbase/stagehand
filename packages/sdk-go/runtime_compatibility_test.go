@@ -46,6 +46,51 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			detail: "serverInfo.name=",
 		},
 		{
+			name: "null serverInfo",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
+				"serverInfo": null
+			}`, stagehandProtocolVersion),
+			kind:   runtimeUnknown,
+			detail: `serverInfo.name=""`,
+		},
+		{
+			name: "non-object serverInfo",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
+				"serverInfo": "stagehand"
+			}`, stagehandProtocolVersion),
+			kind:   runtimeUnknown,
+			detail: "serverInfo.name=<nil>",
+		},
+		{
+			name: "empty server name",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
+				"serverInfo": {"name": "", "version": "1.0.0"}
+			}`, stagehandProtocolVersion),
+			kind:   runtimeUnknown,
+			detail: `serverInfo.name=""`,
+		},
+		{
+			name: "empty server version",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
+				"serverInfo": {"name": "stagehand", "version": ""}
+			}`, stagehandProtocolVersion),
+			kind:   runtimeUnknown,
+			detail: `serverInfo.version=""`,
+		},
+		{
+			name: "missing server version",
+			marker: fmt.Sprintf(`{
+				"protocolVersion": %q,
+				"serverInfo": {"name": "stagehand"}
+			}`, stagehandProtocolVersion),
+			kind:   runtimeUnknown,
+			detail: `serverInfo.version=""`,
+		},
+		{
 			name: "major mismatch",
 			marker: fmt.Sprintf(`{
 				"protocolVersion": %q,
@@ -53,7 +98,11 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			}`, incompatibleProtocolVersion),
 			kind:   runtimeIncompatible,
 			reason: "protocol-major-mismatch",
-			detail: "major mismatch",
+			detail: fmt.Sprintf(
+				"Protocol major mismatch: client %s, server %s",
+				stagehandProtocolVersion,
+				incompatibleProtocolVersion,
+			),
 		},
 		{
 			name: "wrong runtime",
@@ -63,7 +112,7 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			}`, stagehandProtocolVersion),
 			kind:   runtimeIncompatible,
 			reason: "runtime-name-mismatch",
-			detail: `serverInfo.name="other"`,
+			detail: `Connected runtime is not Stagehand: serverInfo.name="other"`,
 		},
 		{
 			name: "invalid protocol version",
@@ -82,7 +131,10 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 			}`,
 			kind:   runtimeIncompatible,
 			reason: "protocol-invalid-version",
-			detail: "invalid protocol version",
+			detail: fmt.Sprintf(
+				"Invalid protocol version: client %s, server not-semver",
+				stagehandProtocolVersion,
+			),
 		},
 	}
 
@@ -122,12 +174,13 @@ func TestProtocolCompatibility(t *testing.T) {
 	}{
 		{name: "patch ignored", client: "1.2.4", server: "1.2.0", compatible: true},
 		{name: "newer server minor", client: "1.2.4", server: "1.9.0", compatible: true},
-		{name: "server too old", client: "1.2.4", server: "1.1.99", reason: "protocol-server-too-old", detail: "older"},
-		{name: "major mismatch", client: "1.2.4", server: "2.0.0", reason: "protocol-major-mismatch", detail: "major mismatch"},
+		// Detail wording is the TS SDK's compatibilityDetail; keep the SDKs identical.
+		{name: "server too old", client: "1.2.4", server: "1.1.99", reason: "protocol-server-too-old", detail: "Server protocol 1.1.99 is older than client requirement 1.2.4"},
+		{name: "major mismatch", client: "1.2.4", server: "2.0.0", reason: "protocol-major-mismatch", detail: "Protocol major mismatch: client 1.2.4, server 2.0.0"},
 		{name: "exact prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.1", compatible: true},
-		{name: "different prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.2", reason: "protocol-prerelease-mismatch", detail: "match exactly"},
-		{name: "invalid client", client: "not-semver", server: "1.3.0", reason: "protocol-invalid-version", detail: "invalid protocol version"},
-		{name: "invalid server", client: "1.3.0", server: "not-semver", reason: "protocol-invalid-version", detail: "invalid protocol version"},
+		{name: "different prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.2", reason: "protocol-prerelease-mismatch", detail: "Protocol prereleases must match exactly: client 1.3.0-beta.1, server 1.3.0-beta.2"},
+		{name: "invalid client", client: "not-semver", server: "1.3.0", reason: "protocol-invalid-version", detail: "Invalid protocol version: client not-semver, server 1.3.0"},
+		{name: "invalid server", client: "1.3.0", server: "not-semver", reason: "protocol-invalid-version", detail: "Invalid protocol version: client 1.3.0, server not-semver"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

@@ -641,6 +641,10 @@ class TestNegotiateRuntime:
             ({}, "serverInfo=None"),
             ({"serverInfo": "not-a-mapping"}, "serverInfo="),
             ({"serverInfo": {"version": "1"}}, "serverInfo.name=None"),
+            ({"serverInfo": {"name": "stagehand"}}, "serverInfo.version=None"),
+            ({"serverInfo": {"name": "", "version": "1"}}, "serverInfo.name=''"),
+            ({"serverInfo": {"name": "stagehand", "version": ""}}, "serverInfo.version=''"),
+            ({"serverInfo": {"name": 1, "version": "1"}}, "serverInfo.name=1"),
             (
                 {"protocolVersion": 1, "serverInfo": {"name": "stagehand", "version": "1"}},
                 "protocolVersion=1",
@@ -660,17 +664,18 @@ class TestNegotiateRuntime:
             (
                 _marker(_INCOMPATIBLE_PROTOCOL_VERSION),
                 "protocol-major-mismatch",
-                "major mismatch",
+                f"Protocol major mismatch: client {STAGEHAND_PROTOCOL_VERSION}, "
+                f"server {_INCOMPATIBLE_PROTOCOL_VERSION}",
             ),
             (
                 _marker("not-semver"),
                 "protocol-invalid-version",
-                "invalid protocol version",
+                f"Invalid protocol version: client {STAGEHAND_PROTOCOL_VERSION}, server not-semver",
             ),
             (
                 _marker(STAGEHAND_PROTOCOL_VERSION, name="other"),
                 "runtime-name-mismatch",
-                "serverInfo.name='other'",
+                'Connected runtime is not Stagehand: serverInfo.name="other"',
             ),
         ],
     )
@@ -701,6 +706,28 @@ class TestNegotiateRuntime:
         assert reason("1.3.0-beta.1", "1.3.0-beta.1") is None
         assert reason("1.3.0-beta.1", "1.3.0-beta.2") == "protocol-prerelease-mismatch"
         assert reason("not-semver", "1.3.0") == "protocol-invalid-version"
+        assert reason("1.3.0", "not-semver") == "protocol-invalid-version"
+
+    @pytest.mark.parametrize(
+        ("client", "server", "detail"),
+        [
+            ("1.2.4", "1.1.99", "Server protocol 1.1.99 is older than client requirement 1.2.4"),
+            ("1.2.4", "2.0.0", "Protocol major mismatch: client 1.2.4, server 2.0.0"),
+            (
+                "1.3.0-beta.1",
+                "1.3.0-beta.2",
+                "Protocol prereleases must match exactly: client 1.3.0-beta.1, server 1.3.0-beta.2",
+            ),
+            ("1.3.0", "not-semver", "Invalid protocol version: client 1.3.0, server not-semver"),
+        ],
+    )
+    def test_protocol_detail_wording_matches_typescript(
+        self, client: str, server: str, detail: str
+    ) -> None:
+        # The TS SDK's compatibilityDetail is the reference wording; keep the SDKs identical.
+        result = cdp_client._protocol_compatibility(client, server)
+        assert result is not None
+        assert result[1] == detail
 
 
 def _readiness_client(

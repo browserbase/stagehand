@@ -60,6 +60,26 @@ describe("negotiateRuntimeCompatibility", () => {
       kind: "incompatible",
       reason: "protocol-invalid-version",
     }));
+  it("reports a non-SemVer reported protocol version as incompatible, not unknown", () =>
+    expect(negotiateRuntimeCompatibility(requirement, marker("not-semver"))).toMatchObject({
+      kind: "incompatible",
+      reason: "protocol-invalid-version",
+      detail: "Invalid protocol version: client 1.2.4, server not-semver",
+      reported: {
+        protocolVersion: "not-semver",
+        serverInfo: { name: "stagehand", version: "1.0.0" },
+      },
+    }));
+  it.each([
+    [{ ...marker("1.2.4"), serverInfo: { name: "", version: "1.0.0" } }],
+    [{ ...marker("1.2.4"), serverInfo: { name: "stagehand", version: "" } }],
+    [{ protocolVersion: "", serverInfo: { name: "stagehand", version: "1.0.0" } }],
+  ])("reports a marker with an empty field as unreadable for %j", (raw) =>
+    expect(negotiateRuntimeCompatibility(requirement, raw)).toMatchObject({
+      kind: "unknown",
+      reason: "unreadable-marker",
+    }),
+  );
   it.each([[null], [undefined]])("reports a missing marker for %s", (raw) =>
     expect(negotiateRuntimeCompatibility(requirement, raw)).toMatchObject({
       kind: "unknown",

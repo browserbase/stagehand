@@ -467,9 +467,15 @@ func TestWaitForRuntimeReadyFailsFastOnIncompatibleRuntime(t *testing.T) {
 		runtimeReadinessResponse(runtimeMarker(incompatibleVersion, stagehandRuntimeName), true),
 	)
 
-	// A generous poll interval proves the error is returned before any re-poll wait.
+	// A generous poll interval proves the error is returned before any re-poll wait; the
+	// bounded context turns a regression that keeps polling into a fast, explicit failure.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	started := time.Now()
-	err := client.waitForRuntimeReady(context.Background(), "worker-session", time.Hour, false)
+	err := client.waitForRuntimeReady(ctx, "worker-session", time.Hour, false)
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("waitForRuntimeReady() kept polling an incompatible runtime instead of failing fast")
+	}
 	if err == nil {
 		t.Fatal("waitForRuntimeReady() error = nil, want RuntimeIncompatibleError")
 	}
@@ -515,7 +521,12 @@ func TestWaitForRuntimeReadyFailsFastOnForeignRuntime(t *testing.T) {
 		runtimeReadinessResponse(runtimeMarker(stagehandProtocolVersion, "other"), true),
 	)
 
-	err := client.waitForRuntimeReady(context.Background(), "worker-session", time.Hour, false)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.waitForRuntimeReady(ctx, "worker-session", time.Hour, false)
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("waitForRuntimeReady() kept polling a foreign runtime instead of failing fast")
+	}
 	var incompatible *RuntimeIncompatibleError
 	if !errors.As(err, &incompatible) {
 		t.Fatalf("waitForRuntimeReady() error = %v, want *RuntimeIncompatibleError", err)

@@ -117,6 +117,8 @@ export const RUNTIME_INCOMPATIBLE_REMEDIATION =
  */
 export class StagehandRuntimeIncompatibleError extends Error {
   readonly reason: RuntimeIncompatibilityReason;
+  /** Human-readable negotiation failure, without the version summary or remediation. */
+  readonly detail: string;
   /** Protocol version this SDK speaks. */
   readonly clientProtocolVersion: string;
   /** Protocol version the connected extension reported. */
@@ -142,6 +144,7 @@ export class StagehandRuntimeIncompatibleError extends Error {
     );
     this.name = "StagehandRuntimeIncompatibleError";
     this.reason = compatibility.reason;
+    this.detail = compatibility.detail;
     this.clientProtocolVersion = compatibility.required.protocolVersion;
     this.reportedProtocolVersion = compatibility.reported.protocolVersion;
     this.serverInfo = { ...compatibility.reported.serverInfo };
