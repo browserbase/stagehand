@@ -40,6 +40,7 @@ type recordingProtocolClient struct {
 	callHook         func(context.Context, string) error
 	handlers         map[string]requestHandler
 	pageEventHandler func(PageCDPEventNotification)
+	toolEventHandler func(PageEventNotification)
 	closed           bool
 }
 
@@ -86,6 +87,11 @@ func (c *recordingProtocolClient) onPageCDPEvent(
 ) func() {
 	c.pageEventHandler = handler
 	return func() { c.pageEventHandler = nil }
+}
+
+func (c *recordingProtocolClient) onPageEvent(handler func(PageEventNotification)) func() {
+	c.toolEventHandler = handler
+	return func() { c.toolEventHandler = nil }
 }
 
 func (*recordingProtocolClient) browserWebSocketDebuggerURL() string {
