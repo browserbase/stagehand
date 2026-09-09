@@ -5,21 +5,38 @@ const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites
 const browser = await localBrowser.launch({ headless: false });
 const stagehand = await Stagehand.create({ browser });
 
-const [page] = await browser.context.pages();
-await page.goto(webMCPTestSite);
+try {
+  const [page] = await browser.context.pages();
+  // Subscribe before navigation: hooks report future changes, not existing tools.
+  const added = await page.onToolsAdded((tools) => {
+    for (const tool of tools) console.log("Tool added:", tool.name, tool.frameId);
+  });
+  const removed = await page.onToolsRemoved((tools) => {
+    for (const tool of tools) console.log("Tool removed:", tool.name, tool.frameId);
+  });
+  await page.goto(webMCPTestSite);
 
-const tools = await page.tools({ timeout: 5_000 });
-const calculateSum = tools.find((tool) => tool.name === "calculateSum");
-if (!calculateSum) {
-  throw new Error("calculateSum was not registered by the page");
+  const tools = await page.tools({ timeout: 5_000 });
+  const calculateSum = tools.find((tool) => tool.name === "calculateSum");
+  if (!calculateSum) {
+    throw new Error("calculateSum was not registered by the page");
+  }
+
+  const invocation = await calculateSum.invoke({
+    input: { a: 19, b: 23 },
+  });
+  const result = await invocation.result();
+
+  console.log(result);
+
+  // Leaving the document removes its registered tools.
+  await page.goto("about:blank");
+  await added.unsubscribe();
+  await removed.unsubscribe();
+} finally {
+  try {
+    await stagehand.close();
+  } finally {
+    await browser.close();
+  }
 }
-
-const invocation = await calculateSum.invoke({
-  input: { a: 19, b: 23 },
-});
-const result = await invocation.result();
-
-console.log(result);
-
-await stagehand.close();
-await browser.close();

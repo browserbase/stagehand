@@ -4,7 +4,12 @@ import {
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type { PageEventNotification } from "@browserbasehq/stagehand-protocol/types";
-import { WebMCPTool, type Stagehand, type WebMCPToolIdentity } from "../../src/index.js";
+import {
+  WebMCPTool,
+  type CDPSubscription,
+  type Stagehand,
+  type WebMCPToolIdentity,
+} from "../../src/index.js";
 import {
   closeStagehand,
   createStagehand,
@@ -237,4 +242,101 @@ describe("WebMCP shared discovery", () => {
       await removedSubscription.unsubscribe();
     }
   });
+
+  it.each(["same-origin", "cross-origin"] as const)(
+    "keeps public hooks future-only across %s iframe and page navigation",
+    async (origin) => {
+      const page = await firstPage(stagehand);
+      await page.goto(new URL("registered", server.url).href, { waitUntil: "load" });
+      const first: WebMCPTool[] = [];
+      const second: WebMCPTool[] = [];
+      const removed: WebMCPToolIdentity[] = [];
+      const subscriptions: CDPSubscription[] = [];
+      try {
+        const firstSubscription = await page.onToolsAdded((tools) => first.push(...tools));
+        subscriptions.push(firstSubscription);
+        const removedSubscription = await page.onToolsRemoved((tools) => removed.push(...tools));
+        subscriptions.push(removedSubscription);
+        const [initial] = await page.tools();
+        expect(initial!.name).toBe("initial");
+        expect(first).toEqual([]);
+
+        await page.evaluate('window.registerTool("live")');
+        await expect.poll(() => first.length).toBe(1);
+        subscriptions.push(await page.onToolsAdded((tools) => second.push(...tools)));
+        await Promise.all([page.tools(), page.tools()]);
+        expect(first).toHaveLength(1);
+        expect(second).toEqual([]);
+        await page.evaluate('location.hash = "same-document"');
+        await page.tools();
+        expect(removed).toEqual([]);
+
+        const childUrl = new URL("registered", server.url);
+        if (origin === "cross-origin") childUrl.hostname = "localhost";
+        await page.evaluate(
+          (url) =>
+            new Promise<void>((resolve) => {
+              const iframe = document.createElement("iframe");
+              iframe.allow = "tools *";
+              iframe.src = url;
+              iframe.onload = () => resolve();
+              document.body.append(iframe);
+            }),
+          childUrl.href,
+        );
+        await expect.poll(() => first.length).toBe(2);
+        await expect.poll(() => second.length).toBe(1);
+        const child = second[0]!;
+        expect(child).toBeInstanceOf(WebMCPTool);
+        expect(child.name).toBe("initial");
+        expect(child.frameId).not.toBe(initial!.frameId);
+        expect(first[1]!.frameId).toBe(child.frameId);
+        const invocation = await child.invoke({ input: { searchQuery: origin } });
+        await expect(invocation.result({ timeout: 5_000 })).resolves.toMatchObject({
+          status: "Completed",
+          output: { content: [{ type: "text", text: origin }] },
+        });
+
+        childUrl.pathname = "/";
+        await page.evaluate(
+          (url) =>
+            new Promise<void>((resolve) => {
+              const iframe = document.querySelector("iframe")!;
+              iframe.onload = () => resolve();
+              iframe.src = url;
+            }),
+          childUrl.href,
+        );
+        await expect.poll(() => removed).toEqual([{ name: "initial", frameId: child.frameId }]);
+        await page.evaluate(() => document.querySelector("iframe")!.remove());
+        expect(
+          (await page.tools()).map((tool) => tool.name).sort((a, b) => a.localeCompare(b)),
+        ).toEqual(["initial", "live"]);
+        expect(removed).toHaveLength(1);
+
+        await page.goto(server.url, { waitUntil: "load" });
+        await expect(page.tools()).resolves.toEqual([]);
+        await expect.poll(() => removed.length).toBe(3);
+        expect(removed.slice(1)).toEqual(
+          expect.arrayContaining([
+            { name: "initial", frameId: initial!.frameId },
+            { name: "live", frameId: initial!.frameId },
+          ]),
+        );
+        expect(first).toHaveLength(2);
+        expect(second).toHaveLength(1);
+
+        await firstSubscription.unsubscribe();
+        await removedSubscription.unsubscribe();
+        await page.evaluate('window.registerTool("after-unsubscribe")');
+        await expect.poll(() => second.length).toBe(2);
+        await page.evaluate('window.removeTool("after-unsubscribe")');
+        await expect(page.tools()).resolves.toEqual([]);
+        expect(first).toHaveLength(2);
+        expect(removed).toHaveLength(3);
+      } finally {
+        await Promise.all(subscriptions.map((subscription) => subscription.unsubscribe()));
+      }
+    },
+  );
 });

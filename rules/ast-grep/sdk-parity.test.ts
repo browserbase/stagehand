@@ -248,6 +248,27 @@ describe("All language SDK operations remain in sync", () => {
     }
   }, 15_000);
 
+  it("forwards Python subscription helper notification names and models unchanged", async () => {
+    const root = parse("python", await readFile(new URL("page.py", pythonSource), "utf8")).root();
+    const helper = root
+      .findAll({ rule: { kind: "function_definition" } })
+      .find((node) => methodName(node, "python")?.text() === "_subscribe");
+    expect(helper).toBeDefined();
+    const parameters = namedChildren(helper!.field("parameters")!).map((node) =>
+      parameterName(node, "python"),
+    );
+    expect(parameters).toEqual(["self", "event", "method", "model", "deliver"]);
+    const registrations = helper!
+      .findAll({ rule: { kind: "call" } })
+      .filter((call) => namedChildren(call)[0]?.text().endsWith(".on_notification"));
+    expect(registrations).toHaveLength(1);
+    expect(
+      callArguments(registrations[0]!)
+        .slice(0, 2)
+        .map((node) => node.text()),
+    ).toEqual(["method", "model"]);
+  });
+
   it("exposes the same RPC-backed operations in every SDK", async () => {
     const registry = await stagehandMethodNames();
 
@@ -872,9 +893,7 @@ async function clientProtocolNotifications(
     }
 
     for (const call of root.findAll({ rule: { kind: "call" } })) {
-      const calledFunction = namedChildren(call)[0]?.text();
-      if (!calledFunction?.endsWith(".on_notification")) continue;
-      const notification = callArguments(call)[0];
+      const [notification] = pythonNotificationArguments(call);
       if (notification?.kind() === "string") notifications.add(stringLiteral(notification));
     }
   }
@@ -893,9 +912,7 @@ async function pythonNotificationBindings(): Promise<
   for (const file of files) {
     const root = parse("python", await readFile(new URL(file, pythonSource), "utf8")).root();
     for (const call of root.findAll({ rule: { kind: "call" } })) {
-      const calledFunction = namedChildren(call)[0]?.text();
-      if (!calledFunction?.endsWith(".on_notification")) continue;
-      const [notification, paramsModel] = callArguments(call);
+      const [notification, paramsModel] = pythonNotificationArguments(call);
       if (notification?.kind() !== "string" || !paramsModel) continue;
       bindings.push({
         notification: stringLiteral(notification),
@@ -905,6 +922,14 @@ async function pythonNotificationBindings(): Promise<
   }
 
   return bindings;
+}
+
+function pythonNotificationArguments(call: SgNode): SgNode[] {
+  const calledFunction = namedChildren(call)[0]?.text();
+  if (calledFunction?.endsWith(".on_notification")) return callArguments(call);
+  // Page's typed adapters pass their notification name and model through this helper.
+  if (calledFunction === "self._subscribe") return callArguments(call).slice(1);
+  return [];
 }
 
 async function protocolMethods(): Promise<Record<string, ProtocolMethod>> {
