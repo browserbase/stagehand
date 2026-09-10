@@ -898,6 +898,18 @@ importers:
 
   packages/integrations/mastra-sdk:
     dependencies:
+      '@ai-sdk/anthropic':
+        specifier: 'catalog:'
+        version: 4.0.8(zod@4.4.3)
+      '@ai-sdk/google':
+        specifier: 'catalog:'
+        version: 4.0.8(zod@4.4.3)
+      '@ai-sdk/openai':
+        specifier: 'catalog:'
+        version: 4.0.8(zod@4.4.3)
+      '@ai-sdk/openai-compatible':
+        specifier: ^3.0.5
+        version: 3.0.5(zod@4.4.3)
       '@browserbasehq/stagehand-integrations':
         specifier: workspace:*
         version: link:../core
