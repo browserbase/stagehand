@@ -58,10 +58,7 @@ export async function printRunHelp(): Promise<void> {
       "Benchmark suite shorthand",
     ),
     row(cyan("b:webtailbench"), "WebTailBench benchmark shorthand"),
-    row(
-      cyan("b:hardbenchmark"),
-      "HardBench core38 (EVAL_HARDBENCHMARK_SET: core|extended|holdout|all)",
-    ),
+    row(cyan("b:hardbenchmark"), "HardBench core38 (EVAL_HARDBENCHMARK_SET: core|extended)"),
     "",
     `  ${bold("Options:")}`,
     "",
