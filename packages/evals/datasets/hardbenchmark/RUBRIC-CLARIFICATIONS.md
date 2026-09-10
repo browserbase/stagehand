@@ -2,7 +2,6 @@
 
 The precomputed rubric is the scoring input. `clarifications` records the
 following conventions on applicable rows; task questions and IDs are unchanged.
-The authoring transform is `scripts/audit/rubric-clarify.py` relative to the eval package.
 
 1. **Table format.** Consistent delimited records satisfy a table requirement:
    Markdown, HTML, pipe/semicolon/comma records, including a single line.
@@ -30,6 +29,3 @@ The authoring transform is `scripts/audit/rubric-clarify.py` relative to the eva
 
 These conventions are prose delivered to main's existing V3 rubric verifier.
 There is no deterministic format/fallback classifier or automatic score overlay.
-Compatibility tests establish transport, rubric preservation and scoring shape;
-only a separately executed live fixture gate assesses the bounded interpretation
-of these rules. Neither check establishes overall evaluator accuracy.
