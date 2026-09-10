@@ -16,6 +16,7 @@ import {
   buildExternalHarnessPrompt,
   metricValue,
   parseEvalResult,
+  resolveFinalAnswer,
   runExternalHarnessTask,
   type ExternalHarnessToolAdapterLike,
   type MetricValue,
@@ -71,15 +72,20 @@ export async function runFxAgent({
     captureEvidence: toolAdapter.captureEvidence,
     drainStepObservations: toolAdapter.drainStepObservations,
     observedToolMatcher: toolAdapter.observedToolMatcher,
+    browserSessionLoss: toolAdapter.browserSessionLoss,
   };
+  const maxAgentSteps = readFxMaxAgentSteps(plan.dataset);
   return runExternalHarnessTask({
     harness: "fx",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "fx did not report success",
+    stepBudget: maxAgentSteps,
+    stepBudgetUnit: "agent_steps",
     runSession: async (prompt) => {
       const sessionResult = await runFxSession({
         prompt,
@@ -88,7 +94,7 @@ export async function runFxAgent({
         home: toolAdapter.home,
         env: toolAdapter.env,
         permissionMode: process.env.EVAL_FX_PERMISSION_MODE === "yolo" ? "yolo" : "auto",
-        maxAgentSteps: readFxMaxAgentSteps(),
+        maxAgentSteps,
         signal,
         logger,
         runProcess,
@@ -129,7 +135,7 @@ export async function runFxAgent({
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
           observedToolCallKeys: raw.observedToolCallKeys,
-          finalAnswer: parsed.finalAnswer ?? raw.finalMessage,
+          finalAnswer: resolveFinalAnswer(parsed, raw.finalMessage),
           status,
           usage: {
             input_tokens: raw.tokenUsage.input_tokens,
@@ -148,13 +154,14 @@ function normalizeFxUsage(usage: FxTokenUsage) {
   const cachedInputTokens = toFiniteNumber(usage.cached_input_tokens);
   const outputTokens = toFiniteNumber(usage.output_tokens);
   const reasoningOutputTokens = toFiniteNumber(usage.reasoning_output_tokens);
-  // fx reports cached input and reasoning output as separate token buckets.
+  // Cached input is a subset of input; reasoning is separate from output.
   return {
+    reported: usage.reported,
     inputTokens,
     cachedInputTokens,
     outputTokens,
     reasoningOutputTokens,
-    totalTokens: inputTokens + cachedInputTokens + outputTokens + reasoningOutputTokens,
+    totalTokens: inputTokens + outputTokens + reasoningOutputTokens,
   };
 }
 

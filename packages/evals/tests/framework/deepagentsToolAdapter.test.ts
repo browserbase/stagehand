@@ -18,7 +18,7 @@ describe("Deep Agents tool adapter helpers", () => {
     expect(resolveToolSurface(definition, "playwright_mcp")).toBe("playwright_mcp");
     expect(resolveToolSurface(definition, "chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
     expect(() => resolveToolSurface(definition, "browse_cli")).toThrow(
-      /Harness "deepagents" supports --tool stagehand_facade, playwright_mcp, or chrome_devtools_mcp; received "browse_cli"/,
+      /Harness "deepagents" supports --tool stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp; received "browse_cli"/,
     );
     expect(resolveStartupProfile("stagehand_facade", "LOCAL")).toBe("tool_launch_local");
     expect(resolveStartupProfile("stagehand_facade", "BROWSERBASE")).toBe(
