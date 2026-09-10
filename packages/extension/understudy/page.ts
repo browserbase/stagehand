@@ -2,6 +2,7 @@ import { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
+import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
@@ -1433,6 +1434,15 @@ export class Page {
       String(pierceShadow),
     ]);
     return targetFrame.evaluateInLocatorWorld(expression);
+  }
+
+  /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
+  async evaluateWithShadowRoots(functionSource: string): Promise<unknown> {
+    return evaluateWithShadowRoots(
+      this.mainSession,
+      (expression) => this.evaluate(expression),
+      functionSource,
+    );
   }
 
   /**
