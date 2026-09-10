@@ -74,6 +74,7 @@ class InProcessCommandClient implements StagehandCommandClient {
 
 export type CallbackStagehand = {
   page: Page;
+  evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown>;
   context: ExperimentalBatchBrowserContext;
   act(instruction: string | Action, options?: StagehandClientActOptions): Promise<unknown>;
   observe(instruction?: string, options?: StagehandClientObserveOptions): Promise<unknown>;
@@ -127,6 +128,12 @@ export function createCallbackBatchController(router: RPCRouter) {
       const stagehand: CallbackStagehand = {
         page,
         context: createCallbackContextFacade(context),
+        evaluateWithShadowRoots: async (pageId, functionSource) => {
+          if (controller.signal.aborted) throw controller.signal.reason;
+          const result = await router.runtime.evaluateWithShadowRoots(pageId, functionSource);
+          if (controller.signal.aborted) throw controller.signal.reason;
+          return result;
+        },
         act: async (instruction, operationOptions) => {
           const { page: operationPage, ...clientOptions } = StagehandClientActOptionsSchema.parse(
             operationOptions ?? {},
