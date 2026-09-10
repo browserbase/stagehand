@@ -9,11 +9,13 @@ import {
   StagehandFacadeTool,
   StagehandFacadeLegacyTool,
   AnthropicBrowserToolsetTool,
+  GoogleComputerUseTool,
 } from "./stagehand_facade.js";
 import { UnderstudyCodeTool } from "./understudy_code.js";
 
 /** Surfaces that exist only as an agent MCP mount; they have no runner-driven CoreSession (activePage() throws). */
 export const AGENT_MOUNT_ONLY_TOOL_SURFACES: ReadonlySet<ToolSurface> = new Set<ToolSurface>([
+  "google_computer_use",
   "anthropic_browser_toolset",
   "stagehand_facade",
   "stagehand_facade_legacy",
@@ -33,6 +35,7 @@ export function listCoreTools(): ToolSurface[] {
     "chrome_devtools_mcp",
     // Listed here as part of the full enumeration, but agent-mount-only:
     // core-tier selection must use listCoreRunnableTools, which filters it.
+    "google_computer_use",
     "anthropic_browser_toolset",
     "stagehand_facade",
     "stagehand_facade_legacy",
@@ -59,6 +62,8 @@ export function getCoreTool(toolSurface: ToolSurface): CoreTool {
       return new PlaywrightMcpTool();
     case "chrome_devtools_mcp":
       return new ChromeDevtoolsMcpTool();
+    case "google_computer_use":
+      return new GoogleComputerUseTool();
     case "anthropic_browser_toolset":
       return new AnthropicBrowserToolsetTool();
     case "stagehand_facade":

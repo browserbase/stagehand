@@ -256,6 +256,9 @@ catalogs:
     '@earendil-works/pi-coding-agent':
       specifier: 0.84.2
       version: 0.84.2
+    '@google/genai':
+      specifier: 1.52.0
+      version: 1.52.0
     '@mastra/core':
       specifier: ^1.55.0
       version: 1.57.0
@@ -489,6 +492,9 @@ importers:
       '@browserbasehq/stagehand-integrations-fx-sdk':
         specifier: workspace:*
         version: link:../integrations/fx-sdk
+      '@browserbasehq/stagehand-integrations-gemini-cua-sdk':
+        specifier: workspace:*
+        version: link:../integrations/gemini-cua-sdk
       '@browserbasehq/stagehand-integrations-mastra-sdk':
         specifier: workspace:*
         version: link:../integrations/mastra-sdk
@@ -913,6 +919,31 @@ importers:
       '@browserbasehq/stagehand-integrations':
         specifier: workspace:*
         version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.3(publint@0.3.21)(tsx@4.23.1)(typescript@5.9.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(vite@8.1.3(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+
+  packages/integrations/gemini-cua-sdk:
+    dependencies:
+      '@browserbasehq/stagehand':
+        specifier: workspace:*
+        version: link:../../sdk-ts
+      '@browserbasehq/stagehand-integrations':
+        specifier: workspace:*
+        version: link:../core
+      '@google/genai':
+        specifier: 'catalog:'
+        version: 1.52.0(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(bufferutil@4.1.0)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

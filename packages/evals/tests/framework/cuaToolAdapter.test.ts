@@ -1,3 +1,4 @@
+import { GeminiCuaExecutor } from "@browserbasehq/stagehand-integrations-gemini-cua-sdk";
 import { StagehandCuaExecutor } from "@browserbasehq/stagehand-integrations-claude-cua-sdk";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -155,7 +156,7 @@ import { StagehandFacadeTools } from ${JSON.stringify(compiledFacade)};
 let url = 'https://fixture.test', clicks = 0;
 const page = {
   pageId:'fixture', url:async()=>url, title:async()=>'Fixture',
-  goto:async(value)=>{url=value;}, screenshot:async()=>Buffer.from('png'),
+  goto:async(value)=>{url=value;}, click:async(x,y)=>{url='https://fixture.test/click/'+x+'/'+y;}, setViewportSize:async()=>{}, screenshot:async()=>Buffer.from('png'),
   evaluate:async(expression)=>{if(expression==='({ width: innerWidth, height: innerHeight })')return {width:1288,height:711};throw new Error('Unexpected fixture evaluate: '+String(expression));},
   snapshot:async()=>({formattedTree:'[0-1] button "Submit"',xpathMap:{'0-1':'/button'}}),
   locator:()=>({click:async()=>{clicks++;}})
@@ -234,6 +235,13 @@ process.stdin.on('end',()=>process.exit(0));
           )
         ).isError,
       ).not.toBe(true);
+      const gemini = new GeminiCuaExecutor(tools, { log() {}, warn() {}, error() {} });
+      expect(
+        (await gemini.execute("navigate", { url: "https://fixture.test/gemini" })).isError,
+      ).not.toBe(true);
+      expect(await tools.run("return page.url();")).toBe("https://fixture.test/gemini");
+      expect((await gemini.execute("click_at", { x: 500, y: 500 })).isError).not.toBe(true);
+      expect(await tools.run("return page.url();")).toBe("https://fixture.test/click/644/355");
       expect(await tools.screenshot()).toMatchObject({
         data: Buffer.from("png").toString("base64"),
         mimeType: "image/png",
