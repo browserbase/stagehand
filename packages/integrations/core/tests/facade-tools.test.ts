@@ -33,6 +33,7 @@ type FakeRawLocator = {
   innerHtml: ReturnType<typeof vi.fn>;
   textContent: ReturnType<typeof vi.fn>;
   scrollTo: ReturnType<typeof vi.fn>;
+  centroid: ReturnType<typeof vi.fn>;
 };
 
 type FakeFrameWorld = {
@@ -82,6 +83,7 @@ function createFakePage(initialUrl = "about:blank", world: FakeFrameWorld = crea
       innerHtml: vi.fn(async () => "<b>inner</b>"),
       textContent: vi.fn(async () => "text"),
       scrollTo: vi.fn(async () => undefined),
+      centroid: vi.fn(async () => ({ x: 10, y: 20 })),
     };
     world.locators.push(locator);
     return locator;
@@ -694,5 +696,237 @@ describe("StagehandFacadeTools session loss", () => {
     await vi.advanceTimersByTimeAsync(120_000);
     await rejection;
     expect(tools.sessionLoss?.cause).toContain("consecutive capture timeouts");
+  });
+});
+
+describe("StagehandFacadeTools.run frameLocator", () => {
+  function setup(world = createFakeWorld()) {
+    const page = createFakePage("https://imgur.com/memegen", world);
+    const { stagehand } = createFakeStagehand(page);
+    return { page, world, tools: new StagehandFacadeTools(stagehand) };
+  }
+
+  it("compiles css tails onto iframe hop selectors", async () => {
+    const { page, world, tools } = setup();
+    await tools.run(`
+      const frame = page.frameLocator('iframe[src*="picsart"]');
+      await frame.locator("button.background").click();
+      await frame.getByPlaceholder("Search").fill("frog");
+      await frame.getByTestId("apply").hover();
+      return "ok";
+    `);
+    const selectors = page.locator.mock.calls.map(([selector]) => selector);
+    expect(selectors).toContain('iframe[src*="picsart"] >> button.background');
+    expect(selectors).toContain('iframe[src*="picsart"] >> [placeholder*="Search" i]');
+    expect(selectors).toContain('iframe[src*="picsart"] >> [data-testid="apply"]');
+    const clicked = world.locators.find((l) => l.selector.endsWith("button.background"));
+    expect(clicked?.click).toHaveBeenCalledTimes(1);
+    const filled = world.locators.find((l) => l.selector.includes("placeholder"));
+    expect(filled?.fill).toHaveBeenCalledWith("frog");
+  });
+
+  it("chains nested frameLocator hops and descendant selectors", async () => {
+    const { page, tools } = setup();
+    await tools.run(`
+      await page.frameLocator("#outer").frameLocator("#inner").locator("form").locator("input[name=q]").fill("x");
+      await page.locator("iframe.editor").contentFrame().getByText("Add text").click();
+      return await page.frameLocator("#outer").locator("li").count();
+    `);
+    const selectors = page.locator.mock.calls.map(([selector]) => selector);
+    expect(selectors).toContain("#outer >> #inner >> :is(form) :is(input[name=q])");
+    expect(selectors).toContain("iframe.editor >> text=Add text");
+    expect(selectors).toContain("#outer >> li");
+  });
+
+  it("resolves a container's frame selector before entering the iframe", async () => {
+    const { page, tools } = setup();
+    await tools.run(`
+      await page.locator("#payment").frameLocator("iframe").locator("input").fill("card");
+      await page.locator("#payment, #backup").frameLocator("iframe.card, iframe.fallback").locator("input").fill("card");
+    `);
+    expect(page.locator).toHaveBeenCalledWith("#payment iframe >> input");
+    expect(page.locator).not.toHaveBeenCalledWith("#payment >> iframe >> input");
+    expect(page.locator).toHaveBeenCalledWith(
+      ":is(#payment, #backup) :is(iframe.card, iframe.fallback) >> input",
+    );
+  });
+
+  it("rejects main-document trial clicks before dispatching input", async () => {
+    const { page, tools } = setup();
+    for (const force of [false, true]) {
+      await expect(
+        tools.run(`
+        await page.locator("button").click({ trial: true, force: ${force} });
+      `),
+      ).rejects.toThrow(/trial clicks are not supported/u);
+    }
+    expect(page.locator).not.toHaveBeenCalled();
+    expect(
+      page.evaluate.mock.calls.some(
+        ([expression]) =>
+          typeof expression === "string" && expression.includes('"operation":"domClick"'),
+      ),
+    ).toBe(false);
+  });
+
+  it("applies first()/nth()/last() through the raw locator", async () => {
+    const world = createFakeWorld();
+    world.counts["#editor >> button"] = 3;
+    const { world: w, tools } = setup(world);
+    await tools
+      .run(`
+      const buttons = page.frameLocator("#editor").locator("button");
+      await buttons.first().click();
+      await buttons.last().hover();
+      await buttons.nth(1).click();
+      return await buttons.count();
+    `)
+      .then((count) => expect(count).toBe(3));
+    const used = w.locators.filter((l) => l.nthIndex !== undefined);
+    expect(used.map((l) => l.nthIndex).sort()).toStrictEqual([0, 1, 2]);
+  });
+
+  it("resolves getByRole inside a cross-origin frame through the accessibility snapshot", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: [
+        "[0-1] RootWebArea: imgur",
+        "  [0-9] button: Upload",
+        "  [1-4] button: Background",
+        "  [1-5] textbox: Meme text",
+        "  [1-6] StaticText: Enjoy your life",
+      ].join("\n"),
+      xpathMap: {
+        "0-9": "/html[1]/body[1]/div[1]/button[1]",
+        "1-4": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/button[2]",
+        "1-5": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/input[1]",
+        "1-6": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/p[1]/text()[1]",
+      },
+    };
+    const { page, world: w, tools } = setup(world);
+    const result = await tools.run(`
+      const frame = page.frameLocator("iframe");
+      await frame.getByRole("button", { name: "Background" }).click();
+      await frame.getByLabel("Meme text").fill("Enjoy your life");
+      return {
+        exact: await frame.getByText("Enjoy your life", { exact: true }).count(),
+        uploadInsideFrame: await frame.getByRole("button", { name: "Upload" }).count(),
+      };
+    `);
+    expect(result).toStrictEqual({ exact: 1, uploadInsideFrame: 0 });
+    const selectors = page.locator.mock.calls.map(([selector]) => selector);
+    expect(selectors).toContain(
+      "xpath=/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/button[2]",
+    );
+    expect(selectors).toContain(
+      "xpath=/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/div[1]/input[1]",
+    );
+    expect(w.locators.find((l) => l.selector.endsWith("button[2]"))?.click).toHaveBeenCalled();
+    expect(page.snapshot).toHaveBeenCalledWith({ includeIframes: true });
+  });
+
+  it("keeps indexed all() on the selected element", async () => {
+    const world = createFakeWorld();
+    world.counts["#editor >> button"] = 3;
+    const { tools } = setup(world);
+    await tools
+      .run(`
+      const buttons = page.frameLocator("#editor").locator("button");
+      await (await buttons.nth(1).all())[0].click();
+      await (await buttons.last().all())[0].hover();
+      return await buttons.nth(10).all();
+    `)
+      .then((result) => expect(result).toEqual([]));
+    const clicked = world.locators.filter((locator) => locator.click.mock.calls.length > 0);
+    const hovered = world.locators.filter((locator) => locator.hover.mock.calls.length > 0);
+    expect(clicked.map((locator) => locator.nthIndex)).toEqual([1]);
+    expect(hovered.map((locator) => locator.nthIndex)).toEqual([2]);
+  });
+
+  it("preserves selector-list scopes in chained frame locators", async () => {
+    const { page, tools } = setup();
+    await tools.run(
+      `await page.frameLocator("#outer").locator("#a, #b").locator("button, input").count();`,
+    );
+    expect(page.locator).toHaveBeenCalledWith("#outer >> :is(#a, #b) :is(button, input)");
+  });
+
+  it("excludes nested frame documents from outer semantic locators", async () => {
+    const world = createFakeWorld();
+    const prefix = world.iframeXPath!;
+    world.snapshot = {
+      formattedTree: "[1-4] button: Save\n[2-4] button: Save\n[3-4] button: Save",
+      xpathMap: {
+        "1-4": `${prefix}/html[1]/body[1]/button[1]`,
+        "2-4": `${prefix}/html[1]/body[1]/iframe[1]/html[1]/body[1]/button[1]`,
+        "3-4": `${prefix}/html[1]/frameset[1]/frame[1]/html[1]/body[1]/button[1]`,
+      },
+    };
+    const { tools } = setup(world);
+    await expect(
+      tools.run(
+        `return await page.frameLocator("iframe").getByRole("button", {name: "Save", exact: true}).count();`,
+      ),
+    ).resolves.toBe(1);
+  });
+
+  it.each(["getByPlaceholder", "getByAltText", "getByTitle", "getByTestId"])(
+    "rejects unsupported frame %s regex matching explicitly",
+    async (method) => {
+      const { tools } = setup();
+      await expect(
+        tools.run(`return await page.frameLocator("iframe").${method}(/match/i).count();`),
+      ).rejects.toThrow(/regular-expression attribute matching is not supported/);
+    },
+  );
+
+  it("reports strict-mode violations inside frames with candidate names", async () => {
+    const world = createFakeWorld();
+    world.snapshot = {
+      formattedTree: ["[1-4] button: Save", "[1-7] button: Save draft"].join("\n"),
+      xpathMap: {
+        "1-4": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/button[1]",
+        "1-7": "/html[1]/body[1]/div[2]/iframe[1]/html[1]/body[1]/button[2]",
+      },
+    };
+    const { tools } = setup(world);
+    await expect(
+      tools.run(`await page.frameLocator("iframe").getByRole("button", { name: "Save" }).click();`),
+    ).rejects.toThrow(
+      /strict mode violation: 2 elements matched\. Candidates: \[0\] button "Save"; \[1\] button "Save draft"\..*\.first\(\)/u,
+    );
+  });
+
+  it("explains layout-object failures instead of surfacing the CDP code", async () => {
+    const world = createFakeWorld();
+    world.clickErrors["#editor >> .hidden"] = new Error(
+      "-32000 Node does not have a layout object",
+    );
+    const { tools } = setup(world);
+    const result = tools.run(
+      `await page.frameLocator("#editor").locator(".hidden").click({ timeout: 300 });`,
+    );
+    await expect(result).rejects.toThrow(/not rendered \(no layout box/u);
+    await expect(result).rejects.not.toThrow(/-32000|Original:/u);
+  });
+
+  it("rejects operations that cannot cross the frame boundary with guidance", async () => {
+    const { tools } = setup();
+    await expect(
+      tools.run(
+        `await page.frameLocator("#editor").locator("div").filter({ hasText: "x" }).click();`,
+      ),
+    ).rejects.toThrow(/locator\.filter is not supported inside frameLocator\(\)/u);
+    await expect(
+      tools.run(`await page.frameLocator("#editor").locator("div").evaluate(() => 1);`),
+    ).rejects.toThrow(/locator\.evaluate is not supported inside frameLocator\(\)/u);
+    await expect(
+      tools.run(`await page.frameLocator("#editor").locator("input").getAttribute("placeholder");`),
+    ).rejects.toThrow(
+      /locator\.getAttribute is not supported inside frameLocator\(\).*snapshot tool/u,
+    );
+    await expect(tools.run(`page.frameLocator("#editor").nth(2);`)).rejects.toThrow(
+      /nth is not supported inside frameLocator/u,
+    );
   });
 });
