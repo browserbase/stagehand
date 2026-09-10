@@ -8,6 +8,6 @@
     "rootDir": ".",
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "integration/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }
