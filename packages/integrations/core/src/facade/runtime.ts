@@ -123,7 +123,11 @@ type RawContext = {
   };
 };
 
-type BatchStagehandRuntime = { page: RawPage; context: RawContext };
+type BatchStagehandRuntime = {
+  page: RawPage;
+  context: RawContext;
+  evaluateWithShadowRoots?<Result>(pageId: string, functionSource: string): Promise<Result>;
+};
 
 export type PlaywrightCompatTelemetry = {
   calls: Record<string, number>;
@@ -325,41 +329,44 @@ export async function createPlaywrightCompatRuntime(
   // This function is serialized independently by Stagehand page.evaluate, so
   // every query helper must remain nested inside it rather than closing over
   // the callback-batch scope.
-  async function executeQueryInPage(input: {
-    plan?: QueryStep[];
-    operation:
-      | "inspect"
-      | "describe"
-      | "tag"
-      | "tagAll"
-      | "untag"
-      | "textContent"
-      | "innerText"
-      | "innerHTML"
-      | "inputValue"
-      | "isChecked"
-      | "isDisabled"
-      | "isEnabled"
-      | "getAttribute"
-      | "boundingBox"
-      | "focus"
-      | "blur"
-      | "selectText"
-      | "domClick"
-      | "scrollIntoView"
-      | "allTextContents"
-      | "allInnerTexts"
-      | "evaluate"
-      | "evaluateAll"
-      | "pageContent"
-      | "pageEvaluateHandle"
-      | "elementEvaluateHandle";
-    token?: string;
-    attribute?: string;
-    functionSource?: string;
-    argument?: unknown;
-    strict?: boolean;
-  }): Promise<QueryResult> {
+  async function executeQueryInPage(
+    input: {
+      plan?: QueryStep[];
+      operation:
+        | "inspect"
+        | "describe"
+        | "tag"
+        | "tagAll"
+        | "untag"
+        | "textContent"
+        | "innerText"
+        | "innerHTML"
+        | "inputValue"
+        | "isChecked"
+        | "isDisabled"
+        | "isEnabled"
+        | "getAttribute"
+        | "boundingBox"
+        | "focus"
+        | "blur"
+        | "selectText"
+        | "domClick"
+        | "scrollIntoView"
+        | "allTextContents"
+        | "allInnerTexts"
+        | "evaluate"
+        | "evaluateAll"
+        | "pageContent"
+        | "pageEvaluateHandle"
+        | "elementEvaluateHandle";
+      token?: string;
+      attribute?: string;
+      functionSource?: string;
+      argument?: unknown;
+      strict?: boolean;
+    },
+    closedRoots: ShadowRoot[] = [],
+  ): Promise<QueryResult> {
     type QueryRoot = Document | Element | ShadowRoot;
 
     const normalize = (value: string): string => value.replace(/\s+/gu, " ").trim();
@@ -387,13 +394,25 @@ export async function createPlaywrightCompatRuntime(
         return true;
       });
     };
+    const closedRootsByHost = new Map(closedRoots.map((root) => [root.host, root]));
+    const shadowRootFor = (element: Element): ShadowRoot | null =>
+      element.shadowRoot ?? closedRootsByHost.get(element) ?? null;
+    const containsAcrossShadowRoots = (root: QueryRoot, element: Element): boolean => {
+      let node: Node | null = element;
+      while (node) {
+        if (node === root) return true;
+        node = node instanceof ShadowRoot ? node.host : node.parentNode;
+      }
+      return false;
+    };
     const queryCssDeep = (root: QueryRoot, selector: string): Element[] => {
       const direct = [...root.querySelectorAll(selector)];
-      const ownShadow =
-        root instanceof Element && root.shadowRoot ? queryCssDeep(root.shadowRoot, selector) : [];
-      const nested = [...root.querySelectorAll("*")].flatMap((element) =>
-        element.shadowRoot ? queryCssDeep(element.shadowRoot, selector) : [],
-      );
+      const ownRoot = root instanceof Element ? shadowRootFor(root) : null;
+      const ownShadow = ownRoot ? queryCssDeep(ownRoot, selector) : [];
+      const nested = [...root.querySelectorAll("*")].flatMap((element) => {
+        const shadow = shadowRootFor(element);
+        return shadow ? queryCssDeep(shadow, selector) : [];
+      });
       return dedupe([...direct, ...ownShadow, ...nested]);
     };
     const smallestTextMatches = (elements: Element[], expected: JsonMatcher): Element[] =>
@@ -424,7 +443,7 @@ export async function createPlaywrightCompatRuntime(
      * and encode a shadow-root boundary as `//`, which native
      * `document.evaluate` cannot follow. Mirrors the extension's
      * resolveStagehandShadowHopMatches: child steps walk light-DOM children,
-     * a `//` step after the first walks into the host's (open) shadow root.
+     * a `//` step after the first walks into the host's shadow root.
      */
     const resolveStagehandXPath = (expression: string): Element[] => {
       const path = expression.trim().replace(/^xpath=/iu, "");
@@ -468,7 +487,7 @@ export async function createPlaywrightCompatRuntime(
           if (root instanceof Document) {
             pool = root.documentElement ? [root.documentElement] : [];
           } else if (step.hop && position > 0) {
-            pool = root instanceof Element ? [...(root.shadowRoot?.children ?? [])] : [];
+            pool = root instanceof Element ? [...(shadowRootFor(root)?.children ?? [])] : [];
           } else {
             pool = [...root.children];
           }
@@ -625,7 +644,10 @@ export async function createPlaywrightCompatRuntime(
         if (child.nodeType === Node.TEXT_NODE) text += child.nodeValue ?? "";
         else if (child.nodeType === Node.ELEMENT_NODE) text += labelNodeText(child);
       }
-      if (node instanceof Element && node.shadowRoot) text += labelNodeText(node.shadowRoot);
+      if (node instanceof Element) {
+        const shadow = shadowRootFor(node);
+        if (shadow) text += labelNodeText(shadow);
+      }
       return text;
     };
     // Label locators match each label separately, with labelledby > aria-label > <label>
@@ -738,9 +760,7 @@ export async function createPlaywrightCompatRuntime(
                 return [];
               }
             }),
-          ).filter((element) =>
-            roots.some((root) => root instanceof Document || root.contains(element)),
-          );
+          ).filter((element) => roots.some((root) => containsAcrossShadowRoots(root, element)));
           current = scoped.filter((element) => {
             if (
               step.checked !== undefined &&
@@ -940,6 +960,7 @@ export async function createPlaywrightCompatRuntime(
 
   const buildQueryEvaluationExpression = (
     query: Parameters<typeof executeQueryInPage>[0],
+    shadowRootsExpression?: string,
   ): string => {
     const functionSource = JSON.stringify(Function.prototype.toString.call(executeQueryInPage));
     const querySource = JSON.stringify(query);
@@ -950,7 +971,7 @@ export async function createPlaywrightCompatRuntime(
       }
       try {
         const execute = (0, eval)("(" + ${functionSource} + ")");
-        return await execute(${querySource});
+        return await execute(${querySource}${shadowRootsExpression ? `, ${shadowRootsExpression}` : ""});
       } catch (error) {
         return {
           count: 0,
@@ -1765,9 +1786,14 @@ export async function createPlaywrightCompatRuntime(
       closed: false,
       execute: async (plan, operation, extra = {}) => {
         const run = async (steps: QueryStep[]): Promise<QueryResult> => {
-          const result = await page.evaluate<QueryResult>(
-            buildQueryEvaluationExpression({ plan: steps, operation, ...extra }),
-          );
+          const query = { plan: steps, operation, ...extra };
+          const result =
+            stagehand.evaluateWithShadowRoots && page.pageId
+              ? await stagehand.evaluateWithShadowRoots<QueryResult>(
+                  page.pageId,
+                  `function(shadowRoots) { return ${buildQueryEvaluationExpression(query, "shadowRoots")}; }`,
+                )
+              : await page.evaluate<QueryResult>(buildQueryEvaluationExpression(query));
           if (result.error) {
             const error = new Error(result.error.message);
             error.name = result.error.name;
