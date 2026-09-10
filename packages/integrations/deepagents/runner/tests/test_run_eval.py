@@ -113,6 +113,7 @@ async def test_streams_tool_sequence_and_sums_usage() -> None:
     assert events[-2]["text"] == "done"
     assert events[-1] == {
         "type": "usage",
+        "reported": True,
         "input_tokens": 15,
         "output_tokens": 6,
         "cache_read_input_tokens": 5,
@@ -429,6 +430,7 @@ def test_content_blocks_and_usage_helpers() -> None:
         {"data": "ZGVm", "mime_type": "image/jpeg"},
     ]
     assert aggregate_usage([usage(2, 3, 1, 2), usage(4, 5, 2, 3)]) == {
+        "reported": True,
         "input_tokens": 6,
         "output_tokens": 8,
         "cache_read_input_tokens": 3,
@@ -459,3 +461,15 @@ async def test_flaky_teardown_after_completion_keeps_exit_zero(
 
     assert exit_code == 0
     assert all(event["type"] != "error" for event in events)
+
+
+@pytest.mark.parametrize("usages", [[], [None], [{}], [{"input_tokens": None, "output_tokens": -1}], [{"total_tokens": 0}]])
+def test_usage_presence_missing(usages: list[dict[str, Any] | None]) -> None:
+    assert aggregate_usage(usages)["reported"] is False
+
+
+def test_usage_presence_preserves_observed_zero() -> None:
+    result = aggregate_usage([usage(0, 0, 0, 0), None, {}])
+    assert result["reported"] is True
+    assert result["input_tokens"] == 0
+    assert result["output_tokens"] == 0

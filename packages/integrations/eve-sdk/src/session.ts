@@ -17,6 +17,8 @@ export type EveEvent = {
 };
 
 export type EveTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -339,10 +341,12 @@ export function extractEveTokenUsage(events: EveEvent[]): EveTokenUsage {
   const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
   let costUsd = 0;
   let hasCostUsd = false;
+  let reported = false;
   for (const event of events) {
     if (event.type !== "step.completed") continue;
     const data = isRecord(event.data) ? event.data : undefined;
     const stepUsage = isRecord(data?.usage) ? data.usage : undefined;
+    reported ||= [stepUsage?.inputTokens, stepUsage?.outputTokens].some(isTokenCount);
     usage.inputTokens += toFiniteNumber(stepUsage?.inputTokens);
     usage.outputTokens += toFiniteNumber(stepUsage?.outputTokens);
     usage.cacheReadTokens += toFiniteNumber(stepUsage?.cacheReadTokens);
@@ -354,6 +358,7 @@ export function extractEveTokenUsage(events: EveEvent[]): EveTokenUsage {
   }
   return {
     ...usage,
+    reported,
     totalTokens: Object.values(usage).reduce((sum, value) => sum + value, 0),
     ...(hasCostUsd && { costUsd }),
   };
@@ -493,4 +498,12 @@ export function stringifyError(value: unknown): string {
 
 export function clip(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  extractPiTokenUsage,
   buildPiMcpToolName,
   buildPiTranscript,
   definePiCodeRunTool,
@@ -132,6 +133,7 @@ describe("pi SDK session", () => {
     expect(result.turns).toBe(2);
     expect(result.events.some((event) => event.type === "message_update")).toBe(false);
     expect(result.tokenUsage).toEqual({
+      reported: true,
       inputTokens: 15,
       outputTokens: 8,
       cacheReadTokens: 4,
@@ -426,5 +428,30 @@ describe("pi SDK session", () => {
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("active cancellation");
     expect(removeListener).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+});
+
+describe("Pi token usage presence", () => {
+  const event = (usage: Record<string, unknown>) => ({
+    type: "message_end",
+    message: { role: "assistant", usage },
+  });
+  it.each([{}, { cost: { total: 0 } }, { totalTokens: 0 }, { input: null, output: -1 }])(
+    "does not infer tokens from absent or invalid telemetry: %j",
+    (usage) => {
+      expect(extractPiTokenUsage([event(usage)]).reported).toBe(false);
+    },
+  );
+  it("preserves observed zero and presence across later missing usage", () => {
+    expect(extractPiTokenUsage([]).reported).toBe(false);
+    expect(extractPiTokenUsage([event({ input: 0, output: "0" }), event({})])).toMatchObject({
+      reported: true,
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+    expect(
+      extractPiTokenUsage([{ type: "message_end", message: { role: "user", usage: { input: 1 } } }])
+        .reported,
+    ).toBe(false);
   });
 });
