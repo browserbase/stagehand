@@ -1,3 +1,4 @@
+import { ShadowRootEvaluationError } from "../errors.js";
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 
@@ -30,7 +31,7 @@ export async function evaluateWithShadowRoots<Result>(
         backendNodeId,
         objectGroup,
       });
-      if (!object.objectId) throw new Error("Closed shadow root is no longer available");
+      if (!object.objectId) throw new ShadowRootEvaluationError();
       objects.push({ objectId: object.objectId });
     }
     const response = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
@@ -43,9 +44,10 @@ export async function evaluateWithShadowRoots<Result>(
         returnByValue: true,
       },
     );
-    if (response.exceptionDetails) throw new Error(response.exceptionDetails.text);
+    if (response.exceptionDetails) throw new ShadowRootEvaluationError();
     return response.result.value as Result;
   } finally {
-    await session.send("Runtime.releaseObjectGroup", { objectGroup });
+    // Navigation can destroy the group before cleanup; preserve the query outcome.
+    await session.send("Runtime.releaseObjectGroup", { objectGroup }).catch(() => {});
   }
 }
