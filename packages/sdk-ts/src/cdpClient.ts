@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
@@ -193,6 +194,13 @@ export class CDPClient {
   sessionId: string | undefined;
   attachedServiceWorker: ServiceWorkerInfo | undefined;
   closed = false;
+  private readonly heartbeatMs = cdpHeartbeatMs(process.env.STAGEHAND_CDP_HEARTBEAT_MS);
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
+  private heartbeatAbort?: AbortController;
+  private readonly connectedAt = Date.now();
+  private lastMsgAt = this.connectedAt;
+  private lastSentAt = this.connectedAt;
+  private lastMethod = "";
 
   constructor(
     readonly socket: WebSocket,
@@ -200,35 +208,101 @@ export class CDPClient {
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.socket.addEventListener("message", (event) => {
+      if (this.closed) return;
+      this.lastMsgAt = Date.now();
       this.handleMessage(event.data).catch((error: unknown) => {
-        const normalized = asError(error);
-        this.rejectPending(normalized);
-        this.onerror?.(normalized);
+        this.finishDrop(asError(error), "error");
       });
     });
 
     this.socket.addEventListener("close", (event) => {
-      if (this.closed) return;
-      this.closed = true;
       const { code, reason: closeReason } = event as Event & { code?: number; reason?: string };
-      const reason = new CDPConnectionClosedError({ code, reason: closeReason });
-      this.rejectPending(reason);
-      this.onclose?.(reason);
+      this.finishDrop(new CDPConnectionClosedError({ code, reason: closeReason }), "close", code);
     });
 
     this.socket.addEventListener("error", (event) => {
-      if (this.closed) return;
-      this.closed = true;
       const socketError = asError((event as Event & { error?: unknown }).error ?? event);
-      const reason = new CDPConnectionClosedError({ cause: socketError });
-      this.rejectPending(reason);
+      this.finishDrop(new CDPConnectionClosedError({ cause: socketError }), "error");
+    });
+    this.startHeartbeat();
+  }
+
+  /** Browser-level traffic only; no replay, transport replacement or reconnection. */
+  private startHeartbeat(): void {
+    this.heartbeatTimer = setInterval(() => {
+      if (this.closed || this.socket.readyState !== WebSocket.OPEN || this.heartbeatAbort) return;
+      const controller = new AbortController();
+      this.heartbeatAbort = controller;
+      const timeout = setTimeout(
+        () => controller.abort(new Error("CDP heartbeat timed out")),
+        Math.min(this.heartbeatMs, 10_000),
+      );
+      timeout.unref?.();
+      void this.sendCommand("Browser.getVersion", {}, undefined, controller.signal)
+        .catch(() => undefined)
+        .finally(() => {
+          clearTimeout(timeout);
+          if (this.heartbeatAbort === controller) this.heartbeatAbort = undefined;
+        });
+    }, this.heartbeatMs);
+    this.heartbeatTimer.unref?.();
+  }
+
+  private stopHeartbeat(): void {
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = undefined;
+    this.heartbeatAbort?.abort(new Error("CDP heartbeat stopped"));
+    this.heartbeatAbort = undefined;
+  }
+
+  private finishDrop(reason: Error, kind: "close" | "error", code?: number): void {
+    if (this.closed) return;
+    // Mark terminal before closing the socket: synchronous error->close must
+    // notify once and retain the original error rather than the cleanup close.
+    this.closed = true;
+    this.logDrop(reason, kind, code);
+    this.stopHeartbeat();
+    this.rejectPending(reason);
+    if (kind === "error") {
       try {
         this.socket.close();
       } catch {
-        // The transport is already terminal; preserve the original socket failure.
+        /* preserve the terminal error */
       }
       this.onerror?.(reason);
-    });
+    } else {
+      this.onclose?.(reason);
+    }
+  }
+
+  private logDrop(reason: Error, kind: "close" | "error", code?: number): void {
+    if (process.env.STAGEHAND_CDP_LOG !== "1") return;
+    const now = Date.now();
+    const line = `CDP_DROP ${JSON.stringify({
+      ts: new Date(now).toISOString(),
+      kind,
+      code: code ?? null,
+      idle_ms: now - this.lastMsgAt,
+      since_send_ms: now - this.lastSentAt,
+      age_ms: now - this.connectedAt,
+      pending: this.pending.size,
+      last_method: /^[A-Za-z][A-Za-z0-9_.]*$/u.test(this.lastMethod) ? this.lastMethod : "",
+      reason: cdpDiagnosticReason(reason),
+    })}\n`;
+    // Diagnostics never change the connection's terminal outcome.
+    try {
+      process.stderr.write(line);
+    } catch {
+      /* best effort */
+    }
+    const file = process.env.STAGEHAND_CDP_LOG_FILE;
+    if (file) {
+      try {
+        appendFileSync(file, line);
+      } catch {
+        /* best effort */
+      }
+    }
   }
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
@@ -336,6 +410,7 @@ export class CDPClient {
     signal?: AbortSignal,
   ): Promise<Result> {
     throwIfAborted(signal);
+    if (this.closed) throw new CDPConnectionClosedError();
     if (this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("CDP connection is not open");
     }
@@ -365,6 +440,8 @@ export class CDPClient {
       }
       try {
         this.socket.send(JSON.stringify(message));
+        this.lastSentAt = Date.now();
+        if (method !== "Browser.getVersion") this.lastMethod = method;
       } catch (error) {
         this.pending.delete(id);
         signal?.removeEventListener("abort", onAbort);
@@ -376,6 +453,7 @@ export class CDPClient {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.stopHeartbeat();
     this.onmessage = undefined;
     this.onclose = undefined;
     this.onerror = undefined;
@@ -734,4 +812,46 @@ function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function cdpHeartbeatMs(raw: string | undefined): number {
+  const value = Number(raw);
+  return raw?.trim() && Number.isInteger(value) && value >= 1_000 && value <= 2_147_483_647
+    ? value
+    : 20_000;
+}
+
+/** Keep transport causes useful without serializing errors, payloads or arbitrary objects. */
+function cdpDiagnosticReason(reason: Error): string {
+  const messages: string[] = [];
+  const seen = new Set<Error>();
+  let current: unknown = reason;
+  for (let depth = 0; depth < 4; depth++) {
+    try {
+      if (typeof current === "string") {
+        messages.push(sanitizeCdpDiagnostic(current));
+        break;
+      }
+      if (!(current instanceof Error) || seen.has(current)) break;
+      seen.add(current);
+      if (typeof current.message === "string" && current.message)
+        messages.push(sanitizeCdpDiagnostic(current.message));
+      current = current.cause;
+    } catch {
+      // A diagnostic accessor must not interrupt rejection or transport cleanup.
+      break;
+    }
+  }
+  return (messages.join(": ") || "CDP connection closed").slice(0, 160);
+}
+
+/** The diagnostic contains no payloads or connection URLs, including close text URLs. */
+function sanitizeCdpDiagnostic(message: string): string {
+  return message
+    .replace(/(?:https?|wss?):\/\/[^\s"']+/giu, "[url]")
+    .replace(
+      /\b(?:sk-[A-Za-z0-9_-]+|bb_(?:live|test)_[A-Za-z0-9_-]+|AIza[A-Za-z0-9_-]{20,})/gu,
+      "[redacted]",
+    )
+    .replace(/\bBearer\s+[^\s]+/giu, "Bearer [redacted]");
 }
