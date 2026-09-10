@@ -1,3 +1,4 @@
+import { ShadowRootEvaluationUnavailableError } from "./errors.js";
 import type {
   ClearCookieOptions,
   ContextActivePageResult,
@@ -627,7 +628,8 @@ export class StagehandRuntime {
 
   async evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown> {
     const page = this.resolvePage(pageId);
-    if (!page.evaluateWithShadowRoots) throw new Error("Shadow-root evaluation is unavailable");
+    this.logger.debug("page.evaluateWithShadowRoots", { pageId });
+    if (!page.evaluateWithShadowRoots) throw new ShadowRootEvaluationUnavailableError();
     return page.evaluateWithShadowRoots(functionSource);
   }
 
