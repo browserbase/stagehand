@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import {
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -366,11 +367,17 @@ export function buildDeepagentsTranscript(events: DeepagentsEvent[]): string {
 }
 
 export function logDeepagentsEvent(logger: HarnessLogger, event: DeepagentsEvent): void {
+  const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError: type === "error" || (type === "tool_result" && event.ok === false),
+    hasContent: type === "assistant" || type === "tool_result" || type === "final",
+  });
+  if (level === undefined) return;
   const summary = summarizeDeepagentsEvent(event);
   logger.log({
     category: "deepagents",
     message: sanitizeErrorMessage(summary.message),
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && {

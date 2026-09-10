@@ -1,5 +1,6 @@
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -161,6 +162,7 @@ export async function runPiSession(input: {
 }): Promise<PiSessionResult> {
   const sdk = input.sdk ?? (await loadPiSdk({ logger: input.logger }));
   const events: PiEvent[] = [];
+  const imageBudget = { remainingBytes: MAX_PI_SESSION_IMAGE_BYTES };
   let iterationError: unknown;
   let stopReason: string | undefined;
   let piSession: PiAgentSessionLike | undefined;
@@ -192,7 +194,7 @@ export async function runPiSession(input: {
     piSession.agent.shouldStopAfterTurn = () => turns >= maxTurns;
     unsubscribe = piSession.subscribe((event) => {
       if (event.type === "message_update") return;
-      events.push(event);
+      events.push(compactPiEvent(event, imageBudget));
       logPiEvent(input.logger, event);
       if (event.type === "turn_end") turns += 1;
       if (event.type === "tool_execution_end" && typeof event.toolName === "string") {
@@ -302,11 +304,20 @@ export function buildPiTranscript(events: PiEvent[]): string {
 }
 
 export function logPiEvent(logger: HarnessLogger, event: PiEvent): void {
+  const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError:
+      type === "error" ||
+      (type === "message_end" && isRecord(event.message) && event.message.stopReason === "error") ||
+      (type === "tool_execution_end" && event.isError === true),
+    hasContent: type === "message_end" || type === "tool_execution_end",
+  });
+  if (level === undefined) return;
   const summary = summarizePiEvent(event);
   logger.log({
     category: "pi",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
@@ -318,24 +329,112 @@ export function summarizePiEvent(event: PiEvent): { message: string; detail?: st
   const type = String(event.type ?? "unknown");
   if (type === "message_end" && isRecord(event.message)) {
     const text = assistantText(event.message);
-    const detail = text || safeJson(event.message);
+    const detail = text || safeJson(withoutImageData(event.message));
     return {
-      message: sanitizeErrorMessage(`assistant: ${clip(text, 500)}`),
-      ...(detail && { detail: sanitizeErrorMessage(detail) }),
+      message: `assistant: ${clip(sanitizeErrorMessage(text), 500)}`,
+      ...(detail && { detail: clip(sanitizeErrorMessage(detail), MAX_EVENT_DETAIL_CHARS) }),
     };
   }
   if (type.startsWith("tool_execution_")) {
-    const detail = safeJson(event);
+    const detail = safeJson(withoutImageData(event));
     return {
       message: sanitizeErrorMessage(`${type}: ${String(event.toolName ?? "tool")}`),
-      ...(detail && { detail: sanitizeErrorMessage(detail) }),
+      ...(detail && { detail: clip(sanitizeErrorMessage(detail), MAX_EVENT_DETAIL_CHARS) }),
     };
   }
-  const detail = safeJson(event);
+  const detail = safeJson(withoutImageData(event));
   return {
     message: sanitizeErrorMessage(`${type} event`),
-    ...(detail && { detail: sanitizeErrorMessage(detail) }),
+    ...(detail && { detail: clip(sanitizeErrorMessage(detail), MAX_EVENT_DETAIL_CHARS) }),
   };
+}
+
+const MAX_EVENT_DETAIL_CHARS = 20_000;
+/** Retained trajectory evidence only; model-facing tool results are unchanged. */
+export const MAX_PI_IMAGE_BYTES = 8 * 1024 * 1024;
+export const MAX_PI_SESSION_IMAGE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Reduce a retained pi event to what the trajectory adapter and usage
+ * accounting read. pi emits every message (including tool results carrying
+ * screenshots) both as its own `message_end` and inside `tool_execution_end`,
+ * so screenshots are decoded to a single Buffer on the tool event and dropped
+ * from non-assistant messages, which nothing downstream reads.
+ */
+export function compactPiEvent(
+  event: PiEvent,
+  imageBudget: { remainingBytes: number } = { remainingBytes: MAX_PI_SESSION_IMAGE_BYTES },
+): PiEvent {
+  if (event.type === "tool_execution_end") {
+    return { ...event, result: decodeImageBlocks(event.result, imageBudget) };
+  }
+  if (
+    event.type === "message_end" &&
+    isRecord(event.message) &&
+    event.message.role !== "assistant"
+  ) {
+    return { ...event, message: withoutImageData(event.message) };
+  }
+  return event;
+}
+
+function decodeImageBlocks(value: unknown, budget: { remainingBytes: number }): unknown {
+  if (!isRecord(value) || !Array.isArray(value.content)) return value;
+  return {
+    ...value,
+    content: value.content.map((block) => {
+      if (!isRecord(block) || block.type !== "image") {
+        return block;
+      }
+      const data = typeof block.data === "string" ? block.data : undefined;
+      const bytes = Buffer.isBuffer(block.bytes) ? block.bytes : undefined;
+      if (data === undefined && !bytes) return block;
+      // An upper bound from encoded length prevents allocating an oversized
+      // Buffer. Noncanonical/whitespace-heavy base64 may be rejected conservatively.
+      const size =
+        bytes?.byteLength ??
+        Math.max(
+          0,
+          Math.ceil(data!.length / 4) * 3 -
+            (data!.endsWith("==") ? 2 : data!.endsWith("=") ? 1 : 0),
+        );
+      const limit =
+        size > MAX_PI_IMAGE_BYTES
+          ? `${MAX_PI_IMAGE_BYTES}-byte per-image`
+          : size > budget.remainingBytes
+            ? `${budget.remainingBytes}-byte remaining session image`
+            : undefined;
+      if (limit) {
+        // A text block leaves neither base64 nor Buffer for an adapter to decode.
+        return {
+          type: "text",
+          text: `[Screenshot omitted from retained evidence: ${size} bytes exceeds the ${limit} budget.]`,
+        };
+      }
+      const retained = bytes ?? Buffer.from(data!, "base64");
+      budget.remainingBytes -= retained.byteLength;
+      const { data: _data, bytes: _bytes, ...rest } = block;
+      return { ...rest, bytes: retained };
+    }),
+  };
+}
+
+/** Deep copy with image payloads replaced by a size placeholder (for logs). */
+export function withoutImageData<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => withoutImageData(item)) as T;
+  if (Buffer.isBuffer(value)) return `[${value.byteLength} bytes]` as T;
+  if (!isRecord(value)) return value;
+  if (value.type === "image" && (typeof value.data === "string" || Buffer.isBuffer(value.bytes))) {
+    const size =
+      typeof value.data === "string"
+        ? Math.floor((value.data.length * 3) / 4)
+        : (value.bytes as Buffer).byteLength;
+    const { data: _data, bytes: _bytes, ...rest } = value;
+    return { ...rest, data: `[image ${size} bytes]` } as T;
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, withoutImageData(entry)]),
+  ) as T;
 }
 
 export function resolvePiStatus(input: {
