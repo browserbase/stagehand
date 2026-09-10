@@ -9,6 +9,11 @@ export class StagehandFacadeConfigError extends Error {
   override readonly name = "StagehandFacadeConfigError";
 }
 
+/** Browserbase's project default is 15 minutes, shorter than most agent tasks. */
+export const DEFAULT_BROWSERBASE_SESSION_TIMEOUT_SECONDS = 3600;
+/** Browserbase rejects longer sessions (6 hours). */
+export const MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS = 21_600;
+
 export type StagehandFacadeConfig = {
   browser:
     | { type: "local"; launchOptions: LocalBrowserLaunchOptions }
@@ -34,6 +39,22 @@ export function stagehandFacadeConfigFromEnv(
       'BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".',
     );
   }
+  const browserbaseOptions =
+    browserType === "browserbase"
+      ? {
+          timeout: browserbaseSessionTimeoutSeconds(
+            env.STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS,
+          ),
+          proxies: booleanEnv(env.STAGEHAND_BROWSERBASE_PROXIES, "STAGEHAND_BROWSERBASE_PROXIES"),
+          verified: booleanEnv(
+            env.STAGEHAND_BROWSERBASE_VERIFIED,
+            "STAGEHAND_BROWSERBASE_VERIFIED",
+          ),
+        }
+      : undefined;
+  // A host that launches many facades at once uploads the Stagehand extension
+  // once and hands every facade the id; otherwise each session uploads its own.
+  const extensionId = nonEmpty(env.STAGEHAND_BROWSERBASE_EXTENSION_ID);
 
   const explicitModelName = nonEmpty(env.STAGEHAND_MODEL_NAME);
   const explicitModelApiKey = nonEmpty(env.STAGEHAND_MODEL_API_KEY);
@@ -77,11 +98,42 @@ export function stagehandFacadeConfigFromEnv(
             launchOptions: {
               apiKey: browserbaseApiKey!,
               ...(browserbaseProjectId ? { projectId: browserbaseProjectId } : {}),
+              timeout: browserbaseOptions!.timeout,
+              // The facade owns shutdown explicitly, including sessions whose
+              // client transport has already closed.
+              keepAlive: true,
+              // Bot-wall parity with Stagehand's native agent path, which runs
+              // proxied + verified sessions; unproxied facade sessions were
+              // blocked (Akamai/PerimeterX) on sites the native path reached.
+              ...(browserbaseOptions!.proxies !== undefined
+                ? { proxies: browserbaseOptions!.proxies }
+                : {}),
+              ...(browserbaseOptions!.verified !== undefined
+                ? { browserSettings: { verified: browserbaseOptions!.verified } }
+                : {}),
+              ...(extensionId !== undefined ? { extensionId } : {}),
             },
           }
         : { type: "local", launchOptions: { headless: false } },
     stagehand,
   };
+}
+
+function browserbaseSessionTimeoutSeconds(raw: string | undefined): number {
+  const value = nonEmpty(raw);
+  if (value === undefined) return DEFAULT_BROWSERBASE_SESSION_TIMEOUT_SECONDS;
+  const parsed = Number(value);
+  if (
+    !/^\d+$/u.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed < 60 ||
+    parsed > MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS
+  ) {
+    throw new StagehandFacadeConfigError(
+      `STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS must be an integer between 60 and ${MAX_BROWSERBASE_SESSION_TIMEOUT_SECONDS} seconds (got "${value}").`,
+    );
+  }
+  return parsed;
 }
 
 function nonEmpty(value: string | undefined): string | undefined {
@@ -112,4 +164,12 @@ function providerApiKey(provider: string | undefined, env: NodeJS.ProcessEnv): s
     default:
       return undefined;
   }
+}
+
+function booleanEnv(value: string | undefined, name: string): boolean | undefined {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed) return undefined;
+  if (trimmed === "1" || trimmed === "true" || trimmed === "yes" || trimmed === "on") return true;
+  if (trimmed === "0" || trimmed === "false" || trimmed === "no" || trimmed === "off") return false;
+  throw new StagehandFacadeConfigError(`${name} must be a boolean (got "${value}").`);
 }
