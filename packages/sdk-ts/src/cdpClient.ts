@@ -173,8 +173,12 @@ const InstalledExtensionsResultSchema = z.looseObject({
 const STAGEHAND_EXTENSION_NAME = "Stagehand Runtime";
 
 export class CDPConnectionClosedError extends Error {
-  constructor(options?: ErrorOptions) {
-    super("CDP connection closed", options);
+  constructor(options?: ErrorOptions & { code?: number; reason?: string }) {
+    const detail =
+      options?.code !== undefined
+        ? ` (close code ${options.code}${options.reason ? `: ${options.reason}` : ""})`
+        : "";
+    super(`CDP connection closed${detail}`, options);
     this.name = "CDPConnectionClosedError";
   }
 }
@@ -203,10 +207,11 @@ export class CDPClient {
       });
     });
 
-    this.socket.addEventListener("close", () => {
+    this.socket.addEventListener("close", (event) => {
       if (this.closed) return;
       this.closed = true;
-      const reason = new CDPConnectionClosedError();
+      const { code, reason: closeReason } = event as Event & { code?: number; reason?: string };
+      const reason = new CDPConnectionClosedError({ code, reason: closeReason });
       this.rejectPending(reason);
       this.onclose?.(reason);
     });

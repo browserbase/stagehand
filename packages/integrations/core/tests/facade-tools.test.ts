@@ -1,9 +1,17 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { type Stagehand } from "@browserbasehq/stagehand";
+import { CDPConnectionClosedError, type Stagehand } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { StagehandFacadeTools, type StagehandFacadeRunReport } from "../src/facade/tools.js";
+import {
+  BROWSER_SESSION_LOST_ERROR_PREFIX,
+  type FacadeSessionLoss,
+} from "../src/facade/contract.js";
+import {
+  StagehandFacadeSessionLostError,
+  StagehandFacadeTools,
+  type StagehandFacadeRunReport,
+} from "../src/facade/tools.js";
 
 type FakePage = ReturnType<typeof createFakePage>;
 
@@ -388,5 +396,303 @@ describe("StagehandFacadeTools keeper tab", () => {
     const tools = new StagehandFacadeTools(stagehand, { keeperPage: false });
     await tools.run(`return 1;`);
     expect(context.newPage).not.toHaveBeenCalled();
+  });
+});
+
+describe("StagehandFacadeTools session loss", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function batchTimeoutError() {
+    const error = new Error("stagehand.experimentalBatch() received no response within 75000ms");
+    error.name = "StagehandBatchTimeoutError";
+    Object.assign(error, { timeout: 60_000, clientTimeout: 75_000 });
+    return error;
+  }
+
+  it("turns a batch client deadline into the terminal error and stays dead", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch, context } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    const losses: FacadeSessionLoss[] = [];
+    const tools = new StagehandFacadeTools(stagehand, {
+      onSessionLost: (loss) => losses.push(loss),
+    });
+
+    const first = tools.run("await page.getByRole('button', { name: 'Search now' }).click();");
+    await expect(first).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
+    await expect(first).rejects.toThrow(
+      "Browser session lost (batch received no response within 75000ms). The task cannot continue; report your final result now.",
+    );
+    expect(losses).toEqual([
+      { cause: "batch received no response within 75000ms", tool: "run", at: expect.any(String) },
+    ]);
+    expect(tools.sessionLoss).toBe(losses[0]);
+
+    // Every later call gets the same terminal answer without touching the browser.
+    const callsBefore = context.activePage.mock.calls.length;
+    await expect(tools.snapshot()).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    await expect(tools.run("return 1;")).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    await expect(tools.screenshot()).rejects.toThrow(BROWSER_SESSION_LOST_ERROR_PREFIX);
+    expect(context.activePage.mock.calls.length).toBe(callsBefore);
+    expect(experimentalBatch).toHaveBeenCalledTimes(1);
+    expect(losses).toHaveLength(1);
+  });
+
+  it("treats a closed RPC/CDP transport as session loss", async () => {
+    const page = createFakePage();
+    const { stagehand, context } = createFakeStagehand(page);
+    context.activePage.mockRejectedValueOnce(new Error("RPC client is closed"));
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.snapshot()).rejects.toThrow("Browser session lost (RPC client closed).");
+    expect(tools.sessionLoss?.tool).toBe("snapshot");
+  });
+
+  it("preserves socket diagnostics when a CDP error arrives before close", async () => {
+    // The SDK error-before-close path wraps the socket failure as cause,
+    // without a close code in the outer message.
+    const error = new CDPConnectionClosedError({
+      cause: new TypeError("WebSocket failed", {
+        cause: Object.assign(new Error("other side closed"), { code: "UND_ERR_SOCKET" }),
+      }),
+    });
+    const { stagehand, context } = createFakeStagehand(createFakePage());
+    context.activePage.mockRejectedValueOnce(error);
+    const onSessionLost = vi.fn();
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+    const cause =
+      "CDP connection closed; caused by TypeError: WebSocket failed; caused by Error [UND_ERR_SOCKET]: other side closed";
+
+    await expect(tools.snapshot()).rejects.toThrow(cause);
+    await expect(tools.snapshot()).rejects.toThrow(cause);
+    expect(tools.sessionLoss?.cause).toBe(cause);
+    expect(onSessionLost).toHaveBeenCalledOnce();
+    expect(context.activePage).toHaveBeenCalledOnce();
+  });
+
+  it("redacts credentials in CDP close reasons and nested socket causes before emitting loss", async () => {
+    const socketError = new TypeError(
+      "wss://browser.example/session?signingKey=url-secret&apiKey=api-secret&token=token-secret " +
+        "sk-abcdef1234567890 bb_live_abcd1234567890 Bearer bearer-secret-value",
+    );
+    const error = new CDPConnectionClosedError({
+      code: 1006,
+      reason: "https://browser.example/?key=reason-secret",
+      cause: socketError,
+    });
+    const { stagehand, context } = createFakeStagehand(createFakePage());
+    context.activePage.mockRejectedValueOnce(error);
+    const onSessionLost = vi.fn();
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+
+    const failure = await tools.snapshot().catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(StagehandFacadeSessionLostError);
+    const output = JSON.stringify({
+      message: (failure as Error).message,
+      loss: tools.sessionLoss,
+      callback: onSessionLost.mock.calls,
+    });
+    for (const secret of [
+      "url-secret",
+      "api-secret",
+      "token-secret",
+      "reason-secret",
+      "sk-abcdef1234567890",
+      "bb_live_abcd1234567890",
+      "bearer-secret-value",
+    ]) {
+      expect(output).not.toContain(secret);
+    }
+    expect(tools.sessionLoss?.cause).toContain("close code 1006");
+    expect(tools.sessionLoss?.cause).toContain(
+      "caused by TypeError: wss://browser.example/session",
+    );
+    expect(tools.sessionLoss?.cause).toContain(
+      "signingKey=[redacted]&apiKey=[redacted]&token=[redacted]",
+    );
+  });
+
+  it("handles empty and cyclic CDP causes without losing the error type", async () => {
+    const socketError = new TypeError();
+    const error = new CDPConnectionClosedError({ cause: socketError });
+    socketError.cause = error;
+    const { stagehand, context } = createFakeStagehand(createFakePage());
+    context.activePage.mockRejectedValueOnce(error);
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.snapshot()).rejects.toThrow("CDP connection closed; caused by TypeError");
+    expect(tools.sessionLoss?.cause).toBe("CDP connection closed; caused by TypeError");
+  });
+
+  it("does not treat an executor-side batch timeout or agent code errors as session loss", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(
+      new Error("Stagehand callback batch timed out after 60000ms"),
+    );
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(tools.run("return 1;")).rejects.toThrow("callback batch timed out");
+    expect(tools.sessionLoss).toBeUndefined();
+    await expect(tools.run("throw new Error('RPC client is closed');")).rejects.toThrow(
+      "RPC client is closed",
+    );
+    expect(tools.sessionLoss).toBeUndefined();
+    await expect(tools.run("return 2;")).resolves.toBe(2);
+  });
+
+  it("resets capture timeout count after a successful operation", async () => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    page.snapshot.mockImplementation(() => new Promise(() => undefined));
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    const timeout = async () => {
+      const rejection = expect(tools.snapshot()).rejects.toThrow("received no response");
+      await vi.advanceTimersByTimeAsync(120_000);
+      await rejection;
+    };
+    await timeout();
+    await timeout();
+    await expect(tools.run("return 1;")).resolves.toBe(1);
+    await timeout();
+    await timeout();
+    expect(tools.sessionLoss).toBeUndefined();
+  });
+
+  it("ignores a late timed-out snapshot after newer IDs have been installed", async () => {
+    vi.useFakeTimers();
+    const world = createFakeWorld();
+    const page = createFakePage("https://example.com", world);
+    let resolveLate!: (value: { formattedTree: string; xpathMap: Record<string, string> }) => void;
+    page.snapshot.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLate = resolve;
+        }),
+    );
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    const rejection = expect(tools.snapshot()).rejects.toThrow("received no response");
+    await vi.advanceTimersByTimeAsync(120_000);
+    await rejection;
+    world.snapshot = { formattedTree: "new", xpathMap: { "0-2": "/new/button" } };
+    await expect(tools.snapshot()).resolves.toBe("new");
+    resolveLate({ formattedTree: "old", xpathMap: { "0-1": "/old/button" } });
+    await Promise.resolve();
+    await expect(tools.runActions([{ op: "click", id: "0-2" }])).resolves.toMatchObject({
+      completed: 1,
+    });
+    expect(page.locator).toHaveBeenLastCalledWith("xpath=/new/button");
+    await expect(tools.runActions([{ op: "click", id: "0-1" }])).rejects.toThrow();
+  });
+
+  it("latches terminal loss once and never dispatches work already queued behind it", async () => {
+    const page = createFakePage();
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    const onSessionLost = vi.fn();
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+    const outcomes = await Promise.allSettled([
+      tools.run("return 1;"),
+      tools.snapshot(),
+      tools.screenshot(),
+      tools.run("return 2;"),
+    ]);
+    expect(
+      outcomes.every(
+        (result) =>
+          result.status === "rejected" && result.reason instanceof StagehandFacadeSessionLostError,
+      ),
+    ).toBe(true);
+    expect(onSessionLost).toHaveBeenCalledOnce();
+    expect(experimentalBatch).toHaveBeenCalledOnce();
+    expect(page.snapshot).not.toHaveBeenCalled();
+    expect(page.screenshot).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["transport", "throws"],
+    ["transport", "rejects"],
+    ["capture deadlines", "throws"],
+    ["capture deadlines", "rejects"],
+  ])("preserves terminal %s loss when its observer %s", async (failure, observer) => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    const { stagehand, experimentalBatch, context } = createFakeStagehand(page);
+    const onSessionLost = vi.fn(() => {
+      const error = new Error("diagnostic observer failed");
+      if (observer === "throws") throw error;
+      return Promise.reject(error);
+    });
+    const tools = new StagehandFacadeTools(stagehand, { onSessionLost });
+    if (failure === "transport") {
+      experimentalBatch.mockRejectedValueOnce(batchTimeoutError());
+    } else {
+      page.snapshot.mockImplementation(() => new Promise(() => undefined));
+      for (let count = 0; count < 2; count++) {
+        const rejection = expect(tools.snapshot()).rejects.toThrow(
+          "page.snapshot received no response",
+        );
+        await vi.advanceTimersByTimeAsync(120_000);
+        await rejection;
+      }
+    }
+    const pending = failure === "transport" ? tools.run("return 1;") : tools.snapshot();
+    const outcome = pending.catch((error: unknown) => error);
+    if (failure !== "transport") await vi.advanceTimersByTimeAsync(120_000);
+    expect(await outcome).toBeInstanceOf(StagehandFacadeSessionLostError);
+    expect(tools.sessionLoss).toBeDefined();
+    const calls = context.activePage.mock.calls.length;
+    await expect(tools.screenshot()).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
+    expect(context.activePage.mock.calls.length).toBe(calls);
+    expect(page.screenshot).not.toHaveBeenCalled();
+    expect(onSessionLost).toHaveBeenCalledOnce();
+  });
+
+  it("does not replay successful actions when a later action fails", async () => {
+    const world = createFakeWorld();
+    world.snapshot = { formattedTree: "actions", xpathMap: { "0-1": "/first", "0-2": "/second" } };
+    world.clickErrors["xpath=/second"] = new Error("Node does not have a layout object");
+    const page = createFakePage("https://example.com", world);
+    const { stagehand, experimentalBatch } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    await expect(
+      tools.runActions([
+        { op: "click", id: "0-1" },
+        { op: "click", id: "0-2" },
+      ]),
+    ).rejects.toThrow("layout object");
+    expect(experimentalBatch).toHaveBeenCalledOnce();
+    expect(world.locators.filter((locator) => locator.selector === "xpath=/first")).toHaveLength(1);
+    expect(world.locators[0]?.click).toHaveBeenCalledOnce();
+    expect(page.waitForTimeout).not.toHaveBeenCalled();
+  });
+
+  it("treats a single capture deadline as recoverable, escalating to session loss only after repeated consecutive timeouts", async () => {
+    vi.useFakeTimers();
+    const page = createFakePage();
+    page.snapshot.mockImplementation(() => new Promise(() => undefined));
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+
+    for (let i = 0; i < 2; i++) {
+      const pending = tools.snapshot();
+      const rejection = expect(pending).rejects.toThrow(
+        "page.snapshot received no response within 120000ms",
+      );
+      await vi.advanceTimersByTimeAsync(120_000);
+      await rejection;
+      expect(tools.sessionLoss).toBeUndefined();
+    }
+
+    const pending = tools.snapshot();
+    const rejection = expect(pending).rejects.toThrow("Browser session lost");
+    await vi.advanceTimersByTimeAsync(120_000);
+    await rejection;
+    expect(tools.sessionLoss?.cause).toContain("consecutive capture timeouts");
   });
 });

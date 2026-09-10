@@ -1,6 +1,4 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
-import { listBenchHarnesses, listBenchHarnessesForTaskKind } from "../../framework/benchHarness.js";
-import { listCoreRunnableTools } from "../../core/tools/registry.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -36,7 +34,9 @@ export function printHelp(): void {
   ]);
 }
 
-export function printRunHelp(): void {
+export async function printRunHelp(): Promise<void> {
+  const { listBenchHarnesses, listBenchHarnessesForTaskKind } =
+    await import("../../framework/benchHarness.js");
   const suiteHarness = listBenchHarnessesForTaskKind("suite")[0];
   print([
     "",
@@ -153,7 +153,8 @@ export function printNewHelp(): void {
   ]);
 }
 
-export function printConfigHelp(): void {
+export async function printConfigHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config")} ${dim("[subcommand]")}`,
@@ -194,7 +195,8 @@ export function printConfigHelp(): void {
   ]);
 }
 
-export function printConfigCoreHelp(): void {
+export async function printConfigCoreHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config core")} ${dim("[subcommand]")}`,
