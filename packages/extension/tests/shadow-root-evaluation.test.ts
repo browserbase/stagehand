@@ -43,4 +43,31 @@ describe("main-world shadow-root evaluation", () => {
       expect(send.mock.calls.at(-1)?.[0]).toBe("Runtime.releaseObjectGroup");
     },
   );
+  it.each([false, true])(
+    "preserves query outcome when cleanup fails (callback throws: %s)",
+    async (throws) => {
+      const send = vi.fn(async (method: string) => {
+        if (method === "DOM.getDocument")
+          return {
+            root: {
+              backendNodeId: 1,
+              shadowRoots: [{ backendNodeId: 2, shadowRootType: "closed" }],
+            },
+          };
+        if (method === "DOM.resolveNode") return { object: { objectId: "root" } };
+        if (method === "Runtime.releaseObjectGroup") throw new Error("context destroyed");
+        return throws
+          ? { exceptionDetails: { text: "sensitive page data" } }
+          : { result: { value: 42 } };
+      });
+      const result = evaluateWithShadowRoots({ send } as never, vi.fn(), "roots => roots.length");
+      if (throws)
+        await expect(result).rejects.toMatchObject({
+          name: "ShadowRootEvaluationError",
+          message: "Shadow-root evaluation failed",
+        });
+      else await expect(result).resolves.toBe(42);
+      expect(send.mock.calls.at(-1)?.[0]).toBe("Runtime.releaseObjectGroup");
+    },
+  );
 });
