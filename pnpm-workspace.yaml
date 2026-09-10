@@ -5,6 +5,7 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@anthropic-ai/sdk": 0.93.0
   "@cursor/sdk": 1.0.31
   "@modelcontextprotocol/sdk": 1.29.0
   "@ast-grep/lang-go": 0.0.6

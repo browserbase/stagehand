@@ -1,3 +1,5 @@
+import { runClaudeCuaAgent, CLAUDE_CUA_DEFAULT_MODELS } from "./claudeCuaRunner.js";
+import { CLAUDE_CUA_TOOL_SURFACES, prepareClaudeCuaToolAdapter } from "./claudeCuaToolAdapter.js";
 import { V3, normalizeRubric, type AvailableModel, type TaskSpec } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
@@ -379,6 +381,14 @@ export const cursorHarness = defineExternalHarness({
   runAgent: runCursorAgent,
 });
 
+export const claudeCuaHarness = defineExternalHarness({
+  harness: "claude_cua",
+  supportedToolSurfaces: CLAUDE_CUA_TOOL_SURFACES,
+  defaultModels: CLAUDE_CUA_DEFAULT_MODELS,
+  prepareToolAdapter: prepareClaudeCuaToolAdapter,
+  runAgent: runClaudeCuaAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -389,6 +399,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["deepagents", deepagentsHarness],
   ["fx", fxHarness],
   ["cursor", cursorHarness],
+  ["claude_cua", claudeCuaHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {

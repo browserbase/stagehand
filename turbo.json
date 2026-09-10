@@ -372,6 +372,27 @@
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
+    },
+    "@browserbasehq/stagehand-integrations-claude-cua-sdk#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
+    "@browserbasehq/stagehand-integrations-claude-cua-sdk#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-claude-cua-sdk#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-claude-cua-sdk#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "!dist/**",
+        "!.turbo/**",
+        "!node_modules/**"
+      ]
     }
   }
 }
