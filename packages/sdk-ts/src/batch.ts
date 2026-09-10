@@ -56,8 +56,6 @@ export type ExperimentalBatchBrowserContext = Omit<
 export type ExperimentalBatchExtractOptions = StagehandClientExtractOptions;
 
 export type ExperimentalBatchContext = {
-  /** @internal Main-world facade queries with temporary references to closed shadow roots. */
-  evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown>;
   /** Page selected when the batch starts; this does not change the default target of AI operations. */
   page: Page;
   context: ExperimentalBatchBrowserContext;
