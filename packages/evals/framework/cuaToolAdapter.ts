@@ -5,7 +5,10 @@ import type {
   RunnerToolCallResult,
   ToolStartResult,
 } from "../core/contracts/tool.js";
-import { StagehandFacadeBridgeError } from "../core/tools/stagehandFacadeBridge.js";
+import {
+  StagehandFacadeBridgeError,
+  StagehandFacadeTimeoutError,
+} from "../core/tools/stagehandFacadeBridge.js";
 
 export type CuaFacadeTools = Pick<
   StagehandFacadeTools,
@@ -35,8 +38,9 @@ export function bridgeCuaFacadeTools(
     let result: RunnerToolCallResult;
     try {
       result = await callTool(name, args, { timeoutMs });
-    } catch {
+    } catch (error) {
       checkSession();
+      if (error instanceof StagehandFacadeTimeoutError) throw error;
       throw new StagehandFacadeBridgeError(`Facade ${name} request failed.`);
     }
     checkSession();
