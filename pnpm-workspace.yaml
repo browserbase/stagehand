@@ -57,7 +57,6 @@ catalog:
   publint: ^0.3.8
   smol-toml: 1.7.0
 overrides:
-  "browse@0.9.6>@browserbasehq/stagehand": 3.7.1
   vite: "catalog:"
 allowBuilds:
   "@ast-grep/lang-go": true
