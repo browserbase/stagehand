@@ -33,8 +33,6 @@ const PROVIDER_API_KEY_ENV: Record<string, string[]> = {
   openai: ["OPENAI_API_KEY"],
   anthropic: ["ANTHROPIC_API_KEY"],
   google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
-  groq: ["GROQ_API_KEY"],
-  cerebras: ["CEREBRAS_API_KEY"],
 };
 
 type StagehandLogEvent = Parameters<NonNullable<StagehandClientLoggingConfig["onLog"]>>[0];

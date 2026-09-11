@@ -10,8 +10,6 @@ import { LLMClient } from "./LLMClient.js";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createGroq } from "@ai-sdk/groq";
-import { createCerebras } from "@ai-sdk/cerebras";
 import { wrapLanguageModel } from "ai";
 
 // Compile-only bridge: current AI SDK providers return mixed v2/v3/v4 model
@@ -23,8 +21,6 @@ const AISDKProviderFactories: Record<ModelProvider, AISDKProviderFactory> = {
   openai: createOpenAI as AISDKProviderFactory,
   anthropic: createAnthropic as AISDKProviderFactory,
   google: createGoogleGenerativeAI as AISDKProviderFactory,
-  groq: createGroq as AISDKProviderFactory,
-  cerebras: createCerebras as AISDKProviderFactory,
 };
 
 type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;
