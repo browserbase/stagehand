@@ -3,7 +3,8 @@ import type { DriverCommandHandlers } from "./types.js";
 export const networkHandlers: DriverCommandHandlers = {
   async "network.on"(manager) {
     const page = await manager.activePage();
-    return manager.network.enable(page);
+    const websocketUrl = await manager.networkWebSocketDebuggerUrl();
+    return manager.network.enable(page, websocketUrl);
   },
 
   async "network.off"(manager) {
