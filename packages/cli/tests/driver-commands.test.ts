@@ -440,19 +440,22 @@ describe("driver commands", () => {
     expect(page.evaluate).toHaveBeenCalledTimes(2);
   });
 
-  it("fails explicitly for the V4 coordinate XPath capability", async () => {
+  it("rejects removed coordinate XPath fields at the driver boundary", async () => {
     const manager = {} as Parameters<
       NonNullable<(typeof mouseHandlers)["mouse.click"]>
     >[0];
 
     for (const [command, params] of [
       ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
-      ["mouse.hover", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.hover", { returnXPath: false, x: 1, y: 2 }],
       ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
-      ["mouse.drag", { fromX: 1, fromY: 2, returnXPath: true, toX: 3, toY: 4 }],
+      [
+        "mouse.drag",
+        { fromX: 1, fromY: 2, returnXPath: false, toX: 3, toY: 4 },
+      ],
     ] as const) {
       await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
-        "Coordinate XPath lookup is not exposed by Stagehand V4",
+        /returnXPath/,
       );
     }
   });
@@ -791,6 +794,13 @@ describe("driver commands", () => {
     const result = await runCli(["tab", "switch", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Prefer targetId");
+  });
+  it("does not expose the removed coordinate XPath flag", async () => {
+    for (const command of ["click", "hover", "scroll", "drag"]) {
+      const result = await runCli(["mouse", command, "--help"]);
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).not.toContain("--return-xpath");
+    }
   });
 });
 
