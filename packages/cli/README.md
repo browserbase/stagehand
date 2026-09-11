@@ -227,7 +227,7 @@ browse cloud sessions downloads get <session-id> # --output ./downloads.zip
 browse cloud sessions uploads create <session-id> ./file.pdf
 
 # Contexts
-browse cloud contexts create
+browse cloud contexts create --name github       # name is stored in Browserbase
 browse cloud contexts get <context-id>
 browse cloud contexts update <context-id>        # refresh the upload URL
 browse cloud contexts delete <context-id>
@@ -241,6 +241,12 @@ browse cloud extensions delete <extension-id>
 browse cloud fetch <url>                          # markdown by default
 browse cloud search <query>
 ```
+
+Names cached by earlier Browse versions remain local aliases and continue to
+resolve to their saved Context IDs. They do not need to match the Context's
+Browserbase-managed name. `contexts create --name` never overwrites an existing
+local alias; use `contexts add <name> <context-id> --force` only after explicitly
+reconciling a legacy mapping.
 
 `browse cloud fetch` returns markdown-formatted page content by default. Use `--format raw` for the original response body, or `--format json --schema <schema>` for structured extraction.
 

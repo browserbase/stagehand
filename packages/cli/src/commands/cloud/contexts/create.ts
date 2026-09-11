@@ -18,7 +18,7 @@ import { BrowseCommand } from "../../../base.js";
 
 export default class ContextsCreate extends BrowseCommand {
   static override description =
-    "Create a Browserbase context. Pass --name to save a local alias you can reuse instead of the context ID.";
+    "Create a Browserbase context. Pass --name to store a project-scoped name in Browserbase and cache its ID locally.";
   static override examples = [
     "browse cloud contexts create",
     "browse cloud contexts create --name github",
@@ -30,7 +30,7 @@ export default class ContextsCreate extends BrowseCommand {
     ...apiCommonFlags,
     name: Flags.string({
       description:
-        "Save a local alias for the new context so you can reuse it by name.",
+        "Set the Context name in Browserbase and cache its ID for local name lookup.",
       helpValue: "<name>",
     }),
     body: Flags.string({
@@ -50,9 +50,13 @@ export default class ContextsCreate extends BrowseCommand {
       if (!isValidContextName(name)) {
         fail(`Invalid context name "${name}". ${contextNameRequirement()}`);
       }
-      if (await getContextAlias(name)) {
+      const existingAlias = await getContextAlias(name);
+      if (existingAlias) {
         fail(
-          `A context named "${name}" already exists locally. Choose another name or remove it with "browse cloud contexts delete ${name}".`,
+          `A context named "${name}" already exists locally and maps to ${existingAlias.id}. ` +
+            "Existing local aliases are preserved because they may predate Browserbase-managed Context names. " +
+            "Choose another name, or reconcile the alias explicitly with " +
+            "`browse cloud contexts add <name> <context-id> --force`.",
         );
       }
     }
@@ -60,7 +64,12 @@ export default class ContextsCreate extends BrowseCommand {
     await withBrowserbaseApi("contexts", async () => {
       const client = createBrowserbaseClient(toApiOptions(flags));
       const body = await resolveBody({ body: flags.body, stdin: flags.stdin });
-      const context = await client.contexts.create(body);
+      // Browserbase owns name uniqueness and canonical storage. The explicit
+      // flag takes precedence over a name supplied through --body/--stdin,
+      // matching the merge behavior of other cloud command flags.
+      const context = await client.contexts.create(
+        name === undefined ? body : { ...body, name },
+      );
 
       if (name !== undefined && context.id) {
         await saveContextAlias(name, {
