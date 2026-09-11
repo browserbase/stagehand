@@ -65,6 +65,22 @@
             ]
           },
           {
+            "group": "Observability providers",
+            "pages": [
+              "v4/observability/overview",
+              "v4/observability/axiom",
+              "v4/observability/braintrust",
+              "v4/observability/honeycomb",
+              "v4/observability/hyperdx",
+              "v4/observability/laminar",
+              "v4/observability/langfuse",
+              "v4/observability/langsmith",
+              "v4/observability/sentry",
+              "v4/observability/signoz",
+              "v4/observability/otel-collector"
+            ]
+          },
+          {
             "group": "Best practices",
             "pages": [
               "v4/best-practices/prompting-best-practices",

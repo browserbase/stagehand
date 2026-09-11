@@ -1,0 +1,119 @@
+---
+title: "Laminar"
+sidebarTitle: "Laminar"
+description: "Send Stagehand browser traces to Laminar."
+---
+
+Laminar is an OpenTelemetry-native observability product for agents. It turns spans into a transcript you can read, then lets you run SQL over those traces and attach signals. That is a different job from a generic APM.
+
+Stagehand v4 talks to Laminar over OTLP. You get the `act` / `observe` / `extract` tree and the log spans. Laminar also publishes a native SDK wrapper for Stagehand v2 and v3 that records the browser session and LLM calls. That wrapper is a different integration than this page.
+
+See [Laminar's OpenTelemetry troubleshooting](https://laminar.sh/docs/tracing/troubleshooting-opentelemetry). Laminar prefers gRPC. Stagehand exports OTLP/HTTP, so use the HTTP traces URL on port 443.
+
+## Cloud setup
+
+1. Create a project API key in Laminar.
+2. Set `LMNR_PROJECT_API_KEY`.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: "https://api.lmnr.ai:443/v1/traces",
+      headers: {
+        Authorization: `Bearer ${process.env.LMNR_PROJECT_API_KEY}`,
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": "https://api.lmnr.ai:443/v1/traces",
+            "headers": {
+                "Authorization": f"Bearer {os.environ['LMNR_PROJECT_API_KEY']}",
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: "https://api.lmnr.ai:443/v1/traces",
+				Headers: stagehand.TelemetryTracesHeaders{
+					"Authorization": "Bearer " + os.Getenv("LMNR_PROJECT_API_KEY"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## Verify traces
+
+Open the Laminar project and select Traces. Filter for `stagehand-service-worker`. You should see an `operation` span for `observe`, with `log` spans on the same trace. Laminar will try to render that tree as a transcript. Stagehand's OTLP payload is operation and log attributes, not `gen_ai.*` conventions, so expect a span tree first and a reconstructed chat second.
+
+Laminar documents that its HTTP endpoint expects protobuf, not JSON. Stagehand's runtime exporter sends OTLP/HTTP JSON. If traces never appear or the exporter logs a 500, send them through an [OpenTelemetry Collector](/v4/observability/otel-collector) that forwards protobuf to `https://api.lmnr.ai:443`. A 404 usually means the path is missing `/v1/traces`. Hitting the gRPC port with HTTP produces a parse error.
+
+The native v2/v3 wrapper is the path that also captures the session recording. This OTLP setup does not.
