@@ -1,0 +1,127 @@
+---
+title: "Braintrust"
+sidebarTitle: "Braintrust"
+description: "Send Stagehand browser traces to a Braintrust project."
+---
+
+Braintrust is an eval platform that also accepts OTLP. Route Stagehand spans into the project you already use for LLM traces so a browser step and a model call can share a timeline. Then you can score the browser run the same way you score a model call.
+
+The `x-bt-parent` header is what selects that project. Without it, Braintrust does not know where to file the trace. See [Braintrust's OpenTelemetry documentation](https://www.braintrust.dev/docs/integrations/sdk-integrations/opentelemetry).
+
+## Cloud setup
+
+1. Create a Braintrust API key.
+2. Copy the ID of the project that should receive the traces. You can also route by project name with `project_name:` instead of `project_id:`.
+3. Set `BRAINTRUST_API_KEY` and `BRAINTRUST_PROJECT_ID`.
+4. US orgs use `https://api.braintrust.dev/otel/v1/traces`. EU data plane orgs use `https://api-eu.braintrust.dev/otel/v1/traces`. Set `BRAINTRUST_OTLP_TRACES_ENDPOINT` when you are not on US.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: process.env.BRAINTRUST_OTLP_TRACES_ENDPOINT ?? "https://api.braintrust.dev/otel/v1/traces",
+      headers: {
+        Authorization: `Bearer ${process.env.BRAINTRUST_API_KEY}`,
+        "x-bt-parent": `project_id:${process.env.BRAINTRUST_PROJECT_ID}`,
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": os.environ.get("BRAINTRUST_OTLP_TRACES_ENDPOINT", "https://api.braintrust.dev/otel/v1/traces"),
+            "headers": {
+                "Authorization": f"Bearer {os.environ['BRAINTRUST_API_KEY']}",
+                "x-bt-parent": f"project_id:{os.environ['BRAINTRUST_PROJECT_ID']}",
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" { return value }
+	return fallback
+}
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: envOr("BRAINTRUST_OTLP_TRACES_ENDPOINT", "https://api.braintrust.dev/otel/v1/traces"),
+				Headers: stagehand.TelemetryTracesHeaders{
+					"Authorization": "Bearer " + os.Getenv("BRAINTRUST_API_KEY"),
+					"x-bt-parent": "project_id:" + os.Getenv("BRAINTRUST_PROJECT_ID"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## Verify traces
+
+Open the project named in `x-bt-parent`, then its tracing view. Traces are filed under that parent, so a missing or mistyped header looks like a successful export that never arrived.
+
+Stagehand does not emit Braintrust's LLM span conventions. You get `operation` spans for `act`, `observe`, and `extract`, and `log` spans for each log record, with `service.name` set to `stagehand-service-worker`. That is enough to hang a score on a browser run. It is not a reconstructed chat transcript.
+
+If the view is empty, confirm the data plane matches the host. EU orgs sending to `api.braintrust.dev` will not see the trace. Then confirm `close()` ran.

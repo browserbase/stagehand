@@ -1,0 +1,161 @@
+---
+title: "SigNoz"
+sidebarTitle: "SigNoz"
+description: "Send Stagehand browser traces to SigNoz."
+---
+
+SigNoz is an OpenTelemetry-first APM. Traces, metrics, and logs share one backend. The trace view is a service map plus a span waterfall, which is what you want when Stagehand is one more service next to the ones you already watch there.
+
+Cloud ingest is regional. Self-hosted exposes the usual collector port `4318` and does not need an ingestion key. See [SigNoz Cloud ingestion](https://signoz.io/docs/ingestion/signoz-cloud/overview/).
+
+## Cloud setup
+
+1. Open Settings > Ingestion and copy the regional traces endpoint and ingestion key.
+2. Set `SIGNOZ_OTLP_TRACES_ENDPOINT` and `SIGNOZ_INGESTION_KEY`. The traces URL looks like `https://ingest.<region>.signoz.cloud:443/v1/traces`. Cloud uses port 443 for both HTTP and gRPC, not 4318.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: process.env.SIGNOZ_OTLP_TRACES_ENDPOINT!,
+      headers: {
+        "signoz-ingestion-key": process.env.SIGNOZ_INGESTION_KEY!,
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": os.environ["SIGNOZ_OTLP_TRACES_ENDPOINT"],
+            "headers": {
+                "signoz-ingestion-key": os.environ["SIGNOZ_INGESTION_KEY"],
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: os.Getenv("SIGNOZ_OTLP_TRACES_ENDPOINT"),
+				Headers: stagehand.TelemetryTracesHeaders{
+					"signoz-ingestion-key": os.Getenv("SIGNOZ_INGESTION_KEY"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+`signoz-access-token` and `Authorization: Bearer <key>` are deprecated on Cloud. Use `signoz-ingestion-key`.
+
+## Self-hosted SigNoz
+
+Point Stagehand at the OTLP/HTTP receiver on your SigNoz collector. The default local installation does not require an ingestion header.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: "http://localhost:4318/v1/traces",
+      headers: {},
+    },
+  },
+});
+```
+</Tab>
+<Tab title="Python">
+```python
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {"endpoint": "http://localhost:4318/v1/traces", "headers": {}},
+    }),
+)
+```
+</Tab>
+<Tab title="Go">
+```go
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Telemetry: stagehand.TelemetryConfig{
+		Traces: stagehand.TelemetryTraces{
+			Endpoint: "http://localhost:4318/v1/traces",
+		},
+	},
+})
+```
+</Tab>
+</Tabs>
+
+## Verify traces
+
+Open Traces and filter for `service.name = stagehand-service-worker`. Open a trace. You should see an `operation` span for `observe`, with `log` spans underneath.
+
+SigNoz is useful once Stagehand is one service among others. The waterfall shows how long the browser step sat relative to the handler that called it. For a lone local script, the same view is a short tree with one operation and some logs, which is enough to confirm ingest.
+
+If Cloud shows nothing, the usual miss is the region in the host (`ingest.<region>.signoz.cloud`) or sending to 4318 instead of 443. Payloads over 16 MB are rejected. Then confirm `close()` ran.

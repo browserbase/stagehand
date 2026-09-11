@@ -1,0 +1,163 @@
+---
+title: "HyperDX"
+sidebarTitle: "HyperDX"
+description: "Search Stagehand traces and logs in HyperDX."
+---
+
+HyperDX is a ClickHouse-backed search UI for traces, logs, and metrics in one place. You jump from a slow span to the log line next to it without stitching timestamps by hand. Send logs to the same instance if you already tail them there.
+
+See [HyperDX's OpenTelemetry documentation](https://www.hyperdx.io/docs/install/opentelemetry). The HTTP ingest host is `https://in-otel.hyperdx.io`. Auth is the raw ingestion key in `Authorization`. Do not prefix `Bearer`.
+
+## Cloud setup
+
+1. Copy the ingestion key from Team Settings.
+2. Set `HYPERDX_API_KEY`.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: "https://in-otel.hyperdx.io/v1/traces",
+      headers: {
+        Authorization: process.env.HYPERDX_API_KEY!,
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": "https://in-otel.hyperdx.io/v1/traces",
+            "headers": {
+                "Authorization": os.environ["HYPERDX_API_KEY"],
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: "https://in-otel.hyperdx.io/v1/traces",
+				Headers: stagehand.TelemetryTracesHeaders{
+					"Authorization": os.Getenv("HYPERDX_API_KEY"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## HyperDX Local
+
+Run HyperDX Local when you want the same search UI on your machine. The UI is `http://localhost:8080`. OTLP/HTTP is `http://localhost:4318`. The local receiver does not validate the key. HyperDX-maintained SDKs still want a non-empty value. Stagehand does not, so empty headers are fine.
+
+```bash
+docker run -p 8000:8000 -p 4318:4318 -p 4317:4317 -p 8080:8080 -p 8002:8002 docker.hyperdx.io/hyperdx/hyperdx-local
+```
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: "http://localhost:4318/v1/traces",
+      headers: {},
+    },
+  },
+});
+```
+</Tab>
+<Tab title="Python">
+```python
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {"endpoint": "http://localhost:4318/v1/traces", "headers": {}},
+    }),
+)
+```
+</Tab>
+<Tab title="Go">
+```go
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Telemetry: stagehand.TelemetryConfig{
+		Traces: stagehand.TelemetryTraces{
+			Endpoint: "http://localhost:4318/v1/traces",
+		},
+	},
+})
+```
+</Tab>
+</Tabs>
+
+## Verify traces
+
+Open search and select the trace source. Filter for `stagehand-service-worker`.
+
+You should see an `operation` span for `observe`, with `log` spans under the same trace. HyperDX's value is clicking from that operation into any log line that landed at the same time, so send logs to the same instance if you have them.
+
+On Local, use `http://localhost:8080`. If search is empty, confirm the container mapped 4318 and that the process called `close()`. A `Bearer ` prefix on the cloud `Authorization` header is a common 401.

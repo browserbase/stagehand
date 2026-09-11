@@ -1,0 +1,132 @@
+---
+title: "Honeycomb"
+sidebarTitle: "Honeycomb"
+description: "Query Stagehand browser traces in Honeycomb."
+---
+
+Honeycomb is built for asking questions of high-cardinality span attributes. You do not pick dimensions in advance. Filter on `service.name`, break down on `stagehand.span.type`, and heat-map duration when an `observe` call is slow.
+
+See [Honeycomb's OpenTelemetry documentation](https://docs.honeycomb.io/send-data/opentelemetry/).
+
+## Cloud setup
+
+1. Create an environment or select an existing one. Current Honeycomb routes by environment, not by a dataset header. `x-honeycomb-dataset` is only for Honeycomb Classic.
+2. Create an ingest API key and set `HONEYCOMB_API_KEY`.
+3. US accounts use `https://api.honeycomb.io/v1/traces`. EU accounts use `https://api.eu1.honeycomb.io/v1/traces`. Set `HONEYCOMB_OTLP_TRACES_ENDPOINT` when you are on EU.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: process.env.HONEYCOMB_OTLP_TRACES_ENDPOINT ?? "https://api.honeycomb.io/v1/traces",
+      headers: {
+        "x-honeycomb-team": process.env.HONEYCOMB_API_KEY!,
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": os.environ.get("HONEYCOMB_OTLP_TRACES_ENDPOINT", "https://api.honeycomb.io/v1/traces"),
+            "headers": {
+                "x-honeycomb-team": os.environ["HONEYCOMB_API_KEY"],
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" { return value }
+	return fallback
+}
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: envOr("HONEYCOMB_OTLP_TRACES_ENDPOINT", "https://api.honeycomb.io/v1/traces"),
+				Headers: stagehand.TelemetryTracesHeaders{
+					"x-honeycomb-team": os.Getenv("HONEYCOMB_API_KEY"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## Verify traces
+
+Open Query in the environment that owns the ingest key. Filter `service.name = stagehand-service-worker`.
+
+Honeycomb indexes the attributes on each span, so you can break down on `stagehand.span.type` without creating a schema. Operation spans wrap `act`, `observe`, and `extract`. Log spans are the individual log records, with the text on `stagehand.log.message`.
+
+A first query:
+
+```
+service.name = stagehand-service-worker
+AND stagehand.span.type = operation
+```
+
+Group by `name` and look at `HEATMAP(duration_ms)` when an observe call is slow. BubbleUp is useful once you have more than a handful of runs.
+
+A US key against `api.eu1.honeycomb.io` is rejected. If Query is empty after a short script, `close()` probably never flushed the batch.

@@ -1,0 +1,132 @@
+---
+title: "Langfuse"
+sidebarTitle: "Langfuse"
+description: "Send Stagehand browser traces to Langfuse."
+---
+
+Langfuse is an LLM tracing backend. Sessions, scores, and the observation table are the product. OTLP is how Stagehand gets spans into that table without a Langfuse SDK.
+
+Auth is HTTP Basic with the project's public and secret keys. The `x-langfuse-ingestion-version: 4` header sends spans to the current tracing table in real time. Leave it off and Langfuse can delay OTLP data by up to 10 minutes. See [Langfuse's OpenTelemetry documentation](https://langfuse.com/integrations/native/opentelemetry).
+
+## Cloud setup
+
+1. Copy the project's public and secret keys.
+2. Set `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY`.
+3. Set `LANGFUSE_BASE_URL` to your region. The default below is EU Cloud, `https://cloud.langfuse.com`. US is `https://us.cloud.langfuse.com`. Japan is `https://jp.cloud.langfuse.com`. HIPAA is `https://hipaa.cloud.langfuse.com`.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: `${(process.env.LANGFUSE_BASE_URL ?? "https://cloud.langfuse.com").replace(/\/$/, "")}/api/public/otel/v1/traces`,
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${process.env.LANGFUSE_PUBLIC_KEY}:${process.env.LANGFUSE_SECRET_KEY}`).toString("base64")}`,
+        "x-langfuse-ingestion-version": "4",
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import base64
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": f"{os.environ.get('LANGFUSE_BASE_URL', 'https://cloud.langfuse.com').rstrip('/')}/api/public/otel/v1/traces",
+            "headers": {
+                "Authorization": "Basic " + base64.b64encode(f"{os.environ['LANGFUSE_PUBLIC_KEY']}:{os.environ['LANGFUSE_SECRET_KEY']}".encode()).decode(),
+                "x-langfuse-ingestion-version": "4",
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"encoding/base64"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" { return value }
+	return fallback
+}
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: envOr("LANGFUSE_BASE_URL", "https://cloud.langfuse.com") + "/api/public/otel/v1/traces",
+				Headers: stagehand.TelemetryTracesHeaders{
+					"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte(os.Getenv("LANGFUSE_PUBLIC_KEY") + ":" + os.Getenv("LANGFUSE_SECRET_KEY"))),
+					"x-langfuse-ingestion-version": "4",
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## Self-hosted Langfuse
+
+Use the same project keys and headers. Set `LANGFUSE_BASE_URL` to the public URL of your Langfuse instance. Stagehand sends traces to `<base-url>/api/public/otel/v1/traces`. Self-hosted needs Langfuse v3.22.0 or later for this path.
+
+## Verify traces
+
+Open the project and select Tracing. With the ingestion-version header, new spans should show up without the legacy delay.
+
+You will see `operation` spans for `act`, `observe`, and `extract`, and `log` spans for each log record. Langfuse maps `gen_ai.*` attributes into generations with token and cost fields. Stagehand does not emit those conventions, so these runs land as observations, not model generations. That is still enough to attach a session and a score to a browser pass.
+
+If Tracing is empty, wait a minute only if you omitted the version header. Otherwise check the region host, the Basic Auth encoding (`public:secret`), and that `close()` ran.

@@ -1,0 +1,136 @@
+---
+title: "Axiom"
+sidebarTitle: "Axiom"
+description: "Query Stagehand traces as events in an Axiom dataset."
+---
+
+Axiom stores traces as events in a dataset and you query them with APL, the same language you already use for logs. There is no separate APM product. The dataset is the product. If browser logs already live in Axiom, Stagehand spans sit in the same kind of table.
+
+Ingest goes to your organization's edge domain, not `api.axiom.co`. See [Axiom's OpenTelemetry documentation](https://axiom.co/docs/send-data/opentelemetry) and [edge deployments](https://axiom.co/docs/reference/edge-deployments).
+
+## Cloud setup
+
+1. Create a dataset for traces, such as `stagehand-traces`. Axiom wants a dedicated dataset per OpenTelemetry signal. Do not send these spans to a metrics dataset.
+2. Create an API token with ingest access to that dataset. Personal access tokens cannot ingest.
+3. Set `AXIOM_API_TOKEN`, `AXIOM_DATASET`, and `AXIOM_DOMAIN`. `AXIOM_DOMAIN` is the ingest host from Settings > General. US East 1 is `us-east-1.aws.edge.axiom.co`. EU Central 1 is `eu-central-1.aws.edge.axiom.co`.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: `https://${process.env.AXIOM_DOMAIN ?? "us-east-1.aws.edge.axiom.co"}/v1/traces`,
+      headers: {
+        Authorization: `Bearer ${process.env.AXIOM_API_TOKEN}`,
+        "X-Axiom-Dataset": process.env.AXIOM_DATASET!,
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": f"https://{os.environ.get('AXIOM_DOMAIN', 'us-east-1.aws.edge.axiom.co')}/v1/traces",
+            "headers": {
+                "Authorization": f"Bearer {os.environ['AXIOM_API_TOKEN']}",
+                "X-Axiom-Dataset": os.environ["AXIOM_DATASET"],
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: "https://" + envOr("AXIOM_DOMAIN", "us-east-1.aws.edge.axiom.co") + "/v1/traces",
+				Headers: stagehand.TelemetryTracesHeaders{
+					"Authorization": "Bearer " + os.Getenv("AXIOM_API_TOKEN"),
+					"X-Axiom-Dataset": os.Getenv("AXIOM_DATASET"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## Verify traces
+
+Open the dataset and go to Stream. Filter on `['service.name'] == "stagehand-service-worker"`.
+
+You should see `operation` spans for `observe` (and `act` / `extract` when you call those), plus a `log` span for each log record. The type is on `stagehand.span.type`. Operation payloads are JSON on `stagehand.span.data`.
+
+A starting query. Replace the dataset name if yours is different.
+
+```apl
+['stagehand-traces']
+| where ['service.name'] == "stagehand-service-worker"
+| where ['stagehand.span.type'] == "operation"
+```
+
+If Stream is empty, check the host first. `api.axiom.co` is the management API. OTLP ingest uses the edge domain, and a mismatched region returns 400. Then confirm the token can ingest to this dataset and that you called `close()`.

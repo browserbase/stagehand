@@ -1,0 +1,118 @@
+---
+title: "Sentry"
+sidebarTitle: "Sentry"
+description: "Send Stagehand browser traces directly to Sentry."
+---
+
+Sentry traces exist to sit next to the errors you already file in a project. Direct OTLP is how Stagehand gets into that same trace view without the Sentry SDK.
+
+Direct OTLP tracing is in open beta. Copy the traces URL and public key from the project. Do not derive the URL from the DSN. See [Sentry's OpenTelemetry documentation](https://docs.sentry.io/concepts/otlp/direct/traces/).
+
+## Cloud setup
+
+1. Open Project settings > Client Keys (DSN), then the project's OpenTelemetry settings.
+2. Copy the OTLP traces URL and public key.
+3. Set `SENTRY_OTLP_TRACES_ENDPOINT` and `SENTRY_PUBLIC_KEY`.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: process.env.SENTRY_OTLP_TRACES_ENDPOINT!,
+      headers: {
+        "x-sentry-auth": `sentry sentry_key=${process.env.SENTRY_PUBLIC_KEY}`,
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": os.environ["SENTRY_OTLP_TRACES_ENDPOINT"],
+            "headers": {
+                "x-sentry-auth": f"sentry sentry_key={os.environ['SENTRY_PUBLIC_KEY']}",
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: os.Getenv("SENTRY_OTLP_TRACES_ENDPOINT"),
+				Headers: stagehand.TelemetryTracesHeaders{
+					"x-sentry-auth": "sentry sentry_key=" + os.Getenv("SENTRY_PUBLIC_KEY"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## Verify traces
+
+Open Explore, select Traces, and filter to the time of your run. Look for `stagehand-service-worker`.
+
+A failed `act` / `observe` / `extract` sets error status on the operation span and records the exception. That is the path into Sentry Issues. Log records are their own spans (`stagehand.span.type = log`), not OpenTelemetry span events. Sentry drops span events on ingest, so this distinction matters. You still get the log spans in the trace view.
+
+Sentry ingests array attributes and span links but does not let you search or aggregate them. Filter on `service.name` and span name. If Explore is empty, the usual causes are a URL copied from the DSN instead of the OTLP settings, a stale public key, or a process that exited before `close()`.
