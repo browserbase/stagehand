@@ -264,7 +264,7 @@ const page = await stagehand.browser.context.activePage();
 // Custom model configuration
 const { data: actions } = await stagehand.observe("find navigation links", {
   model: {
-    modelName: "openai/gpt-5.4-mini",
+    modelName: "openai/gpt-5.6-luna",
     apiKey: process.env.OPENAI_API_KEY,
   },
   timeout: 30000,
@@ -285,7 +285,7 @@ page = await stagehand.browser.context.active_page()
 result = await stagehand.observe(
     "find navigation links",
     model=ModelConfig(
-        model_name="openai/gpt-5.4-mini",
+        model_name="openai/gpt-5.6-luna",
         api_key=os.environ["OPENAI_API_KEY"],
     ),
     timeout=30000,
@@ -299,7 +299,7 @@ result = await stagehand.observe(
 // Custom model configuration
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "openai/gpt-5.4-mini",
+	ModelName: "openai/gpt-5.6-luna",
 	APIKey:    &modelAPIKey,
 }
 timeout := 30000.0

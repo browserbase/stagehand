@@ -890,7 +890,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
-    model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
+    model: ModelConfig = {"model_name": "openai/gpt-5.6-luna"}
     act_locator = page.locator("main").nth(2)
     act_ignored_locator = page.locator(".promo")
     locator = page.locator("main").nth(1)

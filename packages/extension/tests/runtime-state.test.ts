@@ -105,7 +105,7 @@ describe("Stagehand runtime state", () => {
     });
     await runtime.initialize({
       ...runtimeIdentity,
-      model: { modelName: "openai/gpt-5" },
+      model: { modelName: "openai/gpt-5.6-luna" },
       telemetry: {
         traces: {
           endpoint: "https://collector.example.com/v1/traces",
@@ -119,7 +119,7 @@ describe("Stagehand runtime state", () => {
       status: "initialized",
       initParams: {
         ...runtimeIdentity,
-        model: { modelName: "openai/gpt-5" },
+        model: { modelName: "openai/gpt-5.6-luna" },
         telemetry: {
           traces: {
             endpoint: "https://collector.example.com/v1/traces",
@@ -143,7 +143,7 @@ describe("Stagehand runtime state", () => {
     });
     await runtime.initialize({
       ...runtimeIdentity,
-      model: { modelName: "openai/gpt-5" },
+      model: { modelName: "openai/gpt-5.6-luna" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },
@@ -168,7 +168,7 @@ describe("Stagehand runtime state", () => {
       status: "initialized",
       initParams: {
         ...runtimeIdentity,
-        model: { modelName: "openai/gpt-5" },
+        model: { modelName: "openai/gpt-5.6-luna" },
         telemetry: {
           traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
         },
@@ -321,7 +321,7 @@ describe("Stagehand runtime state", () => {
     });
     await runtime.initialize({
       ...runtimeIdentity,
-      model: { modelName: "openai/gpt-5", apiKey: "secret" },
+      model: { modelName: "openai/gpt-5.6-luna", apiKey: "secret" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
       },

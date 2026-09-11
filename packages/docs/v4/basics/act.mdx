@@ -287,7 +287,7 @@ You can pass additional options to configure the model, timeout, variables, targ
 // Custom model configuration
 await stagehand.act("choose 'Peach' from the favorite color dropdown", {
   model: {
-    modelName: "google/gemini-2.5-flash",
+    modelName: "google/gemini-3.8-flash",
     apiKey: process.env.GOOGLE_API_KEY,
   },
   timeout: 10000,
@@ -307,7 +307,7 @@ from stagehand import ModelConfig
 await stagehand.act(
     "choose 'Peach' from the favorite color dropdown",
     model=ModelConfig(
-        model_name="google/gemini-2.5-flash",
+        model_name="google/gemini-3.8-flash",
         api_key=os.environ["GOOGLE_API_KEY"],
     ),
     timeout=10000,
@@ -322,7 +322,7 @@ await stagehand.act(
 // Custom model configuration
 modelAPIKey := os.Getenv("GOOGLE_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "google/gemini-2.5-flash",
+	ModelName: "google/gemini-3.8-flash",
 	APIKey:    &modelAPIKey,
 }
 timeout := 10000.0

@@ -23,7 +23,7 @@ Configure the environment as needed:
 | `STAGEHAND_EVE_SESSION_FILE`                                         | Optional path used to persist the Browserbase session ID; defaults to a file in the system temporary directory.                                         |
 | `EVE_STAGEHAND_MODEL`                                                | Eve agent model; defaults to `gpt-5.6-luna`.                                                                                                            |
 | `OPENAI_API_KEY`                                                     | OpenAI credential used by the Eve agent model and inferred for an OpenAI Stagehand model.                                                               |
-| `GOOGLE_GENERATIVE_AI_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google credential inferred by Stagehand. If one is set without explicit Stagehand model configuration, the model defaults to `google/gemini-3.6-flash`. |
+| `GOOGLE_GENERATIVE_AI_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google credential inferred by Stagehand. If one is set without explicit Stagehand model configuration, the model defaults to `google/gemini-3.8-flash`. |
 
 ## Run
 
