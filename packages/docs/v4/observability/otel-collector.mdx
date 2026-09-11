@@ -1,0 +1,70 @@
+---
+title: "OpenTelemetry Collector"
+sidebarTitle: "OTel Collector"
+description: "Route Stagehand traces through an OpenTelemetry Collector."
+---
+
+Use a collector when one Stagehand process needs to reach more than one backend, or when a backend wants a different encoding than Stagehand sends. Stagehand's runtime exporter posts OTLP/HTTP JSON to a single `/v1/traces` URL. Direct export is simpler for one supported provider.
+
+A collector is the right extra hop if you need to batch, sample, or transcode. Laminar's HTTP endpoint is the case that comes up most. It expects protobuf. The collector can receive Stagehand's JSON and export protobuf.
+
+## Configure Stagehand
+
+Point Stagehand at the collector's OTLP/HTTP receiver. Default is port 4318.
+
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: "http://localhost:4318/v1/traces",
+      headers: {},
+    },
+  },
+});
+```
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. The collector cannot export a batch that never arrived.
+
+## Configure the collector
+
+This example receives OTLP/HTTP from Stagehand and forwards it to two providers. Copy each exporter's endpoint and headers from that provider's page. `otlphttp` exporter `endpoint` values are the base host. The exporter appends `/v1/traces` itself, so do not include the path twice.
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  otlphttp/first:
+    endpoint: ${FIRST_OTLP_ENDPOINT}
+    headers:
+      Authorization: ${FIRST_OTLP_AUTHORIZATION}
+  otlphttp/second:
+    endpoint: ${SECOND_OTLP_ENDPOINT}
+    headers:
+      Authorization: ${SECOND_OTLP_AUTHORIZATION}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/first, otlphttp/second]
+```
+
+Some providers use a header other than `Authorization`. Honeycomb wants `x-honeycomb-team`. LangSmith wants `x-api-key` and `Langsmith-Project`. Sentry wants `x-sentry-auth`. Put those on the matching exporter.
+
+## Verify traces
+
+Start the collector before Stagehand. Watch the collector logs for export errors first. A 404 on an exporter usually means the endpoint already included `/v1/traces` and the exporter appended it again. A 401 is a header name or credential. Then confirm the run in each provider UI, filtering on `service.name = stagehand-service-worker`.
+
+If only one backend shows the trace, the pipeline is fine and the other exporter's host or header is wrong. If neither shows it, Stagehand never reached the collector. Confirm port 4318 and that `close()` ran.
