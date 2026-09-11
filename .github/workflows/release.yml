@@ -71,6 +71,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANGESETS_ACTION_PRESERVE_CHANGELOGS: "true"
 
+      # Package changelogs are intentionally consolidated into the root changelog and
+      # omitted from git. Changesets Action silently skips GitHub Release creation when
+      # a package changelog is absent, so reconcile tagged TypeScript releases explicitly.
+      - name: Reconcile GitHub Releases
+        run: pnpm exec tsx scripts/release/reconcile-github-releases.ts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   publish-typescript-alpha:
     name: Publish TypeScript SDK alpha
     needs: release-typescript
