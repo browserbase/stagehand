@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import { z } from "zod";
 
 import type { DriverCommandHandlers } from "./types.js";
+import { unavailableCursorOverlay } from "./unavailable.js";
 
 export const runtimeHandlers: DriverCommandHandlers = {
   async screenshot(manager, params) {
@@ -26,19 +27,21 @@ export const runtimeHandlers: DriverCommandHandlers = {
       .parse(params);
     const page = await manager.activePage();
     const buffer = await page.screenshot({
-      animations: options.animations,
-      caret: options.caret,
-      clip: options.clip,
-      fullPage: options.fullPage,
-      quality: options.quality,
+      ...(options.animations === undefined
+        ? {}
+        : { animations: options.animations }),
+      ...(options.caret === undefined ? {} : { caret: options.caret }),
+      ...(options.clip === undefined ? {} : { clip: options.clip }),
+      ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
       timeout: 10_000,
-      type: options.type,
+      ...(options.type === undefined ? {} : { type: options.type }),
     });
     if (options.path) {
       await fs.writeFile(options.path, buffer);
       return { saved: options.path };
     }
-    return { base64: buffer.toString("base64") };
+    return { base64: Buffer.from(buffer).toString("base64") };
   },
 
   async viewport(manager, params) {
@@ -86,11 +89,7 @@ export const runtimeHandlers: DriverCommandHandlers = {
     return { waited: true };
   },
 
-  async cursor(manager) {
-    const page = await manager.activePage();
-    await page.enableCursorOverlay();
-    return { cursor: "enabled" };
-  },
+  cursor: unavailableCursorOverlay,
 };
 
 function parseTimeoutMs(value: string | undefined): number {

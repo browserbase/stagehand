@@ -12,17 +12,16 @@ export const tabHandlers: DriverCommandHandlers = {
     const { url } = z.object({ url: z.string().optional() }).parse(params);
     const context = await manager.browserContext();
     const page = await context.newPage(url);
-    context.setActivePage(page);
+    await context.setActivePage(page);
+    const pages = await context.pages();
     return {
       active: true,
-      index: context
-        .pages()
-        .findIndex(
-          (candidate: DriverPage) => candidate.targetId() === page.targetId(),
-        ),
-      targetId: page.targetId(),
+      index: pages.findIndex(
+        (candidate: DriverPage) => candidate.pageId === page.pageId,
+      ),
+      targetId: page.pageId,
       title: await manager.safeTitle(page),
-      url: page.url(),
+      url: await page.url(),
     };
   },
 
@@ -30,36 +29,36 @@ export const tabHandlers: DriverCommandHandlers = {
     const { tab } = z.object({ tab: z.string().min(1) }).parse(params);
     const { index, page } = await resolveTab(manager, tab);
     const context = await manager.browserContext();
-    context.setActivePage(page);
+    await context.setActivePage(page);
     return {
       index,
       switched: true,
-      targetId: page.targetId(),
+      targetId: page.pageId,
       title: await manager.safeTitle(page),
-      url: page.url(),
+      url: await page.url(),
     };
   },
 
   async "tab.close"(manager, params) {
     const { tab } = z.object({ tab: z.string().optional() }).parse(params);
     const context = await manager.browserContext();
-    const pages = context.pages();
+    const pages = await context.pages();
     if (pages.length === 1) {
       throw new Error("Cannot close the last tab.");
     }
 
-    const active = context.activePage();
+    const active = await context.activePage();
     const resolved = tab
       ? await resolveTab(manager, tab)
       : resolveActiveTab(pages, active ?? null);
-    const closedTargetId = resolved.page.targetId();
-    const activeTargetId = active?.targetId();
+    const closedTargetId = resolved.page.pageId;
+    const activeTargetId = active?.pageId;
     await resolved.page.close();
-    const remainingPages = context
-      .pages()
-      .filter((page) => page.targetId() !== closedTargetId);
+    const remainingPages = (await context.pages()).filter(
+      (page) => page.pageId !== closedTargetId,
+    );
     let selectedPage = activeTargetId
-      ? remainingPages.find((page) => page.targetId() === activeTargetId)
+      ? remainingPages.find((page) => page.pageId === activeTargetId)
       : undefined;
 
     if (!selectedPage) {
@@ -67,25 +66,27 @@ export const tabHandlers: DriverCommandHandlers = {
         remainingPages[Math.min(resolved.index, remainingPages.length - 1)] ??
         remainingPages[0];
       if (selectedPage) {
-        context.setActivePage(selectedPage);
+        await context.setActivePage(selectedPage);
       }
     }
 
     return {
       closed: true,
       index: resolved.index,
-      selectedTargetId: selectedPage?.targetId(),
+      selectedTargetId: selectedPage?.pageId,
       targetId: closedTargetId,
     };
   },
 };
 
 async function resolveTab(
-  manager: { browserContext: () => Promise<{ pages: () => DriverPage[] }> },
+  manager: {
+    browserContext: () => Promise<{ pages: () => Promise<DriverPage[]> }>;
+  },
   tab: string,
 ): Promise<{ index: number; page: DriverPage }> {
   const context = await manager.browserContext();
-  const pages = context.pages();
+  const pages = await context.pages();
   const index = Number.parseInt(tab, 10);
   if (/^\d+$/.test(tab)) {
     const page = pages[index];
@@ -97,7 +98,7 @@ async function resolveTab(
   }
 
   const targetIndex = pages.findIndex(
-    (page: DriverPage) => page.targetId() === tab,
+    (page: DriverPage) => page.pageId === tab,
   );
   if (targetIndex === -1) {
     throw new Error(
@@ -111,9 +112,9 @@ function resolveActiveTab(
   pages: DriverPage[],
   active: DriverPage | null,
 ): { index: number; page: DriverPage } {
-  const activeTargetId = active?.targetId();
+  const activeTargetId = active?.pageId;
   const index = activeTargetId
-    ? pages.findIndex((page) => page.targetId() === activeTargetId)
+    ? pages.findIndex((page) => page.pageId === activeTargetId)
     : 0;
   const page = pages[index] ?? pages[0];
   if (!page) throw new Error("No active tab.");

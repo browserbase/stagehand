@@ -1,3 +1,5 @@
+import Browserbase from "@browserbasehq/sdk";
+import { browserbase } from "@browserbasehq/stagehand";
 import { StatusCodes } from "http-status-codes";
 
 import {
@@ -6,14 +8,26 @@ import {
   toMetadataValue,
 } from "../identity.js";
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
+import { DriverError } from "./errors.js";
 import type { DriverModeFlags } from "./mode.js";
 import type {
   DriverInitHints,
+  RemoteBrowserLaunch,
   RemoteDoctorResult,
   RemoteInitErrorClassification,
-  StagehandConstructorOptions,
+  RemoteStagehandOptions,
 } from "./remote-types.js";
-import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
+import type {
+  BrowserbaseIdentity,
+  ConnectionTarget,
+  RemoteConnectionTarget,
+} from "./types.js";
+
+type BrowserbaseDebugClient = {
+  sessions: {
+    debug(sessionId: string): Promise<{ debuggerUrl?: string }>;
+  };
+};
 
 /**
  * Real Browserbase capability. This is the ONLY module that reads
@@ -49,13 +63,12 @@ export function forwardedEnvKeys(): readonly string[] {
 export async function remoteStagehandOptions(
   target?: RemoteConnectionTarget,
   forwardedEnv?: ForwardedEnv,
-): Promise<StagehandConstructorOptions> {
+): Promise<RemoteStagehandOptions> {
   // Prefer the caller's forwarded key; fall back to the daemon's own spawn-time
   // env (e.g. a daemon that was started with a key). Threading the value here
   // avoids writing the key back into the daemon's `process.env`. The project id
   // is left to Stagehand to resolve (constructor opt → env → inferred from key).
-  const apiKey =
-    forwardedEnv?.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY;
+  const apiKey = resolveApiKey(forwardedEnv);
   if (!apiKey) {
     throw new Error(
       "Missing BROWSERBASE_API_KEY for remote mode. Pass --local to run a managed local browser (no key needed), or set BROWSERBASE_API_KEY for cloud sessions.",
@@ -76,16 +89,68 @@ export async function remoteStagehandOptions(
 
   return {
     apiKey,
-    browserbaseSessionCreateParams: {
+    browser: {
       userMetadata,
       ...(target?.proxies ? { proxies: true } : {}),
       ...(target?.verified ? { browserSettings: { verified: true } } : {}),
     },
-    disableAPI: true,
-    disablePino: true,
-    env: "BROWSERBASE",
-    verbose: 0,
   };
+}
+
+export async function launchRemoteBrowser(
+  target?: RemoteConnectionTarget,
+  forwardedEnv?: ForwardedEnv,
+): Promise<RemoteBrowserLaunch> {
+  const { apiKey, browser: sessionOptions } = await remoteStagehandOptions(
+    target,
+    forwardedEnv,
+  );
+  // The V4 factory provisions the packaged Stagehand extension before it
+  // creates the Browserbase session and owns both resources on browser.close().
+  // A raw sessions.create() + browserbase.connect() skips that provisioning.
+  let browser;
+  try {
+    browser = await browserbase.launch({ apiKey, ...sessionOptions });
+  } catch (error) {
+    throw remoteDriverError(error);
+  }
+  return {
+    browser,
+    identity: browser.sessionId
+      ? await remoteBrowserbaseIdentity(browser.sessionId, forwardedEnv)
+      : {},
+  };
+}
+
+export async function remoteBrowserbaseIdentity(
+  sessionId: string,
+  forwardedEnv?: ForwardedEnv,
+  browserbase?: BrowserbaseDebugClient,
+): Promise<BrowserbaseIdentity> {
+  const normalizedSessionId = sessionId.trim();
+  if (!normalizedSessionId) return {};
+
+  const identity: BrowserbaseIdentity = {
+    browserbaseSessionId: normalizedSessionId,
+    browserbaseSessionUrl: `https://www.browserbase.com/sessions/${normalizedSessionId}`,
+  };
+  const apiKey = resolveApiKey(forwardedEnv);
+  if (!apiKey) return identity;
+
+  try {
+    const client = browserbase ?? new Browserbase({ apiKey });
+    const { debuggerUrl } = await client.sessions.debug(normalizedSessionId);
+    if (debuggerUrl) {
+      identity.browserbaseDebugUrl = debuggerUrl;
+    }
+  } catch {
+    // The stable session URL and ID are still useful if live-view lookup fails.
+  }
+  return identity;
+}
+
+function resolveApiKey(forwardedEnv?: ForwardedEnv): string | undefined {
+  return forwardedEnv?.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY;
 }
 
 /**
@@ -97,8 +162,6 @@ export function classifyRemoteInitError(
 ): RemoteInitErrorClassification {
   const status = (error as { status?: unknown } | null | undefined)?.status;
   const httpStatus = typeof status === "number" ? status : undefined;
-  const original = error instanceof Error ? error.message : String(error);
-
   if (httpStatus === StatusCodes.UNAUTHORIZED) {
     return {
       code: "remote_auth_401",
@@ -120,8 +183,14 @@ export function classifyRemoteInitError(
   return {
     code: "remote_session_create_failed",
     ...(httpStatus !== undefined ? { httpStatus } : {}),
-    message: `Failed to start a remote (Browserbase) session: ${original}\nRun browse doctor to diagnose remote connectivity.`,
+    message:
+      "Failed to start a remote (Browserbase) session. Run browse doctor to diagnose remote connectivity.",
   };
+}
+
+function remoteDriverError(error: unknown): DriverError {
+  const { code, httpStatus, message } = classifyRemoteInitError(error);
+  return new DriverError(message, { code, httpStatus });
 }
 
 export function driverInitHints(): DriverInitHints {

@@ -1,12 +1,23 @@
-import type { Stagehand } from "@browserbasehq/stagehand";
+import type Browserbase from "@browserbasehq/sdk";
+import type { StagehandBrowser } from "@browserbasehq/stagehand";
 
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import type { DriverModeFlags } from "./mode.js";
-import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
+import type {
+  BrowserbaseIdentity,
+  ConnectionTarget,
+  RemoteConnectionTarget,
+} from "./types.js";
 
-export type StagehandConstructorOptions = ConstructorParameters<
-  typeof Stagehand
->[0];
+export interface RemoteStagehandOptions {
+  apiKey: string;
+  browser: Browserbase.SessionCreateParams;
+}
+
+export interface RemoteBrowserLaunch {
+  browser: StagehandBrowser;
+  identity: BrowserbaseIdentity;
+}
 
 export interface RemoteDoctorResult {
   ok: boolean;
@@ -58,7 +69,17 @@ export interface RemoteCapability {
   remoteStagehandOptions(
     target?: RemoteConnectionTarget,
     forwardedEnv?: ForwardedEnv,
-  ): Promise<StagehandConstructorOptions>;
+  ): Promise<RemoteStagehandOptions>;
+  /** Launch and attach a Browserbase browser while retaining its public identity. */
+  launchRemoteBrowser(
+    target?: RemoteConnectionTarget,
+    forwardedEnv?: ForwardedEnv,
+  ): Promise<RemoteBrowserLaunch>;
+  /** Resolve the stable dashboard and best-effort live-view URLs for a session. */
+  remoteBrowserbaseIdentity(
+    sessionId: string,
+    forwardedEnv?: ForwardedEnv,
+  ): Promise<BrowserbaseIdentity>;
   /** Map a failed remote `stagehand.init()` to an actionable message + code. */
   classifyRemoteInitError(error: unknown): RemoteInitErrorClassification;
   /** Remediation strings for driver init failures. */

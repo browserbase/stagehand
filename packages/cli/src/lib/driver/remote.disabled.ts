@@ -1,10 +1,11 @@
 import type {
   DriverInitHints,
+  RemoteBrowserLaunch,
   RemoteDoctorResult,
   RemoteInitErrorClassification,
-  StagehandConstructorOptions,
+  RemoteStagehandOptions,
 } from "./remote-types.js";
-import type { ConnectionTarget } from "./types.js";
+import type { BrowserbaseIdentity, ConnectionTarget } from "./types.js";
 
 /**
  * Stub Browserbase capability used by `build:local-only`. It contains no API
@@ -29,10 +30,18 @@ export function forwardedEnvKeys(): readonly string[] {
   return [];
 }
 
-export async function remoteStagehandOptions(): Promise<StagehandConstructorOptions> {
+export async function remoteStagehandOptions(): Promise<RemoteStagehandOptions> {
   // Accepts the forwarded-env arg structurally (fewer params is
   // assignable) without naming it, keeping this stub key-name-free.
   throw new Error(DISABLED_MESSAGE);
+}
+
+export async function launchRemoteBrowser(): Promise<RemoteBrowserLaunch> {
+  throw new Error(DISABLED_MESSAGE);
+}
+
+export async function remoteBrowserbaseIdentity(): Promise<BrowserbaseIdentity> {
+  return {};
 }
 
 export function classifyRemoteInitError(
