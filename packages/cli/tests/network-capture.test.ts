@@ -218,8 +218,9 @@ async function readJson(filePath: string): Promise<Record<string, unknown>> {
 }
 
 async function waitForFile(filePath: string): Promise<void> {
+  const timeoutMs = 1_000;
   const start = Date.now();
-  while (Date.now() - start < 1_000) {
+  while (Date.now() - start < timeoutMs) {
     try {
       await fs.access(filePath);
       return;
@@ -227,7 +228,7 @@ async function waitForFile(filePath: string): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
-  throw new Error(`Timed out waiting for ${filePath}`);
+  throw new Error(`Timed out waiting for ${filePath} after ${timeoutMs}ms`);
 }
 
 function restoreEnv(key: string, value: string | undefined): void {
