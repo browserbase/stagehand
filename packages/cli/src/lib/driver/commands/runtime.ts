@@ -2,8 +2,8 @@ import { promises as fs } from "node:fs";
 
 import { z } from "zod";
 
+import { CURSOR_OVERLAY_SCRIPT } from "../cursor-overlay.js";
 import type { DriverCommandHandlers } from "./types.js";
-import { unavailableCursorOverlay } from "./unavailable.js";
 
 export const runtimeHandlers: DriverCommandHandlers = {
   async screenshot(manager, params) {
@@ -89,7 +89,13 @@ export const runtimeHandlers: DriverCommandHandlers = {
     return { waited: true };
   },
 
-  cursor: unavailableCursorOverlay,
+  async cursor(manager) {
+    const page = await manager.activePage();
+    await page.addInitScript(CURSOR_OVERLAY_SCRIPT);
+    await page.evaluate(CURSOR_OVERLAY_SCRIPT);
+    manager.markCursorOverlayEnabled(page);
+    return { enabled: true };
+  },
 };
 
 function parseTimeoutMs(value: string | undefined): number {
