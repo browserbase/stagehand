@@ -155,10 +155,14 @@ export const stagehandHarness: BenchHarness = {
     const isCUA = config.isCUA ?? input.isCUA;
 
     if (config.useApi) {
-      const provider = resolveProvider(input.modelName);
+      // "auto" has no provider: the Stagehand API selects the model
+      // server-side, so no client key is needed (and forwarding one would
+      // make the session BYOK, disabling server-side auto-mode).
+      const isAutoModel = input.modelName === "auto";
+      const provider = isAutoModel ? undefined : resolveProvider(input.modelName);
       const logFn = (line: LogLine) => logger.log(line);
-      const apiKey = loadApiKeyFromEnv(provider, logFn);
-      if (!apiKey) {
+      const apiKey = isAutoModel ? undefined : loadApiKeyFromEnv(provider, logFn);
+      if (!apiKey && !isAutoModel) {
         throw new EvalsError(
           `USE_API=true but no API key found for provider "${provider}".`,
         );
@@ -167,7 +171,7 @@ export const stagehandHarness: BenchHarness = {
       v3Result = await initV3({
         logger,
         modelName: input.modelName,
-        modelClientOptions: { apiKey },
+        modelClientOptions: apiKey ? { apiKey } : undefined,
         createAgent,
         agentMode,
         isCUA,

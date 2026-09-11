@@ -92,8 +92,11 @@ export async function initV3({
       );
   }
 
+  // "auto" delegates model selection to the Stagehand API; forwarding a
+  // client apiKey would make the session BYOK, which disables server-side
+  // auto-mode entirely.
   const resolvedModelConfig: ModelConfiguration =
-    !isCuaMode && modelClientOptions
+    !isCuaMode && modelClientOptions && internalModel !== "auto"
       ? ({
           ...modelClientOptions,
           modelName: internalModel,
