@@ -14,7 +14,7 @@ import {
 
 export default class ContextsList extends BrowseCommand {
   static override description =
-    "List Browserbase contexts you have saved locally with a name.";
+    "List Context name-to-ID mappings cached on this device.";
   static override examples = [
     "browse cloud contexts list",
     "browse cloud contexts list --json",
@@ -37,7 +37,7 @@ export default class ContextsList extends BrowseCommand {
 
     if (contexts.length === 0) {
       console.log(
-        "No saved contexts. Create one with: browse cloud contexts create --name <name>",
+        "No cached contexts. Create one with: browse cloud contexts create --name <name>",
       );
       return;
     }
@@ -54,7 +54,7 @@ function outputContextsTable(
     contexts,
     [
       {
-        header: "Name",
+        header: "Local name",
         maxWidth: 24,
         value: (context) => context.name,
       },

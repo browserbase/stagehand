@@ -249,16 +249,21 @@ For remote sessions with context persistence:
 browse cloud sessions create --context-id <context-id> --persist
 ```
 
-Contexts persist cookies and local storage (logins) across sessions. Name a
-context once with `--name` to save a local alias, then reuse the name anywhere a
-context ID is accepted instead of memorizing the ID:
+Contexts persist cookies and local storage (logins) across sessions. `--name`
+stores the name on the Browserbase Context and caches its returned ID on this
+device, so the name can also be reused anywhere the CLI accepts a context ID:
 
 ```bash
-browse cloud contexts create --name github          # saves github -> ctx_...
-browse cloud contexts add github <context-id>        # name a context you already have
+browse cloud contexts create --name github          # server-owned name + local ID cache
+browse cloud contexts add github <context-id>        # add a local alias for an existing ID
 browse cloud sessions create --context-id github --persist
-browse cloud contexts list                          # show saved names
+browse cloud contexts list                          # show this device's cached names/aliases
 ```
+
+Names saved by earlier CLI versions remain valid local aliases even when they
+do not match the Browserbase-managed Context name. `contexts create --name`
+will not overwrite one of those mappings. Reconcile deliberately with
+`contexts add <name> <context-id> --force` when needed.
 
 Use `--verified` when the task needs Browserbase Verified browser mode. To drive a Verified/proxied session directly, prefer `browse open <url> --remote --verified --proxies` over create-then-attach — it keeps the session identity so `browse status`/`browse doctor` can report it. Use `browse cloud sessions create` for session options the driver flags don't cover (region, keep-alive, contexts, full `--stdin` body).
 

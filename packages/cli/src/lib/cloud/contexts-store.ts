@@ -1,19 +1,20 @@
 import { distance } from "fastest-levenshtein";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { randomUUID } from "node:crypto";
 
 import { resolveConfigDir } from "../identity.js";
 
 /**
- * Local name -> Browserbase context-id map.
+ * Local cache of Browserbase context names -> context ids.
  *
- * Browserbase contexts are identified only by an opaque id and the platform has
- * no server-side list endpoint, so to give contexts memorable names (e.g.
- * `github`, `gmail`) we keep a small map on the local device. It lives next to
- * the CLI's other state at `(XDG_CONFIG_HOME||~/.config)/browserbase/contexts.json`
- * (honoring `BROWSERBASE_CONFIG_DIR`). This is purely a client-side convenience:
- * the ids it stores are the same ids the API already returns, and a missing or
- * corrupt file degrades to "no saved contexts" rather than an error.
+ * Browserbase stores an optional, project-scoped name on each Context. The
+ * public API still identifies Contexts and session persistence by opaque id and
+ * does not expose list or lookup-by-name endpoints, so the CLI caches the names
+ * it creates on this device. It lives next to the CLI's other state at
+ * `(XDG_CONFIG_HOME||~/.config)/browserbase/contexts.json` (honoring
+ * `BROWSERBASE_CONFIG_DIR`). A missing or corrupt cache degrades to "no cached
+ * contexts" rather than an error; Browserbase remains authoritative for names.
  */
 
 const STORE_VERSION = 1;
@@ -147,12 +148,17 @@ async function writeStore(
   // contexts.json already existed (writeFile's `mode` only applies on create).
   // For this single-user local config, simultaneous writers remain
   // last-writer-wins; cross-process locking isn't warranted here.
-  const tempPath = `${path}.${process.pid}.tmp`;
-  await writeFile(tempPath, `${JSON.stringify(store, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  await rename(tempPath, path);
+  const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify(store, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
+    await rename(tempPath, path);
+  } finally {
+    await rm(tempPath, { force: true }).catch(() => undefined);
+  }
 }
 
 export async function listContextAliases(
