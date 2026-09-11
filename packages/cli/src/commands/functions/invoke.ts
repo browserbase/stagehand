@@ -26,6 +26,8 @@ export default class FunctionsInvoke extends BrowseCommand {
       helpValue: "<apiKey>",
     }),
     "base-url": Flags.string({
+      aliases: ["api-url"],
+      char: "u",
       description: "Override the Browserbase API base URL.",
       helpValue: "<baseUrl>",
     }),
