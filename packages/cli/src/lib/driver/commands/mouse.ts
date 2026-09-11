@@ -8,16 +8,15 @@ const ButtonSchema = z.enum(["left", "right", "middle"]).optional();
 
 export const mouseHandlers: DriverCommandHandlers = {
   async "mouse.click"(manager, params) {
-    const { button, clickCount, returnXPath, x, y } = z
+    const { button, clickCount, x, y } = z
       .object({
         button: ButtonSchema,
         clickCount: z.number().int().positive().optional(),
-        returnXPath: z.boolean().optional(),
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
-    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, x, y);
     await page.click(x, y, {
@@ -28,14 +27,13 @@ export const mouseHandlers: DriverCommandHandlers = {
   },
 
   async "mouse.hover"(manager, params) {
-    const { returnXPath, x, y } = z
+    const { x, y } = z
       .object({
-        returnXPath: z.boolean().optional(),
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
-    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, x, y);
     await page.hover(x, y);
@@ -43,16 +41,15 @@ export const mouseHandlers: DriverCommandHandlers = {
   },
 
   async "mouse.scroll"(manager, params) {
-    const { deltaX, deltaY, returnXPath, x, y } = z
+    const { deltaX, deltaY, x, y } = z
       .object({
         deltaX: z.number(),
         deltaY: z.number(),
-        returnXPath: z.boolean().optional(),
         x: z.number(),
         y: z.number(),
       })
+      .strict()
       .parse(params);
-    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, x, y);
     await page.scroll(x, y, deltaX, deltaY);
@@ -60,19 +57,18 @@ export const mouseHandlers: DriverCommandHandlers = {
   },
 
   async "mouse.drag"(manager, params) {
-    const { button, delay, fromX, fromY, returnXPath, steps, toX, toY } = z
+    const { button, delay, fromX, fromY, steps, toX, toY } = z
       .object({
         button: ButtonSchema,
         delay: z.number().int().nonnegative().optional(),
         fromX: z.number(),
         fromY: z.number(),
-        returnXPath: z.boolean().optional(),
         steps: z.number().int().positive().optional(),
         toX: z.number(),
         toY: z.number(),
       })
+      .strict()
       .parse(params);
-    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
     await positionCursorOverlay(manager, page, fromX, fromY);
     await page.dragAndDrop(fromX, fromY, toX, toY, {
@@ -96,10 +92,4 @@ async function positionCursorOverlay(
 ): Promise<void> {
   if (!manager.isCursorOverlayEnabled(page)) return;
   await page.evaluate(updateCursorOverlayPosition, { x, y });
-}
-
-function assertXPathUnavailable(returnXPath: boolean | undefined): void {
-  if (returnXPath) {
-    throw new Error("Coordinate XPath lookup is not exposed by Stagehand V4");
-  }
 }
