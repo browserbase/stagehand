@@ -124,7 +124,7 @@ describe("published TypeScript SDK", () => {
 
           const loadState: LoadState = "domcontentloaded";
           const mouseButton: MouseButton = "left";
-          const modelName: ModelName = "openai/gpt-5";
+          const modelName: ModelName = "openai/gpt-5.6-luna";
           const model: ModelConfig = { modelName };
           const caching: Caching = { threshold: 2 };
           const variables: Variables = {

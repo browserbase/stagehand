@@ -19,20 +19,20 @@ describe("AI SDK language models", () => {
   it.each([
     {
       name: "OpenAI",
-      modelName: "openai/gpt-5.4-mini" as const,
-      modelId: "gpt-5.4-mini",
+      modelName: "openai/gpt-5.6-luna" as const,
+      modelId: "gpt-5.6-luna",
       provider: "openai.responses",
     },
     {
       name: "Anthropic",
-      modelName: "anthropic/claude-sonnet-4-6" as const,
-      modelId: "claude-sonnet-4-6",
+      modelName: "anthropic/claude-sonnet-5" as const,
+      modelId: "claude-sonnet-5",
       provider: "anthropic.messages",
     },
     {
       name: "Google",
-      modelName: "google/gemini-3-flash-preview" as const,
-      modelId: "gemini-3-flash-preview",
+      modelName: "google/gemini-3.8-flash" as const,
+      modelId: "gemini-3.8-flash",
       provider: "google.generative-ai",
     },
     {

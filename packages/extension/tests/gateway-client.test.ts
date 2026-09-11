@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 const initParams = {
-  model: { modelName: "openai/gpt-5" },
+  model: { modelName: "openai/gpt-5.6-luna" },
   apiKey: "bb-api-key",
   browser: { sessionId: "session-123", region: "eu-central-1" },
 } as StagehandInitParams;
@@ -61,7 +61,7 @@ describe("buildGatewayContext", () => {
 describe("createGatewayLanguageModel", () => {
   it("creates a Responses API model against the gateway endpoint with the full model slug", () => {
     const model = createGatewayLanguageModel(
-      { modelName: "openai/gpt-5" },
+      { modelName: "openai/gpt-5.6-luna" },
       {
         apiUrl: "https://api.stagehand.browserbase.com/v1",
         apiKey: "bb-api-key",
@@ -71,7 +71,7 @@ describe("createGatewayLanguageModel", () => {
 
     expect(model).toMatchObject({
       provider: "openai.responses",
-      modelId: "openai/gpt-5",
+      modelId: "openai/gpt-5.6-luna",
     });
   });
 
@@ -115,7 +115,7 @@ describe("llmService.generate gateway routing", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
 
-    await llmService.generate({ modelName: "openai/gpt-5" }, input, vi.fn(), {
+    await llmService.generate({ modelName: "openai/gpt-5.6-sol" }, input, vi.fn(), {
       apiUrl: "https://api.stagehand.browserbase.com/v1",
       apiKey: "bb-api-key",
       sessionId: "session-123",
@@ -125,7 +125,7 @@ describe("llmService.generate gateway routing", () => {
       expect.objectContaining({
         model: expect.objectContaining({
           provider: "openai.responses",
-          modelId: "openai/gpt-5",
+          modelId: "openai/gpt-5.6-sol",
         }),
       }),
     );
@@ -157,7 +157,7 @@ describe("llmService.generate gateway routing", () => {
 
   it("rejects key-less model configurations when no gateway context is available", async () => {
     await expect(
-      llmService.generate({ modelName: "openai/gpt-5" }, input, vi.fn()),
+      llmService.generate({ modelName: "openai/gpt-5.6-sol" }, input, vi.fn()),
     ).rejects.toThrow(/requires a provider API key or a Browserbase session/);
     expect(generateText).not.toHaveBeenCalled();
   });
@@ -172,7 +172,7 @@ describe("llmService.generate gateway routing", () => {
   it("rejects stop sequences instead of silently ignoring them", async () => {
     await expect(
       llmService.generate(
-        { modelName: "openai/gpt-5" },
+        { modelName: "openai/gpt-5.6-sol" },
         { ...input, stopSequences: ["STOP"] },
         vi.fn(),
         {
