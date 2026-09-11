@@ -7,6 +7,7 @@ import {
   getNetworkDir,
   writePrivateFile,
 } from "./daemon/paths.js";
+import { DriverError } from "./errors.js";
 
 interface PendingRequest {
   body: string | null;
@@ -34,10 +35,6 @@ type CdpSession = {
   ) => Promise<T>;
 };
 
-type StagehandPageWithMainFrame = {
-  mainFrame: () => { session: CdpSession };
-};
-
 export class NetworkCapture {
   private cdpSession: CdpSession | null = null;
   private counter = 0;
@@ -53,11 +50,13 @@ export class NetworkCapture {
   constructor(private readonly session: string) {}
 
   async enable(
-    page: StagehandPageWithMainFrame,
+    page: unknown,
   ): Promise<{ alreadyEnabled?: boolean; enabled: true; path: string }> {
     if (this.enabled && this.networkDir) {
       return { alreadyEnabled: true, enabled: true, path: this.networkDir };
     }
+
+    const cdpSession = await this.networkCdpSession(page);
 
     await ensureRuntimeDir();
     this.networkDir = getNetworkDir(this.session);
@@ -68,7 +67,6 @@ export class NetworkCapture {
     this.requestStartTimes.clear();
     this.responseMetadata.clear();
 
-    const cdpSession = page.mainFrame().session;
     this.cdpSession = cdpSession;
     await cdpSession.send("Network.enable", {
       maxResourceBufferSize: 5_000_000,
@@ -152,6 +150,14 @@ export class NetworkCapture {
   ): void {
     this.cdpSession?.on(event, listener);
     this.listeners.push([event, listener]);
+  }
+
+  private async networkCdpSession(page: unknown): Promise<CdpSession> {
+    void page;
+    throw new DriverError(
+      "Network capture is not available in this Stagehand V4 runtime. Apply the CLI CDP sidecar fast-follow to restore `browse network on`.",
+      { code: "network_capture_unavailable" },
+    );
   }
 
   private handleRequestWillBeSent(params: unknown): void {
