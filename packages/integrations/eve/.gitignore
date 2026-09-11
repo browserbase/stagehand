@@ -1,2 +1,10 @@
-.eve/
-.output/
+node_modules
+.env*
+.eve
+.vercel
+.output
+.nitro
+dist
+extension/lib/core-facade
+.DS_Store
+*.tsbuildinfo
