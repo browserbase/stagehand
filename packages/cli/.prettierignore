@@ -1,0 +1,14 @@
+pnpm-lock.yaml
+README.md
+**/*.json
+.github/
+dist/
+node_modules/
+coverage/
+out/
+.cache/
+*.tgz
+.browserbase/
+.browserbase/**
+**/.browserbase/
+**/.browserbase/**
