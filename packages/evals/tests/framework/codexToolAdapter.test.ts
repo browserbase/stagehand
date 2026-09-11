@@ -64,9 +64,19 @@ describe("codex tool adapter", () => {
 
   it("points CODEX_HOME at the per-run directory and drops the inherited one", () => {
     const env = buildIsolatedCodexEnv(
-      { PATH: "/usr/bin", CODEX_HOME: "/Users/someone/.codex", UNSET: undefined },
-      "/tmp/run/.codex-home",
+      {
+        PATH: "/usr/bin",
+        CODEX_HOME: "/Users/someone/.codex",
+        CODEX_THREAD_ID: "host",
+        HOME: "/Users/someone",
+        UNSET: undefined,
+      },
+      "/tmp/run/home/.codex",
     );
-    expect(env).toEqual({ PATH: "/usr/bin", CODEX_HOME: "/tmp/run/.codex-home" });
+    expect(env).toEqual({
+      PATH: "/usr/bin",
+      HOME: "/tmp/run/home",
+      CODEX_HOME: "/tmp/run/home/.codex",
+    });
   });
 });

@@ -65,3 +65,48 @@ service worker — browser-side, never on your machine. Browserbase is the recom
 boundary: the privileged execution environment is a disposable cloud browser. The SDK example
 spawns the facade server with an explicit `STAGEHAND_*`/`BROWSERBASE_*` allowlist; Codex's own
 model credentials never reach the browser session.
+## Codex isolation and tool-call diagnostics
+
+The SDK example runs in a temporary working directory with separate `HOME` and
+`CODEX_HOME`, so operator browser plugins, skills and MCP configuration are not
+inherited. It copies only file-based `auth.json` when API credentials are absent;
+keychain-only login is not copied. Use API credentials or file-based login for
+this example. Unexpected MCP servers abort the run rather than contaminate its
+evidence; this detects unexpected calls, not a security boundary preventing them.
+
+Enable detailed Stagehand logging before starting the example:
+
+```bash
+STAGEHAND_BROWSER=local \
+STAGEHAND_FACADE_LOG_LEVEL=debug \
+STAGEHAND_FACADE_LOG_FILE=/tmp/stagehand-facade-tools.jsonl \
+STAGEHAND_CODEX_DIAGNOSTICS_DIR=/tmp/stagehand-codex-diagnostics \
+pnpm --filter @browserbasehq/stagehand-integrations-example-codex-facade start \
+  "Go to Paint and draw the NFL logo"
+```
+
+Watch the server's actual tool arguments/code and result previews separately:
+
+```bash
+tail -F /tmp/stagehand-facade-tools.jsonl | jq .
+```
+
+Logging defaults to off. `STAGEHAND_FACADE_LOG_LEVEL=calls` records arguments,
+request IDs, timestamps, duration, output sizes and errors; `debug` also records
+bounded result previews. Setting only `STAGEHAND_FACADE_LOG_FILE` enables `calls`.
+Without a file, enabled logging uses stderr, never MCP stdout. Configure preview
+length with `STAGEHAND_FACADE_LOG_MAX_CHARS` (default 16000; 256–1000000).
+Files append across runs and carry a server session UUID and PID. New files use
+owner-only permissions. Known credentials are redacted and image base64 omitted,
+but code, page text and typed values may remain sensitive. Review before sharing
+and rotate files yourself; preview limits do not bound total file size.
+
+Raw `codex exec --json | tee /tmp/codex-events.jsonl` only saves Codex events.
+It does not enable facade logging or the SDK example's isolated profile. Pass
+the `STAGEHAND_FACADE_LOG_*` variables in `mcp_servers.stagehand.env` when using
+the raw CLI. Tool logging is diagnostic, not an eval scoring input.
+
+`STAGEHAND_CODEX_DIAGNOSTICS_DIR` enables private, bounded SDK error artifacts
+for this example. Evals expose the same option as `EVAL_CODEX_DIAGNOSTICS_DIR`.
+Artifacts may contain model/page content despite best-effort credential redaction.
+Diagnostic write failures do not mask the original SDK failure.
