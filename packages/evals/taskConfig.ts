@@ -46,16 +46,6 @@ const ALL_EVAL_MODELS = [
   // TOGETHER - DEEPSEEK
   "deepseek-ai/DeepSeek-V3",
   "Qwen/Qwen2.5-7B-Instruct-Turbo",
-  // GROQ
-  "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-  "groq/llama-3.3-70b-versatile",
-  "groq/llama3-70b-8192",
-  "groq/qwen-qwq-32b",
-  "groq/qwen-2.5-32b",
-  "groq/deepseek-r1-distill-qwen-32b",
-  "groq/deepseek-r1-distill-llama-70b",
-  // CEREBRAS
-  "cerebras/llama3.3-70b",
 ];
 
 // ---------------------------------------------------------------------------

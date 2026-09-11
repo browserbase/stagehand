@@ -101,7 +101,7 @@ export interface LLMParsedResponse<T> {
 }
 
 export abstract class LLMClient {
-  public abstract type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
+  public abstract type: "openai" | "anthropic" | (string & {});
   public modelName: ModelName;
   public hasVision = false;
   // Compile-only bridge: provider SDK option types diverge from V3's shared options.
