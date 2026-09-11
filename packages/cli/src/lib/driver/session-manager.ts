@@ -80,6 +80,7 @@ export class DriverSessionManager {
   private browserbaseIdentityValue: BrowserbaseIdentity = {};
   private consecutiveInitFailures = 0;
   private context: DriverContext | null = null;
+  private cursorOverlayPageIds = new Set<string>();
   private lastForwardedEnvSignature: string | null = null;
   private pendingEnv: ForwardedEnv | undefined;
   private initFailure: InitFailure | null = null;
@@ -207,6 +208,7 @@ export class DriverSessionManager {
     this.stagehand = null;
     this.browser = null;
     this.context = null;
+    this.cursorOverlayPageIds.clear();
     this.browserbaseIdentityValue = {};
     this.initFailure = null;
     this.consecutiveInitFailures = 0;
@@ -221,6 +223,14 @@ export class DriverSessionManager {
 
   resolveSelector(selector: string): string {
     return resolveCachedSelector(selector, this.refMaps);
+  }
+
+  markCursorOverlayEnabled(page: DriverPage): void {
+    this.cursorOverlayPageIds.add(page.pageId);
+  }
+
+  isCursorOverlayEnabled(page: DriverPage): boolean {
+    return this.cursorOverlayPageIds.has(page.pageId);
   }
 
   setRefMaps(refMaps: RefMaps): void {
