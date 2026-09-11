@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type Browserbase from "@browserbasehq/sdk";
 import {
   claimStagehandBrowser,
   createBrowserFactoriesForTest,
@@ -267,6 +268,32 @@ describe("Stagehand browser factories", () => {
     expect(browser).toMatchObject({ provider: "browserbase", origin: "launched" });
   });
 
+  it("passes a supplied Browserbase client to launch session management", async () => {
+    const client = {} as unknown as Browserbase;
+    const createSession = vi.fn(async () => ({
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      sessionId: "session_123",
+      close: vi.fn(),
+    }));
+    const createBrowserbaseSessionClient = vi.fn(() => ({ createSession }));
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient,
+      connectCdp: async () => fakeCdpClient(),
+    });
+
+    await browserbase.launch({
+      apiKey: "bb_key",
+      baseUrl: "https://api.dev.browserbase.com",
+      client,
+    });
+
+    expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
+      "bb_key",
+      "https://api.dev.browserbase.com",
+      { client },
+    );
+  });
+
   it("connects to an existing Browserbase session", async () => {
     const connectSession = vi.fn(async () => ({
       sessionId: "session_123",
@@ -308,6 +335,35 @@ describe("Stagehand browser factories", () => {
         region: "eu-central-1",
       },
     });
+  });
+
+  it("passes a supplied Browserbase client to connect session management", async () => {
+    const client = {} as unknown as Browserbase;
+    const connectSession = vi.fn(async () => ({
+      sessionId: "session_123",
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      close: vi.fn(),
+    }));
+    const createBrowserbaseSessionClient = vi.fn(() => ({
+      createSession: vi.fn(),
+      connectSession,
+    }));
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient,
+      connectCdp: async () => fakeCdpClient(),
+    });
+
+    await browserbase.connect({
+      apiKey: "bb_key",
+      sessionId: "session_123",
+      client,
+    });
+
+    expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
+      "bb_key",
+      "https://api.browserbase.com",
+      { client },
+    );
   });
 
   it.each([

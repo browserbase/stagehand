@@ -26,6 +26,8 @@ const intentionallyUndocumentedBrowserFields = new Set([
   "LocalBrowserConnectOptions.extension_id",
   "BrowserbaseConnectOptions.extension_id",
 ]);
+// SDK client instances are native language objects and cannot share one cross-language type.
+const typescriptOnlyBrowserFields = new Set(["BrowserbaseConnectOptions.client"]);
 
 const concepts: readonly Concept[] = [
   {
@@ -102,7 +104,9 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
     const differences: string[] = [];
 
     for (const concept of concepts) {
-      const expected = schemaFields(concept.typescript);
+      const expected = schemaFields(concept.typescript).filter(
+        (field) => !typescriptOnlyBrowserFields.has(`${concept.name}.${field}`),
+      );
       const [pythonFields, goFields] = await Promise.all([concept.python(), concept.go()]);
       if (!arraysEqual(pythonFields, expected)) {
         differences.push(
@@ -118,7 +122,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
 
     expect(
       differences,
-      "SDK-only field names are derived dynamically; only concept/type names are paired explicitly",
+      "SDK-only field names are derived dynamically; only concept/type names and language-specific adapters are paired explicitly",
     ).toEqual([]);
   });
 
