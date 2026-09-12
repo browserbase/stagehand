@@ -6,7 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import stagehandExtension from "../extensions/stagehand.js";
 
-type Registered = { name: string; description: string; promptGuidelines?: string[] };
+type Registered = {
+  name: string;
+  description: string;
+  promptGuidelines?: string[];
+  parameters?: { properties?: Record<string, unknown> };
+};
 
 function registeredTools(): Registered[] {
   const tools: Registered[] = [];
@@ -33,7 +38,16 @@ describe("pi stagehand extension", () => {
 
   it("forwards the canonical agent instructions as guidelines", () => {
     const run = registeredTools().find((tool) => tool.name === "run");
-    expect(run?.promptGuidelines).toEqual([FACADE_AGENT_INSTRUCTIONS]);
+    expect(run?.promptGuidelines?.[0]).toBe(FACADE_AGENT_INSTRUCTIONS);
+  });
+
+  it("exposes the snapshot context-reduction options", () => {
+    const snapshot = registeredTools().find((tool) => tool.name === "snapshot");
+    expect(Object.keys(snapshot?.parameters?.properties ?? {})).toEqual([
+      "includeIframes",
+      "compact",
+      "maxChars",
+    ]);
   });
 
   it("does not launch a browser at registration time", () => {
