@@ -6,7 +6,11 @@
  * importing the contract (descriptions, runtime validators, system prompt)
  * from @browserbasehq/stagehand-integrations/facade rather than restating it.
  */
-import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentToolResult,
+  ExtensionAPI,
+  ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 import {
@@ -26,6 +30,16 @@ import {
   StagehandFacadeTools,
   stagehandFacadeConfigFromEnv,
 } from "@browserbasehq/stagehand-integrations/facade";
+
+import { modelAcceptsImages } from "./model-capabilities.js";
+
+// `screenshot` returns real image content, which only vision-capable models can
+// consume. Models advertise that through `input` ("text" | "image"). When the
+// active model has no image input, the capture is dropped or ignored and pi
+// reports no error, so the turn is spent for nothing.
+function modelAcceptsImagesForContext(ctx: ExtensionContext | undefined): boolean | undefined {
+  return modelAcceptsImages(ctx?.model);
+}
 
 type FacadeResources = {
   browser: StagehandBrowser;
@@ -149,10 +163,24 @@ export default function stagehandExtension(pi: ExtensionAPI) {
     name: "screenshot",
     label: "Stagehand screenshot",
     description: SCREENSHOT_TOOL_DESCRIPTION,
-    promptSnippet: "screenshot: capture the rendered page as an image",
+    promptSnippet:
+      "screenshot: capture the rendered page as an image (needs a vision-capable model)",
     parameters: screenshotParameters,
     executionMode: "sequential",
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const acceptsImages = modelAcceptsImagesForContext(ctx);
+      if (acceptsImages === false) {
+        const active = ctx?.model ? `${ctx.model.provider}/${ctx.model.id}` : "the active model";
+        return {
+          content: [
+            {
+              type: "text",
+              text: `screenshot is unavailable: ${active} does not accept image input, so a capture would be silently discarded. Use the snapshot tool or a run call that returns only the values you need. If visual inspection is required, ask the user to switch to a vision-capable model.`,
+            },
+          ],
+          details: { skipped: "model-has-no-image-input" },
+        } satisfies AgentToolResult<unknown>;
+      }
       const input = ScreenshotInputSchema.parse(params);
       const tools = await facadeTools();
       const shot = await tools.screenshot(input);
