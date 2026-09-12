@@ -2030,6 +2030,9 @@ type WebMCPAnnotation struct {
 	// Autosubmit corresponds to the JSON schema field "autosubmit".
 	Autosubmit *bool `json:"autosubmit,omitempty,omitzero"`
 
+	// Consequential corresponds to the JSON schema field "consequential".
+	Consequential *bool `json:"consequential,omitempty,omitzero"`
+
 	// ReadOnly corresponds to the JSON schema field "read_only".
 	ReadOnly *bool `json:"read_only,omitempty,omitzero"`
 
