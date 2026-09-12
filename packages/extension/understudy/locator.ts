@@ -22,6 +22,7 @@ import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
+import { waitForInputEventsToSettle } from "./inputSettling.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
@@ -554,6 +555,9 @@ export class Locator {
 
       if (!options?.delay) {
         await session.send<never>("Input.insertText", { text });
+        if (text.length > 0) {
+          await waitForInputEventsToSettle(session);
+        }
         return;
       }
 
@@ -572,8 +576,12 @@ export class Locator {
 
         await new Promise((r) => setTimeout(r, options.delay));
       }
+
+      if (text.length > 0) {
+        await waitForInputEventsToSettle(session);
+      }
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
