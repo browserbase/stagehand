@@ -29,6 +29,8 @@ import {
   StagehandClientObserveOptionsSchema,
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
+  type StagehandGetCallOptions,
+  type StagehandRPCTimeouts,
   type ResolvedStagehandClientLoggingConfig,
   type ResolvedStagehandClientCreateConfig,
   type StagehandCreateOptions,
@@ -75,12 +77,17 @@ export class Stagehand {
   private constructor(
     private readonly browserHandle: StagehandBrowser,
     private readonly createConfig: ResolvedStagehandClientCreateConfig,
+    private readonly rpcClientOptions: {
+      rpcTimeouts?: StagehandRPCTimeouts;
+      getCallOptions?: StagehandGetCallOptions;
+    },
   ) {}
 
   static async create(input: StagehandCreateOptions): Promise<Stagehand> {
-    const { browser, ...createConfig } = StagehandCreateOptionsSchema.parse(input);
+    const { browser, rpcTimeouts, getCallOptions, ...createConfig } =
+      StagehandCreateOptionsSchema.parse(input);
     const claimedBrowser = claimStagehandBrowser(browser);
-    const stagehand = new Stagehand(browser, createConfig);
+    const stagehand = new Stagehand(browser, createConfig, { rpcTimeouts, getCallOptions });
     let lifecycleSignal: AbortSignal | undefined;
     try {
       await withStagehandInitDeadline((signal) => {
@@ -171,7 +178,7 @@ export class Stagehand {
 
   private async initialize(browser: ClaimedStagehandBrowser, signal: AbortSignal): Promise<void> {
     const createConfig = this.createConfig;
-    const rpcClient = new RPCClient(browser.cdpClient);
+    const rpcClient = new RPCClient(browser.cdpClient, this.rpcClientOptions);
     this.rpcClient = rpcClient;
 
     try {

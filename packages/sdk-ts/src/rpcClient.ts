@@ -38,7 +38,12 @@ import {
 import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
-import { abortReason } from "./abort.js";
+import {
+  StagehandCallOptionsSchema,
+  type StagehandGetCallOptions,
+  type StagehandRPCTimeouts,
+} from "./clientSchemas.js";
+import { abortReason, throwIfAborted } from "./abort.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -144,9 +149,19 @@ export class RPCClient {
   pendingNotifications: StagehandRpcNotification[] = [];
   closed = false;
   readonly cdp: CDPTransport;
+  readonly rpcTimeouts?: StagehandRPCTimeouts;
+  readonly getCallOptions?: StagehandGetCallOptions;
 
-  constructor(cdp: CDPTransport) {
+  constructor(
+    cdp: CDPTransport,
+    options: {
+      rpcTimeouts?: StagehandRPCTimeouts;
+      getCallOptions?: StagehandGetCallOptions;
+    } = {},
+  ) {
     this.cdp = cdp;
+    this.rpcTimeouts = options.rpcTimeouts;
+    this.getCallOptions = options.getCallOptions;
     this.serviceWorker = cdp.serviceWorker;
     this.browserWebSocketDebuggerUrl = cdp.webSocketDebuggerUrl;
     this.cdp.onmessage = (message) => this.receive(message);
@@ -163,6 +178,16 @@ export class RPCClient {
     if (method.name === StagehandMethods.stagehandInit.name && !options.signal) {
       throw new Error("stagehand.init requires an initialization lifecycle signal");
     }
+    const callOptions =
+      method.name === StagehandMethods.stagehandInit.name ||
+      method.name === StagehandMethods.stagehandCallbackBatch.name
+        ? undefined
+        : this.getCallOptions?.();
+    const callSignal = combineAbortSignals(
+      options.signal,
+      callOptions === undefined ? undefined : StagehandCallOptionsSchema.parse(callOptions).signal,
+    );
+    throwIfAborted(callSignal);
 
     const parentContext = context.active();
     const span = TRACER.startSpan(
@@ -190,13 +215,10 @@ export class RPCClient {
           ...getTraceContextFields(requestContext),
         });
         span.setAttribute("jsonrpc.request.id", String(request.id));
-        const responseTimeoutMs = rpcResponseTimeoutMs(method.name, parsedParams);
+        const responseTimeoutMs = rpcResponseTimeoutMs(method.name, parsedParams, this.rpcTimeouts);
         const timeoutController =
           responseTimeoutMs === undefined ? undefined : new AbortController();
-        const signal =
-          options.signal && timeoutController
-            ? AbortSignal.any([options.signal, timeoutController.signal])
-            : (options.signal ?? timeoutController?.signal);
+        const signal = combineAbortSignals(callSignal, timeoutController?.signal);
         const timeoutId =
           timeoutController && responseTimeoutMs !== undefined
             ? setTimeout(() => {
@@ -213,6 +235,7 @@ export class RPCClient {
           const [, result] = await Promise.all([
             this.cdp.send(request, signal).catch((error: unknown) => {
               this.rejectPending(request.id, asError(error));
+              throw error;
             }),
             response,
           ]);
@@ -509,7 +532,25 @@ function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-export function rpcResponseTimeoutMs(method: string, params: unknown): number | undefined {
+function combineAbortSignals(...signals: Array<AbortSignal | undefined>): AbortSignal | undefined {
+  const unique = [...new Set(signals.filter((signal) => signal !== undefined))];
+  if (unique.length === 0) return undefined;
+  if (unique.length === 1) return unique[0];
+  return AbortSignal.any(unique);
+}
+
+export function rpcResponseTimeoutMs(
+  method: string,
+  params: unknown,
+  configuredTimeouts?: StagehandRPCTimeouts,
+): number | undefined {
+  const configuredTimeoutMs =
+    method === StagehandMethods.stagehandInit.name ||
+    method === StagehandMethods.stagehandCallbackBatch.name
+      ? undefined
+      : ((configuredTimeouts?.methods as Record<string, number> | undefined)?.[method] ??
+        configuredTimeouts?.defaultMs);
+  if (configuredTimeoutMs !== undefined) return configuredTimeoutMs;
   let operationTimeoutMs: number | undefined;
   switch (method) {
     case StagehandMethods.stagehandAct.name:

@@ -54,6 +54,9 @@ describe("published TypeScript SDK", () => {
               LocalBrowserConnectOptionsSchema,
               Response,
               Stagehand,
+              StagehandCallOptionsSchema,
+              StagehandGetCallOptionsSchema,
+              StagehandRPCTimeoutsSchema,
               WebMCPInvocation,
               WebMCPTool,
               WebMCPToolsOptionsSchema,
@@ -75,6 +78,12 @@ describe("published TypeScript SDK", () => {
             }
             LocalBrowserConnectOptionsSchema.parse({ cdpUrl: "ws://127.0.0.1:9222" });
             BrowserbaseConnectOptionsSchema.parse({ apiKey: "bb_key", sessionId: "session_123" });
+             StagehandRPCTimeoutsSchema.parse({
+               defaultMs: 1000,
+               methods: { "page.goto": 2000 },
+             });
+             StagehandCallOptionsSchema.parse({});
+             StagehandGetCallOptionsSchema.parse(() => undefined);
             if (typeof WebMCPTool !== "function") throw new Error("WebMCPTool export is unavailable");
             if (typeof WebMCPInvocation !== "function") {
               throw new Error("WebMCPInvocation export is unavailable");
@@ -116,8 +125,12 @@ describe("published TypeScript SDK", () => {
             RgbaColor,
             SnapshotResult,
             StagehandClientActOptions,
+            StagehandCallOptions,
             StagehandClientExtractOptions,
             StagehandClientObserveOptions,
+            StagehandGetCallOptions,
+            StagehandRPCMethodName,
+            StagehandRPCTimeouts,
             StagehandResultUsage,
             Variables,
           } from "@browserbasehq/stagehand";
@@ -149,6 +162,13 @@ describe("published TypeScript SDK", () => {
           const actOptions: StagehandClientActOptions = { cache: caching, model, variables };
           const observeOptions: StagehandClientObserveOptions = { model, variables };
           const extractOptions: StagehandClientExtractOptions = { model };
+          const rpcMethod: StagehandRPCMethodName = "page.goto";
+          const rpcTimeouts: StagehandRPCTimeouts = {
+            defaultMs: 1_000,
+            methods: { [rpcMethod]: 2_000 },
+          };
+          const callOptions: StagehandCallOptions = {};
+          const getCallOptions: StagehandGetCallOptions = () => callOptions;
 
           declare const centroid: LocatorCentroidResult;
           declare const snapshot: SnapshotResult;
@@ -172,6 +192,8 @@ describe("published TypeScript SDK", () => {
             actOptions,
             observeOptions,
             extractOptions,
+            rpcTimeouts,
+            getCallOptions,
             centroid,
             snapshot,
             usage,

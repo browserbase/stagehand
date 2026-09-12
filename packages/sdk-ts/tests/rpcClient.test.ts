@@ -16,6 +16,7 @@ import {
   rpcResponseTimeoutMs,
   type CDPTransport,
 } from "../src/rpcClient.js";
+import { StagehandRPCTimeoutsSchema } from "../src/clientSchemas.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -73,6 +74,13 @@ class ManualCDPTransport implements CDPTransport {
   }
 }
 
+class FailingCDPTransport extends ManualCDPTransport {
+  override async send(message: JSONRPCMessage): Promise<void> {
+    this.sent.push(message);
+    throw new Error("transport send failed");
+  }
+}
+
 describe("RPCClientOptionsSchema", () => {
   it("accepts the preloaded-extension option", () => {
     const signal = new AbortController().signal;
@@ -98,6 +106,24 @@ describe("RPCClientOptionsSchema", () => {
         signal: new AbortController().signal,
       }),
     ).toThrow();
+  });
+});
+
+describe("StagehandRPCTimeoutsSchema", () => {
+  it("accepts positive integer timeouts within the timer limit", () => {
+    expect(
+      StagehandRPCTimeoutsSchema.parse({
+        defaultMs: 2_147_473_647,
+        methods: { "page.goto": 1 },
+      }),
+    ).toStrictEqual({
+      defaultMs: 2_147_473_647,
+      methods: { "page.goto": 1 },
+    });
+  });
+
+  it.each([0, -1, 1.5, 2_147_473_648])("rejects an invalid timeout value: %s", (timeout) => {
+    expect(() => StagehandRPCTimeoutsSchema.parse({ defaultMs: timeout })).toThrow();
   });
 });
 
@@ -417,6 +443,121 @@ describe("RPCClient", () => {
     [StagehandMethods.pageWebMCPTools.name, 11_000],
   ])("uses the v3 operation default plus transport grace for %s", (method, timeout) => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
+  });
+
+  it("prefers configured per-method RPC timeouts over the configured default", () => {
+    expect(
+      rpcResponseTimeoutMs(
+        StagehandMethods.pageGoto.name,
+        {},
+        {
+          defaultMs: 20_000,
+          methods: { [StagehandMethods.pageGoto.name]: 5_000 },
+        },
+      ),
+    ).toBe(5_000);
+    expect(rpcResponseTimeoutMs(StagehandMethods.pageReload.name, {}, { defaultMs: 20_000 })).toBe(
+      20_000,
+    );
+  });
+
+  it("does not apply configured RPC timeouts to initialization or callback batches", () => {
+    const timeouts = { defaultMs: 1 };
+    expect(rpcResponseTimeoutMs(StagehandMethods.stagehandInit.name, {}, timeouts)).toBeUndefined();
+    expect(
+      rpcResponseTimeoutMs(
+        StagehandMethods.stagehandCallbackBatch.name,
+        { options: { timeout: 2_000 } },
+        timeouts,
+      ),
+    ).toBe(12_000);
+  });
+
+  it("uses the current call signal without closing the client", async () => {
+    const cdp = new ManualCDPTransport();
+    const controller = new AbortController();
+    let signal: AbortSignal | undefined = controller.signal;
+    const client = new RPCClient(cdp, {
+      getCallOptions: () => (signal ? { signal } : undefined),
+    });
+    const pending = client.send(StagehandMethods.contextPages, {});
+
+    await vi.waitFor(() => expect(cdp.sent).toHaveLength(1));
+    const reason = new Error("cell cancelled");
+    controller.abort(reason);
+    await expect(pending).rejects.toBe(reason);
+    expect(client.closed).toBe(false);
+
+    signal = undefined;
+    const followUp = client.send(StagehandMethods.contextPages, {});
+    await vi.waitFor(() => expect(cdp.sent).toHaveLength(2));
+    await cdp.receive({ jsonrpc: "2.0", id: 2, result: [] });
+    await expect(followUp).resolves.toStrictEqual([]);
+  });
+
+  it("gets call options once for each ordinary RPC call", async () => {
+    let calls = 0;
+    const client = new RPCClient(new FakeCDPTransport([]), {
+      getCallOptions: () => {
+        calls += 1;
+        return undefined;
+      },
+    });
+
+    await client.send(StagehandMethods.contextPages, {});
+    await client.send(StagehandMethods.contextPages, {});
+
+    expect(calls).toBe(2);
+  });
+
+  it("rejects a pre-aborted call signal before sending", async () => {
+    const cdp = new ManualCDPTransport();
+    const controller = new AbortController();
+    const reason = new Error("cell cancelled");
+    controller.abort(reason);
+    const client = new RPCClient(cdp, {
+      getCallOptions: () => ({ signal: controller.signal }),
+    });
+
+    await expect(client.send(StagehandMethods.contextPages, {})).rejects.toBe(reason);
+    expect(cdp.sent).toHaveLength(0);
+  });
+
+  it("does not read call options for initialization or callback batches", async () => {
+    const getCallOptions = () => {
+      throw new Error("call options must not be read");
+    };
+    const client = new RPCClient(new FakeCDPTransport({ initialized: true, pages: [] }), {
+      getCallOptions,
+    });
+    const callbackClient = new RPCClient(new FakeCDPTransport({}), {
+      getCallOptions,
+    });
+    const signal = new AbortController().signal;
+
+    await expect(
+      client.sendStagehandInit(
+        {
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "test", version: "1.0.0" },
+        },
+        signal,
+      ),
+    ).resolves.toStrictEqual({ initialized: true, pages: [] });
+    await expect(
+      callbackClient.send(StagehandMethods.stagehandCallbackBatch, {
+        callbackSource: "async () => undefined",
+        options: { timeout: 1_000 },
+      }),
+    ).resolves.toStrictEqual({});
+  });
+
+  it("rethrows a transport send error after rejecting its pending request", async () => {
+    const client = new RPCClient(new FailingCDPTransport());
+
+    await expect(client.send(StagehandMethods.contextPages, {})).rejects.toThrow(
+      "transport send failed",
+    );
   });
 
   it("does not impose response deadlines on operations that were unbounded in v3", () => {
