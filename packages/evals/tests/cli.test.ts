@@ -15,9 +15,12 @@ const SOURCE_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.jso
 // (because the test runs in source mode). Restore at the end so the
 // repo file stays pristine.
 let __fileLevelConfigSnapshot: string;
-beforeAll(() => {
+beforeAll(async () => {
   __fileLevelConfigSnapshot = fs.readFileSync(SOURCE_CONFIG, "utf-8");
-});
+  // Warm tsx's compile cache once so the first test doesn't pay the whole
+  // cold start against the 10s per-test budget (it sat at ~10.0s on CI).
+  await runCli(["--help"]);
+}, 40_000);
 afterAll(() => {
   fs.writeFileSync(SOURCE_CONFIG, __fileLevelConfigSnapshot);
 });

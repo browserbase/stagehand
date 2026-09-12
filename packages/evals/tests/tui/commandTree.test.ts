@@ -420,3 +420,15 @@ describe("dispatch", () => {
     expect(printExperimentsHelp).toHaveBeenCalled();
   });
 });
+
+describe("real tree: onboarding commands", () => {
+  it("registers `setup` and `welcome` as root leaves with handlers", () => {
+    const tree = buildCommandTree();
+    for (const name of ["setup", "welcome"]) {
+      const node = findChild(tree, name);
+      expect(node?.name).toBe(name);
+      expect(typeof node?.handler).toBe("function");
+      expect(node?.children ?? []).toHaveLength(0);
+    }
+  });
+});
