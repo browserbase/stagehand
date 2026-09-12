@@ -600,6 +600,11 @@ const snapshot = await page.snapshot();
   <ParamField path="options.includeIframes" type="boolean" optional>
     Whether to include iframe content.
   </ParamField>
+
+  <ParamField path="options.expanded" type="boolean" optional>
+    Add safe, unique DOM attribute hints to interactive nodes in the formatted tree.
+    This is disabled by default and excludes password fields.
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="Promise<SnapshotResult>">
@@ -1262,6 +1267,11 @@ snapshot = await page.snapshot()
 
 <ParamField path="include_iframes" type="bool | None" optional>
   Whether to include iframe content.
+</ParamField>
+
+<ParamField path="expanded" type="bool | None" optional>
+  Add safe, unique DOM attribute hints to interactive nodes in the formatted tree.
+  This is disabled by default and excludes password fields.
 </ParamField>
 
 <ResponseField name="result" type="SnapshotResult">
@@ -2016,6 +2026,11 @@ fmt.Println(snapshot.FormattedTree)
 
   <ParamField path="options.IncludeIframes" type="*bool" optional>
     Whether to include iframe content.
+  </ParamField>
+
+  <ParamField path="options.Expanded" type="*bool" optional>
+    Add safe, unique DOM attribute hints to interactive nodes in the formatted tree.
+    This is disabled by default and excludes password fields.
   </ParamField>
 </ParamField>
 

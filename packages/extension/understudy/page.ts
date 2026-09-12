@@ -1884,6 +1884,7 @@ export class Page {
     const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot({
       pierceShadow: true,
       includeIframes: options?.includeIframes,
+      locatorHints: options?.expanded === true,
     });
 
     return {

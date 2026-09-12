@@ -263,8 +263,8 @@ describe("page command schemas", () => {
     });
     expect(() => PageScreenshotResultSchema.parse({ data: "iVBORw==", type: "png" })).toThrow();
     expect(
-      PageSnapshotParamsSchema.parse({ pageId, options: { includeIframes: true } }),
-    ).toStrictEqual({ pageId, options: { includeIframes: true } });
+      PageSnapshotParamsSchema.parse({ pageId, options: { includeIframes: true, expanded: true } }),
+    ).toStrictEqual({ pageId, options: { includeIframes: true, expanded: true } });
     expect(() =>
       PageScreenshotParamsSchema.parse({ pageId, options: { type: "png", quality: 80 } }),
     ).toThrow();

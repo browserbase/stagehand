@@ -1339,6 +1339,7 @@ export const SnapshotResultSchema = z
 export const PageSnapshotOptionsSchema = z
   .strictObject({
     includeIframes: z.boolean().optional(),
+    expanded: z.boolean().optional(),
   })
   .meta({ id: "PageSnapshotOptions" });
 

@@ -872,6 +872,7 @@ class PageSetViewportSizeParams(TypedDict):
 
 class PageSnapshotOptions(TypedDict):
     include_iframes: NotRequired[bool]
+    expanded: NotRequired[bool]
 
 
 class PageSnapshotParams(TypedDict):

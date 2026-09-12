@@ -50,9 +50,12 @@ describe("shared page protocol schemas", () => {
   });
 
   it("parses snapshot options and results", () => {
-    expect(PageSnapshotOptionsSchema.parse({ includeIframes: true })).toStrictEqual({
-      includeIframes: true,
-    });
+    expect(PageSnapshotOptionsSchema.parse({ includeIframes: true, expanded: true })).toStrictEqual(
+      {
+        includeIframes: true,
+        expanded: true,
+      },
+    );
     expect(
       SnapshotResultSchema.parse({
         formattedTree: "root",

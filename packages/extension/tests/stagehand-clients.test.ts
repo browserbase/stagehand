@@ -1972,6 +1972,24 @@ describe("Stagehand worker clients", () => {
       },
     ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 32,
+        method: "page.snapshot",
+        params: { page_id: "page-a", options: { expanded: true } },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 32,
+      result: {
+        formatted_tree: "root",
+        xpath_map: { frameOne: "/html/body" },
+        url_map: { frameOne: "https://example.test" },
+      },
+    });
+    expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }, { expanded: true }]);
   });
 
   it("routes WebMCP discovery and invocation operations through the owning page", async () => {

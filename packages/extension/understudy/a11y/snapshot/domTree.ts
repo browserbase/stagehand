@@ -1,4 +1,5 @@
 import type { Protocol } from "devtools-protocol";
+import type { LocatorHint } from "../../../types/private/snapshot.js";
 import type { CDPSessionLike } from "../../cdp.js";
 import type { SessionDomIndex } from "../../../types/private/snapshot.js";
 import { buildChildXPathSegments, joinXPath, normalizeXPath } from "./xpathUtils.js";
@@ -157,10 +158,12 @@ export async function domMapsForSession(
   pierce: boolean,
   encode: (fid: string, backendNodeId: number) => string,
   attemptOwnerLookup = true,
+  locatorHints = false,
 ): Promise<{
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  locatorHintsMap: Record<string, LocatorHint[]>;
 }> {
   await session.send("DOM.enable").catch(() => {});
   const root = await getDomTreeWithFallback(session, pierce);
@@ -186,6 +189,8 @@ export async function domMapsForSession(
   const tagNameMap: Record<string, string> = {};
   const xpathMap: Record<string, string> = {};
   const scrollableMap: Record<string, boolean> = {};
+  const locatorHintsMap: Record<string, LocatorHint[]> = {};
+  const hintsByBe = locatorHints && pierce ? collectLocatorHints(startNode) : new Map();
 
   type StackEntry = { node: Protocol.DOM.Node; xpath: string };
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
@@ -199,6 +204,8 @@ export async function domMapsForSession(
       xpathMap[encId] = xpath || "/";
       const isScrollable = node?.isScrollable === true;
       if (isScrollable) scrollableMap[encId] = true;
+      const hints = hintsByBe.get(node.backendNodeId);
+      if (hints) locatorHintsMap[encId] = hints;
     }
 
     const kids = node.children ?? [];
@@ -222,7 +229,7 @@ export async function domMapsForSession(
     }
   }
 
-  return { tagNameMap, xpathMap, scrollableMap };
+  return { tagNameMap, xpathMap, scrollableMap, locatorHintsMap };
 }
 
 /**
@@ -233,6 +240,7 @@ export async function domMapsForSession(
 export async function buildSessionDomIndex(
   session: CDPSessionLike,
   pierce: boolean,
+  locatorHints = false,
 ): Promise<SessionDomIndex> {
   await session.send("DOM.enable").catch(() => {});
   const root = await getDomTreeWithFallback(session, pierce);
@@ -240,6 +248,7 @@ export async function buildSessionDomIndex(
   const absByBe = new Map<number, string>();
   const tagByBe = new Map<number, string>();
   const scrollByBe = new Map<number, boolean>();
+  const locatorHintsByBe = locatorHints && pierce ? collectLocatorHints(root) : new Map();
   const docRootOf = new Map<number, number>();
   const contentDocRootByIframe = new Map<number, number>();
   const enterByBe = new Map<number, number>();
@@ -315,6 +324,7 @@ export async function buildSessionDomIndex(
     absByBe,
     tagByBe,
     scrollByBe,
+    locatorHintsByBe,
     docRootOf,
     contentDocRootByIframe,
     enterByBe,
@@ -349,6 +359,104 @@ function getAttr(attrs: string[] | undefined, name: string): string | undefined 
     if (attrs[i] === name) return attrs[i + 1];
   }
   return undefined;
+}
+
+function collectLocatorHints(root: Protocol.DOM.Node): Map<number, LocatorHint[]> {
+  const attributes: Array<[string, string]> = [
+    ["id", "#"],
+    ["data-testid", "testid="],
+    ["data-test", "test="],
+    ["data-cy", "cy="],
+    ["data-qa", "qa="],
+    ["data-automation-id", "automation-id="],
+    ["name", "name="],
+    ["autocomplete", "autocomplete="],
+    ["aria-label", "aria-label="],
+    ["href", "href="],
+    ["alt", "alt="],
+    ["placeholder", "placeholder="],
+  ];
+  const counts = new Map<string, Map<string, number>>();
+  const elements: Protocol.DOM.Node[] = [];
+  const stack: Array<{ node: Protocol.DOM.Node; eligible: boolean }> = [
+    { node: root, eligible: true },
+  ];
+  while (stack.length) {
+    const { node, eligible } = stack.pop()!;
+    if (node.nodeType === 1) {
+      if (eligible) elements.push(node);
+      for (const [attribute] of attributes) {
+        const value = getAttr(node.attributes, attribute);
+        if (!value || value.length > 64) continue;
+        const key =
+          attribute === "autocomplete" || attribute === "id" ? value.toLowerCase() : value;
+        const values = counts.get(attribute) ?? new Map<string, number>();
+        values.set(key, (values.get(key) ?? 0) + 1);
+        counts.set(attribute, values);
+      }
+    }
+    for (const child of node.children ?? []) stack.push({ node: child, eligible });
+    for (const shadow of node.shadowRoots ?? []) {
+      stack.push({ node: shadow, eligible: eligible && shadow.shadowRootType === "open" });
+    }
+  }
+  const hintsByBe = new Map<number, LocatorHint[]>();
+  for (const node of elements) {
+    const tag = node.nodeName.toLowerCase();
+    if (tag === "input" && getAttr(node.attributes, "type")?.toLowerCase() === "password") continue;
+    const hints: LocatorHint[] = [];
+    for (const [attribute, prefix] of attributes) {
+      const value = getAttr(node.attributes, attribute);
+      if (!value || value.length > 64 || /[\0\uD800-\uDFFF]/u.test(value)) continue;
+      const key = attribute === "autocomplete" || attribute === "id" ? value.toLowerCase() : value;
+      if (counts.get(attribute)?.get(key) !== 1) continue;
+      if (
+        attribute === "id" &&
+        (/\s$/.test(value) ||
+          /^(?::|radix-|headlessui-|mui-|mantine-|chakra-|ember|ext-|yui_)|[a-f\d]{8}|\d{4}/i.test(
+            value,
+          ))
+      ) {
+        continue;
+      }
+      if (
+        (attribute === "name" || attribute === "autocomplete") &&
+        !["input", "textarea", "select", "button"].includes(tag)
+      ) {
+        continue;
+      }
+      if (
+        attribute === "href" &&
+        (!value.startsWith("/") ||
+          value.startsWith("//") ||
+          /[?#\\\s]/.test(value) ||
+          new URL(value, "https://stagehand.invalid").pathname !== value)
+      ) {
+        continue;
+      }
+      if (
+        attribute === "alt" &&
+        tag !== "img" &&
+        !(tag === "input" && getAttr(node.attributes, "type")?.toLowerCase() === "image")
+      ) {
+        continue;
+      }
+      const encoded = /[\s{}"'\\]|\p{Cc}/u.test(value)
+        ? JSON.stringify(value).replace(
+            /[\x7f-\x9f\u2028\u2029]/g,
+            (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`,
+          )
+        : value;
+      hints.push({
+        text: `${prefix}${encoded}`,
+        ...(attribute === "href" ? { linkOnly: true } : {}),
+      });
+    }
+    if (hints.length && typeof node.backendNodeId === "number") {
+      hintsByBe.set(node.backendNodeId, hints);
+    }
+  }
+  return hintsByBe;
 }
 
 /** Build an enriched tag name that includes the type attribute for inputs. */

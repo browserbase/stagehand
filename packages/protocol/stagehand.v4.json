@@ -3802,6 +3802,9 @@
       "properties": {
         "include_iframes": {
           "type": "boolean"
+        },
+        "expanded": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false

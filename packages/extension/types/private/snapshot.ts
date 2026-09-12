@@ -23,6 +23,8 @@ export type SnapshotOptions = {
    * Toggle whether iframe subtrees are included in the merged snapshot. Defaults to true.
    */
   includeIframes?: boolean;
+  /** Add unique, safe DOM attribute hints to supported interactive nodes. */
+  locatorHints?: boolean;
 };
 
 /**
@@ -55,6 +57,7 @@ export type SessionDomIndex = {
   absByBe: Map<number, string>;
   tagByBe: Map<number, string>;
   scrollByBe: Map<number, boolean>;
+  locatorHintsByBe: Map<number, LocatorHint[]>;
   docRootOf: Map<number, number>;
   contentDocRootByIframe: Map<number, number>;
   enterByBe: Map<number, number>;
@@ -65,7 +68,13 @@ export type FrameDomMaps = {
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  locatorHintsMap: Record<string, LocatorHint[]>;
   urlMap: Record<string, string>;
+};
+
+export type LocatorHint = {
+  text: string;
+  linkOnly?: true;
 };
 
 export type ResolvedLocation = {
@@ -107,6 +116,7 @@ export type A11yNode = {
   childIds?: string[];
   children?: A11yNode[];
   encodedId?: string;
+  locatorHints?: LocatorHint[];
 };
 
 export type A11yOptions = {
@@ -114,6 +124,7 @@ export type A11yOptions = {
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
+  locatorHintsMap?: Record<string, LocatorHint[]>;
   encode: (backendNodeId: number) => string;
 };
 
