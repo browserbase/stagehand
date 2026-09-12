@@ -87,4 +87,3 @@ minimumReleaseAgeExclude:
   - "@earendil-works/pi-protocol@0.84.2"
   - "@earendil-works/pi-telemetry@0.84.2"
   - "@earendil-works/pi-tui@0.84.2"
-  - devtools-protocol@0.0.1694333
