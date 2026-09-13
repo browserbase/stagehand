@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
-import { DeepLocatorDelegate } from "./deepLocator.js";
+import { DeepLocatorDelegate, resolveLocatorTarget } from "./deepLocator.js";
 
 describe("DeepLocatorDelegate match selection", () => {
   const createDelegate = () => {
@@ -27,5 +27,14 @@ describe("DeepLocatorDelegate match selection", () => {
 
     await expect(locator.resolveNode()).resolves.toEqual({ objectId: "node-1", nodeId: null });
     expect(resolveAtIndex).toHaveBeenCalledWith(locator.selectorQuery, 0);
+  });
+
+  it("preserves grouped XPath expressions for native evaluation", async () => {
+    const frame = {} as Frame;
+
+    await expect(resolveLocatorTarget({} as Page, frame, "xpath=(//div)[2]")).resolves.toEqual({
+      frame,
+      selector: "xpath=(//div)[2]",
+    });
   });
 });

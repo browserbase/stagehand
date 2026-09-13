@@ -85,7 +85,7 @@ export async function resolveLocatorTarget(
   }
 
   // No hops — delegate to XPath-aware deep resolver when needed
-  const isXPath = sel.startsWith("xpath=") || sel.startsWith("/");
+  const isXPath = sel.startsWith("xpath=") || sel.startsWith("/") || sel.startsWith("(");
   if (isXPath) {
     return resolveDeepXPathTarget(page, root, sel);
   }
@@ -219,6 +219,7 @@ async function resolveDeepXPathTarget(
 ): Promise<ResolvedLocatorTarget> {
   let path = xpathOrSelector.trim();
   if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
+  if (path.startsWith("(")) return { frame: root, selector: `xpath=${path}` };
   if (!path.startsWith("/")) path = "/" + path;
 
   const steps = parseXPath(path);
