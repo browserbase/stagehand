@@ -682,11 +682,6 @@ class PageCDPEvent(TypedDict):
     target_id: str
 
 
-class PageCDPEventNotification(TypedDict):
-    subscription_id: str
-    event: PageCDPEvent
-
-
 class PageClickOptions(TypedDict):
     button: NotRequired[MouseButton]
     click_count: NotRequired[int]
@@ -733,7 +728,12 @@ class PageEvaluateResult(TypedDict):
     value: FieldSchema9
 
 
-PageEventName: TypeAlias = Literal["console"]
+PageEventName: TypeAlias = Literal["console", "requestfinished"]
+
+
+class PageEventNotification(TypedDict):
+    subscription_id: str
+    event: PageCDPEvent | NavigationResponseDescriptor
 
 
 class PageHoverParams(TypedDict):

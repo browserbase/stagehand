@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { encodeWireValue, wireSchema } from "../../json-rpc/wire-casing.js";
 import {
-  PageCDPEventNotificationSchema,
+  PageEventNotificationSchema,
   PageCDPEventSchema,
   PageEventNameSchema,
 } from "../../schemas.js";
@@ -44,10 +44,10 @@ describe("console page events", () => {
   it("registers subscription methods and the console event notification", () => {
     expect(StagehandMethods.pageOn.name).toBe("page.on");
     expect(StagehandMethods.pageOff.name).toBe("page.off");
-    expect(StagehandNotifications.pageCDPEvent.name).toBe("page.cdp_event");
+    expect(StagehandNotifications.event.name).toBe("page.event");
 
     expect(
-      PageCDPEventNotificationSchema.parse({
+      PageEventNotificationSchema.parse({
         subscriptionId: "subscription-1",
         event: {
           pageId: "page-1",
@@ -71,7 +71,7 @@ describe("console page events", () => {
         targetId: "target-1",
       },
     };
-    const wireValue = encodeWireValue(apiValue, StagehandNotifications.pageCDPEvent.paramsWire);
+    const wireValue = encodeWireValue(apiValue, StagehandNotifications.event.paramsWire);
 
     expect(wireValue).toStrictEqual({
       subscription_id: "subscription-1",
@@ -85,8 +85,8 @@ describe("console page events", () => {
     });
     expect(
       wireSchema(
-        StagehandNotifications.pageCDPEvent.params,
-        StagehandNotifications.pageCDPEvent.paramsWire,
+        StagehandNotifications.event.params,
+        StagehandNotifications.event.paramsWire,
       ).parse(wireValue),
     ).toStrictEqual(apiValue);
   });

@@ -145,7 +145,7 @@ import type {
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
-  PageCDPEventNotificationSchema,
+  PageEventNotificationSchema,
   PageCDPEventParamsSchema,
   PageCDPEventSchema,
   PageClickParamsSchema,
@@ -184,6 +184,7 @@ import type {
   PageWaitForLoadStateParamsSchema,
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
+  PageEventSchemas,
   PageWaitForTimeoutParamsSchema,
   PageWebMCPCancelInvocationParamsSchema,
   PageWebMCPInvocationResultParamsSchema,
@@ -300,9 +301,10 @@ export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
 export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageEventName = z.infer<typeof PageEventNameSchema>;
+export type PageEvent<E extends PageEventName> = z.infer<(typeof PageEventSchemas)[E]>;
+export type PageEventNotification = z.infer<typeof PageEventNotificationSchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
 export type PageCDPEvent = z.infer<typeof PageCDPEventSchema>;
-export type PageCDPEventNotification = z.infer<typeof PageCDPEventNotificationSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
 export type NavigationHeader = z.infer<typeof NavigationHeaderSchema>;
 export type NavigationSecurityDetails = z.infer<typeof NavigationSecurityDetailsSchema>;
