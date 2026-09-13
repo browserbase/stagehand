@@ -43,6 +43,7 @@ export const integrationTestGroups = {
     "locatorContentMethods",
     "locatorCount",
     "locatorNth",
+    "locatorTextInputLabels",
     "textSelectorInnermost",
   ],
   "local/locators-write": ["locatorFill", "locatorInputMethods", "locatorSelectOption"],

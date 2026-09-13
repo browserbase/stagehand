@@ -1,5 +1,6 @@
 import { resolveXPathAtIndex } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
+import { attributeLabelText } from "./textLabels.js";
 
 const parseTargetIndex = (value: unknown): number => {
   const num = Number(value ?? 0);
@@ -90,6 +91,8 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
   const extractText = (node: Element): string => {
     try {
       if (shouldSkip(node)) return "";
+      const label = attributeLabelText(node);
+      if (label !== null) return label;
       const inner = (node as HTMLElement).innerText;
       if (typeof inner === "string" && inner.trim()) return inner.trim();
     } catch {

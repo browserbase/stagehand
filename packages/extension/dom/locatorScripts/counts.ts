@@ -1,5 +1,6 @@
 import { countXPathMatches } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
+import { attributeLabelText } from "./textLabels.js";
 
 export interface TextMatchSample {
   tag: string;
@@ -93,6 +94,8 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
   const extractText = (element: Element): string => {
     try {
       if (shouldSkip(element)) return "";
+      const label = attributeLabelText(element);
+      if (label !== null) return label;
       const inner = (element as HTMLElement).innerText;
       if (typeof inner === "string" && inner.trim()) return inner.trim();
     } catch {
