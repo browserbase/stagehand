@@ -1,3 +1,12 @@
+/**
+ * Which string a text predicate reads.
+ *
+ * `self` is `.` — the string-value of the element, i.e. its whole subtree text.
+ * `text` is `text()` — the node-set of direct child text nodes, which is not the
+ * same string and does not compare the same way (see `evaluatePredicate`).
+ */
+export type XPathTextSource = "self" | "text";
+
 export type XPathPredicate =
   | { type: "index"; index: number }
   | { type: "attrEquals"; name: string; value: string; normalize?: boolean }
@@ -14,8 +23,8 @@ export type XPathPredicate =
       value: string;
       normalize?: boolean;
     }
-  | { type: "textEquals"; value: string; normalize?: boolean }
-  | { type: "textContains"; value: string; normalize?: boolean }
+  | { type: "textEquals"; value: string; normalize?: boolean; source?: XPathTextSource }
+  | { type: "textContains"; value: string; normalize?: boolean; source?: XPathTextSource }
   | { type: "and"; predicates: XPathPredicate[] }
   | { type: "or"; predicates: XPathPredicate[] }
   | { type: "not"; predicate: XPathPredicate };
@@ -39,7 +48,8 @@ export interface XPathStep {
  *  - Attribute equality predicates (`[@attr='value']`, `[@attr="value"]`)
  *  - Attribute existence (`[@attr]`)
  *  - Attribute contains/starts-with (`contains(@attr,'v')`, `starts-with(@attr,'v')`)
- *  - Text equality/contains (`[text()='v']`, `[contains(text(),'v')]`, `[.='v']`)
+ *  - Text equality/contains (`[text()='v']`, `[contains(text(),'v')]`, `[.='v']`),
+ *    where `text()` reads direct child text nodes and `.` the whole subtree
  *  - normalize-space on text/attributes (`[normalize-space(text())='v']`)
  *  - Basic boolean predicates (`and`, `or`, `not(...)`)
  *  - Multiple predicates per step (`[@class='foo'][2]`)
@@ -211,13 +221,14 @@ function parseAtomicPredicate(input: string): XPathPredicate | null {
   }
 
   const normalizeTextMatch = input.match(
-    new RegExp(`^normalize-space\\(\\s*(?:text\\(\\)|\\.)\\s*\\)\\s*=\\s*${quoted}$`),
+    new RegExp(`^normalize-space\\(\\s*(text\\(\\)|\\.)\\s*\\)\\s*=\\s*${quoted}$`),
   );
   if (normalizeTextMatch) {
     return {
       type: "textEquals",
-      value: normalizeTextMatch[1] ?? normalizeTextMatch[2] ?? "",
+      value: normalizeTextMatch[2] ?? normalizeTextMatch[3] ?? "",
       normalize: true,
+      source: textSource(normalizeTextMatch[1]),
     };
   }
 
@@ -257,21 +268,23 @@ function parseAtomicPredicate(input: string): XPathPredicate | null {
     };
   }
 
-  const textEqualsMatch = input.match(new RegExp(`^(?:text\\(\\)|\\.)\\s*=\\s*${quoted}$`));
+  const textEqualsMatch = input.match(new RegExp(`^(text\\(\\)|\\.)\\s*=\\s*${quoted}$`));
   if (textEqualsMatch) {
     return {
       type: "textEquals",
-      value: textEqualsMatch[1] ?? textEqualsMatch[2] ?? "",
+      value: textEqualsMatch[2] ?? textEqualsMatch[3] ?? "",
+      source: textSource(textEqualsMatch[1]),
     };
   }
 
   const textContainsMatch = input.match(
-    new RegExp(`^contains\\(\\s*(?:text\\(\\)|\\.)\\s*,\\s*${quoted}\\s*\\)$`),
+    new RegExp(`^contains\\(\\s*(text\\(\\)|\\.)\\s*,\\s*${quoted}\\s*\\)$`),
   );
   if (textContainsMatch) {
     return {
       type: "textContains",
-      value: textContainsMatch[1] ?? textContainsMatch[2] ?? "",
+      value: textContainsMatch[2] ?? textContainsMatch[3] ?? "",
+      source: textSource(textContainsMatch[1]),
     };
   }
 
@@ -370,8 +383,28 @@ function hasBalancedParens(input: string): boolean {
 
 const normalizeSpace = (value: string): string => value.replace(/\s+/g, " ").trim();
 
+const TEXT_NODE = 3;
+
+function textSource(token: string | undefined): XPathTextSource {
+  return token === "text()" ? "text" : "self";
+}
+
 function textValue(element: Element): string {
   return String(element.textContent ?? "");
+}
+
+/** The node-set `text()` selects: direct child text nodes, in document order. */
+function childTextValues(element: Element): string[] {
+  const values: string[] = [];
+  for (const node of Array.from(element.childNodes)) {
+    if (node.nodeType === TEXT_NODE) values.push(String(node.nodeValue ?? ""));
+  }
+  return values;
+}
+
+/** `string(node-set)` is the string-value of its first node, or `""` when empty. */
+function firstChildTextValue(element: Element): string {
+  return childTextValues(element)[0] ?? "";
 }
 
 function normalizeMaybe(value: string, normalize?: boolean): string {
@@ -411,12 +444,22 @@ export function evaluatePredicate(element: Element, predicate: XPathPredicate): 
       );
     }
     case "textEquals": {
-      const value = normalizeMaybe(textValue(element), predicate.normalize);
-      return value === normalizeMaybe(predicate.value, predicate.normalize);
+      const target = normalizeMaybe(predicate.value, predicate.normalize);
+      if (predicate.source === "text") {
+        // Comparing a node-set to a string is existential: true when any node matches.
+        // normalize-space() takes a string, so it collapses the node-set to its first node.
+        return predicate.normalize
+          ? normalizeSpace(firstChildTextValue(element)) === target
+          : childTextValues(element).some((value) => value === target);
+      }
+      return normalizeMaybe(textValue(element), predicate.normalize) === target;
     }
     case "textContains": {
-      const value = normalizeMaybe(textValue(element), predicate.normalize);
-      return value.includes(normalizeMaybe(predicate.value, predicate.normalize));
+      // contains() takes a string, so a node-set argument collapses to its first node.
+      const value = predicate.source === "text" ? firstChildTextValue(element) : textValue(element);
+      return normalizeMaybe(value, predicate.normalize).includes(
+        normalizeMaybe(predicate.value, predicate.normalize),
+      );
     }
     case "index":
       return true;
