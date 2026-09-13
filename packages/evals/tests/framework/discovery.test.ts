@@ -25,6 +25,16 @@ afterEach(() => {
 });
 
 describe("discovery", () => {
+  it("registers HardBench as a virtual external agent suite", async () => {
+    const registry = await discoverTasks(path.join(makeTempRoot(), "tasks"));
+    const [task] = resolveTarget(registry, "hardbenchmark");
+    expect(task).toMatchObject({
+      name: "agent/hardbenchmark",
+      tier: "bench",
+      primaryCategory: "external_agent_benchmarks",
+      filePath: "",
+    });
+  });
   it("discovers core tasks from core/tasks", async () => {
     const root = makeTempRoot();
     const tasksRoot = path.join(root, "tasks");
