@@ -1247,7 +1247,7 @@ export class Page {
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
-    const exec = async (): Promise<Uint8Array> => {
+    const exec = async (signal: AbortSignal): Promise<Uint8Array> => {
       try {
         if (opts.omitBackground) {
           cleanupTasks.push(await setTransparentBackground(this.mainSession));
@@ -1275,6 +1275,7 @@ export class Page {
           type,
           quality: type === "jpeg" ? opts.quality : undefined,
           scale: captureScale,
+          signal,
         });
 
         return buffer;
