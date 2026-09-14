@@ -3,6 +3,8 @@
 from collections.abc import Awaitable, Callable
 from typing import Literal, NotRequired, TypedDict
 
+from browserbase import AsyncBrowserbase
+
 from ._generated.input_types import (
     ModelConfig,
     TelemetryConfig,
@@ -69,6 +71,7 @@ class LocalBrowserConnectOptions(TypedDict):
 class BrowserbaseConnectOptions(TypedDict):
     api_key: str
     base_url: NotRequired[str]
+    client: NotRequired[AsyncBrowserbase | None]
     session_id: str
     extension_id: NotRequired[str]
 

@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
+from browserbase import AsyncBrowserbase
+
 if TYPE_CHECKING:
     from .browser_context import BrowserContext
 
@@ -564,6 +566,7 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client: AsyncBrowserbase | None = None,
         browser_settings: BrowserbaseBrowserSettings | None = None,
         extension_id: str | None = None,
         keep_alive: bool | None = None,
@@ -597,9 +600,9 @@ class BrowserbaseBrowser:
             and not options.browser_settings.extension_id.strip()
         ):
             raise ValueError("browser_settings.extension_id must not be empty")
-        session = await _create_browserbase_session_client(api_key, base_url).create_session(
-            options
-        )
+        session = await _create_browserbase_session_client(
+            api_key, base_url, client
+        ).create_session(options)
         source = ResolvedBrowserSource(
             cdp_url=session.cdp_url,
             keep_alive=options.keep_alive or False,
@@ -622,6 +625,7 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client: AsyncBrowserbase | None = None,
         session_id: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
@@ -630,13 +634,14 @@ class BrowserbaseBrowser:
             for name, value in (
                 ("api_key", api_key),
                 ("base_url", base_url),
+                ("client", client),
                 ("session_id", session_id),
                 ("extension_id", extension_id),
             )
             if value is not None
         })
         connection = await _create_browserbase_session_client(
-            options.api_key, options.base_url
+            options.api_key, options.base_url, options.client
         ).connect_session(options.session_id)
         return await _connect_browser(
             provider="browserbase",
