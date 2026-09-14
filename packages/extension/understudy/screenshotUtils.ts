@@ -1,5 +1,4 @@
 import { TimeoutError } from "../errors.js";
-import { withTimeout } from "../timeoutConfig.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { DeepLocatorDelegate } from "./deepLocator.js";
@@ -16,13 +15,17 @@ const screenshotQueues = new WeakMap<CDPSessionLike, Promise<void>>();
 /** Keep activation, capture, and cleanup together across pages sharing a browser. */
 export async function withScreenshotLock(
   connection: CDPSessionLike,
-  capture: () => Promise<Uint8Array>,
+  capture: (signal: AbortSignal) => Promise<Uint8Array>,
   timeout: number | undefined,
 ): Promise<Uint8Array> {
-  let expired = false;
+  const controller = new AbortController();
+  const timer =
+    typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
+      ? setTimeout(() => controller.abort(new TimeoutError("screenshot", timeout)), timeout)
+      : undefined;
   const pending = (screenshotQueues.get(connection) ?? Promise.resolve()).then(() => {
-    if (expired) throw new TimeoutError("screenshot", timeout!);
-    return capture();
+    controller.signal.throwIfAborted();
+    return capture(controller.signal);
   });
   const released = pending.then(
     () => {},
@@ -30,13 +33,36 @@ export async function withScreenshotLock(
   );
   screenshotQueues.set(connection, released);
   try {
-    return await withTimeout(pending, timeout, "screenshot");
+    return await waitForScreenshot(pending, controller.signal);
   } finally {
-    expired = true;
+    if (timer !== undefined) clearTimeout(timer);
     void released.then(() => {
       if (screenshotQueues.get(connection) === released) screenshotQueues.delete(connection);
     });
   }
+}
+
+/** Stop waiting for a stalled CDP capture; its eventual response cannot resume cleanup. */
+export async function waitForScreenshot<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return await pending;
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason);
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 export function collectFramesForScreenshot(page: Page): Frame[] {
