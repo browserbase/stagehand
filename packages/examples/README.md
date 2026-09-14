@@ -92,4 +92,4 @@ Examples that authenticate, submit demo forms, book recreation slots, write to d
 
 ## Validate source changes
 
-From the repository root, run `pnpm exec oxlint --config packages/examples/oxlint.config.ts packages/examples` and `pnpm exec oxfmt --check packages/examples packages/skills`. Type checks and runtime tests belong to each standalone example’s own dependency installation; the main SDK lint excludes these independent projects.
+From the repository root, run `pnpm exec oxlint --config packages/examples/oxlint.examples.config.ts packages/examples` and `pnpm exec oxfmt --check packages/examples packages/skills`. Type checks and runtime tests belong to each standalone example’s own dependency installation; the main SDK lint excludes these independent projects.
