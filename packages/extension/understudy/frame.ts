@@ -2,6 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
+import { waitForScreenshot } from "./screenshotUtils.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandLogger } from "../logger.js";
 
@@ -223,8 +224,11 @@ export class Frame implements FrameManager {
     type?: "png" | "jpeg";
     quality?: number;
     scale?: number;
+    signal?: AbortSignal;
   }): Promise<Uint8Array> {
-    await this.session.send("Page.enable");
+    const signal = options?.signal;
+    signal?.throwIfAborted();
+    await waitForScreenshot(this.session.send("Page.enable"), signal);
     const format = options?.type ?? "png";
     const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } = {
       format,
@@ -256,10 +260,10 @@ export class Frame implements FrameManager {
     }
 
     // Headless Chrome can wait indefinitely for a background tab to produce a frame.
-    await this.session.send("Page.bringToFront");
-    const { data } = await this.session.send<Protocol.Page.CaptureScreenshotResponse>(
-      "Page.captureScreenshot",
-      params,
+    await waitForScreenshot(this.session.send("Page.bringToFront"), signal);
+    const { data } = await waitForScreenshot(
+      this.session.send<Protocol.Page.CaptureScreenshotResponse>("Page.captureScreenshot", params),
+      signal,
     );
     return base64ToBytes(data);
   }
