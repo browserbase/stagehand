@@ -14,8 +14,10 @@ The quickest way to start with Stagehand is to install the SDK, point it at a br
 ```bash
 mkdir my-stagehand-app && cd my-stagehand-app
 pnpm init -y
-pnpm install @browserbasehq/stagehand zod
+pnpm install @browserbasehq/stagehand 'zod@~4.4.3'
 ```
+
+Keep Zod on the `4.4.x` minor version to match Stagehand's supported types. Newer Zod minor versions can cause TypeScript errors when passing schemas to `extract()`.
 </Tab>
 
 <Tab title="Python">
