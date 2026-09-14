@@ -9,6 +9,7 @@ const allowedPackages = new Set([
   "@browserbasehq/stagehand-protocol",
   "@browserbasehq/stagehand-python",
   "@browserbasehq/stagehand-extension",
+  "@browserbasehq/eve",
 ]);
 
 export function validateChangeset(contents: string, file: string): void {

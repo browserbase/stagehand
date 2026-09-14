@@ -1,28 +1,24 @@
+import { defineTool } from "eve/tools";
+
 import {
   CodeModeRunInputSchema,
   RUN_INPUT_SCHEMA,
   RUN_TOOL_DESCRIPTION,
-} from "@browserbasehq/stagehand-integrations/facade";
-import { defineTool } from "eve/tools";
-
-import { discardFacadeToolsIfUnhealthy, getFacadeTools } from "../../src/session.js";
+} from "../lib/core-facade/contract.js";
+import { stagehandSession } from "../lib/session.js";
 
 export default defineTool({
   description: RUN_TOOL_DESCRIPTION,
   inputSchema: RUN_INPUT_SCHEMA,
   async execute(rawInput) {
     const input = CodeModeRunInputSchema.parse(rawInput);
-    const tools = await getFacadeTools();
-    try {
+    return stagehandSession.run(async ({ tools }) => {
       const result =
         input.code !== undefined
           ? await tools.run(input.code)
           : await tools.runActions(input.actions!);
       return stringifyResult(result);
-    } catch (error) {
-      await discardFacadeToolsIfUnhealthy(tools);
-      throw error;
-    }
+    });
   },
 });
 

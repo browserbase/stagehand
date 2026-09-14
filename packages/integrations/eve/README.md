@@ -1,63 +1,80 @@
-# Eve + Stagehand facade (native tools)
+# Browserbase for Eve
 
-This example gives an Eve agent the native tools `run`, `snapshot`, and `screenshot`. The tools
-share a durable Stagehand session directly; no MCP connection or bridge process is required.
+The provider-official [Eve extension](https://eve.dev/docs/extensions) for Browserbase, powered by
+[Stagehand V4 Code Mode](https://docs.stagehand.dev/v4). It gives an Eve agent one persistent
+Browserbase browser through three native tools: `run`, `snapshot`, and `screenshot`.
 
-## Setup
-
-Use Node.js 24 or later. From the repository root, build the integrations package before running
-the example:
+## Install
 
 ```bash
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm add @browserbasehq/eve
 ```
 
-Configure the environment as needed:
+Mount the extension under the `browserbase` namespace:
 
-| Variable                                                             | Purpose                                                                                                                                                 |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STAGEHAND_BROWSER`                                                  | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                        |
-| `BROWSERBASE_API_KEY`                                                | Browserbase API key; required when using the Browserbase backend.                                                                                       |
-| `STAGEHAND_MODEL_NAME`                                               | Optional Stagehand model name, such as `openai/gpt-5.6-luna`.                                                                                           |
-| `STAGEHAND_MODEL_API_KEY`                                            | Optional explicit API key for `STAGEHAND_MODEL_NAME`; otherwise the matching provider key is inferred when supported.                                   |
-| `STAGEHAND_EVE_SESSION_FILE`                                         | Optional path used to persist the Browserbase session ID; defaults to a file in the system temporary directory.                                         |
-| `EVE_STAGEHAND_MODEL`                                                | Eve agent model; defaults to `gpt-5.6-luna`.                                                                                                            |
-| `OPENAI_API_KEY`                                                     | OpenAI credential used by the Eve agent model and inferred for an OpenAI Stagehand model.                                                               |
-| `GOOGLE_GENERATIVE_AI_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_API_KEY` | Google credential inferred by Stagehand. If one is set without explicit Stagehand model configuration, the model defaults to `google/gemini-3.6-flash`. |
+```ts
+// agent/extensions/browserbase.ts
+import browserbase from "@browserbasehq/eve";
 
-## Run
+export default browserbase({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+});
+```
 
-The tool contract tests need no network, browser, or API keys:
+Add that file to any existing Eve agent. The mounted tools are discovered automatically; no
+dedicated example project or additional agent configuration is required.
+
+Eve automatically preserves Stagehand and the Browserbase SDK as external runtime dependencies.
+No extra `build.externalDependencies` configuration is required in the consuming agent.
+
+## Tools
+
+| Tool                      | Purpose                                                  |
+| ------------------------- | -------------------------------------------------------- |
+| `browserbase__run`        | Run Playwright-shaped JavaScript or snapshot-ID actions. |
+| `browserbase__snapshot`   | Inspect the page and hydrate IDs for subsequent actions. |
+| `browserbase__screenshot` | Capture visual evidence from the active page.            |
+
+JavaScript passed to `run` receives Playwright-shaped `page`, `context`, and `browser` objects. It
+can call `await browser.close()` after collecting the result to release the owned browser.
+
+Version 0.2 replaces the previous focused `search`, `fetch`, session, navigation, action, and
+extraction tools with this Code Mode surface. Eve's built-in `web_search` and `web_fetch` remain
+available unless the consuming agent explicitly overrides them.
+
+## Configuration
+
+| Option                  | Default               | Description                                                 |
+| ----------------------- | --------------------- | ----------------------------------------------------------- |
+| `apiKey`                | required              | Browserbase API key for browser sessions and Model Gateway. |
+| `model`                 | `openai/gpt-5.4-mini` | Stagehand Model Gateway model identifier.                   |
+| `sessionTimeoutSeconds` | `900`                 | Browserbase session timeout from 60 to 21,600 seconds.      |
+| `proxies`               | `false`               | Enable Browserbase proxies for new sessions.                |
+
+Stagehand inference runs through Browserbase Model Gateway, so a separate model-provider key is not
+required.
+
+## Lifecycle and security
+
+The tools share one browser for the Eve process. Operations are serialized, initialization retries
+after transient failures, and unhealthy resources are replaced. Browserbase sessions use
+`keepAlive: false`; `browser.close()` closes both Stagehand and the browser, and the next tool call
+starts a fresh session.
+
+Model-authored JavaScript executes in Stagehand's browser extension, not Eve's Node.js process. It
+is still powerful browser-side code and must not be treated as a hostile-code sandbox. Concurrent
+Eve sessions in one process share pages, cookies, and authentication state.
+
+Every `snapshot` hydrates its displayed IDs for `run` actions. Snapshot output renders an ID like
+`[0-22]`, while the action passes only the inner value (`id: "0-22"`) without brackets. Snapshot IDs
+expire after navigation or a newer snapshot, so inspect the page again before retrying a stale
+action.
+
+## Development
 
 ```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-eve-facade test
-pnpm --filter @browserbasehq/stagehand-integrations-example-eve-facade typecheck
+pnpm --filter @browserbasehq/eve typecheck
+pnpm --filter @browserbasehq/eve test:unit
+pnpm --filter @browserbasehq/eve build
+pnpm --filter @browserbasehq/eve pack
 ```
-
-For interactive use, set the browser and model credentials, then run:
-
-```bash
-pnpm --filter @browserbasehq/stagehand-integrations-example-eve-facade dev
-```
-
-## Security model
-
-`run(code)` executes model-authored JavaScript in the extension service worker: it runs
-browser-side, never in the host process. Browserbase is the recommended isolation boundary. The
-Eve world process holds only the browser session handle; model-authored JavaScript does not execute
-inside the world process.
-
-## Session lifecycle
-
-The example holds one shared browser session per Eve world process. Concurrent Eve sessions served
-by the same process share pages, authentication, and other browser state, so this example is
-intended for single-session use.
-
-On Browserbase, the example creates a `keepAlive: true` session and persists its ID to a temporary
-file. Set `STAGEHAND_EVE_SESSION_FILE` to override that path. Process restarts reattach to this
-session instead of creating and stranding another one. While awaiting reuse, the session keeps
-running and billing until it is reattached, released through the Browserbase dashboard or API, or
-reaches the project timeout.
-
-Errors from model-authored tool code do not reset the session. The browser session is recreated only
-when its connection is unhealthy.
