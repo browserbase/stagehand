@@ -252,15 +252,57 @@ func (p *Page) On(
 	if listener == nil {
 		return nil, errors.New("stagehand page event listener is required")
 	}
+	return subscribePageEvent(ctx, p, PageSubscriptionEventName(event), p.rpc.onPageCDPEvent, func(notification PageCDPEventNotification, subscriptionID string) {
+		if notification.SubscriptionID == subscriptionID {
+			listener(notification.Event)
+		}
+	})
+}
+
+// OnToolsAdded subscribes to future additions as callable tools, without replaying existing tools.
+func (p *Page) OnToolsAdded(ctx context.Context, listener func([]*WebMCPTool)) (*CDPSubscription, error) {
+	if listener == nil {
+		return nil, errors.New("stagehand page event listener is required")
+	}
+	return subscribePageEvent(ctx, p, PageSubscriptionEventNameToolsadded, p.rpc.onPageEvent, func(notification PageEventNotification, subscriptionID string) {
+		event, ok := notification.AsToolsAdded()
+		if !ok || event.SubscriptionID != subscriptionID {
+			return
+		}
+		tools := make([]*WebMCPTool, len(event.Tools))
+		for index, descriptor := range event.Tools {
+			tools[index] = &WebMCPTool{rpc: p.rpc, pageID: p.PageID(), descriptor: descriptor}
+		}
+		listener(tools)
+	})
+}
+
+// OnToolsRemoved subscribes to future removals as frame/name identities.
+func (p *Page) OnToolsRemoved(ctx context.Context, listener func([]WebMCPToolIdentity)) (*CDPSubscription, error) {
+	if listener == nil {
+		return nil, errors.New("stagehand page event listener is required")
+	}
+	return subscribePageEvent(ctx, p, PageSubscriptionEventNameToolsremoved, p.rpc.onPageEvent, func(notification PageEventNotification, subscriptionID string) {
+		event, ok := notification.AsToolsRemoved()
+		if ok && event.SubscriptionID == subscriptionID {
+			listener(event.Tools)
+		}
+	})
+}
+
+func subscribePageEvent[Notification any](
+	ctx context.Context,
+	p *Page,
+	event PageSubscriptionEventName,
+	register func(func(Notification)) func(),
+	deliver func(Notification, string),
+) (*CDPSubscription, error) {
 	subscriptionID, err := newSubscriptionID()
 	if err != nil {
 		return nil, err
 	}
-	removeLocalListener := p.rpc.onPageCDPEvent(func(notification PageCDPEventNotification) {
-		if notification.SubscriptionID != subscriptionID {
-			return
-		}
-		invokePageEventListener(listener, notification.Event, p.reportEventListenerPanic)
+	removeLocalListener := register(func(notification Notification) {
+		invokePageEventListener(func(value Notification) { deliver(value, subscriptionID) }, notification, p.reportEventListenerPanic)
 	})
 	subscription := &CDPSubscription{
 		rpc:                 p.rpc,
@@ -487,9 +529,9 @@ func newSubscriptionID() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func invokePageEventListener(
-	listener func(PageCDPEvent),
-	event PageCDPEvent,
+func invokePageEventListener[Event any](
+	listener func(Event),
+	event Event,
 	reportPanic func(any),
 ) {
 	defer func() {
