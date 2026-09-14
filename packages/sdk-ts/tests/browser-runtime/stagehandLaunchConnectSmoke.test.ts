@@ -328,21 +328,35 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     expect(snapshot.urlMap).toBeTypeOf("object");
   });
 
-  it("captures a viewport screenshot from a background tab", async () => {
+  it("captures distinct viewport screenshots concurrently across background tabs", async () => {
     const context = requireStagehand(stagehand).browser.context;
     const url = requireFixtureServer(fixtureServer).url;
     const pages: Page[] = [];
     try {
       const target = await context.newPage(url);
       pages.push(target);
+      await target.setViewportSize(300, 200, { deviceScaleFactor: 1 });
       const foreground = await context.newPage(url);
       pages.push(foreground);
+      await foreground.setViewportSize(400, 250, { deviceScaleFactor: 1 });
       await context.setActivePage(foreground);
       await waitForActivePageId(context, foreground.pageId);
 
-      const screenshot = await target.screenshot({ fullPage: false, timeout: 5_000 });
-      expect([...screenshot.subarray(0, 8)]).toStrictEqual([
-        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      const screenshots = await Promise.all([
+        target.screenshot({ fullPage: false, timeout: 5_000 }),
+        foreground.screenshot({ fullPage: false, timeout: 5_000 }),
+      ]);
+      expect(
+        screenshots.map((bytes) => {
+          const png = Buffer.from(bytes);
+          expect([...png.subarray(0, 8)]).toStrictEqual([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+          ]);
+          return [png.readUInt32BE(16), png.readUInt32BE(20)];
+        }),
+      ).toStrictEqual([
+        [300, 200],
+        [400, 250],
       ]);
     } finally {
       await closePages(pages);
