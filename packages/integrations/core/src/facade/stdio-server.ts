@@ -10,7 +10,6 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { closeCodeModeStdio } from "../codemode/stdio-lifecycle.js";
-import { sanitizeErrorMessage } from "../harness/redact.js";
 import { stagehandFacadeConfigFromEnv } from "./config.js";
 import {
   CodeModeRunInputSchema,
@@ -24,7 +23,7 @@ import {
   captureScreenshotWithinBase64Budget,
   screenshotBase64BudgetFromArgs,
 } from "./screenshot-transport.js";
-import { StagehandFacadeTools } from "./tools.js";
+import { sanitizeFacadeErrorMessage, StagehandFacadeTools } from "./tools.js";
 
 type FacadeResources = {
   browser: StagehandBrowser;
@@ -35,6 +34,7 @@ type FacadeResources = {
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
 let resourcesPromise: Promise<FacadeResources> | undefined;
+const resourceCleanups = new Map<FacadeResources, Promise<void>>();
 let closing = false;
 
 server.registerTool(
@@ -125,11 +125,40 @@ async function createResources(): Promise<FacadeResources> {
       : await localBrowser.launch(config.browser.launchOptions);
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
-    return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+    let resources!: FacadeResources;
+    const tools = new StagehandFacadeTools(stagehand, {
+      onCloseRequested: () => closeResources(resources),
+    });
+    resources = { browser, stagehand, tools };
+    return resources;
   } catch (error) {
     await browser.close().catch(() => undefined);
     throw error;
   }
+}
+
+async function closeResources(expected: FacadeResources): Promise<void> {
+  const current = await resourcesPromise?.catch(() => undefined);
+  if (current !== expected) return;
+  const cleanup = startResourceCleanup(expected);
+  resourcesPromise = undefined;
+  await cleanup;
+}
+
+function startResourceCleanup(resources: FacadeResources): Promise<void> {
+  const existing = resourceCleanups.get(resources);
+  if (existing) return existing;
+
+  const cleanup = (async () => {
+    await resources.stagehand.close().catch(() => undefined);
+    await resources.browser.close();
+  })();
+  resourceCleanups.set(resources, cleanup);
+  cleanup.then(
+    () => resourceCleanups.delete(resources),
+    () => resourceCleanups.delete(resources),
+  );
+  return cleanup;
 }
 
 function textResult(text: string) {
@@ -137,7 +166,9 @@ function textResult(text: string) {
 }
 
 function errorResult(error: unknown) {
-  const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
+  const message = sanitizeFacadeErrorMessage(
+    error instanceof Error ? error.message : String(error),
+  );
   return { content: [{ type: "text" as const, text: message }], isError: true };
 }
 
@@ -159,13 +190,11 @@ async function shutdown(code: number): Promise<void> {
     new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),
   ]);
   const clean = await closeCodeModeStdio([
+    ...[...resourceCleanups.values()].map((cleanup) => ({ close: () => cleanup })),
     ...(resources
       ? [
           {
-            close: async () => {
-              await resources.stagehand.close().catch(() => undefined);
-              await resources.browser.close();
-            },
+            close: () => startResourceCleanup(resources),
           },
         ]
       : []),
@@ -185,7 +214,7 @@ try {
   process.stderr.write("Stagehand facade MCP host listening on stdio\n");
 } catch (error) {
   process.stderr.write(
-    sanitizeErrorMessage(error instanceof Error ? error.message : String(error)) + "\n",
+    sanitizeFacadeErrorMessage(error instanceof Error ? error.message : String(error)) + "\n",
   );
   await shutdown(1);
 }
