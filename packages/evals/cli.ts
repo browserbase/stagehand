@@ -10,10 +10,12 @@
  *   - `evals experiments [sub]`      → inspect / compare Braintrust runs
  *   - `evals doctor` / `health`      → env-key + config + discovery health report
  *   - `evals new <tier> <cat> <name>`→ scaffold a task file
+ *   - `evals welcome [a|b|c|d]`      → guided onboarding (variants to compare)
  *   - `evals help` / `-h`            → help
  *
  * Env vars:
  *   - EVALS_NO_WELCOME=1             → suppress first-run welcome panel (REPL only)
+ *   - EVALS_WELCOME_WIZARD=<v|1>     → auto-run welcome variant on first REPL launch
  *
  * No child processes. All runs flow through framework/runEvals in-process.
  *
@@ -28,8 +30,16 @@
 import "./silence-warnings.js";
 
 import process from "node:process";
+import path from "node:path";
 import dotenv from "dotenv";
+import { getPackageRootDir } from "./runtimePaths.js";
+// cwd `.env` first (wins), then packages/evals/.env so a repo-root launch sees
+// the keys `evals setup` saves there. dotenv never overrides existing values.
 dotenv.config({ quiet: true } as dotenv.DotenvConfigOptions);
+dotenv.config({
+  path: path.join(getPackageRootDir(), ".env"),
+  quiet: true,
+} as dotenv.DotenvConfigOptions);
 
 // Register tsx's ESM loader so dynamic `import()` of .ts task files resolves
 // NodeNext-style .js specifiers (`"../fixtures/index.js"` → the real .ts
@@ -112,6 +122,7 @@ const args = process.argv.slice(2);
   // Note: raw mode disables the OS-level Ctrl+C → SIGINT translation,
   // so we forward it ourselves.
   let cleanupArgvInput = (): void => {};
+  let armArgvInput = (): void => {};
   if (!replLaunch && args.length > 0 && process.stdin.isTTY) {
     const readline = await import("node:readline");
     const wasRaw = process.stdin.isRaw;
@@ -121,13 +132,17 @@ const args = process.argv.slice(2);
       if (key.name === "escape") void handleSignal("SIGINT");
       else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
     };
-    process.stdin.setRawMode?.(true);
-    process.stdin.on("keypress", onKeypress);
+    armArgvInput = () => {
+      process.stdin.setRawMode?.(true);
+      process.stdin.on("keypress", onKeypress);
+      process.stdin.resume();
+    };
     cleanupArgvInput = () => {
       process.stdin.off("keypress", onKeypress);
       process.stdin.setRawMode?.(Boolean(wasRaw));
       process.stdin.pause();
     };
+    armArgvInput();
   }
 
   // Whether to write the first-run marker in `finally`. Help-only paths and
@@ -165,13 +180,22 @@ const args = process.argv.slice(2);
       },
       abortRef: null,
       contextPath: null,
+      // Welcome flows own stdin (raw-byte Esc/Ctrl+C listener + clack).
+      // Release the Esc-exits-CLI handler first: left attached, Node's
+      // keypress decoder re-emits a held Esc after its escape-sequence
+      // timeout and kills the process mid-prompt.
+      suspendInput: () => {
+        cleanupArgvInput();
+        return armArgvInput; // re-arm so an accepted hand-off run still exits on Esc
+      },
     });
 
     // Only count real handler invocations as "first use". Doctor is a
-    // diagnostic, not a first use; help/meta paths are discovery.
+    // diagnostic, not a first use; help/meta paths are discovery; the
+    // welcome/setup flows mark on completion themselves (cancel must not mark).
     if (outcome.kind === "ran") {
       const top = outcome.absolutePath[0];
-      shouldMarkFirstRun = top !== "doctor";
+      shouldMarkFirstRun = top !== "doctor" && top !== "setup" && !top.startsWith("welcome");
     }
   } catch (err) {
     console.error(red(`Error: ${(err as Error).message}`));
