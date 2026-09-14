@@ -11,5 +11,5 @@
     "noEmit": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["extension/**/*.ts", "tests/**/*.ts"]
+  "include": ["extension/**/*.ts", "src/**/*.ts", "tests/**/*.ts", "tsdown.tools.config.ts"]
 }
