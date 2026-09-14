@@ -1,0 +1,85 @@
+---
+title: "Grok Build"
+description: "Give Grok Build persistent Stagehand browser tools through its CLI and project MCP configuration."
+---
+
+Grok Build can load the Stagehand facade as a project MCP server. The facade owns one persistent browser and exposes `run`, `snapshot`, and `screenshot` for the full CLI run. The integration uses Grok's headless streaming output directly.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- The Grok Build CLI and either `XAI_API_KEY` or an existing `grok login`
+- Google Chrome for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Install and authenticate Grok Build">
+```bash
+npm install --global @xai-official/grok
+grok login
+# or: export XAI_API_KEY="your-xai-api-key"
+```
+  </Step>
+  <Step title="Configure the MCP server">
+Copy `packages/integrations/grok-build/.grok/config.toml` into the project where Grok will run. Replace the absolute facade path and browser credentials.
+  </Step>
+  <Step title="Run a browser task">
+```bash
+cd packages/integrations/grok-build
+grok -p \
+  --output-format streaming-json \
+  --always-approve \
+  --tools search_tool,use_tool \
+  --disallowed-tools Agent \
+  --no-plan \
+  --no-subagents \
+  --disable-web-search \
+  "Open https://example.com, snapshot it, and report the heading."
+```
+  </Step>
+</Steps>
+
+## Eval harness
+
+The registered `grok_build` harness follows the same CLI pattern as the Cursor harness. It creates an isolated temporary home and workspace, copies cached Grok authentication only when no API key is present, writes the selected Stagehand MCP mount to project configuration, runs `grok -p --output-format streaming-json`, and maps native tool and usage events into the shared verifier trajectory.
+
+```bash
+evals run b:webvoyager \
+  --harness grok_build \
+  --tool stagehand_facade \
+  -l 1 -t 1 -e browserbase
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `XAI_API_KEY` | Grok credential. The Stagehand MCP server receives only its own configured environment. |
+| `GROK_HOME` | Source for cached `auth.json` when `XAI_API_KEY` is unset. |
+| `EVAL_GROK_BUILD_PATH` | Optional path to the `grok` binary for eval runs. |
+| `EVAL_GROK_BUILD_MAX_TURNS` | Grok turn limit. Defaults to 50. |
+| `EVAL_GROK_BUILD_SANDBOX` | Optional Grok sandbox profile. |
+| `STAGEHAND_BROWSER` | `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+
+The harness supports `stagehand_facade`, `playwright_mcp`, and `chrome_devtools_mcp`. It restricts Grok to its MCP discovery and invocation tools, disables subagents, plan mode, and web search, and asks Grok not to edit repository files. The temporary Grok home disables compatibility MCP imports, memory, and background leader reuse so user configuration cannot add unrelated tools.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="Grok Build integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/grok-build">
+  Open the CLI configuration and eval harness instructions.
+</Card>
