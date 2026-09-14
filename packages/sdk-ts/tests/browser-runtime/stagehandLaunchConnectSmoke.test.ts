@@ -146,7 +146,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         },
       },
       logging: {
-        level: "off",
+        level: process.env.CI ? "debug" : "off",
       },
     });
     const rpcClient = stagehand.rpcClient;
