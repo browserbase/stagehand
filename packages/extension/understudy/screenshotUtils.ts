@@ -1,3 +1,5 @@
+import { TimeoutError } from "../errors.js";
+import { withTimeout } from "../timeoutConfig.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { DeepLocatorDelegate } from "./deepLocator.js";
@@ -8,6 +10,34 @@ import type { ScreenshotClip, UnderstudyScreenshotOptions } from "../types/priva
 import { resolveMaskRect } from "../dom/screenshotScripts/index.js";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
+
+const screenshotQueues = new WeakMap<CDPSessionLike, Promise<void>>();
+
+/** Keep activation, capture, and cleanup together across pages sharing a browser. */
+export async function withScreenshotLock(
+  connection: CDPSessionLike,
+  capture: () => Promise<Uint8Array>,
+  timeout: number | undefined,
+): Promise<Uint8Array> {
+  let expired = false;
+  const pending = (screenshotQueues.get(connection) ?? Promise.resolve()).then(() => {
+    if (expired) throw new TimeoutError("screenshot", timeout!);
+    return capture();
+  });
+  const released = pending.then(
+    () => {},
+    () => {},
+  );
+  screenshotQueues.set(connection, released);
+  try {
+    return await withTimeout(pending, timeout, "screenshot");
+  } finally {
+    expired = true;
+    void released.then(() => {
+      if (screenshotQueues.get(connection) === released) screenshotQueues.delete(connection);
+    });
+  }
+}
 
 export function collectFramesForScreenshot(page: Page): Frame[] {
   const seen = new Map<string, Frame>();
