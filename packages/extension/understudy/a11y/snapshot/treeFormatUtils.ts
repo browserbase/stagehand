@@ -9,7 +9,14 @@ export function formatTreeLine(node: A11yNode, level = 0): string {
   const indent = "  ".repeat(level);
   const labelId = node.encodedId ?? node.nodeId;
   const stateFlags = formatStateFlags(node);
-  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}${stateFlags}`;
+  const role = node.role.toLowerCase();
+  const hint =
+    /^(button|link|textbox|searchbox|checkbox|radio|combobox|select|listbox|option|slider|spinbutton|switch|tab|menuitem\w*|treeitem|input|file|input, file)$/.test(
+      role,
+    )
+      ? node.locatorHints?.find((candidate) => !candidate.linkOnly || role === "link")?.text
+      : undefined;
+  const label = `[${labelId}] ${node.role}${node.name ? `: ${cleanText(node.name)}` : ""}${hint ? ` {${hint}}` : ""}${stateFlags}`;
   const kids = node.children?.map((c) => formatTreeLine(c, level + 1)).join("\n") ?? "";
   return kids ? `${indent}${label}\n${kids}` : `${indent}${label}`;
 }

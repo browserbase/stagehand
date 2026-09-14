@@ -145,6 +145,7 @@ export function decorateRoles(
       parentId: n.parentId,
       childIds: n.childIds,
       encodedId,
+      locatorHints: encodedId ? opts.locatorHintsMap?.[encodedId] : undefined,
     };
   });
 }
