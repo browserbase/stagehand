@@ -1,17 +1,31 @@
-import type {
-  ImplementationInfo,
-  RuntimeDescriptor,
-} from "@browserbasehq/stagehand-protocol/types";
+import type { ImplementationInfo } from "@browserbasehq/stagehand-protocol/types";
 import {
-  RuntimeDescriptorSchema,
+  ImplementationInfoSchema,
   STAGEHAND_PROTOCOL_VERSION,
 } from "@browserbasehq/stagehand-protocol/schemas";
 import { checkProtocolCompatibility } from "@browserbasehq/stagehand-protocol/protocol-version";
 import { z } from "zod/v4";
 
+export const STAGEHAND_RUNTIME_NAME = "stagehand";
+
 export type RuntimeRequirement = {
   protocolVersion: string;
 };
+/**
+ * The marker a connected runtime published. Unlike the protocol's `RuntimeDescriptor`, the
+ * server name is not pinned to "stagehand" so a foreign runtime can be reported as incompatible
+ * rather than silently treated as unreadable.
+ */
+export type ReportedRuntimeDescriptor = {
+  protocolVersion: string;
+  serverInfo: ImplementationInfo;
+};
+export type RuntimeIncompatibilityReason =
+  | "protocol-invalid-version"
+  | "protocol-major-mismatch"
+  | "protocol-server-too-old"
+  | "protocol-prerelease-mismatch"
+  | "runtime-name-mismatch";
 export type RuntimeCompatibility =
   | {
       kind: "compatible";
@@ -20,20 +34,24 @@ export type RuntimeCompatibility =
     }
   | {
       kind: "incompatible";
-      reason:
-        | "protocol-invalid-version"
-        | "protocol-major-mismatch"
-        | "protocol-server-too-old"
-        | "protocol-prerelease-mismatch";
+      reason: RuntimeIncompatibilityReason;
       detail: string;
       required: RuntimeRequirement;
-      reported: RuntimeDescriptor;
+      reported: ReportedRuntimeDescriptor;
     }
   | {
       kind: "unknown";
       reason: "missing-marker" | "unreadable-marker";
       detail: string;
     };
+
+// Accepts any server name so negotiation can distinguish a foreign runtime from garbage, and any
+// non-empty protocolVersion string so a non-SemVer version is reported as incompatible
+// (protocol-invalid-version) instead of being polled until the initialization timeout.
+const ReportedRuntimeDescriptorSchema = z.strictObject({
+  protocolVersion: z.string().min(1),
+  serverInfo: ImplementationInfoSchema,
+});
 
 export const DEFAULT_RUNTIME_REQUIREMENT: RuntimeRequirement = Object.freeze({
   protocolVersion: STAGEHAND_PROTOCOL_VERSION,
@@ -51,7 +69,7 @@ export function negotiateRuntimeCompatibility(
     };
 
   try {
-    const result = RuntimeDescriptorSchema.safeParse(raw);
+    const result = ReportedRuntimeDescriptorSchema.safeParse(raw);
     if (!result.success)
       return {
         kind: "unknown",
@@ -60,6 +78,13 @@ export function negotiateRuntimeCompatibility(
       };
 
     const reported = descriptor(result.data);
+    if (reported.serverInfo.name !== STAGEHAND_RUNTIME_NAME)
+      return incompatible(
+        "runtime-name-mismatch",
+        `Runtime name mismatch: expected "${STAGEHAND_RUNTIME_NAME}", server reported "${reported.serverInfo.name}"`,
+        required,
+        reported,
+      );
     const compatibility = checkProtocolCompatibility(
       required.protocolVersion,
       reported.protocolVersion,
@@ -90,7 +115,7 @@ export function negotiateRuntimeCompatibility(
 }
 
 function compatibilityDetail(
-  reason: Extract<RuntimeCompatibility, { kind: "incompatible" }>["reason"],
+  reason: Exclude<RuntimeIncompatibilityReason, "runtime-name-mismatch">,
   clientVersion: string,
   serverVersion: string,
 ): string {
@@ -106,7 +131,7 @@ function compatibilityDetail(
   }
 }
 
-function descriptor(value: RuntimeDescriptor): RuntimeDescriptor {
+function descriptor(value: ReportedRuntimeDescriptor): ReportedRuntimeDescriptor {
   return {
     protocolVersion: value.protocolVersion,
     serverInfo: { ...value.serverInfo },
@@ -114,10 +139,10 @@ function descriptor(value: RuntimeDescriptor): RuntimeDescriptor {
 }
 
 function incompatible(
-  reason: Extract<RuntimeCompatibility, { kind: "incompatible" }>["reason"],
+  reason: RuntimeIncompatibilityReason,
   detail: string,
   required: RuntimeRequirement,
-  reported: RuntimeDescriptor,
+  reported: ReportedRuntimeDescriptor,
 ): RuntimeCompatibility {
   return {
     kind: "incompatible",
