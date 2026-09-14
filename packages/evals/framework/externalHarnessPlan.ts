@@ -8,17 +8,12 @@ export interface ExternalHarnessTaskPlan {
   instruction: string;
 }
 
-function readString(
-  params: Record<string, unknown>,
-  key: string,
-): string | undefined {
+function readString(params: Record<string, unknown>, key: string): string | undefined {
   const value = params[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-export function buildExternalHarnessTaskPlan(
-  input: EvalInput,
-): ExternalHarnessTaskPlan {
+export function buildExternalHarnessTaskPlan(input: EvalInput): ExternalHarnessTaskPlan {
   const params = input.params ?? {};
 
   if (input.name === "agent/webvoyager") {
@@ -56,9 +51,7 @@ export function buildExternalHarnessTaskPlan(
   if (input.name === "agent/webtailbench") {
     const instruction = readString(params, "ques");
     if (!instruction) {
-      throw new EvalsError(
-        `Missing WebTailBench params for external harness: expected ques.`,
-      );
+      throw new EvalsError(`Missing WebTailBench params for external harness: expected ques.`);
     }
     return {
       dataset: "webtailbench",
@@ -86,4 +79,22 @@ export function buildExternalHarnessTaskPlan(
   throw new EvalsError(
     `External harness "${input.name}" is not supported yet. Supported: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench.`,
   );
+}
+
+/**
+ * Dataset-specific prompt constraints carried over from the retired
+ * first-party suite modules. OnlineMind2Web's site-scoping constraint is a
+ * validity requirement: without it, tasks are passable by answering from a
+ * search engine instead of operating the assigned site.
+ */
+export function datasetPromptGuidance(dataset: string): string | undefined {
+  switch (dataset) {
+    case "onlineMind2Web":
+      return "ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.";
+    case "webtailbench":
+    case "odysseysbench":
+      return "You will need to navigate to the appropriate website to complete the task.";
+    default:
+      return undefined;
+  }
 }

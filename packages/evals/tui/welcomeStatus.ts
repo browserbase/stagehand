@@ -32,6 +32,11 @@ export type GoogleKeyEntry = ProviderKeyEntry & {
   var: "GOOGLE_GENERATIVE_AI_API_KEY" | "GEMINI_API_KEY" | null;
 };
 
+export type LangSmithKeyEntry = ProviderKeyEntry & {
+  /** Which env var actually held the value, or null if missing. */
+  var: "LANGSMITH_API_KEY" | "LANGCHAIN_API_KEY" | null;
+};
+
 export type BrowserbaseKeyEntry = {
   apiKey: KeyState;
   projectId: KeyState;
@@ -45,6 +50,7 @@ export type EnvSnapshot = {
   google: GoogleKeyEntry;
   browserbase: BrowserbaseKeyEntry;
   braintrust: ProviderKeyEntry;
+  langsmith: LangSmithKeyEntry;
 };
 
 // ---------------------------------------------------------------------------
@@ -104,6 +110,16 @@ function providerEntry(name: string): ProviderKeyEntry {
   };
 }
 
+function langSmithEntry(): LangSmithKeyEntry {
+  const primary = providerEntry("LANGSMITH_API_KEY");
+  if (primary.state === "set") return { ...primary, var: "LANGSMITH_API_KEY" };
+  const fallback = providerEntry("LANGCHAIN_API_KEY");
+  return {
+    ...fallback,
+    var: fallback.state === "set" ? "LANGCHAIN_API_KEY" : null,
+  };
+}
+
 function googleEntry(): GoogleKeyEntry {
   // Prefer the canonical GOOGLE_GENERATIVE_AI_API_KEY name; fall back to GEMINI_API_KEY.
   const a = resolveKey("GOOGLE_GENERATIVE_AI_API_KEY");
@@ -145,8 +161,7 @@ function browserbaseEntry(): BrowserbaseKeyEntry {
   const apiOnlyAlias = aliasApiPresent && !canonApiPresent;
   const projOnlyAlias = aliasProjPresent && !canonProjPresent;
   const anyPresent = !apiAbsent || !projAbsent;
-  const allPresentAreAlias =
-    (apiAbsent || apiOnlyAlias) && (projAbsent || projOnlyAlias);
+  const allPresentAreAlias = (apiAbsent || apiOnlyAlias) && (projAbsent || projOnlyAlias);
   const viaAlias = anyPresent && allPresentAreAlias;
 
   return {
@@ -167,6 +182,7 @@ export function snapshotEnv(): EnvSnapshot {
     google: googleEntry(),
     browserbase: browserbaseEntry(),
     braintrust: providerEntry("BRAINTRUST_API_KEY"),
+    langsmith: langSmithEntry(),
   };
 }
 
@@ -178,9 +194,7 @@ export function snapshotEnv(): EnvSnapshot {
 
 export function hasZeroProviderKeys(s: EnvSnapshot): boolean {
   return (
-    s.openai.state === "missing" &&
-    s.anthropic.state === "missing" &&
-    s.google.state === "missing"
+    s.openai.state === "missing" && s.anthropic.state === "missing" && s.google.state === "missing"
   );
 }
 

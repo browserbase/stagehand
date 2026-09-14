@@ -2,12 +2,9 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "dropdown" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/dropdown/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/dropdown/");
 
       // click the dropdown element to expand it
       const xpath = "xpath=/html/body/div/div/button";
@@ -15,7 +12,7 @@ export default defineBenchTask(
 
       // type into the input box (which should be hidden behind the
       // expanded dropdown)
-      await v3.act("type 'test fill' into the input field");
+      await stagehand.act("type 'test fill' into the input field");
 
       const input = page.locator(`xpath=/html/body/div/input`);
       const expectedValue = "test fill";
@@ -35,13 +32,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

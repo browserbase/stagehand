@@ -28,6 +28,7 @@ let mockHasKey = false;
 
 vi.mock("../../framework/braintrust.js", () => ({
   hasBraintrustApiKey: () => mockHasKey,
+  resolveBraintrustProjectName: () => "stagehand-dev",
   loadBraintrust: async () => ({
     Eval: mockEval,
     flush: mockFlush,

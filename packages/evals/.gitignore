@@ -1,0 +1,4 @@
+.browserbase/
+.trajectories/
+.rubric-cache/
+packages/

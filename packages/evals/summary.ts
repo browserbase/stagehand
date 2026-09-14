@@ -22,15 +22,9 @@ export const generateSummary = async (
     const configured = tasksByName[taskName]?.categories;
     if (configured) return configured;
 
-    const taskCategory = taskName.includes("/")
-      ? taskName.split("/")[0]
-      : undefined;
-    const basenameConfigured =
-      tasksByName[getTaskBasename(taskName)]?.categories;
-    if (
-      basenameConfigured &&
-      (!taskCategory || basenameConfigured.includes(taskCategory))
-    ) {
+    const taskCategory = taskName.includes("/") ? taskName.split("/")[0] : undefined;
+    const basenameConfigured = tasksByName[getTaskBasename(taskName)]?.categories;
+    if (basenameConfigured && (!taskCategory || basenameConfigured.includes(taskCategory))) {
       return basenameConfigured;
     }
 
@@ -39,9 +33,7 @@ export const generateSummary = async (
 
   const resolveResultCategories = (result: SummaryResult): string[] => {
     const resultCategories = result.categories ?? [];
-    return resultCategories.length > 0
-      ? resultCategories
-      : resolveCategories(result.input.name);
+    return resultCategories.length > 0 ? resultCategories : resolveCategories(result.input.name);
   };
 
   const passed = results
@@ -60,10 +52,7 @@ export const generateSummary = async (
       categories: resolveResultCategories(r),
     }));
 
-  const categorySuccessCounts: Record<
-    string,
-    { total: number; success: number }
-  > = {};
+  const categorySuccessCounts: Record<string, { total: number; success: number }> = {};
   for (const result of results) {
     for (const cat of resolveResultCategories(result)) {
       if (!categorySuccessCounts[cat]) {

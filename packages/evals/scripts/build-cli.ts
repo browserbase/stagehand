@@ -58,14 +58,16 @@ if (fs.existsSync(distConfigPath)) {
     if (existing._meta) {
       sourceConfig._meta = { ...sourceConfig._meta, ...existing._meta };
     }
+    // Same for the user-owned `core` and `tracing` sections (set via
+    // `evals config core|tracing` on the built CLI) — the source config never
+    // carries them, so without this a rebuild would silently drop them.
+    if (existing.core) sourceConfig.core = { ...sourceConfig.core, ...existing.core };
+    if (existing.tracing) sourceConfig.tracing = { ...sourceConfig.tracing, ...existing.tracing };
   } catch {
     // invalid existing config – overwrite entirely
   }
 }
 
 fs.writeFileSync(distConfigPath, JSON.stringify(sourceConfig, null, 2) + "\n");
-fs.writeFileSync(
-  `${repoRoot}/packages/evals/dist/cli/package.json`,
-  '{\n  "type": "module"\n}\n',
-);
+fs.writeFileSync(`${repoRoot}/packages/evals/dist/cli/package.json`, '{\n  "type": "module"\n}\n');
 fs.chmodSync(`${repoRoot}/packages/evals/dist/cli/cli.js`, 0o755);

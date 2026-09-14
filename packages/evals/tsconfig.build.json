@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": false,
+    "declaration": true,
+    "inlineSources": true,
+    "noEmit": false,
+    "outDir": "dist/esm",
+    "rootDir": ".",
+    "sourceMap": true
+  },
+  "exclude": [
+    "cli.ts",
+    "dist",
+    "node_modules",
+    "tests",
+    "vitest.config.ts",
+    "vitest.integration.config.ts"
+  ]
+}

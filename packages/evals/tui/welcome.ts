@@ -36,10 +36,7 @@ function browserbaseLabel(s: EnvSnapshot): string {
   if (s.browserbase.apiKey === "set" && s.browserbase.projectId === "set") {
     return green("✓");
   }
-  if (
-    s.browserbase.apiKey === "missing" &&
-    s.browserbase.projectId === "missing"
-  ) {
+  if (s.browserbase.apiKey === "missing" && s.browserbase.projectId === "missing") {
     return red("✗");
   }
   // Partial — one of two BB vars present.
@@ -73,23 +70,17 @@ export function printExtendedWelcome(ctx: WelcomeContext): void {
   lines.push(
     `    AI:  ${providerLabel(ctx.snapshot)}     BB: ${browserbaseLabel(ctx.snapshot)}     Braintrust: ${tagIcon(ctx.snapshot.braintrust.state)}`,
   );
-  lines.push(
-    `    ${dim("Run")} ${cyan("evals doctor")} ${dim("for setup help.")}`,
-  );
+  lines.push(`    ${dim("Run")} ${cyan("evals doctor")} ${dim("for setup help.")}`);
   lines.push("");
   lines.push(`  ${bold("Try first")}`);
-  lines.push(
-    `    ${cyan("list")}                       ${dim("# see what tasks exist")}`,
-  );
+  lines.push(`    ${cyan("list")}                       ${dim("# see what tasks exist")}`);
   lines.push(
     `    ${cyan("run agent")}                  ${dim("# run the agent category once (env=local)")}`,
   );
   lines.push(
     `    ${cyan("experiments list")}           ${dim("# recent Braintrust runs (needs BRAINTRUST_API_KEY)")}`,
   );
-  lines.push(
-    `    ${cyan("config")}                     ${dim("# see your defaults")}`,
-  );
+  lines.push(`    ${cyan("config")}                     ${dim("# see your defaults")}`);
   lines.push("");
   console.log(lines.join("\n"));
 }

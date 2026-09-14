@@ -1,9 +1,9 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { Action } from "@browserbasehq/stagehand";
+import type { Action } from "@browserbasehq/stagehand";
 
 export default defineBenchTask(
   { name: "no_js_click" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
      * This eval is meant to test whether our `clickElement` function
      * (inside actHandlerUtils.ts) is able to click elements even if
@@ -11,10 +11,7 @@ export default defineBenchTask(
      */
 
     try {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/");
 
       const observeResult: Action = {
         method: "click",
@@ -22,7 +19,7 @@ export default defineBenchTask(
         description: "the button to click",
         arguments: [],
       };
-      await v3.act(observeResult);
+      await stagehand.act(observeResult);
 
       const text = await page.locator("#success-msg").textContent();
       if (text?.trim() === "click succeeded") {
@@ -35,8 +32,7 @@ export default defineBenchTask(
       }
       return {
         _success: false,
-        message:
-          "unable to click element on website that blocks JS click events",
+        message: "unable to click element on website that blocks JS click events",
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -44,13 +40,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to click the button: ${error.message}`,
+        message: `error attempting to click the button: ${(error as Error).message}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

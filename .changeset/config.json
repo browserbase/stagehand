@@ -1,9 +1,8 @@
 {
-  "$schema": "https://unpkg.com/@changesets/config@2.1.1/schema.json",
+  "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
   "commit": false,
-  "fixed": [],
   "linked": [],
-  "ignore": ["browse"],
+  "ignore": ["@browserbasehq/stagehand-evals"],
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "access": "public",
@@ -13,9 +12,12 @@
       "repo": "browserbase/stagehand"
     }
   ],
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  },
   "snapshot": {
     "useCalculatedVersion": true,
-    "prereleaseTemplate": "alpha-{commit}",
-    "tag": "alpha"
+    "prereleaseTemplate": "alpha-{commit}"
   }
 }

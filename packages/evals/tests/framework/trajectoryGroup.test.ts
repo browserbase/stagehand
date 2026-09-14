@@ -21,8 +21,7 @@ afterEach(async () => {
   delete process.env.EVAL_EXPERIMENT_NAME;
   delete process.env.EVAL_MODEL_OVERRIDE;
   delete process.env.EVAL_TRAJECTORY_MODEL;
-  if (persistEnv === undefined)
-    delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
+  if (persistEnv === undefined) delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
   else process.env.VERIFIER_PERSIST_TRAJECTORIES = persistEnv;
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -75,10 +74,7 @@ describe("generateRunToken", () => {
   });
 
   it("sorts lexicographically in chronological order", () => {
-    const earlier = generateRunToken(
-      new Date(2026, 6, 15, 11, 3, 42),
-      "ffffff",
-    );
+    const earlier = generateRunToken(new Date(2026, 6, 15, 11, 3, 42), "ffffff");
     const later = generateRunToken(new Date(2026, 6, 15, 11, 3, 43), "000000");
     expect([later, earlier].sort()).toEqual([earlier, later]);
   });
@@ -94,9 +90,7 @@ describe("generateRunToken", () => {
     expect(generateRunToken(now)).toMatch(/^\d{8}-\d{6}-[a-f0-9]{16}$/);
 
     // And it must actually be distributed, not a constant or a counter.
-    const tokens = new Set(
-      Array.from({ length: 200 }, () => generateRunToken(now)),
-    );
+    const tokens = new Set(Array.from({ length: 200 }, () => generateRunToken(now)));
     expect(tokens.size).toBe(200);
   });
 });
@@ -148,17 +142,12 @@ describe("buildTrajectoryGroupSlug", () => {
 
 describe("resolveUnambiguousModel", () => {
   it("returns one model", () => {
-    expect(resolveUnambiguousModel(["openai/gpt-4.1-mini"])).toBe(
-      "openai/gpt-4.1-mini",
-    );
+    expect(resolveUnambiguousModel(["openai/gpt-4.1-mini"])).toBe("openai/gpt-4.1-mini");
   });
 
   it("omits two distinct models", () => {
     expect(
-      resolveUnambiguousModel([
-        "openai/gpt-4.1-mini",
-        "google/gemini-2.5-flash",
-      ]),
+      resolveUnambiguousModel(["openai/gpt-4.1-mini", "google/gemini-2.5-flash"]),
     ).toBeUndefined();
   });
 
@@ -175,15 +164,15 @@ describe("resolveUnambiguousModel", () => {
   });
 
   it("returns the only distinct model when duplicated", () => {
-    expect(
-      resolveUnambiguousModel(["openai/gpt-4.1-mini", "openai/gpt-4.1-mini"]),
-    ).toBe("openai/gpt-4.1-mini");
+    expect(resolveUnambiguousModel(["openai/gpt-4.1-mini", "openai/gpt-4.1-mini"])).toBe(
+      "openai/gpt-4.1-mini",
+    );
   });
 
   it("ignores core sentinels beside one real model", () => {
-    expect(
-      resolveUnambiguousModel(["none", "openai/gpt-4.1-mini", " NONE "]),
-    ).toBe("openai/gpt-4.1-mini");
+    expect(resolveUnambiguousModel(["none", "openai/gpt-4.1-mini", " NONE "])).toBe(
+      "openai/gpt-4.1-mini",
+    );
   });
 });
 
@@ -193,10 +182,7 @@ describe("writeExperimentLink", () => {
    * in a group that recorded something, so positive cases must establish that
    * precondition the way a real reservation does.
    */
-  async function recordTrajectory(
-    root: string,
-    group: string,
-  ): Promise<string> {
+  async function recordTrajectory(root: string, group: string): Promise<string> {
     await fs.mkdir(path.join(root, group, "task-1", "run-1"), {
       recursive: true,
     });
@@ -214,9 +200,7 @@ describe("writeExperimentLink", () => {
     });
 
     await expect(fs.readdir(root)).resolves.toEqual(["agent__20260715-110342"]);
-    await expect(
-      readJson(path.join(root, group, "experiment.json")),
-    ).resolves.toMatchObject({
+    await expect(readJson(path.join(root, group, "experiment.json"))).resolves.toMatchObject({
       braintrustExperiment: "agent/onlineMind2Web-92918006",
     });
   });
@@ -230,9 +214,7 @@ describe("writeExperimentLink", () => {
 
     await writeExperimentLink(root, "group-1", { braintrustExperimentId: "x" });
 
-    await expect(
-      readJson(path.join(root, "group-1", "experiment.json")),
-    ).resolves.toMatchObject({
+    await expect(readJson(path.join(root, "group-1", "experiment.json"))).resolves.toMatchObject({
       experiment: "agent",
       model: "openai/gpt-4.1-mini",
       braintrustExperimentId: "x",
@@ -245,16 +227,9 @@ describe("writeExperimentLink", () => {
     // Trajectories present, but the caller says persistence is off: still no link.
     await recordTrajectory(root, "group-1");
 
-    await writeExperimentLink(
-      root,
-      "group-1",
-      { braintrustExperimentId: "x" },
-      { persist: false },
-    );
+    await writeExperimentLink(root, "group-1", { braintrustExperimentId: "x" }, { persist: false });
 
-    await expect(fs.readdir(path.join(root, "group-1"))).resolves.toEqual([
-      "task-1",
-    ]);
+    await expect(fs.readdir(path.join(root, "group-1"))).resolves.toEqual(["task-1"]);
   });
 
   it("skips a group that recorded no trajectory instead of leaving an empty tree", async () => {
@@ -273,16 +248,12 @@ describe("writeExperimentLink", () => {
     const root = await makeTempDir();
     await recordTrajectory(root, "group-1");
 
-    await writeExperimentLink(
-      root,
-      "group-1",
-      { braintrustExperimentId: "x" },
-      { persist: true },
-    );
+    await writeExperimentLink(root, "group-1", { braintrustExperimentId: "x" }, { persist: true });
 
-    await expect(
-      fs.readdir(path.join(root, "group-1")).then((d) => d.sort()),
-    ).resolves.toEqual(["experiment.json", "task-1"]);
+    await expect(fs.readdir(path.join(root, "group-1")).then((d) => d.sort())).resolves.toEqual([
+      "experiment.json",
+      "task-1",
+    ]);
   });
 
   it("keeps a separate experiment.json per run token (no clobber)", async () => {
@@ -295,14 +266,8 @@ describe("writeExperimentLink", () => {
         runToken,
       });
 
-    const firstGroup = await recordTrajectory(
-      root,
-      groupFor("20260715-110342"),
-    );
-    const secondGroup = await recordTrajectory(
-      root,
-      groupFor("20260715-114500"),
-    );
+    const firstGroup = await recordTrajectory(root, groupFor("20260715-110342"));
+    const secondGroup = await recordTrajectory(root, groupFor("20260715-114500"));
     await writeExperimentLink(root, firstGroup, {
       braintrustExperimentId: "first",
     });
@@ -313,12 +278,12 @@ describe("writeExperimentLink", () => {
     await expect(fs.readdir(root).then((d) => d.sort())).resolves.toEqual(
       [firstGroup, secondGroup].sort(),
     );
-    await expect(
-      readJson(path.join(root, firstGroup, "experiment.json")),
-    ).resolves.toMatchObject({ braintrustExperimentId: "first" });
-    await expect(
-      readJson(path.join(root, secondGroup, "experiment.json")),
-    ).resolves.toMatchObject({ braintrustExperimentId: "second" });
+    await expect(readJson(path.join(root, firstGroup, "experiment.json"))).resolves.toMatchObject({
+      braintrustExperimentId: "first",
+    });
+    await expect(readJson(path.join(root, secondGroup, "experiment.json"))).resolves.toMatchObject({
+      braintrustExperimentId: "second",
+    });
   });
 
   it("does not treat a requested model as resolved run metadata", async () => {

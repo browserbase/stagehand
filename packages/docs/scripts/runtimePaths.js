@@ -1,8 +1,6 @@
 /**
  * Keep this file in sync with:
  * - /packages/core/lib/v3/runtimePaths.ts
- * - /packages/server-v3/scripts/runtimePaths.ts
- * - /packages/server-v4/scripts/runtimePaths.ts
  * - /packages/evals/runtimePaths.ts
  * - /packages/docs/scripts/runtimePaths.js
  */
@@ -37,8 +35,7 @@ const readCallsites = () => {
 };
 
 const readCallsitePath = (callsite) => {
-  const rawPath =
-    callsite.getFileName?.() ?? callsite.getScriptNameOrSourceURL?.();
+  const rawPath = callsite.getFileName?.() ?? callsite.getScriptNameOrSourceURL?.();
   if (!rawPath) return null;
   if (rawPath.startsWith("node:")) return null;
   if (EVAL_FRAMES.has(rawPath)) return null;

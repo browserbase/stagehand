@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EvaluationResult } from "@browserbasehq/stagehand";
+import type { EvaluationResult } from "stagehand-v3";
 
 import {
   evaluationResultToSuccess,

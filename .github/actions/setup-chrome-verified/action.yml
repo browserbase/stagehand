@@ -1,0 +1,47 @@
+name: Setup verified Chrome
+description: Install Chrome, export its resolved path, and verify that it launches headless.
+inputs:
+  chrome-version:
+    description: Chrome version to install.
+    required: false
+    default: "stable"
+outputs:
+  chrome-path:
+    description: Path to the installed Chrome binary.
+    value: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Chrome
+      id: setup-chrome
+      uses: browser-actions/setup-chrome@2e1d749697dd1612b833dba4a722266286fbefcd # v2.1.2
+      with:
+        chrome-version: ${{ inputs.chrome-version }}
+        install-dependencies: true
+
+    - name: Export Chrome path
+      shell: bash
+      run: echo "CHROME_PATH=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+
+    - name: Verify Chrome launch
+      shell: bash
+      run: |
+        if ! command -v timeout >/dev/null 2>&1; then
+          timeout() {
+            shift
+            "$@"
+          }
+        fi
+        set -euo pipefail
+        chrome_path="${{ steps.setup-chrome.outputs.chrome-path }}"
+        if [ ! -x "$chrome_path" ]; then
+          echo "Chrome binary does not exist or is not executable: $chrome_path" >&2
+          exit 1
+        fi
+        if ! timeout 30s "$chrome_path" \
+          --headless=new --no-sandbox --disable-gpu --dump-dom about:blank \
+          >/dev/null 2>&1; then
+          echo "Chrome failed to launch headless: $chrome_path" >&2
+          exit 1
+        fi

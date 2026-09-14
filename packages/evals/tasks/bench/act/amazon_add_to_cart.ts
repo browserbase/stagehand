@@ -2,18 +2,15 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "amazon_add_to_cart" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/amazon/");
 
-      await v3.act("click the 'Add to Cart' button");
+      await stagehand.act("click the 'Add to Cart' button");
 
-      await v3.act("click the 'Proceed to checkout' button");
+      await stagehand.act("click the 'Proceed to checkout' button");
 
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 
@@ -29,13 +26,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

@@ -4,7 +4,7 @@ Severity: blocking. Every rule in this file is mandatory for prose added or modi
 
 Apply these rules only to public-facing prose under `packages/docs/**`, including frontmatter descriptions, headings, navigation labels, paragraphs, tables, callouts, and authored code comments.
 
-Do not apply prose rules to code identifiers, executable code, URLs, copied prompts, sample task strings, configuration examples, or logs. Do not request direct edits to generated SDK pages under `packages/docs/v3/sdk/`; report source-content problems against the owning SDK repository or `packages/docs/scripts/sync-sdk-docs.js`.
+Do not apply prose rules to code identifiers, executable code, URLs, copied prompts, sample task strings, configuration examples, or logs.
 
 ## Scope boundary
 

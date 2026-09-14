@@ -1,16 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import { spawn } from "node:child_process";
-import {
-  bold,
-  cyan,
-  dim,
-  gray,
-  green,
-  padRight,
-  red,
-  separator,
-} from "../format.js";
+import { bold, cyan, dim, gray, green, padRight, red, separator } from "../format.js";
 import {
   benchCaseDiffs,
   collectExperimentMetrics,
@@ -64,12 +55,7 @@ type ResolvedCompareInput = ExperimentInput & ResolvedExperimentProject;
 export async function handleExperiments(args: string[]): Promise<void> {
   const [subcommand, ...rest] = args;
 
-  if (
-    !subcommand ||
-    subcommand === "help" ||
-    subcommand === "-h" ||
-    subcommand === "--help"
-  ) {
+  if (!subcommand || subcommand === "help" || subcommand === "-h" || subcommand === "--help") {
     const { printExperimentsHelp } = await import("./help.js");
     printExperimentsHelp();
     return;
@@ -78,8 +64,7 @@ export async function handleExperiments(args: string[]): Promise<void> {
   // Help is only intercepted at rest[0] — immediately after the verb — so
   // leaf positionals (e.g. a second experiment id in `compare a b --help`)
   // and option values are never swallowed as help.
-  const wantsSubHelp =
-    rest[0] === "--help" || rest[0] === "-h" || rest[0] === "help";
+  const wantsSubHelp = rest[0] === "--help" || rest[0] === "-h" || rest[0] === "help";
 
   switch (subcommand) {
     case "list": {
@@ -155,14 +140,9 @@ async function handleList(args: string[]): Promise<void> {
     // section so long names like
     // `act_browserbase_stagehand_gpt_4_1_mini_apr27_1530` aren't truncated.
     // Floor at 24 to keep short-name layouts stable.
-    const nameWidth = Math.max(
-      24,
-      ...section.experiments.map((e) => e.experimentName.length),
-    );
+    const nameWidth = Math.max(24, ...section.experiments.map((e) => e.experimentName.length));
     for (const experiment of section.experiments) {
-      const relative = dim(
-        padRight(formatRelativeTime(experiment.createdAt), 10),
-      );
+      const relative = dim(padRight(formatRelativeTime(experiment.createdAt), 10));
       const name = padRight(experiment.experimentName, nameWidth);
       const passRate =
         experiment.passScore !== undefined
@@ -181,10 +161,7 @@ async function handleList(args: string[]): Promise<void> {
 async function handleShow(args: string[]): Promise<void> {
   const options = parseShowArgs(args);
   const projects = options.project ? [options.project] : DEFAULT_LIST_PROJECTS;
-  const experiment = await resolveExperimentAcrossProjects(
-    projects,
-    options.experiment,
-  );
+  const experiment = await resolveExperimentAcrossProjects(projects, options.experiment);
 
   if (options.json) {
     console.log(JSON.stringify(experiment, null, 2));
@@ -193,16 +170,12 @@ async function handleShow(args: string[]): Promise<void> {
 
   console.log(`\n  ${bold("Experiment:")} ${experiment.experimentName}`);
   console.log(`  ${bold("Project:")} ${experiment.projectName}`);
-  console.log(
-    `  ${bold("Created:")} ${experiment.createdAt ?? gray("unknown")}`,
-  );
+  console.log(`  ${bold("Created:")} ${experiment.createdAt ?? gray("unknown")}`);
   console.log(`  ${bold("Pass rate:")} ${formatPassRate(experiment, false)}`);
   console.log(
     `  ${bold(experiment.mode === "bench" ? "Cases:" : "Tasks:")} ${experiment.passedTasks}/${experiment.totalTasks}`,
   );
-  console.log(
-    `  ${bold("Duration:")} ${formatSeconds(experiment.durationSeconds)}`,
-  );
+  console.log(`  ${bold("Duration:")} ${formatSeconds(experiment.durationSeconds)}`);
   console.log(`  ${bold("URL:")} ${experiment.experimentUrl}`);
   console.log("");
 }
@@ -210,10 +183,7 @@ async function handleShow(args: string[]): Promise<void> {
 async function handleOpen(args: string[]): Promise<void> {
   const options = parseOpenArgs(args);
   const projects = options.project ? [options.project] : DEFAULT_LIST_PROJECTS;
-  const experiment = await resolveExperimentAcrossProjects(
-    projects,
-    options.experiment,
-  );
+  const experiment = await resolveExperimentAcrossProjects(projects, options.experiment);
   console.log(green(`  Opening ${experiment.experimentName}`));
   openInBrowser(experiment.experimentUrl);
 }
@@ -221,25 +191,15 @@ async function handleOpen(args: string[]): Promise<void> {
 async function handleCompare(args: string[]): Promise<void> {
   const options = parseCompareArgs(args);
   const resolvedInputs = await resolveCompareInputs(options);
-  const projects = [
-    ...new Set(resolvedInputs.map((input) => input.projectName)),
-  ];
-  const projectLabel =
-    projects.length === 1 ? projects[0] : `mixed (${projects.join(", ")})`;
-  const scriptPath = path.join(
-    getPackageRootDir(),
-    "scripts",
-    "render-braintrust-core-report.ts",
-  );
+  const projects = [...new Set(resolvedInputs.map((input) => input.projectName))];
+  const projectLabel = projects.length === 1 ? projects[0] : `mixed (${projects.join(", ")})`;
+  const scriptPath = path.join(getPackageRootDir(), "scripts", "render-braintrust-core-report.ts");
   const experimentArgs = resolvedInputs.map(formatExperimentArg);
   const outputPath = options.out ?? DEFAULT_COMPARE_OUTPUT;
   const projectArgs =
     projects.length === 1
       ? ["--project", projects[0]]
-      : [
-          "--project-map",
-          JSON.stringify(resolvedInputs.map((input) => input.projectName)),
-        ];
+      : ["--project-map", JSON.stringify(resolvedInputs.map((input) => input.projectName))];
 
   const childArgs = [
     "--import",
@@ -290,9 +250,7 @@ async function handleCompare(args: string[]): Promise<void> {
       }
       const details = [stdout.trim(), stderr.trim()].filter(Boolean).join("\n");
       reject(
-        new Error(
-          `Compare report exited with code ${code ?? 1}${details ? `\n${details}` : ""}`,
-        ),
+        new Error(`Compare report exited with code ${code ?? 1}${details ? `\n${details}` : ""}`),
       );
     });
   });
@@ -353,9 +311,7 @@ function parseShowArgs(args: string[]): ShowOptions {
   }
 
   if (positional.length !== 1) {
-    throw new Error(
-      "Usage: experiments show <experiment> [--project <name>] [--json]",
-    );
+    throw new Error("Usage: experiments show <experiment> [--project <name>] [--json]");
   }
 
   return { project, json, experiment: positional[0] };
@@ -434,9 +390,7 @@ function parseExperimentSpec(raw: string): ExperimentInput {
   const left = raw.slice(0, eqIdx).trim();
   const right = raw.slice(eqIdx + 1).trim();
   if (!left || !right) {
-    throw new Error(
-      `Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`,
-    );
+    throw new Error(`Invalid experiment spec "${raw}". Use <id> or <label>=<id>.`);
   }
   if (looksLikeExperimentId(right) && !looksLikeExperimentId(left)) {
     return { label: left, experiment: right };
@@ -449,15 +403,12 @@ function parseExperimentSpec(raw: string): ExperimentInput {
 
 function looksLikeExperimentId(value: string): boolean {
   return (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      value,
-    ) || /^[a-z][a-z0-9_-]*-[a-f0-9]{4,}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) ||
+    /^[a-z][a-z0-9_-]*-[a-f0-9]{4,}$/i.test(value)
   );
 }
 
-async function resolveCompareInputs(
-  options: CompareOptions,
-): Promise<ResolvedCompareInput[]> {
+async function resolveCompareInputs(options: CompareOptions): Promise<ResolvedCompareInput[]> {
   const inputs = options.project
     ? options.experiments.map((experiment) => ({
         ...experiment,
@@ -499,17 +450,11 @@ function formatRecentPassRate(experiment: RecentExperimentData): string {
   return red(pct);
 }
 
-function renderHeadlessCompareSummary(
-  project: string,
-  reportPath: string,
-  dataPath: string,
-): void {
+function renderHeadlessCompareSummary(project: string, reportPath: string, dataPath: string): void {
   if (!fs.existsSync(dataPath)) {
     throw new Error(`Compare data file was not written: ${dataPath}`);
   }
-  const rows = JSON.parse(
-    fs.readFileSync(dataPath, "utf8"),
-  ) as ExperimentData[];
+  const rows = JSON.parse(fs.readFileSync(dataPath, "utf8")) as ExperimentData[];
   const mode = detectCompareMode(rows);
   const leaderIndex = rows.length > 1 ? findLeaderIndex(rows) : -1;
   const sharedTasks = mode === "core" ? sharedTaskNames(rows) : [];
@@ -523,8 +468,7 @@ function renderHeadlessCompareSummary(
       return {
         key,
         values,
-        spread:
-          values.length > 1 ? Math.max(...values) - Math.min(...values) : 0,
+        spread: values.length > 1 ? Math.max(...values) - Math.min(...values) : 0,
       };
     })
     .filter((entry) => entry.spread > 0)
@@ -666,8 +610,7 @@ function openInBrowser(target: string): void {
   if ((process.env.BROWSER ?? "").toLowerCase() === "none") return;
 
   const platform = process.platform;
-  const command =
-    platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
+  const command = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
   const args = platform === "win32" ? ["/c", "start", "", target] : [target];
 
   try {

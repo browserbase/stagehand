@@ -18,9 +18,7 @@ describe("mcpUtils", () => {
   });
 
   it("parses loose JSON from fenced blocks", () => {
-    expect(
-      parseLooseJson<{ ok: boolean }>('```json\n{"ok":true}\n```'),
-    ).toEqual({
+    expect(parseLooseJson<{ ok: boolean }>('```json\n{"ok":true}\n```')).toEqual({
       ok: true,
     });
   });

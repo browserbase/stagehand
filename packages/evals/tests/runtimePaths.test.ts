@@ -7,9 +7,7 @@ describe("resolveRuntimeTasksRoot", () => {
     const packageRoot = "/repo/packages/evals";
     const caller = "/repo/packages/evals/cli.ts";
 
-    expect(resolveRuntimeTasksRoot(caller, packageRoot)).toBe(
-      path.join(packageRoot, "tasks"),
-    );
+    expect(resolveRuntimeTasksRoot(caller, packageRoot)).toBe(path.join(packageRoot, "tasks"));
   });
 
   it("uses compiled tasks for built CLI callers", () => {

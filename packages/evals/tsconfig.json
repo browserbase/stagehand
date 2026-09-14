@@ -1,14 +1,12 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": ".",
-    "rootDir": ".",
-    "outDir": "dist/esm",
-    "noEmit": false,
+    "noImplicitAny": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ES2022",
     "types": ["node"],
-    "paths": {
-      "@browserbasehq/stagehand": ["../core/dist/esm/index.d.ts"]
-    }
+    "useUnknownInCatchVariables": false
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]

@@ -30,7 +30,6 @@
     cdpURL: "cdp_url",
     chromiumSandbox: "chromium_sandbox",
     clientLanguage: "client_language",
-    connectTimeoutMs: "connect_timeout_ms",
     deviceScaleFactor: "device_scale_factor",
     domSettleTimeoutMs: "dom_settle_timeout_ms",
     domainPattern: "domain_pattern",
@@ -115,9 +114,7 @@
   let lastPath = window.location.pathname;
 
   function currentSdkLanguage() {
-    const match = window.location.pathname.match(
-      /^\/v3\/api-reference\/([^/]+)(?:\/|$)/,
-    );
+    const match = window.location.pathname.match(/^\/v3\/api-reference\/([^/]+)(?:\/|$)/);
     return match ? match[1] : null;
   }
 
@@ -126,10 +123,7 @@
   }
 
   function buildPattern(labels) {
-    return new RegExp(
-      `\\b(${Object.keys(labels).map(escapeRegExp).join("|")})\\b`,
-      "g",
-    );
+    return new RegExp(`\\b(${Object.keys(labels).map(escapeRegExp).join("|")})\\b`, "g");
   }
 
   function shouldRewriteTextNode(node, pattern) {
@@ -149,17 +143,13 @@
     if (!labels) return;
 
     const pattern = buildPattern(labels);
-    const walker = document.createTreeWalker(
-      root || document.body,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode(node) {
-          return shouldRewriteTextNode(node, pattern)
-            ? NodeFilter.FILTER_ACCEPT
-            : NodeFilter.FILTER_REJECT;
-        },
+    const walker = document.createTreeWalker(root || document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return shouldRewriteTextNode(node, pattern)
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT;
       },
-    );
+    });
 
     const nodes = [];
     while (walker.nextNode()) nodes.push(walker.currentNode);

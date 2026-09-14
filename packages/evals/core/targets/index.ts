@@ -19,19 +19,13 @@ export async function prepareCoreBrowserTarget(input: {
 }): Promise<PreparedCoreBrowserTarget> {
   const { environment, startupProfile } = input;
 
-  if (
-    startupProfile === "runner_provided_local_cdp" &&
-    environment !== "LOCAL"
-  ) {
+  if (startupProfile === "runner_provided_local_cdp" && environment !== "LOCAL") {
     throw new Error(
       `Startup profile "${startupProfile}" requires LOCAL environment, received ${environment}.`,
     );
   }
 
-  if (
-    startupProfile === "runner_provided_browserbase_cdp" &&
-    environment !== "BROWSERBASE"
-  ) {
+  if (startupProfile === "runner_provided_browserbase_cdp" && environment !== "BROWSERBASE") {
     throw new Error(
       `Startup profile "${startupProfile}" requires BROWSERBASE environment, received ${environment}.`,
     );

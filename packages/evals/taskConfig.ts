@@ -15,7 +15,7 @@ import {
   type AvailableCuaModel,
   type AvailableModel,
   providerEnvVarMap,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 import { AgentModelEntry } from "./types/evals.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
@@ -135,7 +135,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
  * NOT appear in the plain "agent" category.
  */
 const CATEGORY_OVERRIDES: Record<string, string[]> = {
-  "agent/gaia": ["external_agent_benchmarks"],
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],
@@ -197,9 +196,7 @@ function buildTasksConfigFromFS(): TaskConfig[] {
 
 const tasksConfig = buildTasksConfigFromFS();
 
-const tasksByName = tasksConfig.reduce<
-  Record<string, { categories: string[] }>
->((acc, task) => {
+const tasksByName = tasksConfig.reduce<Record<string, { categories: string[] }>>((acc, task) => {
   acc[task.name] = {
     categories: task.categories,
   };
@@ -213,9 +210,7 @@ const tasksByName = tasksConfig.reduce<
 export function validateEvalName(evalName: string): void {
   if (evalName && !tasksByName[evalName]) {
     console.error(`Error: Evaluation "${evalName}" does not exist.`);
-    console.error(
-      `Available tasks: ${Object.keys(tasksByName).slice(0, 20).join(", ")}...`,
-    );
+    console.error(`Available tasks: ${Object.keys(tasksByName).slice(0, 20).join(", ")}...`);
     process.exit(1);
   }
 }
@@ -226,11 +221,7 @@ export function validateEvalName(evalName: string): void {
 
 const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   ? process.env.EVAL_MODELS.split(",")
-  : [
-      "google/gemini-2.5-flash",
-      "openai/gpt-4.1-mini",
-      "anthropic/claude-haiku-4-5",
-    ];
+  : ["google/gemini-2.5-flash", "openai/gpt-4.1-mini", "anthropic/claude-haiku-4-5"];
 
 const DEFAULT_AGENT_MODELS_STANDARD = [
   "anthropic/claude-haiku-4-5",
@@ -244,10 +235,7 @@ const DEFAULT_AGENT_MODELS_CUA = [
   "google/gemini-3-flash-preview",
 ] satisfies readonly AvailableCuaModel[];
 
-const DEFAULT_AGENT_MODEL_MODES = [
-  "dom",
-  "hybrid",
-] as const satisfies readonly AgentToolMode[];
+const DEFAULT_AGENT_MODEL_MODES = ["dom", "hybrid"] as const satisfies readonly AgentToolMode[];
 
 const isCuaModel = (modelName: string): boolean =>
   (AVAILABLE_CUA_MODELS as readonly string[]).includes(modelName);
@@ -314,45 +302,11 @@ function getDefaultAgentModels(): string[] {
 }
 
 const getModelList = (category?: string): string[] => {
-  const provider = process.env.EVAL_PROVIDER?.toLowerCase();
-
   if (category === "agent" || category === "external_agent_benchmarks") {
     return getDefaultAgentModels();
   }
 
-  if (provider) {
-    return ALL_EVAL_MODELS.filter((model) =>
-      filterModelByProvider(model, provider),
-    );
-  }
-
   return DEFAULT_EVAL_MODELS;
-};
-
-const filterModelByProvider = (model: string, provider: string): boolean => {
-  const modelLower = model.toLowerCase();
-  if (provider === "openai") {
-    return modelLower.startsWith("gpt");
-  } else if (provider === "anthropic") {
-    return modelLower.startsWith("claude");
-  } else if (provider === "google") {
-    return modelLower.startsWith("gemini");
-  } else if (provider === "together") {
-    return (
-      modelLower.startsWith("meta-llama") ||
-      modelLower.startsWith("llama") ||
-      modelLower.startsWith("deepseek") ||
-      modelLower.startsWith("qwen")
-    );
-  } else if (provider === "groq") {
-    return modelLower.startsWith("groq");
-  } else if (provider === "cerebras") {
-    return modelLower.startsWith("cerebras");
-  }
-  console.warn(
-    `Unknown provider specified or model doesn't match: ${provider}`,
-  );
-  return false;
 };
 
 const MODELS: AvailableModel[] = getModelList().map((model) => {

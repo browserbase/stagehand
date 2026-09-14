@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
 import {
   buildCodexPrompt,
-  normalizeCodexModel,
   parseCodexResult,
   runCodexAgent,
   type CodexSdk,
@@ -18,21 +17,8 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("codex runner helpers", () => {
-  it("normalizes provider-prefixed models for Codex", () => {
-    expect(normalizeCodexModel("openai/gpt-5.4-mini" as AvailableModel)).toBe(
-      "gpt-5.4-mini",
-    );
-    expect(normalizeCodexModel("gpt-5.4" as AvailableModel)).toBe("gpt-5.4");
-    expect(normalizeCodexModel("codex/default" as AvailableModel)).toBe(
-      "gpt-5.4-mini",
-    );
-  });
-
   it("builds a browser task prompt with structured result instructions", () => {
-    const prompt = buildCodexPrompt(
-      plan,
-      "Use browse only. Discover usage with browse -h.",
-    );
+    const prompt = buildCodexPrompt(plan, "Use browse only. Discover usage with browse -h.");
 
     expect(prompt).toContain("Dataset: webvoyager");
     expect(prompt).toContain("Task ID: wv-1");
@@ -44,11 +30,7 @@ describe("codex runner helpers", () => {
   });
 
   it("parses direct JSON results", () => {
-    expect(
-      parseCodexResult(
-        '{"success":true,"summary":"done","finalAnswer":"clicked"}',
-      ),
-    ).toEqual({
+    expect(parseCodexResult('{"success":true,"summary":"done","finalAnswer":"clicked"}')).toEqual({
       success: true,
       summary: "done",
       finalAnswer: "clicked",
@@ -58,9 +40,7 @@ describe("codex runner helpers", () => {
 
   it("parses legacy EVAL_RESULT marker JSON", () => {
     expect(
-      parseCodexResult(
-        'assistant text\nEVAL_RESULT: {"success":true,"summary":"done"}',
-      ),
+      parseCodexResult('assistant text\nEVAL_RESULT: {"success":true,"summary":"done"}'),
     ).toMatchObject({
       success: true,
       summary: "done",
@@ -130,7 +110,7 @@ describe("codex runner helpers", () => {
       model: "gpt-5.4-mini",
       workingDirectory: "/tmp/stagehand-evals-test",
       skipGitRepoCheck: true,
-      sandboxMode: "workspace-write",
+      sandboxMode: "read-only",
       approvalPolicy: "never",
       networkAccessEnabled: true,
     });
@@ -141,7 +121,49 @@ describe("codex runner helpers", () => {
     expect(metrics.codex_cached_input_tokens.value).toBe(10);
     expect(metrics.codex_output_tokens.value).toBe(25);
     expect(metrics.codex_reasoning_output_tokens.value).toBe(5);
-    expect(metrics.codex_total_tokens.value).toBe(140);
+    expect(metrics.codex_total_tokens.value).toBe(125);
+    expect(metrics.harness_input_tokens.value).toBe(100);
+    expect(metrics.harness_cached_input_tokens.value).toBe(10);
+    expect(metrics.harness_output_tokens.value).toBe(25);
+    expect(metrics.harness_reasoning_output_tokens.value).toBe(5);
+    expect(metrics.harness_total_tokens.value).toBe(125);
+    expect(metrics.harness_cost_usd).toBeUndefined();
+    expect(result.harnessStatus).toBe("completed");
+  });
+
+  it("does not double-count cached input or reasoning output token subsets", async () => {
+    const sdk: CodexSdk = {
+      startThread: () => ({
+        runStreamed: async () => ({
+          events: (async function* () {
+            yield {
+              type: "item.completed",
+              item: { id: "msg-1", type: "agent_message", text: '{"success":true}' },
+            };
+            yield {
+              type: "turn.completed",
+              usage: {
+                input_tokens: 10_000,
+                cached_input_tokens: 8_000,
+                output_tokens: 500,
+                reasoning_output_tokens: 300,
+              },
+            };
+          })(),
+        }),
+      }),
+    };
+
+    const result = await runCodexAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+
+    expect(metrics.codex_total_tokens.value).toBe(10_500);
+    expect(metrics.harness_total_tokens.value).toBe(10_500);
   });
 
   it("returns a failed task result instead of throwing on SDK errors", async () => {
@@ -162,6 +184,29 @@ describe("codex runner helpers", () => {
 
     expect(result._success).toBe(false);
     expect(result.codexStatus).toBe("sdk_error");
+    expect(result.harnessStatus).toBe("sdk_error");
+    expect(result.harnessStopReason).toBeDefined();
     expect(String(result.error)).toContain("codex failed");
+  });
+
+  it("redacts SDK iteration errors used as stop reasons", async () => {
+    const sdk: CodexSdk = {
+      startThread: () => ({
+        runStreamed: async () => {
+          throw new Error("failed https://x.test?apiKey=secret123");
+        },
+      }),
+    };
+
+    const result = await runCodexAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+    });
+
+    expect(result.harnessStopReason).toContain("apiKey=[redacted]");
+    expect(result.codexStopReason).toContain("apiKey=[redacted]");
+    expect(result.error).toContain("apiKey=[redacted]");
   });
 });

@@ -38,17 +38,17 @@ describe("readConfig", () => {
 });
 
 describe("handleConfig", () => {
-  it("persists agentModes defaults", async () => {
+  it("rejects unknown config keys", async () => {
     const entryDir = makeTempEntryDir();
     fs.writeFileSync(
       path.join(entryDir, "evals.config.json"),
       JSON.stringify({ defaults: {}, benchmarks: {} }),
     );
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    await handleConfig(["set", "agentModes", "dom,hybrid,dom"], entryDir);
+    await handleConfig(["set", "agentModes", "dom"], entryDir);
 
-    expect(readConfig(entryDir).defaults.agentModes).toEqual(["dom", "hybrid"]);
-    expect(log).toHaveBeenCalled();
+    expect(readConfig(entryDir).defaults).toEqual({});
+    expect(error).toHaveBeenCalled();
   });
 });

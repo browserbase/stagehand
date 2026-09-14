@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Rubric, TaskSpec } from "@browserbasehq/stagehand";
+import type { Rubric, TaskSpec } from "stagehand-v3";
 
 import { RubricCache } from "../../framework/rubricCache.js";
 
@@ -40,8 +40,6 @@ describe("RubricCache", () => {
 
     await expect(cache.read(taskB)).resolves.toBeUndefined();
     await expect(cache.read(taskA)).resolves.toEqual(rubric);
-    expect(warn).toHaveBeenCalledWith(
-      "[rubric-cache] task-id mismatch for task:a; regenerating",
-    );
+    expect(warn).toHaveBeenCalledWith("[rubric-cache] task-id mismatch for task:a; regenerating");
   });
 });

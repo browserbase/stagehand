@@ -1,0 +1,958 @@
+---
+title: "context"
+description: "Manage pages, cookies, headers, policies, and clipboard access within a browser context"
+icon: "window"
+---
+
+Use `BrowserContext` to coordinate pages and browser state that is shared across them.
+
+<Tabs>
+<Tab title="TypeScript">
+
+## Quick start
+
+```typescript
+const context = browser.context;
+const page = await context.newPage();
+```
+
+## pages()
+
+Return every open page in the browser context.
+
+```typescript
+const pages = await browser.context.pages();
+```
+
+<ResponseField name="result" type="Promise<Page[]>">
+  The operation result.
+</ResponseField>
+
+## newPage()
+
+Create a new page in the browser context.
+
+```typescript
+const page = await browser.context.newPage("https://example.com");
+```
+
+<ParamField path="url" type="string" optional>
+  The initial URL for the new page. Omit it to create a blank page.
+</ParamField>
+
+<ResponseField name="result" type="Promise<Page>">
+  The operation result.
+</ResponseField>
+
+## activePage()
+
+Return the page that is currently active.
+
+```typescript
+const [page] = await browser.context.pages();
+```
+
+<ResponseField name="result" type="Promise<Page | undefined>">
+  The operation result.
+</ResponseField>
+
+## setActivePage()
+
+Make a page the active page in the browser context.
+
+```typescript
+await browser.context.setActivePage(page);
+```
+
+<ParamField path="page" type="Page">
+  The page to make active.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the remote browser context.
+
+```typescript
+await browser.context.close();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## addInitScript()
+
+Run a script before scripts on every newly created page.
+
+```typescript
+await browser.context.addInitScript(() => {
+  window.localStorage.clear();
+});
+```
+
+<ParamField path="script" type="InitScriptSource<Arg>">
+  A function, JavaScript source string, or object with exactly one of `path` and `content`.
+</ParamField>
+
+<ParamField path="arg" type="Arg" optional>
+  An optional JSON-serializable argument. Valid only when `script` is a function.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## setExtraHTTPHeaders()
+
+Set additional HTTP headers for every page in the context.
+
+```typescript
+await browser.context.setExtraHTTPHeaders({ "x-test": "true" });
+```
+
+<ParamField path="headers" type="Record<string, string>">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## getDomainPolicy()
+
+Return the context's current domain policy.
+
+```typescript
+const policy = await browser.context.getDomainPolicy();
+```
+
+<ResponseField name="result" type="Promise<DomainPolicy | null>">
+  The operation result.
+
+<ResponseField name="result.allowedDomains" type="string[]" optional>
+  Domains that the context may access.
+</ResponseField>
+
+  <ResponseField name="result.blockedDomains" type="string[]" optional>
+    Domains that the context must reject.
+  </ResponseField>
+</ResponseField>
+
+## setDomainPolicy()
+
+Set or clear the context's domain policy.
+
+```typescript
+await browser.context.setDomainPolicy(null);
+```
+
+<ParamField path="policy" type="DomainPolicy | null">
+  The policy to apply, or null/None to clear it.
+
+<ParamField path="policy.allowedDomains" type="string[]" optional>
+  Domains that the context may access.
+</ParamField>
+
+  <ParamField path="policy.blockedDomains" type="string[]" optional>
+    Domains that the context must reject.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## cookies()
+
+Return cookies, optionally filtered to one or more URLs.
+
+```typescript
+const cookies = await browser.context.cookies("https://example.com");
+```
+
+<ParamField path="urls" type="string | string[]" optional>
+  A URL or collection of URLs used to filter cookies.
+</ParamField>
+
+<ResponseField name="result" type="Promise<Cookie[]>">
+  The operation result.
+
+<ResponseField name="result.name" type="string">
+  The cookie name.
+</ResponseField>
+
+<ResponseField name="result.value" type="string">
+  The cookie value.
+</ResponseField>
+
+<ResponseField name="result.domain" type="string">
+  The cookie domain.
+</ResponseField>
+
+<ResponseField name="result.path" type="string">
+  The cookie path.
+</ResponseField>
+
+<ResponseField name="result.expires" type="number">
+  The Unix expiration time in seconds, or `-1` for a session cookie.
+</ResponseField>
+
+<ResponseField name="result.httpOnly" type="boolean">
+  Whether the cookie is restricted to HTTP requests.
+</ResponseField>
+
+<ResponseField name="result.secure" type="boolean">
+  Whether the cookie requires HTTPS.
+</ResponseField>
+
+  <ResponseField name="result.sameSite" type="Cookie['sameSite']">
+    The cookie SameSite policy: `"Strict"`, `"Lax"`, or `"None"`.
+  </ResponseField>
+</ResponseField>
+
+## addCookies()
+
+Add cookies to the browser context.
+
+```typescript
+await browser.context.addCookies([cookie]);
+```
+
+<ParamField path="cookies" type="CookieParam[]">
+  The cookies to add. Each requires `name`, `value`, and either `url` or both `domain` and `path`.
+  Do not combine `url` with `domain` or `path`.
+
+<ParamField path="cookies.domain" type="string" optional>
+  The cookie domain.
+</ParamField>
+
+<ParamField path="cookies.expires" type="number" optional>
+  `-1` for a session cookie or a non-negative Unix timestamp in seconds.
+</ParamField>
+
+<ParamField path="cookies.httpOnly" type="boolean" optional>
+  Whether the cookie is restricted to HTTP requests.
+</ParamField>
+
+<ParamField path="cookies.name" type="string">
+  The cookie name.
+</ParamField>
+
+<ParamField path="cookies.path" type="string" optional>
+  The cookie path.
+</ParamField>
+
+<ParamField path="cookies.sameSite" type="CookieParam['sameSite']" optional>
+  The cookie SameSite policy: `"Strict"`, `"Lax"`, or `"None"`. `"None"` requires a secure cookie.
+</ParamField>
+
+<ParamField path="cookies.secure" type="boolean" optional>
+  Whether the cookie requires HTTPS.
+</ParamField>
+
+<ParamField path="cookies.url" type="string" optional>
+  The URL scope. Cannot be `about:blank` or a `data:` URL.
+</ParamField>
+
+  <ParamField path="cookies.value" type="string">
+    The cookie value.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## clearCookies()
+
+Clear cookies that match optional name, domain, and path filters.
+
+```typescript
+await browser.context.clearCookies({ domain: "example.com" });
+```
+
+<ParamField path="options" type="ClearCookieOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.domain" type="string | RegExp" optional>
+    A cookie domain or regular-expression filter.
+  </ParamField>
+
+  <ParamField path="options.name" type="string | RegExp" optional>
+    A cookie name or regular-expression filter.
+  </ParamField>
+
+  <ParamField path="options.path" type="string | RegExp" optional>
+    A cookie path or regular-expression filter.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+</Tab>
+
+<Tab title="Python">
+
+## Quick start
+
+```python
+context = browser.context
+page = await context.new_page()
+```
+
+## pages()
+
+Return every open page in the browser context.
+
+```python
+pages = await browser.context.pages()
+```
+
+<ResponseField name="result" type="list[Page]">
+  The operation result.
+</ResponseField>
+
+## new_page()
+
+Create a new page in the browser context.
+
+```python
+page = await browser.context.new_page("https://example.com")
+```
+
+<ParamField path="url" type="str | None" optional>
+  The initial URL for the new page. Omit it to create a blank page.
+</ParamField>
+
+<ResponseField name="result" type="Page">
+  The operation result.
+</ResponseField>
+
+## active_page()
+
+Return the page that is currently active.
+
+```python
+page = (await browser.context.pages())[0]
+```
+
+<ResponseField name="result" type="Page | None">
+  The operation result.
+</ResponseField>
+
+## set_active_page()
+
+Make a page the active page in the browser context.
+
+```python
+await browser.context.set_active_page(page)
+```
+
+<ParamField path="page" type="Page">
+  The page to make active.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## close()
+
+Close the remote browser context.
+
+```python
+await browser.context.close()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## add_init_script()
+
+Run a script before scripts on every newly created page.
+
+```python
+await browser.context.add_init_script("window.localStorage.clear()")
+```
+
+<ParamField path="source" type="str | Path">
+  JavaScript source or a path to a JavaScript file on the SDK caller's machine.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## set_extra_http_headers()
+
+Set additional HTTP headers for every page in the context.
+
+```python
+await browser.context.set_extra_http_headers({"x-test": "true"})
+```
+
+<ParamField path="headers" type="Mapping[str, str]">
+  HTTP header names and values.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## get_domain_policy()
+
+Return the context's current domain policy.
+
+```python
+policy = await browser.context.get_domain_policy()
+```
+
+<ResponseField name="result" type="DomainPolicy | None">
+  The operation result.
+
+<ResponseField name="result.allowed_domains" type="list[str]" optional>
+  Domains that the context may access.
+</ResponseField>
+
+  <ResponseField name="result.blocked_domains" type="list[str]" optional>
+    Domains that the context must reject.
+  </ResponseField>
+</ResponseField>
+
+## set_domain_policy()
+
+Set or clear the context's domain policy.
+
+```python
+await browser.context.set_domain_policy(None)
+```
+
+<ParamField path="policy" type="DomainPolicy | DomainPolicyInput | None">
+  The policy to apply, or null/None to clear it.
+
+<ParamField path="policy.allowed_domains" type="list[str]" optional>
+  Domains that the context may access.
+</ParamField>
+
+  <ParamField path="policy.blocked_domains" type="list[str]" optional>
+    Domains that the context must reject.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## cookies()
+
+Return cookies, optionally filtered to one or more URLs.
+
+```python
+cookies = await browser.context.cookies("https://example.com")
+```
+
+<ParamField path="urls" type="str | Sequence[str] | None" optional>
+  A URL or collection of URLs used to filter cookies.
+</ParamField>
+
+<ResponseField name="result" type="list[Cookie]">
+  The operation result.
+
+<ResponseField name="result.name" type="str">
+  The cookie name.
+</ResponseField>
+
+<ResponseField name="result.value" type="str">
+  The cookie value.
+</ResponseField>
+
+<ResponseField name="result.domain" type="str">
+  The cookie domain.
+</ResponseField>
+
+<ResponseField name="result.path" type="str">
+  The cookie path.
+</ResponseField>
+
+<ResponseField name="result.expires" type="float">
+  The Unix expiration time in seconds, or `-1` for a session cookie.
+</ResponseField>
+
+<ResponseField name="result.http_only" type="bool">
+  Whether the cookie is restricted to HTTP requests.
+</ResponseField>
+
+<ResponseField name="result.secure" type="bool">
+  Whether the cookie requires HTTPS.
+</ResponseField>
+
+  <ResponseField name="result.same_site" type="Literal['Strict', 'Lax', 'None']">
+    The cookie SameSite policy: `"Strict"`, `"Lax"`, or `"None"`.
+  </ResponseField>
+</ResponseField>
+
+## add_cookies()
+
+Add cookies to the browser context.
+
+```python
+await browser.context.add_cookies([cookie])
+```
+
+<ParamField path="cookies" type="Sequence[CookieParam]">
+  The cookies to add. Each requires `name`, `value`, and either `url` or both `domain` and `path`.
+  Do not combine `url` with `domain` or `path`.
+
+<ParamField path="cookies.domain" type="str" optional>
+  The cookie domain.
+</ParamField>
+
+<ParamField path="cookies.expires" type="float" optional>
+  `-1` for a session cookie or a non-negative Unix timestamp in seconds.
+</ParamField>
+
+<ParamField path="cookies.http_only" type="bool" optional>
+  Whether the cookie is restricted to HTTP requests.
+</ParamField>
+
+<ParamField path="cookies.name" type="str">
+  The cookie name.
+</ParamField>
+
+<ParamField path="cookies.path" type="str" optional>
+  The cookie path.
+</ParamField>
+
+<ParamField path="cookies.same_site" type="Literal['Strict', 'Lax', 'None']" optional>
+  The cookie SameSite policy: `"Strict"`, `"Lax"`, or `"None"`. `"None"` requires a secure cookie.
+</ParamField>
+
+<ParamField path="cookies.secure" type="bool" optional>
+  Whether the cookie requires HTTPS.
+</ParamField>
+
+<ParamField path="cookies.url" type="str" optional>
+  The URL scope. Cannot be `about:blank` or a `data:` URL.
+</ParamField>
+
+  <ParamField path="cookies.value" type="str">
+    The cookie value.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## clear_cookies()
+
+Clear cookies that match optional name, domain, and path filters.
+
+```python
+await browser.context.clear_cookies(domain="example.com")
+```
+
+<ParamField path="name" type="str | re.Pattern[str] | None" optional>
+  A cookie name or regular-expression filter.
+</ParamField>
+
+<ParamField path="domain" type="str | re.Pattern[str] | None" optional>
+  A cookie domain or regular-expression filter.
+</ParamField>
+
+<ParamField path="path" type="str | re.Pattern[str] | None" optional>
+  A cookie path or regular-expression filter.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+</Tab>
+
+<Tab title="Go">
+
+## Quick start
+
+Get the `BrowserContext` from the browser handle with `browser.Context()`. Except for the `Clipboard()` accessor, every method takes a `context.Context` as its first argument and returns an `error` as its last result.
+
+```go
+browserContext, err := browser.Context()
+if err != nil {
+    return err
+}
+page, err := browserContext.NewPage(ctx)
+if err != nil {
+    return err
+}
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+    return err
+}
+```
+
+## Pages()
+
+Return every open page in the browser context.
+
+```go
+func (c *BrowserContext) Pages(ctx context.Context) ([]*Page, error)
+```
+
+```go
+pages, err := browserContext.Pages(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(len(pages))
+```
+
+<ResponseField name="result" type="[]*Page">
+  The operation result.
+</ResponseField>
+
+## NewPage()
+
+Create a new page in the browser context.
+
+```go
+func (c *BrowserContext) NewPage(ctx context.Context, url ...string) (*Page, error)
+```
+
+```go
+if _, err := browserContext.NewPage(ctx, "https://example.com"); err != nil {
+    return err
+}
+```
+
+<ParamField path="url" type="...string" optional>
+  The initial URL for the new page. Pass at most one URL; omit it to create a blank page.
+</ParamField>
+
+<ResponseField name="result" type="*Page">
+  The operation result.
+</ResponseField>
+
+## ActivePage()
+
+Return the page that is currently active.
+
+```go
+func (c *BrowserContext) ActivePage(ctx context.Context) (*Page, error)
+```
+
+```go
+if _, err := browserContext.ActivePage(ctx); err != nil {
+    return err
+}
+```
+
+<ResponseField name="result" type="*Page">
+  The operation result. Returns `nil` when no page is active.
+</ResponseField>
+
+## SetActivePage()
+
+Make a page the active page in the browser context.
+
+```go
+func (c *BrowserContext) SetActivePage(ctx context.Context, page *Page) error
+```
+
+```go
+if err := browserContext.SetActivePage(ctx, page); err != nil {
+    return err
+}
+```
+
+<ParamField path="page" type="*Page">
+  The page to make active.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes.
+</ResponseField>
+
+## Close()
+
+Close the remote browser context.
+
+```go
+func (c *BrowserContext) Close(ctx context.Context) error
+```
+
+```go
+if err := browserContext.Close(ctx); err != nil {
+    return err
+}
+```
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes.
+</ResponseField>
+
+## AddInitScript()
+
+Run a script before scripts on every newly created page.
+
+```go
+func (c *BrowserContext) AddInitScript(ctx context.Context, source string) error
+```
+
+```go
+if err := browserContext.AddInitScript(ctx, "window.localStorage.clear()"); err != nil {
+    return err
+}
+```
+
+<ParamField path="source" type="string">
+  JavaScript source to evaluate. Go functions and file paths are not interpreted.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes.
+</ResponseField>
+
+## SetExtraHTTPHeaders()
+
+Set additional HTTP headers for every page in the context.
+
+```go
+func (c *BrowserContext) SetExtraHTTPHeaders(ctx context.Context, headers ContextSetExtraHTTPHeadersParamsHeaders) error
+```
+
+```go
+if err := browserContext.SetExtraHTTPHeaders(ctx, map[string]string{"x-test": "true"}); err != nil {
+    return err
+}
+```
+
+<ParamField path="headers" type="ContextSetExtraHTTPHeadersParamsHeaders">
+  HTTP header names and values. The type is a named `map[string]string`, so a plain map literal works.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes.
+</ResponseField>
+
+## GetDomainPolicy()
+
+Return the context's current domain policy.
+
+```go
+func (c *BrowserContext) GetDomainPolicy(ctx context.Context) (*DomainPolicy, error)
+```
+
+```go
+policy, err := browserContext.GetDomainPolicy(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(policy)
+```
+
+<ResponseField name="result" type="*DomainPolicy">
+  The operation result. Returns `nil` when no policy is set.
+
+  <ResponseField name="result.AllowedDomains" type="[]string" optional>
+    Domains that the context may access.
+  </ResponseField>
+
+  <ResponseField name="result.BlockedDomains" type="[]string" optional>
+    Domains that the context must reject.
+  </ResponseField>
+</ResponseField>
+
+## SetDomainPolicy()
+
+Set or clear the context's domain policy.
+
+```go
+func (c *BrowserContext) SetDomainPolicy(ctx context.Context, policy *DomainPolicy) error
+```
+
+```go
+if err := browserContext.SetDomainPolicy(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="policy" type="*DomainPolicy">
+  The policy to apply, or `nil` to clear it.
+
+  <ParamField path="policy.AllowedDomains" type="[]string" optional>
+    Domains that the context may access.
+  </ParamField>
+
+  <ParamField path="policy.BlockedDomains" type="[]string" optional>
+    Domains that the context must reject.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes.
+</ResponseField>
+
+## Cookies()
+
+Return cookies, optionally filtered to one or more URLs.
+
+```go
+func (c *BrowserContext) Cookies(ctx context.Context, urls *StringList) ([]Cookie, error)
+```
+
+```go
+urls := stagehand.StringList{"https://example.com"}
+cookies, err := browserContext.Cookies(ctx, &urls)
+if err != nil {
+    return err
+}
+fmt.Println(cookies)
+```
+
+<ParamField path="urls" type="*StringList" optional>
+  A collection of URLs used to filter cookies. Pass `nil` to return every cookie.
+</ParamField>
+
+<ResponseField name="result" type="[]Cookie">
+  The operation result.
+
+  <ResponseField name="result.Name" type="string">
+    The cookie name.
+  </ResponseField>
+
+  <ResponseField name="result.Value" type="string">
+    The cookie value.
+  </ResponseField>
+
+  <ResponseField name="result.Domain" type="string">
+    The cookie domain.
+  </ResponseField>
+
+  <ResponseField name="result.Path" type="string">
+    The cookie path.
+  </ResponseField>
+
+  <ResponseField name="result.Expires" type="float64">
+    The Unix expiration time in seconds, or `-1` for a session cookie.
+  </ResponseField>
+
+  <ResponseField name="result.HTTPOnly" type="bool">
+    Whether the cookie is restricted to HTTP requests.
+  </ResponseField>
+
+  <ResponseField name="result.Secure" type="bool">
+    Whether the cookie requires HTTPS.
+  </ResponseField>
+
+  <ResponseField name="result.SameSite" type="CookieSameSite">
+    The cookie SameSite policy: `CookieSameSiteStrict`, `CookieSameSiteLax`, or
+    `CookieSameSiteNone`.
+  </ResponseField>
+</ResponseField>
+
+## AddCookies()
+
+Add cookies to the browser context.
+
+```go
+func (c *BrowserContext) AddCookies(ctx context.Context, cookies []CookieParam) error
+```
+
+```go
+url := "https://example.com"
+cookie := stagehand.CookieParam{Name: "session", Value: "abc123", URL: &url}
+if err := browserContext.AddCookies(ctx, []stagehand.CookieParam{cookie}); err != nil {
+    return err
+}
+```
+
+<ParamField path="cookies" type="[]CookieParam">
+  The cookies to add. Each requires `Name`, `Value`, and either `URL` or both `Domain` and `Path`.
+  Do not combine `URL` with `Domain` or `Path`. Optional fields are pointers.
+
+  <ParamField path="cookies.Domain" type="*string" optional>
+    The cookie domain.
+  </ParamField>
+
+  <ParamField path="cookies.Expires" type="*float64" optional>
+    `-1` for a session cookie or a non-negative Unix timestamp in seconds.
+  </ParamField>
+
+  <ParamField path="cookies.HTTPOnly" type="*bool" optional>
+    Whether the cookie is restricted to HTTP requests.
+  </ParamField>
+
+  <ParamField path="cookies.Name" type="string">
+    The cookie name.
+  </ParamField>
+
+  <ParamField path="cookies.Path" type="*string" optional>
+    The cookie path.
+  </ParamField>
+
+  <ParamField path="cookies.SameSite" type="*CookieParamSameSite" optional>
+    The cookie SameSite policy: `CookieParamSameSiteStrict`, `CookieParamSameSiteLax`, or
+    `CookieParamSameSiteNone`. `CookieParamSameSiteNone` requires a secure cookie.
+  </ParamField>
+
+  <ParamField path="cookies.Secure" type="*bool" optional>
+    Whether the cookie requires HTTPS.
+  </ParamField>
+
+  <ParamField path="cookies.URL" type="*string" optional>
+    The URL scope. Cannot be `about:blank` or a `data:` URL.
+  </ParamField>
+
+  <ParamField path="cookies.Value" type="string">
+    The cookie value.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes.
+</ResponseField>
+
+## ClearCookies()
+
+Clear cookies that match optional name, domain, and path filters.
+
+```go
+func (c *BrowserContext) ClearCookies(ctx context.Context, options *ClearCookieOptions) error
+```
+
+```go
+domain := stagehand.ExactCookie("example.com")
+if err := browserContext.ClearCookies(ctx, &stagehand.ClearCookieOptions{Domain: &domain}); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*ClearCookieOptions" optional>
+  Options that configure this operation. Pass `nil` to clear every cookie. Build each filter with `ExactCookie()` for an exact string or `RegexCookie()` for a regular expression.
+
+  <ParamField path="options.Name" type="*CookieFilter" optional>
+    A cookie name filter.
+  </ParamField>
+
+  <ParamField path="options.Domain" type="*CookieFilter" optional>
+    A cookie domain filter.
+  </ParamField>
+
+  <ParamField path="options.Path" type="*CookieFilter" optional>
+    A cookie path filter.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes.
+</ResponseField>
+
+</Tab>
+</Tabs>

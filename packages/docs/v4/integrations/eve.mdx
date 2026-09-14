@@ -1,0 +1,91 @@
+---
+title: "Eve"
+description: "Give Eve, Vercel's framework for building agents, native Stagehand browser tools backed by one durable browser session."
+---
+
+The Stagehand integration binds `run`, `snapshot`, and `screenshot` as native in-process [Eve](https://vercel.com/eve) tools backed by one durable browser session, without starting an MCP server or bridge process. Eve is Vercel's framework for building agents with Markdown instructions and skills, TypeScript tools, and durable execution.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- A model-provider credential for Eve
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Configure the Eve model">
+The example uses an OpenAI model by default:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+Set `EVE_STAGEHAND_MODEL` to select another Eve model.
+  </Step>
+  <Step title="Choose the browser">
+The example uses local Chrome by default. To use Browserbase instead:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Start Eve">
+```bash
+pnpm --dir packages/integrations/eve dev
+```
+  </Step>
+  <Step title="Run a browser task">
+At Eve's `>` terminal prompt, enter:
+
+```text
+Open https://example.com and report the page title.
+```
+
+Eve uses the `run` tool and should report `Example Domain` before returning to the prompt.
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `EVE_STAGEHAND_MODEL` | Eve agent model. |
+| `OPENAI_API_KEY` | Credential for the example's default Eve model. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional. The facade tools are deterministic and do not call a Stagehand model today. |
+| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`; Eve can infer a supported provider key. |
+| `STAGEHAND_EVE_SESSION_FILE` | Optional file where Eve persists a Browserbase session ID. Defaults to the system temporary directory. |
+
+## Session lifecycle
+
+One Eve world process owns one shared browser. Use this example for a single Eve session because concurrent sessions in the process share pages, authentication, and other browser state.
+
+On Browserbase, the example creates a `keepAlive` session and writes its ID to a temporary file. A process restart reattaches to the stored session instead of silently creating another one. Tool errors do not reset a healthy browser.
+
+<Warning>
+A Browserbase keep-alive session continues running and can continue billing until Eve reattaches it, you release it through Browserbase, or the project timeout ends it.
+</Warning>
+
+`run` executes model-authored JavaScript in the browser. For untrusted tasks, review the [integration security boundary](/v4/integrations/overview#security-boundary).
+
+<Card title="Eve integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/eve">
+  Read the native tool bindings and durable-session implementation.
+</Card>

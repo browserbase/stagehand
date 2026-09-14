@@ -2,22 +2,17 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "next_chunk" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://www.apartments.com/san-francisco-ca/", {
         waitUntil: "domcontentloaded",
       });
-      await v3.act("click on the all filters button");
+      await stagehand.act("click on the all filters button");
 
       const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
-        const container = document.querySelector(
-          "#advancedFilters > div",
-        ) as HTMLElement;
+        const container = document.querySelector("#advancedFilters > div") as HTMLElement;
         if (!container) {
-          console.warn(
-            "Could not find #advancedFilters > div. Returning 0 for measurements.",
-          );
+          console.warn("Could not find #advancedFilters > div. Returning 0 for measurements.");
           return { initialScrollTop: 0, chunkHeight: 0 };
         }
         return {
@@ -26,14 +21,12 @@ export default defineBenchTask(
         };
       });
 
-      await v3.act("scroll down one chunk on the filters modal");
+      await stagehand.act("scroll down one chunk on the filters modal");
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const newScrollTop = await page.evaluate(() => {
-        const container = document.querySelector(
-          "#advancedFilters > div",
-        ) as HTMLElement;
+        const container = document.querySelector("#advancedFilters > div") as HTMLElement;
         return container?.scrollTop ?? 0;
       });
 
@@ -61,13 +54,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

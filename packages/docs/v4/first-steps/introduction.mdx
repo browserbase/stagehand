@@ -1,0 +1,211 @@
+---
+title: "Introducing Stagehand"
+sidebarTitle: "Introduction"
+description: "Developers use Stagehand to reliably automate the web."
+---
+
+Stagehand is the SDK for browser agents. Playwright was built for testing, Stagehand is built for agents. Use familiar APIs, self-healing actions, and network-level security across TypeScript, Python, and Go.
+
+## The problem with browser automation
+
+Traditional frameworks like Playwright and Puppeteer force you to write brittle scripts that break with every UI change. Web agents promise to solve this with AI, but leave you at the mercy of unpredictable behavior.
+
+**You're stuck between two bad options:**
+- **Too brittle:** Traditional selectors break when websites change
+- **Too agentic:** AI agents are unpredictable and impossible to debug
+
+## Enter Stagehand
+
+Stagehand gives you two layers of control:
+
+- **AI primitives** (`act`, `extract`, `observe`) for self-healing natural-language steps
+- **Playwright-style APIs** on [`page`](/v4/reference/page) (`goto`, `click`, `type`, `locator`, `screenshot`) for deterministic browser control
+
+You can mix both in the same script and decide how much AI each step uses.
+
+### AI primitives
+
+<CardGroup cols={3}>
+  <Card title="Act" icon="play" href="/v4/basics/act">
+    Execute actions using natural language
+  </Card>
+  <Card title="Extract" icon="database" href="/v4/basics/extract">
+    Pull structured data with schemas
+  </Card>
+  <Card title="Observe" icon="eye" href="/v4/basics/observe">
+    Discover available actions on any page
+  </Card>
+</CardGroup>
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+// Act: execute natural language actions
+await stagehand.act("click the login button");
+
+// Extract: pull structured data
+const { data } = await stagehand.extract(
+  "extract the price",
+  z.object({ price: z.number() }),
+);
+
+// Observe: discover available actions
+const { data: actions } = await stagehand.observe("find submit buttons");
+```
+</Tab>
+
+<Tab title="Python">
+```python
+# Act: execute natural language actions
+await stagehand.act("click the login button")
+
+# Extract: pull structured data
+class Price(BaseModel):
+    price: float
+
+result = await stagehand.extract(
+    "extract the price",
+    Price,
+)
+price = result.data.price
+
+# Observe: discover available actions
+actions = (await stagehand.observe("find submit buttons")).data
+```
+</Tab>
+
+<Tab title="Go">
+```go
+// ctx and client come from the quickstart
+
+// Act: execute natural language actions
+actResult, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil)
+if err != nil {
+	return err
+}
+fmt.Println(actResult.Data.Success)
+
+// Extract: pull structured data
+type price struct {
+	Price float64 `json:"price"`
+}
+extracted, err := stagehand.Extract[price](ctx, client, "extract the price", nil)
+if err != nil {
+	return err
+}
+fmt.Println(extracted.Data.Price)
+
+// Observe: discover available actions
+instruction := "find submit buttons"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+fmt.Println(len(observed.Data), "candidate actions")
+```
+</Tab>
+</Tabs>
+
+### Playwright-style APIs
+
+When you know the selector or want zero inference, use [`page`](/v4/reference/page) methods you already know.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const page = await stagehand.browser.context.activePage();
+
+await page.goto("https://example.com");
+await page.locator('textarea[name="q"]').fill("Browserbase");
+await page.keyPress("Enter");
+await page.screenshot();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+page = await stagehand.browser.context.active_page()
+
+await page.goto("https://example.com")
+await page.locator('textarea[name="q"]').fill("Browserbase")
+await page.key_press("Enter")
+await page.screenshot()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+// page comes from the quickstart (pages[0])
+
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+if err := page.Locator(`textarea[name="q"]`).Fill(ctx, "Browserbase"); err != nil {
+	return err
+}
+if err := page.KeyPress(ctx, "Enter", nil); err != nil {
+	return err
+}
+if _, err := page.Screenshot(ctx, nil); err != nil {
+	return err
+}
+```
+</Tab>
+</Tabs>
+
+## Why developers choose Stagehand
+
+- **Precise control:** Mix AI-powered actions with deterministic `page` APIs. You decide exactly how much AI to use.
+- **Runtime lives in the browser:** Stagehand runs next to the page, so remote browsers feel as fast as local ones.
+- **First-class TypeScript, Python, and Go SDKs:** Every method and option matches across supported languages.
+- **Extraction is typed:** [`extract`](/v4/basics/extract) validates results against a schema you define and hands back fully typed data.
+- **Models are flexible:** Use a supported provider by name or supply your own client-side LLM callback.
+- **Metrics are built in:** Read per-method token usage and inference timing with [`metrics()`](/v4/reference/stagehand).
+- **Built for agent harnesses:** Stagehand is the hands. Bring your own agent as the brain (LangChain, CrewAI, Mastra, or a custom loop).
+
+## Built for modern development
+Stagehand is designed for developers building production browser automations and AI agents that need reliable web access.
+
+<AccordionGroup>
+  <Accordion title="Works everywhere">
+    Compatible with all Chromium-based browsers: Chrome, Edge, Arc, Brave, and more. Stagehand drives the browser over the Chrome DevTools Protocol, so there is no Playwright or Puppeteer dependency.
+  </Accordion>
+  <Accordion title="Built by Browserbase">
+    Created and maintained by the team behind enterprise browser infrastructure.
+  </Accordion>
+</AccordionGroup>
+
+## Get started in 60 seconds
+<Info>
+  Browserbase recommends running Stagehand on [Browserbase](https://www.browserbase.com). A hosted browser is what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
+</Info>
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/v4/first-steps/quickstart"
+  >
+    Build your first automation in under a minute
+  </Card>
+  <Card
+    title="View templates"
+    icon="code"
+    href="https://www.browserbase.com/templates"
+  >
+    See real-world automation examples
+  </Card>
+  <Card
+    title="Join Discord"
+    icon="discord"
+    href="https://discord.gg/stagehand"
+  >
+    Get help from the community
+  </Card>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/v4/first-steps/installation"
+  >
+    Add Stagehand to your project
+  </Card>
+</CardGroup>

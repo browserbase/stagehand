@@ -1,0 +1,113 @@
+---
+title: "Deep Agents"
+description: "Give LangChain Deep Agents persistent Stagehand tools locally or in a managed deployment."
+---
+
+The Deep Agents integration provides two deployment patterns with the same `run`, `snapshot`, and `screenshot` tools.
+
+| Example | Tool connection | Browser lifecycle |
+| --- | --- | --- |
+| Local | MCP over stdio | One browser per MCP client session |
+| Managed | Native Python tools | One Browserbase runtime per managed thread |
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Run locally
+
+The local example requires Python 3.11–3.13, [uv](https://docs.astral.sh/uv/), a provider credential for the Deep Agent, and a current Google Chrome installation for local browser mode.
+
+<Steps>
+  <Step title="Clone Stagehand and install the Python projects">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand/packages/integrations/deepagents
+uv sync --locked
+uv sync --project examples/local --locked
+```
+  </Step>
+  <Step title="Configure the agent">
+Open `examples/local/agent.py` and edit its `model`, `instruction`, and optional Pydantic `response_format`. Then export the matching model-provider credential:
+
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+  </Step>
+  <Step title="Choose the browser">
+The MCP server launches visible local Chrome by default. To use Browserbase instead:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+
+Set `STAGEHAND_HEADLESS=true` to run local Chrome without a visible window.
+  </Step>
+  <Step title="Run the agent">
+```bash
+uv run --project examples/local --locked \
+  python examples/local/agent.py
+```
+
+Run `agents2.py` for a structured-output form-filling example that uses mock data and does not submit the form.
+
+```bash
+uv run --project examples/local --locked \
+  python examples/local/agents2.py
+```
+  </Step>
+</Steps>
+
+## Local server configuration
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `STAGEHAND_BROWSER` | `local` | Select `local` or `browserbase`. |
+| `STAGEHAND_HEADLESS` | `false` | Run local Chrome headlessly. |
+| `STAGEHAND_START_URL` | Unset | Open a URL when the MCP server starts. |
+| `STAGEHAND_MODEL` | Unset | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Unset | Required with `STAGEHAND_MODEL`; the MCP child does not receive agent-provider credentials. |
+| `STAGEHAND_API_URL` | Unset | Optional Stagehand Model Gateway URL. |
+| `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Timeout for JavaScript and snapshot-action batches. |
+| `BROWSERBASE_API_KEY` | Unset | Required for Browserbase. |
+
+The server and client use separate Python environments. Stagehand and the current LangGraph SDK require incompatible `websockets` versions, so stdio keeps their dependency sets isolated.
+
+<Warning>
+Keep one persistent MCP `ClientSession`. Stateless tool loading starts a new stdio process for each call, which loses the browser and snapshot IDs.
+</Warning>
+
+## Deploy with Managed Deep Agents
+
+The managed example uses native Python tools and Browserbase. It requires a Deep Agents model credential and a Browserbase API key.
+
+<Steps>
+  <Step title="Install the managed project">
+```bash
+cd packages/integrations/deepagents/examples/managed
+uv sync --locked
+```
+  </Step>
+  <Step title="Configure deployment secrets">
+Use `examples/managed/.env.example` as the list of required names and set them through your shell or deployment secret manager. At minimum, configure:
+
+Configure `DEEPAGENTS_MODEL` and its matching provider credential, `BROWSERBASE_API_KEY`, and either `STAGEHAND_API_URL` for Model Gateway or `STAGEHAND_MODEL` with `STAGEHAND_MODEL_API_KEY` for direct-provider BYOK.
+  </Step>
+  <Step title="Develop and deploy">
+```bash
+uv run mda dev .
+uv run mda deploy .
+```
+  </Step>
+</Steps>
+
+Browser state remains available while the managed worker is warm. Stagehand does not yet support durable reconnection after a worker replacement.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="Deep Agents integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/deepagents">
+  Browse the local MCP server, managed tools, and example agents.
+</Card>

@@ -4,18 +4,10 @@
 
 import { EvalArgs, EvalInput, EvalResult } from "./types/evals.js";
 
-function scorePass(
-  args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>,
-): number {
+function scorePass(args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>): number {
   const expected = args.expected ?? true;
   if (expected === true) {
-    return typeof args.output === "boolean"
-      ? args.output
-        ? 1
-        : 0
-      : args.output._success
-        ? 1
-        : 0;
+    return typeof args.output === "boolean" ? (args.output ? 1 : 0) : args.output._success ? 1 : 0;
   }
 
   return args.output === expected ? 1 : 0;
@@ -58,17 +50,10 @@ export function passRate(
  * Scores 1 if an error is found, otherwise 0.
  */
 export function errorMatch(
-  args: EvalArgs<
-    EvalInput,
-    boolean | { _success: boolean; error?: unknown },
-    unknown
-  >,
+  args: EvalArgs<EvalInput, boolean | { _success: boolean; error?: unknown }, unknown>,
 ): EvalResult {
   return {
     name: "Error rate",
-    score:
-      typeof args.output === "object" && args.output.error !== undefined
-        ? 1
-        : 0,
+    score: typeof args.output === "object" && args.output.error !== undefined ? 1 : 0,
   };
 }

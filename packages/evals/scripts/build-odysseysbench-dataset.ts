@@ -24,11 +24,7 @@ import path from "node:path";
 
 const SOURCE_URL = "https://odysseysbench.com/assets/data/tasks.json";
 
-const DATASET_DIR = path.join(
-  path.resolve(import.meta.dirname, ".."),
-  "datasets",
-  "odysseysbench",
-);
+const DATASET_DIR = path.join(path.resolve(import.meta.dirname, ".."), "datasets", "odysseysbench");
 const SOURCE_PATH = path.join(DATASET_DIR, "source", "tasks.json");
 const JSONL_PATH = path.join(DATASET_DIR, "OdysseysBench_data.jsonl");
 
@@ -122,9 +118,7 @@ async function main(): Promise<void> {
     // Fail loud on an upstream schema change rather than silently emitting a
     // row the suite validator would later drop (shrinking the benchmark).
     if (typeof task.task_id !== "string" || !task.task_id) {
-      throw new Error(
-        `Task is missing a string task_id: ${JSON.stringify(task).slice(0, 200)}`,
-      );
+      throw new Error(`Task is missing a string task_id: ${JSON.stringify(task).slice(0, 200)}`);
     }
     if (typeof task.confirmed_task !== "string" || !task.confirmed_task) {
       throw new Error(`Task ${task.task_id} is missing confirmed_task`);
@@ -140,14 +134,10 @@ async function main(): Promise<void> {
     for (const k of rubricKeys) {
       const r = task.rubrics[k];
       if (typeof r?.requirement !== "string" || !r.requirement.trim()) {
-        throw new Error(
-          `Task ${task.task_id} rubric ${k} has an empty requirement`,
-        );
+        throw new Error(`Task ${task.task_id} rubric ${k} has an empty requirement`);
       }
       if (typeof r.verification !== "string" || !r.verification.trim()) {
-        throw new Error(
-          `Task ${task.task_id} rubric ${k} has an empty verification`,
-        );
+        throw new Error(`Task ${task.task_id} rubric ${k} has an empty verification`);
       }
       if (
         typeof r.weight !== "number" ||
@@ -162,14 +152,9 @@ async function main(): Promise<void> {
     }
     // The published weights are a normalized distribution; a re-fetched snapshot
     // that breaks that convention would silently mis-weight the rubric.
-    const weightSum = rubricKeys.reduce(
-      (acc, k) => acc + task.rubrics[k].weight,
-      0,
-    );
+    const weightSum = rubricKeys.reduce((acc, k) => acc + task.rubrics[k].weight, 0);
     if (Math.abs(weightSum - 1) > 0.02) {
-      throw new Error(
-        `Task ${task.task_id} rubric weights sum to ${weightSum}, expected ~1.0`,
-      );
+      throw new Error(`Task ${task.task_id} rubric weights sum to ${weightSum}, expected ~1.0`);
     }
     const items = rubricKeys.map((k) => toRubricItem(task.rubrics[k]));
 
@@ -188,9 +173,7 @@ async function main(): Promise<void> {
   }
 
   if (lines.length !== tasks.length) {
-    throw new Error(
-      `Expected ${tasks.length} rows, produced ${lines.length} — a task was dropped`,
-    );
+    throw new Error(`Expected ${tasks.length} rows, produced ${lines.length} — a task was dropped`);
   }
 
   await fs.writeFile(JSONL_PATH, lines.join("\n") + "\n");
@@ -198,9 +181,7 @@ async function main(): Promise<void> {
     acc[t.level] = (acc[t.level] ?? 0) + 1;
     return acc;
   }, {});
-  console.log(
-    `Wrote ${lines.length} rows to ${JSONL_PATH} (${JSON.stringify(byLevel)})`,
-  );
+  console.log(`Wrote ${lines.length} rows to ${JSONL_PATH} (${JSON.stringify(byLevel)})`);
 }
 
 main().catch((err) => {
