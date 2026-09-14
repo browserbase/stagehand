@@ -255,6 +255,8 @@ export class Frame implements FrameManager {
       params.quality = Math.min(100, Math.max(0, q));
     }
 
+    // Headless Chrome can wait indefinitely for a background tab to produce a frame.
+    await this.session.send("Page.bringToFront");
     const { data } = await this.session.send<Protocol.Page.CaptureScreenshotResponse>(
       "Page.captureScreenshot",
       params,
