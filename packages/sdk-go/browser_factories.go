@@ -44,6 +44,7 @@ type LocalBrowserConnectOptions struct {
 type BrowserbaseLaunchOptions struct {
 	APIKey          string
 	BaseURL         string
+	Client          *BrowserbaseClient
 	BrowserSettings *BrowserbaseBrowserSettings
 	ExtensionID     *string
 	KeepAlive       *bool
@@ -57,6 +58,7 @@ type BrowserbaseLaunchOptions struct {
 type BrowserbaseConnectOptions struct {
 	APIKey      string
 	BaseURL     string
+	Client      *BrowserbaseClient
 	SessionID   string
 	ExtensionID string
 }
@@ -198,7 +200,7 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 	}
 	defer cancelLifecycle()
 
-	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, dependencies)
+	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, options.Client, dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +234,7 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 	}
 	defer cancelLifecycle()
 
-	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, dependencies)
+	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, options.Client, dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -249,9 +251,15 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 	}, dependencies)
 }
 
-func browserbaseClientForFactory(apiKey string, baseURL string, dependencies browserFactoryDependencies) (browserbaseFactoryClient, error) {
+func browserbaseClientForFactory(apiKey string, baseURL string, suppliedClient *BrowserbaseClient, dependencies browserFactoryDependencies) (browserbaseFactoryClient, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, errors.New("stagehand Browserbase API key is required")
+	}
+	if suppliedClient != nil {
+		if suppliedClient.api == nil {
+			return nil, errors.New("stagehand Browserbase client must be created with NewBrowserbaseClient")
+		}
+		return newBrowserbaseSessionClient(apiKey, browserbaseSessionClientOptions{api: suppliedClient.api})
 	}
 	factory := dependencies.createBrowserbaseClient
 	if factory == nil {
