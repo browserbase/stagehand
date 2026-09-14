@@ -146,7 +146,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         },
       },
       logging: {
-        level: process.env.CI ? "debug" : "off",
+        level: "off",
       },
     });
     const rpcClient = stagehand.rpcClient;
@@ -326,6 +326,27 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     expect(snapshot.formattedTree.length).toBeGreaterThan(0);
     expect(snapshot.xpathMap).toBeTypeOf("object");
     expect(snapshot.urlMap).toBeTypeOf("object");
+  });
+
+  it("captures a viewport screenshot from a background tab", async () => {
+    const context = requireStagehand(stagehand).browser.context;
+    const url = requireFixtureServer(fixtureServer).url;
+    const pages: Page[] = [];
+    try {
+      const target = await context.newPage(url);
+      pages.push(target);
+      const foreground = await context.newPage(url);
+      pages.push(foreground);
+      await context.setActivePage(foreground);
+      await waitForActivePageId(context, foreground.pageId);
+
+      const screenshot = await target.screenshot({ fullPage: false, timeout: 5_000 });
+      expect([...screenshot.subarray(0, 8)]).toStrictEqual([
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+      ]);
+    } finally {
+      await closePages(pages);
+    }
   });
 
   it("extracts structured data from a real page through the connected SDK", async () => {
