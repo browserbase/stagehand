@@ -1,0 +1,36 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-opencode-sdk",
+  "version": "4.0.1",
+  "private": true,
+  "description": "OpenCode SDK harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/opencode-sdk/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/opencode-sdk/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@opencode-ai/sdk": "catalog:",
+    "opencode-ai": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
