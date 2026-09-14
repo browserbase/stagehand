@@ -3,10 +3,14 @@ import { StackContextManager } from "@opentelemetry/sdk-trace-web";
 import { describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import { ChromeRuntimeClient } from "../clients/chromeRuntimeClient.ts";
 import { RPCClient } from "../clients/rpcClient.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
+
+const [protocolMajor, protocolMinor, protocolPatch] =
+  STAGEHAND_PROTOCOL_VERSION.split(".").map(Number);
 
 describe("worker RPCClient", () => {
   function createRuntime() {
@@ -315,10 +319,10 @@ describe("worker RPCClient", () => {
   });
 
   it.each([
-    ["1.0.9", true, undefined],
-    ["1.1.0", false, "protocol-server-too-old"],
-    ["2.0.0", false, "protocol-major-mismatch"],
-    ["1.0.0-beta.1", false, "protocol-prerelease-mismatch"],
+    [`${protocolMajor}.${protocolMinor}.${protocolPatch + 1}`, true, undefined],
+    [`${protocolMajor}.${protocolMinor + 1}.0`, false, "protocol-server-too-old"],
+    [`${protocolMajor + 1}.0.0`, false, "protocol-major-mismatch"],
+    [`${STAGEHAND_PROTOCOL_VERSION}-beta.1`, false, "protocol-prerelease-mismatch"],
   ] as const)(
     "negotiates client protocol %s through the stagehand.init wire handshake",
     async (protocolVersion, compatible, reason) => {
