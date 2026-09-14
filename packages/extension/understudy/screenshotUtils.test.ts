@@ -1,3 +1,6 @@
+import { trace } from "@opentelemetry/api";
+import { Frame } from "./frame.js";
+import { StagehandLogger } from "../logger.js";
 import { describe, expect, it, vi } from "vitest";
 import { withScreenshotLock } from "./screenshotUtils.js";
 
@@ -52,6 +55,59 @@ describe("screenshot serialization", () => {
     const b = withScreenshotLock(browser, async () => new Uint8Array([2]), undefined);
     await expect(a).rejects.toThrow("capture failed");
     await expect(b).resolves.toEqual(new Uint8Array([2]));
+  });
+
+  it("releases a stalled capture only after cleanup, ignoring its late response", async () => {
+    vi.useFakeTimers();
+    const browser = connection();
+    let respond!: (value: { data: string }) => void;
+    const response = new Promise<{ data: string }>((resolve) => {
+      respond = resolve;
+    });
+    browser.send.mockImplementation(async (method: string) =>
+      method === "Page.captureScreenshot" ? response : {},
+    );
+    const frame = new Frame(
+      browser,
+      "frame",
+      "page",
+      false,
+      new StagehandLogger({ tracer: trace.getTracer("screenshot-test") }, () => {}),
+    );
+    const cleanup = captureGate();
+    const cleanupStarted = vi.fn();
+    const first = withScreenshotLock(
+      browser,
+      async (signal) => {
+        try {
+          return await frame.screenshot({ signal });
+        } finally {
+          cleanupStarted();
+          await cleanup.pending;
+        }
+      },
+      10,
+    );
+    const nextCapture = vi.fn(async () => new Uint8Array([2]));
+    const second = withScreenshotLock(browser, nextCapture, undefined);
+    const timedOut = expect(first).rejects.toThrow(/screenshot.*timed out/i);
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      await timedOut;
+      expect(browser.send).toHaveBeenCalledWith("Page.captureScreenshot", expect.any(Object));
+      expect(cleanupStarted).toHaveBeenCalledOnce();
+      expect(nextCapture).not.toHaveBeenCalled();
+      cleanup.release();
+      await expect(second).resolves.toEqual(new Uint8Array([2]));
+      respond({ data: "AQ==" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(cleanupStarted).toHaveBeenCalledOnce();
+      expect(nextCapture).toHaveBeenCalledOnce();
+    } finally {
+      cleanup.release();
+      respond({ data: "AQ==" });
+      vi.useRealTimers();
+    }
   });
 
   it("does not activate a queued page after its timeout", async () => {
