@@ -21,7 +21,10 @@ export async function withScreenshotLock(
   const controller = new AbortController();
   const timer =
     typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
-      ? setTimeout(() => controller.abort(new TimeoutError("screenshot", timeout)), timeout)
+      ? setTimeout(
+          () => controller.abort(new TimeoutError("screenshot", timeout)),
+          Math.min(timeout, 2_147_483_647),
+        )
       : undefined;
   const pending = (screenshotQueues.get(connection) ?? Promise.resolve()).then(() => {
     controller.signal.throwIfAborted();
