@@ -181,16 +181,6 @@ export class AISdkClient extends LLMClient {
           structuredOutputs: true,
         };
         break;
-      case "groq":
-        providerOptions.groq = {
-          structuredOutputs: true,
-        };
-        break;
-      case "cerebras":
-        providerOptions.cerebras = {
-          strictJsonSchema: true,
-        };
-        break;
       case "mistral":
         providerOptions.mistral = {
           structuredOutputs: true,

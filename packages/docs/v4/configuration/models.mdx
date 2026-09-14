@@ -538,136 +538,6 @@ OpenAI models are called through the Responses API.
 [View all supported OpenAI models →](https://platform.openai.com/docs/models)
 </Tab>
 
-<Tab title="Groq">
-
-<Tabs>
-<Tab title="TypeScript">
-```typescript
-import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
-  model: {
-    modelName: "groq/llama-3.3-70b-versatile",
-  },
-});
-```
-</Tab>
-
-<Tab title="Python">
-```python
-import os
-
-from stagehand import Stagehand, browserbase
-
-browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
-
-stagehand = await Stagehand.create(
-    browser=browser,
-    model="groq/llama-3.3-70b-versatile",
-    model_api_key=os.environ["GROQ_API_KEY"],
-)
-```
-</Tab>
-
-<Tab title="Go">
-```go
-apiKey := os.Getenv("BROWSERBASE_API_KEY")
-modelAPIKey := os.Getenv("GROQ_API_KEY")
-model := stagehand.ModelConfig{
-	ModelName: "groq/llama-3.3-70b-versatile",
-	APIKey:    &modelAPIKey,
-}
-
-browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
-	APIKey: apiKey,
-})
-if err != nil {
-	return err
-}
-
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{
-	Browser: browser,
-	Model:   &model,
-})
-if err != nil {
-	return err
-}
-defer func() { err = errors.Join(err, client.Close(ctx)) }()
-```
-</Tab>
-</Tabs>
-
-Commonly used: `groq/llama-3.3-70b-versatile`, `groq/openai/gpt-oss-120b`, `groq/moonshotai/kimi-k2-instruct-0905`, `groq/qwen/qwen3-32b`.
-
-[View all supported Groq models →](https://console.groq.com/docs/models)
-</Tab>
-
-<Tab title="Cerebras">
-
-<Tabs>
-<Tab title="TypeScript">
-```typescript
-import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
-  model: {
-    modelName: "cerebras/gpt-oss-120b",
-  },
-});
-```
-</Tab>
-
-<Tab title="Python">
-```python
-import os
-
-from stagehand import Stagehand, browserbase
-
-browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
-
-stagehand = await Stagehand.create(
-    browser=browser,
-    model="cerebras/gpt-oss-120b",
-    model_api_key=os.environ["CEREBRAS_API_KEY"],
-)
-```
-</Tab>
-
-<Tab title="Go">
-```go
-apiKey := os.Getenv("BROWSERBASE_API_KEY")
-modelAPIKey := os.Getenv("CEREBRAS_API_KEY")
-model := stagehand.ModelConfig{
-	ModelName: "cerebras/gpt-oss-120b",
-	APIKey:    &modelAPIKey,
-}
-
-browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
-	APIKey: apiKey,
-})
-if err != nil {
-	return err
-}
-
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{
-	Browser: browser,
-	Model:   &model,
-})
-if err != nil {
-	return err
-}
-defer func() { err = errors.Join(err, client.Close(ctx)) }()
-```
-</Tab>
-</Tabs>
-
-Commonly used: `cerebras/gpt-oss-120b`, `cerebras/qwen-3-235b-a22b-instruct-2507`, `cerebras/zai-glm-4.7`, `cerebras/llama3.1-8b`.
-
-[View all supported Cerebras models →](https://inference-docs.cerebras.ai/models/overview)
-</Tab>
-
 </Tabs>
 
 ---
@@ -1744,8 +1614,6 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 | Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
 | Anthropic  | `ANTHROPIC_API_KEY`            |
 | OpenAI     | `OPENAI_API_KEY`               |
-| Groq       | `GROQ_API_KEY`                 |
-| Cerebras   | `CEREBRAS_API_KEY`             |
 | Bring your own LLM | None; your callback owns its credentials |
 
 </Accordion>
@@ -1756,7 +1624,7 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 **Solutions:**
 
 - Use the `provider/model` format: `openai/gpt-5`. The prefix is required; bare model names are rejected
-- Use one of the five supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`
+- Use one of the three supported providers: `openai`, `anthropic`, `google`
 - Check the model ID against the lists on this page. Stagehand validates the whole name, so a typo fails at `Stagehand.create()` rather than on the first inference
 - Upgrade the SDK if the model shipped after your installed version
 - For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)

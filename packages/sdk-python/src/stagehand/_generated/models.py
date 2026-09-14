@@ -349,15 +349,6 @@ class Caret(StrEnum):
     initial = "initial"
 
 
-class CerebrasModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^cerebras\\/(llama3\\.1-8b|gpt-oss-120b|qwen-3-235b-a22b-instruct-2507|qwen-3-235b-a22b-thinking-2507|zai-glm-4\\.6|zai-glm-4\\.7)$"
-        ),
-    ]
-
-
 class ClearCookieOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -713,15 +704,6 @@ class GoogleModelName(RootModel[StrictStr]):
         StrictStr,
         Field(
             pattern="^google\\/(gemini-2\\.0-flash|gemini-2\\.0-flash-001|gemini-2\\.0-flash-lite|gemini-2\\.0-flash-lite-001|gemini-2\\.5-pro|gemini-2\\.5-flash|gemini-2\\.5-flash-image|gemini-2\\.5-flash-lite|gemini-2\\.5-flash-preview-tts|gemini-2\\.5-pro-preview-tts|gemini-2\\.5-flash-native-audio-latest|gemini-2\\.5-flash-native-audio-preview-09-2025|gemini-2\\.5-flash-native-audio-preview-12-2025|gemini-2\\.5-computer-use-preview-10-2025|gemini-3-pro-preview|gemini-3-pro-image-preview|gemini-3-flash-preview|gemini-3\\.1-pro-preview|gemini-3\\.1-pro-preview-customtools|gemini-3\\.1-flash-image-preview|gemini-3\\.1-flash-lite-preview|gemini-3\\.1-flash-tts-preview|gemini-3\\.5-flash|gemini-3\\.6-flash|gemini-pro-latest|gemini-flash-latest|gemini-flash-lite-latest|deep-research-pro-preview-12-2025|deep-research-max-preview-04-2026|deep-research-preview-04-2026|nano-banana-pro-preview|aqa|gemini-robotics-er-1\\.5-preview|gemma-3-1b-it|gemma-3-4b-it|gemma-3n-e4b-it|gemma-3n-e2b-it|gemma-3-12b-it|gemma-3-27b-it)$"
-        ),
-    ]
-
-
-class GroqModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^groq\\/(gemma2-9b-it|llama-3\\.1-8b-instant|llama-3\\.3-70b-versatile|meta-llama\\/llama-guard-4-12b|openai\\/gpt-oss-120b|openai\\/gpt-oss-20b|deepseek-r1-distill-llama-70b|meta-llama\\/llama-4-maverick-17b-128e-instruct|meta-llama\\/llama-4-scout-17b-16e-instruct|meta-llama\\/llama-prompt-guard-2-22m|meta-llama\\/llama-prompt-guard-2-86m|moonshotai\\/kimi-k2-instruct-0905|qwen\\/qwen3-32b|llama-guard-3-8b|llama3-70b-8192|llama3-8b-8192|mixtral-8x7b-32768|qwen-qwq-32b|qwen-2\\.5-32b|deepseek-r1-distill-qwen-32b)$"
         ),
     ]
 
@@ -1438,10 +1420,8 @@ class OpenAIModelName(RootModel[StrictStr]):
     ]
 
 
-class ModelName(
-    RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]]
-):
-    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]
+class ModelName(RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName]]):
+    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName]
     """An explicitly supported model name with its provider prefix"""
 
 

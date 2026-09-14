@@ -41,8 +41,6 @@ catalog:
   "@ai-sdk/openai": ^4.0.8
   "@ai-sdk/anthropic": ^4.0.8
   "@ai-sdk/google": ^4.0.8
-  "@ai-sdk/groq": ^4.0.5
-  "@ai-sdk/cerebras": ^3.0.5
   camelcase-keys: ^10.0.2
   snakecase-keys: ^9.0.2
   zustand: ^5.0.14
