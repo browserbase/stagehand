@@ -1,4 +1,5 @@
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
+import type Browserbase from "@browserbasehq/sdk";
 import {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseFetchOptionsSchema,
@@ -45,7 +46,11 @@ export type ClaimedStagehandBrowser = {
 
 type BrowserFactoryDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
-  createBrowserbaseSessionClient?: (apiKey: string, baseUrl: string) => BrowserbaseSessionClient;
+  createBrowserbaseSessionClient?: (
+    apiKey: string,
+    baseUrl: string,
+    options?: { client?: Browserbase },
+  ) => BrowserbaseSessionClient;
   createBrowserbaseServicesClient?: (apiKey: string, baseUrl: string) => BrowserbaseServicesClient;
   connectCdp?: (options: CDPClientOptions) => Promise<CDPClient>;
 };
@@ -144,9 +149,14 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
     browserbase: {
       async launch(input) {
-        const { apiKey, baseUrl, ...sessionOptions } = BrowserbaseLaunchOptionsSchema.parse(input);
+        const { apiKey, baseUrl, client, ...sessionOptions } =
+          BrowserbaseLaunchOptionsSchema.parse(input);
         return await withStagehandInitDeadline(async (signal) => {
-          const sessionPromise = createBrowserbase(apiKey, baseUrl).createSession(sessionOptions);
+          const sessionClient =
+            client === undefined
+              ? createBrowserbase(apiKey, baseUrl)
+              : createBrowserbase(apiKey, baseUrl, { client });
+          const sessionPromise = sessionClient.createSession(sessionOptions);
           let session: Awaited<typeof sessionPromise>;
           try {
             session = await abortable(sessionPromise, signal);
@@ -184,12 +194,15 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
       async connect(input) {
         const options = BrowserbaseConnectOptionsSchema.parse(input);
-        const client = createBrowserbase(options.apiKey, options.baseUrl);
-        if (!client.connectSession) {
+        const sessionClient =
+          options.client === undefined
+            ? createBrowserbase(options.apiKey, options.baseUrl)
+            : createBrowserbase(options.apiKey, options.baseUrl, { client: options.client });
+        if (!sessionClient.connectSession) {
           throw new Error("Browserbase session connection is not supported by this client");
         }
         return await withStagehandInitDeadline(async (signal) => {
-          const session = await abortable(client.connectSession!(options.sessionId), signal);
+          const session = await abortable(sessionClient.connectSession!(options.sessionId), signal);
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
             keepAlive: true,
