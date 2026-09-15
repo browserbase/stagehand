@@ -28,7 +28,7 @@ const completion = (content: string) => ({
   id: "resp_e2e",
   object: "response",
   created_at: 1700000000,
-  model: "openai/gpt-5",
+  model: "openai/gpt-5.6-luna",
   status: "completed",
   output: [
     {
@@ -97,7 +97,7 @@ describe("gateway inference end to end", () => {
   it("sends an OpenAI-format request to the gateway endpoint and maps the response back", async () => {
     const result = await llmService.generate(
       {
-        modelName: "openai/gpt-5",
+        modelName: "openai/gpt-5.6-luna",
         headers: {
           "x-custom-header": "custom-value",
           "x-bb-api-key": "must-not-override-auth",
@@ -118,7 +118,7 @@ describe("gateway inference end to end", () => {
     expect(request.headers["x-bb-api-key"]).toBe("bb-api-key");
     expect(request.headers["x-bb-session-id"]).toBe("session-123");
     expect(request.headers["x-custom-header"]).toBe("custom-value");
-    expect(request.body.model).toBe("openai/gpt-5");
+    expect(request.body.model).toBe("openai/gpt-5.6-luna");
     expect(request.body.input).toEqual([
       { role: "system", content: "Answer concisely." },
       {
@@ -140,7 +140,7 @@ describe("gateway inference end to end", () => {
     respondWith = () => completion(JSON.stringify({ greeting: "hi" }));
 
     const result = await llmService.generate(
-      { modelName: "openai/gpt-5" },
+      { modelName: "openai/gpt-5.6-luna" },
       {
         messages: [{ role: "user", content: { type: "text", text: "Greet me" } }],
         responseFormat: {
@@ -170,7 +170,7 @@ describe("gateway inference end to end", () => {
 
   it("forwards tools and tool choice in Responses format", async () => {
     await llmService.generate(
-      { modelName: "openai/gpt-5" },
+      { modelName: "openai/gpt-5.6-luna" },
       {
         messages: [{ role: "user", content: { type: "text", text: "Check the weather" } }],
         tools: [
