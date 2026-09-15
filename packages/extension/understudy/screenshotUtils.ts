@@ -10,11 +10,11 @@ import { resolveMaskRect } from "../dom/screenshotScripts/index.js";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
-const screenshotQueues = new WeakMap<CDPSessionLike, Promise<void>>();
+const screenshotQueues = new WeakMap<object, Promise<void>>();
 
-/** Keep activation, capture, and cleanup together across pages sharing a browser. */
+/** Serialize page mutations, or the browser-wide activation/capture critical section. */
 export async function withScreenshotLock(
-  connection: CDPSessionLike,
+  owner: object,
   capture: (signal: AbortSignal) => Promise<Uint8Array>,
   timeout: number | undefined,
 ): Promise<Uint8Array> {
@@ -26,7 +26,7 @@ export async function withScreenshotLock(
           Math.min(timeout, 2_147_483_647),
         )
       : undefined;
-  const pending = (screenshotQueues.get(connection) ?? Promise.resolve()).then(() => {
+  const pending = (screenshotQueues.get(owner) ?? Promise.resolve()).then(() => {
     controller.signal.throwIfAborted();
     return capture(controller.signal);
   });
@@ -34,13 +34,13 @@ export async function withScreenshotLock(
     () => {},
     () => {},
   );
-  screenshotQueues.set(connection, released);
+  screenshotQueues.set(owner, released);
   try {
     return await waitForScreenshot(pending, controller.signal);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     void released.then(() => {
-      if (screenshotQueues.get(connection) === released) screenshotQueues.delete(connection);
+      if (screenshotQueues.get(owner) === released) screenshotQueues.delete(owner);
     });
   }
 }
