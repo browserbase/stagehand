@@ -1,6 +1,0 @@
-beautifulsoup4>=4.13.0
-browserbase>=1.11.0
-deepagents>=0.6.3
-langchain-openai>=1.2.1
-python-dotenv>=1.0.0
-stagehand>=3.20.0
