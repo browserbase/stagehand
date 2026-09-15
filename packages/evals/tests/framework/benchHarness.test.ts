@@ -17,10 +17,12 @@ import {
   deepagentsHarness,
   eveHarness,
   registerBenchHarness,
+  flueHarness,
 } from "../../framework/benchHarness.js";
 import { MASTRA_TOOL_SURFACES } from "../../framework/mastraToolAdapter.js";
 import { PI_TOOL_SURFACES } from "../../framework/piToolAdapter.js";
 import { CURSOR_TOOL_SURFACES } from "../../framework/cursorToolAdapter.js";
+import { FLUE_TOOL_SURFACES } from "../../framework/flueToolAdapter.js";
 import { defaultModelsEnvKey } from "../../framework/benchPlanner.js";
 import type { BenchMatrixRow } from "../../framework/benchTypes.js";
 import type { DiscoveredTask } from "../../framework/types.js";
@@ -39,6 +41,7 @@ describe("bench harness registry", () => {
       "deepagents",
       "fx",
       "cursor",
+      "flue",
     ]);
   });
 
@@ -46,7 +49,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, flue\./,
     );
   });
 
@@ -183,6 +186,17 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces).not.toContain("browse_cli");
     expect(harness.supportedToolSurfaces).not.toContain("stagehand_code");
     expect(harness.defaultModels).toEqual(["cursor/auto"]);
+  });
+
+  it("registers Flue as a concrete executable harness", () => {
+    const harness = getBenchHarness("flue");
+    expect(harness).toBe(flueHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    expect(harness.supportedToolSurfaces).toEqual(FLUE_TOOL_SURFACES);
+    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(defaultModelsEnvKey("flue")).toBe("EVAL_FLUE_MODELS");
   });
 
   it("registers a new harness and rejects duplicate ids", () => {
