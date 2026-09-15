@@ -6,7 +6,7 @@ description: "Route Stagehand traces through an OpenTelemetry Collector."
 
 Use a collector when one Stagehand process needs to reach more than one backend, or when a backend wants a different encoding than Stagehand sends. Stagehand's runtime exporter posts OTLP/HTTP JSON to a single `/v1/traces` URL. Direct export is simpler for one supported provider.
 
-A collector is the right extra hop if you need to batch, sample, or transcode. Laminar's HTTP endpoint is the case that comes up most. It expects protobuf. The collector can receive Stagehand's JSON and export protobuf.
+A collector is the right extra hop if you need to batch, sample, or transcode. It can receive Stagehand's JSON and export protobuf when a backend requires that encoding.
 
 ## Configure Stagehand
 
@@ -61,7 +61,7 @@ service:
       exporters: [otlphttp/first, otlphttp/second]
 ```
 
-Some providers use a header other than `Authorization`. Honeycomb wants `x-honeycomb-team`. LangSmith wants `x-api-key` and `Langsmith-Project`. Sentry wants `x-sentry-auth`. Put those on the matching exporter.
+Some providers use a header other than `Authorization`. Braintrust wants `x-bt-parent`. LangSmith wants `x-api-key` and `Langsmith-Project`. Sentry wants `x-sentry-auth`. Put those on the matching exporter.
 
 ## Verify traces
 

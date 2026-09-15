@@ -23,20 +23,8 @@ Configure the endpoint in [`Stagehand.create()`](/v4/configuration/observability
 These backends all speak OTLP. They do not all do the same job with the spans once they arrive.
 
 <CardGroup cols={2}>
-  <Card title="Axiom" icon="/images/observability/axiom.svg" href="/v4/observability/axiom">
-    APL queries over Stagehand spans in a dataset, next to your logs.
-  </Card>
   <Card title="Braintrust" icon="/images/observability/braintrust.svg" href="/v4/observability/braintrust">
     Score browser runs in the same project as your LLM evals.
-  </Card>
-  <Card title="Honeycomb" icon="/images/observability/honeycomb.svg" href="/v4/observability/honeycomb">
-    High-cardinality queries over span attributes, no schema first.
-  </Card>
-  <Card title="HyperDX" icon="/images/observability/hyperdx.svg" href="/v4/observability/hyperdx">
-    Search traces and logs in one ClickHouse-backed UI.
-  </Card>
-  <Card title="Laminar" icon="/images/observability/laminar.svg" href="/v4/observability/laminar">
-    Agent transcripts and SQL over OTLP spans from browser runs.
   </Card>
   <Card title="Langfuse" icon="/images/observability/langfuse.svg" href="/v4/observability/langfuse">
     LLM tracing with sessions, scores, and a v4 observation table.
@@ -47,11 +35,7 @@ These backends all speak OTLP. They do not all do the same job with the spans on
   <Card title="Sentry" icon="/images/observability/sentry.svg" href="/v4/observability/sentry">
     Tie Stagehand failures to the same project as your application errors.
   </Card>
-  <Card title="SigNoz" icon="/images/observability/signoz.svg" href="/v4/observability/signoz">
-    Open-source APM. Traces, metrics, and logs in one regional endpoint.
-  </Card>
   <Card title="OpenTelemetry Collector" icon="/images/observability/opentelemetry.svg" href="/v4/observability/otel-collector">
-  Fan out one Stagehand export to more than one backend, or transcode JSON OTLP to protobuf.
+    Fan out one Stagehand export to more than one backend, or transcode JSON OTLP to protobuf.
   </Card>
 </CardGroup>
-
