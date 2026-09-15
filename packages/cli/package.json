@@ -71,6 +71,12 @@
       },
       "templates": {
         "description": "Browse and scaffold Browserbase templates."
+      },
+      "cloud:secrets": {
+        "description": "Manage project secrets."
+      },
+      "functions:secrets": {
+        "description": "Manage secrets attached to functions."
       }
     }
   },
@@ -104,6 +110,9 @@
   "dependencies": {
     "@browserbasehq/sdk": "^2.17.0",
     "@browserbasehq/stagehand": "workspace:*",
+    "@hpke/core": "^1.9.0",
+    "@hpke/dhkem-x25519": "^1.8.0",
+    "@inquirer/password": "^4.0.23",
     "@oclif/core": "^4.11.0",
     "@vercel/detect-agent": "^1.2.3",
     "archiver": "^7.0.1",

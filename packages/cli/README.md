@@ -306,3 +306,41 @@ auto-loading with no warning.
 ## License
 
 [MIT](https://github.com/browserbase/stagehand/blob/main/packages/cli/LICENSE)
+
+### Project secrets and function attachments
+
+Create and update commands fetch the project's public key and HPKE-encrypt the
+value locally before submitting it. API authentication uses `BROWSERBASE_API_KEY`
+or `--api-key`; `--base-url` overrides the API endpoint.
+
+```sh
+# Prompt for a value without displaying it.
+browse cloud secrets create SERVICE_TOKEN
+
+# For automation, read the exact value from stdin (including trailing newlines).
+browse cloud secrets create SERVICE_TOKEN --stdin < ./secret.txt
+browse cloud secrets update <secret-id> --stdin < ./replacement.txt
+
+# These commands return metadata, never plaintext values.
+browse cloud secrets list --limit 20
+browse cloud secrets list --limit 20 --cursor '<nextCursor>'
+browse cloud secrets get <secret-id>
+browse cloud secrets keypair
+
+browse functions secrets attach <function-id> <secret-id>
+browse functions secrets list <function-id> --limit 20
+browse functions invoke <function-id> --params '{}'
+browse functions secrets detach <function-id> <secret-id>
+browse cloud secrets delete <secret-id>
+```
+
+Both list commands accept `--start-at` and `--end-at` RFC 3339 timestamps.
+JSON output preserves the API's `{ data, limit, nextCursor }` pagination envelope;
+pass `nextCursor` as `--cursor` with the same filters to continue. A null cursor
+means there are no more pages. Delete, attach, and detach produce no stdout on
+success; API errors produce a nonzero exit status.
+
+The remote Functions runtime supplies attached values through `context.secrets`.
+These commands do not inject secrets into `browse functions dev` or add them to
+published source archives. Secret endpoints must be available and enabled for
+the API key's project.
