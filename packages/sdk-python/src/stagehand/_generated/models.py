@@ -148,7 +148,7 @@ class AnthropicModelName(RootModel[StrictStr]):
     root: Annotated[
         StrictStr,
         Field(
-            pattern="^anthropic\\/(claude-3-haiku-20240307|claude-haiku-4-5-20251001|claude-haiku-4-5|claude-opus-4-0|claude-opus-4-20250514|claude-opus-4-1-20250805|claude-opus-4-1|claude-opus-4-5|claude-opus-4-5-20251101|claude-sonnet-4-0|claude-sonnet-4-20250514|claude-sonnet-4-5-20250929|claude-sonnet-4-5|claude-sonnet-4-6|claude-opus-4-6|claude-opus-4-7|claude-opus-4-8|claude-fable-5|claude-sonnet-5)$"
+            pattern="^anthropic\\/(claude-haiku-4-5|claude-haiku-4-5-20251001|claude-sonnet-4-5|claude-sonnet-4-5-20250929|claude-sonnet-4-6|claude-sonnet-5|claude-opus-4-5|claude-opus-4-5-20251101|claude-opus-4-6|claude-opus-4-7|claude-opus-4-8|claude-opus-5|claude-fable-5|claude-fable-5-1)$"
         ),
     ]
 
@@ -712,7 +712,7 @@ class GoogleModelName(RootModel[StrictStr]):
     root: Annotated[
         StrictStr,
         Field(
-            pattern="^google\\/(gemini-2\\.0-flash|gemini-2\\.0-flash-001|gemini-2\\.0-flash-lite|gemini-2\\.0-flash-lite-001|gemini-2\\.5-pro|gemini-2\\.5-flash|gemini-2\\.5-flash-image|gemini-2\\.5-flash-lite|gemini-2\\.5-flash-preview-tts|gemini-2\\.5-pro-preview-tts|gemini-2\\.5-flash-native-audio-latest|gemini-2\\.5-flash-native-audio-preview-09-2025|gemini-2\\.5-flash-native-audio-preview-12-2025|gemini-2\\.5-computer-use-preview-10-2025|gemini-3-pro-preview|gemini-3-pro-image-preview|gemini-3-flash-preview|gemini-3\\.1-pro-preview|gemini-3\\.1-pro-preview-customtools|gemini-3\\.1-flash-image-preview|gemini-3\\.1-flash-lite-preview|gemini-3\\.1-flash-tts-preview|gemini-3\\.5-flash|gemini-3\\.6-flash|gemini-pro-latest|gemini-flash-latest|gemini-flash-lite-latest|deep-research-pro-preview-12-2025|deep-research-max-preview-04-2026|deep-research-preview-04-2026|nano-banana-pro-preview|aqa|gemini-robotics-er-1\\.5-preview|gemma-3-1b-it|gemma-3-4b-it|gemma-3n-e4b-it|gemma-3n-e2b-it|gemma-3-12b-it|gemma-3-27b-it)$"
+            pattern="^google\\/(gemini-2\\.5-pro|gemini-2\\.5-flash|gemini-2\\.5-flash-image|gemini-2\\.5-flash-lite|gemini-2\\.5-computer-use-preview-10-2025|gemini-3-flash-preview|gemini-3-pro-image|gemini-3\\.1-pro-preview|gemini-3\\.1-flash-image|gemini-3\\.1-flash-lite|gemini-3\\.1-flash-lite-image|gemini-3\\.5-flash|gemini-3\\.5-flash-lite|gemini-3\\.6-flash|gemini-3\\.7-flash|gemini-3\\.8-flash|gemini-omni-1\\.1-flash|gemini-pro-latest|gemini-flash-latest|gemini-flash-lite-latest)$"
         ),
     ]
 
@@ -1433,7 +1433,7 @@ class OpenAIModelName(RootModel[StrictStr]):
     root: Annotated[
         StrictStr,
         Field(
-            pattern="^openai\\/(gpt-4\\.1|gpt-4\\.1-2025-04-14|gpt-4\\.1-mini|gpt-4\\.1-mini-2025-04-14|gpt-4\\.1-nano|gpt-4\\.1-nano-2025-04-14|gpt-4o|gpt-4o-2024-05-13|gpt-4o-2024-08-06|gpt-4o-2024-11-20|gpt-4o-audio-preview|gpt-4o-audio-preview-2024-12-17|gpt-4o-search-preview|gpt-4o-search-preview-2025-03-11|gpt-4o-mini-search-preview|gpt-4o-mini-search-preview-2025-03-11|gpt-4o-mini|gpt-4o-mini-2024-07-18|gpt-3\\.5-turbo-0125|gpt-3\\.5-turbo|gpt-3\\.5-turbo-1106|gpt-5-chat-latest|o1|o1-2024-12-17|o3|o3-2025-04-16|o3-mini|o3-mini-2025-01-31|o4-mini|o4-mini-2025-04-16|gpt-5|gpt-5-2025-08-07|gpt-5-codex|gpt-5-mini|gpt-5-mini-2025-08-07|gpt-5-nano|gpt-5-nano-2025-08-07|gpt-5-pro|gpt-5-pro-2025-10-06|gpt-5\\.1|gpt-5\\.1-chat-latest|gpt-5\\.1-codex-mini|gpt-5\\.1-codex|gpt-5\\.1-codex-max|gpt-5\\.2|gpt-5\\.2-chat-latest|gpt-5\\.2-pro|gpt-5\\.2-codex|gpt-5\\.3-chat-latest|gpt-5\\.3-codex|gpt-5\\.4|gpt-5\\.4-2026-03-05|gpt-5\\.4-mini|gpt-5\\.4-mini-2026-03-17|gpt-5\\.4-nano|gpt-5\\.4-nano-2026-03-17|gpt-5\\.4-pro|gpt-5\\.4-pro-2026-03-05|gpt-5\\.5|gpt-5\\.5-2026-04-23|gpt-5\\.6|gpt-5\\.6-luna|gpt-5\\.6-sol|gpt-5\\.6-terra)$"
+            pattern="^openai\\/(gpt-4\\.1|gpt-4\\.1-2025-04-14|gpt-4\\.1-mini|gpt-4\\.1-mini-2025-04-14|gpt-4\\.1-nano|gpt-4\\.1-nano-2025-04-14|gpt-4o|gpt-4o-2024-08-06|gpt-4o-2024-11-20|gpt-4o-mini|gpt-4o-mini-2024-07-18|o1|o1-2024-12-17|o3|o3-2025-04-16|o3-mini|o3-mini-2025-01-31|o4-mini|o4-mini-2025-04-16|gpt-5|gpt-5-2025-08-07|gpt-5-mini|gpt-5-mini-2025-08-07|gpt-5-nano|gpt-5-nano-2025-08-07|gpt-5-pro|gpt-5-pro-2025-10-06|gpt-5\\.1|gpt-5\\.2|gpt-5\\.2-pro|gpt-5\\.3-codex|gpt-5\\.4|gpt-5\\.4-2026-03-05|gpt-5\\.4-mini|gpt-5\\.4-mini-2026-03-17|gpt-5\\.4-nano|gpt-5\\.4-nano-2026-03-17|gpt-5\\.4-pro|gpt-5\\.4-pro-2026-03-05|gpt-5\\.5|gpt-5\\.5-2026-04-23|gpt-5\\.5-pro|gpt-5\\.6|gpt-5\\.6-luna|gpt-5\\.6-sol|gpt-5\\.6-terra|gpt-6-astra)$"
         ),
     ]
 
