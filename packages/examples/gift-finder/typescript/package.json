@@ -1,0 +1,25 @@
+{
+  "name": "gift-finder",
+  "version": "1.0.0",
+  "description": "Stagehand + Browserbase: AI-Powered Gift Finder",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "4.0.0",
+    "dotenv": "latest",
+    "openai": "latest",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@10.24.0"
+}
