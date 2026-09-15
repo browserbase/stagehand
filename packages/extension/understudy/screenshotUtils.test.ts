@@ -93,14 +93,19 @@ describe("screenshot serialization", () => {
     const nextCapture = vi.fn(async () => new Uint8Array([2]));
     const second = withScreenshotLock(browser, nextCapture, undefined);
     const timedOut = expect(first).rejects.toThrow(/screenshot.*timed out/i);
+    const blocked = expect(second).rejects.toThrow(/still recovering/);
     try {
       await vi.advanceTimersByTimeAsync(10);
       await timedOut;
       expect(browser.send).toHaveBeenCalledWith("Page.captureScreenshot", expect.any(Object));
       expect(cleanupStarted).toHaveBeenCalledOnce();
       expect(nextCapture).not.toHaveBeenCalled();
+      await blocked;
       cleanup.release();
-      await expect(second).resolves.toEqual(new Uint8Array([2]));
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(withScreenshotLock(browser, nextCapture, undefined)).resolves.toEqual(
+        new Uint8Array([2]),
+      );
       respond({ data: "AQ==" });
       await vi.advanceTimersByTimeAsync(0);
       expect(cleanupStarted).toHaveBeenCalledOnce();
@@ -135,6 +140,7 @@ describe("screenshot serialization", () => {
       };
       const firstPage = makePage("first");
       const otherPage = makePage("other");
+      vi.spyOn(firstPage, "frames").mockReturnValue([firstPage.mainFrame()]);
       const stalled = captureGate();
       const evaluate = vi.spyOn(firstPage.mainFrame(), "evaluate").mockResolvedValue(undefined);
       if (phase === "cleanup") evaluate.mockResolvedValueOnce(undefined);
@@ -144,6 +150,9 @@ describe("screenshot serialization", () => {
       try {
         await vi.advanceTimersByTimeAsync(10);
         await timedOut;
+        await expect(firstPage.screenshot({ caret: "initial" })).rejects.toThrow(
+          /still recovering/,
+        );
         let result: Uint8Array | undefined;
         let error: unknown;
         const other = otherPage.screenshot({ caret: "initial", timeout: 20 }).then(
@@ -158,6 +167,11 @@ describe("screenshot serialization", () => {
         await other;
         expect(error).toBeUndefined();
         expect(result).toEqual(new Uint8Array([1]));
+        stalled.release();
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(firstPage.screenshot({ caret: "initial" })).resolves.toEqual(
+          new Uint8Array([1]),
+        );
       } finally {
         stalled.release();
         await vi.advanceTimersByTimeAsync(0);
