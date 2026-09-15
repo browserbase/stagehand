@@ -218,6 +218,30 @@ async with AsyncBrowserbase(api_key=os.environ["BROWSERBASE_API_KEY"]) as client
 
 The supplied client's configuration controls management requests, ignoring `base_url` for those calls. `api_key` still authenticates the Stagehand runtime. Stagehand borrows the client and never closes it; keep it open until browser cleanup finishes, then close it yourself.
 
+Go exposes a reusable management client over Stagehand's built-in Browserbase HTTP implementation. Pass it as `Client` in `BrowserbaseLaunchOptions` or `BrowserbaseConnectOptions`:
+
+```go
+httpClient := &http.Client{Timeout: 60 * time.Second}
+managementClient, err := stagehand.NewBrowserbaseClient(stagehand.BrowserbaseClientOptions{
+    APIKey:     os.Getenv("BROWSERBASE_API_KEY"),
+    HTTPClient: httpClient,
+})
+if err != nil {
+    return err
+}
+browser, err := stagehand.ConnectBrowserbase(ctx, stagehand.BrowserbaseConnectOptions{
+    APIKey:    os.Getenv("BROWSERBASE_API_KEY"),
+    Client:    managementClient,
+    SessionID: "session_123",
+})
+if err != nil {
+    return err
+}
+defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+```
+
+`BrowserbaseClientOptions` configures management credentials (`APIKey`), the endpoint (`BaseURL`), an optional caller-owned `HTTPClient`, and an optional `MaxRetries` pointer (zero disables retries). A supplied `Client` takes precedence over the browser factory's `BaseURL`; the factory's `APIKey` still authenticates the Stagehand runtime. The client can be reused across browsers, and closing a browser does not close its HTTP transport. When `Client` is omitted, existing behavior is unchanged.
+
 ### Environment variables
 
 Before getting started, set up the required environment variables:
