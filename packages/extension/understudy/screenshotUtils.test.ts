@@ -1,4 +1,6 @@
 import { trace } from "@opentelemetry/api";
+import { Page } from "./page.js";
+import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
 import { StagehandLogger } from "../logger.js";
 import { describe, expect, it, vi } from "vitest";
@@ -109,6 +111,62 @@ describe("screenshot serialization", () => {
       vi.useRealTimers();
     }
   });
+
+  it.each(["setup", "cleanup"] as const)(
+    "does not block another tab when page %s stalls",
+    async (phase) => {
+      vi.useFakeTimers();
+      const logger = new StagehandLogger({ tracer: trace.getTracer("screenshot-test") }, () => {});
+      const browser = new CdpConnection(
+        {
+          connected: true,
+          send: vi.fn(),
+          close: vi.fn(async () => {}),
+          onMessage: vi.fn(),
+          onClose: vi.fn(),
+          onError: vi.fn(),
+        },
+        logger,
+      );
+      const makePage = (id: string) => {
+        const session = connection();
+        session.send.mockResolvedValue({ data: "AQ==" });
+        return new Page(browser, session, id, id, logger);
+      };
+      const firstPage = makePage("first");
+      const otherPage = makePage("other");
+      const stalled = captureGate();
+      const evaluate = vi.spyOn(firstPage.mainFrame(), "evaluate").mockResolvedValue(undefined);
+      if (phase === "cleanup") evaluate.mockResolvedValueOnce(undefined);
+      evaluate.mockImplementationOnce(() => stalled.pending);
+      const first = firstPage.screenshot({ timeout: 10 });
+      const timedOut = expect(first).rejects.toThrow(/screenshot.*timed out/i);
+      try {
+        await vi.advanceTimersByTimeAsync(10);
+        await timedOut;
+        let result: Uint8Array | undefined;
+        let error: unknown;
+        const other = otherPage.screenshot({ caret: "initial", timeout: 20 }).then(
+          (value) => {
+            result = value;
+          },
+          (reason: unknown) => {
+            error = reason;
+          },
+        );
+        await vi.advanceTimersByTimeAsync(20);
+        await other;
+        expect(error).toBeUndefined();
+        expect(result).toEqual(new Uint8Array([1]));
+      } finally {
+        stalled.release();
+        await vi.advanceTimersByTimeAsync(0);
+        firstPage.dispose();
+        otherPage.dispose();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("does not activate a queued page after its timeout", async () => {
     vi.useFakeTimers();
