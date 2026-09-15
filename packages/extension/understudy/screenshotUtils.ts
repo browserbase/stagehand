@@ -10,7 +10,7 @@ import { resolveMaskRect } from "../dom/screenshotScripts/index.js";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
 
-const screenshotQueues = new WeakMap<object, Promise<void>>();
+const screenshotQueues = new WeakMap<object, { tail: Promise<void>; blocked: AbortController }>();
 
 /** Serialize page mutations, or the browser-wide activation/capture critical section. */
 export async function withScreenshotLock(
@@ -18,29 +18,49 @@ export async function withScreenshotLock(
   capture: (signal: AbortSignal) => Promise<Uint8Array>,
   timeout: number | undefined,
 ): Promise<Uint8Array> {
+  const queue = screenshotQueues.get(owner) ?? {
+    tail: Promise.resolve(),
+    blocked: new AbortController(),
+  };
+  // Keep late setup/cleanup isolated, but never make callers wait indefinitely for it.
+  queue.blocked.signal.throwIfAborted();
   const controller = new AbortController();
+  let started = false;
   const timer =
     typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
       ? setTimeout(
-          () => controller.abort(new TimeoutError("screenshot", timeout)),
+          () => {
+            controller.abort(new TimeoutError("screenshot", timeout));
+            if (started) {
+              queue.blocked.abort(
+                new Error("screenshot: a previous timed-out capture is still recovering"),
+              );
+            }
+          },
           Math.min(timeout, 2_147_483_647),
         )
       : undefined;
-  const pending = (screenshotQueues.get(owner) ?? Promise.resolve()).then(() => {
+  const pending = queue.tail.then(() => {
+    queue.blocked.signal.throwIfAborted();
     controller.signal.throwIfAborted();
+    started = true;
     return capture(controller.signal);
   });
   const released = pending.then(
     () => {},
     () => {},
   );
-  screenshotQueues.set(owner, released);
+  queue.tail = released;
+  screenshotQueues.set(owner, queue);
   try {
-    return await waitForScreenshot(pending, controller.signal);
+    return await waitForScreenshot(
+      waitForScreenshot(pending, queue.blocked.signal),
+      controller.signal,
+    );
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     void released.then(() => {
-      if (screenshotQueues.get(owner) === released) screenshotQueues.delete(owner);
+      if (queue.tail === released) screenshotQueues.delete(owner);
     });
   }
 }
