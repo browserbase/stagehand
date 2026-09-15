@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
+import { cookieHandlers } from "../src/lib/driver/commands/cookies.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
 import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
 import { runtimeHandlers } from "../src/lib/driver/commands/runtime.js";
@@ -15,6 +16,10 @@ import { hasExplicitDriverTarget } from "../src/lib/driver/command-cli.js";
 import { getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { parseRequest } from "../src/lib/driver/daemon/protocol.js";
 import { NetworkCapture } from "../src/lib/driver/network-capture.js";
+import {
+  filterCookiesByDomains,
+  normalizeCookieDomains,
+} from "../src/lib/driver/cookie-sync.js";
 import { runCli } from "./helpers/run-cli.js";
 
 describe("driver commands", () => {
@@ -22,6 +27,7 @@ describe("driver commands", () => {
     expect([...DRIVER_COMMAND_NAMES].sort()).toEqual(
       expect.arrayContaining([
         "click",
+        "cookies.sync",
         "mouse.click",
         "snapshot",
         "tab.switch",
@@ -38,6 +44,43 @@ describe("driver commands", () => {
         "network_enable",
       ]),
     );
+  });
+
+  it("normalizes cookie domains and includes matching subdomains", () => {
+    const cookies = [
+      cookie("host", "github.com"),
+      cookie("parent", ".github.com"),
+      cookie("subdomain", "api.github.com"),
+      cookie("lookalike", "notgithub.com"),
+      cookie("other", "google.com"),
+    ];
+
+    expect(normalizeCookieDomains([" GitHub.com ", ".github.com"])).toEqual([
+      "github.com",
+    ]);
+    expect(
+      filterCookiesByDomains(cookies, ["github.com"]).map(({ name }) => name),
+    ).toEqual(["host", "parent", "subdomain"]);
+  });
+
+  it("keeps cookie values inside the manager command", async () => {
+    const syncCookiesFromLocal = vi
+      .fn()
+      .mockResolvedValue({ syncedCookies: 2 });
+    const manager = { syncCookiesFromLocal } as unknown as Parameters<
+      NonNullable<(typeof cookieHandlers)["cookies.sync"]>
+    >[0];
+
+    await expect(
+      cookieHandlers["cookies.sync"]!(manager, {
+        domains: ["github.com"],
+        sourceCdp: "9222",
+      }),
+    ).resolves.toEqual({ syncedCookies: 2 });
+    expect(syncCookiesFromLocal).toHaveBeenCalledWith({
+      domains: ["github.com"],
+      sourceCdp: "9222",
+    });
   });
 
   it("resolves snapshot refs while leaving normal selectors unchanged", () => {
@@ -459,6 +502,19 @@ describe("driver commands", () => {
     }
   });
 });
+
+function cookie(name: string, domain: string) {
+  return {
+    domain,
+    expires: -1,
+    httpOnly: false,
+    name,
+    path: "/",
+    sameSite: "Lax" as const,
+    secure: true,
+    value: "secret",
+  };
+}
 
 class FakeCdpSession {
   private readonly listeners = new Map<

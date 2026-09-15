@@ -77,6 +77,34 @@ describe("remote.ts (Browserbase capability)", () => {
     expect(params?.browserSettings).toEqual({ verified: true });
   });
 
+  it("threads a persistent context into browserSettings", async () => {
+    const params = (
+      await remoteStagehandOptions({
+        contextId: "ctx_test",
+        kind: "remote",
+        persist: true,
+      })
+    ).browserbaseSessionCreateParams;
+    expect(params?.browserSettings).toEqual({
+      context: { id: "ctx_test", persist: true },
+    });
+  });
+
+  it("combines verified mode with a persistent context", async () => {
+    const params = (
+      await remoteStagehandOptions({
+        contextId: "ctx_test",
+        kind: "remote",
+        persist: true,
+        verified: true,
+      })
+    ).browserbaseSessionCreateParams;
+    expect(params?.browserSettings).toEqual({
+      context: { id: "ctx_test", persist: true },
+      verified: true,
+    });
+  });
+
   it("requires an API key", async () => {
     delete process.env.BROWSERBASE_API_KEY;
     await expect(remoteStagehandOptions({ kind: "remote" })).rejects.toThrow(

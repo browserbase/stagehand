@@ -5,7 +5,13 @@ export type ConnectionTarget =
       kind: "managed-local";
       headless: boolean;
     }
-  | { kind: "remote"; verified?: boolean; proxies?: boolean }
+  | {
+      contextId?: string;
+      kind: "remote";
+      persist?: boolean;
+      proxies?: boolean;
+      verified?: boolean;
+    }
   | { kind: "auto-connect" }
   | { kind: "cdp"; endpoint: string; targetId?: string };
 
