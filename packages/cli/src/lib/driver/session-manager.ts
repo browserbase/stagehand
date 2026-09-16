@@ -214,7 +214,7 @@ export class DriverSessionManager {
     if (stagehand) {
       await stagehand.close().catch(() => undefined);
     }
-    if (browser?.origin === "launched") {
+    if (browser) {
       await browser.close().catch(() => undefined);
     }
   }
@@ -403,9 +403,7 @@ export class DriverSessionManager {
       this.stagehand = stagehand;
       this.context = stagehand.browser.context;
     } catch (error) {
-      if (browser?.origin === "launched") {
-        await browser.close().catch(() => undefined);
-      }
+      await browser?.close().catch(() => undefined);
       this.browserbaseIdentityValue = {};
       throw await describeInitError(error, resolvedTarget);
     }

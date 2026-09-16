@@ -1087,7 +1087,7 @@ describe("driver foundation", () => {
     }
   });
 
-  it("leaves a connected browser open when Stagehand.create fails", async () => {
+  it("closes a connected browser when Stagehand.create fails", async () => {
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
     const browser = { close: closeBrowser, context: {}, origin: "connected" };
     const connect = vi.fn().mockResolvedValue(browser);
@@ -1113,18 +1113,23 @@ describe("driver foundation", () => {
       );
       expect(connect).toHaveBeenCalledOnce();
       expect(create).toHaveBeenCalledOnce();
-      expect(closeBrowser).not.toHaveBeenCalled();
+      expect(closeBrowser).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
     }
   });
 
-  it("leaves a connected browser open when the manager closes", async () => {
-    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+  it("closes Stagehand before a connected browser when the manager closes", async () => {
+    const closeOrder: string[] = [];
+    const closeBrowser = vi.fn().mockImplementation(async () => {
+      closeOrder.push("browser");
+    });
     const browser = { close: closeBrowser, context: {}, origin: "connected" };
     const connect = vi.fn().mockResolvedValue(browser);
-    const closeStagehand = vi.fn().mockResolvedValue(undefined);
+    const closeStagehand = vi.fn().mockImplementation(async () => {
+      closeOrder.push("stagehand");
+    });
     const create = vi.fn().mockResolvedValue({
       browser,
       close: closeStagehand,
@@ -1148,7 +1153,8 @@ describe("driver foundation", () => {
       await manager.stagehandInstance();
       await manager.close();
       expect(closeStagehand).toHaveBeenCalledOnce();
-      expect(closeBrowser).not.toHaveBeenCalled();
+      expect(closeBrowser).toHaveBeenCalledOnce();
+      expect(closeOrder).toStrictEqual(["stagehand", "browser"]);
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
