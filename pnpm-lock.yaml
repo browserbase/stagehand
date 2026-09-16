@@ -436,8 +436,8 @@ importers:
   packages/cli:
     dependencies:
       '@browserbasehq/sdk':
-        specifier: ^2.14.0
-        version: 2.16.0
+        specifier: ^2.17.0
+        version: 2.20.0
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../sdk-ts
@@ -1825,6 +1825,9 @@ packages:
 
   '@browserbasehq/sdk@2.16.0':
     resolution: {integrity: sha512-mPAuLRU9jWR7o0KJi9+gQnOBDUSIkoKbbFv4HjrA+80qWVcFacrNPlZmf4mguQnfZ0oP2t5c3ws6yuFyAX9vpA==}
+
+  '@browserbasehq/sdk@2.20.0':
+    resolution: {integrity: sha512-zDDsgrwF6/iF+Ob0LIqe6EPBa4n7m+5YfKn0g0+kZR5jIncTXBPmJSW6tAsu9go3wA9tQQP+zm6qUOPVi1Gutw==}
 
   '@browserbasehq/stagehand@3.7.1':
     resolution: {integrity: sha512-vAuYSZWIhh3d76BxwppNVE3dB0ztEBLBi85G6TWulZNiebdWptNoANOMuprOB/cw5dE+80b/ZZQo4G33Pc9i6w==}
@@ -9943,6 +9946,18 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  '@browserbasehq/sdk@2.20.0':
+    dependencies:
+      '@types/node': 18.19.130
+      '@types/node-fetch': 2.6.13
+      abort-controller: 3.0.0
+      agentkeepalive: 4.6.0
+      form-data-encoder: 1.7.2
+      formdata-node: 4.4.1
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
   '@browserbasehq/stagehand@3.7.1(playwright-core@1.56.1)(supports-color@8.1.1)(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 2.0.3
@@ -12308,7 +12323,7 @@ snapshots:
 
   '@types/cors@2.8.19':
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
 
   '@types/debug@4.1.13':
     dependencies:
@@ -12318,7 +12333,7 @@ snapshots:
 
   '@types/es-aggregate-error@1.0.6':
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
 
   '@types/esrecurse@4.3.1': {}
 
@@ -12358,7 +12373,7 @@ snapshots:
 
   '@types/mute-stream@0.0.4':
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
 
   '@types/nlcst@2.0.3':
     dependencies:
@@ -12366,7 +12381,7 @@ snapshots:
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
       form-data: 4.0.6
 
   '@types/node@12.20.55': {}
@@ -12417,7 +12432,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
     optional: true
 
   '@typescript-eslint/eslint-plugin@8.70.0(@typescript-eslint/parser@8.70.0(eslint@10.10.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3))(eslint@10.10.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@5.9.3)':
@@ -13207,7 +13222,7 @@ snapshots:
 
   chrome-launcher@1.2.1(supports-color@8.1.1):
     dependencies:
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
       escape-string-regexp: 4.0.0
       is-wsl: 2.2.0
       lighthouse-logger: 2.0.2(supports-color@8.1.1)
@@ -13603,7 +13618,7 @@ snapshots:
   engine.io@6.6.9(bufferutil@4.1.0):
     dependencies:
       '@types/cors': 2.8.19
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
       '@types/ws': 8.18.1
       accepts: 1.3.8
       base64id: 2.0.0
@@ -16742,7 +16757,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.2
-      '@types/node': 25.9.4
+      '@types/node': 20.19.43
       long: 5.3.2
 
   proxy-addr@2.0.7:
