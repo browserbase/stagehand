@@ -457,24 +457,24 @@ describe("driver commands", () => {
     }
   });
 
-  it("reports the isolated V4 network-capture gap", async () => {
+  it("enables sidecar network capture", async () => {
     const page = {};
     const network = {
-      enable: vi.fn(async () => {
-        throw new Error("Network capture is not available");
-      }),
+      enable: vi.fn(async () => ({ enabled: true, path: "/tmp/network" })),
     };
     const manager = {
       activePage: vi.fn(async () => page),
       network,
+      networkWebSocketDebuggerUrl: vi.fn(async () => "ws://sidecar.test"),
     } as unknown as Parameters<
       NonNullable<(typeof networkHandlers)["network.on"]>
     >[0];
 
-    await expect(networkHandlers["network.on"]!(manager, {})).rejects.toThrow(
-      "Network capture is not available",
-    );
-    expect(network.enable).toHaveBeenCalledWith(page);
+    await expect(networkHandlers["network.on"]!(manager, {})).resolves.toEqual({
+      enabled: true,
+      path: "/tmp/network",
+    });
+    expect(network.enable).toHaveBeenCalledWith(page, "ws://sidecar.test");
   });
 
   it("installs the CLI-owned cursor overlay", async () => {
