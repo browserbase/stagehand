@@ -440,6 +440,69 @@ describe("driver commands", () => {
     expect(page.evaluate).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps cursor rendering failures from blocking coordinate mouse actions", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      evaluate: vi.fn().mockRejectedValue(new Error("Execution context lost")),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      isCursorOverlayEnabled: vi.fn(() => true),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    await expect(
+      mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 }),
+    ).resolves.toEqual({ clicked: true });
+    await expect(
+      mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 }),
+    ).resolves.toEqual({ hovered: true });
+    await expect(
+      mouseHandlers["mouse.scroll"]!(manager, {
+        deltaX: 5,
+        deltaY: 500,
+        x: 50,
+        y: 60,
+      }),
+    ).resolves.toEqual({ scrolled: true });
+    await expect(
+      mouseHandlers["mouse.drag"]!(manager, {
+        fromX: 70,
+        fromY: 80,
+        toX: 90,
+        toY: 100,
+      }),
+    ).resolves.toEqual({ dragged: true });
+
+    expect(page.click).toHaveBeenCalledOnce();
+    expect(page.hover).toHaveBeenCalledOnce();
+    expect(page.scroll).toHaveBeenCalledOnce();
+    expect(page.dragAndDrop).toHaveBeenCalledOnce();
+    expect(page.evaluate).toHaveBeenCalledTimes(5);
+  });
+
+  it("continues to report failures from the real mouse action", async () => {
+    const actionError = new Error("Mouse input failed");
+    const page = {
+      click: vi.fn().mockRejectedValue(actionError),
+      evaluate: vi.fn().mockRejectedValue(new Error("Execution context lost")),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      isCursorOverlayEnabled: vi.fn(() => true),
+    } as unknown as Parameters<
+      NonNullable<(typeof mouseHandlers)["mouse.click"]>
+    >[0];
+
+    await expect(
+      mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 }),
+    ).rejects.toBe(actionError);
+  });
+
   it("fails explicitly for the V4 coordinate XPath capability", async () => {
     const manager = {} as Parameters<
       NonNullable<(typeof mouseHandlers)["mouse.click"]>
@@ -491,7 +554,7 @@ describe("driver commands", () => {
     >[0];
 
     await expect(runtimeHandlers.cursor!(manager, {})).resolves.toEqual({
-      enabled: true,
+      cursor: "enabled",
     });
     expect(page.addInitScript).toHaveBeenCalledOnce();
     expect(page.evaluate).toHaveBeenCalledOnce();
@@ -503,6 +566,7 @@ describe("driver commands", () => {
     expect(cursorInstaller).toEqual(expect.any(String));
     expect(cursorInstaller).toContain("__browse_cursor_overlay__");
     expect(cursorInstaller).toContain("globalThis !== globalThis.top");
+    expect(cursorInstaller).toContain('"DOMContentLoaded"');
     expect(cursorInstaller).toContain('"mousemove"');
   });
 
