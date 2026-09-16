@@ -30,6 +30,7 @@ import { withHarnessAgentSpan } from "./otel.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
+import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -148,6 +149,14 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
       // the adapter and the carrier.
       const carrierV3 = buildVerifierCarrierV3(logger);
       let toolAdapter: TAdapter | undefined;
+      const cleanup = onceAsync(async () => {
+        try {
+          await toolAdapter?.cleanup();
+        } finally {
+          await carrierV3.close().catch(() => {});
+        }
+      });
+      const unregisterCleanup = registerActiveRunCleanup(cleanup);
       try {
         toolAdapter = await prepareToolAdapter({
           toolSurface: row.config.toolSurface,
@@ -180,12 +189,9 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
         );
       } finally {
         try {
-          await toolAdapter?.cleanup();
+          await cleanup();
         } finally {
-          // Deregister the never-init()-ed carrier (instance registry, event
-          // store, logger binding) so long matrix runs don't accumulate one
-          // V3 object graph per task.
-          await carrierV3.close().catch(() => {});
+          unregisterCleanup();
         }
       }
     },
