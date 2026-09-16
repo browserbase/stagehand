@@ -19,6 +19,7 @@ Homepage = "https://stagehand.dev"
 Documentation = "https://docs.stagehand.dev"
 Repository = "https://github.com/browserbase/stagehand"
 Issues = "https://github.com/browserbase/stagehand/issues"
+Discord = "https://discord.gg/stagehand"
 
 [build-system]
 requires = ["uv_build>=0.11.29,<0.12.0"]
