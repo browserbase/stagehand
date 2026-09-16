@@ -297,6 +297,21 @@ auto-loading with no warning.
 | `BROWSE_SESSION` | Default session name (alternative to `-s, --session`) |
 | `BROWSE_LOAD_DOTENV` | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
 
+### List project secrets
+
+List secret metadata using your Browserbase API key:
+
+```sh
+browse cloud secrets list
+browse cloud secrets list --limit 20 --cursor '<nextCursor>'
+browse cloud secrets list --start-at '2026-01-01T00:00:00Z'
+```
+
+The command calls `GET /v1/secrets` and prints the JSON page, including
+`nextCursor`. It supports `--limit`, `--cursor`, `--start-at`, and `--end-at`.
+Use `BROWSERBASE_API_KEY` or `--api-key` for authentication.
+Secret plaintext values are not returned.
+
 ## Links
 
 - [browse.sh](https://browse.sh) — open web skills catalog
