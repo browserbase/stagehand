@@ -364,11 +364,11 @@ if err != nil {
 
 </details>
 
-Stealth mode, residential proxies, persistent contexts, and session recordings come with it. [Get an API key](https://www.browserbase.com/overview) · [Browser configuration](https://docs.stagehand.dev/v4/configuration/browser)
+[Verified mode](https://docs.browserbase.com/platform/identity/verified-customization), [residential proxies](https://docs.browserbase.com/platform/identity/proxies), [persistent contexts](https://docs.browserbase.com/platform/browser/core-features/contexts), and [session recordings](https://docs.browserbase.com/platform/browser/observability/session-replay) come with it. [Get an API key](https://www.browserbase.com/overview) and learn how to configure your browser [here](https://docs.stagehand.dev/v4/configuration/browser).
 
 ## Give your coding agent a browser
 
-The hosted Browserbase [MCP server]([MCP](https://docs.stagehand.dev/integrations/mcp/setup)) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
+The hosted Browserbase [MCP server](<[MCP](https://docs.stagehand.dev/integrations/mcp/setup)>) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
@@ -393,7 +393,7 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 
 ## Search and fetch without a browser
 
-[Fetch]([Fetch](https://docs.stagehand.dev/v4/add-ons/fetch)) lets you grab the content of any URL as markdown. [Search]([Search](https://docs.stagehand.dev/v4/add-ons/search)) provides fast, token-efficient web search results.
+[Fetch](<[Fetch](https://docs.stagehand.dev/v4/add-ons/fetch)>) lets you grab the content of any URL as markdown. [Search](<[Search](https://docs.stagehand.dev/v4/add-ons/search)>) provides fast, token-efficient web search results.
 Both as a lightweight complement to browser sessions.
 
 ```typescript
