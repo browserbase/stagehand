@@ -1923,6 +1923,9 @@ type StagehandInitParamsExperimentalJevAct struct {
 	// Enabled corresponds to the JSON schema field "enabled".
 	Enabled *bool `json:"enabled,omitempty,omitzero"`
 
+	// Extract corresponds to the JSON schema field "extract".
+	Extract *StagehandInitParamsExperimentalJevActExtract `json:"extract,omitempty,omitzero"`
+
 	// FocusFallback corresponds to the JSON schema field "focus_fallback".
 	FocusFallback *bool `json:"focus_fallback,omitempty,omitzero"`
 
@@ -1944,6 +1947,12 @@ type StagehandInitParamsExperimentalJevAct struct {
 	// Verify corresponds to the JSON schema field "verify".
 	Verify *StagehandInitParamsExperimentalJevActVerify `json:"verify,omitempty,omitzero"`
 }
+
+type StagehandInitParamsExperimentalJevActExtract string
+
+const StagehandInitParamsExperimentalJevActExtractJudge StagehandInitParamsExperimentalJevActExtract = "judge"
+const StagehandInitParamsExperimentalJevActExtractOff StagehandInitParamsExperimentalJevActExtract = "off"
+const StagehandInitParamsExperimentalJevActExtractPick StagehandInitParamsExperimentalJevActExtract = "pick"
 
 type StagehandInitParamsExperimentalJevActVerify string
 
