@@ -1214,6 +1214,53 @@
         "cache": {
           "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
           "$ref": "#/$defs/Caching"
+        },
+        "experimental_jev_act": {
+          "description": "Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline",
+          "type": "object",
+          "properties": {
+            "api_key": {
+              "type": "string",
+              "minLength": 1
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "api_url": {
+              "type": "string",
+              "pattern": "^https:\\/\\/[^\\s?#]+$"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "retry_no_effect": {
+              "type": "boolean"
+            },
+            "focus_fallback": {
+              "type": "boolean"
+            },
+            "act_confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "verify": {
+              "type": "string",
+              "enum": ["off", "checks", "full"]
+            },
+            "llm_fallback": {
+              "type": "boolean"
+            },
+            "argument_llm": {
+              "type": "boolean"
+            },
+            "page_state": {
+              "type": "boolean"
+            }
+          },
+          "required": ["api_key"],
+          "additionalProperties": false
         }
       },
       "required": ["protocol_version", "client_info"],
