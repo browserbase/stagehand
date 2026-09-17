@@ -3,20 +3,35 @@ title: "Codex"
 description: "Give a Codex agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The Codex integration gives a Codex agent a persistent Stagehand browser it can drive with `run`, `snapshot`, and `screenshot`. A Codex SDK thread connects to the Stagehand facade MCP server over MCP/stdio, and one server process owns the browser, so page state survives across tool calls.
+The Codex plugin gives a Codex agent a persistent Stagehand browser it can drive with `run`, `snapshot`, and `screenshot`. Codex connects to the Stagehand facade MCP server over MCP/stdio, and one server process owns the browser, so page state survives across tool calls.
 
 <Note>
-Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+The plugin requires the first `@browserbasehq/stagehand-mcp@0.1.0` npm release. Until it is published, use the source example below.
 </Note>
 
-## Prerequisites
+## Install the plugin
+
+```bash
+codex plugin marketplace add browserbase/stagehand
+codex plugin add stagehand@browserbase-stagehand
+```
+
+Restart Codex or open a new task after installing. The plugin uses Codex’s [repository marketplace format](https://developers.openai.com/plugins/build/plugins#add-a-marketplace-from-the-cli); it is not a listing in the universal public directory.
+
+Requires Node.js 24+, an existing Codex login, and local Chrome. To use Browserbase, export `BROWSERBASE_API_KEY` before starting Codex. The plugin passes browser configuration through `env_vars`, so credentials stay out of its manifest. It sets longer startup and tool timeouts for browser work.
+
+Ask Codex to open `https://example.com`, take a snapshot, and report its title. The plugin provides `run`, `snapshot`, and `screenshot` over one persistent MCP connection.
+
+The SDK example below is for embedding Codex in an application.
+
+## Source example prerequisites
 
 - Node.js 24 or newer
 - pnpm 11.10.0
 - An OpenAI API key or an existing `codex login` for the example agent
 - A current Google Chrome installation for local browser mode
 
-## Quickstart
+## Run the SDK example from source
 
 <Steps>
   <Step title="Clone and build Stagehand">
@@ -74,32 +89,20 @@ The example starts one Codex thread against one facade MCP server, with raised M
 
 The MCP child receives only Stagehand and Browserbase configuration plus the process values required to launch Node. The host's model credential remains in the Codex process.
 
-## Connect a running Codex CLI
+## Connect the CLI without a plugin
 
-The same server works from the Codex CLI. Merge the package's `config.toml` into `~/.codex/config.toml`, adjusting the path to your checkout:
+For a locally built server, merge this into your Codex configuration and adjust the server path:
 
 ```toml
 [mcp_servers.stagehand]
 command = "node"
 args = ["/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs"]
-
-[mcp_servers.stagehand.env]
-STAGEHAND_BROWSER = "browserbase"
-BROWSERBASE_API_KEY = "bb_live_..."
-BROWSERBASE_PROJECT_ID = "..."
+env_vars = ["STAGEHAND_BROWSER", "BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID", "STAGEHAND_MODEL_NAME", "STAGEHAND_MODEL_API_KEY"]
+startup_timeout_sec = 120
+tool_timeout_sec = 120
 ```
 
-Codex does not expand shell variables in config values; paste the real keys or generate this file from your environment. For a one-off run, pass the same values as `codex exec` overrides:
-
-```bash
-codex exec \
-  -c mcp_servers.stagehand.command=node \
-  -c 'mcp_servers.stagehand.args=["/absolute/path/to/packages/integrations/core/dist/facade/stdio-server.mjs"]' \
-  -c 'mcp_servers.stagehand.env={ STAGEHAND_BROWSER = "browserbase", BROWSERBASE_API_KEY = "bb_live_..." }' \
-  "your instruction"
-```
-
-These overrides merge with any `[mcp_servers]` already in your `~/.codex/config.toml` rather than replacing them; set `CODEX_HOME` to a scratch directory if you need isolation.
+Export credentials before starting Codex. Avoid keeping real keys in `config.toml` or command-line overrides. Do not enable both this server and the plugin for the same task; each starts its own browser.
 
 <Warning>
 `run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).

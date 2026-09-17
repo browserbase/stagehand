@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "npx",
+      "args": ["-y", "@browserbasehq/stagehand-mcp@0.1.0"],
+      "env_vars": [
+        "STAGEHAND_BROWSER",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "STAGEHAND_MODEL_NAME",
+        "STAGEHAND_MODEL_API_KEY"
+      ],
+      "startup_timeout_sec": 120,
+      "tool_timeout_sec": 120
+    }
+  }
+}

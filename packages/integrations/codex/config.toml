@@ -1,14 +1,14 @@
-# Codex CLI MCP server entry for the Stagehand facade.
-# Merge this block into ~/.codex/config.toml (or pass per-invocation with
-# `codex -c`), adjusting the absolute path to your checkout.
-
+# Optional direct CLI configuration; prefer the repository marketplace plugin.
+# Adjust the server path and export credentials before starting Codex.
 [mcp_servers.stagehand]
 command = "node"
 args = ["/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs"]
-
-[mcp_servers.stagehand.env]
-STAGEHAND_BROWSER = "browserbase"
-# Codex does not expand shell variables in config values; paste the real keys
-# or generate this file from your environment.
-BROWSERBASE_API_KEY = "bb_live_..."
-BROWSERBASE_PROJECT_ID = "..."
+env_vars = [
+  "STAGEHAND_BROWSER",
+  "BROWSERBASE_API_KEY",
+  "BROWSERBASE_PROJECT_ID",
+  "STAGEHAND_MODEL_NAME",
+  "STAGEHAND_MODEL_API_KEY",
+]
+startup_timeout_sec = 120
+tool_timeout_sec = 120
