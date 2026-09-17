@@ -12,7 +12,7 @@ const jsonSchema = z
 
 export const browserbaseWebFetchInputSchema = z
   .object({
-    url: z.url().describe("The absolute URL to retrieve."),
+    url: z.url({ protocol: /^https?$/u }).describe("The absolute HTTP(S) URL to retrieve."),
     format: z
       .enum(["raw", "markdown", "json"])
       .default("markdown")
@@ -57,6 +57,14 @@ export const browserbaseWebFetchOutputSchema = z.object({
   statusCode: z.number().int(),
 });
 
+export class BrowserbaseWebFetchError extends Error {
+  override readonly name = "BrowserbaseWebFetchError";
+
+  constructor() {
+    super("Browserbase web fetch failed.");
+  }
+}
+
 export function browserbaseWebFetch(config: BrowserbaseWebToolConfig = {}) {
   return defineTool({
     description:
@@ -65,17 +73,24 @@ export function browserbaseWebFetch(config: BrowserbaseWebToolConfig = {}) {
     outputSchema: browserbaseWebFetchOutputSchema,
     execute({ url, format, schema, allowRedirects, allowInsecureSsl, proxies }, context) {
       const browserbase = createBrowserbaseWebClient(config);
-      return browserbase.fetchAPI.create(
-        {
-          url,
-          format,
-          schema,
-          allowRedirects,
-          allowInsecureSsl,
-          proxies,
-        },
-        { signal: context.abortSignal },
-      );
+      return browserbase.fetchAPI
+        .create(
+          {
+            url,
+            format,
+            schema,
+            allowRedirects,
+            allowInsecureSsl,
+            proxies,
+          },
+          { signal: context.abortSignal },
+        )
+        .catch(() => {
+          if (context.abortSignal.aborted) {
+            throw new DOMException("Browserbase web fetch was aborted.", "AbortError");
+          }
+          throw new BrowserbaseWebFetchError();
+        });
     },
   });
 }

@@ -56,6 +56,7 @@ describe("Browserbase session release", () => {
     await expect(
       releaseBrowserbaseSession({ apiKey: "test-key", sessionId: "session-one" }),
     ).resolves.toBeUndefined();
+    expect(mocks.retrieve).toHaveBeenCalledExactlyOnceWith("session-one");
   });
 
   it("normalizes a custom API URL and encodes the session path segment", async () => {

@@ -28,6 +28,19 @@ vi.mock("@browserbasehq/sdk", () => ({
 const abortSignal = new AbortController().signal;
 const toolContext = { abortSignal } as ToolContext;
 
+async function executeWebTool(operation: "fetch" | "search", context: ToolContext) {
+  if (operation === "fetch") {
+    return browserbaseWebFetch({ apiKey: "test-key" }).execute(
+      browserbaseWebFetchInputSchema.parse({ url: "https://example.com" }),
+      context,
+    );
+  }
+  return browserbaseWebSearch({ apiKey: "test-key" }).execute(
+    { query: "stagehand", numResults: 1 },
+    context,
+  );
+}
+
 describe("Browserbase Eve web tools", () => {
   beforeEach(() => {
     mocks.createClient.mockReset();
@@ -188,6 +201,43 @@ describe("Browserbase Eve web tools", () => {
       },
     });
   });
+
+  it.each([
+    "ftp://example.com/file",
+    "file:///tmp/file",
+    "data:text/plain,hello",
+    "javascript:void(0)",
+  ])("rejects a non-HTTP fetch URL: %s", async (url) => {
+    const result = await browserbaseWebFetchInputSchema["~standard"].validate({ url });
+    expect("issues" in result).toBe(true);
+  });
+
+  it.each(["fetch", "search"] as const)("sanitizes remote %s failures", async (operation) => {
+    mocks[operation].mockRejectedValueOnce(
+      new Error("provider failure: Bearer secret-provider-value"),
+    );
+    const error = await executeWebTool(operation, toolContext).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      name: operation === "fetch" ? "BrowserbaseWebFetchError" : "BrowserbaseWebSearchError",
+      message: `Browserbase web ${operation} failed.`,
+    });
+    expect((error as Error).cause).toBeUndefined();
+    expect(String(error)).not.toContain("secret-provider-value");
+  });
+
+  it.each(["fetch", "search"] as const)(
+    "preserves cancellation for %s without exposing the abort reason",
+    async (operation) => {
+      const controller = new AbortController();
+      controller.abort(new Error("secret abort reason"));
+      mocks[operation].mockRejectedValueOnce(controller.signal.reason);
+      const error = await executeWebTool(operation, {
+        abortSignal: controller.signal,
+      } as ToolContext).catch((error: unknown) => error);
+      expect(error).toMatchObject({ name: "AbortError" });
+      expect(String(error)).not.toContain("secret abort reason");
+    },
+  );
 
   it("rejects invalid client options on first execution", () => {
     const search = browserbaseWebSearch({ apiKey: "" });

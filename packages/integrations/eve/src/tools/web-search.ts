@@ -19,6 +19,14 @@ export const browserbaseWebSearchOutputSchema = z.object({
   results: z.array(searchResultSchema),
 });
 
+export class BrowserbaseWebSearchError extends Error {
+  override readonly name = "BrowserbaseWebSearchError";
+
+  constructor() {
+    super("Browserbase web search failed.");
+  }
+}
+
 export function browserbaseWebSearch(config: BrowserbaseWebToolConfig = {}) {
   return defineTool({
     description:
@@ -36,7 +44,14 @@ export function browserbaseWebSearch(config: BrowserbaseWebToolConfig = {}) {
     outputSchema: browserbaseWebSearchOutputSchema,
     execute({ query, numResults }, context) {
       const browserbase = createBrowserbaseWebClient(config);
-      return browserbase.search.web({ query, numResults }, { signal: context.abortSignal });
+      return browserbase.search
+        .web({ query, numResults }, { signal: context.abortSignal })
+        .catch(() => {
+          if (context.abortSignal.aborted) {
+            throw new DOMException("Browserbase web search was aborted.", "AbortError");
+          }
+          throw new BrowserbaseWebSearchError();
+        });
     },
   });
 }

@@ -77,7 +77,7 @@ describe("StagehandSession", () => {
     ).rejects.toThrow("connection lost");
     await expect(session.run(async (resources) => resources === second)).resolves.toBe(true);
     expect(cleanup).toHaveBeenCalledOnce();
-    expect(cleanup).toHaveBeenCalledWith(first);
+    expect(cleanup.mock.calls[0]?.[0]).toBe(first);
   });
 
   it("bounds a hung operation and lets the queue continue with fresh resources", async () => {
@@ -100,7 +100,7 @@ describe("StagehandSession", () => {
 
     await expect(hung).rejects.toThrow("Stagehand operation timed out after 50ms.");
     await expect(next).resolves.toBe(true);
-    expect(cleanup).toHaveBeenCalledWith(first);
+    expect(cleanup.mock.calls[0]?.[0]).toBe(first);
     expect(factory).toHaveBeenCalledTimes(2);
   });
 
@@ -128,6 +128,34 @@ describe("StagehandSession", () => {
 });
 
 describe("closeStagehandResources", () => {
+  it("releases the remote session when client and browser close both hang", async () => {
+    vi.useFakeTimers();
+    const resources = createResources();
+    resources.releaseSession = vi.fn(async () => undefined);
+    vi.mocked(resources.stagehand.close).mockImplementation(() => new Promise(() => undefined));
+    vi.mocked(resources.browser.close).mockImplementation(() => new Promise(() => undefined));
+    const closing = closeStagehandResources(resources, 25);
+
+    await vi.advanceTimersByTimeAsync(25);
+    await expect(closing).resolves.toBeUndefined();
+    expect(resources.releaseSession).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not wait for a hung client before falling back from a failed browser close", async () => {
+    vi.useFakeTimers();
+    const resources = createResources();
+    resources.releaseSession = vi.fn(async () => undefined);
+    vi.mocked(resources.stagehand.close).mockImplementation(() => new Promise(() => undefined));
+    vi.mocked(resources.browser.close).mockRejectedValueOnce(new Error("transport lost"));
+    const closing = closeStagehandResources(resources, 25);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(resources.releaseSession).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(25);
+    await expect(closing).resolves.toBeUndefined();
+  });
+
   it("does not report a Stagehand transport error after the browser closes", async () => {
     const resources = createResources();
     vi.mocked(resources.stagehand.close).mockRejectedValueOnce(new TypeError());
@@ -181,6 +209,84 @@ describe("closeStagehandResources", () => {
 });
 
 describe("createStagehandResourceFactory", () => {
+  it("sanitizes launch failures without attaching the provider error", async () => {
+    const factory = createStagehandResourceFactory(async () => {
+      throw new Error("provider rejected Bearer secret-provider-value");
+    });
+    const error = await factory().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(StagehandSessionInitializationError);
+    expect(error).toMatchObject({ message: "Failed to initialize the Stagehand browser session." });
+    expect((error as Error).cause).toBeUndefined();
+    expect(String(error)).not.toContain("secret-provider-value");
+  });
+
+  it("sanitizes initialization failure after successful browser cleanup", async () => {
+    const resources = createResources();
+    const factory = createStagehandResourceFactory(
+      async () => ({ browser: resources.browser }),
+      async () => {
+        throw new Error("provider rejected Bearer secret-provider-value");
+      },
+    );
+    const error = await factory().catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(StagehandSessionInitializationError);
+    expect((error as Error).cause).toBeUndefined();
+    expect(String(error)).not.toContain("secret-provider-value");
+    expect(resources.browser.closed).toBe(true);
+  });
+
+  it("uses remote release after browser close hangs during failed initialization", async () => {
+    vi.useFakeTimers();
+    const resources = createResources();
+    const releaseSession = vi.fn(async () => undefined);
+    vi.mocked(resources.browser.close).mockImplementation(() => new Promise(() => undefined));
+    const factory = createStagehandResourceFactory(
+      async () => ({ browser: resources.browser, releaseSession }),
+      async () => {
+        throw new Error("initialization failed");
+      },
+    );
+    const failed = expect(factory()).rejects.toBeInstanceOf(StagehandSessionInitializationError);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await failed;
+    expect(releaseSession).toHaveBeenCalledOnce();
+  });
+
+  it("awaits an in-flight fallback release before launching replacement resources", async () => {
+    vi.useFakeTimers();
+    const first = createResources();
+    const second = createResources();
+    const release = deferred<void>();
+    const releaseSession = vi.fn(() => release.promise);
+    vi.mocked(first.browser.close).mockImplementation(() => new Promise(() => undefined));
+    const launch = vi
+      .fn()
+      .mockResolvedValueOnce({ browser: first.browser, releaseSession })
+      .mockResolvedValueOnce({ browser: second.browser });
+    const createStagehand = vi
+      .fn()
+      .mockResolvedValueOnce(first.stagehand)
+      .mockResolvedValueOnce(second.stagehand);
+    const session = new StagehandSession(
+      createStagehandResourceFactory(launch, createStagehand),
+      closeStagehandResources,
+      { cleanupTimeoutMs: 50 },
+    );
+    const failedClose = expect(session.run(({ tools }) => tools.close())).rejects.toThrow(
+      "Failed to close the Stagehand browser session.",
+    );
+    await vi.advanceTimersByTimeAsync(50);
+    await failedClose;
+    expect(releaseSession).toHaveBeenCalledOnce();
+    const next = session.run(async ({ browser }) => browser === second.browser);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(launch).toHaveBeenCalledOnce();
+    expect(releaseSession).toHaveBeenCalledOnce();
+    release.resolve();
+    await expect(next).resolves.toBe(true);
+    expect(launch).toHaveBeenCalledTimes(2);
+  });
+
   it("closes through the facade hook and starts the next tool with fresh resources", async () => {
     const first = createResources();
     const second = createResources();
@@ -216,7 +322,7 @@ describe("createStagehandResourceFactory", () => {
       },
     );
 
-    await expect(factory()).rejects.toBe(initializationError);
+    await expect(factory()).rejects.toBeInstanceOf(StagehandSessionInitializationError);
     expect(releaseSession).toHaveBeenCalledOnce();
   });
 
