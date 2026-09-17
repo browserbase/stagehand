@@ -105,6 +105,26 @@ Prefer `browse snapshot` over screenshots for most browser work. It is structure
 
 Refs are refreshed on every snapshot. After clicks, form submits, navigation, or UI re-renders, take a new snapshot before using another ref.
 
+For sensitive forms, inspect before filling and follow [Sensitive Form Fields](#sensitive-form-fields) before taking any further snapshots.
+
+## Sensitive Form Fields
+
+For passwords, payment details, and other secrets, use a secrets manager to provision environment variables outside the conversation. Obtain variable names without reading their values into agent context. If names are unknown, list names only (`compgen -e` in Bash); do not dump the environment with `env`, `printenv`, or bare `set`.
+
+Fill directly with quoted shell expansion, without first echoing the value or inserting a literal into a tool call or script:
+
+```bash
+set +x
+: "${LOGIN_PASSWORD:?Configure LOGIN_PASSWORD in your secret manager}"
+browse fill '#password' "$LOGIN_PASSWORD"
+```
+
+Use the same pattern for card fields, such as `browse fill '#card-number' "$CARD_NUMBER"`. Keep shell tracing disabled while handling secrets, and confirm the intended site and frame before filling.
+
+While sensitive values remain on the page, skip the usual post-action snapshot. Card fields and revealed passwords can appear as ordinary text. Avoid screenshots, `get value`, HTML/Markdown dumps, and evaluations that return those values. Use stable selectors when refreshing refs would expose them. Verify with the fill acknowledgement or a non-sensitive success indicator, and omit secret values from completion messages.
+
+Keep network/debug capture disabled during sensitive operations; configure hosted session recording separately. Quoted variables keep literals out of model-written commands, but the shell still expands them into process arguments and the page receives the values. This workflow does not provide automatic redaction or isolation from other processes in the sandbox.
+
 ## Parallel Browser Work
 
 Use a different `--session` value for each independent browser task. Sessions isolate tabs, cookies, refs, and daemon state; parallel tasks that omit `--session` share the `default` session and overwrite each other's active page.
@@ -351,7 +371,7 @@ JSON output includes every match with full descriptions and ignores `--limit`; `
 
 1. Run the real command and inspect its output instead of guessing.
 2. Use `browse snapshot` before interacting so you have current refs.
-3. Re-run `browse snapshot` after navigation or DOM-changing actions because refs can change.
+3. Re-run `browse snapshot` after navigation or DOM-changing actions because refs can change, except while sensitive values remain on the page (see [Sensitive Form Fields](#sensitive-form-fields)).
 4. Prefer refs from snapshots for clicks and uploads; use selectors or XPath when refs are unavailable.
 5. Use `--local` for localhost and repeatable development; use `--remote` for protected sites or Browserbase-specific behavior.
 6. Use a distinct `--session <name>` for each parallel or long-running task; commands without the flag share the `default` session.
