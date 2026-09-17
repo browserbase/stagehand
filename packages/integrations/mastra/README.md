@@ -1,5 +1,10 @@
 # Mastra + Stagehand facade over MCP/stdio
 
+## Supported integration route
+
+Use `MCPClient` from `@mastra/mcp`, as described in the [official Mastra documentation](https://mastra.ai/docs/agents/tools). No separate host marketplace plugin is needed. The [Stagehand guide](https://docs.stagehand.dev/v4/integrations/mastra#add-stagehand-to-an-existing-agent) includes a portable setup using the packaged MCP server, pending its first 0.1.0 release. The source example below remains available before publication.
+
+
 This example connects Mastra to the Stagehand facade MCP server over stdio. It
 exposes the facade's `run`, `snapshot`, and `screenshot` tools to a Mastra agent,
 using agent instructions imported from the integrations package.
