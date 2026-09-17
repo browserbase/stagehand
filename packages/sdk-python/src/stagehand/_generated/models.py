@@ -575,6 +575,7 @@ class ExperimentalJevAct(WireModel):
     retry_no_effect: Optional[StrictBool] = None
     focus_fallback: Optional[StrictBool] = None
     cache_check: Optional[StrictBool] = None
+    extract: Optional[Extract] = None
     act_confidence: Annotated[Optional[StrictFloat], Field(ge=0.0, le=1.0)] = None
     verify: Optional[Verify] = None
     llm_fallback: Optional[StrictBool] = None
@@ -593,6 +594,12 @@ class ExternalProxyConfig(WireModel):
     domain_pattern: Optional[StrictStr] = None
     username: Optional[StrictStr] = None
     password: Optional[StrictStr] = None
+
+
+class Extract(StrEnum):
+    off = "off"
+    judge = "judge"
+    pick = "pick"
 
 
 class ExtractOptions(WireModel):
