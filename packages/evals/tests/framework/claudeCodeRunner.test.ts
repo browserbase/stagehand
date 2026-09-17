@@ -117,6 +117,8 @@ describe("claude code runner helpers", () => {
     // Verification fails closed while preserving the separate agent report.
     expect(result._success).toBe(false);
     expect(result.agentReportedSuccess).toBe(true);
+    expect(result.reasoning).toBe("done");
+    expect(result.finalAnswer).toBe("done");
     expect(String(result.verifierError)).toContain("items array");
     expect(result.outcomeSuccess).toBeUndefined();
     expect(result.processScore).toBeUndefined();
