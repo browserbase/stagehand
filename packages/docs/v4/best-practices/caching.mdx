@@ -9,7 +9,7 @@ Stagehand caches `act()`, `observe()`, and `extract()` results server-side to re
 
 ## Browserbase cache
 
-Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. Turn it on with the `cache` option and Browserbase caches every `act()`, `observe()`, and `extract()` call on its servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
+Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. It is on by default: Browserbase caches every `act()`, `observe()`, and `extract()` call on its servers, and repeated calls with the same inputs return instantly without consuming any LLM tokens. Set `cache: false` to turn it off.
 
 Browserbase builds the cache key from the instruction, page content, and the options you pass. It deliberately leaves out model configuration, so switching models does not invalidate your cache. On a cache hit, the server returns the response directly with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
 
@@ -17,9 +17,9 @@ Browserbase builds the cache key from the instruction, page content, and the opt
 Caching requires a Browserbase browser and the Browserbase API key you passed to `browserbase.launch()`. With a local browser there is no Browserbase session to key against, so the `cache` option has no effect and every call runs inference.
 </Note>
 
-### Enabling on create()
+### Setting on create()
 
-Pass `cache: true` to enable caching for all requests made by that instance:
+Caching is enabled by default. Pass `cache` on `Stagehand.create()` to set the behaviour for every request made by that instance — `false` opts out, or pass an object to tune the threshold:
 
 <Tabs>
 <Tab title="TypeScript">

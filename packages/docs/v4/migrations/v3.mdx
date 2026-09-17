@@ -380,7 +380,7 @@ Then work through the sections below for anything it missed.
 2. Replace page and context access, since it moved.
 3. Unwrap results: every primitive now returns `{ data, metadata }`.
 4. Replace `agent()` calls with [code mode](#code-mode) or [tool calling](#tool-calling).
-5. Turn on server-side caching once the flow is stable.
+5. Confirm server-side caching is doing what you expect via `metadata.cache.status`.
 
 ## Coming from Python or Go
 
@@ -506,14 +506,16 @@ Model names always carry a provider prefix. Omit `model` entirely on a Browserba
 
 ### Caching
 
-`enableCaching` is gone. v4 caches `act()`, `observe()`, and `extract()` results on Browserbase's servers instead, keyed on the instruction, page content, and options:
+v3's server-side cache option, `serverCache`, is now `cache`, and the local `enableCaching`/`cacheDir` options are gone — v4 caches `act()`, `observe()`, and `extract()` results on Browserbase's servers, keyed on the instruction, page content, and options:
 
 ```diff
-- const stagehand = new Stagehand({ enableCaching: true });
-+ const stagehand = await Stagehand.create({ browser, cache: true });
+- const stagehand = new Stagehand({ env: "BROWSERBASE" });
+- await stagehand.act("...", { serverCache: false });
++ const stagehand = await Stagehand.create({ browser });
++ await page.act("...", { cache: false });
 ```
 
-Caching needs a Browserbase browser and the API key you passed to `browserbase.launch()`. See [caching](/v4/best-practices/caching).
+As in v3, caching is on by default and each call can opt out. Caching needs a Browserbase browser and the API key you passed to `browserbase.launch()`. See [caching](/v4/best-practices/caching).
 
 ### Logging
 
@@ -595,7 +597,8 @@ Metrics became a method:
 | Agent structured output | `extract()` with a schema |
 | Agent streaming, callbacks, abort signal, message continuation | No equivalent. Your loop sits between steps, so log, cancel, or persist there |
 | `modelName`, `modelClientOptions` | `model: { modelName, apiKey }` |
-| `enableCaching` | `cache` |
+| `serverCache` | `cache` (still on by default) |
+| `enableCaching`, `cacheDir` | No equivalent; caching is server-side |
 | `verbose`, `logger` | `logging: { level, format, onLog }` |
 | `await stagehand.metrics` | `await stagehand.metrics()` |
 | `stagehand.browserbaseSessionID` | Hold the ID from `sessions.create()` |
