@@ -185,11 +185,11 @@ export class Stagehand {
         );
       }
 
+      // Build (and validate) the init params before the request counts as
+      // started: a configuration error must not invalidate the browser claim.
+      const initParams = stagehandCreateParamsForWorker(createConfig, browser);
       this.initRequestStarted = true;
-      await rpcClient.sendStagehandInit(
-        stagehandCreateParamsForWorker(createConfig, browser),
-        signal,
-      );
+      await rpcClient.sendStagehandInit(initParams, signal);
       attachStagehandBrowserContext(
         this.browserHandle,
         new BrowserContext(rpcClient, () => this.browserHandle.close()),
@@ -329,6 +329,22 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
   return error instanceof Error && JSONRPCErrorObjectSchema.safeParse(error.cause).success;
 }
 
+/**
+ * The experimental Jev path is switched on from the environment, as JSON
+ * (`{"apiKey":"…"}`), so it never becomes a field of the public create config
+ * that the Python and Go SDKs would have to mirror.
+ */
+function experimentalJevActFromEnv(): unknown {
+  const raw =
+    typeof process === "undefined" ? undefined : process.env?.STAGEHAND_EXPERIMENTAL_JEV_ACT;
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error("STAGEHAND_EXPERIMENTAL_JEV_ACT must be a JSON object");
+  }
+}
+
 function stagehandCreateParamsForWorker(
   createConfig: ResolvedStagehandClientCreateConfig,
   browser: ClaimedStagehandBrowser,
@@ -336,7 +352,9 @@ function stagehandCreateParamsForWorker(
   const { logging, model, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
+  const experimentalJevAct = experimentalJevActFromEnv();
   return StagehandInitParamsSchema.parse({
+    ...(experimentalJevAct === undefined ? {} : { experimentalJevAct }),
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
     browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,

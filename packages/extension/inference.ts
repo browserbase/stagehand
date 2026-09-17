@@ -245,3 +245,53 @@ export async function act(params: {
     inference_time_ms: result.durationMs,
   };
 }
+
+const ActTextArgumentSchema = z
+  .object({
+    text: z
+      .string()
+      .nullable()
+      .describe(
+        "The exact text the instruction wants typed, copied verbatim from the instruction, or the %variable% placeholder that stands for it. Null when the instruction does not say what to type.",
+      ),
+  })
+  .strict();
+
+/**
+ * Argument-only inference for the experimental Jev act path: no page content,
+ * just the instruction, returning the literal text to type. The element is
+ * chosen elsewhere.
+ */
+export async function actTextArgument(params: {
+  instruction: string;
+  variableNames: string[];
+  generate: GenerateLlm;
+}): Promise<{
+  text: string | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  reasoning_tokens: number;
+  cached_input_tokens: number;
+  inference_time_ms: number;
+}> {
+  // Variable names are caller data: they go in the data message, never the system prompt.
+  const variables =
+    params.variableNames.length > 0
+      ? `\ndeclared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}`
+      : "";
+  const result = await generateStructured(
+    params.generate,
+    "ActTextArgument",
+    ActTextArgumentSchema,
+    "You extract one argument from a browser-automation instruction: the literal text the user wants typed into a field. Copy it verbatim from the instruction; never paraphrase, translate, or invent. Do not return the name of the field. If a declared %variable% placeholder stands for the text, return it as written including the percent signs.",
+    `instruction: ${params.instruction}${variables}`,
+  );
+  return {
+    text: result.data.text,
+    prompt_tokens: result.usage?.inputTokens ?? 0,
+    completion_tokens: result.usage?.outputTokens ?? 0,
+    reasoning_tokens: result.usage?.reasoningTokens ?? 0,
+    cached_input_tokens: result.usage?.cachedInputTokens ?? 0,
+    inference_time_ms: result.durationMs,
+  };
+}

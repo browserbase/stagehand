@@ -224,6 +224,20 @@ class EmptyParams(TypedDict):
     pass
 
 
+class ExperimentalJevAct(TypedDict):
+    api_key: str
+    model: NotRequired[str]
+    api_url: NotRequired[str]
+    enabled: NotRequired[bool]
+    retry_no_effect: NotRequired[bool]
+    focus_fallback: NotRequired[bool]
+    act_confidence: NotRequired[float]
+    verify: NotRequired[Literal["off", "checks", "full"]]
+    llm_fallback: NotRequired[bool]
+    argument_llm: NotRequired[bool]
+    page_state: NotRequired[bool]
+
+
 class ExternalProxyConfig(TypedDict):
     type: Literal["external"]
     server: str
@@ -1106,6 +1120,7 @@ class StagehandInitParams(TypedDict):
     self_heal: NotRequired[bool]
     dom_settle_timeout_ms: NotRequired[int]
     cache: NotRequired[Caching]
+    experimental_jev_act: NotRequired[ExperimentalJevAct]
 
 
 VariablePrimitive: TypeAlias = str | float | bool
