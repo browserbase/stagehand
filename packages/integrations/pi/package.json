@@ -1,24 +1,43 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-example-pi-facade",
-  "version": "4.0.3",
-  "private": true,
+  "name": "@browserbasehq/pi",
+  "version": "0.0.0",
+  "description": "Native Stagehand browser tools for the Pi coding agent.",
   "keywords": [
     "pi-package"
   ],
+  "homepage": "https://docs.stagehand.dev/v4/integrations/pi",
+  "license": "MIT",
+  "author": "Browserbase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/integrations/pi"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "start": "pi -e ./extensions/stagehand.ts --no-session -p",
     "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations && vitest run",
     "test:unit": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown",
+    "prepack": "pnpm run build"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "workspace:*",
-    "@browserbasehq/stagehand-integrations": "workspace:*"
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@browserbasehq/stagehand-integrations": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@types/node": "catalog:",
+    "tsdown": "catalog:",
     "typebox": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
@@ -32,7 +51,7 @@
   },
   "pi": {
     "extensions": [
-      "./extensions/stagehand.ts"
+      "./dist/stagehand.mjs"
     ]
   }
 }

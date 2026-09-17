@@ -6,27 +6,24 @@ description: "Give the Pi coding agent native Stagehand browser tools registered
 The Pi integration gives a Pi agent native `run`, `snapshot`, and `screenshot` tools backed by one persistent Stagehand browser per Pi session. Pi ships without built-in MCP by design; extensions register tools directly, so this integration runs in process without an MCP server or bridge. The tool descriptions, runtime validators, and system prompt come from the shared facade contract, so the tools behave the same as the MCP-based integrations.
 
 <Note>
-Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+The extension uses Pi’s official [package format](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md). The first `@browserbasehq/pi` release must be published before the npm install below is available; use the source install below while testing an unreleased change.
 </Note>
 
 ## Prerequisites
 
 - Node.js 24 or newer
-- pnpm 11.10.0
 - A model-provider credential for Pi (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
 - A current Google Chrome installation for local browser mode
 
 ## Quickstart
 
 <Steps>
-  <Step title="Clone and build Stagehand">
+  <Step title="Install the Pi package">
 ```bash
-git clone https://github.com/browserbase/stagehand.git
-cd stagehand
-pnpm install --frozen-lockfile
-pnpm exec turbo run build \
-  --filter @browserbasehq/stagehand-integrations
+pi install npm:@browserbasehq/pi
 ```
+
+Use `pi install -l npm:@browserbasehq/pi` to install only for the current project. Restart Pi after installing so it loads the extension.
   </Step>
   <Step title="Configure the Pi model">
 ```bash
@@ -45,27 +42,28 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
   </Step>
   <Step title="Run a browser task">
 ```bash
-cd packages/integrations/pi
-pnpm start "Open https://example.com and report the page title." </dev/null
+pi --no-session -p "Open https://example.com and report the page title." </dev/null
 ```
-
-The `start` script runs `pi -e ./extensions/stagehand.ts --no-session -p`, so no install step is required; Pi loads TypeScript directly and resolves `@browserbasehq/stagehand-integrations` through the workspace.
-  </Step>
+    </Step>
 </Steps>
 
 <Note>
 Two headless gotchas: print mode reads piped stdin (always redirect `</dev/null`), and non-interactive runs never show the project-trust prompt. Load the extension with `-e` as above, or use `-a` after trusting the project.
 </Note>
 
-## Install permanently
+## Try the extension from source
 
-To register the extension for every Pi session instead of loading it per invocation:
+For development before the first release, build and install the package from the repository. The build bundles the private facade so installed consumers do not depend on the monorepo.
 
 ```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build --filter @browserbasehq/pi
 pi install ./packages/integrations/pi
 ```
 
-The `pi` manifest key in the package's `package.json` points at the extension.
+Use `pi list` to inspect installed packages, `pi update npm:@browserbasehq/pi` to update a published installation, and `pi remove npm:@browserbasehq/pi` to remove it.
 
 ## Configuration
 
