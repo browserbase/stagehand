@@ -201,6 +201,8 @@ export interface GradeExternalTrajectoryOptions {
   /** Logger category ("claude_code" | "codex"). */
   category: string;
   logger: EvalLogger;
+  /** Extra fields for the persisted trajectory's metadata.json (e.g. harness usage). */
+  trajectoryMetadata?: Record<string, unknown>;
 }
 
 /**
@@ -216,6 +218,7 @@ export async function gradeExternalTrajectory({
   errorMessage,
   category,
   logger,
+  trajectoryMetadata,
 }: GradeExternalTrajectoryOptions): Promise<TaskResult> {
   try {
     const trajectory = buildTrajectory();
@@ -245,6 +248,7 @@ export async function gradeExternalTrajectory({
       evaluationResult,
       outputRoot: verifier.trajectoryRoot,
       runId: verifier.runId,
+      ...(trajectoryMetadata && { metadata: trajectoryMetadata }),
     });
 
     logger.log({
