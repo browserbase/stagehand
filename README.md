@@ -395,7 +395,7 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 
 ## Search and fetch without a browser
 
-Fetch lets you grab the content of any URL as markdown. Search provides fast, token-efficient web search results.
+[Fetch]([Fetch](https://docs.stagehand.dev/v4/add-ons/fetch)) lets you grab the content of any URL as markdown. [Search]([Search](https://docs.stagehand.dev/v4/add-ons/search)) provides fast, token-efficient web search results.
 Both as a lightweight complement to browser sessions.
 
 ```typescript
@@ -416,8 +416,6 @@ const fetched = await browserbase.fetch({
 console.log(fetched.content);
 ```
 
-[Search](https://docs.stagehand.dev/v4/add-ons/search) · [Fetch](https://docs.stagehand.dev/v4/add-ons/fetch)
-
 ## Docs and resources
 
 <table>
@@ -428,6 +426,10 @@ console.log(fetched.content);
   <tr>
     <td><a href="https://docs.stagehand.dev/v4/basics/act">act</a> · <a href="https://docs.stagehand.dev/v4/basics/extract">extract</a> · <a href="https://docs.stagehand.dev/v4/basics/observe">observe</a></td>
     <td>The three primitives</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/add-ons/search">Search</a> · <a href="https://docs.stagehand.dev/v4/add-ons/fetch">Fetch</a></td>
+    <td>Web search and page content without a browser</td>
   </tr>
   <tr>
     <td><a href="https://docs.stagehand.dev/v4/migrations/playwright">Migrate from Playwright</a></td>
