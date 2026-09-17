@@ -368,7 +368,7 @@ Stealth mode, residential proxies, persistent contexts, and session recordings c
 
 ## Give your coding agent a browser
 
-The hosted Browserbase MCP server puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
+The hosted Browserbase [MCP server]([MCP](https://docs.stagehand.dev/integrations/mcp/setup)) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
@@ -390,8 +390,6 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 ```
 
 </details>
-
-[MCP setup](https://docs.stagehand.dev/integrations/mcp/setup) · [Available tools](https://docs.stagehand.dev/integrations/mcp/tools)
 
 ## Search and fetch without a browser
 
