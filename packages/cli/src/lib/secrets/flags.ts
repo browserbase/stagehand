@@ -32,3 +32,16 @@ export function toListSecretsOptions(flags: {
     endAt: flags["end-at"],
   };
 }
+
+export const secretInputFlags = {
+  env: Flags.string({
+    description: "Read the secret value from the named environment variable.",
+    helpValue: "VARIABLE_NAME",
+    exclusive: ["stdin"],
+  }),
+  stdin: Flags.boolean({
+    description:
+      "Read the exact secret value from stdin, preserving whitespace.",
+    exclusive: ["env"],
+  }),
+};

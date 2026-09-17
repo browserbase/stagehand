@@ -1,3 +1,4 @@
+import { sealSecret } from "./seal.js";
 import { requestBrowserbase, requestBrowserbaseJson } from "../cloud/api.js";
 
 export interface SecretsApiOptions {
@@ -55,4 +56,25 @@ export async function deleteSecret(
 
 function secretPath(id: string): string {
   return `/v1/secrets/${encodeURIComponent(id)}`;
+}
+
+export async function createSecret(
+  options: SecretsApiOptions,
+  secretKey: string,
+  value: Uint8Array,
+): Promise<Secret> {
+  const keypair = await requestBrowserbaseJson<{
+    id: string;
+    publicKey: string;
+  }>(options, "/v1/secrets/keypair");
+  const sealedSecretValue = await sealSecret(keypair.publicKey, value);
+  return requestBrowserbaseJson(options, "/v1/secrets", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      secretKey,
+      keypairId: keypair.id,
+      sealedSecretValue,
+    }),
+  });
 }
