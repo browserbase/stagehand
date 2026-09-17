@@ -1917,6 +1917,9 @@ type StagehandInitParamsExperimentalJevAct struct {
 	// ArgumentLLM corresponds to the JSON schema field "argument_llm".
 	ArgumentLLM *bool `json:"argument_llm,omitempty,omitzero"`
 
+	// CacheCheck corresponds to the JSON schema field "cache_check".
+	CacheCheck *bool `json:"cache_check,omitempty,omitzero"`
+
 	// Enabled corresponds to the JSON schema field "enabled".
 	Enabled *bool `json:"enabled,omitempty,omitzero"`
 
@@ -1928,6 +1931,9 @@ type StagehandInitParamsExperimentalJevAct struct {
 
 	// Model corresponds to the JSON schema field "model".
 	Model *string `json:"model,omitempty,omitzero"`
+
+	// Observe corresponds to the JSON schema field "observe".
+	Observe *bool `json:"observe,omitempty,omitzero"`
 
 	// PageState corresponds to the JSON schema field "page_state".
 	PageState *bool `json:"page_state,omitempty,omitzero"`

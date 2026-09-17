@@ -26,6 +26,7 @@ import { diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
+import { checkCachedAction } from "./jevAct/cacheCheck.js";
 import { runJevActPipeline, type JevActConfig, type JevActOutcome } from "./jevAct/pipeline.js";
 import { redactor } from "./jevAct/args.js";
 import { focusOutline, parseOutline } from "./jevAct/tree.js";
@@ -378,8 +379,28 @@ async function replayCachedActions(
     throw new Error("Cached act value contained no usable actions");
   }
 
+  // Replay is blind: a selector that still resolves but now points at another
+  // control gets acted on with no model in the loop. With `cacheCheck`, one Jev
+  // yes/no runs before each action, against the page as it is right then
+  // (earlier actions of the same entry may have changed it); a stale verdict
+  // throws, which sends the act through full inference.
+  const checking = context.jevAct?.cacheCheck === true && context.jevAct.enabled !== false;
   const results: ActResultData[] = [];
   for (const action of actions) {
+    if (checking) {
+      const verdict = await validateCachedAction(action, instruction, context, variables).catch(
+        (error: unknown) => {
+          if (error instanceof TimeoutError) throw error;
+          return undefined;
+        },
+      );
+      if (verdict?.verdict === "stale") {
+        throw new Error(
+          // The element's name can echo a value an earlier act typed; redact it like every request.
+          `Cached action no longer matches the page: selector now resolves to "${(redactor(variables) ?? ((text: string) => text))(verdict.found ?? "")}" (match ${verdict.score})`,
+        );
+      }
+    }
     const result = await takeDeterministicAction({
       action,
       variables,
@@ -397,6 +418,41 @@ async function replayCachedActions(
     actionDescription: instruction,
     actions: results.flatMap((result) => result.actions),
   });
+}
+
+async function validateCachedAction(
+  action: Action,
+  instruction: string,
+  context: ActContext,
+  variables: Variables | undefined,
+) {
+  const jevAct = context.jevAct!;
+  const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot({});
+  const trace: Record<string, unknown>[] = [];
+  const verdict = await checkCachedAction(
+    {
+      config: jevAct,
+      instruction,
+      trace: trace as never,
+      threshold: jevAct.actConfidence ?? 0.7,
+      logger: context.logger,
+      ensureTimeRemaining: context.ensureTimeRemaining,
+      redact: redactor(variables),
+    },
+    {
+      tree: combinedTree,
+      xpathMap: combinedXpathMap as Record<string, string>,
+      nodes: parseOutline(combinedTree),
+    },
+    action,
+  );
+  context.logger.info("Jev cache check", {
+    category: "jev",
+    instruction,
+    verdict: verdict.verdict,
+    trace: JSON.stringify(trace),
+  });
+  return verdict;
 }
 
 async function getActionFromLLM({
