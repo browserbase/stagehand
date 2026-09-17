@@ -9,7 +9,6 @@ codex plugin add stagehand@browserbase-stagehand
 
 Requires the first `@browserbasehq/stagehand-mcp@0.1.0` release. The [repository plugin](../../../plugins/stagehand) supplies the MCP configuration, browser environment allowlist, and timeouts. Restart Codex after installing. Keep browser credentials in the environment. The SDK example below remains available for programmatic use.
 
-
 A runnable example embedding a Codex agent via `@openai/codex-sdk`, with the Stagehand facade
 (`run` / `snapshot` / `screenshot`) mounted as a stdio MCP server through the SDK's config
 override — install, export keys, one line to run. The SDK spawns the bundled Codex runtime;

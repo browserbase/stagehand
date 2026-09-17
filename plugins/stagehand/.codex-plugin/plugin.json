@@ -11,13 +11,8 @@
     "developerName": "Browserbase",
     "category": "Developer Tools",
     "longDescription": "Control a persistent browser using Stagehand run, snapshot, and screenshot tools.",
-    "defaultPrompt": [
-      "Open https://example.com and report its title."
-    ],
-    "capabilities": [
-      "Read",
-      "Write"
-    ]
+    "defaultPrompt": ["Open https://example.com and report its title."],
+    "capabilities": ["Read", "Write"]
   },
   "mcpServers": "./.mcp.json",
   "homepage": "https://docs.stagehand.dev/v4/integrations/codex",

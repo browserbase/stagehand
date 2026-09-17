@@ -2,10 +2,7 @@
   "mcpServers": {
     "stagehand": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@browserbasehq/stagehand-mcp@0.1.0"
-      ],
+      "args": ["-y", "@browserbasehq/stagehand-mcp@0.1.0"],
       "env_vars": [
         "STAGEHAND_BROWSER",
         "BROWSERBASE_API_KEY",

@@ -3,6 +3,12 @@
 [mcp_servers.stagehand]
 command = "node"
 args = ["/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs"]
-env_vars = ["STAGEHAND_BROWSER", "BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID", "STAGEHAND_MODEL_NAME", "STAGEHAND_MODEL_API_KEY"]
+env_vars = [
+  "STAGEHAND_BROWSER",
+  "BROWSERBASE_API_KEY",
+  "BROWSERBASE_PROJECT_ID",
+  "STAGEHAND_MODEL_NAME",
+  "STAGEHAND_MODEL_API_KEY",
+]
 startup_timeout_sec = 120
 tool_timeout_sec = 120
