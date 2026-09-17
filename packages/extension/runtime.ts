@@ -57,7 +57,7 @@ import type {
   PageClickParams,
   PageCloseResult,
   PageCDPEvent,
-  PageCDPEventNotification,
+  PageEventNotification,
   PageEventName,
   PageAddInitScriptParams,
   PageDragAndDropParams,
@@ -267,7 +267,7 @@ export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
-  emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
+  emitPageEvent?: (notification: PageEventNotification) => void;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -290,7 +290,7 @@ export function createStagehandRuntime(
       browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
-      emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
+      emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
     },
     tracing,
   );
@@ -757,7 +757,7 @@ export class StagehandRuntime {
       throw new DuplicatePageEventSubscriptionError();
     }
     const dispose = this.resolvePage(params.pageId).subscribeCDPEvent(params.event, (event) => {
-      this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+      this.adapters.emitPageEvent({ subscriptionId: params.subscriptionId, event });
     });
     this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });
     return { ok: true };

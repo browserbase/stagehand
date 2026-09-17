@@ -1482,15 +1482,6 @@ class PageCDPEvent(WireModel):
     target_id: Annotated[StrictStr, Field(min_length=1)]
 
 
-class PageCDPEventNotification(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    subscription_id: Annotated[StrictStr, Field(min_length=1)]
-    event: PageCDPEvent
-
-
 class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
     root: dict[StrictStr, Optional[FieldSchema12]]
 
@@ -1573,8 +1564,18 @@ class PageEvaluateResult(WireModel):
     value: Optional[FieldSchema9]
 
 
-class PageEventName(RootModel[Literal["console"]]):
-    root: Literal["console"]
+class PageEventName(StrEnum):
+    console = "console"
+    requestfinished = "requestfinished"
+
+
+class PageEventNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Union[PageCDPEvent, NavigationResponseDescriptor]
 
 
 class PageGoBackParams(WireModel):

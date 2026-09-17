@@ -1441,7 +1441,9 @@ export const ResponseFinishedResultSchema = z
   })
   .meta({ id: "ResponseFinishedResult" });
 
-export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
+export const PageEventNameSchema = z
+  .enum(["console", "requestfinished"])
+  .meta({ id: "PageEventName" });
 
 export const PageCDPEventParamsSchema = z
   .record(z.string(), z.json())
@@ -1457,12 +1459,18 @@ export const PageCDPEventSchema = z
   })
   .meta({ id: "PageCDPEvent" });
 
-export const PageCDPEventNotificationSchema = z
+export const PageEventSchemas = {
+  console: PageCDPEventSchema,
+  requestfinished: NavigationResponseDescriptorSchema,
+} satisfies Record<z.infer<typeof PageEventNameSchema>, z.ZodType>;
+
+const PageEventPayloadSchema = z.union(Object.values(PageEventSchemas));
+export const PageEventNotificationSchema = z
   .strictObject({
     subscriptionId: z.string().min(1),
-    event: PageCDPEventSchema,
+    event: PageEventPayloadSchema,
   })
-  .meta({ id: "PageCDPEventNotification" });
+  .meta({ id: "PageEventNotification" });
 
 export const WebMCPAnnotationSchema = z
   .strictObject({
