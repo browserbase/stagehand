@@ -11,12 +11,12 @@ The Deep Agents integration provides two deployment patterns with the same `run`
 | Managed | Native Python tools | One Browserbase runtime per managed thread |
 
 <Note>
-The source example is maintained in the Stagehand repository. For an existing application, prefer the host’s MCP client and the packaged server described below.
+The source example is maintained in the Stagehand repository. For an existing application, prefer the host’s MCP client and the Stagehand facade MCP server described below.
 </Note>
 
 ## Add Stagehand to an existing agent
 
-Use Deep Agents’s supported tool integration: LangChain MCP adapters with an explicit persistent session. This is an [official SDK/MCP extension point](https://docs.langchain.com/oss/python/langchain/mcp); a separate host plugin marketplace is not required.
+Use Deep Agents’s supported tool integration: LangChain MCP adapters with an explicit persistent session. This is an [official SDK/MCP extension point](https://docs.langchain.com/oss/python/langchain/mcp); you do not need a separate host marketplace plugin.
 
 <Note>
 The portable setup below requires the first `@browserbasehq/stagehand-mcp@0.1.0` release. Until that release is published, use the source example further down this page. Node.js 24+ is required to run the MCP server.
@@ -28,7 +28,7 @@ Install the host libraries in your application:
 uv add deepagents langchain-mcp-adapters langchain-openai
 ```
 
-Configure your agent’s model credentials as usual. The browser uses local Chrome unless you export `BROWSERBASE_API_KEY`. Only browser configuration is forwarded to the MCP child.
+Configure your agent’s model credentials as usual. The browser uses local Chrome unless you export `BROWSERBASE_API_KEY`. The Deep Agents host forwards the `STAGEHAND_*` and `BROWSERBASE_*` variables to the MCP child, including any separate Stagehand model configuration. Your agent’s model-provider credential stays in the host.
 
 ```python
 import asyncio
@@ -67,7 +67,7 @@ asyncio.run(main())
 
 Keep the connection open until the entire agent run finishes. Closing it releases the server and its browser.
 
-The Node-based MCP server also isolates Stagehand’s dependencies from your Python agent. Do not replace `client.session()` with stateless per-call tool loading: each new server process would lose the current browser. The Python-native and Managed Deep Agents examples below remain available when you need those deployment models.
+The Stagehand facade MCP server also isolates Stagehand’s dependencies from your Python agent. Do not replace `client.session()` with stateless per-call tool loading: each new server process would lose the current browser. The Python-native and Managed Deep Agents examples below remain available when you need those deployment models.
 
 ## Run locally
 
