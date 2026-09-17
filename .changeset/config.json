@@ -5,6 +5,7 @@
   "ignore": ["@browserbasehq/stagehand-evals"],
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
+  "bumpVersionsWithWorkspaceProtocolOnly": true,
   "access": "public",
   "changelog": [
     "@changesets/changelog-github",
