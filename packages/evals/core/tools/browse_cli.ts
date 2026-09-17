@@ -20,6 +20,7 @@ import {
   createBrowseCliSessionName,
 } from "../../browseCliPaths.js";
 import { getRepoRootDir } from "../../runtimePaths.js";
+import { EvalsError } from "../../errors.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -550,7 +551,7 @@ export class BrowseCliSession implements CoreSession {
     const result = await this.runtime.runJson<BrowseCliTabsResult>(["tab", "list"]);
     const pages = (result.tabs ?? []).map((tab) => {
       if (!tab.targetId) {
-        throw new Error(`browse tab list returned no targetId for tab index ${tab.index}`);
+        throw new EvalsError(`browse tab list returned no targetId for tab index ${tab.index}`);
       }
       return { ...tab, targetId: tab.targetId };
     });
@@ -624,10 +625,14 @@ export class BrowseCliSession implements CoreSession {
       throw new Error(`Unknown page id "${pageId}"`);
     }
 
-    await this.runtime.runJson(["tab", "close", page.targetId]);
+    const result = await this.runtime.runJson<{ selectedTargetId?: string }>([
+      "tab",
+      "close",
+      page.targetId,
+    ]);
     this.handles.delete(pageId);
-    const remaining = await this.fetchPages();
-    this.activePageId = remaining[0]?.targetId ?? null;
+    this.activePageId = result.selectedTargetId ?? null;
+    await this.fetchPages();
   }
 
   async close(): Promise<void> {

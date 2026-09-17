@@ -37,12 +37,9 @@
   </a>
 </p>
 
-
 ## AI that uses the browser like humans.
 
-Sign in once, keep the session, and pull structured data out the other side. 
-
-
+Sign in once, keep the session, and pull structured data out the other side.
 
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
@@ -72,9 +69,7 @@ await stagehand.act("open the billing page");
 const { data } = await stagehand.extract(
   "extract every invoice in the table",
   z.object({
-    invoices: z.array(
-      z.object({ number: z.string(), amount: z.number(), paid: z.boolean() }),
-    ),
+    invoices: z.array(z.object({ number: z.string(), amount: z.number(), paid: z.boolean() })),
   }),
 );
 
@@ -258,7 +253,6 @@ func run(ctx context.Context) (err error) {
 
 </details>
 
-
 ## Install
 
 ```bash
@@ -285,18 +279,16 @@ go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
 
 Local runs need [Chrome](https://www.google.com/chrome/) installed. Full setup: [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart).
 
-
 ## Why Stagehand
 
-| | |
-| --- | --- |
-| **Familiar APIs** | The Playwright-style methods you and your agents already know: `goto`, `click`, `locator`, `screenshot`. |
-| **Token efficiency** | Hybrid accessibility-tree trimming gives agents exactly the page context they need and nothing more. |
-| **Faster in production** | Stagehand runs as an extension next to the browser, cutting round-trip latency on every action. |
-| **Self-healing** | `act`, `observe`, and `extract` refresh how an action happens when the site changes underneath it. |
-| **Built for agents** | WebMCP, clipboard support, batch commands, deep locators for nested iframes and closed Shadow DOMs, OTel traces. |
-| **Three languages** | One complete browser driver across TypeScript, Python, and Go. |
-
+|                          |                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **Familiar APIs**        | The Playwright-style methods you and your agents already know: `goto`, `click`, `locator`, `screenshot`.         |
+| **Token efficiency**     | Hybrid accessibility-tree trimming gives agents exactly the page context they need and nothing more.             |
+| **Faster in production** | Stagehand runs as an extension next to the browser, cutting round-trip latency on every action.                  |
+| **Self-healing**         | `act`, `observe`, and `extract` refresh how an action happens when the site changes underneath it.               |
+| **Built for agents**     | WebMCP, clipboard support, batch commands, deep locators for nested iframes and closed Shadow DOMs, OTel traces. |
+| **Three languages**      | One complete browser driver across TypeScript, Python, and Go.                                                   |
 
 ## Run it on Browserbase
 
@@ -408,17 +400,16 @@ console.log(fetched.content);
 
 [Search](https://docs.stagehand.dev/v4/add-ons/search) · [Fetch](https://docs.stagehand.dev/v4/add-ons/fetch)
 
-
 ## Docs and resources
 
-| | |
-| --- | --- |
-| [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart) | Empty directory to working automation in three steps |
-| [act](https://docs.stagehand.dev/v4/basics/act) · [extract](https://docs.stagehand.dev/v4/basics/extract) · [observe](https://docs.stagehand.dev/v4/basics/observe) | The three primitives |
-| [Migrate from Playwright](https://docs.stagehand.dev/v4/migrations/playwright) | Port an existing suite |
-| [Integrations](https://docs.stagehand.dev/v4/integrations/overview) | CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex |
-| [Python SDK](./packages/sdk-python/README.md) · [Go SDK](./packages/sdk-go/README.md) | Language-specific guides |
-| [Ask DeepWiki](https://deepwiki.com/browserbase/stagehand) | Ask questions about this codebase |
+|                                                                                                                                                                     |                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart)                                                                                                  | Empty directory to working automation in three steps           |
+| [act](https://docs.stagehand.dev/v4/basics/act) · [extract](https://docs.stagehand.dev/v4/basics/extract) · [observe](https://docs.stagehand.dev/v4/basics/observe) | The three primitives                                           |
+| [Migrate from Playwright](https://docs.stagehand.dev/v4/migrations/playwright)                                                                                      | Port an existing suite                                         |
+| [Integrations](https://docs.stagehand.dev/v4/integrations/overview)                                                                                                 | CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex |
+| [Python SDK](./packages/sdk-python/README.md) · [Go SDK](./packages/sdk-go/README.md)                                                                               | Language-specific guides                                       |
+| [Ask DeepWiki](https://deepwiki.com/browserbase/stagehand)                                                                                                          | Ask questions about this codebase                              |
 
 ## Join the community
 
