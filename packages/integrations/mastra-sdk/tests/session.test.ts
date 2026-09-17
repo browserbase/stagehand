@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildMastraTranscript,
+  compactMastraEvent,
   normalizeMastraModel,
   runMastraSession,
   type MastraEvent,
@@ -288,23 +289,65 @@ describe("Mastra SDK session", () => {
     }
   });
 
-  it("sanitizes the returned final text", async () => {
+  it("does not retain or log step-finish request bodies", async () => {
+    const history = "x".repeat(200_000);
+    const log = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
       model: "gpt-5.4-mini",
-      logger,
+      logger: { ...logger, log },
       sdk: fakeSdk({
         events: [
+          { type: "step-start", payload: { messageId: "m1", request: { body: history } } },
           {
-            type: "text-delta",
-            payload: { text: "done https://x.test?apiKey=secret123" },
+            type: "tool-call",
+            payload: { toolCallId: "1", toolName: "stagehand_run", args: { code: "1" } },
+          },
+          {
+            type: "step-finish",
+            payload: {
+              stepResult: { reason: "tool-calls", isContinued: true },
+              output: { usage: { inputTokens: 7, outputTokens: 3 } },
+              metadata: {
+                request: { body: history },
+                response: { messages: [{ role: "assistant", content: history }] },
+              },
+              messages: { all: [{ role: "user", content: history }] },
+            },
+          },
+          {
+            type: "finish",
+            payload: {
+              stepResult: { reason: "stop" },
+              output: { usage: { inputTokens: 7, outputTokens: 3 } },
+              metadata: { request: { body: history } },
+            },
           },
         ],
       }),
       session: {},
     });
 
-    expect(result.finalText).toBe("done https://x.test?apiKey=[redacted]");
+    expect(result.events).toHaveLength(4);
+    expect(result.events[1]).toMatchObject({ type: "tool-call" });
+    expect(result.events[2]).toEqual({
+      type: "step-finish",
+      payload: {
+        stepResult: { reason: "tool-calls", isContinued: true },
+        output: { usage: { inputTokens: 7, outputTokens: 3 } },
+      },
+    });
+    expect(JSON.stringify(result.events)).not.toContain(history.slice(0, 10_000));
+    expect(result.finishReason).toBe("stop");
+    expect(result.tokenUsage.inputTokens).toBe(7);
+
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).not.toContain(history.slice(0, 10_000));
+    expect(logged.length).toBeLessThan(20_000);
+    expect(compactMastraEvent({ type: "text-delta", payload: { text: "hi" } })).toEqual({
+      type: "text-delta",
+      payload: { text: "hi" },
+    });
   });
 
   it("aborts MCP discovery and disconnects without creating an agent", async () => {
@@ -364,5 +407,24 @@ describe("Mastra SDK session", () => {
     expect(streamSignal?.aborted).toBe(true);
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("stop");
+  });
+
+  it("sanitizes the returned final text", async () => {
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      sdk: fakeSdk({
+        events: [
+          {
+            type: "text-delta",
+            payload: { text: "done https://x.test?apiKey=secret123" },
+          },
+        ],
+      }),
+      session: {},
+    });
+
+    expect(result.finalText).toBe("done https://x.test?apiKey=[redacted]");
   });
 });
