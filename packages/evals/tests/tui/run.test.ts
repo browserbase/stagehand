@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RunEvalsResult } from "../../framework/runner.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 import {
   canExecuteBenchHarness,
@@ -15,7 +16,7 @@ const runEvalsMock = vi.hoisted(() =>
   vi.fn(async () => ({
     experimentName: "test-experiment",
     summary: { passed: 0, failed: 0, total: 0 },
-    results: [],
+    results: [] as RunEvalsResult["results"],
   })),
 );
 
@@ -56,6 +57,7 @@ function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
 afterEach(() => {
   runEvalsMock.mockClear();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   process.exitCode = undefined;
 });
 
@@ -556,4 +558,64 @@ describe("buildCombinations (preview column-pruning)", () => {
     expect(columns).toEqual([]);
     expect(rows).toHaveLength(1);
   });
+});
+
+describe("runCommand zero-browser-pass gate", () => {
+  it.each([
+    { mode: "configured", limit: "0", exitCode: 1 },
+    { mode: "unset", limit: undefined, exitCode: undefined },
+  ])(
+    "$mode gate reports browserless passes with the expected exit status",
+    async ({ limit, exitCode }) => {
+      vi.stubEnv("EVAL_MAX_UNVERIFIABLE_CRITERIA", limit);
+      process.exitCode = undefined;
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      runEvalsMock.mockResolvedValueOnce({
+        experimentName: "browserless-pass",
+        summary: { passed: 1, failed: 0, total: 1 },
+        results: [
+          {
+            input: { name: "dropdown", modelName: "openai/gpt-4.1-mini" },
+            output: {
+              _success: true,
+              criterionCount: 1,
+              evidenceInsufficient: [],
+              metrics: { facade_tool_calls: { value: 0 } },
+            },
+            name: "dropdown",
+            score: 1,
+          },
+        ],
+      });
+      await runCommand(
+        {
+          target: "act",
+          normalizedTarget: "act",
+          trials: 1,
+          concurrency: 1,
+          environment: "LOCAL",
+          model: "openai/gpt-4.1-mini",
+          useApi: false,
+          harness: "stagehand",
+          envOverrides: {},
+          dryRun: false,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
+        },
+        makeRegistry([makeTask()]),
+      );
+      expect(runEvalsMock).toHaveBeenCalledOnce();
+      expect(log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n")).toContain(
+        "1 passes without browser use",
+      );
+      expect(process.exitCode).toBe(exitCode);
+      if (limit !== undefined) {
+        expect(error).toHaveBeenCalledWith(expect.stringContaining("1 passes without browser use"));
+      } else {
+        expect(error).not.toHaveBeenCalled();
+      }
+    },
+  );
 });
