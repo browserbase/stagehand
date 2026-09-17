@@ -6,12 +6,12 @@ description: "Give a Mastra agent persistent Stagehand browser tools over MCP/st
 The Mastra integration connects an agent to the Stagehand facade MCP server over MCP/stdio. The MCP client remains open for the agent run, so browser state survives across tool calls.
 
 <Note>
-The source example is maintained in the Stagehand repository. For an existing application, prefer the host’s MCP client and the packaged server described below.
+The source example is maintained in the Stagehand repository. For an existing application, prefer the host’s MCP client and the Stagehand facade MCP server described below.
 </Note>
 
 ## Add Stagehand to an existing agent
 
-Use Mastra’s supported tool integration: `MCPClient` from `@mastra/mcp`. This is an [official SDK/MCP extension point](https://mastra.ai/docs/agents/tools); a separate host plugin marketplace is not required.
+Use Mastra’s supported tool integration: `MCPClient` from `@mastra/mcp`. This is an [official SDK/MCP extension point](https://mastra.ai/docs/agents/tools); you do not need a separate host marketplace plugin.
 
 <Note>
 The portable setup below requires the first `@browserbasehq/stagehand-mcp@0.1.0` release. Until that release is published, use the source example further down this page. Node.js 24+ is required to run the MCP server.
@@ -23,7 +23,7 @@ Install the host libraries in your application:
 pnpm add @mastra/core @mastra/mcp
 ```
 
-Configure your agent’s model credentials as usual. The browser uses local Chrome unless you export `BROWSERBASE_API_KEY`. Only browser configuration is forwarded to the MCP child.
+Configure your agent’s model credentials as usual. The browser uses local Chrome unless you export `BROWSERBASE_API_KEY`. The Mastra host forwards the `STAGEHAND_*` and `BROWSERBASE_*` variables to the MCP child, including any separate Stagehand model configuration. Your agent’s model-provider credential stays in the host.
 
 ```typescript
 import { MCPClient } from "@mastra/mcp";
