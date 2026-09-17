@@ -36,6 +36,9 @@
       "cloud": {
         "description": "Manage Browserbase cloud resources and APIs."
       },
+      "cloud:secrets": {
+        "description": "List project secret metadata."
+      },
       "cloud:projects": {
         "description": "Manage Browserbase projects."
       },
