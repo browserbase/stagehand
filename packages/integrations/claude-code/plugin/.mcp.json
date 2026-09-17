@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "npx",
+      "args": ["-y", "@browserbasehq/stagehand-mcp@0.1.0"]
+    }
+  }
+}

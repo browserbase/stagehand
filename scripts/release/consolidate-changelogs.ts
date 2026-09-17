@@ -6,6 +6,10 @@ const repositoryRoot = path.resolve(import.meta.dirname, "../..");
 const rootChangelogPath = path.join(repositoryRoot, "CHANGELOG.md");
 const packageChangelogs = [
   {
+    label: "Stagehand MCP",
+    path: path.join(repositoryRoot, "packages/integrations/mcp/CHANGELOG.md"),
+  },
+  {
     label: "TypeScript SDK",
     path: path.join(repositoryRoot, "packages/sdk-ts/CHANGELOG.md"),
   },
