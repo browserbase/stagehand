@@ -6,7 +6,7 @@ description: "Give the Pi coding agent native Stagehand browser tools registered
 The Pi integration gives a Pi agent native `run`, `snapshot`, and `screenshot` tools backed by one persistent Stagehand browser per Pi session. Pi ships without built-in MCP by design; extensions register tools directly, so this integration runs in process without an MCP server or bridge. The tool descriptions, runtime validators, and system prompt come from the shared facade contract, so the tools behave the same as the MCP-based integrations.
 
 <Note>
-The extension uses Pi’s official [package format](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md). The first `@browserbasehq/pi` release must be published before the npm install below is available; use the source install below while testing an unreleased change.
+The extension uses Pi’s official [package format](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md). Browserbase must publish the first `@browserbasehq/pi` release before you can use the npm install below; use the source install below while testing an unreleased change.
 </Note>
 
 ## Prerequisites
@@ -48,7 +48,7 @@ pi --no-session -p "Open https://example.com and report the page title." </dev/n
 </Steps>
 
 <Note>
-Two headless gotchas: print mode reads piped stdin (always redirect `</dev/null`), and non-interactive runs never show the project-trust prompt. Load the extension with `-e` as above, or use `-a` after trusting the project.
+Print mode reads piped stdin, so redirect `</dev/null` when running a one-shot task. A user-level `pi install` makes the extension available to future sessions. For project-local installs, complete Pi’s project trust flow interactively before running headless.
 </Note>
 
 ## Try the extension from source
