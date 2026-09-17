@@ -118,8 +118,14 @@ export type PlaywrightCompatRuntime = {
  * Keep this function self-contained: its source is serialized into the
  * extension service worker with Function#toString.
  */
+export type PlaywrightCompatRuntimeOptions = {
+  /** Host-owned pages excluded from the agent context and page events. */
+  hiddenPageIds?: string[];
+};
+
 export async function createPlaywrightCompatRuntime(
   stagehand: BatchStagehandRuntime,
+  options: PlaywrightCompatRuntimeOptions = {},
 ): Promise<PlaywrightCompatRuntime> {
   type CompatStats = PlaywrightCompatTelemetry;
   type QueryResult = {
@@ -623,6 +629,11 @@ export async function createPlaywrightCompatRuntime(
   const rawContext = stagehand.context;
   type PageKey = string | RawPage;
   const pageKey = (page: RawPage): PageKey => page.pageId ?? page;
+  const hiddenPageIds = new Set(options.hiddenPageIds ?? []);
+  const visibleRawPages = async (): Promise<RawPage[]> =>
+    (await rawContext.pages()).filter(
+      (page) => page.pageId === undefined || !hiddenPageIds.has(page.pageId),
+    );
   const compatPages = new Map<PageKey, unknown>();
   const closedPages = new Set<PageKey>();
   let closeRequested = false;
@@ -1231,7 +1242,7 @@ export async function createPlaywrightCompatRuntime(
       },
       refreshUrl: async () => {
         state.cachedUrl = await page.url();
-        for (const candidate of await rawContext.pages()) await createPage(candidate);
+        for (const candidate of await visibleRawPages()) await createPage(candidate);
       },
     };
     const root = (): CompatLocator => locatorProxy(new CompatLocator([], state));
@@ -1697,7 +1708,7 @@ export async function createPlaywrightCompatRuntime(
       waitForTimeout: async (ms: number) => {
         record("calls", "page.waitForTimeout");
         await page.waitForTimeout(ms);
-        for (const candidate of await rawContext.pages()) await createPage(candidate);
+        for (const candidate of await visibleRawPages()) await createPage(candidate);
       },
       waitForLoadState: (state = "load", options: { timeout?: number } = {}) => {
         record("calls", "page.waitForLoadState");
@@ -1910,7 +1921,7 @@ export async function createPlaywrightCompatRuntime(
 
   const initialPage = await createPage(stagehand.page);
   const contextRequest = (initialPage as { request: unknown }).request;
-  const initialRawPages = await rawContext.pages();
+  const initialRawPages = await visibleRawPages();
   for (const page of initialRawPages) await createPage(page);
 
   waitForNewPage = async (options: { timeout?: number } = {}): Promise<unknown> => {
@@ -1918,7 +1929,7 @@ export async function createPlaywrightCompatRuntime(
     const timeout = options.timeout ?? 30_000;
     const deadline = Date.now() + timeout;
     do {
-      for (const candidate of await rawContext.pages()) {
+      for (const candidate of await visibleRawPages()) {
         const key = pageKey(candidate);
         if (!existing.has(key)) return await createPage(candidate);
       }
