@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   HarnessAdapterError,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
+
+/** A native @ai-sdk model instance (all providers share the LanguageModelV2 shape at one AI-SDK major). */
+type NativeMastraModel = ReturnType<ReturnType<typeof createOpenAI>>;
 
 export type MastraEvent = Record<string, unknown>;
 
@@ -124,6 +131,56 @@ export function normalizeMastraModel(model: string): string {
   return model.includes("/") ? model : `openai/${model}`;
 }
 
+/**
+ * Route first-party models through their native @ai-sdk provider (using the 1p
+ * API keys in the environment) instead of Mastra's default Vercel AI Gateway.
+ * A bare `provider/model` string handed to `createAgent` resolves via the
+ * gateway, which added a failure surface (unparseable error responses ->
+ * sdk_error) and costs more than the native APIs we already hold keys for.
+ * Open models with no native provider (zai/glm, meta/muse, alibaba/qwen, ...)
+ * keep the gateway string. Set MASTRA_FORCE_GATEWAY=1 to disable native routing.
+ */
+export function resolveMastraModel(
+  model: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string | NativeMastraModel {
+  const normalized = normalizeMastraModel(model);
+  if ((env.MASTRA_FORCE_GATEWAY ?? "").trim() === "1") return normalized;
+  // An explicit gateway route is part of the caller's model selection.
+  if (/^(?:vercel|gateway)\//.test(normalized)) return normalized;
+  const bare = normalized;
+  const slash = bare.indexOf("/");
+  if (slash < 0) return normalized;
+  const provider = bare.slice(0, slash);
+  const id = bare.slice(slash + 1);
+  switch (provider) {
+    case "openai": {
+      const apiKey = env.OPENAI_API_KEY;
+      return apiKey ? createOpenAI({ apiKey })(id) : normalized;
+    }
+    case "google": {
+      const apiKey = env.GOOGLE_GENERATIVE_AI_API_KEY ?? env.GEMINI_API_KEY ?? env.GOOGLE_API_KEY;
+      return apiKey ? createGoogleGenerativeAI({ apiKey })(id) : normalized;
+    }
+    case "anthropic": {
+      const apiKey = env.ANTHROPIC_API_KEY;
+      return apiKey ? createAnthropic({ apiKey })(id) : normalized;
+    }
+    case "xai": {
+      // xAI's API is OpenAI-compatible but stricter — the full @ai-sdk/openai
+      // request tripped a 422. Use the openai-compatible provider, which emits a
+      // minimal request (no OpenAI-only params xAI rejects). Same @ai-sdk/provider
+      // spec as mastra's openai@4, so it drops in without a version bump.
+      const apiKey = env.XAI_API_KEY;
+      return apiKey
+        ? createOpenAICompatible({ name: "xai", baseURL: "https://api.x.ai/v1", apiKey })(id)
+        : normalized;
+    }
+    default:
+      return normalized; // open models -> Vercel AI Gateway
+  }
+}
+
 export async function runMastraSession(input: {
   prompt: string;
   model: string;
@@ -198,7 +255,7 @@ export async function runMastraSession(input: {
         name: input.session.agentName ?? "Stagehand Evals Mastra Agent",
         instructions:
           input.session.instructions ?? "Use the available browser/web tools to complete the task.",
-        model: normalizeMastraModel(input.model),
+        model: resolveMastraModel(input.model),
         tools: { ...mcpTools, ...input.session.tools },
       });
       const stream = await agent.stream(input.prompt, {
