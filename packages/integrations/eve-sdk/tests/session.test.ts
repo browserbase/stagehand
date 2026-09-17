@@ -4,6 +4,7 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
+  extractEveTokenUsage,
   logEveEvent,
   parseEveDevServerUrl,
   runEveSession,
@@ -217,6 +218,7 @@ describe("Eve SDK session", () => {
       sessionId: "session-1",
       serverUrl: "http://eve",
       tokenUsage: {
+        reported: true,
         inputTokens: 15,
         outputTokens: 7,
         cacheReadTokens: 2,
@@ -631,5 +633,25 @@ describe("Eve SDK session", () => {
     expect(setup.cancel).toHaveBeenCalledOnce();
     expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
     expect(JSON.stringify(result)).not.toContain("SUPERSECRET");
+  });
+});
+
+describe("Eve token usage presence", () => {
+  it.each([{}, { costUsd: 0 }, { totalTokens: 0 }, { inputTokens: null, outputTokens: -1 }])(
+    "does not infer tokens from missing or invalid telemetry: %j",
+    (usage) => {
+      expect(extractEveTokenUsage([{ type: "step.completed", data: { usage } }]).reported).toBe(
+        false,
+      );
+    },
+  );
+  it("preserves observed zero across missing later steps without inventing cost", () => {
+    expect(extractEveTokenUsage([]).reported).toBe(false);
+    const usage = extractEveTokenUsage([
+      { type: "step.completed", data: { usage: { inputTokens: 0, outputTokens: "0" } } },
+      { type: "step.completed", data: {} },
+    ]);
+    expect(usage).toMatchObject({ reported: true, totalTokens: 0 });
+    expect(usage).not.toHaveProperty("costUsd");
   });
 });
