@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import asyncio
 from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -126,6 +127,49 @@ class RecursingAgent:
         if False:
             yield None
         raise GraphRecursionError("recursion exhausted")
+
+
+class StalledAgent:
+    closed = False
+
+    async def astream(self, *_args: object, **_kwargs: object) -> AsyncIterator[object]:
+        try:
+            await asyncio.Event().wait()
+            yield {}
+        finally:
+            self.closed = True
+
+
+@pytest.mark.parametrize("inactivity,wall,kind", [(0.02, 0, "inactivity_timeout"), (0, 0.02, "wall_timeout")])
+async def test_watchdog_stops_a_stream_that_never_yields(
+    monkeypatch: pytest.MonkeyPatch, inactivity: float, wall: float, kind: str
+) -> None:
+    import run_eval as module
+    monkeypatch.setattr(module, "INACTIVITY_TIMEOUT_S", inactivity)
+    monkeypatch.setattr(module, "WALL_TIMEOUT_S", wall)
+    agent = StalledAgent()
+    events: list[dict[str, Any]] = []
+    await asyncio.wait_for(run(config(), build_agent=lambda *_: agent, emit=events.append), 1)
+    assert [event["kind"] for event in events if event["type"] == "error"] == [kind]
+    assert agent.closed
+    assert events[-1]["type"] == "usage"
+
+
+async def test_teardown_deadline_preserves_completed_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    import run_eval as module
+
+    class StalledExitStack:
+        async def aclose(self) -> None:
+            await asyncio.Event().wait()
+
+    monkeypatch.setattr(module, "AsyncExitStack", StalledExitStack)
+    monkeypatch.setattr(module, "CLEANUP_TIMEOUT_S", 0.02)
+    events: list[dict[str, Any]] = []
+    result = await asyncio.wait_for(run(
+        config(), build_agent=fake_builder(iter([AIMessage(content="done")])), emit=events.append,
+    ), 1)
+    assert result == 0
+    assert not any(event["type"] == "error" for event in events)
 
 
 class ReEmittingAgent:
