@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import re
 import signal
@@ -27,6 +28,65 @@ from langgraph.errors import GraphRecursionError
 
 Event = dict[str, Any]
 Emitter = Callable[[Event], None]
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a non-negative float from the environment; 0 disables the guard."""
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if math.isfinite(value) and value >= 0 else default
+
+
+# Watchdogs so a wedged model/MCP call can never hang the process forever. A
+# stalled `astream` never yields another chunk, so the tool-step/recursion caps
+# (which only fire on chunk arrival) cannot stop it; without these the Node side
+# waits on the child's exit indefinitely and the eval harness freezes. All are
+# overridable via env (0 disables); defaults are generous enough not to cut off
+# a slow-but-progressing run.
+INACTIVITY_TIMEOUT_S = _env_float("DEEPAGENTS_INACTIVITY_TIMEOUT_S", 240.0)
+WALL_TIMEOUT_S = _env_float("DEEPAGENTS_WALL_TIMEOUT_S", 2400.0)
+MCP_SETUP_TIMEOUT_S = _env_float("DEEPAGENTS_MCP_SETUP_TIMEOUT_S", 120.0)
+CLEANUP_TIMEOUT_S = 5.0
+
+
+class _WatchdogExpired(TimeoutError):
+    """Only a deadline owned by this runner expired, not an inner operation."""
+
+
+async def _with_optional_timeout(coro: Any, timeout: float) -> Any:
+    """Apply a deadline without moving MCP or stream contexts to another task."""
+    # AnyIO cancel scopes (including MCP ClientSession) must be entered and
+    # exited by the same task. wait_for(coro) creates a new task on every call.
+    deadline = asyncio.timeout(timeout if timeout > 0 else None)
+    try:
+        async with deadline:
+            return await coro
+    except TimeoutError as error:
+        if deadline.expired():
+            raise _WatchdogExpired from error
+        raise
+
+
+async def _open_mcp_server(
+    stack: AsyncExitStack, client: MultiServerMCPClient, name: str
+) -> list[object]:
+    session = await stack.enter_async_context(client.session(name))
+    return await load_mcp_tools(session, server_name=name)
+
+
+async def _aclose_quietly(stream: object) -> None:
+    aclose = getattr(stream, "aclose", None)
+    if aclose is None:
+        return
+    try:
+        await _with_optional_timeout(aclose(), CLEANUP_TIMEOUT_S)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @dataclass(frozen=True)
@@ -402,8 +462,26 @@ async def run(
             }
             client = MultiServerMCPClient(connections)  # type: ignore[arg-type]
             for name in config.mcp_servers:
-                session = await stack.enter_async_context(client.session(name))
-                server_tools = await load_mcp_tools(session, server_name=name)
+                setup = _with_optional_timeout(
+                    _open_mcp_server(stack, client, name),
+                    MCP_SETUP_TIMEOUT_S,
+                )
+                try:
+                    server_tools = await setup
+                except _WatchdogExpired:
+                    emit_event(
+                        {
+                            "type": "error",
+                            "kind": "mcp_setup_timeout",
+                            "message": (
+                                f"MCP server '{name}' did not become ready within "
+                                f"{MCP_SETUP_TIMEOUT_S:g}s"
+                            ),
+                        }
+                    )
+                    emit_event({"type": "final", "text": last_text})
+                    emit_event({"type": "usage", **aggregate_usage(usages)})
+                    return 1
                 tools.extend(server_tools)
                 tool_servers.update({tool.name: name for tool in server_tools})
 
@@ -413,7 +491,55 @@ async def run(
             config={"recursion_limit": config.recursion_limit},
             stream_mode="updates",
         )
-        async for chunk in stream:
+        iterator = stream.__aiter__()
+        loop = asyncio.get_running_loop()
+        run_deadline = (loop.time() + WALL_TIMEOUT_S) if WALL_TIMEOUT_S > 0 else None
+        while True:
+            remaining = run_deadline - loop.time() if run_deadline is not None else None
+            if remaining is not None and remaining <= 0:
+                emit_event(
+                    {
+                        "type": "error",
+                        "kind": "wall_timeout",
+                        "message": (
+                            "deepagents runner exceeded its wall-clock budget "
+                            f"({WALL_TIMEOUT_S:g}s)"
+                        ),
+                    }
+                )
+                break
+            try:
+                limits = [
+                    (value, kind)
+                    for value, kind in (
+                        (remaining, "wall_timeout"),
+                        (INACTIVITY_TIMEOUT_S, "inactivity_timeout"),
+                    )
+                    if value is not None and value > 0
+                ]
+                # Keep the selected guard: cancellation cleanup may finish after
+                # another deadline, but that does not change which timer fired.
+                next_timeout, watchdog_kind = (
+                    min(limits, key=lambda item: item[0]) if limits else (0, None)
+                )
+                chunk = await _with_optional_timeout(
+                    iterator.__anext__(), next_timeout
+                )
+            except StopAsyncIteration:
+                break
+            except _WatchdogExpired:
+                emit_event(
+                    {
+                        "type": "error",
+                        "kind": watchdog_kind,
+                        "message": (
+                            f"deepagents runner exceeded its wall-clock budget ({WALL_TIMEOUT_S:g}s)"
+                            if watchdog_kind == "wall_timeout" else
+                            f"no agent activity for {INACTIVITY_TIMEOUT_S:g}s (model or tool call stalled)"
+                        ),
+                    }
+                )
+                break
             if not isinstance(chunk, dict):
                 continue
             budget_reached = False
@@ -452,8 +578,8 @@ async def run(
                         ),
                     }
                 )
-                await stream.aclose()
                 break
+        await _aclose_quietly(stream)
     except GraphRecursionError as error:
         emit_event(
             {
@@ -478,7 +604,7 @@ async def run(
         # (the Node side maps any nonzero exit to sdk_error) or emit an
         # error event that overwrites the real stop classification.
         try:
-            await stack.aclose()
+            await _with_optional_timeout(stack.aclose(), CLEANUP_TIMEOUT_S)
         except Exception:  # noqa: BLE001
             pass
 
