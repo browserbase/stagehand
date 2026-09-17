@@ -77,14 +77,13 @@ Check out our [Quickstart Guide](https://docs.stagehand.dev/v4/first-steps/quick
 Here's how to build a sample browser automation with Stagehand:
 
 ```typescript
-import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
+const { OPENAI_API_KEY } = process.env;
 
-const browser = await browserbase.launch({
-  apiKey: BROWSERBASE_API_KEY,
-});
+// Launches Chrome on your machine. Use `browserbase.launch()` to run in the cloud instead.
+const browser = await localBrowser.launch();
 
 const stagehand = await Stagehand.create({
   browser,
@@ -121,9 +120,13 @@ const {
 
 See the [Python](./packages/sdk-python/README.md) and [Go](./packages/sdk-go/README.md) READMEs for equivalent examples.
 
-The same `browserbase` facade also exposes Browserbase Search and Fetch without launching a browser:
+The `browserbase` facade also exposes Browserbase Search and Fetch without launching a browser:
 
 ```typescript
+import { browserbase } from "@browserbasehq/stagehand";
+
+const { BROWSERBASE_API_KEY } = process.env;
+
 const results = await browserbase.search({
   apiKey: BROWSERBASE_API_KEY,
   query: "browser agent frameworks",
