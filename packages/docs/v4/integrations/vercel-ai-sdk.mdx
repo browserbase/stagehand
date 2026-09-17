@@ -10,8 +10,63 @@ Building with Eve? Use the [native Eve integration](/v4/integrations/eve) to run
 </Tip>
 
 <Note>
-Stagehand ships this experimental integration from its repository and does not publish it as a standalone adapter.
+The source example is maintained in the Stagehand repository. For an existing application, prefer the host’s MCP client and the packaged server described below.
 </Note>
+
+## Add Stagehand to an existing agent
+
+Use Vercel AI SDK’s supported tool integration: `createMCPClient` from `@ai-sdk/mcp`. This is an [official SDK/MCP extension point](https://ai-sdk.dev/docs/ai-sdk-core/mcp-tools); a separate host plugin marketplace is not required.
+
+<Note>
+The portable setup below requires the first `@browserbasehq/stagehand-mcp@0.1.0` release. Until that release is published, use the source example further down this page. Node.js 24+ is required to run the MCP server.
+</Note>
+
+Install the host libraries in your application:
+
+```bash
+pnpm add ai @ai-sdk/mcp @ai-sdk/openai
+```
+
+Configure your agent’s model credentials as usual. The browser uses local Chrome unless you export `BROWSERBASE_API_KEY`. Only browser configuration is forwarded to the MCP child.
+
+```typescript
+import { createMCPClient } from "@ai-sdk/mcp";
+import { Experimental_StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
+import { openai } from "@ai-sdk/openai";
+import { generateText, stepCountIs, type ToolSet } from "ai";
+
+const env = Object.fromEntries(
+  Object.entries(process.env).filter(
+    (entry): entry is [string, string] =>
+      (entry[0].startsWith("STAGEHAND_") || entry[0].startsWith("BROWSERBASE_")) &&
+      entry[1] !== undefined,
+  ),
+);
+const client = await createMCPClient({
+  transport: new Experimental_StdioMCPTransport({
+    command: "npx",
+    args: ["-y", "@browserbasehq/stagehand-mcp@0.1.0"],
+    env,
+  }),
+});
+
+try {
+  const result = await generateText({
+    model: openai("gpt-5.6-luna"),
+    // The tested AI SDK and MCP packages use different schema-brand versions.
+    tools: (await client.tools()) as ToolSet,
+    stopWhen: stepCountIs(20),
+    prompt: "Open https://example.com and report its title.",
+  });
+  console.log(result.text);
+} finally {
+  await client.close();
+}
+```
+
+Keep the connection open until the entire agent run finishes. Closing it releases the server and its browser.
+
+The stdio transport runs a child process, so use it in a Node.js host that supports child processes. It does not run in a browser or Edge runtime. An HTTP deployment requires a separately hosted MCP server; the stdio command is not an HTTP endpoint.
 
 ## Prerequisites
 
@@ -20,7 +75,7 @@ Stagehand ships this experimental integration from its repository and does not p
 - An OpenAI API key for the example agent
 - A current Google Chrome installation for local browser mode
 
-## Quickstart
+## Run the source example
 
 <Steps>
   <Step title="Clone and build Stagehand">

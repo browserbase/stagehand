@@ -1,5 +1,10 @@
 # Vercel AI SDK + Stagehand facade over MCP/stdio
 
+## Supported integration route
+
+Use `createMCPClient` from `@ai-sdk/mcp`, as described in the [official Vercel AI SDK documentation](https://ai-sdk.dev/docs/ai-sdk-core/mcp-tools). No separate host marketplace plugin is needed. The [Stagehand guide](https://docs.stagehand.dev/v4/integrations/vercel-ai-sdk#add-stagehand-to-an-existing-agent) includes a portable setup using the packaged MCP server, pending its first 0.1.0 release. The source example below remains available before publication.
+
+
 This example connects the Vercel AI SDK to the Stagehand facade MCP server over
 stdio. It exposes the facade's `run`, `snapshot`, and `screenshot` tools to an AI
 SDK agent.
