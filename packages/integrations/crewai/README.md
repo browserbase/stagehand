@@ -4,7 +4,6 @@
 
 Use `MCPServerAdapter` from `crewai-tools`, as described in the [official CrewAI documentation](https://docs.crewai.com/en/mcp/overview). No separate host marketplace plugin is needed. The [Stagehand guide](https://docs.stagehand.dev/v4/integrations/crewai#add-stagehand-to-an-existing-agent) includes a portable setup using the packaged MCP server, pending its first 0.1.0 release. The source example below remains available before publication.
 
-
 This example connects CrewAI, via a screenshot-preserving subclass of `crewai-tools`' MCP
 adapter, to the Stagehand facade MCP server over stdio. It exposes the facade's `run`,
 `snapshot`, and `screenshot` tools to a CrewAI agent.
