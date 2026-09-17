@@ -424,6 +424,10 @@ console.log(fetched.content);
     <td>Empty directory to working automation in three steps</td>
   </tr>
   <tr>
+    <td><a href="https://docs.stagehand.dev/v4/reference/page">page</a> · <a href="https://docs.stagehand.dev/v4/reference/locator">locator</a></td>
+    <td>Playwright-style browser and element APIs</td>
+  </tr>
+  <tr>
     <td><a href="https://docs.stagehand.dev/v4/basics/act">act</a> · <a href="https://docs.stagehand.dev/v4/basics/extract">extract</a> · <a href="https://docs.stagehand.dev/v4/basics/observe">observe</a></td>
     <td>The three primitives</td>
   </tr>
