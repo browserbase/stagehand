@@ -9,7 +9,6 @@ claude plugin install stagehand@browserbase-stagehand
 
 Requires the initial `@browserbasehq/stagehand-mcp@0.1.0` release, Node.js 24+, and Chrome or an exported `BROWSERBASE_API_KEY`. The [plugin](./plugin) uses Claude Code’s marketplace and bundles the MCP configuration. Restart Claude Code after installing. The source-based Agent SDK example below remains useful for embedding Claude in your application.
 
-
 A runnable example embedding a Claude agent via `@anthropic-ai/claude-agent-sdk`, with the
 Stagehand facade (`run` / `snapshot` / `screenshot`) wired in as a stdio MCP server
 programmatically — install, export keys, one line to run.

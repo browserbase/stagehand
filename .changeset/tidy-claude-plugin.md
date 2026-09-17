@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand-mcp": minor
 ---
 
-Package the persistent Stagehand facade MCP server for the Claude Code marketplace plugin and other MCP clients.
+Install persistent Stagehand browser tools through the Claude Code marketplace plugin or any compatible MCP/stdio client.
