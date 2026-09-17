@@ -65,9 +65,11 @@ Options are passed to `browserbase()` in the extension mount:
 | Option | Default | Purpose |
 | --- | --- | --- |
 | `apiKey` | Required | Browserbase credential for browser sessions and Model Gateway. |
-| `model` | `openai/gpt-5.4-mini` | Stagehand Model Gateway model. |
+| `model` | `openai/gpt-5.4-mini` | Stagehand client model configuration; browser-only tool calls do not invoke it. |
 | `sessionTimeoutSeconds` | `900` | Browserbase timeout, from 60 to 21,600 seconds. |
 | `proxies` | `false` | Enable Browserbase proxies. |
+
+Set `BROWSERBASE_PROJECT_ID` in the runtime environment to select a non-default Browserbase project. Configure Eve’s agent model and its authentication separately; browser-only calls do not need a separate Stagehand model-provider key.
 
 The extension uses Browserbase. It does not read the old example’s `STAGEHAND_BROWSER`, `EVE_STAGEHAND_MODEL`, or `STAGEHAND_EVE_SESSION_FILE` settings. Configure Eve’s own agent model separately.
 

@@ -31,7 +31,10 @@ export type StagehandCloseRequest = (resources: StagehandResources) => Promise<v
 export type StagehandResourceFactory = (
   onCloseRequested?: StagehandCloseRequest,
 ) => Promise<StagehandResources>;
-export type StagehandResourceCleanup = (resources: StagehandResources) => Promise<void>;
+export type StagehandResourceCleanup = (
+  resources: StagehandResources,
+  closeTimeoutMs?: number,
+) => Promise<void>;
 
 export interface StagehandSessionOptions {
   operationTimeoutMs?: number;
@@ -42,6 +45,7 @@ export interface StagehandSessionOptions {
 const DEFAULT_OPERATION_TIMEOUT_MS = 75_000;
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_CLEANUP_TIMEOUT_MS = 10_000;
+const DEFAULT_BROWSER_CLOSE_TIMEOUT_MS = DEFAULT_CLEANUP_TIMEOUT_MS / 2;
 
 export class StagehandSessionCleanupError extends Error {
   override readonly name = "StagehandSessionCleanupError";
@@ -55,7 +59,7 @@ export class StagehandSessionInitializationError extends Error {
   override readonly name = "StagehandSessionInitializationError";
 
   constructor() {
-    super("Stagehand initialization failed and the browser session could not be closed.");
+    super("Failed to initialize the Stagehand browser session.");
   }
 }
 
@@ -84,9 +88,10 @@ export class StagehandSession {
 
   async close(expected: StagehandResources): Promise<void> {
     if (!this.detach(expected)) return;
+    const timeoutMs = this.options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS;
     await withTimeout(
-      this.cleanupResources(expected),
-      this.options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS,
+      this.cleanupResources(expected, timeoutMs / 2),
+      timeoutMs,
       "Stagehand browser cleanup",
     );
   }
@@ -135,12 +140,7 @@ export class StagehandSession {
   }
 
   private async invalidate(expected: StagehandResources): Promise<void> {
-    if (!this.detach(expected)) return;
-    await withTimeout(
-      this.cleanupResources(expected),
-      this.options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS,
-      "Stagehand browser cleanup",
-    ).catch(() => undefined);
+    await this.close(expected).catch(() => undefined);
   }
 
   private detach(expected: StagehandResources): boolean {
@@ -161,7 +161,12 @@ export function createStagehandResourceFactory(
 
   return async (onCloseRequested) => {
     await retryPendingReleases(pendingReleases);
-    const launched = await launchBrowser();
+    let launched: StagehandBrowserLaunch;
+    try {
+      launched = await launchBrowser();
+    } catch {
+      throw new StagehandSessionInitializationError();
+    }
     const releaseSession = launched.releaseSession
       ? trackRelease(launched.releaseSession, pendingReleases)
       : undefined;
@@ -174,21 +179,9 @@ export function createStagehandResourceFactory(
       resources = { browser: launched.browser, stagehand, tools };
       if (releaseSession) resources.releaseSession = releaseSession;
       return resources;
-    } catch (error) {
-      let browserCloseFailed = false;
-      await launched.browser.close().catch(() => {
-        browserCloseFailed = true;
-      });
-      if (browserCloseFailed && releaseSession) {
-        try {
-          await releaseSession();
-          browserCloseFailed = false;
-        } catch {
-          throw new StagehandSessionInitializationError();
-        }
-      }
-      if (browserCloseFailed) throw new StagehandSessionInitializationError();
-      throw error;
+    } catch {
+      await closeOwnedBrowser(launched.browser, releaseSession).catch(() => undefined);
+      throw new StagehandSessionInitializationError();
     }
   };
 }
@@ -222,19 +215,42 @@ function createStagehandClient(browser: StagehandBrowser): Promise<Stagehand> {
   return Stagehand.create({ browser, model, logging: { level: "off" } });
 }
 
-export async function closeStagehandResources(resources: StagehandResources): Promise<void> {
-  const [, browserClose] = await Promise.allSettled([
-    resources.stagehand.close(),
-    resources.browser.closed ? Promise.resolve() : resources.browser.close(),
-  ]);
+export async function closeStagehandResources(
+  resources: StagehandResources,
+  closeTimeoutMs = DEFAULT_BROWSER_CLOSE_TIMEOUT_MS,
+): Promise<void> {
+  // Stagehand 4.1 separates client disposal from owned-browser release. Start both;
+  // a stalled client must not prevent browser cleanup or the REST fallback.
+  const clientClose = withTimeout(
+    Promise.resolve().then(() => resources.stagehand.close()),
+    closeTimeoutMs,
+    "Stagehand client cleanup",
+  ).catch(() => undefined);
+  try {
+    await closeOwnedBrowser(resources.browser, resources.releaseSession, closeTimeoutMs);
+  } finally {
+    await clientClose;
+  }
+}
 
-  // Stagehand.close() performs its local teardown in a finally block, but its closing RPC can lose
-  // the CDP transport before the response arrives. Once browser.close() succeeds, the owned local
-  // browser or Browserbase session is released, so that transport error is no longer actionable.
-  if (browserClose.status !== "rejected") return;
-  if (resources.releaseSession) {
+async function closeOwnedBrowser(
+  browser: StagehandBrowser,
+  releaseSession?: StagehandSessionRelease,
+  timeoutMs = DEFAULT_BROWSER_CLOSE_TIMEOUT_MS,
+): Promise<void> {
+  try {
+    await withTimeout(
+      Promise.resolve().then(() => browser.close()),
+      timeoutMs,
+      "Stagehand browser close",
+    );
+    return;
+  } catch {
+    // A timeout or lost transport does not prove the owned session was released.
+  }
+  if (releaseSession) {
     try {
-      await resources.releaseSession();
+      await releaseSession();
       return;
     } catch {
       // The tracked release is retried before the next browser launch.
@@ -247,14 +263,25 @@ function trackRelease(
   releaseSession: StagehandSessionRelease,
   pendingReleases: Set<StagehandSessionRelease>,
 ): StagehandSessionRelease {
-  const trackedRelease = async () => {
-    try {
-      await releaseSession();
-      pendingReleases.delete(trackedRelease);
-    } catch {
-      pendingReleases.add(trackedRelease);
-      throw new BrowserbaseSessionReleaseError();
-    }
+  let inFlight: Promise<void> | undefined;
+  const trackedRelease = (): Promise<void> => {
+    if (inFlight) return inFlight;
+    // Register before awaiting: the outer cleanup deadline may expire while the
+    // SDK is still releasing the session. A replacement must await that release.
+    pendingReleases.add(trackedRelease);
+    inFlight = Promise.resolve()
+      .then(releaseSession)
+      .then(
+        () => {
+          pendingReleases.delete(trackedRelease);
+          inFlight = undefined;
+        },
+        () => {
+          inFlight = undefined;
+          throw new BrowserbaseSessionReleaseError();
+        },
+      );
+    return inFlight;
   };
   return trackedRelease;
 }

@@ -22,6 +22,7 @@ else, never restated.
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                 |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                  |
 
-Each example is a self-contained project: install, export `BROWSERBASE_API_KEY`, and run — see
-the directory's README. TypeScript examples consume `core/` as a workspace dependency; the Python
-projects resolve the published `stagehand` package.
+Each example except Eve is a self-contained project: install, export `BROWSERBASE_API_KEY`, and run —
+see its directory's README. Eve is a native extension mounted in an existing agent and bundles the
+shared facade at build time; see `eve/README.md`. The other TypeScript examples consume `core/` as a
+workspace dependency; the Python projects resolve the published `stagehand` package.
