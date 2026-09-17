@@ -84,6 +84,10 @@ export type JevActConfig = JevConfig & {
   retryNoEffect?: boolean;
   /** Show the LLM fallback Jev's shortlist before the whole tree on huge pages. Default false. */
   focusFallback?: boolean;
+  /** Check cached actions against the page before replaying them. Default false. */
+  cacheCheck?: boolean;
+  /** Resolve observe() through Jev first. Default false. */
+  observe?: boolean;
 };
 
 export type JevActDeps = {

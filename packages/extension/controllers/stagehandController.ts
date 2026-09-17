@@ -117,6 +117,7 @@ export function createStagehandController(
         systemPrompt: state.initParams.systemPrompt,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
+        jev: state.initParams.experimentalJevAct,
       });
       runtime.metrics.record("observe", result.metadata.usage);
       return result;

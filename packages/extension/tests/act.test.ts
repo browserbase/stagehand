@@ -567,6 +567,77 @@ describe("act service", () => {
     expect(clientLLMGenerate).not.toHaveBeenCalled();
   });
 
+  it("re-infers instead of replaying a cached action whose selector now points elsewhere", async () => {
+    const frame = { frameId: "frame-1", getAccessibilityTree: vi.fn(async () => []) };
+    // The cached selector still resolves, but to a different control.
+    const captureSnapshot = vi.fn(async () => ({
+      combinedTree: "[0-12] button: Delete account\n[0-13] button: Submit",
+      combinedXpathMap: { "0-12": "/html/body/button", "0-13": "/html/body/form/button" },
+      combinedUrlMap: {},
+    }));
+    const page = {
+      ...actPage(frame, captureSnapshot),
+      url: () => "https://example.com",
+      frames: () => [frame],
+    } as unknown as Page;
+    const cachedActions = [
+      {
+        selector: "xpath=/html/body/button",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      },
+    ];
+    const get = vi.fn().mockResolvedValue({ hit: true, value: cachedActions, cacheKey: "key" });
+    const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
+    const jevFetch = vi.fn(async (_url: string, init: RequestInit) => {
+      const questions = Object.keys(JSON.parse(String(init.body)).questions);
+      const answers = Object.fromEntries(
+        questions.map((key) => [
+          key,
+          key === "still_matches"
+            ? { type: "noul", noul: 0.03 }
+            : { type: "choice", choice: "unsupported", confidence: 0.2, probabilities: {} },
+        ]),
+      );
+      return new Response(
+        JSON.stringify({ model: "jev", answers, usage: { input_tokens: 1, output_tokens: 1 } }),
+      );
+    });
+    vi.stubGlobal("fetch", jevFetch);
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-13",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    try {
+      const result = await actService.act({
+        params: { pageId: "page-1", instruction: "Click submit" },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate,
+        logger: testLogger(),
+        cache: {
+          sessionId: "session-1",
+          client: { get, set } as unknown as CacheClient,
+          defaultCaching: true as const,
+        },
+        jevAct: { apiKey: "test", cacheCheck: true },
+      });
+
+      expect(result.metadata.cache.status).toBe("MISS");
+      expect(performAction).toHaveBeenCalledTimes(1);
+      expect(performAction.mock.calls[0]?.[3]).toBe("xpath=/html/body/form/button");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("bypasses cache reads and writes for locator-scoped instruction acts", async () => {
     const frame = {
       frameId: "frame-1",
