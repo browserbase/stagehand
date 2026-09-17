@@ -12,6 +12,7 @@ This guide describes the 0.2 extension from [PR #2821](https://github.com/browse
 ## Prerequisites
 
 - Node.js 24 or newer
+- pnpm 10 or newer (use the checkout's declared version when building from source)
 - An existing Eve agent and its model-provider authentication
 - A Browserbase API key
 
@@ -58,9 +59,13 @@ Pass exactly one of `code` or `actions` to `run`. A snapshot displays IDs like `
 
 Eve’s built-in `web_search` and `web_fetch` remain available. The browser extension does not override them.
 
+<Warning>
+Stagehand runs JavaScript from `browserbase__run` in its browser extension, where it can access the authenticated browser session. Treat it as powerful browser-side code, not as a Node.js or hostile-code sandbox. See the [security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
 ## Configuration
 
-Options are passed to `browserbase()` in the extension mount:
+Pass options to `browserbase()` in the extension mount:
 
 | Option | Default | Purpose |
 | --- | --- | --- |
@@ -75,7 +80,7 @@ The extension uses Browserbase. It does not read the old example’s `STAGEHAND_
 
 ## Session lifecycle
 
-The first browser tool call launches a session. Later calls reuse it, and operations are serialized. Failed initialization can be retried; healthy sessions survive ordinary tool errors. Calling `await browser.close()` inside `run` releases the owned browser, and the next tool call creates a fresh session.
+The first browser tool call launches a session. The extension reuses it for later calls and serializes operations. The next call retries failed initialization; healthy sessions survive ordinary tool errors. Calling `await browser.close()` inside `run` releases the owned browser, and the next tool call creates a fresh session.
 
 One Eve process shares browser resources, including pages, cookies, and authentication. Use separate processes for sessions that require isolation. Browserbase sessions use `keepAlive: false` and the configured session timeout.
 

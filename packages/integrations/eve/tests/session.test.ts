@@ -209,6 +209,18 @@ describe("closeStagehandResources", () => {
 });
 
 describe("createStagehandResourceFactory", () => {
+  it("closes owned resources when no host cleanup callback is supplied", async () => {
+    const resources = createResources();
+    const factory = createStagehandResourceFactory(
+      async () => ({ browser: resources.browser }),
+      async () => resources.stagehand,
+    );
+    const created = await factory();
+    await created.tools.close();
+    expect(resources.stagehand.close).toHaveBeenCalledOnce();
+    expect(resources.browser.close).toHaveBeenCalledOnce();
+  });
+
   it("sanitizes launch failures without attaching the provider error", async () => {
     const factory = createStagehandResourceFactory(async () => {
       throw new Error("provider rejected Bearer secret-provider-value");
@@ -247,7 +259,7 @@ describe("createStagehandResourceFactory", () => {
       },
     );
     const failed = expect(factory()).rejects.toBeInstanceOf(StagehandSessionInitializationError);
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.runAllTimersAsync();
     await failed;
     expect(releaseSession).toHaveBeenCalledOnce();
   });

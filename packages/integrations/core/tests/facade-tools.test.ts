@@ -257,9 +257,10 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     const { stagehand } = createFakeStagehand(createFakePage());
     vi.mocked(stagehand.close).mockRejectedValue(new Error("apiKey=private-key"));
     const tools = new StagehandFacadeTools(stagehand);
-    await expect(tools.run(`await browser.close();`)).rejects.toThrow(
-      "Failed to close the Stagehand facade browser.",
-    );
+    const error = await tools.run(`await browser.close();`).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(StagehandFacadeCleanupError);
+    expect((error as Error).cause).toBeUndefined();
+    expect(String(error)).not.toContain("private-key");
     expect(stagehand.browser.close).toHaveBeenCalledOnce();
     await expect(tools.run("return 1")).rejects.toThrow("browser is closed");
   });
@@ -272,6 +273,26 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     ).rejects.toThrow("agent failure");
     expect(stagehand.browser.close).toHaveBeenCalledOnce();
   });
+
+  it.each([false, true])(
+    "sanitizes default browser cleanup errors (execution failure: %s)",
+    async (executionFails) => {
+      const { stagehand } = createFakeStagehand(createFakePage());
+      vi.mocked(stagehand.browser.close).mockRejectedValue(new Error("provider-private-detail"));
+      const tools = new StagehandFacadeTools(stagehand);
+      const code = `await browser.close(); ${executionFails ? 'throw new Error("agent failure");' : ""}`;
+      const error = await tools.run(code).catch((error: unknown) => error);
+      const cleanupError = error instanceof AggregateError ? error.errors[1] : error;
+
+      expect(cleanupError).toBeInstanceOf(StagehandFacadeCleanupError);
+      expect(cleanupError.cause).toBeUndefined();
+      expect(String(cleanupError)).not.toContain("provider-private-detail");
+      if (executionFails) {
+        expect(error).toBeInstanceOf(AggregateError);
+        expect((error as AggregateError).errors[0]).toMatchObject({ message: "agent failure" });
+      }
+    },
+  );
 
   it("confines artifacts across traversal, absolute paths, and symlinks", async () => {
     const root = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-paths-"));

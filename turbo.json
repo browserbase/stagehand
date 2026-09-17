@@ -49,6 +49,7 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
+        "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts",
         "!dist/**"
       ],
       "outputs": ["dist/**"]
@@ -248,7 +249,11 @@
     },
     "@browserbasehq/eve#typecheck": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/integrations/core/src/facade/**"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
+        "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts"
+      ]
     },
     "@browserbasehq/eve#test:unit": {
       "dependsOn": ["^build"],
@@ -257,6 +262,7 @@
         "tests/**",
         "extension/**",
         "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
+        "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts",
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },

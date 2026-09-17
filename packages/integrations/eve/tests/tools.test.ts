@@ -15,7 +15,11 @@ import {
 import runTool from "../extension/tools/run.js";
 import screenshotTool from "../extension/tools/screenshot.js";
 import snapshotTool from "../extension/tools/snapshot.js";
-import { stagehandSession } from "../extension/lib/session.js";
+import {
+  stagehandSession,
+  StagehandSession,
+  type StagehandResources,
+} from "../extension/lib/session.js";
 
 const fakeContext = {} as ToolContext;
 
@@ -59,7 +63,63 @@ describe("Eve Stagehand facade tools", () => {
     ).rejects.toThrow();
     expect(run).toHaveBeenCalledOnce();
   });
+
+  it("delegates screenshot options and preserves image data for Eve", async () => {
+    const resources = screenshotResources();
+    const session = new StagehandSession(async () => resources);
+    const run = vi
+      .spyOn(stagehandSession, "run")
+      .mockImplementation((operation) => session.run(operation));
+    const options = { fullPage: true, type: "jpeg" as const, quality: 75 };
+    const result = await screenshotTool.execute(options, fakeContext);
+    if (!("data" in result)) throw new Error("Expected one screenshot, not a stream");
+
+    expect(resources.tools.screenshot).toHaveBeenCalledWith(options);
+    expect(result).toEqual({ data: "image-data", mimeType: "image/jpeg" });
+    expect(screenshotTool.toModelOutput?.(result)).toMatchObject({
+      type: "content",
+      value: [
+        { type: "text", text: "Screenshot captured." },
+        { type: "file", data: { type: "data", data: "image-data" }, mediaType: "image/jpeg" },
+      ],
+    });
+    await expect(screenshotTool.execute({ quality: true } as never, fakeContext)).rejects.toThrow();
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("cleans up a failed screenshot's unhealthy session and retries with a new browser", async () => {
+    const first = screenshotResources();
+    const second = screenshotResources();
+    vi.mocked(first.tools.screenshot).mockImplementation(async () => {
+      Object.defineProperty(first.browser, "closed", { value: true });
+      throw new Error("screenshot connection lost");
+    });
+    const factory = vi
+      .fn<() => Promise<StagehandResources>>()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second);
+    const session = new StagehandSession(factory);
+    vi.spyOn(stagehandSession, "run").mockImplementation((operation) => session.run(operation));
+
+    await expect(screenshotTool.execute({}, fakeContext)).rejects.toThrow(
+      "screenshot connection lost",
+    );
+    expect(first.stagehand.close).toHaveBeenCalledOnce();
+    expect(first.browser.close).toHaveBeenCalledOnce();
+    await expect(screenshotTool.execute({}, fakeContext)).resolves.toMatchObject({
+      data: "image-data",
+    });
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
 });
+
+function screenshotResources(): StagehandResources {
+  return Object.assign(Object.create(null) as StagehandResources, {
+    browser: { closed: false, close: vi.fn(async () => undefined) },
+    stagehand: { close: vi.fn(async () => undefined) },
+    tools: { screenshot: vi.fn(async () => ({ data: "image-data", mimeType: "image/jpeg" })) },
+  });
+}
 
 it("includes the canonical facade instructions and Eve close lifecycle", () => {
   const file = readFileSync(
