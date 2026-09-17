@@ -408,13 +408,34 @@ def _register_eval_harness_profile(model: str | BaseChatModel) -> None:
     _REGISTERED_PROFILE_KEYS.add(profile_key)
 
 
+def build_eval_model(config: RunnerConfig) -> str | BaseChatModel:
+    """Resolve native provider routing before building the agent."""
+    # xAI's API is OpenAI-compatible; langchain has no xai provider here, so route
+    # grok through ChatOpenAI against api.x.ai (no new dependency, no gateway).
+    if config.model.startswith("xai/") or config.model.startswith("xai:"):
+        from langchain_openai import ChatOpenAI
+
+        api_key = os.environ.get("XAI_API_KEY")
+        if not api_key or not api_key.strip():
+            # ChatOpenAI otherwise falls back to OPENAI_API_KEY, including when
+            # base_url selects another provider. Never send that key to xAI.
+            raise ValueError("XAI_API_KEY is required for xAI models.")
+        model_id = config.model.split("/", 1)[-1].split(":", 1)[-1]
+        return ChatOpenAI(
+            model=model_id,
+            base_url="https://api.x.ai/v1",
+            api_key=api_key,
+        )
+    return config.model
+
+
 def _default_build_agent(
     config: RunnerConfig,
     tools: list[object],
     *,
     model: BaseChatModel | None = None,
 ) -> object:
-    resolved_model: str | BaseChatModel = model or config.model
+    resolved_model: str | BaseChatModel = model or build_eval_model(config)
     _register_eval_harness_profile(resolved_model)
     return create_deep_agent(
         model=resolved_model,
