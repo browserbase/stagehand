@@ -30,6 +30,7 @@ const emptyMaps = (): FrameDomMaps => ({
   tagNameMap: {},
   xpathMap: {},
   scrollableMap: {},
+  locatorHintsMap: {},
   urlMap: {},
 });
 

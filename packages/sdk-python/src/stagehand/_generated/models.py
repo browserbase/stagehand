@@ -1813,6 +1813,7 @@ class PageSnapshotOptions(WireModel):
         validate_by_name=True,
     )
     include_iframes: Optional[StrictBool] = None
+    expanded: Optional[StrictBool] = None
 
 
 class PageSnapshotParams(WireModel):

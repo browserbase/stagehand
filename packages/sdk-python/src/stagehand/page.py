@@ -555,10 +555,18 @@ class Page:
             Path(path).write_bytes(data)
         return data
 
-    async def snapshot(self, *, include_iframes: bool | None = None) -> SnapshotResult:
+    async def snapshot(
+        self,
+        *,
+        include_iframes: bool | None = None,
+        expanded: bool | None = None,
+    ) -> SnapshotResult:
         params = PageSnapshotParams(page_id=self.page_id)
-        if include_iframes is not None:
-            params.options = PageSnapshotOptions(include_iframes=include_iframes)
+        if include_iframes is not None or expanded is not None:
+            params.options = PageSnapshotOptions(
+                include_iframes=include_iframes,
+                expanded=expanded,
+            )
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:

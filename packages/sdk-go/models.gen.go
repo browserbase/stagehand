@@ -1569,6 +1569,9 @@ type PageSetViewportSizeParams struct {
 }
 
 type PageSnapshotOptions struct {
+	// Expanded corresponds to the JSON schema field "expanded".
+	Expanded *bool `json:"expanded,omitempty,omitzero"`
+
 	// IncludeIframes corresponds to the JSON schema field "include_iframes".
 	IncludeIframes *bool `json:"include_iframes,omitempty,omitzero"`
 }

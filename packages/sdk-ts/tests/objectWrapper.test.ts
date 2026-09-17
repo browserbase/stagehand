@@ -1022,11 +1022,13 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.pageSnapshot, snapshot);
     const page = new Page(client, { pageId: "page-1" });
 
-    await expect(page.snapshot({ includeIframes: true })).resolves.toStrictEqual(snapshot);
+    await expect(page.snapshot({ includeIframes: true, expanded: true })).resolves.toStrictEqual(
+      snapshot,
+    );
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageSnapshot, {
         pageId: "page-1",
-        options: { includeIframes: true },
+        options: { includeIframes: true, expanded: true },
       }),
     ]);
   });

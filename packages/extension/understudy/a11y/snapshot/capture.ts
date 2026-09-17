@@ -84,7 +84,12 @@ export async function captureHybridSnapshot(
     if (scopedSnapshot) return scopedSnapshot;
   }
 
-  const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce);
+  const sessionToIndex = await buildSessionIndexes(
+    page,
+    framesInScope,
+    pierce,
+    options?.locatorHints,
+  );
   const ignoredNodesByFrame = await resolveIgnoredNodes(
     page,
     options?.ignoreLocators,
@@ -216,12 +221,13 @@ export async function tryScopedSnapshot(
     const parentId = context.parentByFrame.get(targetFrameId);
     const sameSessionAsParent =
       !!parentId && ownerSession(page, parentId) === ownerSession(page, targetFrameId);
-    const { tagNameMap, xpathMap, scrollableMap } = await domMapsForSession(
+    const { tagNameMap, xpathMap, scrollableMap, locatorHintsMap } = await domMapsForSession(
       owningSess,
       targetFrameId,
       pierce,
       (fid, be) => `${page.getOrdinal(fid)}-${be}`,
       sameSessionAsParent,
+      options?.locatorHints === true && targetFrameId === context.rootId,
     );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(owningSess, targetFrameId, {
@@ -238,6 +244,7 @@ export async function tryScopedSnapshot(
       ),
       tagNameMap,
       scrollableMap,
+      locatorHintsMap,
       encode: (backendNodeId) => `${page.getOrdinal(targetFrameId)}-${backendNodeId}`,
     });
 
@@ -305,6 +312,7 @@ export async function buildSessionIndexes(
   page: Page,
   frames: string[],
   pierce: boolean,
+  locatorHints = false,
 ): Promise<Map<string, SessionDomIndex>> {
   const sessionToIndex = new Map<string, SessionDomIndex>();
   const sessionById = new Map<string, CDPSessionLike>();
@@ -314,7 +322,11 @@ export async function buildSessionIndexes(
     if (!sessionById.has(sid)) sessionById.set(sid, sess);
   }
   for (const [sid, sess] of sessionById.entries()) {
-    const idx = await buildSessionDomIndex(sess, pierce);
+    const idx = await buildSessionDomIndex(
+      sess,
+      pierce,
+      locatorHints && sess === ownerSession(page, page.mainFrameId()),
+    );
     sessionToIndex.set(sid, idx);
   }
   return sessionToIndex;
@@ -348,7 +360,11 @@ export async function collectPerFrameMaps(
     const sid = sess.id ?? "root";
     let idx = sessionToIndex.get(sid);
     if (!idx) {
-      idx = await buildSessionDomIndex(sess, pierce);
+      idx = await buildSessionDomIndex(
+        sess,
+        pierce,
+        options?.locatorHints === true && frameId === context.rootId,
+      );
       sessionToIndex.set(sid, idx);
     }
 
@@ -360,6 +376,7 @@ export async function collectPerFrameMaps(
     const tagNameMap: Record<string, string> = {};
     const xpathMap: Record<string, string> = {};
     const scrollableMap: Record<string, boolean> = {};
+    const locatorHintsMap: FrameDomMaps["locatorHintsMap"] = {};
     const isIgnoredBackendNode = makeIsIgnoredBackendNode(frameId, idx, exclusionIntervalsByFrame);
     const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
     const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
@@ -376,17 +393,22 @@ export async function collectPerFrameMaps(
       const tag = idx.tagByBe.get(be);
       if (tag) tagNameMap[key] = tag;
       if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+      if (options?.locatorHints && frameId === context.rootId) {
+        const hints = idx.locatorHintsByBe.get(be);
+        if (hints) locatorHintsMap[key] = hints;
+      }
     }
 
     const { outline, urlMap } = await a11yForFrame(sess, frameId, {
       isIgnoredBackendNode,
       tagNameMap,
       scrollableMap,
+      locatorHintsMap,
       encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
     });
 
     perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, locatorHintsMap, urlMap });
   }
 
   return { perFrameMaps, perFrameOutlines };
