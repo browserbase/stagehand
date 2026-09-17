@@ -1833,6 +1833,10 @@ type StagehandInitParams struct {
 	// "dom_settle_timeout_ms".
 	DOMSettleTimeoutMs *int `json:"dom_settle_timeout_ms,omitempty,omitzero"`
 
+	// Experimental: resolve act() through TypeSafe Jev decisions before falling back
+	// to the LLM pipeline
+	ExperimentalJevAct *StagehandInitParamsExperimentalJevAct `json:"experimental_jev_act,omitempty,omitzero"`
+
 	// LogLevel corresponds to the JSON schema field "log_level".
 	LogLevel StagehandInitParamsLogLevel `json:"log_level,omitempty,omitzero"`
 
@@ -1851,6 +1855,49 @@ type StagehandInitParams struct {
 	// Telemetry corresponds to the JSON schema field "telemetry".
 	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
 }
+
+// Experimental: resolve act() through TypeSafe Jev decisions before falling back
+// to the LLM pipeline
+type StagehandInitParamsExperimentalJevAct struct {
+	// ActConfidence corresponds to the JSON schema field "act_confidence".
+	ActConfidence *float64 `json:"act_confidence,omitempty,omitzero"`
+
+	// APIKey corresponds to the JSON schema field "api_key".
+	APIKey string `json:"api_key"`
+
+	// APIURL corresponds to the JSON schema field "api_url".
+	APIURL *string `json:"api_url,omitempty,omitzero"`
+
+	// ArgumentLLM corresponds to the JSON schema field "argument_llm".
+	ArgumentLLM *bool `json:"argument_llm,omitempty,omitzero"`
+
+	// Enabled corresponds to the JSON schema field "enabled".
+	Enabled *bool `json:"enabled,omitempty,omitzero"`
+
+	// FocusFallback corresponds to the JSON schema field "focus_fallback".
+	FocusFallback *bool `json:"focus_fallback,omitempty,omitzero"`
+
+	// LLMFallback corresponds to the JSON schema field "llm_fallback".
+	LLMFallback *bool `json:"llm_fallback,omitempty,omitzero"`
+
+	// Model corresponds to the JSON schema field "model".
+	Model *string `json:"model,omitempty,omitzero"`
+
+	// PageState corresponds to the JSON schema field "page_state".
+	PageState *bool `json:"page_state,omitempty,omitzero"`
+
+	// RetryNoEffect corresponds to the JSON schema field "retry_no_effect".
+	RetryNoEffect *bool `json:"retry_no_effect,omitempty,omitzero"`
+
+	// Verify corresponds to the JSON schema field "verify".
+	Verify *StagehandInitParamsExperimentalJevActVerify `json:"verify,omitempty,omitzero"`
+}
+
+type StagehandInitParamsExperimentalJevActVerify string
+
+const StagehandInitParamsExperimentalJevActVerifyChecks StagehandInitParamsExperimentalJevActVerify = "checks"
+const StagehandInitParamsExperimentalJevActVerifyFull StagehandInitParamsExperimentalJevActVerify = "full"
+const StagehandInitParamsExperimentalJevActVerifyOff StagehandInitParamsExperimentalJevActVerify = "off"
 
 type StagehandInitParamsLogLevel string
 

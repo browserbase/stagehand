@@ -1607,6 +1607,28 @@ export const StagehandInitParamsSchema = z
       description:
         "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
     }),
+    experimentalJevAct: z
+      .strictObject({
+        apiKey: z.string().min(1),
+        model: z.string().min(1).optional(),
+        apiUrl: z
+          .url()
+          .refine((value) => value.startsWith("https://"), "TypeSafe apiUrl must be https")
+          .optional(),
+        enabled: z.boolean().optional(),
+        retryNoEffect: z.boolean().optional(),
+        focusFallback: z.boolean().optional(),
+        actConfidence: z.number().min(0).max(1).optional(),
+        verify: z.enum(["off", "checks", "full"]).optional(),
+        llmFallback: z.boolean().optional(),
+        argumentLlm: z.boolean().optional(),
+        pageState: z.boolean().optional(),
+      })
+      .optional()
+      .meta({
+        description:
+          "Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline",
+      }),
   })
   .meta({ id: "StagehandInitParams" });
 
