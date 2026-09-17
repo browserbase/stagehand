@@ -11,7 +11,6 @@ fx has a built-in MCP client. After the first `@browserbasehq/stagehand-mcp@0.1.
 
 This uses [fx’s supported MCP management flow](https://fx.sh/docs/capabilities/mcp), with no separate marketplace plugin. The included `mcp.json` is a current profile template. The older v0.0.3 source workflow below is retained for development before the npm release; substitute its built server path when using that workflow.
 
-
 [fx](https://fx.sh) consumes the Stagehand facade as a standard MCP server — no integration
 code, just an entry in fx's user-global MCP config. This directory ships the config template,
 a project config that sizes fx's limits for browser work, and project instructions plus a skill
