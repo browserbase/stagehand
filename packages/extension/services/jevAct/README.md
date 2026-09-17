@@ -24,33 +24,39 @@ deliberately not a field of the public create config. Evals build that variable 
 | Checks         | code                                           | Fill read-back, native `<select>` `[selected]` flag, no-effect retry on a credible runner-up. `verify: "full"` adds a logged-only Jev yes/no.                                                                                                                                                   |
 | No target      | Jev, 1 request                                 | Page-state signals; access-denied / captcha fail fast. Otherwise the LLM gets Jev's shortlist (with each item's card/row) before the whole tree.                                                                                                                                                |
 
+Also reused outside `act` inference: `cacheCheck.ts` asks one yes/no before a cached action is
+replayed, so a selector that now resolves to a different control is re-inferred instead of clicked.
+
 ## Files
 
 - `pipeline.ts` — orchestration per family (`press`, pointer, `fill`, `select`, scroll, `drag`).
 - `pick.ts` — tiers, pruning, shards, best/strict acceptance.
 - `tree.ts` — outline parsing, views, candidate descriptions, focus outline, page digest.
 - `args.ts` — deterministic argument parsing and grounding.
-- `pageState.ts`, `typesafeClient.ts`.
+- `pageState.ts`, `cacheCheck.ts`, `typesafeClient.ts`.
 
 ## Configuration (`experimentalJevAct`)
 
-| Field           | Default    | Meaning                                                                                                                                                                                                    |
-| --------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apiKey`        | required   | TypeSafe key. `apiUrl` (https only) and `model` are optional.                                                                                                                                              |
-| `enabled`       | `true`     | `false` keeps only the per-act timing log (eval baselines).                                                                                                                                                |
-| `actConfidence` | `0.7`      | Minimum confidence to act on a node's answer.                                                                                                                                                              |
-| `verify`        | `"checks"` | `"checks"`: fill read-back + native-select flag. `"full"` adds a logged-only Jev yes/no. `"off"`: none.                                                                                                    |
-| `llmFallback`   | `true`     | `false` fails the act when Jev abstains: the fastest way to see what Jev alone gets wrong.                                                                                                                 |
-| `argumentLlm`   | `true`     | The argument-only LLM call for unquoted text. Independent of `llmFallback`; turn both off for an LLM-free run. The typed text is always the instruction's own characters, never the model's re-cased copy. |
-| `pageState`     | `true`     | Page-state request when Jev leans toward "not on this page".                                                                                                                                               |
-| `retryNoEffect` | `false`    | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                   |
-| `focusFallback` | `false`    | On trees over 120K chars, show the LLM Jev's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                       |
+| Field           | Default    | Meaning                                                                                                                                                                                                                                 |
+| --------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey`        | required   | TypeSafe key. `apiUrl` (https only) and `model` are optional.                                                                                                                                                                           |
+| `enabled`       | `true`     | `false` keeps only the per-act timing log (eval baselines).                                                                                                                                                                             |
+| `actConfidence` | `0.7`      | Minimum confidence to act on a node's answer.                                                                                                                                                                                           |
+| `verify`        | `"checks"` | `"checks"`: fill read-back + native-select flag. `"full"` adds a logged-only Jev yes/no. `"off"`: none.                                                                                                                                 |
+| `llmFallback`   | `true`     | `false` fails the act when Jev abstains: the fastest way to see what Jev alone gets wrong.                                                                                                                                              |
+| `argumentLlm`   | `true`     | The argument-only LLM call for unquoted text. Independent of `llmFallback`; turn both off for an LLM-free run. The typed text is always the instruction's own characters, never the model's re-cased copy.                              |
+| `pageState`     | `true`     | Page-state request when Jev leans toward "not on this page".                                                                                                                                                                            |
+| `cacheCheck`    | `false`    | Before each cached action is replayed, one Jev yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it. |
+| `observe`       | `false`    | Resolve `observe()` through Jev first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                          |
+| `retryNoEffect` | `false`    | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                |
+| `focusFallback` | `false`    | On trees over 120K chars, show the LLM Jev's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                    |
 
 ## What leaves the process
 
 Sent to TypeSafe: the instruction, candidate descriptions built from the accessibility outline
 (names, nearby text, card/row text, DOM attributes of nameless controls), the page URL without
-query string or fragment, and a digest of the first visible content (page state).
+query string or fragment, a digest of the first visible content (page state), and — only with
+its own opt-in — cached action descriptions (`cacheCheck`).
 Resolved `%variable%` values of three or more characters are replaced by their placeholder in every
 request and in the trace
 log, including when an earlier act already typed them into the page. With the flag on, each act
@@ -60,6 +66,7 @@ logs its instruction and a trace of candidate descriptions at info level.
 
 - Jev usage is logged but not part of `result.metadata.usage`.
 - Thresholds (0.7 accept, 0.9 none veto, 0.7 held-pick cap) were set on the act and breadth suites.
+  The cache-check threshold (0.35) comes from direct API probes; no eval exercises the cache path.
 - No eval exercises page-state fail-fast or `retryNoEffect` end to end; both have unit tests only.
 - Modifier chords, file upload and unquoted `<select>` options on selects with more than 254
   options go to the LLM.

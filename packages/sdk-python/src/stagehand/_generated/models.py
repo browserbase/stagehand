@@ -575,11 +575,13 @@ class ExperimentalJevAct(WireModel):
     enabled: Optional[StrictBool] = None
     retry_no_effect: Optional[StrictBool] = None
     focus_fallback: Optional[StrictBool] = None
+    cache_check: Optional[StrictBool] = None
     act_confidence: Annotated[Optional[StrictFloat], Field(ge=0.0, le=1.0)] = None
     verify: Optional[Verify] = None
     llm_fallback: Optional[StrictBool] = None
     argument_llm: Optional[StrictBool] = None
     page_state: Optional[StrictBool] = None
+    observe: Optional[StrictBool] = None
 
 
 class ExternalProxyConfig(WireModel):
