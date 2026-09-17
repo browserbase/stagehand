@@ -33,6 +33,27 @@ describe("example name normalization", () => {
   });
 });
 
+describe("root README example", () => {
+  it("closes Stagehand before its owned browser on every exit path", async () => {
+    const readme = await readFile(new URL("../../README.md", import.meta.url), "utf8");
+    const source = readme.match(/## Example\s+[\s\S]*?```typescript\r?\n([\s\S]*?)\r?\n```/)?.[1];
+    expect(source, "README must contain its primary TypeScript example").toBeDefined();
+    if (!source) return;
+
+    const root = parse("typescript", source).root();
+    const browserCleanup = root.find({
+      rule: { pattern: "try { $$$BODY } finally { await browser.close() }" },
+    });
+    expect(browserCleanup, "README example must always close its browser").not.toBeNull();
+    expect(
+      browserCleanup?.find({
+        rule: { pattern: "try { $$$BODY } finally { await stagehand.close() }" },
+      }),
+      "README example must close Stagehand before its browser",
+    ).not.toBeNull();
+  });
+});
+
 describe("All language examples remain in sync", () => {
   it("provides the same examples in every SDK", async () => {
     const inventories = {
