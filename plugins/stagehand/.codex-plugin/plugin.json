@@ -1,0 +1,27 @@
+{
+  "name": "stagehand",
+  "version": "0.1.0",
+  "description": "Give Codex a persistent Stagehand browser with run, snapshot, and screenshot tools.",
+  "author": {
+    "name": "Browserbase"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Stagehand",
+    "shortDescription": "Persistent browser tools for Codex",
+    "developerName": "Browserbase",
+    "category": "Developer Tools",
+    "longDescription": "Control a persistent browser using Stagehand run, snapshot, and screenshot tools.",
+    "defaultPrompt": [
+      "Open https://example.com and report its title."
+    ],
+    "capabilities": [
+      "Read",
+      "Write"
+    ]
+  },
+  "mcpServers": "./.mcp.json",
+  "homepage": "https://docs.stagehand.dev/v4/integrations/codex",
+  "repository": "https://github.com/browserbase/stagehand",
+  "license": "MIT"
+}

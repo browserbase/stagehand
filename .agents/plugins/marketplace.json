@@ -1,0 +1,20 @@
+{
+  "name": "browserbase-stagehand",
+  "interface": {
+    "displayName": "Browserbase Stagehand"
+  },
+  "plugins": [
+    {
+      "name": "stagehand",
+      "source": {
+        "source": "local",
+        "path": "./plugins/stagehand"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
