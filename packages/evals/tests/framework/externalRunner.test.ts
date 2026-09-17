@@ -3,6 +3,7 @@ import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import {
   buildExternalHarnessPrompt,
+  buildHarnessUsageMetadata,
   buildNormalizedHarnessMetrics,
   legacyHarnessFieldPrefix,
   parseEvalResult,
@@ -132,6 +133,32 @@ describe("external harness runner", () => {
     expect(complete.harness_cache_creation_input_tokens.value).toBe(2);
     expect(complete.harness_reasoning_output_tokens.value).toBe(1);
     expect(complete.harness_cost_usd.value).toBe(0.25);
+  });
+
+  it("keeps cache-write tokens and billed cost in the trajectory usage metadata", () => {
+    expect(
+      buildHarnessUsageMetadata({
+        usage: {
+          inputTokens: 45,
+          outputTokens: 6252,
+          cachedInputTokens: 934408,
+          cacheCreationInputTokens: 40465,
+          totalTokens: 981170,
+        },
+        costUsd: 0.878,
+      }),
+    ).toEqual({
+      inputTokens: 45,
+      outputTokens: 6252,
+      totalTokens: 981170,
+      cachedInputTokens: 934408,
+      cacheCreationInputTokens: 40465,
+      costUsd: 0.878,
+    });
+    // Unreported optional values are omitted rather than written as zero.
+    expect(
+      buildHarnessUsageMetadata({ usage: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } }),
+    ).toEqual({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
   });
 
   it("assembles normalized and deprecated task-result fields", async () => {

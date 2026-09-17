@@ -29,6 +29,11 @@ export interface PersistAdapterTrajectoryOptions {
    * `false` never does, `undefined` defers to VERIFIER_PERSIST_TRAJECTORIES.
    */
   persist?: boolean;
+  /**
+   * Extra fields merged into metadata.json. The run-identifying fields
+   * (task, runId, runDir, attempt, status) always win over these.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 export interface PersistAdapterTrajectoryResult {
@@ -68,6 +73,7 @@ export async function persistAdapterTrajectory(
 
   await writeTrajectoryDir(directory, opts.trajectory);
   await writeTrajectoryMetadata(directory, {
+    ...opts.metadata,
     task: opts.taskSpec.id,
     runId,
     runDir: path.basename(directory),

@@ -244,6 +244,7 @@ export async function runExternalHarnessTask<TRaw>({
     errorMessage,
     category: harness,
     logger,
+    trajectoryMetadata: { harnessUsage: buildHarnessUsageMetadata(outcome) },
   });
   return outcome.status === "sdk_error"
     ? { ...gradedResult, _success: false, error: errorMessage }
@@ -253,6 +254,31 @@ export async function runExternalHarnessTask<TRaw>({
 /** Convert a registered harness id to its deprecated TaskResult field prefix. */
 export function legacyHarnessFieldPrefix(harness: string): string {
   return harness.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+}
+
+/**
+ * Full harness-reported usage for the trajectory's metadata.json. Trajectory
+ * `usage` has no cache-write field, so cost recomputed from trajectory.json
+ * alone silently drops Anthropic cache-write charges (1.25x input); this keeps
+ * the complete record, and the harness-billed cost, next to the trajectory.
+ */
+export function buildHarnessUsageMetadata(
+  outcome: Pick<ExternalHarnessSessionOutcome<unknown>, "usage" | "costUsd">,
+): Record<string, number> {
+  const fields: Record<string, number | undefined> = {
+    inputTokens: outcome.usage.inputTokens,
+    outputTokens: outcome.usage.outputTokens,
+    totalTokens: outcome.usage.totalTokens,
+    cachedInputTokens: outcome.usage.cachedInputTokens,
+    cacheCreationInputTokens: outcome.usage.cacheCreationInputTokens,
+    reasoningOutputTokens: outcome.usage.reasoningOutputTokens,
+    costUsd: outcome.costUsd,
+  };
+  const reported: Record<string, number> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (typeof value === "number" && Number.isFinite(value)) reported[key] = value;
+  }
+  return reported;
 }
 
 /** Add portable external-harness metrics without replacing native metrics. */

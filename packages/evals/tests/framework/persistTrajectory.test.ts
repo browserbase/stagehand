@@ -12,6 +12,36 @@ const PROBE_PNG = Buffer.from("fake-probe-bytes-1234", "utf8");
 const AGENT_PNG = Buffer.from("fake-agent-bytes-5678", "utf8");
 
 describe("persistAdapterTrajectory", () => {
+  it("merges caller metadata into metadata.json without overriding run identity", async () => {
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "persist-adapter-metadata-"));
+
+    try {
+      const taskSpec: TaskSpec = {
+        id: "metadata-task",
+        instruction: "Test task",
+        initUrl: "https://example.com",
+      };
+      const { directory } = await persistAdapterTrajectory({
+        trajectory: makeTrajectory(taskSpec),
+        taskSpec,
+        outputRoot: tmpRoot,
+        runId: "metadata-run",
+        persist: true,
+        metadata: {
+          harnessUsage: { cacheCreationInputTokens: 40465, costUsd: 0.878 },
+          task: "spoofed-task",
+        },
+      });
+
+      const metadata = JSON.parse(await fs.readFile(path.join(directory, "metadata.json"), "utf8"));
+      expect(metadata.harnessUsage).toEqual({ cacheCreationInputTokens: 40465, costUsd: 0.878 });
+      expect(metadata.task).toBe("metadata-task");
+      expect(metadata.runId).toBe("metadata-run");
+    } finally {
+      await fs.rm(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   it("round-trips probe and agent image evidence through loadTrajectoryFromDisk", async () => {
     const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "persist-adapter-roundtrip-"));
 
