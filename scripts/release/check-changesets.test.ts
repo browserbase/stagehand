@@ -11,6 +11,7 @@ describe("validateChangeset", () => {
 "@browserbasehq/stagehand-go": patch
 "@browserbasehq/stagehand-extension": patch
 "@browserbasehq/eve": minor
+"browse": patch
 ---
 
 Release the SDKs.

@@ -2,6 +2,7 @@ import { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
+import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
@@ -50,10 +51,11 @@ import {
   normalizeScreenshotClip,
   runScreenshotCleanups,
   setTransparentBackground,
+  withScreenshotLock,
+  waitForScreenshot,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
-import { withTimeout } from "../timeoutConfig.js";
 
 /**
  * Page
@@ -1241,48 +1243,65 @@ export class Page {
     const scaleMode: NonNullable<UnderstudyScreenshotOptions["scale"]> = opts.scale ?? "device";
     const frames = collectFramesForScreenshot(this);
     const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
-    const captureScale = await computeScreenshotScale(this, scaleMode);
     const maskLocators = opts.mask ?? [];
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
-    const exec = async (): Promise<Uint8Array> => {
+    const exec = async (signal: AbortSignal): Promise<Uint8Array> => {
       try {
+        const captureScale = await waitForScreenshot(
+          computeScreenshotScale(this, scaleMode),
+          signal,
+        );
         if (opts.omitBackground) {
+          signal.throwIfAborted();
           cleanupTasks.push(await setTransparentBackground(this.mainSession));
         }
 
         if (animationsMode === "disabled") {
+          signal.throwIfAborted();
           cleanupTasks.push(await disableAnimations(frames));
         }
 
         if (caretMode === "hide") {
+          signal.throwIfAborted();
           cleanupTasks.push(await hideCaret(frames));
         }
 
         if (opts.style && opts.style.trim()) {
+          signal.throwIfAborted();
           cleanupTasks.push(await applyStyleToFrames(frames, opts.style, "custom"));
         }
 
         if (maskLocators.length > 0) {
+          signal.throwIfAborted();
           cleanupTasks.push(await applyMaskOverlays(maskLocators, opts.maskColor ?? "#FF00FF"));
         }
 
-        const buffer = await this.mainFrameWrapper.screenshot({
-          fullPage: opts.fullPage,
-          clip,
-          type,
-          quality: type === "jpeg" ? opts.quality : undefined,
-          scale: captureScale,
-        });
-
-        return buffer;
+        // Setup and cleanup mutate this page only. Hold the browser-wide lock solely
+        // while activating and capturing, so a stalled page cannot block other tabs.
+        return await waitForScreenshot(
+          withScreenshotLock(
+            this.conn,
+            () =>
+              this.mainFrameWrapper.screenshot({
+                fullPage: opts.fullPage,
+                clip,
+                type,
+                quality: type === "jpeg" ? opts.quality : undefined,
+                scale: captureScale,
+                signal,
+              }),
+            undefined,
+          ),
+          signal,
+        );
       } finally {
         await runScreenshotCleanups(cleanupTasks);
       }
     };
 
-    return await withTimeout(exec(), opts.timeout, "screenshot");
+    return await withScreenshotLock(this, exec, opts.timeout);
   }
 
   /**
@@ -1433,6 +1452,15 @@ export class Page {
       String(pierceShadow),
     ]);
     return targetFrame.evaluateInLocatorWorld(expression);
+  }
+
+  /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
+  async evaluateWithShadowRoots(functionSource: string): Promise<unknown> {
+    return evaluateWithShadowRoots(
+      this.mainSession,
+      (expression) => this.evaluate(expression),
+      functionSource,
+    );
   }
 
   /**

@@ -9,8 +9,14 @@
   </ul>
 </div>
 <p align="center">
-  <strong>Stagehand is the SDK for browser agents.</strong><br>
-  <a href="https://docs.stagehand.dev">Read the Docs</a>
+  <strong>Stagehand is the SDK to extract data and interact with any site on the web.</strong><br>
+  Playwright was built for testing. Stagehand is built for agents, in TypeScript, Python, and Go.
+</p>
+
+<p align="center">
+  <a href="https://docs.stagehand.dev"><strong>Docs</strong></a> ·
+  <a href="https://docs.stagehand.dev/v4/first-steps/quickstart"><strong>Quickstart</strong></a> ·
+  <a href="https://github.com/browserbase/stagehand/stargazers"><strong>⭐ Star this repo</strong></a>
 </p>
 
 <p align="center">
@@ -26,123 +32,443 @@
       <img alt="Discord Community" src="media/light_discord.svg" />
     </picture>
   </a>
-</p>
-
-<p align="center">
-	<a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-
-<p align="center">
   <a href="https://deepwiki.com/browserbase/stagehand">
     <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
   </a>
 </p>
 
-## What is Stagehand?
+## AI that uses the browser like humans.
 
-Stagehand is the SDK for browser agents. Playwright was built for testing, Stagehand is built for agents. Use familiar APIs, self-healing actions, and network-level security across TypeScript, Python, and Go.
+Sign in once, keep the session, and pull structured data out the other side.
 
-## Why Stagehand?
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
 
-Stagehand gives browser agents an interface built for how they actually work. It combines familiar Playwright-style APIs with self-healing actions, agent-optimized page context, and native support for complex DOM structures like out-of-process iframes and closed Shadow DOMs.
+// Cookies persist in ./browser-data, so the next run starts already signed in
+const browser = await localBrowser.launch({ userDataDir: "./browser-data" });
+const stagehand = await Stagehand.create({
+  browser,
+  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
+});
 
-Agents use fewer tokens, recover when websites change, and complete tasks more reliably. With a complete browser driver across TypeScript, Python, and Go, Stagehand delivers the flexibility of AI without sacrificing the speed, control, determinism, reliability, and observability required in production.
+const [page] = await browser.context.pages();
+await page.goto("https://app.example.com/login");
 
-### 1. Familiar APIs
+// observe() returns real selectors, so credentials never reach the model
+const { data: email } = await stagehand.observe("find the email input");
+const { data: password } = await stagehand.observe("find the password input");
+await page.locator(email[0].selector).fill(process.env.APP_EMAIL!);
+await page.locator(password[0].selector).fill(process.env.APP_PASSWORD!);
 
-The Playwright-style methods you and your agents already know and love (`goto`, `click`, `locator`, `screenshot`).
+// act() self-heals when the site redesigns its form
+await stagehand.act("click the sign in button");
+await stagehand.act("open the billing page");
 
-### 2. Token efficiency as a priority
+// extract() returns schema-validated data
+const { data } = await stagehand.extract(
+  "extract every invoice in the table",
+  z.object({
+    invoices: z.array(z.object({ number: z.string(), amount: z.number(), paid: z.boolean() })),
+  }),
+);
 
-Stagehand's hybrid accessibility tree trimming gives your agents exactly what they need to understand the page and nothing more.
+console.log(data.invoices);
 
-### 3. Faster in production
+await stagehand.close();
+await browser.close();
+```
 
-Stagehand runs as an extension next to the browser, closing the distance and reducing round-trip latency for all actions on the page.
+<details>
+<summary><b>Python</b></summary>
 
-### 4. Self-healing primitives
+```python
+import asyncio
+import os
 
-Use `act`, `observe`, and `extract` with natural language to automate pages. When sites change, Stagehand detects it and refreshes how the actions happen on the page automatically.
+from pydantic import BaseModel
+from stagehand import Stagehand, local_browser
 
-### 5. Features agents need
 
-WebMCP, clipboard support, self-healing actions, batch commands, deep locators for nested iframes, and OTel support.
+class Invoice(BaseModel):
+    number: str
+    amount: float
+    paid: bool
 
-## Getting Started
 
-Check out our [Quickstart Guide](https://docs.stagehand.dev/v4/first-steps/quickstart) for more information:
+class Invoices(BaseModel):
+    invoices: list[Invoice]
 
-## Example
 
-Here's how to build a sample browser automation with Stagehand:
+async def main() -> None:
+    # Cookies persist in ./browser-data, so the next run starts already signed in
+    browser = await local_browser.launch(user_data_dir="./browser-data")
+    try:
+        stagehand = await Stagehand.create(
+            browser=browser,
+            model="openai/gpt-5.4-mini",
+            model_api_key=os.environ["OPENAI_API_KEY"],
+        )
+        try:
+            page = (await browser.context.pages())[0]
+            await page.goto("https://app.example.com/login")
+
+            # observe() returns real selectors, so credentials never reach the model
+            email = await stagehand.observe("find the email input")
+            password = await stagehand.observe("find the password input")
+            await page.locator(email.data[0].selector).fill(os.environ["APP_EMAIL"])
+            await page.locator(password.data[0].selector).fill(os.environ["APP_PASSWORD"])
+
+            # act() self-heals when the site redesigns its form
+            await stagehand.act("click the sign in button")
+            await stagehand.act("open the billing page")
+
+            # extract() returns schema-validated data
+            result = await stagehand.extract(
+                "extract every invoice in the table",
+                Invoices,
+            )
+            print(result.data.invoices)
+        finally:
+            await stagehand.close()
+    finally:
+        await browser.close()
+
+
+asyncio.run(main())
+```
+
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+type invoice struct {
+	Number string  `json:"number"`
+	Amount float64 `json:"amount"`
+	Paid   bool    `json:"paid"`
+}
+
+type invoices struct {
+	Invoices []invoice `json:"invoices"`
+}
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	// Cookies persist in ./browser-data, so the next run starts already signed in
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
+		UserDataDir: "./browser-data",
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	modelAPIKey := os.Getenv("OPENAI_API_KEY")
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Model: &stagehand.ModelConfig{
+			ModelName: "openai/gpt-5.4-mini",
+			APIKey:    &modelAPIKey,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := browser.Context()
+	if err != nil {
+		return err
+	}
+	pages, err := browserContext.Pages(ctx)
+	if err != nil {
+		return err
+	}
+	page := pages[0]
+	if _, err := page.Goto(ctx, "https://app.example.com/login", nil); err != nil {
+		return err
+	}
+
+	// Observe returns real selectors, so credentials never reach the model
+	emailInstruction := "find the email input"
+	email, err := client.Observe(ctx, &emailInstruction, nil)
+	if err != nil {
+		return err
+	}
+	if err := page.Locator(email.Data[0].Selector).Fill(ctx, os.Getenv("APP_EMAIL")); err != nil {
+		return err
+	}
+
+	passwordInstruction := "find the password input"
+	password, err := client.Observe(ctx, &passwordInstruction, nil)
+	if err != nil {
+		return err
+	}
+	if err := page.Locator(password.Data[0].Selector).Fill(ctx, os.Getenv("APP_PASSWORD")); err != nil {
+		return err
+	}
+
+	// Act self-heals when the site redesigns its form
+	if _, err := client.Act(ctx, stagehand.ActInstruction("click the sign in button"), nil); err != nil {
+		return err
+	}
+	if _, err := client.Act(ctx, stagehand.ActInstruction("open the billing page"), nil); err != nil {
+		return err
+	}
+
+	// Extract returns data decoded into a Go type
+	extracted, err := stagehand.Extract[invoices](
+		ctx,
+		client,
+		"extract every invoice in the table",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Println(extracted.Data.Invoices)
+
+	return nil
+}
+```
+
+</details>
+
+## Install
+
+```bash
+pnpm add @browserbasehq/stagehand 'zod@~4.4.3'
+```
+
+<details>
+<summary><b>Python</b></summary>
+
+```bash
+pip install stagehand
+```
+
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```bash
+go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
+```
+
+</details>
+
+Local runs need [Chrome](https://www.google.com/chrome/) installed. Full setup: [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart).
+
+## Why Stagehand
+
+<table>
+  <tr>
+    <td><strong>Familiar APIs</strong></td>
+    <td>The Playwright-style methods you and your agents already know: <code>goto</code>, <code>click</code>, <code>locator</code>, <code>screenshot</code>.</td>
+  </tr>
+  <tr>
+    <td><strong>Token efficiency</strong></td>
+    <td>Hybrid accessibility-tree trimming gives agents exactly the page context they need and nothing more.</td>
+  </tr>
+  <tr>
+    <td><strong>Faster in production</strong></td>
+    <td>Stagehand runs as an extension next to the browser, cutting round-trip latency on every action.</td>
+  </tr>
+  <tr>
+    <td><strong>Self-healing</strong></td>
+    <td><code>act</code>, <code>observe</code>, and <code>extract</code> refresh how an action happens when the site changes underneath it.</td>
+  </tr>
+  <tr>
+    <td><strong>Built for agents</strong></td>
+    <td>WebMCP, clipboard support, batch commands, deep locators for nested iframes and closed Shadow DOMs, OTel traces.</td>
+  </tr>
+  <tr>
+    <td><strong>Three languages</strong></td>
+    <td>One complete browser driver across TypeScript, Python, and Go.</td>
+  </tr>
+</table>
+
+## Run it on Browserbase
+
+Point the same script at [Browserbase](https://www.browserbase.com) and get 2x faster execution than Playwright cloud equivalent browsers. Configure the [Model Gateway](https://docs.stagehand.dev/v4/configuration/models#model-gateway) so you never wire up a provider, and enable [server-side caching](https://docs.stagehand.dev/v4/best-practices/caching) to cache repeated actions.
 
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod/v4";
 
-const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY! });
 
-const browser = await browserbase.launch({
-  apiKey: BROWSERBASE_API_KEY,
-});
-
-const stagehand = await Stagehand.create({
-  browser,
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: OPENAI_API_KEY,
-  },
-});
-
-// Stagehand's CDP engine provides an optimized, low level interface to the browser built for automation
-const [page] = await browser.context.pages();
-await page.goto("https://github.com/browserbase");
-
-// Use act() to execute individual actions
-await stagehand.act("click on the stagehand repo");
-
-// Use observe() to see what's actionable on the page
-const { data: actions } = await stagehand.observe("find the latest PR");
-
-// Use locators for deterministic Playwright-style actions
-await page.locator(actions[0].selector).click();
-
-// Use extract() to get structured data from the page
-const {
-  data: { author, title },
-} = await stagehand.extract(
-  "extract the author and title of the PR",
-  z.object({
-    author: z.string().describe("The username of the PR author"),
-    title: z.string().describe("The title of the PR"),
-  }),
-);
+// No model configuration: the Model Gateway picks the cheapest model for each action
+// cache: true: identical calls come back from Browserbase, no tokens spent
+const stagehand = await Stagehand.create({ browser, cache: true });
 ```
 
-See the [Python](./packages/sdk-python/README.md) and [Go](./packages/sdk-go/README.md) READMEs for equivalent examples.
+<details>
+<summary><b>Python</b></summary>
 
-The same `browserbase` facade also exposes Browserbase Search and Fetch without launching a browser:
+```python
+import os
+
+from stagehand import Stagehand, browserbase
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+# No model configuration: the Model Gateway picks the cheapest model for each action
+# cache=True: identical calls come back from Browserbase, no tokens spent
+stagehand = await Stagehand.create(browser=browser, cache=True)
+```
+
+</details>
+
+<details>
+<summary><b>Go</b></summary>
+
+```go
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+})
+if err != nil {
+	return err
+}
+
+// No model configuration: the Model Gateway picks the cheapest model for each action
+// CacheEnabled(true): identical calls come back from Browserbase, no tokens spent
+cache := stagehand.CacheEnabled(true)
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Cache:   &cache,
+})
+if err != nil {
+	return err
+}
+```
+
+</details>
+
+[Verified mode](https://docs.browserbase.com/platform/identity/verified-customization), [residential proxies](https://docs.browserbase.com/platform/identity/proxies), [persistent contexts](https://docs.browserbase.com/platform/browser/core-features/contexts), and [session recordings](https://docs.browserbase.com/platform/browser/observability/session-replay) come with it. [Get an API key](https://www.browserbase.com/overview) and learn how to configure your browser [here](https://docs.stagehand.dev/v4/configuration/browser).
+
+## Give your coding agent a browser
+
+The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
+
+```bash
+claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
+  --header "Authorization: Bearer $BROWSERBASE_API_KEY"
+```
+
+<details>
+<summary><b>Cursor, Codex, and other MCP clients</b></summary>
+
+```json
+{
+  "mcpServers": {
+    "browserbase": {
+      "url": "https://mcp.browserbase.com/mcp",
+      "headers": { "Authorization": "Bearer YOUR_BROWSERBASE_API_KEY" }
+    }
+  }
+}
+```
+
+</details>
+
+## Search and fetch without a browser
+
+[Fetch](https://docs.stagehand.dev/v4/add-ons/fetch) lets you grab the content of any URL as markdown. [Search](https://docs.stagehand.dev/v4/add-ons/search) provides fast, token-efficient web search results.
+Both as a lightweight complement to browser sessions.
 
 ```typescript
-const results = await browserbase.search({
-  apiKey: BROWSERBASE_API_KEY,
+import { browserbase } from "@browserbasehq/stagehand";
+
+const { results } = await browserbase.search({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
   query: "browser agent frameworks",
   numResults: 5,
 });
-const fetchResult = await browserbase.fetch({
-  apiKey: BROWSERBASE_API_KEY,
-  url: results.results[0].url,
+
+const fetched = await browserbase.fetch({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+  url: results[0].url,
   format: "markdown",
 });
+
+console.log(fetched.content);
 ```
 
-## Documentation
+## Docs and resources
 
-Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
+<table>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/first-steps/quickstart">Quickstart</a></td>
+    <td>Empty directory to working automation in three steps</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/reference/page">page</a> · <a href="https://docs.stagehand.dev/v4/reference/locator">locator</a></td>
+    <td>Playwright-style browser and element APIs</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/basics/webmcp">WebMCP</a></td>
+    <td>Discover and invoke WebMCP tools exposed by web pages</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/basics/act">act</a> · <a href="https://docs.stagehand.dev/v4/basics/extract">extract</a> · <a href="https://docs.stagehand.dev/v4/basics/observe">observe</a></td>
+    <td>Browser actions and data extraction with natural language</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/add-ons/search">Search</a> · <a href="https://docs.stagehand.dev/v4/add-ons/fetch">Fetch</a></td>
+    <td>Web search and page content without a browser</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/migrations/playwright">Migrate from Playwright</a></td>
+    <td>Port an existing suite</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/integrations/overview">Integrations</a></td>
+    <td>CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex</td>
+  </tr>
+  <tr>
+    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="./packages/sdk-go/README.md">Go SDK</a></td>
+    <td>Language-specific guides</td>
+  </tr>
+  <tr>
+    <td><a href="https://deepwiki.com/browserbase/stagehand">Ask DeepWiki</a></td>
+    <td>Ask questions about this codebase</td>
+  </tr>
+</table>
 
-### Build and Run from Source
+## Join the community
 
-Stagehand is a TypeScript, Python, and Go monorepo. We use [`just`](https://github.com/casey/just) to drive `pnpm`, `uv`, and `go` together.
+Stagehand is built in the open, and the fastest way to shape it is to show up.
+
+- **[⭐ Star this repo](https://github.com/browserbase/stagehand/stargazers)** — it is how most people find Stagehand
+- **[💬 Join the Discord](https://discord.gg/stagehand)** — questions, support, and what we are building next
+- **[🐛 Open an issue](https://github.com/browserbase/stagehand/issues)** — bug reports are the most useful contribution
+- **[𝕏 Follow @stagehanddev](https://x.com/stagehanddev)** — releases and demos
+
+### Contributing
+
+We're focused on improving reliability, extensibility, speed, and cost, in that order. **Bug fixes and small improvements are the best way to get started.** For anything larger, reach out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) on [Discord](https://discord.gg/stagehand) first so we can make sure it lands.
+
+Stagehand is a TypeScript, Python, and Go monorepo driven by [`just`](https://github.com/casey/just):
 
 ```bash
 git clone https://github.com/browserbase/stagehand.git
@@ -150,31 +476,12 @@ cd stagehand
 just install
 just generate
 just build
-```
 
-Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. Export them so they're available on `process.env`:
-
-```bash
 export OPENAI_API_KEY="your-openai-api-key"
-export BROWSERBASE_API_KEY="your-browserbase-api-key"
-```
-
-Then run any of the scripts in [`packages/sdk-ts/examples`](./packages/sdk-ts/examples):
-
-```bash
 just example act # runs packages/sdk-ts/examples/act.ts
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full TypeScript, Python, and Go setup.
-
-## Contributing
-
-> [!NOTE]
-> We highly value contributions to Stagehand! For questions or support, please join our [Discord community](https://discord.gg/stagehand).
-
-We're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Discord community](https://discord.gg/stagehand) before starting to ensure that your contribution aligns with our goals.
-
-<!-- For more information, please see our [CONTRIBUTING.md](CONTRIBUTING.md) -->
 
 ## Acknowledgements
 

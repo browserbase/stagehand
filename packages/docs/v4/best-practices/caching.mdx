@@ -599,8 +599,8 @@ const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_K
 
 const stagehand = await Stagehand.create({
   browser,
-  model: { modelName: "openai/gpt-5" }, // Routed through Model Gateway
-  cache: true,                          // Served by Browserbase Cache
+  model: { modelName: "openai/gpt-5.6-sol" }, // Routed through Model Gateway
+  cache: true,                                // Served by Browserbase Cache
 });
 ```
 </Tab>
@@ -611,8 +611,8 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model="openai/gpt-5",  # Routed through Model Gateway
-    cache=True,            # Served by Browserbase Cache
+    model="openai/gpt-5.6-sol",  # Routed through Model Gateway
+    cache=True,                  # Served by Browserbase Cache
 )
 ```
 </Tab>
@@ -621,7 +621,7 @@ stagehand = await Stagehand.create(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // Routed through Model Gateway: no model API key
-model := stagehand.ModelConfig{ModelName: "openai/gpt-5"}
+model := stagehand.ModelConfig{ModelName: "openai/gpt-5.6-sol"}
 cache := stagehand.CacheEnabled(true) // Served by Browserbase Cache
 
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{

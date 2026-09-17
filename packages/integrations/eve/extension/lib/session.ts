@@ -7,7 +7,7 @@ import {
 } from "@browserbasehq/stagehand";
 
 import extension from "../extension.js";
-import { StagehandFacadeTools } from "./core-facade/tools.js";
+import { StagehandFacadeTools } from "./core/facade/tools.js";
 import { BrowserbaseSessionReleaseError, releaseBrowserbaseSession } from "./session-release.js";
 
 type StagehandSessionRelease = () => Promise<void>;
