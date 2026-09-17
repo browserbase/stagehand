@@ -10,6 +10,7 @@ const allowedPackages = new Set([
   "@browserbasehq/stagehand-python",
   "@browserbasehq/stagehand-extension",
   "@browserbasehq/eve",
+  "browse",
 ]);
 
 export function validateChangeset(contents: string, file: string): void {

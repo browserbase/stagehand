@@ -181,6 +181,29 @@ describe("closeStagehandResources", () => {
 });
 
 describe("createStagehandResourceFactory", () => {
+  it("closes through the facade hook and starts the next tool with fresh resources", async () => {
+    const first = createResources();
+    const second = createResources();
+    const launch = vi
+      .fn()
+      .mockResolvedValueOnce({ browser: first.browser })
+      .mockResolvedValueOnce({ browser: second.browser });
+    const createStagehand = vi
+      .fn()
+      .mockResolvedValueOnce(first.stagehand)
+      .mockResolvedValueOnce(second.stagehand);
+    const session = new StagehandSession(createStagehandResourceFactory(launch, createStagehand));
+
+    await session.run(({ tools }) => tools.close());
+    expect(first.browser.close).toHaveBeenCalledOnce();
+    await expect(session.run(async ({ browser }) => browser === second.browser)).resolves.toBe(
+      true,
+    );
+    expect(launch).toHaveBeenCalledTimes(2);
+    await session.run(({ tools }) => tools.close());
+    expect(second.browser.close).toHaveBeenCalledOnce();
+  });
+
   it("releases an owned session when initialization and browser close fail", async () => {
     const resources = createResources();
     const initializationError = new Error("Stagehand initialization failed");

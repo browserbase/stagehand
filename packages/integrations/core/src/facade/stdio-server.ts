@@ -10,12 +10,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { closeCodeModeStdio } from "../codemode/stdio-lifecycle.js";
+import { sanitizeErrorMessage } from "../harness/redact.js";
 import { stagehandFacadeConfigFromEnv } from "./config.js";
 import {
   CodeModeRunInputSchema,
-  FACADE_TOOLS,
-  SCREENSHOT_TOOL_DESCRIPTION,
-  SNAPSHOT_TOOL_DESCRIPTION,
+  facadeSurfaceFromArgs,
+  facadeToolsFor,
+  SESSION_INFO_TOOL_NAME,
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
@@ -23,7 +24,7 @@ import {
   captureScreenshotWithinBase64Budget,
   screenshotBase64BudgetFromArgs,
 } from "./screenshot-transport.js";
-import { sanitizeFacadeErrorMessage, StagehandFacadeTools } from "./tools.js";
+import { StagehandFacadeTools } from "./tools.js";
 
 type FacadeResources = {
   browser: StagehandBrowser;
@@ -33,28 +34,29 @@ type FacadeResources = {
 
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
+const facadeTools = facadeToolsFor(facadeSurfaceFromArgs(process.argv.slice(2)));
 let resourcesPromise: Promise<FacadeResources> | undefined;
 const resourceCleanups = new Map<FacadeResources, Promise<void>>();
 let closing = false;
 
 server.registerTool(
   "run",
-  { description: FACADE_TOOLS[0].description, inputSchema: CodeModeRunInputSchema },
+  { description: facadeTools[0].description, inputSchema: CodeModeRunInputSchema },
   async () => ({ content: [] }),
 );
 server.registerTool(
   "snapshot",
-  { description: SNAPSHOT_TOOL_DESCRIPTION, inputSchema: SnapshotInputSchema },
+  { description: facadeTools[1].description, inputSchema: SnapshotInputSchema },
   async () => ({ content: [] }),
 );
 server.registerTool(
   "screenshot",
-  { description: SCREENSHOT_TOOL_DESCRIPTION, inputSchema: ScreenshotInputSchema },
+  { description: facadeTools[2].description, inputSchema: ScreenshotInputSchema },
   async () => ({ content: [] }),
 );
 
 server.server.removeRequestHandler("tools/list");
-server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [...FACADE_TOOLS] }));
+server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [...facadeTools] }));
 server.server.removeRequestHandler("tools/call");
 server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
@@ -101,6 +103,18 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
           ],
         };
       }
+      case SESSION_INFO_TOOL_NAME: {
+        // Runner-side only (absent from tools/list): launches the browser if
+        // needed and reports where it lives so the harness can log the
+        // Browserbase session URL before the agent's first call.
+        const browser = (await ensureResources()).browser;
+        return textResult(
+          JSON.stringify({
+            provider: browser.provider,
+            ...(browser.sessionId && { sessionId: browser.sessionId }),
+          }),
+        );
+      }
       default:
         throw new Error(`Unknown tool: ${request.params.name}`);
     }
@@ -128,6 +142,8 @@ async function createResources(): Promise<FacadeResources> {
     let resources!: FacadeResources;
     const tools = new StagehandFacadeTools(stagehand, {
       onCloseRequested: () => closeResources(resources),
+      onRunReport: (report) =>
+        process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
     });
     resources = { browser, stagehand, tools };
     return resources;
@@ -166,9 +182,7 @@ function textResult(text: string) {
 }
 
 function errorResult(error: unknown) {
-  const message = sanitizeFacadeErrorMessage(
-    error instanceof Error ? error.message : String(error),
-  );
+  const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
   return { content: [{ type: "text" as const, text: message }], isError: true };
 }
 
@@ -214,7 +228,7 @@ try {
   process.stderr.write("Stagehand facade MCP host listening on stdio\n");
 } catch (error) {
   process.stderr.write(
-    sanitizeFacadeErrorMessage(error instanceof Error ? error.message : String(error)) + "\n",
+    sanitizeErrorMessage(error instanceof Error ? error.message : String(error)) + "\n",
   );
   await shutdown(1);
 }

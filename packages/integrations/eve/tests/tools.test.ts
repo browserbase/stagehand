@@ -11,7 +11,7 @@ import {
   SCREENSHOT_TOOL_DESCRIPTION,
   SNAPSHOT_INPUT_SCHEMA,
   SNAPSHOT_TOOL_DESCRIPTION,
-} from "../extension/lib/core-facade/contract.js";
+} from "../extension/lib/core/facade/contract.js";
 import runTool from "../extension/tools/run.js";
 import screenshotTool from "../extension/tools/screenshot.js";
 import snapshotTool from "../extension/tools/snapshot.js";

@@ -7,13 +7,15 @@ import {
   resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "../trajectoryGroup.js";
-import type { EvaluationResult, TaskSpec, Trajectory } from "stagehand-v3";
+import type { EvaluationResult, TaskSpec } from "stagehand-v3";
+import type { HarnessTrajectory } from "./trajectoryAdapter.js";
+import type { UngradedVerifierResult } from "../verifierAdapter.js";
 
 export interface PersistAdapterTrajectoryOptions {
-  trajectory: Trajectory;
+  trajectory: HarnessTrajectory;
   taskSpec: TaskSpec;
-  /** EvaluationResult from V3Evaluator.verify(). Written to scores/result.json. */
-  evaluationResult?: EvaluationResult;
+  /** Accepted grade or explicit ungraded audit record. Written to scores/result.json. */
+  evaluationResult?: EvaluationResult | UngradedVerifierResult;
   /**
    * Output directory root. Final layout lives at
    * `<outputRoot>/<group>/<task.id>/<runId>/`. Entrypoints normally generate
@@ -73,6 +75,16 @@ export async function persistAdapterTrajectory(
     runDir: path.basename(directory),
     attempt,
     status: opts.trajectory.status,
+    ...(opts.trajectory.cost_pricing && { cost_pricing: opts.trajectory.cost_pricing }),
+    ...(opts.trajectory.terminationReason && {
+      terminationReason: opts.trajectory.terminationReason,
+    }),
+    ...(opts.trajectory.harnessImplementation && {
+      harnessImplementation: opts.trajectory.harnessImplementation,
+    }),
+    ...(opts.trajectory.harnessConfiguration && {
+      harnessConfiguration: opts.trajectory.harnessConfiguration,
+    }),
   });
 
   if (opts.evaluationResult) {
@@ -86,6 +98,7 @@ export async function persistAdapterTrajectory(
         {
           task: opts.trajectory.task,
           status: opts.trajectory.status,
+          ...(opts.trajectory.cost_pricing && { cost_pricing: opts.trajectory.cost_pricing }),
           finalAnswer: opts.trajectory.finalAnswer ?? null,
           result: opts.evaluationResult,
         },

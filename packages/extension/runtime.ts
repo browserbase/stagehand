@@ -1,3 +1,4 @@
+import { ShadowRootEvaluationUnavailableError } from "./errors.js";
 import type {
   ClearCookieOptions,
   ContextActivePageResult,
@@ -148,6 +149,7 @@ export type UnderstudyRuntimePage = {
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
+  evaluateWithShadowRoots?(functionSource: string): Promise<unknown>;
   addInitScript(source: string): Promise<void>;
   setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
   setViewportSize(
@@ -622,6 +624,13 @@ export class StagehandRuntime {
   async pageKeyPress(params: PageKeyPressParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).keyPress(params.key, params.options);
     return { ok: true };
+  }
+
+  async evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown> {
+    const page = this.resolvePage(pageId);
+    this.logger.debug("page.evaluateWithShadowRoots", { pageId });
+    if (!page.evaluateWithShadowRoots) throw new ShadowRootEvaluationUnavailableError();
+    return page.evaluateWithShadowRoots(functionSource);
   }
 
   async pageEvaluate(params: PageEvaluateParams): Promise<PageEvaluateResult> {

@@ -4,7 +4,7 @@ import {
   SCREENSHOT_INPUT_SCHEMA,
   SCREENSHOT_TOOL_DESCRIPTION,
   ScreenshotInputSchema,
-} from "../lib/core-facade/contract.js";
+} from "../lib/core/facade/contract.js";
 import { stagehandSession } from "../lib/session.js";
 
 export default defineTool({

@@ -5,6 +5,6 @@ node_modules
 .output
 .nitro
 dist
-extension/lib/core-facade
+extension/lib/core
 .DS_Store
 *.tsbuildinfo
