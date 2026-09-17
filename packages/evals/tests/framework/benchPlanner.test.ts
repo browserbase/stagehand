@@ -5,6 +5,7 @@ import {
   buildBenchMatrixRow,
   defaultModelsEnvKey,
   generateBenchTestcases,
+  generateSuiteTestcases,
   resolveBenchModelEntries,
 } from "../../framework/benchPlanner.js";
 import { registerBenchHarness } from "../../framework/benchHarness.js";
@@ -32,6 +33,31 @@ function makeSuiteTask(name: string): DiscoveredTask {
 }
 
 describe("benchPlanner", () => {
+  it("plans HardBench through the same suite and harness metadata path", async () => {
+    await withEnvOverrides(
+      {
+        EVAL_HARDBENCHMARK_LIMIT: "2",
+        EVAL_MAX_K: "2",
+        EVAL_HARDBENCHMARK_SET: "core",
+        EVAL_HARDBENCHMARK_IDS: "",
+      },
+      async () => {
+        const result = generateSuiteTestcases(
+          [makeSuiteTask("agent/hardbenchmark")],
+          { harness: "codex", datasetFilter: "hardbenchmark" },
+          [{ modelName: "openai/gpt-4.1-mini", mode: "hybrid", cua: false }],
+        );
+        expect(result.remainingTasks).toEqual([]);
+        expect(result.testcases).toHaveLength(2);
+        expect(result.testcases[0].metadata).toMatchObject({
+          harness: "codex",
+          dataset: "hardbenchmark",
+          bench_tier: "core",
+        });
+        expect(result.testcases[0].input.params?.precomputed_rubric).toBeDefined();
+      },
+    );
+  });
   it("uses the registry-derived Codex model override environment key", async () => {
     expect(defaultModelsEnvKey("codex")).toBe("EVAL_CODEX_MODELS");
     await withEnvOverrides({ EVAL_CODEX_MODELS: "openai/custom-codex" }, async () => {
