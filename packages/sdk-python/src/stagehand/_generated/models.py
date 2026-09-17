@@ -560,6 +560,27 @@ class EmptyParams(WireModel):
     )
 
 
+class ExperimentalJevAct(WireModel):
+    """Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+    api_key: Annotated[StrictStr, Field(min_length=1)]
+    model: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    api_url: Optional[WireUrl] = None
+    enabled: Optional[StrictBool] = None
+    retry_no_effect: Optional[StrictBool] = None
+    focus_fallback: Optional[StrictBool] = None
+    act_confidence: Annotated[Optional[StrictFloat], Field(ge=0.0, le=1.0)] = None
+    verify: Optional[Verify] = None
+    llm_fallback: Optional[StrictBool] = None
+    argument_llm: Optional[StrictBool] = None
+    page_state: Optional[StrictBool] = None
+
+
 class ExternalProxyConfig(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2120,6 +2141,8 @@ class StagehandInitParams(WireModel):
     ] = None
     cache: Optional[Caching] = None
     """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
+    experimental_jev_act: Optional[ExperimentalJevAct] = None
+    """Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline"""
 
 
 class StagehandInitResult(WireModel):
@@ -2272,6 +2295,12 @@ class VariableValue(RootModel[Union[VariablePrimitive, DescribedVariableValue]])
 
 class Variables(RootModel[dict[StrictStr, VariableValue]]):
     root: dict[StrictStr, VariableValue]
+
+
+class Verify(StrEnum):
+    off = "off"
+    checks = "checks"
+    full = "full"
 
 
 class WebMCPAnnotation(WireModel):

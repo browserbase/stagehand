@@ -249,6 +249,9 @@ export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit(
   browserCdpUrl: true,
   logLevel: true,
   browser: true,
+  // Experimental and deliberately not part of the cross-language create
+  // contract; see STAGEHAND_EXPERIMENTAL_JEV_ACT in stagehand.ts.
+  experimentalJevAct: true,
 })
   .extend({
     model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),

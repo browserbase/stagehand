@@ -86,6 +86,8 @@ export function createStagehandController(
         domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
+        jevAct: state.initParams.experimentalJevAct,
+        openPageCount: () => runtime.requireBrowserSession().pages().length,
       });
       runtime.metrics.record("act", result.metadata.usage);
       return result;
