@@ -1,5 +1,6 @@
 // lib/v3/understudy/frame.ts
 import { Protocol } from "devtools-protocol";
+import { PageEvaluationError } from "../errors.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { waitForScreenshot } from "./screenshotUtils.js";
@@ -20,6 +21,8 @@ interface FrameManager {
   frameId: string;
   pageId: string;
 }
+
+const RETURN_REMOTE_OBJECT_BY_VALUE = "function() { return this; }";
 
 /**
  * Frame
@@ -156,11 +159,13 @@ export class Frame implements FrameManager {
 
     let res: Protocol.Runtime.EvaluateResponse;
     try {
+      // Keep object results alive across evaluation and serialization. Asking
+      // Runtime.evaluate to await directly can let V8 collect the promise first.
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId,
-        awaitPromise: true,
-        returnByValue: true,
+        awaitPromise: false,
+        returnByValue: false,
       });
     } catch (error) {
       // Execution contexts can be recreated between context lookup and
@@ -171,14 +176,43 @@ export class Frame implements FrameManager {
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId: freshContextId,
-        awaitPromise: true,
-        returnByValue: true,
+        awaitPromise: false,
+        returnByValue: false,
       });
     }
-    if (res.exceptionDetails) {
-      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
-    }
+    // The expression has already executed once. A context lost while awaiting
+    // or serializing its result cannot safely be retried: user code may have
+    // performed side effects. Only invalid-context failures from Runtime.evaluate
+    // are retried above, before the expression can run.
+    res = await this.materializeEvaluationResult(res);
+    if (res.exceptionDetails) throw new PageEvaluationError();
     return res.result.value as R;
+  }
+
+  private async materializeEvaluationResult(
+    response: Protocol.Runtime.EvaluateResponse,
+  ): Promise<Protocol.Runtime.EvaluateResponse> {
+    const objectId = response.result.objectId;
+    if (!objectId) return response;
+
+    try {
+      if (response.exceptionDetails) return response;
+
+      if (response.result.subtype === "promise") {
+        return await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.awaitPromise", {
+          promiseObjectId: objectId,
+          returnByValue: true,
+        });
+      }
+
+      return await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: RETURN_REMOTE_OBJECT_BY_VALUE,
+        returnByValue: true,
+      });
+    } finally {
+      await this.session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    }
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
