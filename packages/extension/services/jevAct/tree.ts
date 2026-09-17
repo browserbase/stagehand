@@ -603,14 +603,14 @@ const STOPWORDS = new Set(
 );
 
 /** Values only: object keys ("row", "column") are ours, not the page's. */
-function flattenText(value: JsonValue): string {
+export function flattenText(value: JsonValue): string {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return value.map(flattenText).join(" ");
   if (value && typeof value === "object") return Object.values(value).map(flattenText).join(" ");
   return value === null ? "" : String(value);
 }
 
-function tokens(text: string): string[] {
+export function tokens(text: string): string[] {
   return (
     (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
       // "15th" should find the calendar cell named "15".
