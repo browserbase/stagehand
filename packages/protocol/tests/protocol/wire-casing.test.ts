@@ -436,7 +436,7 @@ describe("JSON-RPC wire casing", () => {
         region: "eu-central-1" as const,
       },
       model: {
-        modelName: "openai/gpt-5-mini",
+        modelName: "openai/gpt-5.6-luna",
         headers: { doNotRenameMe: "value" },
       },
       telemetry: {
@@ -457,7 +457,7 @@ describe("JSON-RPC wire casing", () => {
         region: "eu-central-1",
       },
       model: {
-        model_name: "openai/gpt-5-mini",
+        model_name: "openai/gpt-5.6-luna",
         headers: { doNotRenameMe: "value" },
       },
       telemetry: {
