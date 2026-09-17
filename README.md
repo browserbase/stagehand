@@ -433,7 +433,7 @@ console.log(fetched.content);
   </tr>
   <tr>
     <td><a href="https://docs.stagehand.dev/v4/basics/act">act</a> · <a href="https://docs.stagehand.dev/v4/basics/extract">extract</a> · <a href="https://docs.stagehand.dev/v4/basics/observe">observe</a></td>
-    <td>The three primitives</td>
+    <td>Browser actions and data extraction with natural language</td>
   </tr>
   <tr>
     <td><a href="https://docs.stagehand.dev/v4/add-ons/search">Search</a> · <a href="https://docs.stagehand.dev/v4/add-ons/fetch">Fetch</a></td>
