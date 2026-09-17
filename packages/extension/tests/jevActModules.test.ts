@@ -8,6 +8,7 @@ import {
   matchOption,
 } from "../services/jevAct/args.js";
 import { blockingSignal, readPageState } from "../services/jevAct/pageState.js";
+import { scoreCandidatesBm25 } from "../services/jevAct/bm25.js";
 import type { AskContext } from "../services/jevAct/pick.js";
 import {
   describeCandidate,
@@ -75,6 +76,35 @@ describe("jev act candidate helpers", () => {
 
     expect(scores.get("0-8")!).toBeGreaterThan(scores.get("0-6")!);
     expect(scoreCandidates(nodes, buttons, "open the basket").get("0-6")).toBe(0);
+  });
+
+  it("keeps a rare row name in the top 30 despite repeated generic terms", () => {
+    const lines = ["[0-1] RootWebArea: Records", "  [0-2] table: Records"];
+    let id = 3;
+    for (const name of [
+      ...Array.from({ length: 60 }, (_, index) => `Account ${index + 1}`),
+      "Acme",
+      ...Array.from({ length: 20 }, (_, index) => `Other ${index + 1}`),
+    ]) {
+      lines.push(`    [0-${id++}] row`);
+      lines.push(`      [0-${id++}] cell: ${name}`);
+      lines.push(`      [0-${id++}] button: Delete`);
+    }
+    const nodes = parseOutline(lines.join("\n"));
+    const buttons = nodes.filter((node) => node.role === "button");
+    const ranked = (scores: Map<string, number>) =>
+      buttons
+        .filter((button) => (scores.get(button.id) ?? 0) > 0)
+        .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || a.index - b.index)
+        .slice(0, 30)
+        .map((button) => button.id);
+    expect(ranked(scoreCandidates(nodes, buttons, "Delete the Acme account"))).not.toContain(
+      "0-185",
+    );
+    expect(ranked(scoreCandidatesBm25(nodes, buttons, "Delete the Acme account"))[0]).toBe("0-185");
+    expect([...scoreCandidatesBm25(nodes, buttons, "Erase the obsolete entry").values()]).toEqual(
+      Array(buttons.length).fill(0),
+    );
   });
 
   it("matches quoted names exactly and case-insensitively", () => {

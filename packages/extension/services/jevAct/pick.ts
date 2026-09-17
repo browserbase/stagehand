@@ -1,11 +1,11 @@
 import type { StagehandLogger } from "../../logger.js";
 import { quotedStrings } from "./args.js";
+import { scoreCandidatesBm25 } from "./bm25.js";
 import {
   buildView,
   describeCandidate,
   exactNameMatches,
   nearbyTwins,
-  scoreCandidates,
   type OutlineNode,
   type ViewKind,
 } from "./tree.js";
@@ -183,7 +183,7 @@ export async function pickTarget(
 
     const attempts: OutlineNode[][] = [];
     if (candidates.length > PRUNE_ABOVE) {
-      const scores = scoreCandidates(snap.nodes, candidates, ctx.instruction);
+      const scores = scoreCandidatesBm25(snap.nodes, candidates, ctx.instruction);
       const pruned = candidates
         .filter((candidate) => (scores.get(candidate.id) ?? 0) > 0)
         .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || a.index - b.index)
