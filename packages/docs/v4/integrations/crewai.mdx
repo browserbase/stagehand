@@ -6,8 +6,62 @@ description: "Give a CrewAI agent persistent Stagehand browser tools over MCP/st
 The CrewAI integration connects a Python agent to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
 
 <Note>
-Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+The source example is maintained in the Stagehand repository. For an existing application, prefer the host’s MCP client and the packaged server described below.
 </Note>
+
+## Add Stagehand to an existing agent
+
+Use CrewAI’s supported tool integration: `MCPServerAdapter` from `crewai-tools`. This is an [official SDK/MCP extension point](https://docs.crewai.com/en/mcp/overview); a separate host plugin marketplace is not required.
+
+<Note>
+The portable setup below requires the first `@browserbasehq/stagehand-mcp@0.1.0` release. Until that release is published, use the source example further down this page. Node.js 24+ is required to run the MCP server.
+</Note>
+
+Install the host libraries in your application:
+
+```bash
+uv add crewai 'crewai-tools[mcp]'
+```
+
+Configure your agent’s model credentials as usual. The browser uses local Chrome unless you export `BROWSERBASE_API_KEY`. Only browser configuration is forwarded to the MCP child.
+
+```python
+import os
+
+from crewai import Agent, Crew, Task
+from crewai_tools import MCPServerAdapter
+from mcp import StdioServerParameters
+
+server = StdioServerParameters(
+    command="npx",
+    args=["-y", "@browserbasehq/stagehand-mcp@0.1.0"],
+    env={
+        name: value
+        for name, value in os.environ.items()
+        if name.startswith(("STAGEHAND_", "BROWSERBASE_"))
+    },
+)
+
+with MCPServerAdapter(server, "run", "snapshot", connect_timeout=120) as tools:
+    agent = Agent(
+        role="Browser agent",
+        goal="Complete the requested browser task.",
+        backstory="Use Stagehand to browse and inspect the page before interacting.",
+        tools=list(tools),
+        llm="openai/gpt-5.6-luna",
+    )
+    task = Task(
+        description="Open https://example.com and report its title.",
+        expected_output="The page title.",
+        agent=agent,
+    )
+    result = Crew(agents=[agent], tasks=[task]).kickoff()
+    print(result)
+```
+
+Keep the connection open until the entire agent run finishes. Closing it releases the server and its browser.
+
+This minimal setup selects the text-based `run` and `snapshot` tools. CrewAI’s standard adapter does not deliver screenshots as model-visible image blocks. Use the source example’s `ImageSavingToolAdapter` when you need screenshot files; it preserves the screenshot without injecting base64 into a text-only tool result.
 
 ## Prerequisites
 
@@ -18,7 +72,7 @@ Stagehand ships this experimental integration from the repository rather than pu
 - A model-provider credential for the CrewAI agent
 - A current Google Chrome installation for local browser mode
 
-## Quickstart
+## Run the source example
 
 <Steps>
   <Step title="Clone and build Stagehand">
