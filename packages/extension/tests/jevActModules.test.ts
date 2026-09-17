@@ -10,6 +10,7 @@ import {
   redactor,
 } from "../services/jevAct/args.js";
 import { blockingSignal, readPageState } from "../services/jevAct/pageState.js";
+import { scoreCandidatesBm25, shortlistWithBm25 } from "../services/jevAct/bm25.js";
 import type { AskContext } from "../services/jevAct/pick.js";
 import { systemOne } from "../services/jevAct/typesafeClient.js";
 import {
@@ -31,6 +32,28 @@ const PAGE = [
   "    [0-7] heading: Red toaster",
   "    [0-8] button: Add to cart",
 ].join("\n");
+
+function tableWithDeleteButtons(names: string[]): ReturnType<typeof parseOutline> {
+  const lines = ["[0-1] RootWebArea: Records", "  [0-2] table: Records"];
+  let id = 3;
+  for (const name of names) {
+    lines.push(`    [0-${id++}] row`);
+    lines.push(`      [0-${id++}] cell: ${name}`);
+    lines.push(`      [0-${id++}] button: Delete`);
+  }
+  return parseOutline(lines.join("\n"));
+}
+
+function firstThirty(
+  candidates: ReturnType<typeof parseOutline>,
+  scores: Map<string, number>,
+): string[] {
+  return candidates
+    .filter((candidate) => (scores.get(candidate.id) ?? 0) > 0)
+    .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0) || a.index - b.index)
+    .slice(0, 30)
+    .map((candidate) => candidate.id);
+}
 
 function context(): AskContext {
   return {
@@ -78,6 +101,53 @@ describe("jev act candidate helpers", () => {
 
     expect(scores.get("0-8")!).toBeGreaterThan(scores.get("0-6")!);
     expect(scoreCandidates(nodes, buttons, "open the basket").get("0-6")).toBe(0);
+  });
+
+  it("keeps a rare row name in the top 30 despite repeated generic terms", () => {
+    const nodes = tableWithDeleteButtons([
+      ...Array.from({ length: 60 }, (_, index) => `Account ${index + 1}`),
+      "Acme",
+      ...Array.from({ length: 20 }, (_, index) => `Other ${index + 1}`),
+    ]);
+    const buttons = nodes.filter((node) => node.role === "button");
+    expect(
+      firstThirty(buttons, scoreCandidates(nodes, buttons, "Delete the Acme account")),
+    ).not.toContain("0-185");
+    expect(
+      firstThirty(buttons, scoreCandidatesBm25(nodes, buttons, "Delete the Acme account"))[0],
+    ).toBe("0-185");
+    const supplemented = shortlistWithBm25(nodes, buttons, "Delete the Acme account");
+    expect(supplemented.map((button) => button.id)).toContain("0-185");
+    expect(supplemented).toHaveLength(31);
+    expect(
+      firstThirty(buttons, scoreCandidates(nodes, buttons, "Delete the Acme account")).every((id) =>
+        supplemented.some((button) => button.id === id),
+      ),
+    ).toBe(true);
+    expect([...scoreCandidatesBm25(nodes, buttons, "Erase the obsolete entry").values()]).toEqual(
+      Array(buttons.length).fill(0),
+    );
+  });
+
+  it("shows why BM25 length normalization cannot replace the first-row shortlist yet", () => {
+    const nodes = tableWithDeleteButtons([
+      "A long descriptive record containing many fields and details for review",
+      ...Array.from({ length: 79 }, (_, index) => `Record ${index + 2}`),
+    ]);
+    const buttons = nodes.filter((node) => node.role === "button");
+    expect(
+      firstThirty(buttons, scoreCandidates(nodes, buttons, "Delete the first record")),
+    ).toContain("0-5");
+    expect(
+      firstThirty(buttons, scoreCandidatesBm25(nodes, buttons, "Delete the first record")),
+    ).not.toContain("0-5");
+    const supplemented = shortlistWithBm25(nodes, buttons, "Delete the first record");
+    expect(supplemented.map((button) => button.id)).toContain("0-5");
+    expect(
+      firstThirty(buttons, scoreCandidates(nodes, buttons, "Delete the first record")).every((id) =>
+        supplemented.some((button) => button.id === id),
+      ),
+    ).toBe(true);
   });
 
   it("matches quoted names exactly and case-insensitively", () => {
