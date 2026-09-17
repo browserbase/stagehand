@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -173,5 +174,39 @@ describe("shouldPreservePackageChangelogs", () => {
     { value: undefined, expected: false },
   ])("returns $expected for $value", ({ value, expected }) => {
     expect(shouldPreservePackageChangelogs(value)).toBe(expected);
+  });
+});
+
+describe("integration package release", () => {
+  it("consolidates the Stagehand MCP changelog through the release entrypoint", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "stagehand-integration-release-"));
+    try {
+      const scripts = path.join(directory, "scripts/release");
+      const packagePath = path.join(directory, "packages/integrations/mcp");
+      await mkdir(scripts, { recursive: true });
+      await mkdir(packagePath, { recursive: true });
+      const scriptPath = path.join(scripts, "consolidate-changelogs.ts");
+      await copyFile(new URL("./consolidate-changelogs.ts", import.meta.url), scriptPath);
+      await writeFile(
+        path.join(directory, "CHANGELOG.md"),
+        "# Stagehand\n\n## 4.1.0\n\nExisting release.\n",
+      );
+      await writeFile(
+        path.join(packagePath, "CHANGELOG.md"),
+        "# Integration\n\n## 0.1.0\n\nFirst package release.\n",
+      );
+      execFileSync(process.execPath, [scriptPath], {
+        env: { ...process.env, CHANGESETS_ACTION_PRESERVE_CHANGELOGS: "false" },
+      });
+      const result = await readFile(path.join(directory, "CHANGELOG.md"), "utf8");
+      expect(result).toContain("## Stagehand MCP 0.1.0");
+      expect(result).toContain("First package release.");
+      expect(result).toContain("## 4.1.0\n\nExisting release.");
+      await expect(readFile(path.join(packagePath, "CHANGELOG.md"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
