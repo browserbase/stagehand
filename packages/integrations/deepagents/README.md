@@ -1,5 +1,10 @@
 # Stagehand Deep Agents integration
 
+## Supported integration route
+
+Use LangChain MCP adapters with an explicit persistent session, as described in the [official Deep Agents documentation](https://docs.langchain.com/oss/python/langchain/mcp). No separate host marketplace plugin is needed. The [Stagehand guide](https://docs.stagehand.dev/v4/integrations/deep-agents#add-stagehand-to-an-existing-agent) includes a portable setup using the packaged MCP server, pending its first 0.1.0 release. The source example below remains available before publication.
+
+
 This local integration exposes one stateful Stagehand browser to LangChain Deep Agents through a
 stdio MCP server. Its complete tool surface is `run`, `snapshot`, and `screenshot`.
 
