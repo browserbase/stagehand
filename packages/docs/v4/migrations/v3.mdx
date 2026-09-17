@@ -506,13 +506,13 @@ Model names always carry a provider prefix. Omit `model` entirely on a Browserba
 
 ### Caching
 
-v3's server-side cache option, `serverCache`, is now `cache`, and the local `enableCaching`/`cacheDir` options are gone — v4 caches `act()`, `observe()`, and `extract()` results on Browserbase's servers, keyed on the instruction, page content, and options:
+v3's server-side cache option, `serverCache`, is now `cache`, and the local `enableCaching`/`cacheDir` options are gone. v4 caches `act()`, `observe()`, and `extract()` results on Browserbase's servers, keyed on the instruction, page content, and options:
 
 ```diff
 - const stagehand = new Stagehand({ env: "BROWSERBASE" });
 - await stagehand.act("...", { serverCache: false });
 + const stagehand = await Stagehand.create({ browser });
-+ await page.act("...", { cache: false });
++ await stagehand.act("...", { cache: false });
 ```
 
 As in v3, caching is on by default and each call can opt out. Caching needs a Browserbase browser and the API key you passed to `browserbase.launch()`. See [caching](/v4/best-practices/caching).
