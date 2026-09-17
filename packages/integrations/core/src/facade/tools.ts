@@ -160,19 +160,15 @@ export class StagehandFacadeTools {
         }
         return;
       }
-      const failures: unknown[] = [];
+      let failed = false;
       for (const close of [() => this.stagehand.close(), () => this.stagehand.browser.close()]) {
         try {
           await close();
-        } catch (error) {
-          failures.push(error);
+        } catch {
+          failed = true;
         }
       }
-      if (failures.length) {
-        throw new Error("Failed to close the Stagehand facade browser.", {
-          cause: new AggregateError(failures, "Facade browser cleanup failures"),
-        });
-      }
+      if (failed) throw new StagehandFacadeCleanupError();
     })());
   }
 

@@ -174,7 +174,8 @@ export function createStagehandResourceFactory(
       const stagehand = await createStagehand(launched.browser);
       let resources!: StagehandResources;
       const tools = new StagehandFacadeTools(stagehand, {
-        onCloseRequested: () => onCloseRequested?.(resources) ?? Promise.resolve(),
+        onCloseRequested: () =>
+          onCloseRequested ? onCloseRequested(resources) : closeStagehandResources(resources),
       });
       resources = { browser: launched.browser, stagehand, tools };
       if (releaseSession) resources.releaseSession = releaseSession;

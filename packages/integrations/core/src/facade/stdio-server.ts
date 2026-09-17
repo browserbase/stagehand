@@ -24,7 +24,7 @@ import {
   captureScreenshotWithinBase64Budget,
   screenshotBase64BudgetFromArgs,
 } from "./screenshot-transport.js";
-import { StagehandFacadeTools } from "./tools.js";
+import { StagehandFacadeCleanupError, StagehandFacadeTools } from "./tools.js";
 
 type FacadeResources = {
   browser: StagehandBrowser;
@@ -167,7 +167,11 @@ function startResourceCleanup(resources: FacadeResources): Promise<void> {
 
   const cleanup = (async () => {
     await resources.stagehand.close().catch(() => undefined);
-    await resources.browser.close();
+    try {
+      await resources.browser.close();
+    } catch {
+      throw new StagehandFacadeCleanupError();
+    }
   })();
   resourceCleanups.set(resources, cleanup);
   cleanup.then(

@@ -6,6 +6,8 @@ Browserbase browser through three native tools: `run`, `snapshot`, and `screensh
 
 ## Install
 
+Use Node.js 24 or newer and pnpm 10 or newer.
+
 ```bash
 pnpm add @browserbasehq/eve
 ```
@@ -21,11 +23,10 @@ export default browserbase({
 });
 ```
 
-Add that file to any existing Eve agent. The mounted tools are discovered automatically; no
-dedicated example project or additional agent configuration is required.
+Add that file to any existing Eve agent. Eve discovers the mounted tools automatically.
 
 Eve automatically preserves Stagehand and the Browserbase SDK as external runtime dependencies.
-No extra `build.externalDependencies` configuration is required in the consuming agent.
+You can keep the consuming agent's existing `build.externalDependencies` configuration.
 
 ## Tools
 
@@ -84,13 +85,13 @@ the runtime environment to select a non-default Browserbase project.
 
 ## Lifecycle and security
 
-The tools share one browser for the Eve process. Operations are serialized, initialization retries
-after transient failures, and unhealthy resources are replaced. Browserbase sessions use
+The tools share one browser for the Eve process. The extension serializes operations, retries
+initialization after transient failures, and replaces unhealthy resources. Browserbase sessions use
 `keepAlive: false`; `browser.close()` closes both Stagehand and the browser, and the next tool call
 starts a fresh session.
 
-Model-authored JavaScript executes in Stagehand's browser extension, not Eve's Node.js process. It
-is still powerful browser-side code and must not be treated as a hostile-code sandbox. Concurrent
+Stagehand runs model-authored JavaScript in its browser extension. Treat it as powerful browser-side
+code with access to the authenticated browser session, not as a hostile-code sandbox. Concurrent
 Eve sessions in one process share pages, cookies, and authentication state.
 
 Every `snapshot` hydrates its displayed IDs for `run` actions. Snapshot output renders an ID like
