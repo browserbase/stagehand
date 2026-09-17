@@ -6,8 +6,66 @@ description: "Give a Mastra agent persistent Stagehand browser tools over MCP/st
 The Mastra integration connects an agent to the Stagehand facade MCP server over MCP/stdio. The MCP client remains open for the agent run, so browser state survives across tool calls.
 
 <Note>
-Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+The source example is maintained in the Stagehand repository. For an existing application, prefer the host’s MCP client and the Stagehand facade MCP server described below.
 </Note>
+
+## Add Stagehand to an existing agent
+
+Use Mastra’s supported tool integration: `MCPClient` from `@mastra/mcp`. This is an [official SDK/MCP extension point](https://mastra.ai/docs/agents/tools); you do not need a separate host marketplace plugin.
+
+<Note>
+The portable setup below requires the first `@browserbasehq/stagehand-mcp@0.1.0` release. Until that release is published, use the source example further down this page. Node.js 24+ is required to run the MCP server.
+</Note>
+
+Install the host libraries in your application:
+
+```bash
+pnpm add @mastra/core @mastra/mcp
+```
+
+Configure your agent’s model credentials as usual. The browser uses local Chrome unless you export `BROWSERBASE_API_KEY`. The Mastra host forwards the `STAGEHAND_*` and `BROWSERBASE_*` variables to the MCP child, including any separate Stagehand model configuration. Your agent’s model-provider credential stays in the host.
+
+```typescript
+import { MCPClient } from "@mastra/mcp";
+import { Agent } from "@mastra/core/agent";
+
+const env = Object.fromEntries(
+  Object.entries(process.env).filter(
+    (entry): entry is [string, string] =>
+      (entry[0].startsWith("STAGEHAND_") || entry[0].startsWith("BROWSERBASE_")) &&
+      entry[1] !== undefined,
+  ),
+);
+const client = new MCPClient({
+  id: "stagehand-browser",
+  servers: {
+    stagehand: {
+      command: "npx",
+      args: ["-y", "@browserbasehq/stagehand-mcp@0.1.0"],
+      env,
+    },
+  },
+});
+
+try {
+  const tools = await client.listTools();
+  const agent = new Agent({
+    id: "browser-agent",
+    name: "Browser agent",
+    instructions: "Use the Stagehand tools to browse. Take a snapshot before interacting with page elements.",
+    model: "openai/gpt-5.6-luna",
+    tools,
+  });
+  const result = await agent.generate("Open https://example.com and report its title.", {
+    maxSteps: 20,
+  });
+  console.log(result.text);
+} finally {
+  await client.disconnect();
+}
+```
+
+Keep the connection open until the entire agent run finishes. Closing it releases the server and its browser.
 
 ## Prerequisites
 
@@ -16,7 +74,7 @@ Stagehand ships this experimental integration from the repository rather than pu
 - An OpenAI API key for the example agent
 - A current Google Chrome installation for local browser mode
 
-## Quickstart
+## Run the source example
 
 <Steps>
   <Step title="Clone and build Stagehand">
