@@ -1285,26 +1285,35 @@ describe("Mintlify customization boundary", () => {
     ).toEqual([]);
   });
 
-  it("includes every MDX content page in docs.json navigation", async () => {
+  it("includes every indexed MDX content page in docs.json navigation", async () => {
     const docsConfig = JSON.parse(
       await readFile(resolve(DOCS_ROOT, "docs.json"), "utf8"),
     ) as unknown;
     const navigatedPages = [...collectNavigationPages(docsConfig)]
       .filter((page) => page.startsWith("v4/"))
       .sort();
-    const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory))
-      .filter((filePath) => extname(filePath) === ".mdx")
-      .map((filePath) =>
-        relative(DOCS_ROOT, filePath)
-          .split(sep)
-          .join("/")
-          .replace(/\.mdx$/u, ""),
+    const contentFiles = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
+      (filePath) => extname(filePath) === ".mdx",
+    );
+    const indexedContentPages = (
+      await Promise.all(
+        contentFiles.map(async (filePath) => ({
+          indexed: !hasNoIndexFrontmatter(await readFile(filePath, "utf8")),
+          page: relative(DOCS_ROOT, filePath)
+            .split(sep)
+            .join("/")
+            .replace(/\.mdx$/u, ""),
+        })),
       )
+    )
+      .filter(({ indexed }) => indexed)
+      .map(({ page }) => page)
       .sort();
 
-    expect(navigatedPages, "Every MDX content page must be reachable from docs.json").toStrictEqual(
-      contentPages,
-    );
+    expect(
+      navigatedPages,
+      "Every indexed MDX content page must be reachable from docs.json",
+    ).toStrictEqual(indexedContentPages);
   });
 
   it("gives every language tab group the same complete language set", async () => {
@@ -3240,6 +3249,11 @@ function collectNavigationPages(value: unknown, pages = new Set<string>()): Set<
     collectNavigationPages(child, pages);
   }
   return pages;
+}
+
+function hasNoIndexFrontmatter(source: string): boolean {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(source)?.[1];
+  return frontmatter !== undefined && /^noindex:\s*true\s*$/mu.test(frontmatter);
 }
 
 function snakeCase(name: string): string {

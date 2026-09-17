@@ -7,7 +7,7 @@ import time
 from collections.abc import Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 from urllib.request import urlopen
 
 from stagehand._generated.protocol_version import (
@@ -17,6 +17,7 @@ from stagehand._generated.protocol_version import (
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
+_STAGEHAND_EXTENSION_NAME = "Stagehand Runtime"
 _PROTOCOL_SEMVER_PATTERN = re.compile(PROTOCOL_SEMVER_PATTERN)
 
 # Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
@@ -58,42 +59,136 @@ def _callback_source_from_message(message: dict[str, object]) -> str | None:
     return source
 
 
-def _negotiate_runtime(marker: object) -> tuple[bool, str]:
-    """Return (compatible, detail). Never raises: a malformed marker is just incompatible."""
+RUNTIME_INCOMPATIBLE_REMEDIATION = (
+    "Upgrade the Stagehand SDK and the Stagehand extension together so their protocol majors "
+    "match, or start the session with the extension bundled in this SDK."
+)
+
+
+@dataclass(frozen=True)
+class _RuntimeNegotiation:
+    """Outcome of reading the runtime marker the extension publishes.
+
+    ``kind`` is three-way on purpose: ``"unknown"`` means the marker is absent or not yet
+    readable and the caller should keep polling, while ``"incompatible"`` means the marker
+    parsed but this client can never talk to that runtime, so polling is pointless.
+    """
+
+    kind: Literal["compatible", "incompatible", "unknown"]
+    detail: str
+    reason: str | None = None
+    protocol_version: str | None = None
+    server_name: str | None = None
+    server_version: str | None = None
+
+    @property
+    def compatible(self) -> bool:
+        return self.kind == "compatible"
+
+
+class StagehandRuntimeIncompatibleError(RuntimeError):
+    """The connected Stagehand extension speaks a protocol this SDK cannot use.
+
+    Raised on the first readiness poll that observes the incompatible marker; initialization
+    does not wait for the timeout because the extension will not change its protocol version
+    while the session is open.
+    """
+
+    def __init__(self, negotiation: _RuntimeNegotiation) -> None:
+        self.reason = negotiation.reason or "protocol-incompatible"
+        self.client_protocol_version = STAGEHAND_PROTOCOL_VERSION
+        self.reported_protocol_version = negotiation.protocol_version
+        self.server_name = negotiation.server_name
+        self.server_version = negotiation.server_version
+        self.remediation = RUNTIME_INCOMPATIBLE_REMEDIATION
+        super().__init__(
+            f"Incompatible Stagehand runtime: {negotiation.detail}; "
+            f"client protocol {self.client_protocol_version}, "
+            f"reported protocol {self.reported_protocol_version}, "
+            f"server {self.server_name}/{self.server_version}. "
+            f"{self.remediation}"
+        )
+
+
+def _negotiate_runtime(marker: object) -> _RuntimeNegotiation:
+    """Classify the runtime marker. Never raises: hostile input is just ``unknown``."""
     if not isinstance(marker, Mapping):
-        return False, "no Stagehand runtime marker"
+        return _RuntimeNegotiation("unknown", "no Stagehand runtime marker")
 
     server_info = marker.get("serverInfo")
-    name = server_info.get("name") if isinstance(server_info, Mapping) else None
-    if name != _RUNTIME_NAME:
-        return False, f"serverInfo.name={name!r}"
+    if not isinstance(server_info, Mapping):
+        return _RuntimeNegotiation("unknown", f"serverInfo={server_info!r}")
+    name = server_info.get("name")
+    version = server_info.get("version")
+    # Mirrors the protocol's ImplementationInfoSchema: both fields are non-empty strings.
+    # A marker missing either is malformed, not a foreign runtime, so keep polling.
+    if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
+        return _RuntimeNegotiation(
+            "unknown", f"serverInfo.name={name!r} serverInfo.version={version!r}"
+        )
 
     protocol_version = marker.get("protocolVersion")
-    if not isinstance(protocol_version, str):
-        return False, f"protocolVersion={protocol_version!r}"
-    compatibility = _protocol_compatibility(STAGEHAND_PROTOCOL_VERSION, protocol_version)
-    if compatibility is not None:
-        return False, compatibility
+    if not isinstance(protocol_version, str) or not protocol_version:
+        return _RuntimeNegotiation("unknown", f"protocolVersion={protocol_version!r}")
 
-    return True, f"protocolVersion={protocol_version}"
+    if name != _RUNTIME_NAME:
+        return _RuntimeNegotiation(
+            "incompatible",
+            f'Runtime name mismatch: expected "{_RUNTIME_NAME}", server reported "{name}"',
+            reason="runtime-name-mismatch",
+            protocol_version=protocol_version,
+            server_name=name,
+            server_version=version,
+        )
+
+    incompatibility = _protocol_compatibility(STAGEHAND_PROTOCOL_VERSION, protocol_version)
+    if incompatibility is not None:
+        reason, detail = incompatibility
+        return _RuntimeNegotiation(
+            "incompatible",
+            detail,
+            reason=reason,
+            protocol_version=protocol_version,
+            server_name=name,
+            server_version=version,
+        )
+
+    return _RuntimeNegotiation(
+        "compatible",
+        f"protocolVersion={protocol_version}",
+        protocol_version=protocol_version,
+        server_name=name,
+        server_version=version,
+    )
 
 
-def _protocol_compatibility(client_version: str, server_version: str) -> str | None:
+def _protocol_compatibility(client_version: str, server_version: str) -> tuple[str, str] | None:
+    """Return ``None`` when compatible, otherwise ``(reason, detail)``."""
     client = _PROTOCOL_SEMVER_PATTERN.fullmatch(client_version)
     server = _PROTOCOL_SEMVER_PATTERN.fullmatch(server_version)
     if client is None or server is None:
-        return f"invalid protocol version: client={client_version!r} server={server_version!r}"
+        return (
+            "protocol-invalid-version",
+            f"Invalid protocol version: client {client_version}, server {server_version}",
+        )
     if client.group(4) is not None or server.group(4) is not None:
         if client_version != server_version:
             return (
-                "protocol prereleases must match exactly: "
-                f"client={client_version} server={server_version}"
+                "protocol-prerelease-mismatch",
+                "Protocol prereleases must match exactly: "
+                f"client {client_version}, server {server_version}",
             )
         return None
     if client.group(1) != server.group(1):
-        return f"protocol major mismatch: client={client_version} server={server_version}"
+        return (
+            "protocol-major-mismatch",
+            f"Protocol major mismatch: client {client_version}, server {server_version}",
+        )
     if int(server.group(2)) < int(client.group(2)):
-        return f"server protocol {server_version} is older than client requirement {client_version}"
+        return (
+            "protocol-server-too-old",
+            f"Server protocol {server_version} is older than client requirement {client_version}",
+        )
     return None
 
 
@@ -111,6 +206,15 @@ class ServiceWorkerInfo:
     url: str
     title: str
     extension_id: str | None = None
+
+
+@dataclass(frozen=True)
+class _InstalledExtension:
+    id: str
+    name: str
+    version: str
+    path: str
+    enabled: bool
 
 
 class _CDPCommandError(RuntimeError):
@@ -169,25 +273,23 @@ class CDPClient:
         client = cls(socket, web_socket_debugger_url)
 
         try:
+            resolved_extension_id = extension_id
+            if extension_dir is not None:
+                resolved_extension_id = await client._load_unpacked_extension(extension_dir)
             if preloaded_extension:
-                worker, session_id = await client._wait_for_preloaded_service_worker(
-                    service_worker_url_includes or "service-worker.js",
-                )
-                resolved_extension_id = _extension_id_from_url(worker.url)
-            else:
-                resolved_extension_id = extension_id
-                if extension_dir is not None:
-                    resolved_extension_id = await client._load_unpacked_extension(extension_dir)
+                resolved_extension_id = await client._discover_installed_stagehand_extension_id()
+            if resolved_extension_id is None:
+                raise RuntimeError("Stagehand extension ID was not resolved")
 
-                worker = await client._wait_for_service_worker(
-                    resolved_extension_id,
-                    service_worker_url_includes or "service-worker.js",
-                )
-                attached = await client.send_command(
-                    "Target.attachToTarget",
-                    {"targetId": worker.target_id, "flatten": True},
-                )
-                session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
+            worker = await client._wait_for_service_worker(
+                resolved_extension_id,
+                service_worker_url_includes or "service-worker.js",
+            )
+            attached = await client.send_command(
+                "Target.attachToTarget",
+                {"targetId": worker.target_id, "flatten": True},
+            )
+            session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
             client._session_id = session_id
             client._service_worker = ServiceWorkerInfo(
                 target_id=worker.target_id,
@@ -394,9 +496,32 @@ class CDPClient:
             raise
         return _required_string(loaded, "id", "Extensions.loadUnpacked")
 
+    async def _discover_installed_stagehand_extension_id(self) -> str:
+        response = await self.send_command("Extensions.getExtensions")
+        installed = [
+            extension
+            for extension in _parse_installed_extensions(response)
+            if extension.name == _STAGEHAND_EXTENSION_NAME
+        ]
+        enabled = [extension for extension in installed if extension.enabled]
+
+        if len(enabled) == 1:
+            return enabled[0].id
+        if len(enabled) > 1:
+            ids = ", ".join(sorted(extension.id for extension in enabled))
+            raise RuntimeError(f"Multiple enabled Stagehand extensions are installed: {ids}")
+        if installed:
+            raise RuntimeError(
+                "Stagehand extension is installed in the connected browser but is disabled."
+            )
+        raise RuntimeError(
+            "Stagehand extension is not installed in the connected browser. "
+            "The extension must be included when the Browserbase session is created."
+        )
+
     async def _wait_for_service_worker(
         self,
-        extension_id: str | None,
+        extension_id: str,
         url_includes: str,
     ) -> ServiceWorkerInfo:
         started = time.monotonic()
@@ -416,10 +541,7 @@ class CDPClient:
                         target_info.get("type") == "service_worker"
                         and isinstance(url, str)
                         and url.startswith("chrome-extension://")
-                        and (
-                            extension_id is None
-                            or url.startswith(f"chrome-extension://{extension_id}/")
-                        )
+                        and url.startswith(f"chrome-extension://{extension_id}/")
                         and url_includes in url
                     ):
                         return ServiceWorkerInfo(
@@ -431,11 +553,7 @@ class CDPClient:
                             extension_id=extension_id,
                         )
 
-                if (
-                    extension_id is not None
-                    and activation_target_id is None
-                    and (time.monotonic() - started) >= 1
-                ):
+                if activation_target_id is None and (time.monotonic() - started) >= 1:
                     with suppress(Exception):
                         activation = await self.send_command(
                             "Target.createTarget",
@@ -450,84 +568,17 @@ class CDPClient:
                     "Target.closeTarget", {"targetId": activation_target_id}
                 )
 
-    async def _wait_for_preloaded_service_worker(
+    async def _wait_for_runtime_receiver(
         self,
-        url_includes: str,
-    ) -> tuple[ServiceWorkerInfo, str]:
-        """Return a discovered worker and its flat CDP session, left attached for the caller.
+        session_id: str,
+        *,
+        allow_fallback_install: bool = False,
+    ) -> None:
+        """Poll until the extension runtime is ready.
 
-        Each candidate must be attached to evaluate readiness; unready or incompatible
-        candidates are detached before the next poll.
+        ``allow_fallback_install`` is reserved for flows that can replace an incompatible
+        preloaded extension; by default an incompatible marker fails on the first poll.
         """
-        while True:
-            response = await self.send_command("Target.getTargets")
-            targets = response.get("targetInfos")
-            target_infos = cast(list[object], targets) if isinstance(targets, list) else []
-            for target in target_infos:
-                if not isinstance(target, dict):
-                    continue
-                target_info = cast(dict[str, object], target)
-                url = target_info.get("url")
-                if not (
-                    target_info.get("type") == "service_worker"
-                    and isinstance(url, str)
-                    and url.startswith("chrome-extension://")
-                    and url_includes in url
-                ):
-                    continue
-
-                session_id: str | None = None
-                keep_attached = False
-                try:
-                    attached = await self.send_command(
-                        "Target.attachToTarget",
-                        {
-                            "targetId": _required_string(
-                                target_info, "targetId", "Target.getTargets"
-                            ),
-                            "flatten": True,
-                        },
-                    )
-                    session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
-                    evaluated = await self.send_command(
-                        "Runtime.evaluate",
-                        {
-                            "expression": _RUNTIME_READINESS_EXPRESSION,
-                            "returnByValue": True,
-                        },
-                        session_id=session_id,
-                    )
-                    if not isinstance(evaluated.get("exceptionDetails"), Mapping):
-                        result = evaluated.get("result")
-                        value = result.get("value") if isinstance(result, Mapping) else None
-                        if isinstance(value, Mapping):
-                            compatible, _ = _negotiate_runtime(value.get("marker"))
-                            if compatible and value.get("hasReceiver") is True:
-                                service_worker = ServiceWorkerInfo(
-                                    target_id=_required_string(
-                                        target_info, "targetId", "Target.getTargets"
-                                    ),
-                                    title=_required_string(
-                                        target_info, "title", "Target.getTargets"
-                                    ),
-                                    url=url,
-                                    extension_id=_extension_id_from_url(url),
-                                )
-                                keep_attached = True
-                                return service_worker, session_id
-                except Exception:
-                    # The worker may still be starting. Detach and retry until cancellation.
-                    pass
-                finally:
-                    if session_id is not None and not keep_attached:
-                        with suppress(Exception):
-                            await self.send_command(
-                                "Target.detachFromTarget",
-                                {"sessionId": session_id},
-                            )
-            await asyncio.sleep(0.1)
-
-    async def _wait_for_runtime_receiver(self, session_id: str) -> None:
         while True:
             try:
                 evaluated = await self.send_command(
@@ -538,17 +589,20 @@ class CDPClient:
                     },
                     session_id=session_id,
                 )
+            except Exception:
+                evaluated = None
+            if evaluated is not None:
                 exception = evaluated.get("exceptionDetails")
                 if not isinstance(exception, Mapping):
                     result = evaluated.get("result")
                     value = result.get("value") if isinstance(result, Mapping) else None
                     if isinstance(value, Mapping):
                         has_receiver = value.get("hasReceiver") is True
-                        compatible, _ = _negotiate_runtime(value.get("marker"))
-                        if compatible and has_receiver:
+                        negotiation = _negotiate_runtime(value.get("marker"))
+                        if negotiation.kind == "incompatible" and not allow_fallback_install:
+                            raise StagehandRuntimeIncompatibleError(negotiation)
+                        if negotiation.compatible and has_receiver:
                             return
-            except Exception:
-                pass
             await asyncio.sleep(0.1)
 
     def _schedule_best_effort_command(self, method: str, params: Mapping[str, object]) -> None:
@@ -605,9 +659,36 @@ def _required_string(value: Mapping[str, object], key: str, method: str) -> str:
     return result
 
 
-def _extension_id_from_url(url: str) -> str | None:
-    prefix = "chrome-extension://"
-    if not url.startswith(prefix):
-        return None
-    extension_id, separator, _ = url.removeprefix(prefix).partition("/")
-    return extension_id if separator and extension_id else None
+def _parse_installed_extensions(response: Mapping[str, object]) -> list[_InstalledExtension]:
+    raw_extensions = response.get("extensions")
+    if not isinstance(raw_extensions, list):
+        raise RuntimeError("Extensions.getExtensions did not return extensions")
+
+    extensions: list[_InstalledExtension] = []
+    for value in raw_extensions:
+        if not isinstance(value, Mapping):
+            raise RuntimeError("Extensions.getExtensions returned an invalid extension entry")
+        extension_id = value.get("id")
+        name = value.get("name")
+        version = value.get("version")
+        path = value.get("path")
+        enabled = value.get("enabled")
+        if (
+            not isinstance(extension_id, str)
+            or not extension_id
+            or not isinstance(name, str)
+            or not isinstance(version, str)
+            or not isinstance(path, str)
+            or not isinstance(enabled, bool)
+        ):
+            raise RuntimeError("Extensions.getExtensions returned an invalid extension entry")
+        extensions.append(
+            _InstalledExtension(
+                id=extension_id,
+                name=name,
+                version=version,
+                path=path,
+                enabled=enabled,
+            )
+        )
+    return extensions

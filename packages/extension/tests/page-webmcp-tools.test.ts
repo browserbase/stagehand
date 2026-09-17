@@ -6,12 +6,12 @@ import type { CdpConnection } from "../understudy/cdp.js";
 import { Page } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
-  readonly id = "main";
   readonly calls: Array<{ method: string; params?: object }> = [];
   readonly handlers = new Map<string, Set<(params: unknown) => void>>();
 
   constructor(
     readonly responses: Record<string, (session: FakeCDPSession, params?: object) => unknown> = {},
+    readonly id: string = "main",
   ) {}
 
   async send<Result = unknown>(method: string, params?: object): Promise<Result> {
@@ -46,6 +46,10 @@ class FakeCDPSession implements CDPSessionLike {
 
 function createPage(session: FakeCDPSession): Page {
   return new Page({} as CdpConnection, session, "target-1", "frame-1", {} as StagehandLogger);
+}
+
+function adoptChildSession(page: Page, session: FakeCDPSession): void {
+  page.adoptOopifSession(session, "frame-2");
 }
 
 describe("Page WebMCP tool discovery", () => {
@@ -134,23 +138,108 @@ describe("Page WebMCP tool discovery", () => {
     ]);
   });
 
-  it("keeps same-named tools registered in different frames", async () => {
+  it("collects tools from the main session and an adopted child session", async () => {
     const session = new FakeCDPSession({
       "WebMCP.enable": (activeSession) => {
         activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
-          tools: [
-            { name: "search", description: "Main-frame search", frameId: "frame-1" },
-            { name: "search", description: "Child-frame search", frameId: "frame-2" },
-          ],
+          tools: [{ name: "search", description: "Main-frame search", frameId: "frame-1" }],
         });
       },
     });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.enable": (activeSession) => {
+          activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+            tools: [{ name: "search", description: "Child-frame search", frameId: "frame-2" }],
+          });
+        },
+      },
+      "child",
+    );
     const page = createPage(session);
+    adoptChildSession(page, childSession);
 
     await expect(page.listWebMCPTools({ timeout: 1 })).resolves.toStrictEqual([
       { name: "search", description: "Main-frame search", frameId: "frame-1" },
       { name: "search", description: "Child-frame search", frameId: "frame-2" },
     ]);
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
+    expect(childSession.callsFor("WebMCP.enable")).toHaveLength(1);
+    expect(session.listenerCount("WebMCP.toolsAdded")).toBe(0);
+    expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
+    expect(childSession.listenerCount("WebMCP.toolsAdded")).toBe(0);
+    expect(childSession.listenerCount("WebMCP.toolsRemoved")).toBe(0);
+  });
+
+  it("applies child-session removals to the combined snapshot", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.enable": (activeSession) => {
+        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+          tools: [{ name: "search", description: "Main-frame search", frameId: "frame-1" }],
+        });
+      },
+    });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.enable": (activeSession) => {
+          activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+            tools: [
+              { name: "search", description: "Stale child search", frameId: "frame-2" },
+              { name: "checkout", description: "Child checkout", frameId: "frame-2" },
+            ],
+          });
+          activeSession.emit<Protocol.WebMCP.ToolsRemovedEvent>("WebMCP.toolsRemoved", {
+            tools: [{ name: "search", frameId: "frame-2" }],
+          });
+        },
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+
+    await expect(page.listWebMCPTools({ timeout: 1 })).resolves.toStrictEqual([
+      { name: "search", description: "Main-frame search", frameId: "frame-1" },
+      { name: "checkout", description: "Child checkout", frameId: "frame-2" },
+    ]);
+  });
+
+  it("uses a stable session snapshot and discovers newly adopted sessions on the next call", async () => {
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.enable": (activeSession) => {
+          activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+            tools: [{ name: "child", description: "Child tool", frameId: "frame-2" }],
+          });
+        },
+      },
+      "child",
+    );
+    let page: Page;
+    let childAdopted = false;
+    const session = new FakeCDPSession({
+      "WebMCP.enable": (activeSession) => {
+        activeSession.emit<Protocol.WebMCP.ToolsAddedEvent>("WebMCP.toolsAdded", {
+          tools: [{ name: "main", description: "Main tool", frameId: "frame-1" }],
+        });
+        if (!childAdopted) {
+          childAdopted = true;
+          adoptChildSession(page, childSession);
+        }
+      },
+    });
+    page = createPage(session);
+
+    await expect(page.listWebMCPTools({ timeout: 1 })).resolves.toStrictEqual([
+      { name: "main", description: "Main tool", frameId: "frame-1" },
+    ]);
+    expect(childSession.callsFor("WebMCP.enable")).toHaveLength(0);
+
+    await expect(page.listWebMCPTools({ timeout: 1 })).resolves.toStrictEqual([
+      { name: "main", description: "Main tool", frameId: "frame-1" },
+      { name: "child", description: "Child tool", frameId: "frame-2" },
+    ]);
+    expect(childSession.callsFor("WebMCP.enable")).toHaveLength(1);
   });
 
   it("removes tools unregistered while collecting the snapshot", async () => {
@@ -185,6 +274,28 @@ describe("Page WebMCP tool discovery", () => {
     await expect(page.listWebMCPTools()).rejects.toThrow("Method not found");
     expect(session.listenerCount("WebMCP.toolsAdded")).toBe(0);
     expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
+  });
+
+  it("removes temporary listeners from every session when a child enable fails", async () => {
+    const session = new FakeCDPSession();
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.enable": () => {
+          throw new Error("Child WebMCP unavailable");
+        },
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+
+    await expect(page.listWebMCPTools()).rejects.toThrow("Child WebMCP unavailable");
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
+    expect(childSession.callsFor("WebMCP.enable")).toHaveLength(1);
+    expect(session.listenerCount("WebMCP.toolsAdded")).toBe(0);
+    expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
+    expect(childSession.listenerCount("WebMCP.toolsAdded")).toBe(0);
+    expect(childSession.listenerCount("WebMCP.toolsRemoved")).toBe(0);
   });
 
   it("rejects invalid snapshot timeouts before installing listeners", async () => {

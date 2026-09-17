@@ -1,13 +1,18 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { runClaudeAgentSession } from "@browserbasehq/stagehand-integrations-claude-agent-sdk";
 import {
   FACADE_AGENT_INSTRUCTIONS,
   FACADE_TOOLS,
 } from "@browserbasehq/stagehand-integrations/facade";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
 
-import { buildAllowlistedEnv } from "./env.ts";
-
 export const STAGEHAND_TOOL_NAMES = FACADE_TOOLS.map((tool) => `mcp__stagehand__${tool.name}`);
+
+const logger = {
+  log: () => {},
+  warn: () => {},
+  error: () => {},
+};
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -20,12 +25,13 @@ async function main(): Promise<void> {
     import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
   );
 
-  const result = query({
+  const result = await runClaudeAgentSession({
     prompt: instruction,
-    options: {
-      model: process.env.CLAUDE_STAGEHAND_MODEL ?? "claude-sonnet-5",
+    model: process.env.CLAUDE_STAGEHAND_MODEL ?? "claude-sonnet-5",
+    logger,
+    session: {
       maxTurns: 20,
-      systemPrompt: FACADE_AGENT_INSTRUCTIONS,
+      systemPromptPreset: FACADE_AGENT_INSTRUCTIONS,
       mcpServers: {
         stagehand: {
           command: process.execPath,
@@ -36,24 +42,21 @@ async function main(): Promise<void> {
       allowedTools: STAGEHAND_TOOL_NAMES,
       // Headless runs hang on any unanswered permission prompt; allow exactly
       // the stagehand tools and deny everything else.
-      canUseTool: async (toolName) =>
+      canUseTool: async (toolName, input) =>
         toolName.startsWith("mcp__stagehand__")
-          ? { behavior: "allow", updatedInput: undefined }
+          ? { behavior: "allow", updatedInput: input }
           : { behavior: "deny", message: "Only stagehand browser tools are permitted." },
     },
   });
-
-  for await (const message of result) {
-    if (message.type === "result") {
-      if (message.subtype === "success") {
-        // oxlint-disable-next-line no-console -- CLI example prints the agent result.
-        console.log(message.result);
-        return;
-      }
-      throw new Error(`Agent did not finish: ${message.subtype}`);
-    }
+  if (result.iterationError) throw result.iterationError;
+  if (!result.resultMessage) {
+    throw new Error("Agent stream ended without a result message.");
   }
-  throw new Error("Agent stream ended without a result message.");
+  if (result.resultMessage.subtype !== "success") {
+    throw new Error(`Agent did not finish: ${String(result.resultMessage.subtype)}`);
+  }
+  // oxlint-disable-next-line no-console -- CLI example prints the agent result.
+  console.log(result.resultText);
 }
 
 if (import.meta.main) {

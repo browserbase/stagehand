@@ -11,7 +11,6 @@ import {
   ContextClipboardReadTextParamsSchema,
   ContextClipboardReadTextResultSchema,
   ContextClipboardWriteTextParamsSchema,
-  ContextCloseResultSchema,
   ContextCookiesParamsSchema,
   ContextCookiesResultSchema,
   ContextGetDomainPolicyResultSchema,
@@ -104,11 +103,9 @@ describe("context lifecycle and configuration command schemas", () => {
     ).toThrow();
   });
 
-  it("keeps context mutation and close results strict", () => {
+  it("keeps context mutation results strict", () => {
     expect(ContextVoidResultSchema.parse({ ok: true })).toStrictEqual({ ok: true });
-    expect(ContextCloseResultSchema.parse({ closed: true })).toStrictEqual({ closed: true });
     expect(() => ContextVoidResultSchema.parse({ ok: true, extra: true })).toThrow();
-    expect(() => ContextCloseResultSchema.parse({ closed: false })).toThrow();
   });
 });
 

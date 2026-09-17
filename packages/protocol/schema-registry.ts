@@ -21,7 +21,6 @@ import {
   ContextClipboardReadTextParamsSchema,
   ContextClipboardReadTextResultSchema,
   ContextClipboardWriteTextParamsSchema,
-  ContextCloseResultSchema,
   ContextCookiesParamsSchema,
   ContextCookiesResultSchema,
   ContextGetDomainPolicyResultSchema,
@@ -194,11 +193,6 @@ export const StagehandMethods = {
     name: "context.set_active_page",
     params: ContextSetActivePageParamsSchema,
     result: ContextVoidResultSchema,
-  },
-  contextClose: {
-    name: "context.close",
-    params: EmptyParamsSchema,
-    result: ContextCloseResultSchema,
   },
   contextAddInitScript: {
     name: "context.add_init_script",

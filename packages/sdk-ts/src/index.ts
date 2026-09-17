@@ -40,6 +40,13 @@ export {
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
+export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
+export type {
+  ReportedRuntimeDescriptor,
+  RuntimeCompatibility,
+  RuntimeIncompatibilityReason,
+  RuntimeRequirement,
+} from "./runtimeCompatibility.js";
 export type {
   ExperimentalBatchCallback,
   ExperimentalBatchBrowserContext,
@@ -51,7 +58,11 @@ export { browserbase, localBrowser } from "./browser/factories.js";
 export type {
   BrowserbaseBrowser,
   BrowserbaseConnectOptions,
+  BrowserbaseFetchOptions,
+  BrowserbaseFetchResult,
   BrowserbaseLaunchOptions,
+  BrowserbaseSearchOptions,
+  BrowserbaseSearchResult,
   LocalBrowser,
   LocalBrowserConnectOptions,
   LocalBrowserLaunchOptions,
@@ -89,10 +100,14 @@ export type {
   WebMCPInvocationStatus,
   WebMCPRemoteObject,
   WebMCPToolResponse,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 export {
   BrowserbaseConnectOptionsSchema,
+  BrowserbaseFetchOptionsSchema,
+  BrowserbaseFetchResultSchema,
   BrowserbaseLaunchOptionsSchema,
+  BrowserbaseSearchOptionsSchema,
+  BrowserbaseSearchResultSchema,
   ClientLLMSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,

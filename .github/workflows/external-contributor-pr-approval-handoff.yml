@@ -1,0 +1,43 @@
+name: External Contributor PR Approval Handoff
+
+on:
+  pull_request_review:
+    types:
+      - submitted
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  capture-approved-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write approval handoff payload
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const pr = context.payload.pull_request;
+            const review = context.payload.review;
+            const shouldClaim =
+              review.state === 'approved' &&
+              pr.head.repo.full_name !== context.payload.repository.full_name;
+
+            const payload = {
+              shouldClaim,
+              prNumber: pr.number,
+              reviewer: review.user?.login || '',
+              reviewId: review.id,
+              approvedSha: review.commit_id || pr.head.sha,
+            };
+
+            fs.writeFileSync('approval-handoff.json', JSON.stringify(payload));
+
+      - name: Upload approval handoff artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: approved-review
+          path: approval-handoff.json
+          retention-days: 1

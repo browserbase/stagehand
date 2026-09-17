@@ -119,6 +119,7 @@ const COST_METRIC_KEYS = [
   "estimated_cost_usd",
   "cost",
   "price_usd",
+  "harness_cost_usd",
 ];
 
 const TESTED_RUN_INPUT_TOKEN_KEYS = [
@@ -126,6 +127,7 @@ const TESTED_RUN_INPUT_TOKEN_KEYS = [
   "total_input_tokens",
   "codex_input_tokens",
   "claude_code_input_tokens",
+  "harness_input_tokens",
 ];
 
 const TESTED_RUN_CACHED_INPUT_TOKEN_KEYS = [
@@ -133,6 +135,7 @@ const TESTED_RUN_CACHED_INPUT_TOKEN_KEYS = [
   "total_cached_input_tokens",
   "codex_cached_input_tokens",
   "claude_code_cache_read_input_tokens",
+  "harness_cached_input_tokens",
 ];
 
 const TESTED_RUN_OUTPUT_TOKEN_KEYS = [
@@ -140,6 +143,7 @@ const TESTED_RUN_OUTPUT_TOKEN_KEYS = [
   "total_output_tokens",
   "codex_output_tokens",
   "claude_code_output_tokens",
+  "harness_output_tokens",
 ];
 
 const TESTED_RUN_INFERENCE_MS_KEYS = [

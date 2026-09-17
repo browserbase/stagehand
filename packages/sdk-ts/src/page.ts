@@ -16,8 +16,11 @@ import type {
   PageTypeParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
-} from "../../protocol/types.js";
-import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/types";
+import {
+  StagehandMethods,
+  StagehandNotifications,
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import { decodeBase64 } from "./base64.js";
 import { Locator } from "./locator.js";
 import {

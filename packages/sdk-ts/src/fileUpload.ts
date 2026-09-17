@@ -1,4 +1,4 @@
-import type { InputFilePayload } from "../../protocol/types.js";
+import type { InputFilePayload } from "@browserbasehq/stagehand-protocol/types";
 
 const MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024;
 

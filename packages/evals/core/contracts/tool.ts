@@ -11,6 +11,8 @@ export type ToolSurface =
   | "cdp_code"
   | "playwright_mcp"
   | "chrome_devtools_mcp"
+  | "stagehand_facade"
+  | "stagehand_facade_legacy"
   | "browse_cli";
 
 export type StartupProfile =
@@ -134,6 +136,22 @@ export interface ToolStartInput {
   };
 }
 
+export interface BrowserSessionLoss {
+  cause: string;
+  tool?: string;
+  at?: string;
+}
+
+/** MCP content returned unchanged by a runner call into its existing surface. */
+export interface RunnerToolCallResult {
+  content: Array<
+    | { type: "text"; text: string }
+    | { type: "image"; data: string; mimeType: string }
+    | Record<string, unknown>
+  >;
+  isError?: boolean;
+}
+
 export interface ToolStartResult {
   session: CoreSession;
   /**
@@ -148,6 +166,13 @@ export interface ToolStartResult {
    * Implementations must swallow per-field failures and must not throw.
    */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Calls the same mounted surface; this must not launch another browser. */
+  callTool?: (
+    name: string,
+    args: Record<string, unknown>,
+    options?: { timeoutMs?: number },
+  ) => Promise<RunnerToolCallResult>;
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   /** Releases the runtime; `captureEvidence` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {

@@ -7,7 +7,7 @@ import type {
   StagehandActParams,
   StagehandResultUsage,
   Variables,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { TimeoutError } from "../errors.js";
 import {
   performUnderstudyMethod,

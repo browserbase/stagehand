@@ -9,7 +9,7 @@ import {
 } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod/v4";
-import type { ModelName } from "../../protocol/types.js";
+import type { ModelName } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandLogger } from "../logger.js";
 import type { ChatCompletionOptionsSchema } from "./schemas.js";
 

@@ -19,6 +19,7 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
 
     browser = await browserbase.launch({
       apiKey: browserbaseApiKey,
+      keepAlive: false,
       userMetadata: {
         suite: "stagehand-browserbase-smoke",
       },
@@ -107,5 +108,33 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  }, 30_000);
+
+  it("closes and reattaches Stagehand without closing a non-keepalive Browserbase session", async () => {
+    if (!stagehand || !browser) {
+      throw new Error("Stagehand was not initialized");
+    }
+    const firstStagehand = stagehand;
+    const page = (await browser.context.pages())[0] ?? (await browser.context.newPage());
+    await page.goto("https://example.com", { waitUntil: "load" });
+    const pageId = page.pageId;
+
+    await expect(firstStagehand.close()).resolves.toBeUndefined();
+    expect(browser.closed).toBe(false);
+
+    const nextStagehand = await Stagehand.create({ browser });
+    stagehand = nextStagehand;
+    const reattachedPage = (await browser.context.pages()).find(
+      (candidate) => candidate.pageId === pageId,
+    );
+
+    expect(reattachedPage).toBeDefined();
+    if (!reattachedPage) throw new Error("Reattached Stagehand did not retain the existing page");
+    await expect(reattachedPage.title()).resolves.toBe("Example Domain");
+
+    await nextStagehand.close();
+    stagehand = undefined;
+    await browser.close();
+    expect(browser.closed).toBe(true);
   }, 30_000);
 });
