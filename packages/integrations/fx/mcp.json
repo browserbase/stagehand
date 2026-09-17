@@ -3,11 +3,14 @@
     "stagehand": {
       "type": "stdio",
       "command": [
-        "node",
-        "/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs",
+        "npx",
+        "-y",
+        "@browserbasehq/stagehand-mcp@0.1.0",
         "--max-screenshot-base64-bytes=60000"
       ],
-      "required": true
+      "required": true,
+      "startup_timeout_ms": 120000,
+      "operation_timeout_ms": 120000
     }
   }
 }
