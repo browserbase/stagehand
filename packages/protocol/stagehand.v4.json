@@ -1227,6 +1227,9 @@
             "focus_fallback": {
               "type": "boolean"
             },
+            "cache_check": {
+              "type": "boolean"
+            },
             "act_confidence": {
               "type": "number",
               "minimum": 0,
@@ -1243,6 +1246,9 @@
               "type": "boolean"
             },
             "page_state": {
+              "type": "boolean"
+            },
+            "observe": {
               "type": "boolean"
             }
           },

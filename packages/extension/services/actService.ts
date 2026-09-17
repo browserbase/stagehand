@@ -26,6 +26,8 @@ import { diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
+import { redactor } from "./jevAct/args.js";
+import { checkCachedAction } from "./jevAct/cacheCheck.js";
 import { runJevActPipeline, type JevActConfig, type JevActOutcome } from "./jevAct/pipeline.js";
 import { focusOutline, parseOutline } from "./jevAct/tree.js";
 import * as llmService from "./llmService.js";
@@ -373,6 +375,23 @@ async function replayCachedActions(
     throw new Error("Cached act value contained no usable actions");
   }
 
+  // Replay is blind: a selector that still resolves but now points at another
+  // control gets acted on with no model in the loop. One Jev yes/no on the
+  // first action catches that; throwing sends the act through full inference.
+  if (context.jevAct?.cacheCheck && context.jevAct.enabled !== false) {
+    const verdict = await validateCachedAction(actions[0]!, instruction, context, variables).catch(
+      (error: unknown) => {
+        if (error instanceof TimeoutError) throw error;
+        return undefined;
+      },
+    );
+    if (verdict?.verdict === "stale") {
+      throw new Error(
+        `Cached action no longer matches the page: selector now resolves to "${verdict.found}" (match ${verdict.score})`,
+      );
+    }
+  }
+
   const results: ActResultData[] = [];
   for (const action of actions) {
     const result = await takeDeterministicAction({
@@ -392,6 +411,41 @@ async function replayCachedActions(
     actionDescription: instruction,
     actions: results.flatMap((result) => result.actions),
   });
+}
+
+async function validateCachedAction(
+  action: Action,
+  instruction: string,
+  context: ActContext,
+  variables: Variables | undefined,
+) {
+  const jevAct = context.jevAct!;
+  const { combinedTree, combinedXpathMap } = await context.page.captureSnapshot({});
+  const trace: Record<string, unknown>[] = [];
+  const verdict = await checkCachedAction(
+    {
+      config: jevAct,
+      instruction,
+      trace: trace as never,
+      threshold: jevAct.actConfidence ?? 0.7,
+      logger: context.logger,
+      ensureTimeRemaining: context.ensureTimeRemaining,
+      redact: redactor(variables),
+    },
+    {
+      tree: combinedTree,
+      xpathMap: combinedXpathMap as Record<string, string>,
+      nodes: parseOutline(combinedTree),
+    },
+    action,
+  );
+  context.logger.info("Jev cache check", {
+    category: "jev",
+    instruction,
+    verdict: verdict.verdict,
+    trace: JSON.stringify(trace),
+  });
+  return verdict;
 }
 
 async function getActionFromLLM({

@@ -1618,11 +1618,13 @@ export const StagehandInitParamsSchema = z
         enabled: z.boolean().optional(),
         retryNoEffect: z.boolean().optional(),
         focusFallback: z.boolean().optional(),
+        cacheCheck: z.boolean().optional(),
         actConfidence: z.number().min(0).max(1).optional(),
         verify: z.enum(["off", "checks", "full"]).optional(),
         llmFallback: z.boolean().optional(),
         argumentLlm: z.boolean().optional(),
         pageState: z.boolean().optional(),
+        observe: z.boolean().optional(),
       })
       .optional()
       .meta({

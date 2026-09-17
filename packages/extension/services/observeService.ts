@@ -1,3 +1,5 @@
+import { runJevObserve } from "./jevAct/observe.js";
+import type { JevActConfig } from "./jevAct/pipeline.js";
 import type {
   Action,
   ClientModelReference,
@@ -31,6 +33,7 @@ export async function observe({
   systemPrompt = "",
   cache,
   gateway,
+  jev,
 }: {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
@@ -40,6 +43,8 @@ export async function observe({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
+  /** Experimental: resolve observe() through Jev first (needs `observe: true`). */
+  jev?: JevActConfig & { observe?: boolean };
 }): Promise<ObserveResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -74,6 +79,45 @@ export async function observe({
   });
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
+    if (jev?.observe) {
+      const outcome = await runJevObserve(jev, {
+        page,
+        logger,
+        instruction,
+        variables: options?.variables,
+        snapshotOptions: {
+          focusLocator: options?.locator,
+          ignoreLocators: options?.ignoreLocators,
+        },
+        ensureTimeRemaining,
+      }).catch((error: unknown) => {
+        if (error instanceof TimeoutError) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        return { kind: "fallback" as const, reason: `jev_error:${message}` };
+      });
+      if (outcome.kind === "done") {
+        return {
+          result: {
+            data: outcome.actions,
+            metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+          },
+          cacheValue: outcome.actions.length > 0 ? outcome.actions : undefined,
+          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+        };
+      }
+      logger.info("Jev observe fell back to the LLM", { category: "jev", reason: outcome.reason });
+      if (jev.llmFallback === false) {
+        return {
+          result: {
+            data: [],
+            metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+          },
+          cacheValue: undefined,
+          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+        };
+      }
+    }
+
     ensureTimeRemaining();
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot({
       focusLocator: options?.locator,
