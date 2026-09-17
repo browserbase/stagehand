@@ -368,7 +368,7 @@ if err != nil {
 
 ## Give your coding agent a browser
 
-The hosted Browserbase [MCP server](<[MCP](https://docs.stagehand.dev/integrations/mcp/setup)>) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
+The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
@@ -393,7 +393,7 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 
 ## Search and fetch without a browser
 
-[Fetch](<[Fetch](https://docs.stagehand.dev/v4/add-ons/fetch)>) lets you grab the content of any URL as markdown. [Search](<[Search](https://docs.stagehand.dev/v4/add-ons/search)>) provides fast, token-efficient web search results.
+[Fetch](https://docs.stagehand.dev/v4/add-ons/fetch) lets you grab the content of any URL as markdown. [Search](https://docs.stagehand.dev/v4/add-ons/search) provides fast, token-efficient web search results.
 Both as a lightweight complement to browser sessions.
 
 ```typescript
