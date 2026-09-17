@@ -428,6 +428,10 @@ console.log(fetched.content);
     <td>Playwright-style browser and element APIs</td>
   </tr>
   <tr>
+    <td><a href="https://docs.stagehand.dev/v4/basics/webmcp">WebMCP</a></td>
+    <td>Discover and invoke WebMCP tools exposed by web pages</td>
+  </tr>
+  <tr>
     <td><a href="https://docs.stagehand.dev/v4/basics/act">act</a> · <a href="https://docs.stagehand.dev/v4/basics/extract">extract</a> · <a href="https://docs.stagehand.dev/v4/basics/observe">observe</a></td>
     <td>The three primitives</td>
   </tr>
