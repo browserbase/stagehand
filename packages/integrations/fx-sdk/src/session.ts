@@ -63,6 +63,8 @@ export type FxEvent =
   | { type: "turn_committed"; terminal_reason?: string; turn_kind?: string };
 
 export type FxTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   input_tokens: number;
   cached_input_tokens: number;
   output_tokens: number;
@@ -603,6 +605,9 @@ export function extractFxTokenUsage(
   const committed = findLastCommittedTurn(events);
   if (committed) {
     return {
+      reported: [committed.payload.total_input_tokens, committed.payload.total_output_tokens].some(
+        isTokenCount,
+      ),
       input_tokens: toFiniteNumber(committed.payload.total_input_tokens),
       cached_input_tokens: 0,
       output_tokens: toFiniteNumber(committed.payload.total_output_tokens),
@@ -797,13 +802,15 @@ function hasUsageFields(record: Record<string, unknown>): boolean {
 
 function usageFromRecord(record?: Record<string, unknown>): FxTokenUsage {
   return {
+    reported: [record?.input_tokens, record?.output_tokens].some(isTokenCount),
     input_tokens: toFiniteNumber(record?.input_tokens),
     cached_input_tokens: toFiniteNumber(record?.cache_read_tokens),
     output_tokens: toFiniteNumber(record?.output_tokens),
     reasoning_output_tokens: toFiniteNumber(record?.reasoning_tokens),
-    ...(record &&
-      "total_cost" in record && {
-        total_cost: toFiniteNumber(record.total_cost),
+    ...(typeof record?.total_cost === "number" &&
+      Number.isFinite(record.total_cost) &&
+      record.total_cost >= 0 && {
+        total_cost: record.total_cost,
       }),
   };
 }
@@ -861,4 +868,12 @@ export function stringifyError(value: unknown): string {
 
 export function clip(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

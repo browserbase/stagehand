@@ -1,6 +1,7 @@
 /* eslint-disable require-yield */
 import { describe, expect, it, vi } from "vitest";
 import {
+  extractMastraTokenUsage,
   buildMastraTranscript,
   compactMastraEvent,
   normalizeMastraModel,
@@ -141,6 +142,7 @@ describe("Mastra SDK session", () => {
     expect(result.finishReason).toBe("stop");
     expect(result.stepCount).toBe(1);
     expect(result.tokenUsage).toEqual({
+      reported: true,
       inputTokens: 100,
       outputTokens: 25,
       reasoningTokens: 5,
@@ -426,5 +428,58 @@ describe("Mastra SDK session", () => {
     });
 
     expect(result.finalText).toBe("done https://x.test?apiKey=[redacted]");
+  });
+});
+
+describe("Mastra token usage presence", () => {
+  it.each([undefined, {}, { totalTokens: 0 }, { inputTokens: null, outputTokens: -1 }])(
+    "keeps absent or invalid telemetry unreported: %j",
+    (usage) => {
+      expect(extractMastraTokenUsage(usage).reported).toBe(false);
+    },
+  );
+  it("recognizes observed zero", () => {
+    expect(extractMastraTokenUsage({ inputTokens: 0, outputTokens: "0" })).toMatchObject({
+      reported: true,
+      totalTokens: 0,
+    });
+  });
+  it.each([
+    { finish: undefined, expectedInput: 7, reported: true },
+    { finish: {}, expectedInput: 7, reported: true },
+    { finish: { inputTokens: 0, outputTokens: 0 }, expectedInput: 0, reported: true },
+  ])(
+    "uses step usage only when finish telemetry is absent: %j",
+    async ({ finish, expectedInput, reported }) => {
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        session: {},
+        sdk: fakeSdk({
+          events: [
+            {
+              type: "step-finish",
+              payload: { output: { usage: { inputTokens: 7, outputTokens: 3 } } },
+            },
+            {
+              type: "finish",
+              payload: { stepResult: { reason: "stop" }, output: { usage: finish } },
+            },
+          ],
+        }),
+      });
+      expect(result.tokenUsage).toMatchObject({ reported, inputTokens: expectedInput });
+    },
+  );
+  it("does not invent usage on an empty stream", async () => {
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      session: {},
+      sdk: fakeSdk({ events: [] }),
+    });
+    expect(result.tokenUsage.reported).toBe(false);
   });
 });

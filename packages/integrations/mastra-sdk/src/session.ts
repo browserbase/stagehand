@@ -71,6 +71,8 @@ export type MastraSessionConfig = {
 };
 
 export type MastraTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   reasoningTokens: number;
@@ -310,7 +312,6 @@ export async function runMastraSession(input: {
       if (stream.error && !stopReason) {
         stopReason = sanitizeErrorMessage(stringifyError(stream.error));
       }
-      if (isEmptyTokenUsage(tokenUsage)) tokenUsage = summedStepUsage;
     }
   } catch (error) {
     iterationError = error;
@@ -359,7 +360,7 @@ export async function runMastraSession(input: {
     ...(stopReason && { stopReason: sanitizeErrorMessage(stopReason) }),
     ...(finishReason && { finishReason }),
     stepCount,
-    tokenUsage,
+    tokenUsage: tokenUsage.reported ? tokenUsage : summedStepUsage,
     ...(iterationError !== undefined && { iterationError }),
   };
 }
@@ -387,6 +388,7 @@ export function extractMastraTokenUsage(
   const inputTokens = toFiniteNumber(usage?.inputTokens);
   const outputTokens = toFiniteNumber(usage?.outputTokens);
   return {
+    reported: [usage?.inputTokens, usage?.outputTokens].some(isTokenCount),
     inputTokens,
     outputTokens,
     reasoningTokens: toFiniteNumber(usage?.reasoningTokens),
@@ -615,6 +617,7 @@ function flattenMcpResult(value: unknown): string {
 
 function addTokenUsage(left: MastraTokenUsage, right: MastraTokenUsage): MastraTokenUsage {
   return {
+    reported: left.reported === true || right.reported === true,
     inputTokens: left.inputTokens + right.inputTokens,
     outputTokens: left.outputTokens + right.outputTokens,
     reasoningTokens: left.reasoningTokens + right.reasoningTokens,
@@ -623,6 +626,10 @@ function addTokenUsage(left: MastraTokenUsage, right: MastraTokenUsage): MastraT
   };
 }
 
-function isEmptyTokenUsage(usage: MastraTokenUsage): boolean {
-  return Object.values(usage).every((value) => value === 0);
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }
