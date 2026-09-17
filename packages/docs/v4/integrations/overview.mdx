@@ -14,17 +14,17 @@ Distribution follows each host’s supported extension mechanism. Consult the ho
 
 | Host | Preferred integration mechanism |
 | --- | --- |
-| Claude Code | A Claude Code marketplace plugin that registers the Stagehand MCP server. |
-| Codex | A Codex repository marketplace plugin that registers the Stagehand MCP server. |
+| Claude Code | A Claude Code marketplace plugin that registers the Stagehand facade MCP server. |
+| Codex | A Codex repository marketplace plugin that registers the Stagehand facade MCP server. |
 | Pi | A native Pi extension installed with Pi’s package manager. |
 | Eve | A native Eve extension mounted in the agent. |
 | Mastra | Mastra’s official `MCPClient`, attached as agent tools. |
 | Vercel AI SDK | The official `@ai-sdk/mcp` client, attached to the tool loop. |
-| CrewAI | CrewAI’s official `MCPServerAdapter`; the source example adds screenshot-file handling. |
+| CrewAI | Official `MCPServerAdapter` for portable setup; `MCPAdapt` with `CrewAIToolAdapter` for the source example’s screenshot files. |
 | Deep Agents | LangChain MCP adapters with a persistent session, or native tools for Managed Deep Agents. |
 | fx | fx’s built-in MCP client and `/mcp add` configuration flow. |
 
-The first four hosts provide plugin or extension distribution. The remaining guides use the host’s supported tool APIs; they do not require a separate marketplace plugin. The portable MCP setups use the same server package and preserve the same browser tool contract.
+The first four hosts provide plugin or extension distribution. The remaining guides use the host’s supported tool APIs; they do not require a separate marketplace plugin. Packaging varies between the portable facade MCP server, source builds, and the Python-native Deep Agents server. They preserve the same browser tool contract.
 
 ## Choose an integration
 
