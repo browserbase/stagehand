@@ -180,6 +180,8 @@ jobs:
       # Typecheck builds its remaining workspace prerequisites.
       - run: pnpm check
       - run: pnpm test:unit
+      # CLI tests load the built SDK and Browse output, independently of typecheck's graph.
+      - run: pnpm exec turbo run build --filter=browse
       - run: pnpm --filter browse test:cli
       - run: uv lock --check
         working-directory: packages/sdk-python
