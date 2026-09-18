@@ -1,5 +1,5 @@
 {
-  "$schema": "https://v2-8-10.turborepo.dev/schema.json",
+  "$schema": "https://v2-10-13.turborepo.dev/schema.json",
   "globalDependencies": [
     "package.json",
     "packages/*/package.json",
@@ -7,8 +7,7 @@
     "pnpm-workspace.yaml",
     "turbo.json",
     "oxlint.config.ts",
-    ".oxfmtrc.json",
-    ".github/workflows/ci.yml"
+    ".oxfmtrc.json"
   ],
   "globalEnv": ["CI"],
   "tasks": {
@@ -252,6 +251,9 @@
     "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
       "dependsOn": ["^build"]
     },
+    "@browserbasehq/stagehand-integrations-example-eve-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-integrations-eve-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
@@ -369,6 +371,7 @@
         "tests/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/packages/protocol/**",
+        "$TURBO_ROOT$/packages/sdk-go/**",
         "$TURBO_ROOT$/packages/sdk-python/src/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/vitest.config.ts",
