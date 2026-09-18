@@ -57,8 +57,9 @@ describe("browser API contracts", () => {
       Promise<StagehandBrowser>
     >();
     expectTypeOf<
-      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl">
+      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "client">
     >().toEqualTypeOf<Browserbase.SessionCreateParams>();
+    expectTypeOf<BrowserbaseLaunchOptions["client"]>().toEqualTypeOf<Browserbase | undefined>();
     expectTypeOf<Parameters<BrowserbaseBrowser["connect"]>>().toEqualTypeOf<
       [options: BrowserbaseConnectOptions]
     >();
@@ -68,6 +69,7 @@ describe("browser API contracts", () => {
       sessionId: string;
       extensionId?: string;
     }>();
+    expectTypeOf<BrowserbaseConnectOptions["client"]>().toEqualTypeOf<Browserbase | undefined>();
   });
 
   it("defines every browser input as a strict client-side schema", () => {
