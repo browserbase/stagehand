@@ -389,7 +389,8 @@ export class Page {
    * Parent/child session emitted a `frameDetached`.
    */
   public onFrameDetached(frameId: string, reason: string = "remove"): void {
-    this.invalidateWebMCPFrame(frameId);
+    // A late process-swap detach must not remove tools reported by the new owner.
+    if (reason !== "swap") this.invalidateWebMCPFrame(frameId);
     this.registry.onFrameDetached(frameId, reason);
     this.frameCache.delete(frameId);
   }

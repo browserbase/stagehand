@@ -753,6 +753,41 @@ describe("Page WebMCP tool discovery", () => {
     expect(events).toHaveLength(3);
   });
 
+  it("preserves new-owner tools on a late swap detach but clears them on removal", async () => {
+    const session = new FakeCDPSession();
+    const page = createPage(session);
+    page.onFrameAttached("frame-2", "frame-1", session);
+    const events: WebMCPToolsEvent[] = [];
+    await page.subscribeWebMCPToolsChanged((event) => events.push(event));
+    const tools = [{ name: "search", description: "Search", frameId: "frame-2" }];
+    const child = new FakeCDPSession(
+      {
+        "WebMCP.enable": (activeSession) => {
+          activeSession.emit("WebMCP.toolsAdded", { tools });
+        },
+      },
+      "child",
+    );
+    adoptChildSession(page, child);
+    await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual(tools);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ event: "toolsadded", tools });
+
+    page.onFrameDetached("frame-2", "swap");
+    await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual(tools);
+    expect(events).toHaveLength(1);
+    expect(page.getSessionForFrame("frame-2")).toBe(child);
+    expect(child.callsFor("WebMCP.enable")).toHaveLength(1);
+
+    page.onFrameDetached("frame-2", "remove");
+    await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([]);
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      event: "toolsremoved",
+      tools: [{ name: "search", frameId: "frame-2" }],
+    });
+  });
+
   it("delivers future iframe availability and detach removals without restarting tracking", async () => {
     const page = createPage(new FakeCDPSession());
     const events: WebMCPToolsEvent[] = [];
