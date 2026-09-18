@@ -63,18 +63,35 @@ export async function createSecret(
   secretKey: string,
   value: Uint8Array,
 ): Promise<Secret> {
-  const keypair = await requestBrowserbaseJson<{
-    id: string;
-    publicKey: string;
-  }>(options, "/v1/secrets/keypair");
-  const sealedSecretValue = await sealSecret(keypair.publicKey, value);
+  const sealed = await encryptValue(options, value);
   return requestBrowserbaseJson(options, "/v1/secrets", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       secretKey,
-      keypairId: keypair.id,
-      sealedSecretValue,
+      ...sealed,
     }),
   });
+}
+
+export async function updateSecret(
+  options: SecretsApiOptions,
+  secretId: string,
+  value: Uint8Array,
+): Promise<Secret> {
+  const sealed = await encryptValue(options, value);
+  return requestBrowserbaseJson(options, secretPath(secretId), {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(sealed),
+  });
+}
+
+async function encryptValue(options: SecretsApiOptions, value: Uint8Array) {
+  const keypair = await requestBrowserbaseJson<{
+    id: string;
+    publicKey: string;
+  }>(options, "/v1/secrets/keypair");
+  const sealedSecretValue = await sealSecret(keypair.publicKey, value);
+  return { keypairId: keypair.id, sealedSecretValue };
 }

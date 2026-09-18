@@ -37,7 +37,7 @@
         "description": "Manage Browserbase cloud resources and APIs."
       },
       "cloud:secrets": {
-        "description": "Create, list, retrieve, and delete project secrets."
+        "description": "Manage project secrets."
       },
       "cloud:projects": {
         "description": "Manage Browserbase projects."
