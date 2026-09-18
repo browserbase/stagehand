@@ -9,7 +9,7 @@ Stagehand caches `act()`, `observe()`, and `extract()` results server-side to re
 
 ## Browserbase cache
 
-Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. Turn it on with the `cache` option and Browserbase caches every `act()`, `observe()`, and `extract()` call on its servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
+Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. It is on by default: Browserbase caches eligible `act()`, `observe()`, and `extract()` calls on its servers, and repeated calls with the same inputs return instantly without consuming any LLM tokens. Set `cache: false` to turn it off. Some calls are not eligible, see [limitations](#limitations).
 
 Browserbase builds the cache key from the instruction, page content, and the options you pass. It deliberately leaves out model configuration, so switching models does not invalidate your cache. On a cache hit, the server returns the response directly with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
 
@@ -17,9 +17,9 @@ Browserbase builds the cache key from the instruction, page content, and the opt
 Caching requires a Browserbase browser and the Browserbase API key you passed to `browserbase.launch()`. With a local browser there is no Browserbase session to key against, so the `cache` option has no effect and every call runs inference.
 </Note>
 
-### Enabling on create()
+### Setting on create()
 
-Pass `cache: true` to enable caching for all requests made by that instance:
+Stagehand enables caching by default. Pass `cache` on `Stagehand.create()` to set the behavior for every request from that instance. Set it to `false` to opt out, or pass an object to tune the threshold:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -335,6 +335,7 @@ Cache behavior is also visible in the [Browserbase session replay dashboard](htt
 - If the page content or structure changes, the action won't get a cache `HIT` and Stagehand calls the LLM. Subsequent actions will attempt to hit the resulting cache entry.
 - Caching is best-effort. If the cache is unreachable, Stagehand falls back to normal inference rather than failing your run.
 - Stagehand replays a cached `act()` result deterministically with self-healing turned off. If the recorded selector no longer resolves, Stagehand falls back to full inference.
+- Stagehand does not cache calls that set `locator` or `ignoreLocators`. The cache contract uses unscoped requests as keys, so Stagehand skips both reads and writes and reports a `DISABLED` cache status, even when caching is enabled.
 
 ### Best practices
 
