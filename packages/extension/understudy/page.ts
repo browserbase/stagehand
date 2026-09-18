@@ -119,6 +119,7 @@ type WebMCPToolSessionState = {
   targetId?: string;
   ready: Deferred<void>;
   tools: Map<string, WebMCPToolDescriptor>;
+  pendingTools: Map<string, WebMCPToolDescriptor>;
   added: (event: Protocol.WebMCP.ToolsAddedEvent) => void;
   removed: (event: Protocol.WebMCP.ToolsRemovedEvent) => void;
   error?: Error;
@@ -381,6 +382,7 @@ export class Page {
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
     this.ensureOrdinal(frameId);
     this.registry.onFrameAttached(frameId, parentId, session.id ?? "root");
+    this.reconcilePendingWebMCPTools();
     // Cache is keyed by frameId → invalidate to ensure future frameForId resolves with latest owner
     this.frameCache.delete(frameId);
   }
@@ -402,7 +404,11 @@ export class Page {
   public onFrameNavigated(frame: Protocol.Page.Frame, session: CDPSessionLike): void {
     const previous = this.registry.frames.get(frame.id);
     if (previous?.lastSeen?.loaderId !== frame.loaderId) {
-      this.invalidateWebMCPFrame(frame.parentId ? frame.id : this.mainFrameId());
+      // The first navigation can establish ownership for tools already reported by this session.
+      this.invalidateWebMCPFrame(
+        frame.parentId ? frame.id : this.mainFrameId(),
+        !!previous?.lastSeen?.loaderId,
+      );
     }
     const prevRoot = this.mainFrameId();
     this.registry.onFrameNavigated(frame, session.id ?? "root");
@@ -433,6 +439,7 @@ export class Page {
 
     // Invalidate the cached Frame for this id (session may have changed)
     this.frameCache.delete(frame.id);
+    this.reconcilePendingWebMCPTools();
   }
 
   public onNavigatedWithinDocument(frameId: string, url: string, session: CDPSessionLike): void {
@@ -440,6 +447,7 @@ export class Page {
     if (!normalized) return;
 
     this.registry.onNavigatedWithinDocument(frameId, normalized, session.id ?? "root");
+    this.reconcilePendingWebMCPTools();
 
     if (frameId === this.mainFrameId()) {
       this._currentUrl = normalized;
@@ -468,6 +476,7 @@ export class Page {
 
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(childSession.id ?? "child", childMainFrameId);
+    this.reconcilePendingWebMCPTools();
     this.frameCache.delete(childMainFrameId);
 
     // Bridge events from the child session to keep registry in sync
@@ -498,6 +507,7 @@ export class Page {
 
         if (!this.disposed && this.sessions.get(childSession.id ?? "") === childSession) {
           this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
+          this.reconcilePendingWebMCPTools();
         }
       } catch {
         // If snapshot races, live events will still converge the registry.
@@ -755,7 +765,13 @@ export class Page {
     session: CDPSessionLike,
     state: WebMCPToolSessionState,
     matches: (tool: WebMCPToolDescriptor) => boolean = () => true,
+    clearPending = true,
   ): void {
+    if (clearPending) {
+      for (const [key, tool] of state.pendingTools) {
+        if (matches(tool)) state.pendingTools.delete(key);
+      }
+    }
     const tools: WebMCPToolIdentity[] = [];
     for (const [key, tool] of state.tools) {
       if (!matches(tool)) continue;
@@ -774,6 +790,37 @@ export class Page {
     );
   }
 
+  private publishWebMCPTools(
+    session: CDPSessionLike,
+    state: WebMCPToolSessionState,
+    tools: WebMCPToolDescriptor[],
+  ): void {
+    const added: WebMCPToolDescriptor[] = [];
+    for (const tool of tools) {
+      const key = `${tool.frameId}\u0000${tool.name}`;
+      if (JSON.stringify(state.tools.get(key)) === JSON.stringify(tool)) continue;
+      state.tools.set(key, tool);
+      added.push(tool);
+    }
+    if (added.length) this.emitWebMCPToolsChange(session, { event: "toolsadded", tools: added });
+  }
+
+  private reconcilePendingWebMCPTools(): void {
+    for (const [session, state] of this.webMCPToolSessions) {
+      if (state.error) continue;
+      const owned: WebMCPToolDescriptor[] = [];
+      for (const [key, tool] of state.pendingTools) {
+        if (this.ownsWebMCPFrame(session, tool.frameId)) {
+          state.pendingTools.delete(key);
+          owned.push(tool);
+        } else if (this.registry.getOwnerSessionId(tool.frameId)) {
+          state.pendingTools.delete(key);
+        }
+      }
+      this.publishWebMCPTools(session, state, owned);
+    }
+  }
+
   private ensureWebMCPToolTracking(
     session: CDPSessionLike,
     seedOwnership: Promise<void> = Promise.resolve(),
@@ -786,20 +833,20 @@ export class Page {
     const state: WebMCPToolSessionState = {
       ready: createDeferred<void>(),
       tools: new Map(),
+      pendingTools: new Map(),
       added: (event) => {
         if (this.webMCPToolSessions.get(session) !== state || state.error) return;
         try {
           const tools = event.tools.map(webMCPTool);
-          const added: WebMCPToolDescriptor[] = [];
+          const owned: WebMCPToolDescriptor[] = [];
           for (const tool of tools) {
-            if (!this.ownsWebMCPFrame(session, tool.frameId)) continue;
-            const key = `${tool.frameId}\u0000${tool.name}`;
-            if (JSON.stringify(state.tools.get(key)) === JSON.stringify(tool)) continue;
-            state.tools.set(key, tool);
-            added.push(tool);
+            if (this.ownsWebMCPFrame(session, tool.frameId)) {
+              owned.push(tool);
+            } else if (!this.registry.getOwnerSessionId(tool.frameId)) {
+              state.pendingTools.set(`${tool.frameId}\u0000${tool.name}`, tool);
+            }
           }
-          if (added.length)
-            this.emitWebMCPToolsChange(session, { event: "toolsadded", tools: added });
+          this.publishWebMCPTools(session, state, owned);
         } catch (error) {
           fail(error);
         }
@@ -808,6 +855,7 @@ export class Page {
         if (this.webMCPToolSessions.get(session) !== state || state.error) return;
         const removed: WebMCPToolIdentity[] = [];
         for (const tool of event.tools) {
+          state.pendingTools.delete(`${tool.frameId}\u0000${tool.name}`);
           if (state.tools.delete(`${tool.frameId}\u0000${tool.name}`)) {
             removed.push({ frameId: tool.frameId, name: tool.name });
           }
@@ -867,7 +915,7 @@ export class Page {
     this.notifyWebMCPToolsChanged();
   }
 
-  private invalidateWebMCPFrame(frameId: string): void {
+  private invalidateWebMCPFrame(frameId: string, clearPending = true): void {
     const frames = new Set<string>();
     const visit = (id: string): void => {
       if (frames.has(id)) return;
@@ -876,7 +924,7 @@ export class Page {
     };
     visit(frameId);
     for (const [session, state] of this.webMCPToolSessions) {
-      this.removeWebMCPTools(session, state, (tool) => frames.has(tool.frameId));
+      this.removeWebMCPTools(session, state, (tool) => frames.has(tool.frameId), clearPending);
     }
   }
 

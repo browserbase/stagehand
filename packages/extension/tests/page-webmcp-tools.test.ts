@@ -753,6 +753,78 @@ describe("Page WebMCP tool discovery", () => {
     expect(events).toHaveLength(3);
   });
 
+  it.each(["attach", "navigate"])(
+    "publishes pending tools once ownership arrives through %s",
+    async (event) => {
+      const main = new FakeCDPSession();
+      const page = createPage(main);
+      const events: WebMCPToolsEvent[] = [];
+      await page.subscribeWebMCPToolsChanged((event) => events.push(event));
+      const tool = { name: "search", description: "Search", frameId: "frame-3" };
+      const child = new FakeCDPSession(
+        {
+          "Page.getFrameTree": () => {
+            throw new Error("tree unavailable");
+          },
+          "WebMCP.enable": (session) => session.emit("WebMCP.toolsAdded", { tools: [tool] }),
+        },
+        "child",
+      );
+      adoptChildSession(page, child);
+      await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([]);
+      expect(events).toEqual([]);
+
+      const establishOwnership = () => {
+        if (event === "attach") page.onFrameAttached("frame-3", "frame-2", child);
+        else
+          page.onFrameNavigated(
+            {
+              id: "frame-3",
+              parentId: "frame-2",
+              loaderId: "initial",
+              url: "https://child.test",
+            } as Protocol.Page.Frame,
+            child,
+          );
+      };
+      establishOwnership();
+      await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([tool]);
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ event: "toolsadded", sessionId: "child", tools: [tool] });
+      establishOwnership();
+      child.emit("WebMCP.toolsAdded", { tools: [tool] });
+      expect(events).toHaveLength(1);
+      expect(child.callsFor("WebMCP.enable")).toHaveLength(1);
+      child.emit("WebMCP.toolsRemoved", { tools: [{ name: "search", frameId: "frame-3" }] });
+      expect(events[1]).toMatchObject({
+        event: "toolsremoved",
+        tools: [{ name: "search", frameId: "frame-3" }],
+      });
+    },
+  );
+
+  it.each(["unregister", "detach", "session-detach", "different-owner"])(
+    "discards pending tools without emitting events after %s",
+    async (action) => {
+      const main = new FakeCDPSession();
+      const page = createPage(main);
+      const events: WebMCPToolsEvent[] = [];
+      await page.subscribeWebMCPToolsChanged((event) => events.push(event));
+      const child = new FakeCDPSession({}, "child");
+      adoptChildSession(page, child);
+      await page.listWebMCPTools({ timeout: 0 });
+      const tool = { name: "pending", description: "Pending", frameId: "frame-3" };
+      child.emit("WebMCP.toolsAdded", { tools: [tool] });
+      if (action === "unregister") child.emit("WebMCP.toolsRemoved", { tools: [tool] });
+      if (action === "detach") page.onFrameDetached("frame-3", "remove");
+      if (action === "session-detach") page.detachOopifSession("child");
+      if (action === "different-owner") page.onFrameAttached("frame-3", "frame-1", main);
+      page.onFrameAttached("frame-3", "frame-2", child);
+      await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([]);
+      expect(events).toEqual([]);
+    },
+  );
+
   it("preserves new-owner tools on a late swap detach but clears them on removal", async () => {
     const session = new FakeCDPSession();
     const page = createPage(session);
