@@ -29,7 +29,9 @@ import * as cacheService from "./cacheService.js";
 import { redactor } from "./jevAct/args.js";
 import { checkCachedAction } from "./jevAct/cacheCheck.js";
 import { runJevActPipeline, type JevActConfig, type JevActOutcome } from "./jevAct/pipeline.js";
+import { runJevToolAct } from "./jevAct/toolAct.js";
 import { focusOutline, parseOutline } from "./jevAct/tree.js";
+import type { JsonValue } from "./jevAct/typesafeClient.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
@@ -123,7 +125,7 @@ export async function act({
   };
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
-  let actPath: "llm" | "jev" | "jev+arg-llm" | "jev+llm" = "llm";
+  let actPath: "llm" | "jev" | "jev+arg-llm" | "jev+llm" | "jev-tool" | "jev-tool+arg-llm" = "llm";
   let usedArgumentLlm = false;
   // Jev's shortlist when it narrowed the choice but could not commit.
   let jevFocusIds: string[] = [];
@@ -181,6 +183,45 @@ export async function act({
   });
 
   async function runActPipeline(): Promise<ActResult> {
+    // A scoped act is about that element; tools are page-level.
+    if (jevAct?.tools && jevAct.enabled !== false && !options?.locator) {
+      const outcome = await runJevToolAct(jevAct, {
+        page,
+        logger,
+        instruction,
+        variables,
+        ensureTimeRemaining,
+        fillArguments: async (tool) => {
+          const response = await inference.toolArguments({
+            instruction,
+            tool,
+            variableNames: Object.keys(variables ?? {}),
+            generate: (input) =>
+              llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
+          });
+          recordUsage({ ...response, element: null, twoStep: false });
+          const required = Array.isArray(tool.inputSchema?.required)
+            ? tool.inputSchema.required
+            : [];
+          const input = response.input;
+          return input && required.every((name) => typeof name === "string" && name in input)
+            ? (input as Record<string, JsonValue>)
+            : null;
+        },
+      }).catch((error: unknown) => {
+        if (error instanceof TimeoutError) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        logger.info("Jev tool selection failed", { category: "jev", instruction, message });
+        return { kind: "skip" as const, reason: "jev_error" };
+      });
+      if (outcome.kind === "done") {
+        // Replay only knows element actions.
+        jevNoCache = true;
+        actPath = outcome.usedArgumentLlm ? "jev-tool+arg-llm" : "jev-tool";
+        return actResult(outcome.result, operationUsage);
+      }
+    }
+
     if (jevAct && jevAct.enabled !== false) {
       actPath = "jev";
       const outcome = await runJevActPipeline(jevAct, {

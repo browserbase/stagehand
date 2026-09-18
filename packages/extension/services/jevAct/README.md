@@ -49,8 +49,38 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 | `cacheCheck`    | `false`    | One Jev yes/no before replaying a cached action; stale ones are re-inferred. Adds a snapshot and a request to every cache hit.                                                                                                                          |
 | `extract`       | `"off"`    | `"judge"`: Jev's yes/no replaces extract()'s completion LLM call. `"pick"`: Jev picks the elements holding each field's value and code copies their text; the LLM extracts only what does not fit. **Both send page or extracted content to TypeSafe.** |
 | `observe`       | `false`    | Resolve `observe()` through Jev first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                                          |
+| `tools`         | `false`    | Let `act()` invoke a WebMCP tool the page registered when Jev is sure the tool is the request (see below). Sends tool names, descriptions and parameter names to TypeSafe.                                                                              |
 | `retryNoEffect` | `false`    | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                                |
 | `focusFallback` | `false`    | On trees over 120K chars, show the LLM Jev's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                                    |
+
+## WebMCP tools (`tools: true`)
+
+Before looking for an element, `act()` lists the page's WebMCP tools (300 ms budget; pages without
+tools skip straight on). One Jev request asks which tool fulfils the instruction, with a "none"
+option and a guard question: an instruction that names a control ("click the Add to cart button")
+always takes the element path, even when `add_to_cart` exists. A tool is used only at ≥ 0.8 with
+"none" ≤ 0.2. Arguments are picked by Jev as spans of the instruction (enums and booleans as
+choices) and accepted only when every parameter, stated or not, is ≥ 0.8; anything else (dates to
+normalise, lists, nested objects) goes to an argument-only LLM call that sees just that tool's
+schema. Any doubt means the ordinary act path runs. Once a tool has been invoked the act is over,
+success or error: it never also clicks through the UI. Tool acts are not cached.
+
+```ts
+// TypeScript SDK; Chrome needs its WebMCP features on, which localBrowser.launch() does.
+process.env.STAGEHAND_EXPERIMENTAL_JEV_ACT = JSON.stringify({ apiKey, tools: true });
+const stagehand = await Stagehand.create({ browser, model });
+await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/");
+
+await stagehand.act("add 19 and 23 together");
+// → { method: "webmcp", selector: "webmcp:calculateSum", arguments: ['{"a":19,"b":23}'] }
+//   message: 'Invoked WebMCP tool calculateSum: {"a":19,"b":23,"sum":42}'   (~430 ms, no LLM call)
+
+await stagehand.act("click the Calculate button");
+// → names a control, so the ordinary element path runs
+```
+
+On 380 LLM-written requests over 166 tools harvested from six live sites: tool choice answered by
+Jev for 79% of requests at 99% precision; arguments filled by Jev for 69% of calls at 98% precision.
 
 ## What leaves the process
 

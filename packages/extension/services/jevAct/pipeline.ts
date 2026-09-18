@@ -95,6 +95,11 @@ export type JevActConfig = JevConfig & {
   extract?: "off" | "judge" | "pick";
   /** Resolve observe() through Jev first. Default false. */
   observe?: boolean;
+  /**
+   * Let act() invoke a WebMCP tool the page registered when Jev is sure the
+   * tool is the request. Sends tool names and descriptions to TypeSafe. Default false.
+   */
+  tools?: boolean;
 };
 
 export type JevActDeps = {
