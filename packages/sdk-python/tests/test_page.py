@@ -42,7 +42,7 @@ from stagehand._generated.models import (
 from stagehand._generated.models import (
     WebMCPToolResponse as WireWebMCPToolResponse,
 )
-from stagehand.page import Page
+from stagehand.page import Page, PageEventName
 from stagehand.rpc_client import RPCClient
 
 from ._support import RecordingRPCClient
@@ -177,6 +177,18 @@ async def test_page_url_returns_a_scalar_string() -> None:
     assert recording.calls == [
         ("page.url", PageIdParams(page_id="page-1"), PageUrlResult),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event", ["toolsadded", "toolsremoved", "unknown", ""])
+async def test_page_on_rejects_unsupported_events_before_subscribing(event: str) -> None:
+    recording = RecordingRPCClient({})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    with pytest.raises(ValueError, match='page.on only supports "console" events'):
+        await page.on(cast(PageEventName, event), lambda _: None)
+    assert recording.calls == []
+    assert recording.notifications == {}
+    assert not page._event_subscriptions
 
 
 @pytest.mark.asyncio

@@ -218,6 +218,7 @@ export class Page {
   }
 
   async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
+    if (event !== "console") throw new Error('page.on only supports "console" events');
     return this.subscribe(event, (notification) => {
       if (notification.method === StagehandNotifications.pageCDPEvent.name) {
         return listener(notification.params.event);

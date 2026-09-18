@@ -402,6 +402,8 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
+        if event != "console":
+            raise ValueError('page.on only supports "console" events')
         return await self._subscribe(
             event,
             "page.cdp_event",

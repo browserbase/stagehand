@@ -249,6 +249,9 @@ func (p *Page) On(
 	event PageEventName,
 	listener func(PageCDPEvent),
 ) (*CDPSubscription, error) {
+	if event != PageEventNameConsole {
+		return nil, errors.New(`page.On only supports "console" events`)
+	}
 	if listener == nil {
 		return nil, errors.New("stagehand page event listener is required")
 	}

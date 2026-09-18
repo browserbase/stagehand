@@ -582,6 +582,19 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.listeners).toHaveLength(0);
   });
 
+  it.each(["toolsadded", "toolsremoved", "unknown", ""])(
+    "rejects unsupported generic page.on event %j before subscribing",
+    async (event) => {
+      const client = new FakeProtocolClient();
+      const page = new Page(client, { pageId: "page-1" });
+      await expect(page.on(event as "console", () => {})).rejects.toThrow(
+        'page.on only supports "console" events',
+      );
+      expect(client.calls).toHaveLength(0);
+      expect(client.listeners).toHaveLength(0);
+    },
+  );
+
   it("cleans up page.on state when remote registration fails", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));

@@ -103,6 +103,23 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 	}
 }
 
+func TestPageOnRejectsUnsupportedEventsBeforeSubscribing(t *testing.T) {
+	t.Parallel()
+	for _, event := range []PageEventName{"toolsadded", "toolsremoved", "unknown", ""} {
+		t.Run(string(event), func(t *testing.T) {
+			rpc := &recordingProtocolClient{}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			subscription, err := page.On(context.Background(), event, func(PageCDPEvent) {})
+			if err == nil || subscription != nil {
+				t.Fatal("expected unsupported event to fail without a subscription")
+			}
+			if len(rpc.calls) != 0 || rpc.pageEventHandler != nil || len(page.subscriptions) != 0 {
+				t.Fatal("unsupported event created subscription state")
+			}
+		})
+	}
+}
+
 func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 	t.Parallel()
 
