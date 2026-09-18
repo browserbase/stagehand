@@ -174,10 +174,10 @@ jobs:
           go-version: "1.26.x"
           cache-dependency-path: packages/sdk-go/internal/generator/go.sum
 
-      # Keep the legacy build command here so the generated protocol drift check
-      # still compares freshly generated output with the committed schema.
-      - run: pnpm build
+      # Generate and format the schema before the workspace formatter checks it.
+      - run: pnpm exec turbo run build --filter=@browserbasehq/stagehand-protocol
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
+      # Typecheck builds its remaining workspace prerequisites.
       - run: pnpm check
       - run: pnpm test:unit
       - run: pnpm --filter browse test:cli
