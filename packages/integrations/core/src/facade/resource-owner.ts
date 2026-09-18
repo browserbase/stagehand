@@ -10,10 +10,13 @@ export class FacadeResourceOwner<Resource> {
 
   async get(): Promise<Resource> {
     await this.cleanup;
-    this.resources ??= this.create().catch((error) => {
-      this.resources = undefined;
-      throw error;
-    });
+    this.resources ??= Promise.resolve()
+      .then(() => this.create())
+      .catch((error) => {
+        this.resources = undefined;
+        if (error instanceof StagehandFacadeConfigError) throw error;
+        throw new StagehandFacadeInitializationError();
+      });
     return this.resources;
   }
 
@@ -27,6 +30,9 @@ export class FacadeResourceOwner<Resource> {
     if (this.resources !== owned || current !== expected) return;
     this.cleanup ??= Promise.resolve()
       .then(() => this.release(expected))
+      .catch(() => {
+        throw new StagehandFacadeCleanupError();
+      })
       .then(() => {
         this.resources = undefined;
         this.cleanup = undefined;
@@ -36,3 +42,5 @@ export class FacadeResourceOwner<Resource> {
     await this.cleanup;
   }
 }
+import { StagehandFacadeConfigError } from "./config.js";
+import { StagehandFacadeCleanupError, StagehandFacadeInitializationError } from "./tools.js";
