@@ -1267,6 +1267,9 @@
             },
             "observe": {
               "type": "boolean"
+            },
+            "tools": {
+              "type": "boolean"
             }
           },
           "required": ["api_key"],

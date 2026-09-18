@@ -107,6 +107,7 @@ export async function initStagehand({
       ...(process.env.EVAL_JEV_ACT_LLM_FALLBACK === "0" ? { llmFallback: false } : {}),
       ...(process.env.EVAL_JEV_ARG_LLM === "0" ? { argumentLlm: false } : {}),
       ...(process.env.EVAL_JEV_OBSERVE === "1" ? { observe: true } : {}),
+      ...(process.env.EVAL_JEV_TOOLS === "1" ? { tools: true } : {}),
       ...(process.env.EVAL_JEV_EXTRACT === "pick" || process.env.EVAL_JEV_EXTRACT === "judge"
         ? { extract: process.env.EVAL_JEV_EXTRACT }
         : {}),
