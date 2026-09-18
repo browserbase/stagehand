@@ -306,3 +306,56 @@ export async function actTextArgument(params: {
     inference_time_ms: result.durationMs,
   };
 }
+
+/**
+ * Argument-only inference for a WebMCP tool Jev already chose: the prompt is
+ * one tool, not the catalog, and the tool's own input schema shapes the answer.
+ */
+export async function toolArguments(params: {
+  instruction: string;
+  tool: { name: string; description: string; inputSchema?: Record<string, unknown> };
+  variableNames: string[];
+  generate: GenerateLlm;
+}): Promise<{
+  input: Record<string, unknown> | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  reasoning_tokens: number;
+  cached_input_tokens: number;
+  inference_time_ms: number;
+}> {
+  const startedAt = Date.now();
+  const variables =
+    params.variableNames.length > 0
+      ? ` Declared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}; when one stands for a value, return it as written including the percent signs.`
+      : "";
+  const response = await params.generate({
+    systemPrompt: `You fill in the input of one tool from a user's request. Use only values the request states or clearly implies; leave optional parameters out otherwise.${variables}`,
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text: `tool: ${JSON.stringify({ name: params.tool.name, description: params.tool.description })}\nrequest: ${params.instruction}`,
+        },
+      },
+    ],
+    responseFormat: {
+      type: "json_schema",
+      name: "ToolInput",
+      schema: z.json().parse({ type: "object", ...params.tool.inputSchema }),
+    },
+  });
+  const content = response.outputFormat === "json_schema" ? response.structuredContent : null;
+  return {
+    input:
+      content && typeof content === "object" && !Array.isArray(content)
+        ? (content as Record<string, unknown>)
+        : null,
+    prompt_tokens: response.usage?.inputTokens ?? 0,
+    completion_tokens: response.usage?.outputTokens ?? 0,
+    reasoning_tokens: response.usage?.reasoningTokens ?? 0,
+    cached_input_tokens: response.usage?.cachedInputTokens ?? 0,
+    inference_time_ms: Date.now() - startedAt,
+  };
+}
