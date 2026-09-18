@@ -1,5 +1,12 @@
 # browse
 
+## 0.9.7
+
+### Patch Changes
+
+- Updated dependencies [[`0210688`](https://github.com/browserbase/stagehand/commit/02106888668925aedbbf354f22b3ddaceb9c1027), [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6)]:
+  - @browserbasehq/stagehand@4.2.0
+
 ## 0.9.6
 
 ### Patch Changes
