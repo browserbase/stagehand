@@ -251,6 +251,75 @@ func TestPageToolHooksRollBackFailedRegistration(t *testing.T) {
 	}
 }
 
+func TestPageRegistrationFailureCleansUpRemotely(t *testing.T) {
+	t.Parallel()
+	for _, event := range []string{"console", "added", "removed"} {
+		for _, registrationErr := range []error{context.Canceled, context.DeadlineExceeded, errors.New("registration failed")} {
+			for _, cleanupFails := range []bool{false, true} {
+				ctx, cancel := context.WithCancel(context.Background())
+				cleanupErr := errors.New("cleanup failed")
+				rpc := &recordingProtocolClient{}
+				rpc.callHook = func(callCtx context.Context, method string) error {
+					if method == "page.on" {
+						cancel()
+						return registrationErr
+					}
+					if method == "page.off" {
+						if callCtx.Err() != nil {
+							t.Fatal("cleanup reused cancelled context")
+						}
+						if _, ok := callCtx.Deadline(); !ok {
+							t.Fatal("cleanup has no deadline")
+						}
+						if cleanupFails {
+							return cleanupErr
+						}
+					}
+					return nil
+				}
+				page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+				var err error
+				switch event {
+				case "console":
+					_, err = page.On(ctx, "console", func(PageCDPEvent) {})
+				case "added":
+					_, err = page.OnToolsAdded(ctx, func([]*WebMCPTool) {})
+				case "removed":
+					_, err = page.OnToolsRemoved(ctx, func([]WebMCPToolIdentity) {})
+				}
+				cancel()
+				if !errors.Is(err, registrationErr) {
+					t.Fatalf("lost registration error: %v", err)
+				}
+				if len(rpc.calls) != 2 || rpc.calls[1].method != "page.off" {
+					t.Fatalf("calls = %#v", rpc.calls)
+				}
+				if rpc.calls[0].params.(PageOnParams).SubscriptionID != rpc.calls[1].params.(PageOffParams).SubscriptionID {
+					t.Fatal("cleanup subscription ID differs")
+				}
+				if rpc.pageEventHandler != nil || rpc.toolEventHandler != nil {
+					t.Fatal("local listener remained")
+				}
+				if cleanupFails {
+					if !errors.Is(err, cleanupErr) || len(page.subscriptions) != 1 {
+						t.Fatal("failed cleanup was not retained/reported")
+					}
+					rpc.callHook = nil
+					if err := page.Close(context.Background()); err != nil {
+						t.Fatal(err)
+					}
+					if rpc.calls[2].method != "page.off" {
+						t.Fatal("page close did not retry cleanup")
+					}
+				}
+				if len(page.subscriptions) != 0 {
+					t.Fatal("subscription remained after cleanup")
+				}
+			}
+		}
+	}
+}
+
 func TestPageOnInvokesEventsInDeliveryOrder(t *testing.T) {
 	t.Parallel()
 

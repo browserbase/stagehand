@@ -293,7 +293,16 @@ export class Page {
       return subscription;
     } catch (error) {
       removeNotificationListener();
-      this.eventSubscriptions.delete(subscription);
+      try {
+        // A failed response does not mean the runtime stopped registering.
+        await this.rpcClient.send(StagehandMethods.pageOff, { subscriptionId });
+        this.eventSubscriptions.delete(subscription);
+      } catch (cleanupError) {
+        process.emitWarning(
+          cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          { code: "STAGEHAND_PAGE_SUBSCRIPTION_CLEANUP_ERROR" },
+        );
+      }
       throw error;
     }
   }

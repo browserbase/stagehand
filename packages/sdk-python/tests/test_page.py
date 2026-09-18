@@ -334,7 +334,10 @@ async def test_tools_removed_delivers_identities_without_wrappers() -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", ["on_tools_added", "on_tools_removed"])
 async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
-    recording = RecordingRPCClient({"page.on": RuntimeError("registration failed")})
+    recording = RecordingRPCClient({
+        "page.on": RuntimeError("registration failed"),
+        "page.off": {"ok": True},
+    })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     with pytest.raises(RuntimeError, match="registration failed"):
         await getattr(page, method)(lambda _: None)
@@ -344,10 +347,16 @@ async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize("method", ["on", "on_tools_added", "on_tools_removed"])
 @pytest.mark.parametrize("cleanup_fails", [False, True])
-async def test_cancelled_registration_unsubscribes_remotely(
-    method: str, cleanup_fails: bool, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("failure_kind", ["cancellation", "timeout", "remote_error"])
+async def test_unsuccessful_registration_unsubscribes_remotely(
+    method: str, cleanup_fails: bool, failure_kind: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     failure = RuntimeError("cleanup failed")
+    registration_error = (
+        TimeoutError("page.on timed out")
+        if failure_kind == "timeout"
+        else RuntimeError("registration failed")
+    )
     recording = RecordingRPCClient({"page.off": failure if cleanup_fails else {"ok": True}})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     started = asyncio.Event()
@@ -359,7 +368,9 @@ async def test_cancelled_registration_unsubscribes_remotely(
         if method == "page.on":
             recording.calls.append((method, params, result_model))
             started.set()
-            await asyncio.Future[None]()
+            if failure_kind == "cancellation":
+                await asyncio.Future[None]()
+            raise registration_error
         return await send(method, params, result_model)
 
     monkeypatch.setattr(recording, "send", blocking_send)
@@ -374,9 +385,14 @@ async def test_cancelled_registration_unsubscribes_remotely(
     )
     try:
         await asyncio.wait_for(started.wait(), timeout=1)
-        registration.cancel()
-        with pytest.raises(asyncio.CancelledError):
+        if failure_kind == "cancellation":
+            registration.cancel()
+        with pytest.raises(
+            asyncio.CancelledError if failure_kind == "cancellation" else type(registration_error)
+        ) as caught:
             await registration
+        if failure_kind != "cancellation":
+            assert caught.value is registration_error
         assert [name for name, _, _ in recording.calls] == ["page.on", "page.off"]
         on_params = cast(PageOnParams, recording.calls[0][1])
         off_params = cast(PageOffParams, recording.calls[1][1])
@@ -386,6 +402,10 @@ async def test_cancelled_registration_unsubscribes_remotely(
             assert len(reported) == 1
             assert reported[0]["exception"] is failure
             assert len(page._event_subscriptions) == 1
+            recording.responses["page.off"] = {"ok": True}
+            recording.responses["page.close"] = {"closed": True}
+            await page.close()
+            assert not page._event_subscriptions
         else:
             assert reported == []
             assert not page._event_subscriptions
@@ -399,6 +419,7 @@ async def test_cancelled_registration_unsubscribes_remotely(
 async def test_page_on_cleans_up_local_state_when_remote_registration_fails() -> None:
     recording = RecordingRPCClient({
         "page.on": RuntimeError("registration failed"),
+        "page.off": {"ok": True},
         "page.close": {"closed": True},
     })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
@@ -408,7 +429,7 @@ async def test_page_on_cleans_up_local_state_when_remote_registration_fails() ->
 
     assert "page.cdp_event" not in recording.notifications
     await page.close()
-    assert [method for method, _, _ in recording.calls] == ["page.on", "page.close"]
+    assert [method for method, _, _ in recording.calls] == ["page.on", "page.off", "page.close"]
 
 
 @pytest.mark.asyncio

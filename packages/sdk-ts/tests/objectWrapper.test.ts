@@ -598,6 +598,7 @@ describe("Stagehand TS object wrapper", () => {
   it("cleans up page.on state when remote registration fails", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
     client.queueResponse(StagehandMethods.pageClose, { closed: true });
     const page = new Page(client, { pageId: "page-1" });
 
@@ -605,7 +606,11 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.listeners).toHaveLength(0);
 
     await page.close();
-    expect(client.calls.map((call) => call.method)).toStrictEqual(["page.on", "page.close"]);
+    expect(client.calls.map((call) => call.method)).toStrictEqual([
+      "page.on",
+      "page.off",
+      "page.close",
+    ]);
   });
 
   it("delivers added tools as callable wrappers and filters unrelated events", async () => {
@@ -711,9 +716,52 @@ describe("Stagehand TS object wrapper", () => {
     async (method) => {
       const client = new FakeProtocolClient();
       client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
       const page = new Page(client, { pageId: "page-1" });
       await expect(page[method](() => {})).rejects.toThrow("registration failed");
       expect(client.listeners).toHaveLength(0);
+    },
+  );
+
+  it.each(["on", "onToolsAdded", "onToolsRemoved"] as const)(
+    "cleans up timed-out %s registration and retains failed cleanup for page close",
+    async (method) => {
+      for (const cleanupFails of [false, true]) {
+        const client = new FakeProtocolClient();
+        const timeout = new Error("RPC response timed out: page.on");
+        client.queueResponse(StagehandMethods.pageOn, timeout);
+        client.queueResponse(
+          StagehandMethods.pageOff,
+          cleanupFails ? new Error("cleanup failed") : { ok: true },
+        );
+        const page = new Page(client, { pageId: "page-1" });
+        const warning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+        try {
+          const registration =
+            method === "on" ? page.on("console", () => {}) : page[method](() => {});
+          await expect(registration).rejects.toBe(timeout);
+          expect(client.listeners).toHaveLength(0);
+          expect(client.calls.map((call) => call.method)).toEqual(["page.on", "page.off"]);
+          expect(client.calls[1]!.params).toEqual({
+            subscriptionId: (client.calls[0]!.params as { subscriptionId: string }).subscriptionId,
+          });
+          if (cleanupFails) {
+            expect(warning).toHaveBeenCalledWith("cleanup failed", {
+              code: "STAGEHAND_PAGE_SUBSCRIPTION_CLEANUP_ERROR",
+            });
+            client.queueResponse(StagehandMethods.pageOff, { ok: true });
+          } else {
+            expect(warning).not.toHaveBeenCalled();
+          }
+          client.queueResponse(StagehandMethods.pageClose, { closed: true });
+          await page.close();
+          expect(client.calls.filter((call) => call.method === "page.off")).toHaveLength(
+            cleanupFails ? 2 : 1,
+          );
+        } finally {
+          warning.mockRestore();
+        }
+      }
     },
   );
 

@@ -319,7 +319,12 @@ func subscribePageEvent[Notification any](
 	var result PageVoidResult
 	if err := p.rpc.call(ctx, "page.on", params, &result); err != nil {
 		removeLocalListener()
-		p.removeSubscription(subscription)
+		// The runtime may still be registering after the caller stops waiting.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rpcResponseGrace)
+		defer cancel()
+		if cleanupErr := subscription.Close(cleanupCtx); cleanupErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("clean up unsuccessful page subscription: %w", cleanupErr))
+		}
 		return nil, err
 	}
 	return subscription, nil
