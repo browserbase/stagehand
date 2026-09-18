@@ -122,6 +122,7 @@ type WebMCPToolSessionState = {
   added: (event: Protocol.WebMCP.ToolsAddedEvent) => void;
   removed: (event: Protocol.WebMCP.ToolsRemovedEvent) => void;
   error?: Error;
+  enableFailed?: boolean;
 };
 
 type CDPEventSubscription = {
@@ -778,7 +779,8 @@ export class Page {
   ): Promise<void> {
     if (this.disposed) return Promise.reject(new Error("WebMCP page is disposed"));
     const existing = this.webMCPToolSessions.get(session);
-    if (existing) return existing.error ? Promise.reject(existing.error) : existing.ready.promise;
+    if (existing && !existing.enableFailed)
+      return existing.error ? Promise.reject(existing.error) : existing.ready.promise;
 
     const state: WebMCPToolSessionState = {
       ready: createDeferred<void>(),
@@ -813,9 +815,10 @@ export class Page {
           this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools: removed });
       },
     };
-    const fail = (error: unknown): void => {
+    const fail = (error: unknown, enableFailed = false): void => {
       if (this.webMCPToolSessions.get(session) !== state || state.error) return;
       state.error = error instanceof Error ? error : new Error(String(error));
+      state.enableFailed = enableFailed;
       this.removeWebMCPTools(session, state);
       session.off("WebMCP.toolsAdded", state.added);
       session.off("WebMCP.toolsRemoved", state.removed);
@@ -832,11 +835,15 @@ export class Page {
     this.webMCPToolSessions.set(session, state);
     session.on("WebMCP.toolsAdded", state.added);
     session.on("WebMCP.toolsRemoved", state.removed);
-    // Cache failures for this session too: new readers must not cause repeated enablement.
+    // Share pending/successful initialization; a later caller may retry a failed enable.
     void seedOwnership
-      .then(() => {
+      .then(async () => {
         if (this.webMCPToolSessions.get(session) !== state) return;
-        return session.send("WebMCP.enable");
+        try {
+          await session.send("WebMCP.enable");
+        } catch (error) {
+          fail(error, true);
+        }
       })
       .then(() => {
         if (this.webMCPToolSessions.get(session) === state && !state.error) {

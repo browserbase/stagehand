@@ -339,7 +339,7 @@ describe("Page WebMCP tool discovery", () => {
     ]);
   });
 
-  it("cleans up failed tracking and retains its error without retrying enablement", async () => {
+  it("cleans up failed enablement and retries only on the next call", async () => {
     const session = new FakeCDPSession({
       "WebMCP.enable": () => {
         throw new Error("Method not found");
@@ -348,10 +348,65 @@ describe("Page WebMCP tool discovery", () => {
     const page = createPage(session);
 
     await expect(page.listWebMCPTools()).rejects.toThrow("Method not found");
-    await expect(page.listWebMCPTools()).rejects.toThrow("Method not found");
     expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
+    await expect(page.listWebMCPTools()).rejects.toThrow("Method not found");
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(2);
     expect(session.listenerCount("WebMCP.toolsAdded")).toBe(0);
     expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(0);
+  });
+
+  it.each(["discovery", "subscription", "invocation"])(
+    "recovers failed initialization through %s and shares the retry with concurrent callers",
+    async (operation) => {
+      const tool = { name: "search", description: "Search", frameId: "frame-1" };
+      const session = new FakeCDPSession({
+        "WebMCP.enable": () => {
+          throw new Error("Transient enable failure");
+        },
+        "WebMCP.invokeTool": () => ({ invocationId: "invocation-1" }),
+      });
+      const page = createPage(session);
+      await expect(page.listWebMCPTools({ timeout: 0 })).rejects.toThrow(
+        "Transient enable failure",
+      );
+      let finishEnable!: () => void;
+      session.responses["WebMCP.enable"] = (activeSession) =>
+        new Promise<void>((resolve) => {
+          finishEnable = () => {
+            activeSession.emit("WebMCP.toolsAdded", { tools: [tool] });
+            resolve();
+          };
+        });
+      const listener = vi.fn();
+      const retry =
+        operation === "subscription"
+          ? page.subscribeWebMCPToolsChanged(listener)
+          : operation === "invocation"
+            ? page.invokeWebMCPTool("frame-1", "search")
+            : page.listWebMCPTools({ timeout: 0 });
+      const concurrent = page.listWebMCPTools({ timeout: 0 });
+      await expect.poll(() => session.callsFor("WebMCP.enable").length).toBe(2);
+      finishEnable();
+      await retry;
+      await expect(concurrent).resolves.toEqual([tool]);
+      await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([tool]);
+      expect(listener).not.toHaveBeenCalled();
+      expect(session.callsFor("WebMCP.enable")).toHaveLength(2);
+      expect(session.listenerCount("WebMCP.toolsAdded")).toBe(1);
+      expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(1);
+    },
+  );
+
+  it("does not retry malformed tool events as enable failures", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.enable": (activeSession) => {
+        activeSession.emit("WebMCP.toolsAdded", { tools: [{ name: "invalid" }] });
+      },
+    });
+    const page = createPage(session);
+    await expect(page.listWebMCPTools({ timeout: 0 })).rejects.toThrow();
+    await expect(page.listWebMCPTools({ timeout: 0 })).rejects.toThrow();
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
   });
 
   it("preserves healthy tracking when a child enable fails", async () => {
@@ -374,6 +429,19 @@ describe("Page WebMCP tool discovery", () => {
     expect(session.listenerCount("WebMCP.toolsRemoved")).toBe(1);
     expect(childSession.listenerCount("WebMCP.toolsAdded")).toBe(0);
     expect(childSession.listenerCount("WebMCP.toolsRemoved")).toBe(0);
+
+    const childTool = { name: "child", description: "Child", frameId: "frame-2" };
+    childSession.responses["WebMCP.enable"] = (activeSession) => {
+      activeSession.emit("WebMCP.toolsAdded", { tools: [childTool] });
+    };
+    await expect(page.listWebMCPTools({ timeout: 0 })).resolves.toEqual([childTool]);
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
+    expect(childSession.callsFor("WebMCP.enable")).toHaveLength(2);
+    const listener = vi.fn();
+    await page.subscribeWebMCPToolsChanged(listener);
+    await page.listWebMCPTools({ timeout: 0 });
+    childSession.emit("WebMCP.toolsAdded", { tools: [childTool] });
+    expect(listener).not.toHaveBeenCalled();
   });
 
   it("rejects invalid snapshot timeouts before installing listeners", async () => {
