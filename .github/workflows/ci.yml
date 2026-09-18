@@ -181,6 +181,12 @@ jobs:
       - run: pnpm check
       - run: pnpm test:unit
       - run: pnpm --filter browse test:cli
+      - name: Save Turbo cache
+        if: always()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.job }}-${{ github.sha }}
       - run: uv lock --check
         working-directory: packages/sdk-python
       - run: uv run --locked python scripts/generate.py --check
@@ -247,7 +253,7 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.job }}-${{ github.sha }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -288,6 +294,12 @@ jobs:
 
       # Browser-runtime specs run in browser-ts; root Vitest would repeat the unit suites.
       - run: pnpm exec turbo run test:unit
+      - name: Save Turbo cache
+        if: always()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.job }}-${{ github.sha }}
 
   browser-ts:
     name: TypeScript browser
