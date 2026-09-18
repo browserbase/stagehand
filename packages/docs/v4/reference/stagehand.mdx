@@ -77,6 +77,14 @@ const stagehand = await Stagehand.create({ browser });
   Client-side log level, output format, and optional log callback.
 </ParamField>
 
+<ParamField path="rpcTimeouts" type="StagehandRPCTimeouts" optional>
+  Response-wait deadlines for ordinary Stagehand RPC calls. `defaultMs` applies to every ordinary call; `methods` overrides it for a specific RPC method. Initialization and `experimentalBatch()` retain their existing lifecycle timeout behavior.
+</ParamField>
+
+<ParamField path="getCallOptions" type="() => { signal?: AbortSignal } | undefined" optional>
+  Called immediately before each ordinary RPC call. Return an `AbortSignal` to stop waiting for that call when the signal aborts. Aborting a call does not close the Stagehand instance or its browser.
+</ParamField>
+
 <ResponseField name="result" type="Promise<Stagehand>">
   An initialized Stagehand instance.
 </ResponseField>
