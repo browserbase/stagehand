@@ -156,6 +156,22 @@ function webMCPToolResponse(event: Protocol.WebMCP.ToolRespondedEvent): WebMCPTo
   });
 }
 
+/**
+ * Messages a pending `Runtime.evaluate` is rejected with when the navigation it
+ * outlives destroys its execution context (Chrome and V8 wording, plus the
+ * stale-id case a lookup can race into).
+ */
+const NAVIGATION_TEARDOWN_MESSAGES = [
+  "Inspected target navigated or closed",
+  "Execution context was destroyed",
+  "Cannot find context with specified id",
+];
+
+function isNavigationTeardownError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return NAVIGATION_TEARDOWN_MESSAGES.some((needle) => message.includes(needle));
+}
+
 export class Page {
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
   readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
@@ -1436,22 +1452,35 @@ export class Page {
     const state = options?.state ?? "visible";
     const pierceShadow = options?.pierceShadow ?? true;
     const startTime = Date.now();
-    const root = this.mainFrameWrapper;
-    const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
-      this,
-      root,
-      selector,
-    );
-    const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(0, timeout - elapsed);
+    for (;;) {
+      const root = this.mainFrameWrapper;
+      const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
+        this,
+        root,
+        selector,
+      );
+      const elapsed = Date.now() - startTime;
+      const remainingTimeout = Math.max(0, timeout - elapsed);
 
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluateInLocatorWorld(expression);
+      const expression = buildLocatorInvocation("waitForSelector", [
+        JSON.stringify(finalSelector),
+        JSON.stringify(state),
+        String(remainingTimeout),
+        String(pierceShadow),
+      ]);
+      try {
+        return await targetFrame.evaluateInLocatorWorld(expression);
+      } catch (error) {
+        // The wait is typically issued right after the click that triggers a
+        // navigation, pinned to the context of the outgoing document. When the
+        // commit tears that context down, the pending evaluate is rejected;
+        // the wait has no side effects, so re-issue it against the new
+        // document with the time left.
+        if (!isNavigationTeardownError(error) || Date.now() - startTime >= timeout) {
+          throw error;
+        }
+      }
+    }
   }
 
   /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
