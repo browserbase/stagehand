@@ -778,20 +778,29 @@ export class StagehandRuntime {
       const isActive = () =>
         this.pageEventSubscriptions.get(params.subscriptionId) === subscription &&
         !subscription.controller.signal.aborted;
-      subscription.dispose =
-        params.event === "console"
-          ? await page.subscribeCDPEvent(
-              params.event,
-              (event) => {
-                if (!isActive()) return;
-                this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
-              },
-              subscription.controller.signal,
-            )
-          : await page.subscribeWebMCPToolsChanged((event) => {
-              if (!isActive() || event.event !== params.event) return;
-              this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
-            }, subscription.controller.signal);
+      switch (params.event) {
+        case "console":
+          subscription.dispose = await page.subscribeCDPEvent(
+            params.event,
+            (event) => {
+              if (!isActive()) return;
+              this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+            },
+            subscription.controller.signal,
+          );
+          break;
+        case "toolsadded":
+        case "toolsremoved":
+          subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
+            if (!isActive() || event.event !== params.event) return;
+            this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+          }, subscription.controller.signal);
+          break;
+        default: {
+          const unsupportedEvent: never = params.event;
+          throw new Error(`Unsupported page subscription event: ${unsupportedEvent}`);
+        }
+      }
       subscription.controller.signal.throwIfAborted();
       return { ok: true };
     } catch (error) {
