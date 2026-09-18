@@ -7,6 +7,7 @@ from typing import TypeVar, cast, overload
 
 import pytest
 from pydantic import BaseModel, RootModel
+from typing_extensions import override
 
 from stagehand import Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
@@ -318,6 +319,7 @@ async def test_unsubscribe_continues_after_calling_task_is_cancelled() -> None:
             result_model: type[ResultT],
         ) -> ResultT: ...
 
+        @override
         async def send(
             self,
             method: str,
@@ -395,6 +397,7 @@ async def test_unsubscribe_reports_background_failure_after_caller_cancellation(
             result_model: type[ResultT],
         ) -> ResultT: ...
 
+        @override
         async def send(
             self,
             method: str,
