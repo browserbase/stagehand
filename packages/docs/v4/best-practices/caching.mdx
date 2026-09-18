@@ -19,7 +19,7 @@ Caching requires a Browserbase browser and the Browserbase API key you passed to
 
 ### Setting on create()
 
-Caching is enabled by default. Pass `cache` on `Stagehand.create()` to set the behaviour for every request made by that instance. Set it to `false` to opt out, or pass an object to tune the threshold:
+Stagehand enables caching by default. Pass `cache` on `Stagehand.create()` to set the behavior for every request from that instance. Set it to `false` to opt out, or pass an object to tune the threshold:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -335,7 +335,7 @@ Cache behavior is also visible in the [Browserbase session replay dashboard](htt
 - If the page content or structure changes, the action won't get a cache `HIT` and Stagehand calls the LLM. Subsequent actions will attempt to hit the resulting cache entry.
 - Caching is best-effort. If the cache is unreachable, Stagehand falls back to normal inference rather than failing your run.
 - Stagehand replays a cached `act()` result deterministically with self-healing turned off. If the recorded selector no longer resolves, Stagehand falls back to full inference.
-- Calls that set `locator` or `ignoreLocators` are not cached. The cache contract is keyed on unscoped requests, so Stagehand skips both reads and writes and reports a `DISABLED` cache status, even when caching is enabled.
+- Stagehand does not cache calls that set `locator` or `ignoreLocators`. The cache contract uses unscoped requests as keys, so Stagehand skips both reads and writes and reports a `DISABLED` cache status, even when caching is enabled.
 
 ### Best practices
 
