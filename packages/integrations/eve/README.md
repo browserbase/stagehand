@@ -6,7 +6,7 @@ Browserbase browser through three native tools: `run`, `snapshot`, and `screensh
 
 ## Install
 
-Use Node.js 24 or newer and pnpm 10 or newer.
+Use Node.js 24 or newer, pnpm 10 or newer, and Eve `>=0.39.3 <1`.
 
 ```bash
 pnpm add @browserbasehq/eve

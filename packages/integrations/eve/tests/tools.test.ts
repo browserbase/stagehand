@@ -18,6 +18,7 @@ import snapshotTool from "../extension/tools/snapshot.js";
 import {
   stagehandSession,
   StagehandSession,
+  StagehandSessionOperationError,
   type StagehandResources,
 } from "../extension/lib/session.js";
 
@@ -101,8 +102,8 @@ describe("Eve Stagehand facade tools", () => {
     const session = new StagehandSession(factory);
     vi.spyOn(stagehandSession, "run").mockImplementation((operation) => session.run(operation));
 
-    await expect(screenshotTool.execute({}, fakeContext)).rejects.toThrow(
-      "screenshot connection lost",
+    await expect(screenshotTool.execute({}, fakeContext)).rejects.toBeInstanceOf(
+      StagehandSessionOperationError,
     );
     expect(first.stagehand.close).toHaveBeenCalledOnce();
     expect(first.browser.close).toHaveBeenCalledOnce();

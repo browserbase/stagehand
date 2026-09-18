@@ -25,6 +25,7 @@ import {
   screenshotBase64BudgetFromArgs,
 } from "./screenshot-transport.js";
 import { StagehandFacadeCleanupError, StagehandFacadeTools } from "./tools.js";
+import { FacadeResourceOwner } from "./resource-owner.js";
 
 type FacadeResources = {
   browser: StagehandBrowser;
@@ -35,8 +36,7 @@ type FacadeResources = {
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
 const facadeTools = facadeToolsFor(facadeSurfaceFromArgs(process.argv.slice(2)));
-let resourcesPromise: Promise<FacadeResources> | undefined;
-const resourceCleanups = new Map<FacadeResources, Promise<void>>();
+const resourceOwner = new FacadeResourceOwner(createResources, releaseResources);
 let closing = false;
 
 server.registerTool(
@@ -124,11 +124,7 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function ensureResources(): Promise<FacadeResources> {
-  resourcesPromise ??= createResources().catch((error) => {
-    resourcesPromise = undefined;
-    throw error;
-  });
-  return await resourcesPromise;
+  return resourceOwner.get();
 }
 
 async function createResources(): Promise<FacadeResources> {
@@ -141,7 +137,7 @@ async function createResources(): Promise<FacadeResources> {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
     let resources!: FacadeResources;
     const tools = new StagehandFacadeTools(stagehand, {
-      onCloseRequested: () => closeResources(resources),
+      onCloseRequested: () => resourceOwner.close(resources),
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
     });
@@ -153,32 +149,13 @@ async function createResources(): Promise<FacadeResources> {
   }
 }
 
-async function closeResources(expected: FacadeResources): Promise<void> {
-  const current = await resourcesPromise?.catch(() => undefined);
-  if (current !== expected) return;
-  const cleanup = startResourceCleanup(expected);
-  resourcesPromise = undefined;
-  await cleanup;
-}
-
-function startResourceCleanup(resources: FacadeResources): Promise<void> {
-  const existing = resourceCleanups.get(resources);
-  if (existing) return existing;
-
-  const cleanup = (async () => {
-    await resources.stagehand.close().catch(() => undefined);
-    try {
-      await resources.browser.close();
-    } catch {
-      throw new StagehandFacadeCleanupError();
-    }
-  })();
-  resourceCleanups.set(resources, cleanup);
-  cleanup.then(
-    () => resourceCleanups.delete(resources),
-    () => resourceCleanups.delete(resources),
-  );
-  return cleanup;
+async function releaseResources(resources: FacadeResources): Promise<void> {
+  await resources.stagehand.close().catch(() => undefined);
+  try {
+    await resources.browser.close();
+  } catch {
+    throw new StagehandFacadeCleanupError();
+  }
 }
 
 function textResult(text: string) {
@@ -204,15 +181,14 @@ async function shutdown(code: number): Promise<void> {
   closing = true;
   // A launch still in flight must not stall shutdown past the grace window.
   const resources = await Promise.race([
-    resourcesPromise?.catch(() => undefined),
+    resourceOwner.peek()?.catch(() => undefined),
     new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),
   ]);
   const clean = await closeCodeModeStdio([
-    ...[...resourceCleanups.values()].map((cleanup) => ({ close: () => cleanup })),
     ...(resources
       ? [
           {
-            close: () => startResourceCleanup(resources),
+            close: () => resourceOwner.close(resources),
           },
         ]
       : []),

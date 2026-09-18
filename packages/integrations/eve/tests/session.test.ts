@@ -6,13 +6,66 @@ import {
   StagehandSession,
   StagehandSessionCleanupError,
   StagehandSessionInitializationError,
+  StagehandSessionOperationError,
   type StagehandResourceCleanup,
   type StagehandResources,
 } from "../extension/lib/session.js";
+import {
+  StagehandFacadeCleanupError,
+  StagehandFacadeExecutionError,
+  StagehandFacadeInputError,
+} from "../extension/lib/core/facade/tools.js";
 
 afterEach(() => vi.useRealTimers());
 
 describe("StagehandSession", () => {
+  it("replaces raw provider failures without retaining their details", async () => {
+    const resources = createResources();
+    const session = new StagehandSession(async () => resources);
+    const error = await session
+      .run(async () => {
+        throw new Error("provider-private-detail", { cause: new Error("private-cause") });
+      })
+      .catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(StagehandSessionOperationError);
+    expect((error as Error).cause).toBeUndefined();
+    expect(String(error)).not.toContain("private");
+    await expect(session.run(async () => "still healthy")).resolves.toBe("still healthy");
+  });
+
+  it.each([
+    new StagehandFacadeExecutionError({ name: "TypeError", message: "agent mistake" }),
+    new StagehandFacadeInputError("Take a snapshot first."),
+    new StagehandFacadeCleanupError(),
+  ])("preserves approved facade error %s", async (expected) => {
+    const session = new StagehandSession(async () => createResources());
+    await expect(
+      session.run(async () => {
+        throw expected;
+      }),
+    ).rejects.toBe(expected);
+  });
+
+  it("sanitizes aggregate members and drops the original cause", async () => {
+    const session = new StagehandSession(async () => createResources());
+    const cleanup = new StagehandFacadeCleanupError();
+    const error = await session
+      .run(async () => {
+        throw new AggregateError(
+          [new Error("private-provider-detail"), cleanup],
+          "private-message",
+          { cause: "private-cause" },
+        );
+      })
+      .catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(AggregateError);
+    const aggregate = error as AggregateError;
+    expect(aggregate.errors[0]).toBeInstanceOf(StagehandSessionOperationError);
+    expect(aggregate.errors[1]).toBe(cleanup);
+    expect(aggregate.cause).toBeUndefined();
+    expect(String(aggregate)).not.toContain("private");
+  });
+
   it("retries initialization after a rejected factory promise", async () => {
     const resources = createResources();
     const factory = vi
@@ -54,7 +107,7 @@ describe("StagehandSession", () => {
     expect(events).toEqual(["first:start"]);
     releaseFirst.resolve();
     await first;
-    await expect(second).rejects.toThrow("expected operation failure");
+    await expect(second).rejects.toBeInstanceOf(StagehandSessionOperationError);
     await expect(third).resolves.toBe("done");
     expect(events).toEqual(["first:start", "first:end", "second", "third"]);
   });
@@ -74,7 +127,7 @@ describe("StagehandSession", () => {
         markClosed(first);
         throw new Error("connection lost");
       }),
-    ).rejects.toThrow("connection lost");
+    ).rejects.toBeInstanceOf(StagehandSessionOperationError);
     await expect(session.run(async (resources) => resources === second)).resolves.toBe(true);
     expect(cleanup).toHaveBeenCalledOnce();
     expect(cleanup.mock.calls[0]?.[0]).toBe(first);
