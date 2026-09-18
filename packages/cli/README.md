@@ -290,6 +290,8 @@ auto-loading with no warning.
 | `BROWSERBASE_API_KEY` | Enables `--remote` sessions and all `browse cloud` / `functions` commands |
 | `BROWSE_SESSION` | Default session name (alternative to `-s, --session`) |
 | `BROWSE_LOAD_DOTENV` | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
+| `BROWSERBASE_BASE_URL` | Overrides the Browserbase endpoint for remote sessions, `browse cloud` and `browse functions`. The `--base-url` flag takes precedence |
+| `BROWSERBASE_API_BASE_URL` | Endpoint override read by `browse functions` only, after `BROWSERBASE_BASE_URL` |
 
 ## Links
 
