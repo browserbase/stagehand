@@ -256,11 +256,15 @@
       ]
     },
     "@browserbasehq/eve#test:unit": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
         "extension/**",
+        "!dist/**",
+        "!.turbo/**",
+        "!node_modules/**",
+        "!extension/lib/core/**",
         "$TURBO_ROOT$/packages/integrations/core/src/facade/**",
         "$TURBO_ROOT$/packages/integrations/core/src/harness/redact.ts",
         "$TURBO_ROOT$/vitest.config.ts"

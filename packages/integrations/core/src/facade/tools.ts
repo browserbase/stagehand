@@ -43,6 +43,25 @@ export class StagehandFacadeCleanupError extends Error {
   }
 }
 
+export class StagehandFacadeInputError extends Error {
+  override readonly name = "StagehandFacadeInputError";
+
+  constructor(message: string) {
+    super(sanitizeErrorMessage(message));
+  }
+}
+
+export class StagehandFacadeExecutionError extends Error {
+  readonly facadeExecutionError = true;
+
+  constructor(error: { name: string; message: string }) {
+    super(sanitizeErrorMessage(error.message));
+    const name = sanitizeErrorMessage(error.name);
+    this.name = /^[A-Za-z][A-Za-z0-9]*Error$/u.test(name) ? name : "Error";
+    this.stack = undefined;
+  }
+}
+
 export type StagehandFacadeToolsOptions = {
   /** Replaces default cleanup when the host owns session release and replacement. */
   onCloseRequested?: () => Promise<void>;
@@ -225,16 +244,16 @@ export class StagehandFacadeTools {
     const parsed = RefActionSchema.array().min(1).parse(actions);
     const page = await this.activePage();
     const snapshot = this.snapshotsByPage.get(page.pageId);
-    if (!snapshot) throw new Error(NO_HYDRATED_SNAPSHOT_ERROR);
+    if (!snapshot) throw new StagehandFacadeInputError(NO_HYDRATED_SNAPSHOT_ERROR);
 
     if ((await page.url()) !== snapshot.url) {
       this.snapshotsByPage.delete(page.pageId);
-      throw new Error(NAVIGATED_SNAPSHOT_ERROR);
+      throw new StagehandFacadeInputError(NAVIGATED_SNAPSHOT_ERROR);
     }
 
     const hydrated = parsed.map((action) => {
       const xpath = trimTrailingTextNode(resolveSnapshotXPath(snapshot.xpathById, action.id));
-      if (!xpath) throw new Error(staleSnapshotIdError(action.id));
+      if (!xpath) throw new StagehandFacadeInputError(staleSnapshotIdError(action.id));
       return { ...action, selector: `xpath=${xpath}` };
     });
     const result = await this.stagehand.experimentalBatch(
@@ -269,14 +288,7 @@ export class StagehandFacadeTools {
       if (envelope.executionError) {
         // Thrown by the agent's own code inside the browser, so its message can
         // never be evidence about this process's connection to the browser.
-        const error = new Error(sanitizeErrorMessage(envelope.executionError.message)) as Error & {
-          facadeExecutionError: true;
-        };
-        const name = sanitizeErrorMessage(envelope.executionError.name);
-        error.name = /^[A-Za-z][A-Za-z0-9]*Error$/u.test(name) ? name : "Error";
-        error.stack = undefined;
-        error.facadeExecutionError = true;
-        throw error;
+        throw new StagehandFacadeExecutionError(envelope.executionError);
       }
     } catch (error) {
       runError = error;
@@ -340,7 +352,9 @@ export class StagehandFacadeTools {
         relative.startsWith(`..${path.sep}`) ||
         path.isAbsolute(relative)
       ) {
-        throw new Error("Screenshot artifact path must stay within artifactRoot.");
+        throw new StagehandFacadeInputError(
+          "Screenshot artifact path must stay within artifactRoot.",
+        );
       }
       // Reject symlink traversal before creating nested directories or opening
       // the output. O_NOFOLLOW also refuses an existing symlink at the file.
@@ -352,7 +366,9 @@ export class StagehandFacadeTools {
           if (error.code !== "EEXIST") throw error;
         });
         if (!(await fsp.lstat(directory)).isDirectory()) {
-          throw new Error("Screenshot artifact directory must not be a symlink.");
+          throw new StagehandFacadeInputError(
+            "Screenshot artifact directory must not be a symlink.",
+          );
         }
       }
       const file = await fsp.open(
@@ -413,7 +429,7 @@ export class StagehandFacadeTools {
 
   private enqueue<Result>(_tool: string, operation: () => Promise<Result>): Promise<Result> {
     const execute = async (): Promise<Result> => {
-      if (this.closed) throw new Error("Stagehand facade browser is closed.");
+      if (this.closed) throw new StagehandFacadeInputError("Stagehand facade browser is closed.");
       await this.ensureKeeperPage();
       return operation();
     };

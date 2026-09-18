@@ -7,7 +7,12 @@ import {
 } from "@browserbasehq/stagehand";
 
 import extension from "../extension.js";
-import { StagehandFacadeTools } from "./core/facade/tools.js";
+import {
+  StagehandFacadeCleanupError,
+  StagehandFacadeExecutionError,
+  StagehandFacadeInputError,
+  StagehandFacadeTools,
+} from "./core/facade/tools.js";
 import { BrowserbaseSessionReleaseError, releaseBrowserbaseSession } from "./session-release.js";
 
 type StagehandSessionRelease = () => Promise<void>;
@@ -60,6 +65,14 @@ export class StagehandSessionInitializationError extends Error {
 
   constructor() {
     super("Failed to initialize the Stagehand browser session.");
+  }
+}
+
+export class StagehandSessionOperationError extends Error {
+  override readonly name = "StagehandSessionOperationError";
+
+  constructor() {
+    super("The Stagehand browser operation failed. Retry the tool call.");
   }
 }
 
@@ -118,7 +131,7 @@ export class StagehandSession {
       if (this.resources === current && !healthy) {
         await this.invalidate(current);
       }
-      throw error;
+      throw sanitizeOperationError(error);
     }
   }
 
@@ -152,6 +165,24 @@ export class StagehandSession {
 }
 
 export const stagehandSession = new StagehandSession();
+
+function sanitizeOperationError(error: unknown): Error {
+  if (
+    error instanceof StagehandFacadeExecutionError ||
+    error instanceof StagehandFacadeInputError ||
+    error instanceof StagehandFacadeCleanupError ||
+    error instanceof StagehandTimeoutError
+  ) {
+    return error;
+  }
+  if (error instanceof AggregateError) {
+    return new AggregateError(
+      error.errors.map(sanitizeOperationError),
+      "Stagehand operation and cleanup failed.",
+    );
+  }
+  return new StagehandSessionOperationError();
+}
 
 export function createStagehandResourceFactory(
   launchBrowser: StagehandBrowserLauncher = createBrowser,
