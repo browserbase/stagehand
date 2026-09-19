@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
 const rootChangelogPath = path.join(repositoryRoot, "CHANGELOG.md");
-const packageChangelogs = [
+export const packageChangelogs = [
   {
     label: "TypeScript SDK",
     path: path.join(repositoryRoot, "packages/sdk-ts/CHANGELOG.md"),
@@ -24,6 +24,10 @@ const packageChangelogs = [
   {
     label: "Protocol",
     path: path.join(repositoryRoot, "packages/protocol/CHANGELOG.md"),
+  },
+  {
+    label: "Eve Extension",
+    path: path.join(repositoryRoot, "packages/integrations/eve/CHANGELOG.md"),
   },
 ];
 
