@@ -39,6 +39,11 @@
     "browse#lint": {
       "dependsOn": ["@browserbasehq/stagehand#build"]
     },
+    "@browserbasehq/pi#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-integrations#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -243,7 +248,7 @@
     "@browserbasehq/stagehand-integrations-example-vercel-ai-facade#typecheck": {
       "dependsOn": ["^build"]
     },
-    "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {
+    "@browserbasehq/pi#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-example-claude-code-facade#typecheck": {
