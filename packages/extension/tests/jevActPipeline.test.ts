@@ -916,5 +916,62 @@ describe("resolveFamily merges", () => {
     );
     expect(merged.choice).toBe("press");
     expect(merged.confidence).toBeCloseTo(0.9);
+describe("jev act pipeline and DOM settle", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("asks intent while the DOM settles, and touches the page only afterwards", async () => {
+    const order: string[] = [];
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        order.push("intent");
+        // The page settles only after Jev has answered.
+        setTimeout(() => {
+          order.push("settled");
+          settle();
+        }, 5);
+        const answer = (choice: string) => ({
+          type: "choice",
+          choice,
+          confidence: 0.99,
+          probabilities: { [choice]: 0.99 },
+        });
+        return new Response(
+          JSON.stringify({
+            answers: {
+              family: answer("press"),
+              key: answer("Enter"),
+              mouse_button: answer("left"),
+              toggle_state: answer("unspecified"),
+              after_typing: answer("nothing"),
+              scroll_scope: answer("not_scroll"),
+            },
+            usage: { input_tokens: 10 },
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+    const outcome = await runJevActPipeline(
+      { apiKey: "test" },
+      {
+        page: { url: () => "https://example.com" } as never,
+        logger: new StagehandLogger({ tracer: trace.getTracer("jev-settle-test") }, () => {}),
+        instruction: "press Enter",
+        snapshotOptions: {},
+        ensureTimeRemaining: () => {},
+        settled,
+        takeAction: async (action) => {
+          order.push("act");
+          return { success: true, message: "ok", actionDescription: "", actions: [action] };
+        },
+      },
+    );
+    expect(outcome.kind).toBe("done");
+    expect(order).toEqual(["intent", "settled", "act"]);
   });
 });

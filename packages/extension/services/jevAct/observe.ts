@@ -82,10 +82,13 @@ export async function runJevObserve(
     return outcome;
   };
 
-  const snap = await snapshot(deps);
+  // The intent request only needs the instruction: it is asked while the
+  // snapshot is being captured.
+  const snapshotting = snapshot(deps);
 
   // No instruction: every interactive element, no model needed.
   if (!deps.instruction) {
+    const snap = await snapshotting;
     const everything = uniqueById([
       ...buildView(snap.nodes, "pointer"),
       ...buildView(snap.nodes, "input"),
@@ -109,7 +112,8 @@ export async function runJevObserve(
     redact: redactor(deps.variables),
   };
 
-  const intent = await ask(
+  snapshotting.catch(() => {});
+  const asking = ask(
     ctx,
     "intent",
     { instruction: deps.instruction },
@@ -137,6 +141,8 @@ export async function runJevObserve(
       },
     },
   );
+  asking.catch(() => {});
+  const [intent, snap] = await Promise.all([asking, snapshotting]);
   const family = resolveFamily(choiceAnswer(intent, "family"), ctx.threshold);
   const cardinality = choiceAnswer(intent, "cardinality");
   annotate(trace, {

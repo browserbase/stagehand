@@ -24,6 +24,12 @@ deliberately not a field of the public create config. Evals build that variable 
 | Checks         | code                                           | Fill read-back, native `<select>` `[selected]` flag, no-effect retry on a credible runner-up. `verify: "full"` adds a logged-only Jev yes/no.                                                                                                                                                   |
 | No target      | Jev, 1 request                                 | Page-state signals; access-denied / captcha fail fast. Otherwise the LLM gets Jev's shortlist (with each item's card/row) before the whole tree.                                                                                                                                                |
 
+Steps that do not depend on each other overlap: the intent request needs no page, so it is asked
+while `act()` waits for the DOM to settle (a fixed 500 ms quiet window at minimum), and nothing
+reads or touches the page before that wait is over; `observe()` asks its intent while the snapshot
+is captured. The per-act log reports `durationMs` (pipeline) and `totalMs` (from the start of
+`act()`, settle included).
+
 Also reused outside `act` inference: `cacheCheck.ts` asks one yes/no before a cached action is
 replayed, so a selector that now resolves to a different control is re-inferred instead of clicked.
 
