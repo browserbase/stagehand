@@ -30,6 +30,7 @@ import { checkCachedAction } from "./jevAct/cacheCheck.js";
 import { runJevActPipeline, type JevActConfig, type JevActOutcome } from "./jevAct/pipeline.js";
 import { redactor } from "./jevAct/args.js";
 import { runJevToolAct } from "./jevAct/toolAct.js";
+import type { JevToolDeps } from "./jevAct/toolAct.js";
 import { focusOutline, parseOutline } from "./jevAct/tree.js";
 import type { JsonValue } from "./jevAct/typesafeClient.js";
 import * as llmService from "./llmService.js";
@@ -39,6 +40,8 @@ import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.j
 // lost the context that disambiguates), so it is reserved for huge trees where
 // the full-page call is slow and expensive.
 const FOCUS_MIN_TREE_CHARS = 120_000;
+/** Tools registered at load are reported within the listing's quiet window. */
+const LIST_TOOLS_TIMEOUT_MS = 300;
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
@@ -123,6 +126,38 @@ export async function act({
     focusLocator: options?.locator,
     ignoreLocators: options?.ignoreLocators,
   };
+  // Listed while the DOM settles, so knowing the page's tools costs the act
+  // nothing. A scoped act is about that element; tools are page-level.
+  const webmcp: JevToolDeps | undefined =
+    jevAct?.tools && jevAct.enabled !== false && !options?.locator
+      ? {
+          page,
+          // Browsers without the WebMCP domain reject the enable call.
+          tools: page.listWebMCPTools({ timeout: LIST_TOOLS_TIMEOUT_MS }).catch(() => []),
+          fillArguments: async (tool) => {
+            const response = await inference.toolArguments({
+              instruction,
+              tool,
+              variableNames: Object.keys(variables ?? {}),
+              generate: (input) =>
+                llmService.generate(
+                  context.model,
+                  input,
+                  context.clientLLMGenerate,
+                  context.gateway,
+                ),
+            });
+            recordUsage({ ...response, element: null, twoStep: false });
+            const required = Array.isArray(tool.inputSchema?.required)
+              ? tool.inputSchema.required
+              : [];
+            const input = response.input;
+            return input && required.every((name) => typeof name === "string" && name in input)
+              ? (input as Record<string, JsonValue>)
+              : null;
+          },
+        }
+      : undefined;
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
   let actPath: "llm" | "jev" | "jev+arg-llm" | "jev+llm" | "jev-tool" | "jev-tool+arg-llm" = "llm";
@@ -185,45 +220,6 @@ export async function act({
   });
 
   async function runActPipeline(): Promise<ActResult> {
-    // A scoped act is about that element; tools are page-level.
-    if (jevAct?.tools && jevAct.enabled !== false && !options?.locator) {
-      const outcome = await runJevToolAct(jevAct, {
-        page,
-        logger,
-        instruction,
-        variables,
-        ensureTimeRemaining,
-        fillArguments: async (tool) => {
-          const response = await inference.toolArguments({
-            instruction,
-            tool,
-            variableNames: Object.keys(variables ?? {}),
-            generate: (input) =>
-              llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
-          });
-          recordUsage({ ...response, element: null, twoStep: false });
-          const required = Array.isArray(tool.inputSchema?.required)
-            ? tool.inputSchema.required
-            : [];
-          const input = response.input;
-          return input && required.every((name) => typeof name === "string" && name in input)
-            ? (input as Record<string, JsonValue>)
-            : null;
-        },
-      }).catch((error: unknown) => {
-        if (error instanceof TimeoutError) throw error;
-        const message = error instanceof Error ? error.message : String(error);
-        logger.info("Jev tool selection failed", { category: "jev", instruction, message });
-        return { kind: "skip" as const, reason: "jev_error" };
-      });
-      if (outcome.kind === "done") {
-        // Replay only knows element actions.
-        jevNoCache = true;
-        actPath = outcome.usedArgumentLlm ? "jev-tool+arg-llm" : "jev-tool";
-        return actResult(outcome.result, operationUsage);
-      }
-    }
-
     if (jevAct && jevAct.enabled !== false) {
       actPath = "jev";
       const outcome = await runJevActPipeline(jevAct, {
@@ -234,6 +230,7 @@ export async function act({
         snapshotOptions,
         ensureTimeRemaining,
         openPageCount,
+        ...(webmcp ? { webmcp } : {}),
         extractText: async (text) => {
           const response = await inference.actTextArgument({
             instruction: text,
@@ -261,6 +258,8 @@ export async function act({
       if (outcome.kind === "done") {
         jevNoCache = outcome.noCache === true;
         if (usedArgumentLlm) actPath = "jev+arg-llm";
+        if (outcome.viaTool)
+          actPath = outcome.viaTool.argumentLlm ? "jev-tool+arg-llm" : "jev-tool";
         return actResult(outcome.result, operationUsage);
       }
       actPath = "jev+llm";

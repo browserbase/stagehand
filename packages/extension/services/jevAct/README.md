@@ -55,14 +55,20 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 
 ## WebMCP tools (`tools: true`)
 
-Before looking for an element, `act()` lists the page's WebMCP tools (300 ms budget; pages without
-tools skip straight on). One Jev request asks which tool fulfils the instruction, with a "none"
-option and a guard question: an instruction that names a control ("click the Add to cart button")
-always takes the element path, even when `add_to_cart` exists. A tool is used only at ≥ 0.8 with
-"none" ≤ 0.2. Arguments are picked by Jev as spans of the instruction (enums and booleans as
-choices) and accepted only when every parameter, stated or not, is ≥ 0.8; anything else (dates to
-normalise, lists, nested objects) goes to an argument-only LLM call that sees just that tool's
-schema. Any doubt means the ordinary act path runs. Once a tool has been invoked the act is over,
+The page's tools are listed while `act()` waits for the DOM to settle, and the tool questions ride
+in the intent request that every act already makes, so a page without tools adds no question and a
+page with tools adds no round trip. Alongside "which tool" (with a "none" option) a guard asks
+whether the instruction names a control: "click the Add to cart button" always takes the element
+path, even when `add_to_cart` exists. A tool is used only at ≥ 0.8 with "none" ≤ 0.2.
+
+Arguments are picked by Jev as spans of the instruction (enums and booleans as choices) and accepted
+only when every parameter, stated or not, is ≥ 0.8. The argument questions of the two tools whose
+names and descriptions share most words with the instruction ride in the same request, so a
+confident tool call is usually one request (~300 ms); another winner costs one more. Values that
+are not spans (dates to normalise, lists, nested objects) go to an argument-only LLM call that sees
+just that tool, with its input schema as the response format; when the schema alone shows the
+likely tool will need it, that call starts alongside the Jev request. Any doubt means the ordinary
+act path continues from the intent it already has. Once a tool has been invoked the act is over,
 success or error: it never also clicks through the UI. Tool acts are not cached.
 
 ```ts
@@ -73,7 +79,7 @@ await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/webmcp
 
 await stagehand.act("add 19 and 23 together");
 // → { method: "webmcp", selector: "webmcp:calculateSum", arguments: ['{"a":19,"b":23}'] }
-//   message: 'Invoked WebMCP tool calculateSum: {"a":19,"b":23,"sum":42}'   (~430 ms, no LLM call)
+//   message: 'Invoked WebMCP tool calculateSum: {"a":19,"b":23,"sum":42}'   (one Jev request, no LLM call)
 
 await stagehand.act("click the Calculate button");
 // → names a control, so the ordinary element path runs
