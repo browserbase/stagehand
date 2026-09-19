@@ -11,6 +11,7 @@ install:
 generate:
     pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
+    ruby packages/sdk-ruby/scripts/generate.rb
     pnpm --filter ./packages/extension build
     go -C {{go_dir}} generate ./...
 
@@ -21,6 +22,7 @@ check: check-go-examples
     pnpm check
     uv --directory {{python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
+    ruby packages/sdk-ruby/scripts/generate.rb --check
     uv --directory {{python_dir}} run --locked ruff format --check .
     uv --directory {{python_dir}} run --locked ruff check .
     uv --directory {{python_dir}} run --locked ty check
