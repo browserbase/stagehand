@@ -377,6 +377,11 @@
         "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
+    },
+    "@browserbasehq/stagehand-mcp#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/integrations/core/src/**", "!dist/**"],
+      "outputs": ["dist/**"]
     }
   }
 }

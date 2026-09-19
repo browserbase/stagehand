@@ -1,0 +1,14 @@
+{
+  "name": "browserbase-stagehand",
+  "owner": {
+    "name": "Browserbase"
+  },
+  "plugins": [
+    {
+      "name": "stagehand",
+      "source": "./packages/integrations/claude-code/plugin",
+      "description": "Persistent Stagehand browser tools for Claude Code.",
+      "version": "0.1.0"
+    }
+  ]
+}
