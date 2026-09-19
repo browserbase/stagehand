@@ -20,7 +20,7 @@ icon: "plug"
 | `name` | `string` | Tool name used for invocation. |
 | `description` | `string` | Human-readable tool description. |
 | `inputSchema` | `Record<string, unknown> \| undefined` | Optional JSON input schema. |
-| `annotations` | `WebMCPAnnotation \| undefined` | Optional `readOnly`, `untrustedContent`, and `autosubmit` flags. |
+| `annotations` | `WebMCPAnnotation \| undefined` | Optional `readOnly`, `untrustedContent`, `consequential`, and `autosubmit` flags. |
 | `frameId` | `string` | Frame that published the tool. |
 | `backendNodeId` | `number \| undefined` | Optional non-negative backend node identifier. |
 
@@ -32,6 +32,9 @@ invoke(options?: WebMCPInvokeOptions): Promise<WebMCPInvocation>
 
 `options.input` is a JSON-compatible object and defaults to `{}`. The helper supplies its own page,
 frame, and tool name.
+
+`invoke()` does not ask the user for confirmation. If `annotations.consequential` is `true`, confirm
+the action and input with the user before invoking the tool.
 
 ## WebMCPInvocation
 
@@ -84,7 +87,7 @@ Requests cancellation from Chrome. It does not synthesize or overwrite a termina
 | `name` | `str` | Tool name used for invocation. |
 | `description` | `str` | Human-readable tool description. |
 | `input_schema` | `dict[str, JsonValue] \| None` | Optional JSON input schema. |
-| `annotations` | `WebMCPAnnotation \| None` | Optional `read_only`, `untrusted_content`, and `autosubmit` flags. |
+| `annotations` | `WebMCPAnnotation \| None` | Optional `read_only`, `untrusted_content`, `consequential`, and `autosubmit` flags. |
 | `frame_id` | `str` | Frame that published the tool. |
 | `backend_node_id` | `int \| None` | Optional non-negative backend node identifier. |
 
@@ -98,6 +101,9 @@ async def invoke(
 ```
 
 `input` defaults to an empty dictionary. The helper supplies its own page, frame, and tool name.
+
+`invoke()` does not ask the user for confirmation. If `annotations.consequential` is `True`, confirm
+the action and input with the user before invoking the tool.
 
 ## WebMCPInvocation
 
@@ -151,8 +157,8 @@ func (t *WebMCPTool) Descriptor() WebMCPToolDescriptor
 ```
 
 The returned descriptor contains `Name`, `Description`, `InputSchema`, `Annotations`, `FrameID`,
-and optional `BackendNodeID`. `Annotations` may contain `ReadOnly`, `UntrustedContent`, and
-`Autosubmit` pointers.
+and optional `BackendNodeID`. `Annotations` may contain `ReadOnly`, `UntrustedContent`,
+`Consequential`, and `Autosubmit` pointers.
 
 ### Invoke()
 
@@ -165,6 +171,9 @@ func (t *WebMCPTool) Invoke(
 
 `WebMCPInput` is a `map[string]any`; `nil` is sent as an empty JSON object. Values must be JSON
 encodable. The helper supplies its own page, frame, and tool name.
+
+`Invoke()` does not ask the user for confirmation. If `Annotations.Consequential` points to `true`,
+confirm the action and input with the user before invoking the tool.
 
 ## WebMCPInvocation
 
