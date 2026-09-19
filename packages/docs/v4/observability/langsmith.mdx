@@ -1,0 +1,127 @@
+---
+title: "LangSmith"
+sidebarTitle: "LangSmith"
+description: "Send Stagehand browser traces to LangSmith."
+---
+
+LangSmith is the tracing and eval product in the LangChain stack. Projects, datasets, and run filters are what you get. OTLP is the way to put Stagehand spans next to LangChain runs without wrapping Stagehand in a LangSmith SDK.
+
+The `Langsmith-Project` header selects the project. `x-api-key` authenticates. See [LangSmith's OpenTelemetry documentation](https://docs.langchain.com/langsmith/trace-with-opentelemetry).
+
+## Cloud setup
+
+1. Create a LangSmith API key.
+2. Set `LANGSMITH_API_KEY`.
+3. Set `LANGSMITH_PROJECT` if you do not want the `stagehand` project.
+4. US SaaS uses `https://api.smith.langchain.com/otel/v1/traces`. GCP EU is `https://eu.api.smith.langchain.com/otel/v1/traces`. GCP APAC is `https://apac.api.smith.langchain.com/otel/v1/traces`. AWS US is `https://aws.api.smith.langchain.com/otel/v1/traces`. Set `LANGSMITH_OTLP_TRACES_ENDPOINT` when you are not on default US.
+
+## Configure Stagehand
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
+  telemetry: {
+    traces: {
+      endpoint: process.env.LANGSMITH_OTLP_TRACES_ENDPOINT ?? "https://api.smith.langchain.com/otel/v1/traces",
+      headers: {
+        "x-api-key": process.env.LANGSMITH_API_KEY!,
+        "Langsmith-Project": process.env.LANGSMITH_PROJECT ?? "stagehand",
+      },
+    },
+  },
+});
+
+const [page] = await browser.context.pages();
+await page.goto("https://example.com");
+await stagehand.observe("find the link on the page");
+await stagehand.close();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+from stagehand import Stagehand, TelemetryConfig, local_browser
+
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    telemetry=TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": os.environ.get("LANGSMITH_OTLP_TRACES_ENDPOINT", "https://api.smith.langchain.com/otel/v1/traces"),
+            "headers": {
+                "x-api-key": os.environ["LANGSMITH_API_KEY"],
+                "Langsmith-Project": os.environ.get("LANGSMITH_PROJECT", "stagehand"),
+            },
+        }
+    }),
+)
+
+page = (await browser.context.pages())[0]
+await page.goto("https://example.com")
+await stagehand.observe("find the link on the page")
+await stagehand.close()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"os"
+
+	"github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" { return value }
+	return fallback
+}
+
+func main() {
+	ctx := context.Background()
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	if err != nil { panic(err) }
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Telemetry: stagehand.TelemetryConfig{
+			Traces: stagehand.TelemetryTraces{
+				Endpoint: envOr("LANGSMITH_OTLP_TRACES_ENDPOINT", "https://api.smith.langchain.com/otel/v1/traces"),
+				Headers: stagehand.TelemetryTracesHeaders{
+					"x-api-key": os.Getenv("LANGSMITH_API_KEY"),
+					"Langsmith-Project": envOr("LANGSMITH_PROJECT", "stagehand"),
+				},
+			},
+		},
+	})
+	if err != nil { panic(err) }
+	defer client.Close(ctx)
+
+	browserContext, _ := browser.Context()
+	pages, _ := browserContext.Pages(ctx)
+	page := pages[0]
+	page.Goto(ctx, "https://example.com", nil)
+	instruction := "find the link on the page"
+	client.Observe(ctx, &instruction, nil)
+}
+```
+</Tab>
+</Tabs>
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+
+## Verify traces
+
+Open the project named in `Langsmith-Project` and select Traces. Switch the view to Runs if you want each span as a row instead of the trace tree.
+
+Stagehand sets `service.name` to `stagehand-service-worker`. Operation spans wrap `act`, `observe`, and `extract`. Log records are child runs with `stagehand.span.type` set to `log`. LangSmith's richer mapping (`langsmith.span.kind`, `gen_ai.*`) is optional. We do not send those attributes, so these runs look like generic spans you can still tag and score.
+
+If the project is empty, confirm the regional host. A US key against `eu.api.smith.langchain.com` will not show the run. Then confirm the project name matches exactly and that `close()` ran.
