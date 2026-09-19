@@ -374,8 +374,9 @@ async function decideAndAct(
       ...asked?.questions,
     },
   );
+  const intentEntry = trace[trace.length - 1]!;
   if (asked && deps.webmcp) {
-    const decision = await readToolDecision(ctx, intent, asked, trace[trace.length - 1]!);
+    const decision = await readToolDecision(ctx, intent, asked, intentEntry);
     if (decision.kind === "tool") {
       let input = decision.input;
       let argumentLlm = false;
@@ -405,13 +406,17 @@ async function decideAndAct(
         // Replay only knows element actions.
         return { kind: "done", result, noCache: true, viaTool: { argumentLlm } };
       }
-      annotate(trace, { tool_skip: "arguments_not_filled" });
+      intentEntry.tool_skip = "arguments_not_filled";
     } else {
-      trace[trace.length - 1]!.tool_skip = decision.reason;
+      intentEntry.tool_skip = decision.reason;
     }
   }
   const family = resolveFamily(choiceAnswer(intent, "family"), ctx.threshold);
-  annotate(trace, { choice: family.choice, confidence: family.confidence, top: family.top });
+  Object.assign(intentEntry, {
+    choice: family.choice,
+    confidence: family.confidence,
+    top: family.top,
+  });
   if (family.confidence < ctx.threshold) return fallback(`intent_low_confidence:${family.top}`);
 
   if (family.choice === "not_an_action") {
