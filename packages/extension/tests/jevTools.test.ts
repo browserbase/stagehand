@@ -1,6 +1,11 @@
 import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { WebMCPToolDescriptor } from "@browserbasehq/stagehand-protocol/types";
+import type {
+  LLMGenerateParams,
+  LLMGenerateResult,
+  WebMCPToolDescriptor,
+} from "@browserbasehq/stagehand-protocol/types";
+import { toolArguments } from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import type { Variables } from "@browserbasehq/stagehand-protocol/types";
 import { runJevActPipeline, type JevActDeps } from "../services/jevAct/pipeline.js";
@@ -304,5 +309,69 @@ describe("Jev WebMCP tool act", () => {
     expect(spans).toContain("doc_45");
     expect(spans).toContain("please");
     expect(spans).not.toContain("doc_45's");
+  });
+});
+
+describe("toolArguments inference", () => {
+  const usage = { inputTokens: 5, outputTokens: 2, totalTokens: 7 };
+
+  it("shapes the answer with the tool's own schema when every property is required", async () => {
+    const generate = vi.fn(async (request: LLMGenerateParams): Promise<LLMGenerateResult> => {
+      expect(request.responseFormat).toMatchObject({
+        schema: { required: ["a", "b"], properties: { a: { type: "number" } } },
+      });
+      return {
+        role: "assistant",
+        content: { type: "text", text: "" },
+        outputFormat: "json_schema",
+        structuredContent: { a: 1, b: 2 },
+        usage,
+      };
+    });
+    const result = await toolArguments({
+      instruction: "add 1 and 2",
+      variableNames: [],
+      generate,
+      tool: {
+        name: "sum",
+        description: "Add",
+        inputSchema: {
+          type: "object",
+          required: ["a", "b"],
+          properties: { a: { type: "number" }, b: { type: "number" } },
+        },
+      },
+    });
+    expect(result.input).toEqual({ a: 1, b: 2 });
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the input as a JSON string when the schema has optional properties", async () => {
+    const generate = vi.fn(async (request: LLMGenerateParams): Promise<LLMGenerateResult> => {
+      expect(request.responseFormat).toMatchObject({ schema: { required: ["input_json"] } });
+      return {
+        role: "assistant",
+        content: { type: "text", text: "" },
+        outputFormat: "json_schema",
+        structuredContent: { input_json: '{"query":"mugs"}' },
+        usage,
+      };
+    });
+    const result = await toolArguments({
+      instruction: "search for mugs",
+      variableNames: [],
+      generate,
+      tool: {
+        name: "search",
+        description: "Search",
+        inputSchema: {
+          type: "object",
+          required: ["query"],
+          properties: { query: { type: "string" }, category: { type: "string" } },
+        },
+      },
+    });
+    expect(result.input).toEqual({ query: "mugs" });
+    expect(result.prompt_tokens).toBe(5);
   });
 });

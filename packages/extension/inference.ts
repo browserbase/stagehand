@@ -329,24 +329,51 @@ export async function toolArguments(params: {
     params.variableNames.length > 0
       ? ` Declared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}; when one stands for a value, return it as written including the percent signs.`
       : "";
-  const response = await params.generate({
-    systemPrompt: `You fill in the input of one tool from a user's request. Use only values the request states or clearly implies; leave optional parameters out otherwise.${variables}`,
-    messages: [
-      {
-        role: "user",
-        content: {
-          type: "text",
-          text: `tool: ${JSON.stringify({ name: params.tool.name, description: params.tool.description })}\nrequest: ${params.instruction}`,
+  const request = (schema: Record<string, unknown>, extra: string) =>
+    params.generate({
+      systemPrompt: `You fill in the input of one tool from a user's request. Use only values the request states or clearly implies; leave optional parameters out otherwise.${variables}${extra}`,
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `tool: ${JSON.stringify(params.tool)}\nrequest: ${params.instruction}`,
+          },
         },
+      ],
+      responseFormat: { type: "json_schema", name: "ToolInput", schema: z.json().parse(schema) },
+    });
+  // A site's schema is whatever the site wrote; providers with strict
+  // structured output reject some of them (optional properties, keywords they
+  // do not know). Then the input travels as a JSON string instead.
+  let content: unknown;
+  let response: Awaited<ReturnType<GenerateLlm>>;
+  const properties = Object.keys((params.tool.inputSchema?.properties as object | undefined) ?? {});
+  const required = params.tool.inputSchema?.required;
+  // Optional properties are the common rejection; do not pay a failed call to find out.
+  const strictFriendly =
+    Array.isArray(required) && properties.every((name) => required.includes(name));
+  try {
+    if (!strictFriendly) throw new Error("schema has optional properties");
+    response = await request({ type: "object", ...params.tool.inputSchema }, "");
+    content = response.outputFormat === "json_schema" ? response.structuredContent : null;
+  } catch {
+    response = await request(
+      {
+        type: "object",
+        properties: { input_json: { type: "string" } },
+        required: ["input_json"],
+        additionalProperties: false,
       },
-    ],
-    responseFormat: {
-      type: "json_schema",
-      name: "ToolInput",
-      schema: z.json().parse({ type: "object", ...params.tool.inputSchema }),
-    },
-  });
-  const content = response.outputFormat === "json_schema" ? response.structuredContent : null;
+      " Return the tool's input object serialised as JSON in input_json.",
+    );
+    const wrapped = response.outputFormat === "json_schema" ? response.structuredContent : null;
+    try {
+      content = JSON.parse((wrapped as { input_json?: string } | null)?.input_json ?? "null");
+    } catch {
+      content = null;
+    }
+  }
   return {
     input:
       content && typeof content === "object" && !Array.isArray(content)
