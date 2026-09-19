@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  bbpoc trial manifest — THE ONLY FILE YOU NEED TO EDIT
+#
+#  Drop in your own protected URLs + what success looks like, then run:
+#     bbpoc smoke     # quick sanity (1 attempt/site)
+#     bbpoc run       # full trial
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: "Acme — Browserbase Verified Trial"
+customer: "Acme Inc."
+
+defaults:
+  attempts: 3 # run EACH site N times — stability over N runs is the real bar, not 1-shot
+  concurrency: 5 # how many sessions run at once
+  region: us-west-2 # us-west-2 | us-east-1 | eu-central-1 | ap-southeast-1
+  target: 0.8 # default per-site success target (0–1)
+  model: anthropic/claude-sonnet-4-5
+  features:
+    advancedStealth: true # "Verified" — DEFAULT ON. The #1 trial mistake is leaving this off.
+    proxies: true # residential proxies — pair with stealth ("it's a must")
+    solveCaptchas: true # in-house Cloudflare / hCaptcha / reCAPTCHA / FunCaptcha solvers
+    blockAds: true
+    # proxyCountry: US    # set if the site geo-checks the proxy (e.g. BR, MX, GB)
+
+sites:
+  # Each site: where to start, the task in plain English, and what "success" means.
+  - name: "Example login"
+    url: "https://www.example.com/"
+    task: "Confirm the page loads and read the main heading."
+    expect: "The page rendered and the main heading text is visible."
+    target: 0.9
+    # antibot: cloudflare   # optional: the vendor you expect to face (informational)
+
+  - name: "Product page"
+    url: "https://books.toscrape.com/"
+    task: "Find the first book on the page and read its title and price."
+    expect: "A book title and a price (e.g. £51.77) are visible."
+    target: 0.9
+
+  # - name: "Your protected portal"
+  #   url: "https://portal.example.com/login"
+  #   task: "Log in with the provided credentials and confirm the dashboard loads."
+  #   expect: "The account dashboard / home screen is visible after login."
+  #   antibot: akamai
+  #   target: 0.8
+  #   features:
+  #     proxyCountry: US   # per-site overrides are allowed

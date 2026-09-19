@@ -1,0 +1,19 @@
+{
+  "name": "stagehand-example-1password-extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx node/stagehand.ts",
+    "upload-extension": "tsx node/createExtension.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.6.0",
+    "@browserbasehq/stagehand": "^2.2.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.0.0"
+  }
+}

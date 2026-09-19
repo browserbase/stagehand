@@ -1,0 +1,9 @@
+lib
+node_modules
+coverage
+
+.env
+
+tmp
+
+/research_outputs
