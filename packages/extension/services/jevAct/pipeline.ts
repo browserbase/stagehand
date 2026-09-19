@@ -119,6 +119,11 @@ export type JevActDeps = {
    */
   extractText?: (instruction: string) => Promise<string | null>;
   takeAction: (action: Action) => Promise<ActResultData>;
+  /**
+   * Resolves when the DOM has settled. The intent request needs no page, so
+   * it runs while this is pending; nothing reads or touches the page before it.
+   */
+  settled?: Promise<void>;
   /** Present when `tools` is on and the act is not scoped to a locator. */
   webmcp?: JevToolDeps;
 };
@@ -1069,6 +1074,8 @@ async function act(
   action: Action,
   options: { before?: Snapshot; expectedValue?: string } = {},
 ): Promise<Done | Fallback> {
+  // Press and whole-page scroll get here without ever taking a snapshot.
+  await ctx.deps.settled;
   const urlBefore = ctx.deps.page.url();
   const pagesBefore = ctx.deps.openPageCount?.();
   ctx.deps.ensureTimeRemaining();
@@ -1357,6 +1364,7 @@ async function readInputValue(deps: JevActDeps, selector: string): Promise<strin
 }
 
 async function snapshot(deps: JevActDeps): Promise<Snapshot> {
+  await deps.settled;
   deps.ensureTimeRemaining();
   const { combinedTree, combinedXpathMap, combinedEditableIds } = await deps.page.captureSnapshot(
     deps.snapshotOptions,
