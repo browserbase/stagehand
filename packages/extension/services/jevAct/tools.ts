@@ -1,6 +1,12 @@
 import type { WebMCPToolDescriptor } from "@browserbasehq/stagehand-protocol/types";
-import { annotate, ask, round, type AskContext } from "./pick.js";
-import { choiceAnswer, noulAnswer, type JevQuestion, type JsonValue } from "./typesafeClient.js";
+import { ask, round, type AskContext, type TraceEntry } from "./pick.js";
+import {
+  choiceAnswer,
+  noulAnswer,
+  type JevQuestion,
+  type JevResponse,
+  type JsonValue,
+} from "./typesafeClient.js";
 
 /**
  * WebMCP tool selection on Jev. A page that registers tools has already said
@@ -21,6 +27,25 @@ const ARGUMENT_MIN = 0.8;
 const MAX_SPANS = 250;
 const MAX_TOOLS = 254;
 const DESCRIPTION_CHARS = 600;
+/**
+ * Argument questions for the tools most likely to win ride in the same request
+ * as the choice, so a confident tool call is one round trip, not two.
+ */
+const SPECULATIVE_TOOLS = 2;
+const STOPWORDS = new Set([
+  "the",
+  "a",
+  "an",
+  "to",
+  "of",
+  "in",
+  "on",
+  "for",
+  "and",
+  "my",
+  "me",
+  "it",
+]);
 
 type ToolInput = Record<string, JsonValue>;
 
@@ -46,17 +71,30 @@ function requiredOf(tool: WebMCPToolDescriptor): string[] {
     : [];
 }
 
-export async function selectTool(
-  ctx: AskContext,
+export type ToolQuestions = {
+  offered: WebMCPToolDescriptor[];
+  questions: Record<string, JevQuestion>;
+  /** Tools whose argument questions are already in `questions`. */
+  withArguments: WebMCPToolDescriptor[];
+  /** Best lexical match when it needs an argument LLM whatever Jev says about spans. */
+  needsArgumentLlm?: WebMCPToolDescriptor;
+  spanIds: Map<string, string>;
+};
+
+/**
+ * Questions to merge into a request that only needs the instruction (act's
+ * intent fan-out). Undefined when there is nothing to ask.
+ */
+export function toolQuestions(
+  instruction: string,
   tools: WebMCPToolDescriptor[],
-): Promise<ToolOutcome> {
+): ToolQuestions | undefined {
   // Two frames may register the same name; the choice is keyed by name, so
   // only unambiguous names are offered.
   const counts = new Map<string, number>();
   for (const tool of tools) counts.set(tool.name, (counts.get(tool.name) ?? 0) + 1);
   const offered = tools.filter((tool) => counts.get(tool.name) === 1 && tool.name !== NONE);
-  if (offered.length === 0) return { kind: "skip", reason: "no_tools" };
-  if (offered.length > MAX_TOOLS) return { kind: "skip", reason: "too_many_tools" };
+  if (offered.length === 0 || offered.length > MAX_TOOLS) return undefined;
 
   const criteria = Object.fromEntries(
     offered.map((tool) => {
@@ -70,56 +108,131 @@ export async function selectTool(
       ];
     }),
   );
-  const instructions = {
-    task: "Which tool fulfils the user's request?",
-    request: ctx.instruction,
-  };
-  const response = await ask(
-    ctx,
-    "tool",
-    {},
-    {
-      best: { type: "choice", instructions, criteria },
-      strict: {
-        type: "choice",
-        instructions,
-        criteria: {
-          ...criteria,
-          [NONE]:
-            "No listed tool can do what the request asks; a different capability would be needed",
-        },
-      },
-      // "click the Add to cart button" names a control. The user asked for a
-      // click, so they get a click, even though add_to_cart would match.
-      names_control: {
-        type: "noul",
-        instructions: {
-          question:
-            "Does the request tell the agent to operate a specific on-page control (click, type into, select from, press, scroll, hover a named button, link, field, icon or menu) rather than state a goal?",
-          request: ctx.instruction,
-        },
+  const instructions = { task: "Which tool fulfils the user's request?", request: instruction };
+  const questions: Record<string, JevQuestion> = {
+    tool_best: { type: "choice", instructions, criteria },
+    tool_strict: {
+      type: "choice",
+      instructions,
+      criteria: {
+        ...criteria,
+        [NONE]:
+          "No listed tool can do what the request asks; a different capability would be needed",
       },
     },
-  );
-  const best = choiceAnswer(response, "best");
-  const none = choiceAnswer(response, "strict").probabilities[NONE] ?? 0;
-  const namesControl = noulAnswer(response, "names_control").noul;
-  annotate(ctx.trace, {
-    choice: best.choice,
-    best: round(best.confidence),
-    none: round(none),
+    // "click the Add to cart button" names a control. The user asked for a
+    // click, so they get a click, even though add_to_cart would match.
+    tool_names_control: {
+      type: "noul",
+      instructions: {
+        question:
+          "Does the request tell the agent to operate a specific on-page control (click, type into, select from, press, scroll, hover a named button, link, field, icon or menu) rather than state a goal?",
+        request: instruction,
+      },
+    },
+  };
+
+  const spanIds = new Map(instructionSpans(instruction).map((span, index) => [`s${index}`, span]));
+  const ranked = rankByWords(instruction, offered);
+  const withArguments: WebMCPToolDescriptor[] = [];
+  for (const { tool } of ranked.slice(0, SPECULATIVE_TOOLS)) {
+    const own = argumentQuestions(tool, instruction, spanIds);
+    if (!own || Object.keys(own).length === 0) continue;
+    for (const [name, question] of Object.entries(own)) {
+      questions[argumentKey(tool, name)] = question;
+    }
+    withArguments.push(tool);
+  }
+  // A clear lexical leader with a list, object or otherwise non-scalar
+  // parameter will need the argument LLM if it wins; the caller may start it now.
+  const [leader, runnerUp] = ranked;
+  const needsArgumentLlm =
+    leader &&
+    leader.score > (runnerUp?.score ?? 0) &&
+    Object.keys(propertiesOf(leader.tool)).length > 0 &&
+    !argumentQuestions(leader.tool, "", spanIds)
+      ? leader.tool
+      : undefined;
+  return {
+    offered,
+    questions,
+    withArguments,
+    spanIds,
+    ...(needsArgumentLlm ? { needsArgumentLlm } : {}),
+  };
+}
+
+/** Reads the tool decision out of the response the questions rode in. */
+export async function readToolDecision(
+  ctx: AskContext,
+  response: JevResponse,
+  asked: ToolQuestions,
+  entry: TraceEntry,
+): Promise<ToolOutcome> {
+  const best = choiceAnswer(response, "tool_best");
+  const none = choiceAnswer(response, "tool_strict").probabilities[NONE] ?? 0;
+  const namesControl = noulAnswer(response, "tool_names_control").noul;
+  Object.assign(entry, {
+    tool: best.choice,
+    tool_best: round(best.confidence),
+    tool_none: round(none),
     names_control: round(namesControl),
-    options: offered.length,
+    tools: asked.offered.length,
   });
 
   if (namesControl >= 0.5) return { kind: "skip", reason: "names_a_control" };
   if (none > TOOL_NONE_MAX) return { kind: "skip", reason: "no_tool_fits" };
   if (best.confidence < TOOL_MIN) return { kind: "skip", reason: "tool_ambiguous" };
-  const tool = offered.find((candidate) => candidate.name === best.choice);
+  const tool = asked.offered.find((candidate) => candidate.name === best.choice);
   if (!tool) return { kind: "skip", reason: "tool_ambiguous" };
 
-  const input = await fillArguments(ctx, tool);
+  const names = Object.keys(propertiesOf(tool));
+  let input: ToolInput | undefined;
+  if (names.length === 0) {
+    input = {};
+  } else if (asked.withArguments.includes(tool)) {
+    input = readArguments(response, tool, asked.spanIds, (name) => argumentKey(tool, name), entry);
+  } else {
+    // The winner was not among the lexical favourites: one more request.
+    const questions = argumentQuestions(tool, ctx.instruction, asked.spanIds);
+    if (questions) {
+      const second = await ask(ctx, "tool_arguments", { request: ctx.instruction }, questions);
+      input = readArguments(
+        second,
+        tool,
+        asked.spanIds,
+        (name) => name,
+        ctx.trace[ctx.trace.length - 1]!,
+      );
+    }
+  }
   return { kind: "tool", tool, ...(input ? { input } : {}) };
+}
+
+function argumentKey(tool: WebMCPToolDescriptor, name: string): string {
+  return `tool_arg:${tool.name}:${name}`;
+}
+
+function words(text: string): string[] {
+  const found: string[] = text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  return found.filter((word) => word.length > 1 && !STOPWORDS.has(word));
+}
+
+/** Cheap guess at the likely winners; only decides whose argument questions ride along. */
+function rankByWords(
+  instruction: string,
+  tools: WebMCPToolDescriptor[],
+): Array<{ tool: WebMCPToolDescriptor; score: number }> {
+  const wanted = new Set(words(instruction));
+  const score = (tool: WebMCPToolDescriptor): number =>
+    3 *
+      new Set(words(tool.name.replace(/([a-z])([A-Z])/g, "$1 $2")).filter((w) => wanted.has(w)))
+        .size +
+    new Set(words(tool.description).filter((w) => wanted.has(w))).size;
+  return tools
+    .map((tool) => ({ tool, score: score(tool) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
 }
 
 /** Quoted strings first, then every run of one to four words, punctuation and possessives stripped. */
@@ -148,25 +261,19 @@ export function instructionSpans(instruction: string): string[] {
 }
 
 /**
- * Undefined unless every parameter is a scalar Jev is sure about, stated or
- * not. Values the instruction only implies ("July 15th" for an ISO date, lists,
- * nested objects) are not spans, and guessing them is how a tool gets called
- * with the wrong input.
+ * Undefined when a parameter is not a scalar. Values the instruction only
+ * implies ("July 15th" for an ISO date, lists, nested objects) are not spans,
+ * and guessing them is how a tool gets called with the wrong input.
  */
-async function fillArguments(
-  ctx: AskContext,
+function argumentQuestions(
   tool: WebMCPToolDescriptor,
-): Promise<ToolInput | undefined> {
+  instruction: string,
+  spanIds: Map<string, string>,
+): Record<string, JevQuestion> | undefined {
   const properties = propertiesOf(tool);
-  const names = Object.keys(properties);
-  if (names.length === 0) return {};
-
-  const spans = instructionSpans(ctx.instruction);
-  const spanIds = new Map(spans.map((span, index) => [`s${index}`, span]));
   const unset = "The request does not state a value for this parameter";
   const questions: Record<string, JevQuestion> = {};
-  for (const name of names) {
-    const property = properties[name]!;
+  for (const [name, property] of Object.entries(properties)) {
     const instructions = {
       task: `What value does the request give for the parameter '${name}' of the tool '${tool.name}'?`,
       parameter: {
@@ -174,7 +281,7 @@ async function fillArguments(
         ...(property.description === undefined ? {} : { description: property.description }),
         ...(property.type === undefined ? {} : { type: property.type }),
       },
-      request: ctx.instruction,
+      request: instruction,
     };
     if (Array.isArray(property.enum) && property.enum.length > 0) {
       questions[name] = {
@@ -217,13 +324,22 @@ async function fillArguments(
       return undefined;
     }
   }
+  return questions;
+}
 
-  const response = await ask(ctx, "tool_arguments", { request: ctx.instruction }, questions);
+/** Undefined unless Jev is sure about every parameter, stated or not, and none required is missing. */
+function readArguments(
+  response: JevResponse,
+  tool: WebMCPToolDescriptor,
+  spanIds: Map<string, string>,
+  keyOf: (name: string) => string,
+  entry: TraceEntry,
+): ToolInput | undefined {
+  const properties = propertiesOf(tool);
   const input: ToolInput = {};
   let weakest = 1;
-  for (const name of names) {
-    const property = properties[name]!;
-    const answer = choiceAnswer(response, name);
+  for (const [name, property] of Object.entries(properties)) {
+    const answer = choiceAnswer(response, keyOf(name));
     weakest = Math.min(weakest, answer.confidence);
     if (answer.choice === UNSET) continue;
     if (Array.isArray(property.enum) && property.enum.length > 0) {
@@ -242,8 +358,14 @@ async function fillArguments(
       }
     }
   }
-  annotate(ctx.trace, { weakest: round(weakest), filled: Object.keys(input) });
+  Object.assign(entry, { arguments_weakest: round(weakest), arguments_filled: Object.keys(input) });
   if (weakest < ARGUMENT_MIN) return undefined;
+  // "search the store for mugs" put "mugs" into both query and category, each
+  // with high confidence. One span is one value; which parameter is a judgement call.
+  const spans = Object.entries(input)
+    .filter(([name]) => !properties[name]?.enum && properties[name]?.type !== "boolean")
+    .map(([, value]) => (typeof value === "string" ? value : JSON.stringify(value)));
+  if (new Set(spans).size < spans.length) return undefined;
   if (requiredOf(tool).some((name) => !(name in input))) return undefined;
   return input;
 }

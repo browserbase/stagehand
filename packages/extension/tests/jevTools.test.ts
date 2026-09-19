@@ -2,7 +2,9 @@ import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WebMCPToolDescriptor } from "@browserbasehq/stagehand-protocol/types";
 import { StagehandLogger } from "../logger.js";
-import { runJevToolAct, type JevToolActDeps } from "../services/jevAct/toolAct.js";
+import type { Variables } from "@browserbasehq/stagehand-protocol/types";
+import { runJevActPipeline, type JevActDeps } from "../services/jevAct/pipeline.js";
+import type { JevToolDeps } from "../services/jevAct/toolAct.js";
 import { instructionSpans } from "../services/jevAct/tools.js";
 
 const tools: WebMCPToolDescriptor[] = [
@@ -58,13 +60,29 @@ function stubJev(script: Scripted) {
         let choice = script.tool ?? "clear_cart";
         let confidence = script.toolP ?? 0.95;
         const probabilities: Probabilities = {};
-        if (key === "strict") probabilities.none_of_these = script.none ?? 0;
-        if (key !== "best" && key !== "strict") {
+        if (key === "tool_strict") probabilities.none_of_these = script.none ?? 0;
+        if (key === "family") {
+          answers[key] = {
+            type: "choice",
+            choice: "not_an_action",
+            confidence: 0.99,
+            probabilities: { not_an_action: 0.99 },
+          };
+          continue;
+        }
+        if (key !== "tool_best" && key !== "tool_strict") {
           choice = "unset";
           confidence = 0.95;
         }
-        if (script.args && key in script.args) {
-          const [wanted, p] = script.args[key]!;
+        const parameter = key.startsWith("tool_arg:") ? key.split(":")[2]! : key;
+        if (
+          script.args &&
+          key.startsWith("tool_arg:") &&
+          !key.startsWith(`tool_arg:${script.tool}:`)
+        ) {
+          // A lexical favourite that is not the scripted winner.
+        } else if (script.args && parameter in script.args) {
+          const [wanted, p] = script.args[parameter]!;
           choice =
             Object.entries(question.criteria ?? {}).find(
               ([id, text]) =>
@@ -85,18 +103,20 @@ function stubJev(script: Scripted) {
   return requests;
 }
 
-function deps(
-  instruction: string,
-  overrides: Partial<JevToolActDeps> = {},
-): JevToolActDeps & { invoked: Array<{ name: string; input: unknown }> } {
-  const invoked: Array<{ name: string; input: unknown }> = [];
-  return {
-    invoked,
-    instruction,
-    logger: new StagehandLogger({ tracer: trace.getTracer("jev-tools-test") }, () => {}),
-    ensureTimeRemaining: () => {},
+type Harness = {
+  deps: JevActDeps;
+  invoked: Array<{ name: string; input: unknown }>;
+  /** `tool_skip` from the intent trace entry of the last run. */
+  skipReason: () => string | undefined;
+  webmcp: JevToolDeps;
+};
+
+function harness(instruction: string, overrides: Partial<JevToolDeps> = {}, variables?: Variables) {
+  const invoked: Harness["invoked"] = [];
+  const logged: string[] = [];
+  const webmcp: JevToolDeps = {
+    tools: Promise.resolve(tools),
     page: {
-      listWebMCPTools: async () => tools,
       invokeWebMCPTool: async (frameId, toolName, options) => {
         invoked.push({ name: toolName, input: options?.input });
         return { invocationId: "inv-1", toolName, frameId, input: options?.input ?? {} };
@@ -109,6 +129,25 @@ function deps(
     },
     ...overrides,
   };
+  const deps = {
+    instruction,
+    ...(variables ? { variables } : {}),
+    logger: new StagehandLogger({ tracer: trace.getTracer("jev-tools-test") }, (line) => {
+      logged.push(JSON.stringify(line));
+    }),
+    ensureTimeRemaining: () => {},
+    snapshotOptions: {},
+    // The scripted intent is "not an action", so a skipped tool ends the act
+    // before any page work.
+    page: {} as JevActDeps["page"],
+    takeAction: async () => {
+      throw new Error("no element action expected");
+    },
+    webmcp,
+  } satisfies JevActDeps;
+  const skipReason = (): string | undefined =>
+    /tool_skip\\*":\\*"([a-z_]+)/.exec(logged.join("\n"))?.[1];
+  return { deps, invoked, skipReason, webmcp } satisfies Harness;
 }
 
 const config = { apiKey: "test", tools: true };
@@ -116,88 +155,125 @@ const config = { apiKey: "test", tools: true };
 describe("Jev WebMCP tool act", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("invokes a tool that takes no input on one Jev request", async () => {
+  it("invokes a tool that takes no input inside the intent request", async () => {
     const requests = stubJev({ tool: "clear_cart" });
-    const d = deps("empty my cart");
-    const outcome = await runJevToolAct(config, d);
-    expect(outcome.kind).toBe("done");
-    expect(d.invoked).toEqual([{ name: "clear_cart", input: {} }]);
+    const h = harness("empty my cart");
+    const outcome = await runJevActPipeline(config, h.deps);
+    expect(h.invoked).toEqual([{ name: "clear_cart", input: {} }]);
     expect(requests).toHaveLength(1);
-    if (outcome.kind !== "done") return;
-    expect(outcome.result.success).toBe(true);
-    expect(outcome.result.actions[0]).toMatchObject({
-      selector: "webmcp:clear_cart",
-      method: "webmcp",
-      arguments: ["{}"],
+    expect(Object.keys(requests[0]!)).toEqual(expect.arrayContaining(["family", "tool_best"]));
+    expect(outcome).toMatchObject({
+      kind: "done",
+      noCache: true,
+      viaTool: { argumentLlm: false },
+      result: {
+        success: true,
+        actions: [{ selector: "webmcp:clear_cart", method: "webmcp", arguments: ["{}"] }],
+      },
     });
   });
 
-  it("fills scalar arguments from the instruction's own words", async () => {
-    stubJev({
+  it("fills scalar arguments from the instruction's own words in the same request", async () => {
+    const requests = stubJev({
       tool: "add_to_cart",
       args: { product_id: ["p_102", 0.97], quantity: ["2", 0.95], size: ["M", 0.93] },
     });
-    const d = deps("put 2 of item p_102, size M, into my basket");
-    const outcome = await runJevToolAct(config, d);
-    expect(outcome.kind).toBe("done");
-    expect(d.invoked[0]).toEqual({
+    const h = harness("add 2 of product p_102, size M, to my cart");
+    await runJevActPipeline(config, h.deps);
+    expect(requests).toHaveLength(1);
+    expect(h.invoked[0]).toEqual({
       name: "add_to_cart",
       input: { product_id: "p_102", quantity: 2, size: "M" },
     });
   });
 
+  it("asks once more when the winner was not a lexical favourite", async () => {
+    const requests = stubJev({ tool: "add_to_cart", args: { product_id: ["p_102", 0.97] } });
+    const h = harness("I want p_102");
+    await runJevActPipeline(config, h.deps);
+    expect(requests).toHaveLength(2);
+    expect(h.invoked[0]?.input).toEqual({ product_id: "p_102" });
+  });
+
   it("leaves requests that name a control to the element path", async () => {
     stubJev({ tool: "add_to_cart", namesControl: 0.97 });
-    const d = deps("click the Add to cart button");
-    expect(await runJevToolAct(config, d)).toEqual({ kind: "skip", reason: "names_a_control" });
-    expect(d.invoked).toEqual([]);
+    const h = harness("click the Add to cart button");
+    await runJevActPipeline(config, h.deps);
+    expect(h.invoked).toEqual([]);
+    expect(h.skipReason()).toBe("names_a_control");
   });
 
   it("skips when no tool fits or the choice is split", async () => {
     stubJev({ tool: "clear_cart", none: 0.6 });
-    expect(await runJevToolAct(config, deps("open the footer newsletter link"))).toEqual({
-      kind: "skip",
-      reason: "no_tool_fits",
-    });
+    const none = harness("open the footer newsletter link");
+    await runJevActPipeline(config, none.deps);
+    expect(none.skipReason()).toBe("no_tool_fits");
+
     stubJev({ tool: "clear_cart", toolP: 0.55 });
-    expect(await runJevToolAct(config, deps("sort out my cart"))).toEqual({
-      kind: "skip",
-      reason: "tool_ambiguous",
-    });
+    const split = harness("sort out my cart");
+    await runJevActPipeline(config, split.deps);
+    expect(split.skipReason()).toBe("tool_ambiguous");
+    expect([...none.invoked, ...split.invoked]).toEqual([]);
   });
 
-  it("hands unsure or non-scalar arguments to the argument LLM, and skips without one", async () => {
+  it("hands unsure arguments to the argument LLM, and skips without one", async () => {
     stubJev({ tool: "add_to_cart", args: { product_id: ["p_102", 0.55] } });
     const fillArguments = vi.fn(async () => ({ product_id: "p_102" }));
-    const d = deps("add that p_102 thing", { fillArguments });
-    const outcome = await runJevToolAct(config, d);
-    expect(outcome).toMatchObject({ kind: "done", usedArgumentLlm: true });
-    expect(d.invoked[0]?.input).toEqual({ product_id: "p_102" });
+    const h = harness("add that p_102 product to the cart", { fillArguments });
+    const outcome = await runJevActPipeline(config, h.deps);
+    expect(outcome).toMatchObject({ kind: "done", viaTool: { argumentLlm: true } });
+    expect(h.invoked[0]?.input).toEqual({ product_id: "p_102" });
 
+    stubJev({ tool: "add_to_cart", args: { product_id: ["p_102", 0.55] } });
+    const without = harness("add that p_102 product to the cart");
+    await runJevActPipeline({ ...config, argumentLlm: false }, without.deps);
+    expect(without.invoked).toEqual([]);
+    expect(without.skipReason()).toBe("arguments_not_filled");
+  });
+
+  it("starts the argument LLM alongside Jev when the likely tool takes a list or object", async () => {
+    let jevAnswered = false;
     stubJev({ tool: "search_flights" });
-    const nested = deps("fly SFO to JFK then on to BOS");
-    expect(await runJevToolAct({ ...config, argumentLlm: false }, nested)).toEqual({
-      kind: "skip",
-      reason: "arguments_not_filled",
+    const fillArguments = vi.fn(async () => {
+      expect(jevAnswered).toBe(false);
+      return { legs: ["SFO-JFK"] };
     });
-    expect(nested.invoked).toEqual([]);
+    const h = harness("search flights from SFO to JFK", { fillArguments });
+    const ensure = h.deps.ensureTimeRemaining;
+    // ensureTimeRemaining runs again right before the invocation, after Jev answered.
+    let calls = 0;
+    h.deps.ensureTimeRemaining = () => {
+      if (++calls > 1) jevAnswered = true;
+      ensure();
+    };
+    await runJevActPipeline(config, h.deps);
+    expect(fillArguments).toHaveBeenCalledTimes(1);
+    expect(h.invoked[0]?.input).toEqual({ legs: ["SFO-JFK"] });
+  });
+
+  it("does not trust one span filling two parameters", async () => {
+    stubJev({ tool: "add_to_cart", args: { product_id: ["2", 0.95], quantity: ["2", 0.95] } });
+    const fillArguments = vi.fn(async () => ({ product_id: "2" }));
+    const h = harness("add product 2 to my cart", { fillArguments });
+    await runJevActPipeline(config, h.deps);
+    expect(fillArguments).toHaveBeenCalledTimes(1);
+    expect(h.invoked[0]?.input).toEqual({ product_id: "2" });
   });
 
   it("skips when a required argument is not stated", async () => {
     stubJev({ tool: "add_to_cart", args: { product_id: ["unset", 0.95] } });
-    const d = deps("add something nice to my cart");
-    expect(await runJevToolAct(config, d)).toEqual({
-      kind: "skip",
-      reason: "arguments_not_filled",
-    });
+    const h = harness("add a nice product to my cart");
+    await runJevActPipeline(config, h.deps);
+    expect(h.invoked).toEqual([]);
+    expect(h.skipReason()).toBe("arguments_not_filled");
   });
 
   it("never sends a variable's value to TypeSafe and resolves it only for the page", async () => {
     const requests = stubJev({ tool: "add_to_cart", args: { product_id: ["%sku%", 0.96] } });
-    const d = deps("add item %sku% to my cart", { variables: { sku: "secret-sku-9" } });
-    const outcome = await runJevToolAct(config, d);
+    const h = harness("add product %sku% to my cart", {}, { sku: "secret-sku-9" });
+    const outcome = await runJevActPipeline(config, h.deps);
     expect(JSON.stringify(requests)).not.toContain("secret-sku-9");
-    expect(d.invoked[0]?.input).toEqual({ product_id: "secret-sku-9" });
+    expect(h.invoked[0]?.input).toEqual({ product_id: "secret-sku-9" });
     expect(outcome.kind === "done" && outcome.result.actions[0]?.arguments?.[0]).toBe(
       '{"product_id":"%sku%"}',
     );
@@ -205,22 +281,21 @@ describe("Jev WebMCP tool act", () => {
 
   it("reports a tool error as a failed act instead of falling through to the UI", async () => {
     stubJev({ tool: "clear_cart" });
-    const d = deps("empty my cart");
-    d.page.waitForWebMCPInvocationResult = async () => {
+    const h = harness("empty my cart");
+    h.webmcp.page.waitForWebMCPInvocationResult = async () => {
       throw new Error("Timed out waiting for WebMCP tool");
     };
-    const outcome = await runJevToolAct(config, d);
+    const outcome = await runJevActPipeline(config, h.deps);
     expect(outcome).toMatchObject({ kind: "done", result: { success: false } });
   });
 
-  it("skips without asking Jev when the page has no tools or no WebMCP support", async () => {
+  it("adds no question when the page has no tools or no WebMCP support", async () => {
     const requests = stubJev({});
-    const d = deps("empty my cart");
-    d.page.listWebMCPTools = async () => {
-      throw new Error("'WebMCP.enable' wasn't found");
-    };
-    expect(await runJevToolAct(config, d)).toEqual({ kind: "skip", reason: "no_tools" });
-    expect(requests).toHaveLength(0);
+    const unsupported = Promise.reject<never>(new Error("no WebMCP domain"));
+    const h = harness("empty my cart", { tools: unsupported });
+    await runJevActPipeline(config, h.deps);
+    expect(Object.keys(requests[0]!)).not.toContain("tool_best");
+    expect(h.invoked).toEqual([]);
   });
 
   it("builds spans from quotes and word runs without punctuation or possessives", () => {
