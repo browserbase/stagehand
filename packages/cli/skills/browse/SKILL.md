@@ -1,7 +1,7 @@
 ---
 name: browse
 description: Use the browse CLI for Browserbase browser automation, Browserbase cloud APIs, Browserbase Functions, templates, web fetch/search, diagnostics, and Browse.sh skill discovery/installation. Use when the user asks to navigate pages, inspect browser state, run local or remote browser sessions, manage Browserbase resources, call Browserbase Functions, browse or scaffold Browserbase templates, fetch or search web content, diagnose browse setup, find or install a skill for a website task, discover site-specific Browse.sh skills, or install/refresh this browse skill.
-compatibility: "Requires the browse CLI (`npm install -g browse`). Remote Browserbase sessions and cloud API commands require `BROWSERBASE_API_KEY`. Local mode uses Chrome/Chromium on the machine."
+compatibility: "Requires the browse CLI (`npm install --global browse`, or Homebrew on macOS/Linux). Remote Browserbase sessions and cloud API commands require `BROWSERBASE_API_KEY`. Local mode uses Chrome/Chromium on the machine."
 license: MIT
 allowed-tools: Bash
 metadata:
@@ -37,8 +37,28 @@ It can:
 Verify the CLI exists before relying on it:
 
 ```bash
-which browse || npm install -g browse
+command -v browse
 browse --help
+```
+
+If it is missing, install it with npm:
+
+```bash
+npm install --global browse
+```
+
+Or use Homebrew on macOS or Linux:
+
+```bash
+brew install browserbase/tap/browse
+```
+
+When switching from npm to Homebrew, remove the global npm package first so it cannot shadow the Homebrew executable:
+
+```bash
+npm uninstall --global browse
+brew install browserbase/tap/browse
+command -v browse
 ```
 
 Install or refresh this skill with:

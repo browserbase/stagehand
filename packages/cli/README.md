@@ -6,10 +6,27 @@
 
 [![npm version](https://img.shields.io/npm/v/browse.svg?style=flat-square&color=000000)](https://www.npmjs.com/package/browse)
 [![npm downloads](https://img.shields.io/npm/dm/browse.svg?style=flat-square&color=000000)](https://www.npmjs.com/package/browse)
+[![Homebrew](https://img.shields.io/badge/Homebrew-browserbase%2Ftap-FBB040?style=flat-square&logo=homebrew&logoColor=000000)](https://github.com/browserbase/homebrew-tap)
 [![license](https://img.shields.io/badge/license-MIT-000000?style=flat-square)](https://github.com/browserbase/stagehand/blob/main/packages/cli/LICENSE)
 
+Install with npm on any supported platform:
+
 ```bash
-npm install -g browse
+npm install --global browse
+```
+
+Or install with Homebrew on macOS or Linux:
+
+```bash
+brew install browserbase/tap/browse
+```
+
+If you are switching from a global npm installation, remove it first so your shell does not keep using the old executable:
+
+```bash
+npm uninstall --global browse
+brew install browserbase/tap/browse
+command -v browse
 ```
 
 <img src="https://github.com/browserbase/stagehand/blob/main/packages/cli/media/browse.gif?raw=true" alt="browse CLI demo" width="100%" />
@@ -29,9 +46,21 @@ npm install -g browse
 
 ## Quick start
 
-```bash
-npm install -g browse
+Install with npm:
 
+```bash
+npm install --global browse
+```
+
+Or use Homebrew on macOS or Linux:
+
+```bash
+brew install browserbase/tap/browse
+```
+
+Then start browsing:
+
+```bash
 browse open https://example.com
 browse snapshot
 browse click @0-12
