@@ -259,7 +259,7 @@ async def test_create_failure_deletes_owned_extension_best_effort(
     fake_api.delete_errors = [OSError("cleanup failed")]
     with pytest.raises(
         BrowserbaseSessionError,
-        match="^Failed to create a Browserbase session$",
+        match=r"^Failed to create a Browserbase session$",
     ) as raised:
         await _BrowserbaseSessionClient(fake_api).create_session(BrowserbaseSessionCreateParams())
     assert raised.value.__cause__ is None
@@ -362,12 +362,12 @@ async def test_connect_validates_sanitizes_and_normalizes(
     fake_api: FakeBrowserbaseAPI,
 ) -> None:
     client = _BrowserbaseSessionClient(fake_api)
-    with pytest.raises(BrowserbaseSessionError, match="^A Browserbase session ID is required$"):
+    with pytest.raises(BrowserbaseSessionError, match=r"^A Browserbase session ID is required$"):
         await client.connect_session("  ")
     fake_api.retrieve_error = OSError("secret")
     with pytest.raises(
         BrowserbaseSessionError,
-        match="^Failed to retrieve the Browserbase session$",
+        match=r"^Failed to retrieve the Browserbase session$",
     ) as raised:
         await client.connect_session(" session ")
     assert raised.value.__cause__ is None
@@ -375,7 +375,7 @@ async def test_connect_validates_sanitizes_and_normalizes(
     fake_api.retrieve_result = (" ", None, None)
     with pytest.raises(
         BrowserbaseSessionError,
-        match="^Browserbase session is not available for connection$",
+        match=r"^Browserbase session is not available for connection$",
     ):
         await client.connect_session(" session ")
 

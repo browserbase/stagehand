@@ -133,7 +133,7 @@ def _install_rpc_client(
 
 
 def test_stagehand_constructor_is_private() -> None:
-    with pytest.raises(TypeError, match="Stagehand.create"):
+    with pytest.raises(TypeError, match=r"Stagehand.create"):
         Stagehand()
 
 
@@ -691,9 +691,9 @@ async def test_close_is_memoized_and_never_closes_browser_or_transport(
     assert recording.close_transport_flags == [False]
     assert browser.closed is False
     assert transport.close_calls == 0
-    with pytest.raises(RuntimeError, match="Browser context is unavailable.*Stagehand.create"):
+    with pytest.raises(RuntimeError, match=r"Browser context is unavailable.*Stagehand.create"):
         _ = stagehand.browser.context
-    with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
+    with pytest.raises(RuntimeError, match=r"Stagehand is unavailable.*Stagehand.create"):
         await stagehand.metrics()
 
     next_recording = _recording()
