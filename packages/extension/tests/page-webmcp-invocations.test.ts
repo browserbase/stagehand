@@ -581,4 +581,68 @@ describe("Page WebMCP invocation lifecycle", () => {
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
     expect(childSession.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
+
+  it("retains a terminal response delivered before the invokeTool command resolves", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": async (session) => {
+        // CDP events may be delivered before the command that triggered them resolves.
+        session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+          output: { resultValue: "found" },
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    const descriptor = await page.invokeWebMCPTool("frame-1", "search");
+    expect(descriptor.invocationId).toBe("invocation-1");
+
+    await expect(
+      page.waitForWebMCPInvocationResult("invocation-1", { timeout: 50 }),
+    ).resolves.toStrictEqual({
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { resultValue: "found" },
+    });
+  });
+
+  it("discards a buffered response from a session other than the invocation's", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () => ({ invocationId: "shared-invocation" }),
+    });
+    const childSession = new FakeCDPSession(
+      {
+        "WebMCP.invokeTool": async (session) => {
+          // A toolResponded for an invocation ID no record owns yet gets buffered on
+          // the child session, even though that ID will belong to a main-session call.
+          session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: "shared-invocation",
+            status: "Completed",
+            output: { source: "wrong" },
+          });
+          return { invocationId: "child-invocation" };
+        },
+      },
+      "child",
+    );
+    const page = createPage(session);
+    adoptChildSession(page, childSession);
+
+    await page.invokeWebMCPTool("frame-2", "child");
+    await page.invokeWebMCPTool("frame-1", "main");
+
+    const result = page.waitForWebMCPInvocationResult("shared-invocation", { timeout: 50 });
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "shared-invocation",
+      status: "Completed",
+      output: { source: "main" },
+    });
+    await expect(result).resolves.toStrictEqual({
+      invocationId: "shared-invocation",
+      status: "Completed",
+      output: { source: "main" },
+    });
+  });
 });
