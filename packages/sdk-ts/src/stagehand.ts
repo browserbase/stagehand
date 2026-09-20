@@ -4,9 +4,12 @@ import {
   MAX_CALLBACK_BATCH_TIMEOUT_MS,
   STAGEHAND_PROTOCOL_VERSION,
   StagehandInitParamsSchema,
-} from "../../protocol/schemas.js";
-import { JSONRPCErrorObjectSchema } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
+import { JSONRPCErrorObjectSchema } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import {
+  StagehandMethods,
+  StagehandNotifications,
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   Action,
   ActResult,
@@ -15,7 +18,7 @@ import type {
   ObserveResult,
   StagehandMetrics,
   StagehandRpcNotification,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
 import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
@@ -35,6 +38,7 @@ import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 import {
   claimStagehandBrowser,
+  invalidateStagehandBrowser,
   releaseStagehandBrowser,
   type ClaimedStagehandBrowser,
   type StagehandBrowser,
@@ -43,7 +47,7 @@ import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./
 import { withStagehandInitDeadline } from "./timeouts.js";
 import type { ExperimentalBatchCallback, ExperimentalBatchOptions } from "./batch.js";
 
-type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
+type ProtocolExtractResult = import("@browserbasehq/stagehand-protocol/types").ExtractResult;
 
 export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
   data: z.output<Schema>;
@@ -90,7 +94,7 @@ export class Stagehand {
         (stagehand.initRequestStarted && !isDefinitiveRPCErrorResponse(error));
       if (initFailureIsAmbiguous) {
         try {
-          await browser.close();
+          await invalidateStagehandBrowser(browser);
         } catch (cleanupError) {
           throw new AggregateError(
             [error, cleanupError],
@@ -186,7 +190,10 @@ export class Stagehand {
         stagehandCreateParamsForWorker(createConfig, browser),
         signal,
       );
-      attachStagehandBrowserContext(this.browserHandle, new BrowserContext(rpcClient));
+      attachStagehandBrowserContext(
+        this.browserHandle,
+        new BrowserContext(rpcClient, () => this.browserHandle.close()),
+      );
     } catch (error) {
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;
@@ -282,12 +289,15 @@ export class Stagehand {
 
   close(): Promise<void> {
     this.closePromise ??= (async () => {
+      let shouldReleaseBrowserClaim = !this.isInitialized;
       try {
         if (this.isInitialized) {
           try {
             await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
+            shouldReleaseBrowserClaim = true;
           } catch (error) {
             if (!(error instanceof CDPConnectionClosedError)) throw error;
+            shouldReleaseBrowserClaim = true;
           }
         }
       } finally {
@@ -298,6 +308,7 @@ export class Stagehand {
         this.rpcClient?.close(new Error("Stagehand closed"), { closeTransport: false });
         this.rpcClient = undefined;
         detachStagehandBrowserContext(this.browserHandle);
+        if (shouldReleaseBrowserClaim) releaseStagehandBrowser(this.browserHandle);
         this.isInitialized = false;
       }
     })();

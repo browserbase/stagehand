@@ -19,10 +19,12 @@ import type { AvailableModel } from "stagehand-v3";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
-import { isExecutableBenchHarness, type Harness } from "../../framework/benchTypes.js";
+import type { Harness } from "../../framework/benchTypes.js";
+import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
 import {
   armsOverLimit,
   armsWithUngradedRuns,
+  armsWithPassesWithoutBrowserUse,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
 } from "../../framework/verifierGate.js";
@@ -171,6 +173,12 @@ export async function runCommand(
     throw new Error(message);
   }
 
+  const hasCoreOnly = tasks.every((task) => task.tier === "core");
+  if (hasCoreOnly) {
+    const { rejectAgentMountOnlyCoreTool } = await import("../../framework/context.js");
+    rejectAgentMountOnlyCoreTool((options.coreToolSurface ?? "understudy_code") as ToolSurface);
+  }
+
   if (options.useApi && options.harness !== "stagehand" && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
       `Harness "${options.harness}" does not support --api. Use --harness stagehand for API-backed bench runs.`,
@@ -184,7 +192,7 @@ export async function runCommand(
 
   if (!canExecuteBenchHarness(options.harness) && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
-      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand, --harness claude_code, or --harness codex for executable bench runs.`,
+      `Harness "${options.harness}" is dry-run only for now. Use ${formatBenchHarnessFlags()} for executable bench runs.`,
     );
   }
   const matrix = await buildDryRunMatrix(options, tasks, registry);
@@ -249,9 +257,13 @@ export async function runCommand(
         for (const arm of arms) {
           const ungradedSuffix =
             arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
+          const browserlessSuffix =
+            arm.passesWithoutBrowserUse > 0
+              ? `, ${arm.passesWithoutBrowserUse} passes without browser use`
+              : "";
           console.log(
             dim(
-              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}`,
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}${browserlessSuffix}`,
             ),
           );
         }
@@ -270,7 +282,13 @@ export async function runCommand(
               `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
             );
           }
-          if (over.length > 0 || ungraded.length > 0) {
+          const browserless = armsWithPassesWithoutBrowserUse(arms);
+          for (const arm of browserless) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.passesWithoutBrowserUse} passes without browser use`,
+            );
+          }
+          if (over.length > 0 || ungraded.length > 0 || browserless.length > 0) {
             process.exitCode = 1;
           }
         }

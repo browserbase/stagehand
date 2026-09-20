@@ -1,7 +1,7 @@
 import inspect
 from collections.abc import Callable
 from types import UnionType
-from typing import Union, get_args, get_origin, is_typeddict
+from typing import Union, get_args, get_origin, get_type_hints, is_typeddict
 
 import pytest
 
@@ -23,8 +23,19 @@ from stagehand import (
     Stagehand,
     StagehandClientLoggingConfig,
     TelemetryConfig,
+    ToolsAddedListener,
+    ToolsRemovedListener,
+    WebMCPTool,
+    WebMCPToolIdentity,
     browserbase,
 )
+
+
+def test_tool_hooks_expose_concrete_callback_types() -> None:
+    assert get_type_hints(Page.on_tools_added)["listener"] == ToolsAddedListener
+    assert get_type_hints(Page.on_tools_removed)["listener"] == ToolsRemovedListener
+    assert get_args(ToolsAddedListener)[0] == [list[WebMCPTool]]
+    assert get_args(ToolsRemovedListener)[0] == [list[WebMCPToolIdentity]]
 
 
 def _is_typed_dict_shape(value: object) -> bool:

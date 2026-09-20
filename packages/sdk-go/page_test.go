@@ -103,6 +103,23 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 	}
 }
 
+func TestPageOnRejectsUnsupportedEventsBeforeSubscribing(t *testing.T) {
+	t.Parallel()
+	for _, event := range []PageEventName{"toolsadded", "toolsremoved", "unknown", ""} {
+		t.Run(string(event), func(t *testing.T) {
+			rpc := &recordingProtocolClient{}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			subscription, err := page.On(context.Background(), event, func(PageCDPEvent) {})
+			if err == nil || subscription != nil {
+				t.Fatal("expected unsupported event to fail without a subscription")
+			}
+			if len(rpc.calls) != 0 || rpc.pageEventHandler != nil || len(page.subscriptions) != 0 {
+				t.Fatal("unsupported event created subscription state")
+			}
+		})
+	}
+}
+
 func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 	t.Parallel()
 
@@ -120,7 +137,7 @@ func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 		t.Fatalf("On() error = %v", err)
 	}
 	onParams, ok := rpc.calls[0].params.(PageOnParams)
-	if !ok || onParams.PageID != "page-1" || onParams.Event != PageEventNameConsole {
+	if !ok || onParams.PageID != "page-1" || onParams.Event != PageSubscriptionEventNameConsole {
 		t.Fatalf("page.on params = %#v", rpc.calls[0].params)
 	}
 	rpc.pageEventHandler(PageCDPEventNotification{
@@ -151,6 +168,155 @@ func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 	offParams, ok := rpc.calls[1].params.(PageOffParams)
 	if !ok || offParams.SubscriptionID != onParams.SubscriptionID {
 		t.Fatalf("page.off params = %#v", rpc.calls[1].params)
+	}
+}
+
+func TestPageToolHooksDeliverTypedPayloads(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on": PageVoidResult{Ok: true}, "page.off": PageVoidResult{Ok: true},
+		"page.webmcp_invoke_tool": WebMCPInvocationDescriptor{InvocationID: "invocation", FrameID: "child", ToolName: "search"},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	var tools []*WebMCPTool
+	subscription, err := page.OnToolsAdded(ctx, func(added []*WebMCPTool) {
+		tools = added
+		if _, err := added[0].Invoke(ctx, WebMCPInput{"searchQuery": "hello"}); err != nil {
+			t.Error(err)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	params := rpc.calls[0].params.(PageOnParams)
+	added := PageToolsAddedNotification{SubscriptionID: params.SubscriptionID, PageID: "page-1", SessionID: "child", TargetID: "child", Tools: []WebMCPToolDescriptor{{Name: "search", Description: "Search", FrameID: "child"}}}
+	wrongID := added
+	wrongID.SubscriptionID = "other"
+	rpc.toolEventHandler(NewPageToolsAddedNotification(wrongID))
+	rpc.toolEventHandler(NewPageToolsRemovedNotification(PageToolsRemovedNotification{SubscriptionID: params.SubscriptionID}))
+	if len(tools) != 0 {
+		t.Fatal("unrelated event reached callback")
+	}
+	rpc.toolEventHandler(NewPageToolsAddedNotification(added))
+	if len(tools) != 1 || tools[0].Descriptor().FrameID != "child" {
+		t.Fatalf("tools = %#v", tools)
+	}
+	invocation := rpc.calls[1].params.(PageWebMCPInvokeToolParams)
+	if invocation.PageID != "page-1" || invocation.FrameID != "child" || invocation.ToolName != "search" || string(invocation.Input["searchQuery"]) != `"hello"` {
+		t.Fatalf("invocation = %#v", invocation)
+	}
+	if err := subscription.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if rpc.toolEventHandler != nil {
+		t.Fatal("listener remained registered")
+	}
+	var identities []WebMCPToolIdentity
+	subscription, err = page.OnToolsRemoved(ctx, func(removed []WebMCPToolIdentity) { identities = removed })
+	if err != nil {
+		t.Fatal(err)
+	}
+	params = rpc.calls[len(rpc.calls)-1].params.(PageOnParams)
+	added.SubscriptionID = params.SubscriptionID
+	rpc.toolEventHandler(NewPageToolsAddedNotification(added))
+	if len(identities) != 0 {
+		t.Fatal("added event reached removal callback")
+	}
+	rpc.toolEventHandler(NewPageToolsRemovedNotification(PageToolsRemovedNotification{SubscriptionID: params.SubscriptionID, Tools: []WebMCPToolIdentity{{Name: "search", FrameID: "child"}}}))
+	if !reflect.DeepEqual(identities, []WebMCPToolIdentity{{Name: "search", FrameID: "child"}}) {
+		t.Fatalf("identities = %#v", identities)
+	}
+	if err := subscription.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPageToolHooksRollBackFailedRegistration(t *testing.T) {
+	t.Parallel()
+	for _, event := range []string{"added", "removed"} {
+		t.Run(event, func(t *testing.T) {
+			rpc := &recordingProtocolClient{callErrors: map[string]error{"page.on": errors.New("registration failed")}}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			var err error
+			if event == "added" {
+				_, err = page.OnToolsAdded(context.Background(), func([]*WebMCPTool) {})
+			} else {
+				_, err = page.OnToolsRemoved(context.Background(), func([]WebMCPToolIdentity) {})
+			}
+			if err == nil || rpc.toolEventHandler != nil {
+				t.Fatalf("err = %v, listener remains = %v", err, rpc.toolEventHandler != nil)
+			}
+		})
+	}
+}
+
+func TestPageRegistrationFailureCleansUpRemotely(t *testing.T) {
+	t.Parallel()
+	for _, event := range []string{"console", "added", "removed"} {
+		for _, registrationErr := range []error{context.Canceled, context.DeadlineExceeded, errors.New("registration failed")} {
+			for _, cleanupFails := range []bool{false, true} {
+				ctx, cancel := context.WithCancel(context.Background())
+				cleanupErr := errors.New("cleanup failed")
+				rpc := &recordingProtocolClient{}
+				rpc.callHook = func(callCtx context.Context, method string) error {
+					if method == "page.on" {
+						cancel()
+						return registrationErr
+					}
+					if method == "page.off" {
+						if callCtx.Err() != nil {
+							t.Fatal("cleanup reused cancelled context")
+						}
+						if _, ok := callCtx.Deadline(); !ok {
+							t.Fatal("cleanup has no deadline")
+						}
+						if cleanupFails {
+							return cleanupErr
+						}
+					}
+					return nil
+				}
+				page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+				var err error
+				switch event {
+				case "console":
+					_, err = page.On(ctx, "console", func(PageCDPEvent) {})
+				case "added":
+					_, err = page.OnToolsAdded(ctx, func([]*WebMCPTool) {})
+				case "removed":
+					_, err = page.OnToolsRemoved(ctx, func([]WebMCPToolIdentity) {})
+				}
+				cancel()
+				if !errors.Is(err, registrationErr) {
+					t.Fatalf("lost registration error: %v", err)
+				}
+				if len(rpc.calls) != 2 || rpc.calls[1].method != "page.off" {
+					t.Fatalf("calls = %#v", rpc.calls)
+				}
+				if rpc.calls[0].params.(PageOnParams).SubscriptionID != rpc.calls[1].params.(PageOffParams).SubscriptionID {
+					t.Fatal("cleanup subscription ID differs")
+				}
+				if rpc.pageEventHandler != nil || rpc.toolEventHandler != nil {
+					t.Fatal("local listener remained")
+				}
+				if cleanupFails {
+					if !errors.Is(err, cleanupErr) || len(page.subscriptions) != 1 {
+						t.Fatal("failed cleanup was not retained/reported")
+					}
+					rpc.callHook = nil
+					if err := page.Close(context.Background()); err != nil {
+						t.Fatal(err)
+					}
+					if rpc.calls[2].method != "page.off" {
+						t.Fatal("page close did not retry cleanup")
+					}
+				}
+				if len(page.subscriptions) != 0 {
+					t.Fatal("subscription remained after cleanup")
+				}
+			}
+		}
 	}
 }
 
@@ -275,7 +441,6 @@ func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 		},
 		"page.screenshot": PageScreenshotResult{
 			Data: "cG5nLWJ5dGVz",
-			Type: PageScreenshotResultTypePNG,
 		},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
@@ -311,7 +476,6 @@ func TestPageScreenshotSerializesOptionsAndMaskLocators(t *testing.T) {
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"page.screenshot": PageScreenshotResult{
 			Data: "cG5nLWJ5dGVz",
-			Type: PageScreenshotResultTypePNG,
 		},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
@@ -378,7 +542,7 @@ func TestPageScreenshotRejectsCrossPageMaskLocators(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz", Type: PageScreenshotResultTypePNG},
+		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz"},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 	otherPage := &Page{rpc: rpc, ref: PageRef{PageID: "page-2"}}
@@ -398,7 +562,7 @@ func TestPageScreenshotRejectsNilMaskLocators(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz", Type: PageScreenshotResultTypePNG},
+		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz"},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 
@@ -447,7 +611,7 @@ func TestPageScreenshotRejectsMalformedBase64(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.screenshot": PageScreenshotResult{Data: "%%%", Type: PageScreenshotResultTypePNG},
+		"page.screenshot": PageScreenshotResult{Data: "%%%"},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 	if _, err := page.Screenshot(context.Background(), nil); err == nil ||

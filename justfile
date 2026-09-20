@@ -11,6 +11,7 @@ install:
 generate:
     pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
+    uv --directory {{python_dir}} run --locked ty check
     pnpm --filter ./packages/extension build
     go -C {{go_dir}} generate ./...
 
@@ -88,3 +89,20 @@ _preview commit:
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
     pnpm exec changeset publish
+
+# Publishes a commit-addressed alpha of the TypeScript SDK (`<next>-alpha-<sha>`)
+# under the `alpha` dist-tag. Only packages with pending changesets are versioned,
+# so this is a no-op when nothing is unreleased.
+_publish-typescript-alpha:
+    pnpm exec changeset version --snapshot
+    pnpm --filter ./packages/sdk-ts build
+    pnpm exec changeset publish --tag alpha --no-git-tag
+
+# Rewrites the Python project to the commit-addressed alpha (`<next>a0.dev<N>`)
+# derived from the changesets snapshot version. Nothing is committed; the
+# working tree is discarded after publishing.
+_version-python-alpha:
+    pnpm exec changeset version --snapshot
+    pnpm exec tsx scripts/release/python-alpha-version.ts
+    uv --directory "{{python_dir}}" lock
+    uv --directory "{{python_dir}}" run --locked python scripts/generate.py

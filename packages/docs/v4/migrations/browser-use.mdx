@@ -1,0 +1,421 @@
+---
+title: Migrate Browser Use to v4
+sidebarTitle: Migrate Browser Use to v4
+icon: 'robot'
+noindex: true
+---
+
+Browser Use hands a task to an autonomous agent: you write `Agent(task="...", llm=...)`, call `run()`, and the agent picks each action. Stagehand v4 has no equivalent object.
+
+Most of this migration hinges on these principles:
+1. There is no `Agent`. Nothing in v4 takes a whole task and drives the browser for you.
+2. v4 is a browser SDK plus three model-backed steps. [`act()`](/v4/basics/act), [`extract()`](/v4/basics/extract), and [`observe()`](/v4/basics/observe) take natural-language instructions. Everything else is ordinary browser control.
+
+Porting a flow means writing out the steps the agent used to infer, and deciding for each one whether it needs a model or a selector.
+
+<Note>
+Browser Use is Python-first, so this guide is Python throughout. Stagehand behaves the same way in TypeScript; the [SDK reference](/v4/reference/stagehand) carries each language's naming.
+</Note>
+
+## Why there's no Agent
+
+`Agent(task=...).run()` was built for a world where a model couldn't be trusted with the browser on its own, so the framework wrapped it in a loop, showed it the page each step, and asked it to pick one action at a time. Every step was an inference call, whether the page needed judgement or not.
+
+Many of those steps do not need a model: navigating to a URL, clicking a button with a stable selector, reading a table. v4 exposes discrete tools and leaves the control flow to you.
+
+Two approaches replace the agent:
+
+- **[Code mode](#code-mode)** puts the model in front of the run, not inside it. A coding assistant writes a Stagehand script once; you run that script every time after. Browserbase recommends starting here.
+- **[Tool calling](#tool-calling)** keeps a model in the loop at runtime, the way Browser Use does, but drives the browser through the full Stagehand API as its tools instead of one broad task string.
+
+`act()`, `extract()`, and `observe()` stay available for the steps where a natural-language instruction beats a selector.
+
+## Hello world, side by side
+
+The smallest Browser Use program and its v4 shape:
+
+<CodeGroup>
+```python Browser Use
+from browser_use import Agent, ChatOpenAI
+from dotenv import load_dotenv
+import asyncio
+
+load_dotenv()
+
+
+async def main():
+    agent = Agent(
+        task="Go to news.ycombinator.com and return the title of the top story",
+        llm=ChatOpenAI(model="gpt-4.1-mini"),
+    )
+    history = await agent.run()
+    print(history.final_result())
+
+
+asyncio.run(main())
+```
+
+```python Stagehand v4
+import asyncio
+import os
+
+from stagehand import Stagehand, browserbase
+
+
+async def main():
+    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+    stagehand = await Stagehand.create(browser=browser)
+
+    try:
+        page = await browser.context.new_page("https://news.ycombinator.com")
+        # A stable selector does this without a model call.
+        title = await page.locator(".titleline > a").first().inner_text()
+        print(title)
+    finally:
+        await stagehand.close()
+        await browser.close()
+
+
+asyncio.run(main())
+```
+</CodeGroup>
+
+The shape of the migration is already visible:
+
+- A browser factory (`browserbase.launch()` or `local_browser.launch()`) replaces the implicit browser inside `Agent`, and `Stagehand.create()` attaches the runtime to it.
+- The task string is gone. You write the steps.
+- Where Browser Use would have spent a model call reading the page, a `page.locator()` reads it directly. Spend `act()` and `extract()` only where the page needs judgement.
+
+<Warning>
+Stagehand reads no environment variables of its own. Browser Use auto-loads `.env` and picks up `OPENAI_API_KEY` and `BROWSER_USE_API_KEY`. In v4 you pass every key explicitly: the Browserbase API key to the factory, and any model key in the `model` option. `load_dotenv()` still populates `os.environ`, but you pass in the values yourself.
+</Warning>
+
+## Code mode
+
+Ask a coding assistant to write the Stagehand script, then run the script. The model writes the code once, instead of driving the browser on every run. You get ordinary code: reviewable, diffable, and free of per-step inference. When a site changes, re-run the assistant on the step that broke.
+
+Start with [AI rules](/v4/first-steps/ai-rules). Those rule files keep generated code on the v4 API instead of the older Stagehand and Browser Use patterns in a model's training data.
+
+Here's a prompt that produces a working script:
+
+```text
+Using Stagehand v4, write a script that:
+  1. Opens news.ycombinator.com
+  2. Finds today's most-commented story
+  3. Opens its comments and extracts the top five comment bodies
+
+Follow the rules in my project's Stagehand rules file. Prefer page.locator()
+and page.goto() for anything with a stable selector, and reserve act() and
+extract() for steps that need a model.
+```
+
+What comes back should read like the script you'd have written yourself:
+
+```python
+import asyncio
+import os
+
+from pydantic import BaseModel
+from stagehand import Stagehand, browserbase
+
+
+class Comment(BaseModel):
+    author: str
+    body: str
+
+
+class Comments(BaseModel):
+    comments: list[Comment]
+
+
+async def main() -> None:
+    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+    stagehand = await Stagehand.create(browser=browser)
+
+    try:
+        page = await browser.context.new_page("https://news.ycombinator.com")
+
+        # Deterministic where the page allows it: no inference, no variance.
+        await page.locator("a.morelink").first().click()
+        await page.wait_for_load_state("domcontentloaded")
+
+        # A model call where the page needs judgement.
+        await stagehand.act("Open the comments for the story with the most comments")
+
+        result = await stagehand.extract(
+            "Extract the top five comments, with each author and body",
+            Comments,
+        )
+        print(result.data.comments)
+    finally:
+        await stagehand.close()
+        await browser.close()
+
+
+asyncio.run(main())
+```
+
+Generated code should use `page.locator()` and `page.goto()` wherever a selector is stable, and spend a model call only where the page needs judgement. A Browser Use agent couldn't make that split, because every step it ran was an inference call.
+
+## Tool calling
+
+To keep a model in the loop at runtime, the way Browser Use does, give it the whole Stagehand surface rather than one `task` string. Each method maps to one tool with a narrow contract, so a step names a specific browser operation instead of routing everything through one sentence of English and hoping the agent picks the right action.
+
+Browser Use also lets you register custom tools with `@tools.action(...)` (formerly `@controller.action(...)`). Those port directly: each becomes one function in the tool set below.
+
+Expose the real API:
+
+| Capability | Tools worth exposing |
+| --- | --- |
+| Navigation | `page.goto()`, `page.reload()`, `page.go_back()`, `page.go_forward()` |
+| Perception | `page.snapshot()`, `page.screenshot()`, `page.url()`, `page.title()` |
+| Element interaction | `locator.click()`, `locator.fill()`, `locator.type()`, `locator.select_option()`, `locator.set_input_files()`, `locator.scroll_to()` |
+| Element inspection | `locator.text_content()`, `locator.inner_text()`, `locator.is_visible()`, `locator.is_checked()`, `locator.count()`, `locator.input_value()` |
+| Raw input | `page.click(x, y)`, `page.hover()`, `page.scroll()`, `page.type()`, `page.key_press()`, `page.drag_and_drop()` |
+| Tabs and state | `context.new_page()`, `context.pages()`, `context.set_active_page()`, `context.cookies()` |
+| Waiting | `page.wait_for_selector()`, `page.wait_for_load_state()`, `page.wait_for_timeout()` |
+| Model-backed steps | `stagehand.act()`, `stagehand.extract()`, `stagehand.observe()` |
+| Page-declared tools | `page.tools()`, see [WebMCP](/v4/basics/webmcp) |
+
+`page.snapshot()` anchors the loop the way Browser Use's page state did. It returns `formatted_tree`, the accessibility tree, plus an `xpath_map`, so the model reads real page structure and hands back a selector you can drive deterministically.
+
+```python
+async def goto(url: str) -> str:
+    """Navigate to a URL."""
+    await page.goto(url)
+    return await page.url()
+
+
+async def snapshot() -> str:
+    """Read the accessibility tree of the current page."""
+    return (await page.snapshot()).formatted_tree
+
+
+async def click(selector: str) -> None:
+    """Click the element matching a selector from the snapshot."""
+    await page.locator(selector).click()
+
+
+async def fill(selector: str, value: str) -> None:
+    """Fill the input matching a selector."""
+    await page.locator(selector).fill(value)
+
+
+async def read_text(selector: str) -> str:
+    """Read the text of the element matching a selector."""
+    return await page.locator(selector).text_content()
+
+
+async def act(instruction: str) -> str:
+    """Perform one action in natural language when no selector is known."""
+    return (await stagehand.act(instruction)).data.message
+
+
+async def extract(instruction: str) -> str:
+    """Read structured data off the current page."""
+    return (await stagehand.extract(instruction)).data.extraction
+
+
+TOOLS = [goto, snapshot, click, fill, read_text, act, extract]
+```
+
+<Tip>
+Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. Browser Use's `max_failures` retry loop had the same hazard; keep the retry on the planning step. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
+</Tip>
+
+## Let a coding assistant do the rest
+
+Most of the mechanical mapping below is exactly what an assistant is good at. Point it at this page instead of retyping the rules:
+
+```text
+Migrate this file from Browser Use to Stagehand v4.
+
+Follow https://docs.stagehand.dev/v4/migrations/browser-use, and use its quick
+reference table as the mapping. For each Agent(task=...).run() call, stop and
+ask me whether to replace it with a written script (code mode) or a tool-calling
+loop, and list every one you find instead of guessing.
+```
+
+Set up [AI rules](/v4/first-steps/ai-rules) first, so the assistant stays on the v4 API instead of the Stagehand and Browser Use patterns in its training data.
+
+Then work through the sections below for anything it missed.
+
+## Recommended migration order
+
+1. Get one script constructing and closing cleanly on v4, before porting any behavior. Launch a browser, open a page, close both handles.
+2. Replace `Agent(task=...).run()` with [code mode](#code-mode) or [tool calling](#tool-calling). This is the real work, and everything else is mechanical.
+3. Convert the deterministic steps to `page.locator()` and `page.goto()`, keeping `act()` and `extract()` only where the page needs judgement.
+4. Move `output_model_schema` to an `extract()` call with a schema.
+5. Move `sensitive_data` to `variables` on `act()`.
+6. Turn on server-side caching once the flow is stable.
+
+## Breaking changes
+
+### Initialization and teardown
+
+Browser Use constructs a browser inside the agent and closes it for you. v4 separates the browser from the runtime, and you close both:
+
+```diff
+- from browser_use import Agent, ChatOpenAI
+-
+- agent = Agent(task="...", llm=ChatOpenAI(model="gpt-4.1-mini"))
+- await agent.run()
++ import os
++ from stagehand import Stagehand, browserbase
++
++ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
++ stagehand = await Stagehand.create(browser=browser)
++ try:
++     ...  # your steps
++ finally:
++     await stagehand.close()
++     await browser.close()
+```
+
+Use `local_browser.launch()` for a browser on your machine, `browserbase.launch(api_key=...)` for a hosted one, and `local_browser.connect(cdp_url=...)` or `browserbase.connect(api_key=..., session_id=...)` to attach to one that's already running. `browserbase.launch()` is what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). Stagehand closes only the browsers it launched, so `stagehand.close()` leaves the browser running and you call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+
+### The task string becomes explicit steps
+
+There's no direct diff here, because a `task` string has no single replacement. That's the whole migration: what the agent inferred each step, you now write out. Read [code mode](#code-mode) and [tool calling](#tool-calling), pick one, and translate the intent of the task into steps.
+
+### Models
+
+Browser Use selects a provider by the chat class you construct (`ChatOpenAI`, `ChatAnthropic`, `ChatGoogle`, `ChatBrowserUse`). v4 takes one `model` object, and the model name always carries a provider prefix:
+
+```diff
+- from browser_use import Agent, ChatAnthropic
+- agent = Agent(task="...", llm=ChatAnthropic(model="claude-sonnet-4-0"))
++ stagehand = await Stagehand.create(
++     browser=browser,
++     model="anthropic/claude-sonnet-4-6",
++     model_api_key=os.environ["ANTHROPIC_API_KEY"],
++ )
+```
+
+On a Browserbase browser you can omit `model` entirely and the Model Gateway picks one for you, which is the closest analogue to `ChatBrowserUse()`. Pass the same shape to a single `act()`, `extract()`, or `observe()` call to override it there. Browser Use's `page_extraction_llm` (a separate model for extraction) maps to passing `model` on the `extract()` call. See [models](/v4/configuration/models).
+
+### Structured output
+
+Browser Use validates the final result against `output_model_schema` on the agent. v4 puts the schema on the `extract()` call that reads the data, and returns it typed:
+
+```diff
+- class SearchResult(BaseModel):
+-     title: str
+-     url: str
+- agent = Agent(task="...", llm=llm, output_model_schema=SearchResult)
+- history = await agent.run()
+- result = history.structured_output
++ class SearchResult(BaseModel):
++     title: str
++     url: str
++ result = await stagehand.extract(
++     "Extract the title and URL of the top result",
++     SearchResult,
++ )
++ # result.data is a SearchResult
+```
+
+Calling `extract()` with no schema returns an object whose `extraction` field is a string. See [extract](/v4/basics/extract).
+
+### Sensitive data
+
+Both frameworks keep secrets out of the model's context. Browser Use uses a `sensitive_data` dict of placeholder-to-value; v4 uses `variables` with `%name%` placeholders in the instruction, on `act()` and `observe()`:
+
+```diff
+- agent = Agent(
+-     task="Log in with x_user and x_pass",
+-     llm=llm,
+-     sensitive_data={"x_user": "user@example.com", "x_pass": os.environ["PW"]},
+- )
++ await stagehand.act(
++     "type %username% into the email field",
++     variables={"username": "user@example.com"},
++ )
++ await stagehand.act(
++     "type %password% into the password field",
++     variables={"password": os.environ["PW"]},
++ )
++ await stagehand.act("click the login button")
+```
+
+Stagehand exposes only the variable names to the model and substitutes the real values locally. One exception: with [server-side caching](/v4/best-practices/caching) on, variable values travel to the cache service, so turn `cache` off for calls that carry credentials. See [act](/v4/basics/act#secure-your-automations). For Browser Use's TOTP support (`sensitive_data` keys ending in `bu_2fa_code`), generate the code in your own script and pass it as a variable; v4 has no built-in 2FA step.
+
+### Custom tools
+
+Browser Use's `@tools.action(...)` / `@controller.action(...)` decorators register functions the agent can call. In v4 there's no agent to register them with, so each custom action becomes an ordinary function you call directly in code mode, or one entry in your [tool-calling](#tool-calling) tool set. The function body ports as-is; only the registration goes away.
+
+### Browser configuration
+
+`Browser(...)` (aliased `BrowserSession`) options map onto the browser factory. The common ones:
+
+| Browser Use | Stagehand v4 |
+| --- | --- |
+| `Browser(headless=False)` | `local_browser.launch(headless=False)` |
+| `Browser(cdp_url="http://localhost:9222")` | `local_browser.connect(cdp_url="http://localhost:9222")` |
+| `Browser(proxy=ProxySettings(...))` | `proxy` on `local_browser.launch()`, or Browserbase proxies |
+| `Browser(allowed_domains=[...])` / `prohibited_domains=[...]` | `browser.context.set_domain_policy(DomainPolicy(allowed_domains=..., blocked_domains=...))` |
+| `Browser(storage_state="auth.json")` | Cookie API on `browser.context`, or a [Browserbase context](/v4/best-practices/user-data) |
+| `Browser(user_data_dir=...)` | `user_data_dir` on `local_browser.launch()` |
+| `Browser(accept_downloads=True, downloads_path=...)` | `accept_downloads` and `downloads_path` on `local_browser.launch()` |
+| `Browser(keep_alive=True)` | `keep_alive` on `local_browser.launch()` |
+| `@sandbox(...)` cloud deployment | `browserbase.launch(api_key=...)` plus [deployments](/v4/best-practices/deployments) |
+
+Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud infrastructure. The v4 equivalent is a Browserbase browser: `browserbase.launch()` gives you the hosted session, and the [live view, recording, and network detail](/v4/configuration/observability) replace `@sandbox`'s `on_browser_created` / `live_url` and `on_log` callbacks.
+
+## Quick reference
+
+| Browser Use | Stagehand v4 |
+| --- | --- |
+| `Agent(task=..., llm=...)`, `agent.run()` | Code mode, or a tool-calling loop you own |
+| The `task` string | Explicit steps: `page.locator()`, `act()`, `extract()` |
+| `run(max_steps=...)` | Your loop bound, or the length of the script |
+| `agent.add_new_task(...)` (follow-up) | Keep calling steps on the same browser |
+| `ChatOpenAI`, `ChatAnthropic`, `ChatGoogle` | `model="provider/model"`, `model_api_key=...` |
+| `ChatBrowserUse()` | Omit `model` on a Browserbase browser (Model Gateway picks) |
+| `page_extraction_llm` | `model` option on the `extract()` call |
+| `output_model_schema=Model` | `extract(instruction, Model)` |
+| `sensitive_data={...}` | `variables` on `act()` and `observe()` |
+| `@tools.action(...)`, `@controller.action(...)` | A plain function, or one tool in your tool set |
+| `tools` / `controller` registry | Your own tool set, see [tool calling](#tool-calling) |
+| `history.final_result()` | The return of your last `extract()` |
+| `history.structured_output` | `extract().data`, typed by the schema |
+| `history.urls()`, `history.errors()` | Your own bookkeeping between steps |
+| `use_vision=True` | `screenshot=True` on an `extract()` call |
+| `generate_gif=True` | Browserbase [session recording](/v4/configuration/observability) |
+| `Browser(...)` / `BrowserSession(...)` | `local_browser.launch()` or `browserbase.launch()` |
+| `Browser(cdp_url=...)` | `local_browser.connect(cdp_url=...)` |
+| `Browser(allowed_domains=...)` | `browser.context.set_domain_policy(DomainPolicy(allowed_domains=...))` |
+| `Browser(storage_state=...)` | Cookie API, or a Browserbase context |
+| `@sandbox(...)` | `browserbase.launch(api_key=...)` |
+| `calculate_cost=True`, `history.usage` | `await stagehand.metrics()` |
+
+## Troubleshooting
+
+**`ImportError: cannot import name 'Agent'`.** There is no `Agent` in v4. Replace `Agent(task=...).run()` with [code mode](#code-mode) or [tool calling](#tool-calling).
+
+**`KeyError: 'BROWSERBASE_API_KEY'`.** Stagehand reads no environment variables. Pass the Browserbase key to `browserbase.launch()` and any model key in the `model` option. `load_dotenv()` only populates `os.environ`; you still pass the values in.
+
+**`AttributeError` on `history` or `final_result()`.** There's no run history. The value you'd have read from `history.final_result()` or `history.structured_output` is the return of your last `extract()` call, on `.data`.
+
+**A `@tools.action` function has nowhere to register.** Call it directly in code mode, or add it to your tool set for [tool calling](#tool-calling). Only the decorator goes away; the function body is unchanged.
+
+**A retried step repeats a side effect.** You're retrying `act()`. Retry `observe()` instead and pass the resulting action to `act()` once.
+
+**Your generated script uses `Agent` or old Stagehand APIs.** The assistant is drawing on Browser Use and older Stagehand patterns in its training data. Install the rule files from [AI rules](/v4/first-steps/ai-rules).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="AI rules" icon="robot" href="/v4/first-steps/ai-rules">
+    Set your coding assistant up to write v4 code
+  </Card>
+  <Card title="Act" icon="arrow-pointer" href="/v4/basics/act">
+    Perform one action, or replay an observed one
+  </Card>
+  <Card title="Extract" icon="table" href="/v4/basics/extract">
+    Pull typed data, the home for structured output
+  </Card>
+  <Card title="Caching" icon="database" href="/v4/best-practices/caching">
+    Cut inference out of a stable flow
+  </Card>
+</CardGroup>

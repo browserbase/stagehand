@@ -5,7 +5,7 @@ import type {
   LLMImageContent,
   ModelConfig,
   StagehandExtractParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { TimeoutError } from "../errors.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";

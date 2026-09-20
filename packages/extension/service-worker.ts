@@ -2,9 +2,9 @@ import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,
   StagehandNotifications,
-} from "../protocol/schema-registry.js";
-import { STAGEHAND_PROTOCOL_VERSION } from "../protocol/schemas.js";
-import type { RuntimeDescriptor } from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
+import type { RuntimeDescriptor } from "@browserbasehq/stagehand-protocol/types";
 import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
 import { RPCClient } from "./clients/rpcClient.js";
 import { RPCRouter } from "./rpcRouter.js";
@@ -64,6 +64,15 @@ export function startStagehandServiceWorker(
             // This notification cannot safely report its own delivery failure over JSON-RPC.
             // oxlint-disable-next-line no-console
             console.error("[stagehand] Failed to emit page CDP event notification", error);
+          });
+      },
+      emitPageEvent: (notification) => {
+        void rpcClient
+          ?.notify(StagehandNotifications.pageEvent, notification)
+          .catch((error: unknown) => {
+            // This notification cannot safely report its own delivery failure over JSON-RPC.
+            // oxlint-disable-next-line no-console
+            console.error("[stagehand] Failed to emit page event notification", error);
           });
       },
       clientLLMGenerate: async (params) => {

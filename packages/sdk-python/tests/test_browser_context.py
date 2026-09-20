@@ -25,7 +25,7 @@ async def test_browser_context_wraps_generated_page_references() -> None:
         "context.active_page": PageRef(page_id="page-2"),
         "context.set_active_page": ContextVoidResult(ok=True),
     })
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     pages = await context.pages()
     new_page = await context.new_page("https://example.com")
@@ -47,7 +47,7 @@ async def test_browser_context_wraps_generated_page_references() -> None:
 @pytest.mark.asyncio
 async def test_browser_context_new_page_validates_optional_url() -> None:
     recording = RecordingRPCClient({"context.new_page": PageRef(page_id="page-1")})
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     blank_page = await context.new_page()
 
@@ -59,7 +59,7 @@ async def test_browser_context_new_page_validates_optional_url() -> None:
 
 
 def test_browser_context_reuses_one_clipboard_wrapper() -> None:
-    context = BrowserContext(cast(RPCClient, RecordingRPCClient()))
+    context = BrowserContext(cast(RPCClient, RecordingRPCClient()), _close_browser)
 
     assert context.clipboard is context.clipboard
 
@@ -67,7 +67,7 @@ def test_browser_context_reuses_one_clipboard_wrapper() -> None:
 @pytest.mark.asyncio
 async def test_browser_context_serializes_python_cookie_filters() -> None:
     recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
-    context = BrowserContext(cast(RPCClient, recording))
+    context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     await context.clear_cookies(
         name=re.compile("^session$", re.IGNORECASE),
@@ -80,3 +80,7 @@ async def test_browser_context_serializes_python_cookie_filters() -> None:
             "domain": "example.com",
         }
     })
+
+
+async def _close_browser() -> None:
+    return None

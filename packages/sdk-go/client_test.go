@@ -40,6 +40,7 @@ type recordingProtocolClient struct {
 	callHook         func(context.Context, string) error
 	handlers         map[string]requestHandler
 	pageEventHandler func(PageCDPEventNotification)
+	toolEventHandler func(PageEventNotification)
 	closed           bool
 }
 
@@ -86,6 +87,11 @@ func (c *recordingProtocolClient) onPageCDPEvent(
 ) func() {
 	c.pageEventHandler = handler
 	return func() { c.pageEventHandler = nil }
+}
+
+func (c *recordingProtocolClient) onPageEvent(handler func(PageEventNotification)) func() {
+	c.toolEventHandler = handler
+	return func() { c.toolEventHandler = nil }
 }
 
 func (*recordingProtocolClient) browserWebSocketDebuggerURL() string {
@@ -341,6 +347,10 @@ func TestClientCloseMemoizesFirstFailure(t *testing.T) {
 	if client.Initialized() {
 		t.Fatal("client remained initialized after Close")
 	}
+	if _, err := claimBrowser(client.browser); err == nil {
+		releaseBrowserClaim(client.browser)
+		t.Fatal("failed Close released the browser claim")
+	}
 }
 
 func TestActAcceptsObservedAction(t *testing.T) {
@@ -396,6 +406,10 @@ func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 	if !rpc.closed {
 		t.Fatal("protocol client was not closed")
 	}
+	if _, err := claimBrowser(client.browser); err != nil {
+		t.Fatalf("disconnected Close retained the browser claim: %v", err)
+	}
+	releaseBrowserClaim(client.browser)
 }
 
 func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
@@ -475,11 +489,15 @@ func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
 	}
 }
 
-func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
+func TestCreateFailureAndSuccessfulCloseReleaseClaim(t *testing.T) {
 	browser := &Browser{}
 	initErr := &RPCError{Code: -32_000, Message: "init failed"}
 	failedRPC := &recordingProtocolClient{callErrors: map[string]error{"stagehand.init": initErr}}
 	successRPC := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init":  StagehandInitResult{Initialized: true},
+		"stagehand.close": StagehandCloseResult{Closed: true},
+	}}
+	reattachRPC := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init":  StagehandInitResult{Initialized: true},
 		"stagehand.close": StagehandCloseResult{Closed: true},
 	}}
@@ -490,7 +508,10 @@ func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
 			if connections == 1 {
 				return failedRPC, nil
 			}
-			return successRPC, nil
+			if connections == 2 {
+				return successRPC, nil
+			}
+			return reattachRPC, nil
 		},
 	}
 	if _, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters); !errors.Is(err, initErr) {
@@ -509,8 +530,61 @@ func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
 	if browser.Closed() {
 		t.Fatal("Stagehand.Close closed the Browser handle")
 	}
-	if _, err := claimBrowser(browser); err == nil || err.Error() != "this browser is already attached to a Stagehand instance" {
-		t.Fatalf("claim after successful Close error = %v", err)
+	reattached, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters)
+	if err != nil {
+		t.Fatalf("Create() after successful Close error = %v", err)
+	}
+	if err := reattached.Close(context.Background()); err != nil {
+		t.Fatalf("reattached Close() error = %v", err)
+	}
+}
+
+func TestBrowserContextCloseAliasesBrowserClose(t *testing.T) {
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init": StagehandInitResult{Initialized: true},
+	}}
+	terminationCalls := 0
+	browser := &Browser{
+		terminateSource: func(context.Context) error {
+			terminationCalls++
+			return nil
+		},
+	}
+	client, err := createWithAdapters(
+		context.Background(),
+		CreateOptions{Browser: browser},
+		clientAdapters{connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+			return rpc, nil
+		}},
+	)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	browserContext, err := browser.Context()
+	if err != nil {
+		t.Fatalf("Browser.Context() error = %v", err)
+	}
+
+	results := make(chan error, 3)
+	go func() { results <- browserContext.Close(context.Background()) }()
+	go func() { results <- browser.Close(context.Background()) }()
+	go func() { results <- browserContext.Close(context.Background()) }()
+	for range 3 {
+		if err := <-results; err != nil {
+			t.Fatalf("close error = %v", err)
+		}
+	}
+
+	if !browser.Closed() || terminationCalls != 1 {
+		t.Fatalf("browser closed = %t, termination calls = %d", browser.Closed(), terminationCalls)
+	}
+	for _, call := range rpc.calls {
+		if call.method == "context.close" {
+			t.Fatal("BrowserContext.Close() sent context.close RPC")
+		}
+	}
+	if client.Browser() != browser {
+		t.Fatal("Stagehand browser changed after context close")
 	}
 }
 

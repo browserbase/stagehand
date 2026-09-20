@@ -1,5 +1,5 @@
-import type { ContextClipboardPasteParams } from "../../protocol/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+import type { ContextClipboardPasteParams } from "@browserbasehq/stagehand-protocol/types";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type { Page } from "./page.js";
 import type { StagehandCommandClient } from "./commandClient.js";
 

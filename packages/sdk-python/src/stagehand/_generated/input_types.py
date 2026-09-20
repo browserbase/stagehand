@@ -140,10 +140,6 @@ class ContextClipboardWriteTextParams(TypedDict):
     text: str
 
 
-class ContextCloseResult(TypedDict):
-    closed: Literal[True]
-
-
 class ContextCookiesParams(TypedDict):
     urls: NotRequired[str | list[str]]
 
@@ -785,12 +781,6 @@ class PageOffParams(TypedDict):
     subscription_id: str
 
 
-class PageOnParams(TypedDict):
-    page_id: str
-    subscription_id: str
-    event: PageEventName
-
-
 class PageRef(TypedDict):
     page_id: str
     url: NotRequired[str]
@@ -848,7 +838,6 @@ class PageScreenshotParams(TypedDict):
 
 class PageScreenshotResult(TypedDict):
     data: str
-    type: Literal["png", "jpeg"]
 
 
 class PageScrollParams(TypedDict):
@@ -882,6 +871,15 @@ class PageSnapshotOptions(TypedDict):
 class PageSnapshotParams(TypedDict):
     page_id: str
     options: NotRequired[PageSnapshotOptions]
+
+
+PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved"]
+
+
+class PageOnParams(TypedDict):
+    page_id: str
+    subscription_id: str
+    event: PageSubscriptionEventName
 
 
 PageTitleResult: TypeAlias = str
@@ -1202,8 +1200,34 @@ class WebMCPToolDescriptor(TypedDict):
     backend_node_id: NotRequired[int]
 
 
+class PageToolsAddedNotification(TypedDict):
+    subscription_id: str
+    page_id: str
+    session_id: str
+    target_id: str
+    event: Literal["toolsadded"]
+    tools: list[WebMCPToolDescriptor]
+
+
 class PageWebMCPToolsResult(TypedDict):
     tools: list[WebMCPToolDescriptor]
+
+
+class WebMCPToolIdentity(TypedDict):
+    frame_id: str
+    name: str
+
+
+class PageToolsRemovedNotification(TypedDict):
+    subscription_id: str
+    page_id: str
+    session_id: str
+    target_id: str
+    event: Literal["toolsremoved"]
+    tools: list[WebMCPToolIdentity]
+
+
+PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification
 
 
 class WebMCPToolResponse(TypedDict):

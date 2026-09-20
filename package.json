@@ -22,6 +22,7 @@
     "test": "turbo run test:unit test:browser",
     "test:unit": "vitest run rules/ast-grep scripts",
     "test:integration": "tsx scripts/test-integration.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.tooling.json",
     "build": "turbo run build",
     "build:cli": "turbo run build:cli",
     "generate:python": "uv --directory packages/sdk-python run --locked python scripts/generate.py",

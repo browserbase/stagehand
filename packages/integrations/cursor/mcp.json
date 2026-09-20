@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs",
+        "--max-screenshot-base64-bytes=60000"
+      ],
+      "env": {
+        "STAGEHAND_BROWSER": "browserbase",
+        "BROWSERBASE_API_KEY": "bb_live_..."
+      }
+    }
+  }
+}

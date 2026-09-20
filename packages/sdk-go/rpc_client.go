@@ -49,7 +49,6 @@ var (
 		"stagehand.extract":              {},
 		"stagehand.observe":              {},
 		"context.new_page":               {},
-		"context.close":                  {},
 		"context.add_init_script":        {},
 		"context.set_extra_http_headers": {},
 		"context.get_domain_policy":      {},
@@ -387,6 +386,10 @@ func (c *rpcClient) onNotification(method string, handler func(StagehandLog)) fu
 
 func (c *rpcClient) onPageCDPEvent(handler func(PageCDPEventNotification)) func() {
 	return registerNotification(c, "page.cdp_event", handler)
+}
+
+func (c *rpcClient) onPageEvent(handler func(PageEventNotification)) func() {
+	return registerNotification(c, "page.event", handler)
 }
 
 func registerNotification[Notification any](

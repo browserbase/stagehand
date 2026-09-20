@@ -258,10 +258,10 @@ describe("page command schemas", () => {
         mask: [{ pageId, selector: "[data-secret]", nth: 0 }],
       },
     });
-    expect(PageScreenshotResultSchema.parse({ data: "iVBORw==", type: "png" })).toStrictEqual({
+    expect(PageScreenshotResultSchema.parse({ data: "iVBORw==" })).toStrictEqual({
       data: "iVBORw==",
-      type: "png",
     });
+    expect(() => PageScreenshotResultSchema.parse({ data: "iVBORw==", type: "png" })).toThrow();
     expect(
       PageSnapshotParamsSchema.parse({ pageId, options: { includeIframes: true } }),
     ).toStrictEqual({ pageId, options: { includeIframes: true } });

@@ -13,6 +13,7 @@ from opentelemetry.trace import (
     set_span_in_context,
 )
 from pydantic import BaseModel, ConfigDict, ValidationError
+from typing_extensions import override
 
 from stagehand import rpc_client
 from stagehand._generated import models
@@ -60,6 +61,7 @@ class FailingReceiveTransport(QueueTransport):
         super().__init__()
         self.fail = asyncio.Event()
 
+    @override
     async def receive(self) -> object:
         await self.fail.wait()
         raise RuntimeError("transport reader failed")
@@ -646,7 +648,6 @@ def test_response_deadline_preserves_v3_unbounded_operations() -> None:
         "stagehand.extract",
         "stagehand.observe",
         "context.new_page",
-        "context.close",
         "context.add_init_script",
         "context.set_extra_http_headers",
         "context.get_domain_policy",

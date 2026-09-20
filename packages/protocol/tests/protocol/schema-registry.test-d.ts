@@ -92,7 +92,6 @@ expectTypeOf<z.output<typeof StagehandMethods.pageDragAndDrop.result>>().toEqual
 expectTypeOf(StagehandMethods.pageScreenshot.name).toEqualTypeOf<"page.screenshot">();
 expectTypeOf<z.output<typeof StagehandMethods.pageScreenshot.result>>().toEqualTypeOf<{
   data: string;
-  type: "png" | "jpeg";
 }>();
 expectTypeOf(StagehandMethods.pageWaitForSelector.name).toEqualTypeOf<"page.wait_for_selector">();
 expectTypeOf<z.output<typeof StagehandMethods.pageWaitForSelector.result>>().toEqualTypeOf<{

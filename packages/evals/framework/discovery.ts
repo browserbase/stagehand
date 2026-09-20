@@ -27,6 +27,7 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
   ionwave: ["regression"],
   wichita: ["regression"],
   extract_memorial_healthcare: ["regression"],
+  observe_main_frame_element_ids: ["regression"],
   observe_github: ["regression"],
   observe_vantechjournal: ["regression"],
   observe_iframes1: ["regression"],
@@ -56,6 +57,7 @@ const CATEGORY_OVERRIDES: Record<string, string[]> = {
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],
+  "agent/hardbenchmark": ["external_agent_benchmarks"],
   "agent/odysseysbench": ["external_agent_benchmarks"],
 };
 
@@ -181,6 +183,7 @@ const AGENT_SUITE_NAMES = [
   "agent/webvoyager",
   "agent/onlineMind2Web",
   "agent/webtailbench",
+  "agent/hardbenchmark",
   "agent/odysseysbench",
 ] as const;
 
