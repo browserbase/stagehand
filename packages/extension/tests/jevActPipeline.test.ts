@@ -978,3 +978,78 @@ describe("jev act pipeline and DOM settle", () => {
     expect(order).toEqual(["intent", "settled", "act"]);
   });
 });
+
+describe("jev act pipeline target readiness", () => {
+  const tree = ["[0-1] RootWebArea: Shop", "  [0-7] button: Checkout"].join("\n");
+  const xpaths = { "0-7": "/html/body/button" };
+  const never = new Promise<void>(() => {});
+
+  function locator(positions: Array<{ x: number; y: number }>, backendNodeId = 7) {
+    let reads = 0;
+    return {
+      backendNodeId: async () => backendNodeId,
+      centroid: async () => positions[Math.min(reads++, positions.length - 1)]!,
+      inputValue: async () => "",
+    } as never;
+  }
+
+  it("acts before the DOM-settle wait is over when the target is found and stays put", async () => {
+    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValueOnce(locator([{ x: 10, y: 10 }]));
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: never });
+    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    // The settle promise never resolves: only readiness let this act through.
+    expect(d.captureSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the settle heuristic when the target keeps moving", async () => {
+    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(
+      locator([
+        { x: 10, y: 10 },
+        { x: 10, y: 80 },
+        { x: 10, y: 140 },
+        { x: 10, y: 200 },
+        { x: 10, y: 260 },
+        { x: 10, y: 320 },
+      ]),
+    );
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled });
+    const running = runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(d.takeAction).not.toHaveBeenCalled();
+    settle();
+    expect((await running).kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("does not trust a selector that now resolves to a different node", async () => {
+    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator([{ x: 10, y: 10 }], 99));
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled });
+    const running = runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(d.takeAction).not.toHaveBeenCalled();
+    settle();
+    await running;
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+});

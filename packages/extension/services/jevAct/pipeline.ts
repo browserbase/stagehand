@@ -98,6 +98,13 @@ export type JevActConfig = JevConfig & {
   /** Resolve observe() through Jev first. Default false. */
   observe?: boolean;
   /**
+   * Act as soon as the target is there instead of waiting out the DOM-settle
+   * heuristic: pick on an early snapshot, and go when Jev finds the target,
+   * does not think the page is still loading, and the target is unchanged a
+   * moment later. The settle wait remains the upper bound. Default false.
+   */
+  targetReadiness?: boolean;
+  /**
    * Let act() invoke a WebMCP tool the page registered when Jev is sure the
    * tool is the request. Sends tool names and descriptions, and for the likely
    * tools their parameter names, descriptions, types and enum values, to
@@ -157,6 +164,10 @@ type PipelineContext = AskContext & {
   deps: JevActDeps;
   /** Every action that already ran, so an error or abstention later never loses one. */
   performed: ActResultData["actions"];
+  /** Target readiness already vouched for the page; do not also wait for the settle heuristic. */
+  ready?: boolean;
+  /** With target readiness the first snapshot depends on nothing, so it is captured while intent is asked. */
+  earlySnapshot?: Promise<Snapshot>;
 };
 
 const DEFAULT_ACT_CONFIDENCE = 0.7;
@@ -290,6 +301,11 @@ async function decideAndAct(
 
   // Intent fan-out: every question that only needs the instruction rides in
   // one request, so press / not-an-action / whole-page scroll finish here.
+  if (config.targetReadiness && deps.settled) {
+    ctx.earlySnapshot = capture(deps);
+    ctx.earlySnapshot.catch(() => {});
+  }
+
   const fillValues = fillValueCandidates(deps.instruction, deps.variables);
   // Tool choice only needs the instruction too, so it costs no round trip of
   // its own, and a page without tools adds no question at all.
@@ -506,17 +522,18 @@ async function runPointer(
   if (button.confidence < ctx.threshold) return fallback(`mouse_button_unsure:${button.choice}`);
   const buttonArgs = method === "click" && button.choice !== "left" ? [button.choice] : [];
 
-  const snap = await snapshot(ctx.deps);
-  // DOM hints cost a CDP round trip per nameless control: only when Jev is
-  // actually about to be asked about them.
-  ctx.prepare = () => addDomHints(ctx, snap);
-  const picked = await pickTarget(
-    ctx,
-    "target",
-    snap,
-    ["pointer", "broad"],
-    `Which element should receive the ${method} to carry out the instruction?`,
-  );
+  const { snap, picked } = await pickWhenReady(ctx, (candidate) => {
+    // DOM hints cost a CDP round trip per nameless control: only when Jev is
+    // actually about to be asked about them.
+    ctx.prepare = () => addDomHints(ctx, candidate);
+    return pickTarget(
+      ctx,
+      "target",
+      candidate,
+      ["pointer", "broad"],
+      `Which element should receive the ${method} to carry out the instruction?`,
+    );
+  });
   if (!picked.target) return await rejected(ctx, snap, "target_rejected", picked);
   const target = await preferVisibleTwin(ctx, snap, picked.target);
 
@@ -675,17 +692,18 @@ async function runFill(
   const extracting = value === undefined ? extractText(ctx) : undefined;
   if (value === undefined && !extracting) return fallback("fill_no_value");
 
-  const snap = await snapshot(ctx.deps);
-  const [picked, extracted] = await Promise.all([
-    pickTarget(
-      ctx,
-      "target",
-      snap,
-      ["input", "broad"],
-      "Which field should the text be entered into?",
-      {
-        quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
-      },
+  const [{ snap, picked }, extracted] = await Promise.all([
+    pickWhenReady(ctx, (candidate) =>
+      pickTarget(
+        ctx,
+        "target",
+        candidate,
+        ["input", "broad"],
+        "Which field should the text be entered into?",
+        {
+          quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
+        },
+      ),
     ),
     extracting,
   ]);
@@ -1083,7 +1101,7 @@ async function act(
   options: { before?: Snapshot; expectedValue?: string } = {},
 ): Promise<Done | Fallback> {
   // Press and whole-page scroll get here without ever taking a snapshot.
-  await ctx.deps.settled;
+  if (!ctx.ready) await ctx.deps.settled;
   const urlBefore = ctx.deps.page.url();
   const pagesBefore = ctx.deps.openPageCount?.();
   ctx.deps.ensureTimeRemaining();
@@ -1371,8 +1389,91 @@ async function readInputValue(deps: JevActDeps, selector: string): Promise<strin
   }
 }
 
+const READY_ATTEMPTS = 3;
+const READY_POLL_MS = 150;
+const READY_STABLE_MS = 100;
+const READY_STABLE_PX = 2;
+
+/**
+ * "Is the page loaded" has no answer a snapshot can give: on 30 sites Jev
+ * rated a 1%-complete page as finished as the final one, under four phrasings,
+ * because a half-loaded page reads as a smaller complete page. The settle
+ * heuristic is right more often (network quiet for 500 ms) and pays for it
+ * with a median 1.2 s of waiting on a page that was already there.
+ *
+ * What an act needs is narrower, and answerable: is the thing it is about to
+ * use there, and is it staying put. With `targetReadiness` the pick runs on a
+ * snapshot taken while intent is asked, and the act goes ahead when Jev
+ * accepts a target and that element is the same node in the same place a
+ * moment later. Otherwise it polls, and the settle wait is where polling ends.
+ */
+async function pickWhenReady(
+  ctx: PipelineContext,
+  pick: (snap: Snapshot) => Promise<TargetResult>,
+): Promise<{ snap: Snapshot; picked: TargetResult }> {
+  const { deps } = ctx;
+  if (ctx.config.targetReadiness && deps.settled && !ctx.ready) {
+    let settled = false;
+    const mark = (): void => {
+      settled = true;
+    };
+    deps.settled.then(mark, mark);
+    const startedAt = performance.now();
+    for (let attempt = 1; attempt <= READY_ATTEMPTS && !settled; attempt++) {
+      const early = ctx.earlySnapshot;
+      ctx.earlySnapshot = undefined;
+      const snap = await (early ?? capture(deps));
+      const picked = await pick(snap);
+      const stable = picked.target ? await staysPut(deps, snap, picked.target) : false;
+      ctx.trace.push({
+        node: stable ? "ready" : "not_ready",
+        ms: Math.round(performance.now() - startedAt),
+        attempt,
+        found: picked.target !== undefined,
+        settled,
+      });
+      if (stable) {
+        ctx.ready = true;
+        return { snap, picked };
+      }
+      await Promise.race([deps.settled.catch(() => {}), sleep(READY_POLL_MS)]);
+    }
+  }
+  const snap = await snapshot(deps);
+  return { snap, picked: await pick(snap) };
+}
+
+/** Same DOM node behind the selector, at the same spot, across a short gap: no full second snapshot. */
+async function staysPut(deps: JevActDeps, snap: Snapshot, target: OutlineNode): Promise<boolean> {
+  const selector = selectorFor(snap, target);
+  if (!selector) return false;
+  try {
+    const locator = await resolveLocatorWithHops(deps.page, deps.page.mainFrame(), selector);
+    const expected = Number(target.id.slice(target.id.lastIndexOf("-") + 1));
+    if ((await locator.backendNodeId()) !== expected) return false;
+    const before = await locator.centroid();
+    await sleep(READY_STABLE_MS);
+    const after = await locator.centroid();
+    return (
+      (await locator.backendNodeId()) === expected &&
+      Math.abs(before.x - after.x) <= READY_STABLE_PX &&
+      Math.abs(before.y - after.y) <= READY_STABLE_PX
+    );
+  } catch {
+    return false;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function snapshot(deps: JevActDeps): Promise<Snapshot> {
   await deps.settled;
+  return await capture(deps);
+}
+
+async function capture(deps: JevActDeps): Promise<Snapshot> {
   deps.ensureTimeRemaining();
   const { combinedTree, combinedXpathMap, combinedEditableIds } = await deps.page.captureSnapshot(
     deps.snapshotOptions,

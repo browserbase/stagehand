@@ -1669,6 +1669,7 @@ export const StagehandInitParamsSchema = z
         pageState: z.boolean().optional(),
         observe: z.boolean().optional(),
         tools: z.boolean().optional(),
+        targetReadiness: z.boolean().optional(),
       })
       .optional()
       .meta({
