@@ -41,17 +41,22 @@ select = [
   "B015",
   "B018",
   "B904",
+  "C4",
   "E",
   "F",
   "I",
+  "PGH",
   "PYI",
   "RUF018",
   "RUF022",
   "RUF023",
+  "RUF039",
   "RUF043",
   "RUF100",
+  "T10",
   "TID252",
   "UP",
+  "W",
 ]
 external = ["S"]
 
