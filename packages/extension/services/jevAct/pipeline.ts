@@ -522,18 +522,22 @@ async function runPointer(
   if (button.confidence < ctx.threshold) return fallback(`mouse_button_unsure:${button.choice}`);
   const buttonArgs = method === "click" && button.choice !== "left" ? [button.choice] : [];
 
-  const { snap, picked } = await pickWhenReady(ctx, (candidate) => {
-    // DOM hints cost a CDP round trip per nameless control: only when Jev is
-    // actually about to be asked about them.
-    ctx.prepare = () => addDomHints(ctx, candidate);
-    return pickTarget(
-      ctx,
-      "target",
-      candidate,
-      ["pointer", "broad"],
-      `Which element should receive the ${method} to carry out the instruction?`,
-    );
-  });
+  const { snap, picked } = await pickWhenReady(
+    ctx,
+    (candidate) => {
+      // DOM hints cost a CDP round trip per nameless control: only when Jev is
+      // actually about to be asked about them.
+      ctx.prepare = () => addDomHints(ctx, candidate);
+      return pickTarget(
+        ctx,
+        "target",
+        candidate,
+        ["pointer", "broad"],
+        `Which element should receive the ${method} to carry out the instruction?`,
+      );
+    },
+    true,
+  );
   if (!picked.target) return await rejected(ctx, snap, "target_rejected", picked);
   const target = await preferVisibleTwin(ctx, snap, picked.target);
 
@@ -693,17 +697,20 @@ async function runFill(
   if (value === undefined && !extracting) return fallback("fill_no_value");
 
   const [{ snap, picked }, extracted] = await Promise.all([
-    pickWhenReady(ctx, (candidate) =>
-      pickTarget(
-        ctx,
-        "target",
-        candidate,
-        ["input", "broad"],
-        "Which field should the text be entered into?",
-        {
-          quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
-        },
-      ),
+    pickWhenReady(
+      ctx,
+      (candidate) =>
+        pickTarget(
+          ctx,
+          "target",
+          candidate,
+          ["input", "broad"],
+          "Which field should the text be entered into?",
+          {
+            quotedTargets: quotedStrings(ctx.instruction).filter((quoted) => quoted !== value),
+          },
+        ),
+      false,
     ),
     extracting,
   ]);
@@ -955,6 +962,10 @@ async function chooseFromAppeared(
   // Suggestion lists are usually fetched after the keystrokes; an immediate
   // snapshot sees only the changed input. Poll briefly when one is expected.
   const startedAt = Date.now();
+  // Wait for what the action should produce, not for the page: two frames, or
+  // (when choices are expected) until an option-like element is visible.
+  const waited = await waitForChoices(ctx.deps, patience === "wait");
+  if (waited !== undefined) ctx.trace.push({ node: "await_choices", ms: waited });
   let after = await snapshot(ctx.deps);
   let filter = appearedFilter(before, after, triggerId);
   // Keep polling until real choices show up: the first thing to "appear" is
@@ -984,6 +995,33 @@ async function chooseFromAppeared(
     { selector, description: describeLine(picked.target), method: "click", arguments: [] },
     { before: after },
   );
+}
+
+const CHOICES_CAP_MS = 400;
+
+/** In the main frame only; anything it misses is still caught by the snapshot polling below. */
+async function waitForChoices(
+  deps: JevActDeps,
+  expectChoices: boolean,
+): Promise<number | undefined> {
+  const startedAt = performance.now();
+  try {
+    await deps.page.mainFrame().evaluate(
+      `new Promise((resolve) => {
+          const cap = ${expectChoices ? CHOICES_CAP_MS : 50};
+          const visible = () => [...document.querySelectorAll('[role="option"],[role="menuitem"],[role="menuitemradio"],[role="treeitem"],[role="listbox"] li,datalist option')]
+            .some((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight; });
+          let frames = 0, done = false;
+          const finish = () => { if (!done) { done = true; resolve(true); } };
+          const tick = () => { if (++frames >= 2 && (!${expectChoices} || visible())) finish(); else requestAnimationFrame(tick); };
+          requestAnimationFrame(tick);
+          setTimeout(finish, cap);
+        })`,
+    );
+    return Math.round(performance.now() - startedAt);
+  } catch {
+    return undefined;
+  }
 }
 
 function appearedFilter(before: Snapshot, after: Snapshot, triggerId: string) {
@@ -1391,8 +1429,6 @@ async function readInputValue(deps: JevActDeps, selector: string): Promise<strin
 
 const READY_ATTEMPTS = 3;
 const READY_POLL_MS = 150;
-const READY_STABLE_MS = 100;
-const READY_STABLE_PX = 2;
 
 /**
  * "Is the page loaded" has no answer a snapshot can give: on 30 sites Jev
@@ -1410,6 +1446,7 @@ const READY_STABLE_PX = 2;
 async function pickWhenReady(
   ctx: PipelineContext,
   pick: (snap: Snapshot) => Promise<TargetResult>,
+  pointer: boolean,
 ): Promise<{ snap: Snapshot; picked: TargetResult }> {
   const { deps } = ctx;
   if (ctx.config.targetReadiness && deps.settled && !ctx.ready) {
@@ -1424,12 +1461,15 @@ async function pickWhenReady(
       ctx.earlySnapshot = undefined;
       const snap = await (early ?? capture(deps));
       const picked = await pick(snap);
-      const stable = picked.target ? await staysPut(deps, snap, picked.target) : false;
+      const verdict = picked.target
+        ? await staysPut(deps, snap, picked.target, pointer)
+        : "not_found";
+      const stable = verdict === true;
       ctx.trace.push({
         node: stable ? "ready" : "not_ready",
         ms: Math.round(performance.now() - startedAt),
         attempt,
-        found: picked.target !== undefined,
+        ...(stable ? {} : { why: verdict as string }),
         settled,
       });
       if (stable) {
@@ -1443,25 +1483,88 @@ async function pickWhenReady(
   return { snap, picked: await pick(snap) };
 }
 
-/** Same DOM node behind the selector, at the same spot, across a short gap: no full second snapshot. */
-async function staysPut(deps: JevActDeps, snap: Snapshot, target: OutlineNode): Promise<boolean> {
+/**
+ * One in-page call right before the act goes early: the selector must still
+ * resolve to the node Jev picked, which must be connected, enabled, in the
+ * same place two animation frames later, and (for pointer actions) be what a
+ * click at its centre would actually hit. An overlay that is still fading in
+ * or a layout that is still moving fails here, and the act waits instead.
+ */
+async function staysPut(
+  deps: JevActDeps,
+  snap: Snapshot,
+  target: OutlineNode,
+  pointer: boolean,
+): Promise<string | true> {
   const selector = selectorFor(snap, target);
-  if (!selector) return false;
+  if (!selector) return "no_selector";
   try {
     const locator = await resolveLocatorWithHops(deps.page, deps.page.mainFrame(), selector);
     const expected = Number(target.id.slice(target.id.lastIndexOf("-") + 1));
-    if ((await locator.backendNodeId()) !== expected) return false;
-    const before = await locator.centroid();
-    await sleep(READY_STABLE_MS);
-    const after = await locator.centroid();
-    return (
-      (await locator.backendNodeId()) === expected &&
-      Math.abs(before.x - after.x) <= READY_STABLE_PX &&
-      Math.abs(before.y - after.y) <= READY_STABLE_PX
-    );
+    if ((await locator.backendNodeId()) !== expected) return "other_node";
+    const session = locator.getFrame().session;
+    const { objectId } = await locator.resolveNode();
+    try {
+      const response = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: targetGuard.toString(),
+          arguments: [{ value: pointer }],
+          awaitPromise: true,
+          returnByValue: true,
+        },
+      );
+      const verdict = String(response.result.value ?? "no_verdict");
+      return verdict === "ok" ? true : verdict;
+    } finally {
+      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+    }
   } catch {
-    return false;
+    return "probe_failed";
   }
+}
+
+/** Runs in the page with the target as `this`. Frames when they tick, else 50 ms (background tabs). */
+function targetGuard(this: Element, pointer: boolean): Promise<string> {
+  // oxlint-disable-next-line typescript/no-this-alias -- runs in the page with the element as `this`
+  const element = this;
+  const place = (): string => {
+    const rect = element.getBoundingClientRect();
+    return [rect.x, rect.y, rect.width, rect.height].map((value) => Math.round(value)).join(",");
+  };
+  const before = place();
+  return new Promise<string>((resolve) => {
+    let frames = 0;
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      if (!element.isConnected) return resolve("detached");
+      if (element.matches(":disabled") || element.closest('[aria-disabled="true"],[inert]'))
+        return resolve("disabled");
+      if (place() !== before) return resolve("moving");
+      const rect = element.getBoundingClientRect();
+      const x = rect.x + rect.width / 2;
+      const y = rect.y + rect.height / 2;
+      const inView =
+        rect.width > 0 && rect.height > 0 && x >= 0 && y >= 0 && x < innerWidth && y < innerHeight;
+      // Off-screen targets get scrolled into view by the action; nothing to hit-test yet.
+      if (pointer && inView) {
+        const root = element.getRootNode() as Document | ShadowRoot;
+        const hit = root.elementFromPoint(x, y);
+        if (hit && hit !== element && !element.contains(hit) && !hit.contains(element))
+          return resolve("covered");
+      }
+      resolve("ok");
+    };
+    const tick = (): void => {
+      if (++frames >= 2) finish();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    setTimeout(finish, 50);
+  });
 }
 
 function sleep(ms: number): Promise<void> {
