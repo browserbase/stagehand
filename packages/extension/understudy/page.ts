@@ -109,6 +109,12 @@ type WebMCPInvocationRecord = {
   retentionTimer?: ReturnType<typeof setTimeout>;
 };
 
+type WebMCPPendingToolResponse = {
+  session: CDPSessionLike;
+  event: Protocol.WebMCP.ToolRespondedEvent;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 type WebMCPResponseSessionState = {
   handler: (event: Protocol.WebMCP.ToolRespondedEvent) => void;
   invocationIds: Set<string>;
@@ -207,6 +213,7 @@ export class Page {
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
+  private readonly webMCPPendingToolResponses = new Map<string, WebMCPPendingToolResponse>();
   private readonly webMCPResponseSessions = new Map<CDPSessionLike, WebMCPResponseSessionState>();
   private readonly webMCPToolSessions = new Map<CDPSessionLike, WebMCPToolSessionState>();
   private readonly webMCPToolsChanged = new Set<() => void>();
@@ -220,14 +227,71 @@ export class Page {
     event: Protocol.WebMCP.ToolRespondedEvent,
   ): void {
     const record = this.webMCPInvocations.get(event.invocationId);
-    if (!record || record.session !== session || record.result !== undefined) return;
+    if (!record) {
+      // CDP events can be delivered before the WebMCP.invokeTool command response that
+      // would register this invocation, so retain the terminal event for the
+      // registration that is still in flight instead of dropping it.
+      this.retainPendingWebMCPToolResponse(session, event);
+      return;
+    }
+    if (record.session !== session || record.result !== undefined) return;
 
+    this.settleWebMCPInvocation(event.invocationId, record, event);
+  }
+
+  private settleWebMCPInvocation(
+    invocationId: string,
+    record: WebMCPInvocationRecord,
+    event: Protocol.WebMCP.ToolRespondedEvent,
+  ): void {
     const result = webMCPToolResponse(event);
     record.result = result;
     record.deferred.resolve(result);
     record.retentionTimer = setTimeout(() => {
-      this.removeWebMCPInvocation(event.invocationId, record);
+      this.removeWebMCPInvocation(invocationId, record);
     }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
+  }
+
+  private retainPendingWebMCPToolResponse(
+    session: CDPSessionLike,
+    event: Protocol.WebMCP.ToolRespondedEvent,
+  ): void {
+    // Only retain events while an invokeTool command is in flight on this session:
+    // between the command send and the invocation registration there is no await,
+    // so an event arriving now always belongs to a registration that is about to
+    // happen. Anything else is a stray response for a completed or failed invocation.
+    if ((this.webMCPResponseSessions.get(session)?.pendingCommands ?? 0) <= 0) return;
+    if (this.webMCPPendingToolResponses.has(event.invocationId)) return;
+
+    const pending: WebMCPPendingToolResponse = {
+      session,
+      event,
+      timer: setTimeout(() => {
+        this.webMCPPendingToolResponses.delete(event.invocationId);
+      }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS),
+    };
+    this.webMCPPendingToolResponses.set(event.invocationId, pending);
+  }
+
+  private settlePendingWebMCPToolResponse(
+    invocationId: string,
+    record: WebMCPInvocationRecord,
+  ): void {
+    const pending = this.webMCPPendingToolResponses.get(invocationId);
+    if (!pending) return;
+    this.webMCPPendingToolResponses.delete(invocationId);
+    clearTimeout(pending.timer);
+    // Responses emitted by other sessions never settle this invocation.
+    if (pending.session !== record.session) return;
+    this.settleWebMCPInvocation(invocationId, record, pending.event);
+  }
+
+  private clearPendingWebMCPToolResponses(session?: CDPSessionLike): void {
+    for (const [invocationId, pending] of this.webMCPPendingToolResponses) {
+      if (session && pending.session !== session) continue;
+      clearTimeout(pending.timer);
+      this.webMCPPendingToolResponses.delete(invocationId);
+    }
   }
 
   constructor(
@@ -1033,13 +1097,20 @@ export class Page {
       });
     } catch (error) {
       this.removeWebMCPResponseListenerIfIdle(session);
+      const pending = this.webMCPPendingToolResponses.get(response.invocationId);
+      if (pending?.session === session) {
+        this.webMCPPendingToolResponses.delete(response.invocationId);
+        clearTimeout(pending.timer);
+      }
       throw error;
     }
-    this.webMCPInvocations.set(response.invocationId, {
+    const record: WebMCPInvocationRecord = {
       descriptor,
       session,
       deferred: createDeferred<WebMCPToolResponse>(),
-    });
+    };
+    this.webMCPInvocations.set(response.invocationId, record);
+    this.settlePendingWebMCPToolResponse(response.invocationId, record);
     responseState.invocationIds.add(response.invocationId);
     return descriptor;
   }
@@ -1143,6 +1214,7 @@ export class Page {
       }
       this.webMCPInvocations.delete(invocationId);
     }
+    this.clearPendingWebMCPToolResponses(session);
   }
 
   private teardownWebMCPInvocations(): void {
