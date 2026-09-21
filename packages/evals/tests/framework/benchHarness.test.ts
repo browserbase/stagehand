@@ -39,6 +39,7 @@ describe("bench harness registry", () => {
       "deepagents",
       "fx",
       "cursor",
+      "claude_cua",
     ]);
   });
 
@@ -46,7 +47,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, claude_cua\./,
     );
   });
 

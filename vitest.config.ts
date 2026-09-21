@@ -12,6 +12,7 @@ export default defineConfig({
       "packages/evals/tests/**/*.test.ts",
       "packages/integrations/core/tests/**/*.test.ts",
       "packages/integrations/claude-agent-sdk/tests/**/*.test.ts",
+      "packages/integrations/claude-cua-sdk/tests/**/*.test.ts",
       "packages/integrations/codex-sdk/tests/**/*.test.ts",
       "packages/integrations/mastra-sdk/tests/**/*.test.ts",
       "packages/integrations/pi-sdk/tests/**/*.test.ts",

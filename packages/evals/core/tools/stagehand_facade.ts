@@ -321,3 +321,8 @@ export class StagehandFacadeLegacyTool extends StagehandFacadeTool {
     return LEGACY_FACADE_AGENT_INSTRUCTIONS;
   }
 }
+
+/** Native Claude members execute on the same facade-owned browser. */
+export class AnthropicBrowserToolsetTool extends StagehandFacadeTool {
+  override readonly id: ToolSurface = "anthropic_browser_toolset";
+}

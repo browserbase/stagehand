@@ -1,0 +1,36 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-claude-cua-sdk",
+  "version": "4.0.1",
+  "private": true,
+  "description": "Anthropic Messages API Browser Use toolset (CUA) harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/claude-cua-sdk/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/claude-cua-sdk/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@browserbasehq/stagehand": "workspace:*",
+    "@browserbasehq/stagehand-integrations": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
