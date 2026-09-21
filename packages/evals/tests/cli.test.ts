@@ -10,6 +10,7 @@ const repoRoot = path.resolve(__dirname, "..", "..", "..");
 const CLI_PATH = path.join(repoRoot, "packages", "evals", "cli.ts");
 const SOURCE_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.json");
 const CLI_CHILD_TIMEOUT_MS = 15_000;
+const CLI_TEST_TIMEOUT_MS = CLI_CHILD_TIMEOUT_MS + 2_000;
 
 // File-level snapshot/restore: any `evals run …` invocation through the
 // real CLI writes `_meta.firstRunCompletedAt` into the source config
@@ -60,7 +61,7 @@ function readSourceWelcomeCompletedAt(): string | undefined {
   return config._meta?.firstRunCompletedAt;
 }
 
-describe("CLI entrypoint", () => {
+describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
   it(
     "shows help",
     async () => {
@@ -72,7 +73,7 @@ describe("CLI entrypoint", () => {
       expect(stdout).toContain("config");
       expect(stdout).toContain("experiments");
     },
-    CLI_CHILD_TIMEOUT_MS + 2_000,
+    CLI_TEST_TIMEOUT_MS,
   );
 
   it("shows experiments overview help", async () => {
@@ -197,19 +198,23 @@ describe("CLI entrypoint", () => {
     expect(stdout).toContain(contains);
   });
 
-  it("does not mark first-run complete for nested help invocations", async () => {
-    resetSourceWelcomeMeta();
+  it(
+    "does not mark first-run complete for nested help invocations",
+    async () => {
+      resetSourceWelcomeMeta();
 
-    for (const args of [
-      ["config", "set", "--help"],
-      ["experiments", "compare", "--help"],
-    ]) {
-      const { stdout, code } = await runCli(args);
-      expect(code).toBe(0);
-      expect(stdout).toContain("evals");
-      expect(readSourceWelcomeCompletedAt()).toBeUndefined();
-    }
-  });
+      for (const args of [
+        ["config", "set", "--help"],
+        ["experiments", "compare", "--help"],
+      ]) {
+        const { stdout, code } = await runCli(args);
+        expect(code).toBe(0);
+        expect(stdout).toContain("evals");
+        expect(readSourceWelcomeCompletedAt()).toBeUndefined();
+      }
+    },
+    2 * CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 
   // Regression: help interception must not reach into value positions.
   // `config set <key> <value>` must surface a parse/value error, not silently
@@ -289,19 +294,27 @@ describe("CLI entrypoint", () => {
     expect(stdout.trim()).toBe(path.join(repoRoot, "packages", "evals", "evals.config.json"));
   });
 
-  it("treats `>` as equivalent to a space separator (argv form)", async () => {
-    const direct = await runCli(["config", "path"]);
-    const piped = await runCli(["config", ">", "path"]);
-    expect(piped.code).toBe(0);
-    expect(piped.stdout).toBe(direct.stdout);
-  });
+  it(
+    "treats `>` as equivalent to a space separator (argv form)",
+    async () => {
+      const direct = await runCli(["config", "path"]);
+      const piped = await runCli(["config", ">", "path"]);
+      expect(piped.code).toBe(0);
+      expect(piped.stdout).toBe(direct.stdout);
+    },
+    2 * CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 
-  it("supports `>` chaining across multiple levels", async () => {
-    const direct = await runCli(["config", "core", "path"]);
-    const piped = await runCli(["config", ">", "core", ">", "path"]);
-    expect(piped.code).toBe(0);
-    expect(piped.stdout).toBe(direct.stdout);
-  });
+  it(
+    "supports `>` chaining across multiple levels",
+    async () => {
+      const direct = await runCli(["config", "core", "path"]);
+      const piped = await runCli(["config", ">", "core", ">", "path"]);
+      expect(piped.code).toBe(0);
+      expect(piped.stdout).toBe(direct.stdout);
+    },
+    2 * CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 
   it("strips a leading `evals` sigil token (no-op at root)", async () => {
     // From a shell, `evals evals run act --dry-run` should resolve like
@@ -313,7 +326,7 @@ describe("CLI entrypoint", () => {
   });
 });
 
-describe.sequential("core config", () => {
+describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
   // Tests mutate packages/evals/evals.config.json. Snapshot beforeAll,
   // reset to snapshot before each test, restore afterAll.
   let snapshot: string;
@@ -348,15 +361,19 @@ describe.sequential("core config", () => {
     expect(saved.core?.tool).toBe("understudy_code");
   });
 
-  it("flows persisted core.tool into run dry-run output", async () => {
-    resetConfig();
-    await runCli(["config", "core", "set", "tool", "understudy_code"]);
+  it(
+    "flows persisted core.tool into run dry-run output",
+    async () => {
+      resetConfig();
+      await runCli(["config", "core", "set", "tool", "understudy_code"]);
 
-    const { stdout, code } = await runCli(["run", "navigation/open", "--dry-run"]);
-    expect(code).toBe(0);
-    const payload = JSON.parse(stdout);
-    expect(payload.runOptions.coreToolSurface).toBe("understudy_code");
-  }, 15_000);
+      const { stdout, code } = await runCli(["run", "navigation/open", "--dry-run"]);
+      expect(code).toBe(0);
+      const payload = JSON.parse(stdout);
+      expect(payload.runOptions.coreToolSurface).toBe("understudy_code");
+    },
+    2 * CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 
   it("rejects unknown tool", async () => {
     resetConfig();
@@ -384,42 +401,54 @@ describe.sequential("core config", () => {
     expect(stdout + stderr).toContain("Cannot set startup without a tool");
   });
 
-  it("rejects startup unsupported by the chosen tool", async () => {
-    resetConfig();
-    // cdp_code does not support tool_create_browserbase.
-    await runCli(["config", "core", "set", "tool", "cdp_code"]);
-    const { stdout, stderr, code } = await runCli([
-      "config",
-      "core",
-      "set",
-      "startup",
-      "tool_create_browserbase",
-    ]);
-    expect(code).toBe(1);
-    expect(stdout + stderr).toContain('Tool "cdp_code" does not support startup');
-  }, 30_000);
+  it(
+    "rejects startup unsupported by the chosen tool",
+    async () => {
+      resetConfig();
+      // cdp_code does not support tool_create_browserbase.
+      await runCli(["config", "core", "set", "tool", "cdp_code"]);
+      const { stdout, stderr, code } = await runCli([
+        "config",
+        "core",
+        "set",
+        "startup",
+        "tool_create_browserbase",
+      ]);
+      expect(code).toBe(1);
+      expect(stdout + stderr).toContain('Tool "cdp_code" does not support startup');
+    },
+    2 * CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 
-  it("auto-resets startup when a tool change invalidates it", async () => {
-    resetConfig();
-    // cdp_code supports tool_attach_local_cdp; browse_cli does not.
-    await runCli(["config", "core", "set", "tool", "cdp_code"]);
-    await runCli(["config", "core", "set", "startup", "tool_attach_local_cdp"]);
-    const { stdout, code } = await runCli(["config", "core", "set", "tool", "browse_cli"]);
-    expect(code).toBe(0);
-    expect(stdout).toContain("Resetting startup");
+  it(
+    "auto-resets startup when a tool change invalidates it",
+    async () => {
+      resetConfig();
+      // cdp_code supports tool_attach_local_cdp; browse_cli does not.
+      await runCli(["config", "core", "set", "tool", "cdp_code"]);
+      await runCli(["config", "core", "set", "startup", "tool_attach_local_cdp"]);
+      const { stdout, code } = await runCli(["config", "core", "set", "tool", "browse_cli"]);
+      expect(code).toBe(0);
+      expect(stdout).toContain("Resetting startup");
 
-    const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
-    expect(saved.core?.tool).toBe("browse_cli");
-    expect(saved.core?.startup).toBeUndefined();
-  }, 30_000);
+      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+      expect(saved.core?.tool).toBe("browse_cli");
+      expect(saved.core?.startup).toBeUndefined();
+    },
+    3 * CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 
-  it("reset clears the whole core section", async () => {
-    resetConfig();
-    await runCli(["config", "core", "set", "tool", "understudy_code"]);
-    const { code } = await runCli(["config", "core", "reset"]);
-    expect(code).toBe(0);
+  it(
+    "reset clears the whole core section",
+    async () => {
+      resetConfig();
+      await runCli(["config", "core", "set", "tool", "understudy_code"]);
+      const { code } = await runCli(["config", "core", "reset"]);
+      expect(code).toBe(0);
 
-    const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
-    expect(saved.core).toBeUndefined();
-  }, 15_000);
+      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+      expect(saved.core).toBeUndefined();
+    },
+    2 * CLI_CHILD_TIMEOUT_MS + 2_000,
+  );
 });
