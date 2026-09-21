@@ -9,7 +9,7 @@
   </ul>
 </div>
 <p align="center">
-  <strong>Stagehand is the SDK for browser agents.</strong><br>
+  <strong>Stagehand is the SDK for browser agents</strong><br>
 </p>
 
 <p align="center">
