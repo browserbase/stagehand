@@ -341,6 +341,46 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
 });
 
 describe("StagehandFacadeTools keeper tab", () => {
+  it("exposes stable read-only IDs for visible pages across callback batches", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand);
+    const readIds = `return {
+      active: page.pageId,
+      visible: context.pages().map(candidate => candidate.pageId),
+      writable: Reflect.set(page, "pageId", "replacement"),
+      afterWrite: page.pageId,
+    };`;
+    const expected = {
+      active: "page-1",
+      visible: ["page-1"],
+      writable: false,
+      afterWrite: "page-1",
+    };
+
+    await expect(tools.run(readIds)).resolves.toEqual(expected);
+    await expect(tools.run(readIds)).resolves.toEqual(expected);
+  });
+
+  it("selects and closes visible pages by ID without exposing the keeper", async () => {
+    const page = createFakePage();
+    const { stagehand, context, keeper } = createFakeStagehand(page);
+    const second = { ...createFakePage(), pageId: "page-2" };
+    context.pages.mockResolvedValue([page, keeper, second]);
+    const tools = new StagehandFacadeTools(stagehand);
+
+    await expect(
+      tools.run(`
+        const target = context.pages().find(candidate => candidate.pageId === "page-2");
+        await target.bringToFront();
+        await target.close();
+        return context.pages().map(candidate => candidate.pageId);
+      `),
+    ).resolves.toEqual(["page-1"]);
+    expect(context.setActivePage).toHaveBeenLastCalledWith(second);
+    expect(second.close).toHaveBeenCalledOnce();
+    expect(keeper.close).not.toHaveBeenCalled();
+  });
+
   it("opens a hidden about:blank keeper once and hands focus back to the agent's page", async () => {
     const page = createFakePage("https://example.com");
     const { stagehand, context, keeper } = createFakeStagehand(page);
