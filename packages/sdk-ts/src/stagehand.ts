@@ -1,4 +1,5 @@
 import { RPCClient } from "./rpcClient.js";
+import { RPCResponseTimeoutError } from "./rpcErrors.js";
 import {
   DefaultExtractDataSchema,
   MAX_CALLBACK_BATCH_TIMEOUT_MS,
@@ -45,7 +46,12 @@ import {
 } from "./browser/factories.js";
 import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
-import type { ExperimentalBatchCallback, ExperimentalBatchOptions } from "./batch.js";
+import {
+  CALLBACK_BATCH_CLIENT_GRACE_MS,
+  StagehandBatchTimeoutError,
+  type ExperimentalBatchCallback,
+  type ExperimentalBatchOptions,
+} from "./batch.js";
 
 type ProtocolExtractResult = import("@browserbasehq/stagehand-protocol/types").ExtractResult;
 
@@ -60,6 +66,9 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
   typeof value.parse === "function" &&
   "safeParse" in value &&
   typeof value.safeParse === "function";
+
+// setTimeout treats larger delays as 1ms; MAX_CALLBACK_BATCH_TIMEOUT_MS leaves 10s below this.
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 const nativeFunctionSourcePattern =
   /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
@@ -154,18 +163,35 @@ export class Stagehand {
     if (nativeFunctionSourcePattern.test(callbackSource)) {
       throw new TypeError("stagehand.experimentalBatch() callback must be serializable JavaScript");
     }
+    const clientTimeout =
+      options.clientTimeoutMs ??
+      Math.min(timeout + CALLBACK_BATCH_CLIENT_GRACE_MS, MAX_TIMER_DELAY_MS);
+    if (!Number.isInteger(clientTimeout) || clientTimeout <= 0 || clientTimeout > 2_147_483_647) {
+      throw new RangeError(
+        "stagehand.experimentalBatch() clientTimeoutMs must be an integer between 1 and 2147483647",
+      );
+    }
 
-    const result: CallbackBatchResult = await this.connectedRpcClient.send(
-      StagehandMethods.stagehandCallbackBatch,
-      {
-        callbackSource,
-        ...(parsedInput === undefined ? {} : { input: parsedInput }),
-        options: {
-          ...(options.page ? { pageId: options.page.pageId } : {}),
-          timeout,
+    let result: CallbackBatchResult;
+    try {
+      result = await this.connectedRpcClient.send(
+        StagehandMethods.stagehandCallbackBatch,
+        {
+          callbackSource,
+          ...(parsedInput === undefined ? {} : { input: parsedInput }),
+          options: {
+            ...(options.page ? { pageId: options.page.pageId } : {}),
+            timeout,
+          },
         },
-      },
-    );
+        { responseTimeoutMs: clientTimeout },
+      );
+    } catch (error) {
+      if (error instanceof RPCResponseTimeoutError) {
+        throw new StagehandBatchTimeoutError({ timeout, clientTimeout }, { cause: error });
+      }
+      throw error;
+    }
     return result.value as Awaited<Result>;
   }
 
