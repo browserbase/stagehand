@@ -16,7 +16,7 @@
     }
   },
   "api": {
-    "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml"
+    "openapi": "v3/openapi.json"
   },
   "navigation": {
     "versions": [
@@ -38,10 +38,14 @@
           },
           {
             "group": "Configuration",
+            "pages": ["v4/configuration/browser", "v4/configuration/logging"]
+          },
+          {
+            "group": "Add-ons",
             "pages": [
-              "v4/configuration/browser",
+              "v4/add-ons/search",
+              "v4/add-ons/fetch",
               "v4/configuration/models",
-              "v4/configuration/logging",
               "v4/configuration/observability"
             ]
           },
@@ -224,7 +228,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/python"
                 },
                 "pages": [
@@ -252,7 +256,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/java"
                 },
                 "pages": [
@@ -280,7 +284,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/go"
                 },
                 "pages": [
@@ -308,7 +312,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/ruby"
                 },
                 "pages": [

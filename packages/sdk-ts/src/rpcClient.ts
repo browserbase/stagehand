@@ -39,7 +39,6 @@ import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 import { abortReason } from "./abort.js";
-import { RPCResponseTimeoutError } from "./rpcErrors.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -55,8 +54,6 @@ type RegisteredRequestHandler = {
 
 type RPCSendOptions = {
   signal?: AbortSignal;
-  /** Replaces the method's derived response deadline for this one request. */
-  responseTimeoutMs?: number;
 };
 
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
@@ -193,8 +190,7 @@ export class RPCClient {
           ...getTraceContextFields(requestContext),
         });
         span.setAttribute("jsonrpc.request.id", String(request.id));
-        const responseTimeoutMs =
-          options.responseTimeoutMs ?? rpcResponseTimeoutMs(method.name, parsedParams);
+        const responseTimeoutMs = rpcResponseTimeoutMs(method.name, parsedParams);
         const timeoutController =
           responseTimeoutMs === undefined ? undefined : new AbortController();
         const signal =
@@ -205,7 +201,9 @@ export class RPCClient {
           timeoutController && responseTimeoutMs !== undefined
             ? setTimeout(() => {
                 timeoutController.abort(
-                  new RPCResponseTimeoutError(method.name, responseTimeoutMs),
+                  new Error(`RPC response timed out: ${method.name}`, {
+                    cause: { method: method.name, timeoutMs: responseTimeoutMs },
+                  }),
                 );
               }, responseTimeoutMs)
             : undefined;

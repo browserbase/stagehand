@@ -206,7 +206,6 @@ describe("Codex SDK session", () => {
       { input_tokens: null, output_tokens: 5 },
       { input_tokens: -1, output_tokens: 5 },
       { input_tokens: 10, output_tokens: -1 },
-      { input_tokens: 10, output_tokens: Number.POSITIVE_INFINITY },
     ])("ignores incomplete or invalid cumulative usage: %j", (total) => {
       const incomplete = JSON.stringify({
         type: "event_msg",
@@ -216,6 +215,18 @@ describe("Codex SDK session", () => {
         parseCodexRolloutUsage(rolloutBody),
       );
       expect(parseCodexRolloutUsage(incomplete)).toBeUndefined();
+    });
+
+    it.each([
+      '{"input_tokens":1e999,"output_tokens":5}',
+      '{"input_tokens":10,"output_tokens":1e999}',
+    ])("ignores overflowing JSON token counts: %s", (total) => {
+      // JSON numbers can overflow to Infinity; JSON.stringify(Infinity) emits null.
+      const invalid = `{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":${total}}}}`;
+      expect(parseCodexRolloutUsage(invalid)).toBeUndefined();
+      expect(parseCodexRolloutUsage(`${rolloutBody}\n${invalid}`)).toEqual(
+        parseCodexRolloutUsage(rolloutBody),
+      );
     });
 
     it("preserves explicitly reported zero cumulative usage", () => {
