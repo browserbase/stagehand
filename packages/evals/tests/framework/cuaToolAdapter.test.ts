@@ -15,6 +15,7 @@ import {
 } from "../../framework/cuaToolAdapter.js";
 import {
   StagehandFacadeBridgeError,
+  StagehandFacadeTimeoutError,
   startStagehandFacadeBridge,
 } from "../../core/tools/stagehandFacadeBridge.js";
 
@@ -88,6 +89,21 @@ describe("shared CUA facade boundary", () => {
       message: "Browser session lost (confirmed by eval runner). The task cannot continue.",
     });
     expect(call).toHaveBeenCalledOnce();
+  });
+
+  it("preserves typed request timeouts without trusting error text", async () => {
+    const call = vi.fn<FacadeToolCaller>();
+    const tools = bridgeCuaFacadeTools(call, 123);
+    call.mockRejectedValueOnce(new StagehandFacadeTimeoutError(123));
+    await expect(tools.run("return 1")).rejects.toMatchObject({
+      name: "StagehandFacadeTimeoutError",
+      timeoutMs: 123,
+      message: "Stagehand facade request timed out after 123ms",
+    });
+    call.mockRejectedValueOnce(new Error("timed out after 123ms token=secret"));
+    await expect(tools.run("return 1")).rejects.toThrow("Facade run request failed.");
+    const lost = bridgeCuaFacadeTools(call, 123, () => ({ cause: "closed" }));
+    await expect(lost.run("return 1")).rejects.toBeInstanceOf(CuaFacadeSessionLostError);
   });
 
   it("sanitizes rejected requests and malformed action payloads", async () => {

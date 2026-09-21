@@ -270,6 +270,86 @@ describe("facade DOM compatibility against native Playwright", () => {
       await page.close();
     }
   });
+  it.each(["open", "closed"] as const)(
+    "keeps scoped role matches inside nested %s shadow roots",
+    async (mode) => {
+      const page = await browser.newPage();
+      const cdp = await page.context().newCDPSession(page);
+      const { evaluateWithShadowRoots } = await import(
+        new URL("../../../extension/understudy/shadowRootEvaluation.ts", import.meta.url).href
+      );
+      try {
+        await page.setContent(
+          '<section id="inside"><div id="host"></div></section><section id="outside"><button>Other</button></section>',
+        );
+        await page.evaluate((mode) => {
+          (window as unknown as { pageOwnedValue: number }).pageOwnedValue = 42;
+          const outer = document.querySelector("#host")!.attachShadow({ mode });
+          outer.innerHTML = '<div id="nested"></div>';
+          const inner = outer.querySelector("#nested")!.attachShadow({ mode });
+          inner.innerHTML =
+            '<button id="pay"><img alt="Pay now"></button><input aria-label="Amount" value="10">';
+        }, mode);
+        const rawPage = {
+          pageId: "fixture",
+          url: () => page.url(),
+          evaluate: page.evaluate.bind(page),
+          snapshot: async () => ({
+            formattedTree: "[1] button: Pay now",
+            xpathMap: { "1": "/html/body/section[1]/div[1]//div[1]//button[1]" },
+          }),
+        };
+        const runtime = await createPlaywrightCompatRuntime({
+          page: rawPage,
+          context: { pages: async () => [rawPage] },
+          evaluateWithShadowRoots: (_pageId: string, source: string) =>
+            evaluateWithShadowRoots(cdp, (expression: string) => page.evaluate(expression), source),
+        } as unknown as Parameters<typeof createPlaywrightCompatRuntime>[0]);
+        const facade = runtime.page as Pick<Page, "locator" | "getByRole" | "getByLabel">;
+        const pay = facade.getByRole("button", { name: "Pay now", exact: true });
+        assert.equal(await pay.count(), 1);
+        assert.equal(
+          await facade.locator("#inside").getByRole("button", { name: "Pay now" }).count(),
+          1,
+        );
+        assert.equal(
+          await facade.locator("#outside").getByRole("button", { name: "Pay now" }).count(),
+          0,
+        );
+        assert.deepEqual(
+          await facade
+            .locator("section")
+            .filter({ has: pay })
+            .evaluateAll((els) => els.map((el) => el.id)),
+          ["inside"],
+        );
+        assert.deepEqual(
+          await facade
+            .locator("section")
+            .filter({ hasNot: pay })
+            .evaluateAll((els) => els.map((el) => el.id)),
+          ["outside"],
+        );
+        assert.equal(await facade.getByLabel("Amount").inputValue(), "10");
+        assert.equal(await facade.locator("#host").locator("#pay").count(), 1);
+        assert.equal(
+          await pay.evaluate((el) => {
+            el.setAttribute("data-checked", "yes");
+            return (window as unknown as { pageOwnedValue: number }).pageOwnedValue;
+          }),
+          42,
+        );
+        assert.equal(await facade.locator('[data-checked="yes"]').count(), 1);
+        // Fresh roots after navigation must not reuse remote references.
+        await page.goto("about:blank");
+        assert.equal(await facade.locator("#pay").count(), 0);
+      } finally {
+        await cdp.detach();
+        await page.close();
+      }
+    },
+  );
+
   it("enforces strict reads, bounded waits and non-dispatched trial actions", async () => {
     const page = await browser.newPage();
     try {

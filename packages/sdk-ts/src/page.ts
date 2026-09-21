@@ -2,6 +2,9 @@ import type {
   LoadState,
   PageCDPEvent,
   PageEventName,
+  PageSubscriptionEventName,
+  StagehandRpcNotification,
+  WebMCPToolIdentity,
   PageClickParams,
   PageDragAndDropParams,
   PageKeyPressParams,
@@ -49,6 +52,8 @@ export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["
 export interface PageEventListener {
   (event: PageCDPEvent): unknown;
 }
+export type ToolsAddedListener = (tools: WebMCPTool[]) => unknown;
+export type ToolsRemovedListener = (tools: WebMCPToolIdentity[]) => unknown;
 
 export class CDPSubscription {
   private unsubscribePromise: Promise<void> | undefined;
@@ -213,16 +218,55 @@ export class Page {
   }
 
   async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
+    if (event !== "console") throw new Error('page.on only supports "console" events');
+    return this.subscribe(event, (notification) => {
+      if (notification.method === StagehandNotifications.pageCDPEvent.name) {
+        return listener(notification.params.event);
+      }
+    });
+  }
+
+  async onToolsAdded(listener: ToolsAddedListener): Promise<CDPSubscription> {
+    return this.subscribe("toolsadded", (notification) => {
+      if (
+        notification.method === StagehandNotifications.pageEvent.name &&
+        notification.params.event === "toolsadded"
+      ) {
+        return listener(
+          notification.params.tools.map(
+            (tool) => new WebMCPTool(this.rpcClient, this.pageId, tool),
+          ),
+        );
+      }
+    });
+  }
+
+  async onToolsRemoved(listener: ToolsRemovedListener): Promise<CDPSubscription> {
+    return this.subscribe("toolsremoved", (notification) => {
+      if (
+        notification.method === StagehandNotifications.pageEvent.name &&
+        notification.params.event === "toolsremoved"
+      ) {
+        return listener(notification.params.tools);
+      }
+    });
+  }
+
+  private async subscribe(
+    event: PageSubscriptionEventName,
+    deliver: (notification: StagehandRpcNotification) => unknown,
+  ): Promise<CDPSubscription> {
     const subscriptionId = crypto.randomUUID();
     const removeNotificationListener = this.rpcClient.onNotification((notification) => {
       if (
-        notification.method !== StagehandNotifications.pageCDPEvent.name ||
+        (notification.method !== StagehandNotifications.pageCDPEvent.name &&
+          notification.method !== StagehandNotifications.pageEvent.name) ||
         notification.params.subscriptionId !== subscriptionId
       ) {
         return;
       }
       try {
-        const result = listener(notification.params.event);
+        const result = deliver(notification);
         if (result && typeof result === "object" && "then" in result) {
           void Promise.resolve(result).catch(reportPageEventListenerError);
         }
@@ -249,7 +293,16 @@ export class Page {
       return subscription;
     } catch (error) {
       removeNotificationListener();
-      this.eventSubscriptions.delete(subscription);
+      try {
+        // A failed response does not mean the runtime stopped registering.
+        await this.rpcClient.send(StagehandMethods.pageOff, { subscriptionId });
+        this.eventSubscriptions.delete(subscription);
+      } catch (cleanupError) {
+        process.emitWarning(
+          cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+          { code: "STAGEHAND_PAGE_SUBSCRIPTION_CLEANUP_ERROR" },
+        );
+      }
       throw error;
     }
   }
