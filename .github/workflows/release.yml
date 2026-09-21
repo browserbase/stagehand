@@ -71,6 +71,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANGESETS_ACTION_PRESERVE_CHANGELOGS: "true"
 
+      - name: Find published Browse version
+        if: steps.changesets.outputs.published == 'true'
+        id: browse-release
+        run: pnpm exec tsx scripts/release/publish-homebrew.ts --status >> "$GITHUB_OUTPUT"
+        env:
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+
+      - name: Create Browserbase release token
+        if: steps.browse-release.outputs.version != ''
+        id: browserbase-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
+        with:
+          app-id: ${{ vars.BROWSERBASE_APP_ID }}
+          private-key: ${{ secrets.BROWSERBASE_APP_PRIVATE_KEY }}
+          owner: browserbase
+          repositories: homebrew-tap
+
+      - name: Update Homebrew formula
+        if: steps.browse-release.outputs.version != ''
+        run: pnpm exec tsx scripts/release/publish-homebrew.ts "${{ steps.browse-release.outputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ steps.browserbase-token.outputs.token }}
+          GITHUB_APP_SLUG: ${{ steps.browserbase-token.outputs.app-slug }}
+
   publish-typescript-alpha:
     name: Publish TypeScript SDK alpha
     needs: release-typescript

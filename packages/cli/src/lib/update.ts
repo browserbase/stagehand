@@ -39,7 +39,7 @@ export async function maybeAutoUpdateCli(
   const cache = await readFreshUpdateCheckCache(cachePath);
   if (cache) {
     if (isVersionNewer(currentVersion, cache.version)) {
-      writeUpdateNotice(currentVersion, cache.version);
+      writeUpdateNotice(currentVersion, cache.version, env);
     }
     return;
   }
@@ -169,12 +169,18 @@ function resolveUpdateCheckWorkerPath(): string {
 function writeUpdateNotice(
   currentVersion: string,
   latestVersion: string,
+  env: NodeJS.ProcessEnv,
 ): void {
+  const updateCommand =
+    env.BROWSE_INSTALL_METHOD === "homebrew"
+      ? "  brew upgrade browserbase/tap/browse"
+      : `  npm i -g ${CLI_PACKAGE_NAME}@latest`;
+
   process.stderr.write(
     [
       `Update available: ${currentVersion} -> ${latestVersion}.`,
       "Run:",
-      `  npm i -g ${CLI_PACKAGE_NAME}@latest`,
+      updateCommand,
       "",
     ].join("\n"),
   );

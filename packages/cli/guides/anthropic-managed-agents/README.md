@@ -9,6 +9,14 @@ This guide shows how to equip your Managed Agents with a browser, search, and fe
 
 Create a new Environment and set `browse` as a default `npm` package.
 
+For local development on macOS or Linux, you can instead install the CLI with Homebrew:
+
+```bash
+brew install browserbase/tap/browse
+```
+
+If `browse` was previously installed globally with npm, run `npm uninstall --global browse` before the Homebrew installation.
+
 Optionally, allow “Unrestricted” networking for the browser agent to navigate the open web. Use “Limited” networking to scope the agent to particular websites.
 
 ![CleanShot 2026-06-05 at 13.12.43@2x.png](CleanShot_2026-06-05_at_13.12.432x.png)

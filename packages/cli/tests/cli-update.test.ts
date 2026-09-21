@@ -57,6 +57,28 @@ describe("CLI auto-update", () => {
     expect(result.stderr).toContain("Run:\n  npm i -g browse@latest");
   });
 
+  it("prints the Homebrew upgrade command for Homebrew installations", async () => {
+    const cacheDir = await createTempDir("browse-update-homebrew-");
+    const cachePath = join(cacheDir, "update-check.json");
+    await writeUpdateCache(cachePath, {
+      checkedAt: new Date().toISOString(),
+      version: "99.0.0",
+    });
+
+    const result = await runCli(["status"], {
+      env: {
+        BROWSE_CACHE_DIR: cacheDir,
+        BROWSE_DAEMON_DIR: cacheDir,
+        BROWSE_DISABLE_UPDATE_CHECK: "0",
+        BROWSE_INSTALL_METHOD: "homebrew",
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stderr).toContain("Run:\n  brew upgrade browserbase/tap/browse");
+    expect(result.stderr).not.toContain("npm i -g browse@latest");
+  });
+
   it("compares prerelease identifiers with ASCII ordering", async () => {
     const cacheDir = await createTempDir("browse-update-prerelease-");
     const cachePath = join(cacheDir, "update-check.json");
