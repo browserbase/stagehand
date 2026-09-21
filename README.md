@@ -9,8 +9,11 @@
   </ul>
 </div>
 <p align="center">
-  <strong>Stagehand is the SDK to extract data and interact with any site on the web.</strong><br>
-  Playwright was built for testing. Stagehand is built for agents, in TypeScript, Python, and Go.
+  <strong>Stagehand is the SDK for browser agents.</strong><br>
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
 <p align="center">
@@ -35,10 +38,6 @@
   <a href="https://deepwiki.com/browserbase/stagehand">
     <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
   </a>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
 <p align="center">
