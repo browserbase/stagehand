@@ -4,8 +4,8 @@ import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
-/** Bounded wait only for genuine frame transitions (not same-frame locator ops). */
-const FRAME_LOCATOR_READY_TIMEOUT_MS = 15_000;
+/** Best-effort readiness budget for frame transitions, not an overall operation timeout. */
+const FRAME_LOCATOR_READY_TIMEOUT_MS = 1_200;
 /**
  * Best-effort timeout for each locator-world attempt. Fallback eligibility can
  * extend an attempt while it waits for the main world.
