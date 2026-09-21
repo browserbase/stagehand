@@ -38,6 +38,38 @@ attachment has not returned a handle when the process exits, the host cannot
 explicitly release that session. A cancellable launch/early lease API is a separate
 follow-up; the configured remote session expiry remains the fallback.
 
+## Deadlines and disconnect diagnostics
+
+Facade `run` has a 60-second executor deadline and a 75-second client deadline.
+The SDK's `experimentalBatch` option `clientTimeoutMs` controls the entire round
+trip: by default it is the executor `timeout` plus 15000 ms, capped at 2147483647 ms.
+An explicit value must be an integer from `1` through `2147483647`. A client
+deadline raises `StagehandBatchTimeoutError`; it does not cancel or replay the
+callback. Executor-reported timeouts are ordinary tool errors.
+
+Snapshot and screenshot captures have a 120-second local deadline. The first two
+consecutive capture deadlines return tool errors; the third latches terminal loss.
+A successful tool resets the counter. A failed snapshot invalidates its previous
+IDs, and late completion cannot overwrite a newer snapshot. Terminal loss rejects
+queued calls before dispatch. There is no CDP reconnect or action replay.
+
+| Setting                      | Default and behavior                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_CDP_HEARTBEAT_MS` | `20000`; integer milliseconds from `1000` through `2147483647`. Invalid values fall back to the default. |
+| `STAGEHAND_CDP_LOG`          | Unset disables logging; exactly `1` enables `CDP_DROP` on stderr.                                        |
+| `STAGEHAND_CDP_LOG_FILE`     | Optional append-only copy of enabled `CDP_DROP` lines. Setting the path alone does not enable logging.   |
+
+At most one `Browser.getVersion` heartbeat is pending. It has its own deadline of
+the smaller of the interval and 10000 ms. Timers are unref'ed and stop on closure;
+a missed heartbeat alone does not reconnect or mark the facade lost. Drop logs
+contain timing, pending-count, method, code, and sanitized reason metadata, without
+connection URLs or protocol payloads. Logging failure does not change the outcome.
+
+The optional stdio `--max-screenshot-base64-bytes=N` flag requires an integer of
+at least 1024. When enabled, compressed viewport fallbacks enforce both the byte
+budget and a 2000-pixel maximum side; without the flag this transport adjustment
+is not enabled.
+
 ## Local regression checks
 
 From the repository root, with workspace dependencies and the extension, SDK, and
