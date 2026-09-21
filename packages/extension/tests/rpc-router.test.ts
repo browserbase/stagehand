@@ -21,6 +21,7 @@ import type { CdpWebSocketCloseEvent, CdpWebSocketTransport } from "../understud
 import type { Page } from "../understudy/page.ts";
 
 const EMPTY_METRICS = new StagehandMetricsAccumulator().snapshot();
+const [protocolMajor, protocolMinor] = STAGEHAND_PROTOCOL_VERSION.split(".").map(Number);
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -328,9 +329,9 @@ describe("Stagehand RPC router", () => {
   });
 
   it.each([
-    ["1.1.0", "protocol-server-too-old"],
-    ["2.0.0", "protocol-major-mismatch"],
-    ["1.0.0-beta.1", "protocol-prerelease-mismatch"],
+    [`${protocolMajor}.${protocolMinor + 1}.0`, "protocol-server-too-old"],
+    [`${protocolMajor + 1}.0.0`, "protocol-major-mismatch"],
+    [`${STAGEHAND_PROTOCOL_VERSION}-beta.1`, "protocol-prerelease-mismatch"],
   ] as const)("rejects incompatible client protocol %s", async (protocolVersion, reason) => {
     const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
     const router = new RPCRouter(createStagehandRuntime(), { initializeStagehand });

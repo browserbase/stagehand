@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-codex-sdk",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "private": true,
   "description": "Codex SDK harness adapter for Stagehand integrations",
   "files": [
