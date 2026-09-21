@@ -5,4 +5,4 @@
 "@browserbasehq/stagehand-go": patch
 ---
 
-Wait for delayed iframe locator worlds on genuine frame hops, and keep trailing iframe XPaths in the parent frame.
+Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
