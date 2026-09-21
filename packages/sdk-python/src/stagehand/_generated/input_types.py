@@ -241,7 +241,6 @@ class ExperimentalJevAct(TypedDict):
     observe: NotRequired[bool]
     tools: NotRequired[bool]
     target_readiness: NotRequired[bool]
-    page_settled: NotRequired[bool]
 
 
 class ExternalProxyConfig(TypedDict):

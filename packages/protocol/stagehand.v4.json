@@ -1273,9 +1273,6 @@
             },
             "target_readiness": {
               "type": "boolean"
-            },
-            "page_settled": {
-              "type": "boolean"
             }
           },
           "required": ["api_key"],

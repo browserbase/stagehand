@@ -130,12 +130,7 @@ describe("act service", () => {
       domSettleTimeoutMs: 2_000,
     });
 
-    expect(waitForQuiet).toHaveBeenCalledWith(
-      frame,
-      logger,
-      2_000,
-      expect.objectContaining({ inflight: 0 }),
-    );
+    expect(waitForQuiet).toHaveBeenCalledWith(frame, logger, 2_000);
     expect(captureSnapshot).toHaveBeenCalledTimes(1);
     expect(performAction).toHaveBeenCalledWith(
       page,

@@ -30,7 +30,6 @@ import {
   type Snapshot,
   type TargetResult,
   type TraceEntry,
-  round,
 } from "./pick.js";
 import {
   buildView,
@@ -43,15 +42,9 @@ import {
   parseOutline,
   selectedNativeOptions,
   type OutlineNode,
-  pageDigest,
+  type ViewKind,
 } from "./tree.js";
-import {
-  choiceAnswer,
-  noulAnswer,
-  type JevConfig,
-  type JevResponse,
-  type JsonValue,
-} from "./typesafeClient.js";
+import { choiceAnswer, noulAnswer, type JevConfig, type JevResponse } from "./typesafeClient.js";
 
 export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
 
@@ -113,15 +106,6 @@ export type JevActConfig = JevConfig & {
    */
   targetReadiness?: boolean;
   /**
-   * With `targetReadiness`: also require the page to look settled before going
-   * early. Loading cues (in-flight requests, pending images, aria-busy,
-   * progress bars, spinner-like elements) must be quiet on two readings, and
-   * one Jev question over the cues and the content must call the page settled.
-   * Guards against a target that is rendered but whose data is still arriving.
-   * Costs ~150 ms per early act. Default false.
-   */
-  pageSettled?: boolean;
-  /**
    * Let act() invoke a WebMCP tool the page registered when Jev is sure the
    * tool is the request. Sends tool names and descriptions, and for the likely
    * tools their parameter names, descriptions, types and enum values, to
@@ -150,8 +134,6 @@ export type JevActDeps = {
    * it runs while this is pending; nothing reads or touches the page before it.
    */
   settled?: Promise<void>;
-  /** Live in-flight request count from the settle wait's network tracking. */
-  network?: { inflight: number };
   /** Present when `tools` is on and the act is not scoped to a locator. */
   webmcp?: JevToolDeps;
 };
@@ -556,6 +538,7 @@ async function runPointer(
       );
     },
     true,
+    "pointer",
   );
   if (!picked.target) return await rejected(ctx, snap, "target_rejected", picked);
   const target = await preferVisibleTwin(ctx, snap, picked.target);
@@ -730,6 +713,7 @@ async function runFill(
           },
         ),
       false,
+      "input",
     ),
     extracting,
   ]);
@@ -1452,11 +1436,10 @@ async function readInputValue(deps: JevActDeps, selector: string): Promise<strin
   }
 }
 
-const READY_ATTEMPTS = 3;
 const READY_POLL_MS = 150;
 
 /**
- * "Is the page loaded" has no answer a snapshot can give: on 30 sites Jev
+ * "Is the page loaded" has no answer a snapshot can give: on 40 sites Jev
  * rated a 1%-complete page as finished as the final one, under four phrasings,
  * because a half-loaded page reads as a smaller complete page. The settle
  * heuristic is right more often (network quiet for 500 ms) and pays for it
@@ -1464,14 +1447,18 @@ const READY_POLL_MS = 150;
  *
  * What an act needs is narrower, and answerable: is the thing it is about to
  * use there, and is it staying put. With `targetReadiness` the pick runs on a
- * snapshot taken while intent is asked, and the act goes ahead when Jev
- * accepts a target and that element is the same node in the same place a
- * moment later. Otherwise it polls, and the settle wait is where polling ends.
+ * snapshot taken while intent is asked, and the act goes ahead the moment Jev
+ * accepts a target and the guard finds it in place and hittable. Until then
+ * it keeps looking, for as long as the settle wait itself is still running:
+ * a fresh snapshot each round, but Jev is only asked again when the
+ * candidates it would see have changed; otherwise only the guard reruns on
+ * the earlier pick. When the settle wait ends first, it decides as before.
  */
 async function pickWhenReady(
   ctx: PipelineContext,
   pick: (snap: Snapshot) => Promise<TargetResult>,
   pointer: boolean,
+  view: ViewKind,
 ): Promise<{ snap: Snapshot; picked: TargetResult }> {
   const { deps } = ctx;
   if (ctx.config.targetReadiness && deps.settled && !ctx.ready) {
@@ -1481,39 +1468,47 @@ async function pickWhenReady(
     };
     deps.settled.then(mark, mark);
     const startedAt = performance.now();
-    for (let attempt = 1; attempt <= READY_ATTEMPTS && !settled; attempt++) {
+    let attempt = 0;
+    let lastSignature = "";
+    let last: { snap: Snapshot; picked: TargetResult } | undefined;
+    while (!settled) {
+      attempt++;
       const early = ctx.earlySnapshot;
       ctx.earlySnapshot = undefined;
       const snap = await (early ?? capture(deps));
-      const picked = await pick(snap);
-      const gate = ctx.config.pageSettled === true;
-      const inflightBefore = deps.network?.inflight ?? 0;
-      const guard = picked.target
-        ? await staysPut(deps, snap, picked.target, pointer, gate ? CUE_GAP_MS : 0)
-        : { verdict: "not_found" };
-      let verdict = guard.verdict;
-      if (verdict === "ok" && gate && guard.cues && guard.cuesLater) {
-        const inflightAfter = deps.network?.inflight ?? 0;
-        const quiet =
-          cuesQuiet(guard.cues, inflightBefore) && cuesQuiet(guard.cuesLater, inflightAfter);
-        annotate(ctx.trace, {
-          cues: { ...guard.cuesLater, inflight: inflightAfter } as unknown as JsonValue,
-        });
-        if (!quiet) verdict = "page_busy";
-        else if ((await pageSettledScore(ctx, snap, guard.cuesLater, inflightAfter)) < SETTLED_MIN)
-          verdict = "page_not_settled";
+      const signature = buildView(snap.nodes, view)
+        .map((node) => `${node.id}:${node.name}`)
+        .join("|");
+      let picked: TargetResult;
+      let asked = false;
+      if (signature !== lastSignature || !last) {
+        picked = await pick(snap);
+        asked = true;
+        lastSignature = signature;
+      } else {
+        // Same candidates as last time: Jev would say the same thing.
+        picked = last.picked;
       }
-      const stable = verdict === "ok";
+      last = { snap, picked };
+      const target = picked.target
+        ? snap.nodes.find((node) => node.id === picked.target!.id)
+        : undefined;
+      const guard = target
+        ? await staysPut(deps, snap, target, pointer)
+        : { verdict: picked.target ? "target_gone" : "not_found" };
+      const stable = guard.verdict === "ok";
       ctx.trace.push({
         node: stable ? "ready" : "not_ready",
         ms: Math.round(performance.now() - startedAt),
         attempt,
-        ...(stable ? {} : { why: verdict }),
+        asked,
+        ...(stable ? {} : { why: guard.verdict }),
+        ...(guard.cover ? { cover: guard.cover } : {}),
         settled,
       });
       if (stable) {
         ctx.ready = true;
-        return { snap, picked };
+        return { snap, picked: { ...picked, target } };
       }
       await Promise.race([deps.settled.catch(() => {}), sleep(READY_POLL_MS)]);
     }
@@ -1534,8 +1529,7 @@ async function staysPut(
   snap: Snapshot,
   target: OutlineNode,
   pointer: boolean,
-  gapMs: number,
-): Promise<{ verdict: string; cues?: LoadingCues; cuesLater?: LoadingCues; cover?: string }> {
+): Promise<GuardResult> {
   const selector = selectorFor(snap, target);
   if (!selector) return { verdict: "no_selector" };
   try {
@@ -1550,7 +1544,7 @@ async function staysPut(
         {
           objectId,
           functionDeclaration: targetGuard.toString(),
-          arguments: [{ value: pointer }, { value: gapMs }],
+          arguments: [{ value: pointer }],
           awaitPromise: true,
           returnByValue: true,
         },
@@ -1582,7 +1576,7 @@ async function waitForClickable(
   let result: { verdict: string; cover?: string } = { verdict: "" };
   let polls = 0;
   while (performance.now() - startedAt < PRE_ACT_GUARD_MS) {
-    result = await staysPut(ctx.deps, snap, target, true, 0);
+    result = await staysPut(ctx.deps, snap, target, true);
     if (result.verdict !== "covered" && result.verdict !== "moving") break;
     polls++;
     await sleep(PRE_ACT_POLL_MS);
@@ -1600,120 +1594,23 @@ async function waitForClickable(
   }
 }
 
-const SETTLED_MIN = 0.6;
-const SPINNER_MAX = 10;
-/** Two cue readings this far apart must both be quiet (offline: 1–2 premature exits in 40 sites vs 5–7 with one). */
-const CUE_GAP_MS = 150;
-
-function cuesQuiet(cues: LoadingCues, inflight: number): boolean {
-  return (
-    inflight === 0 &&
-    cues.imgs_pending === 0 &&
-    cues.aria_busy === 0 &&
-    cues.progressbars === 0 &&
-    cues.spinner_like <= SPINNER_MAX &&
-    cues.interactive > 0
-  );
-}
-
-/**
- * "Is this page still loading" cannot be read off content alone (a half-loaded
- * page looks like a smaller finished one), but with the loading cues in front
- * of it Jev separates settled from still-arriving pages: on 40 sites the cue
- * rule plus this question let 15 acts go early with 2 premature, against 7
- * premature for the network-quiet heuristic itself.
- */
-async function pageSettledScore(
-  ctx: PipelineContext,
-  snap: Snapshot,
-  cues: LoadingCues,
-  inflight: number,
-): Promise<number> {
-  const response = await ask(
-    ctx,
-    "page_settled",
-    {
-      url: withoutQuery(ctx.deps.page.url()),
-      ...pageDigest(snap.nodes),
-      loading_cues: { ...cues, inflight_requests: inflight },
-    },
-    {
-      stage: {
-        type: "choice",
-        instructions: {
-          question:
-            "Which best describes this page right now, weighing the loading cues and the content together?",
-        },
-        criteria: {
-          loading: "Content is still arriving or being fetched; acting now risks a half-built page",
-          settled:
-            "The page has finished loading as far as a visitor can tell; it is safe to interact with",
-          shell: "Only navigation or a frame is present; the main content has not started",
-        },
-      },
-    },
-  );
-  const settled = choiceAnswer(response, "stage").probabilities.settled ?? 0;
-  annotate(ctx.trace, { settled: round(settled) });
-  return settled;
-}
-
-type LoadingCues = {
-  imgs_pending: number;
-  aria_busy: number;
-  progressbars: number;
-  spinner_like: number;
-  interactive: number;
-  text_chars: number;
-};
 type GuardResult = {
   verdict: string;
-  cues: LoadingCues;
-  cuesLater: LoadingCues;
   /** What a click at the target's centre would hit instead, when covered. */
   cover?: string;
 };
 
 /**
  * Runs in the page with the target as `this`. Frames when they tick, else a
- * timer (background tabs). Besides the target checks it reads the document's
- * loading cues twice, `gapMs` apart, so "quiet on two readings" costs no extra
- * round trip.
+ * timer (background tabs).
  */
-function targetGuard(this: Element, pointer: boolean, gapMs: number): Promise<GuardResult> {
+function targetGuard(this: Element, pointer: boolean): Promise<GuardResult> {
   // oxlint-disable-next-line typescript/no-this-alias -- runs in the page with the element as `this`
   const element = this;
-  const doc = element.ownerDocument;
-  const visible = (node: Element): boolean => {
-    const rect = node.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0;
-  };
-  const SPIN = /spinner|skeleton|shimmer|loading|placeholder|pulse|progress/i;
-  const cues = (): LoadingCues => {
-    let spinnerLike = 0;
-    for (const node of doc.querySelectorAll("[class],[id]")) {
-      if (SPIN.test(`${node.className} ${node.id}`) && visible(node)) spinnerLike++;
-      if (spinnerLike > 50) break;
-    }
-    return {
-      imgs_pending: [...doc.images].filter((img) => img.getAttribute("src") && !img.complete)
-        .length,
-      aria_busy: doc.querySelectorAll('[aria-busy="true"]').length,
-      progressbars: [...doc.querySelectorAll("[role=progressbar],progress")].filter(visible).length,
-      spinner_like: spinnerLike,
-      interactive: [
-        ...doc.querySelectorAll(
-          "a[href],button,input,select,textarea,[role=button],[role=link],[role=tab],[role=menuitem]",
-        ),
-      ].filter(visible).length,
-      text_chars: (doc.body?.innerText ?? "").length,
-    };
-  };
   const place = (): string => {
     const rect = element.getBoundingClientRect();
     return [rect.x, rect.y, rect.width, rect.height].map((value) => Math.round(value)).join(",");
   };
-  const first = cues();
   const before = place();
   return new Promise<GuardResult>((resolve) => {
     let frames = 0;
@@ -1721,9 +1618,8 @@ function targetGuard(this: Element, pointer: boolean, gapMs: number): Promise<Gu
     const finish = (): void => {
       if (done) return;
       done = true;
-      const later = cues();
       const out = (verdict: string, cover?: string): void =>
-        resolve({ verdict, cues: first, cuesLater: later, ...(cover ? { cover } : {}) });
+        resolve({ verdict, ...(cover ? { cover } : {}) });
       if (!element.isConnected) return out("detached");
       if (element.matches(":disabled") || element.closest('[aria-disabled="true"],[inert]'))
         return out("disabled");
@@ -1748,12 +1644,11 @@ function targetGuard(this: Element, pointer: boolean, gapMs: number): Promise<Gu
       out("ok");
     };
     const tick = (): void => {
-      if (++frames >= 2 && performance.now() - started >= gapMs) finish();
+      if (++frames >= 2) finish();
       else requestAnimationFrame(tick);
     };
-    const started = performance.now();
     requestAnimationFrame(tick);
-    setTimeout(finish, Math.max(50, gapMs + 20));
+    setTimeout(finish, 50);
   });
 }
 

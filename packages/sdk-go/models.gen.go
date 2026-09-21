@@ -1938,9 +1938,6 @@ type StagehandInitParamsExperimentalJevAct struct {
 	// Observe corresponds to the JSON schema field "observe".
 	Observe *bool `json:"observe,omitempty,omitzero"`
 
-	// PageSettled corresponds to the JSON schema field "page_settled".
-	PageSettled *bool `json:"page_settled,omitempty,omitzero"`
-
 	// PageState corresponds to the JSON schema field "page_state".
 	PageState *bool `json:"page_state,omitempty,omitzero"`
 
