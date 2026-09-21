@@ -51,13 +51,14 @@ describe("Codex SDK session", () => {
       model: "openai/gpt-5.4-mini",
       logger,
       sdk,
-      thread: { workingDirectory: "/tmp/work" },
+      thread: { workingDirectory: "/tmp/work", modelReasoningEffort: "xhigh" },
       outputSchema,
     });
 
     expect(threadOptions).toMatchObject({
       model: "gpt-5.4-mini",
       workingDirectory: "/tmp/work",
+      modelReasoningEffort: "xhigh",
       sandboxMode: "read-only",
       approvalPolicy: "never",
       networkAccessEnabled: true,

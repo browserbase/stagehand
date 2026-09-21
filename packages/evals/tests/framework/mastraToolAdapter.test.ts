@@ -31,6 +31,7 @@ describe("Mastra tool adapter", () => {
   it("lists supported surfaces with stagehand_facade first", () => {
     expect(MASTRA_TOOL_SURFACES).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
       "stagehand_code",

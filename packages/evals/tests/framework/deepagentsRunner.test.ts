@@ -1,5 +1,6 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 import type { AvailableModel } from "stagehand-v3";
 import {
   DEEPAGENTS_SYSTEM_PROMPT,
@@ -96,6 +97,7 @@ describe("Deep Agents runner", () => {
         env: {},
         promptInstructions: "Use mounted tools.",
         mcpServers: {},
+        browserSession: { provider: "local" },
         observedToolMatcher: () => false,
         cleanup: async () => {},
       }) satisfies PreparedDeepagentsToolAdapter;
@@ -112,6 +114,11 @@ describe("Deep Agents runner", () => {
 
     expect(payloads[0]?.system_prompt).not.toContain("snapshot");
     expect(payloads[1]?.system_prompt).toContain("snapshot");
+    for (const payload of payloads) {
+      expect(String(payload.system_prompt).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+      expect(payload.prompt).toContain(plan.instruction);
+      expect(payload.prompt).not.toContain(EVAL_SYSTEM_PROMPT);
+    }
   });
 
   it("parses direct and marker JSON results", () => {
@@ -175,3 +182,24 @@ describe("Deep Agents runner", () => {
     expect(result.error).toContain("recursion");
   });
 });
+
+it.each([false, true])(
+  "preserves token usage presence through deepagents grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runDeepagentsAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      spawn: eventSpawner([
+        { type: "final", text: finalAnswer },
+        { type: "usage", reported, input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+      ]),
+    });
+    expect(result.usageConvention).toBe(reported ? "openai_cached_subset" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);

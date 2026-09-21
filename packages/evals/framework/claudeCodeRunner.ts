@@ -19,6 +19,7 @@ import {
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -61,15 +62,26 @@ export async function runClaudeCodeAgent({
   sdk,
   verifier,
 }: ClaudeCodeRunnerInput): Promise<TaskResult> {
+  // Claude Code budgets turns, each of which may span several tool calls, so
+  // the shared (tool-step calibrated) budget is a mild over-allowance here.
+  const maxTurns = resolveStepBudget({
+    harnessEnvKey: "EVAL_CLAUDE_CODE_MAX_TURNS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "claude_code",
     plan,
+    model,
     logger,
     toolAdapter,
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "Claude Code did not report success",
-    runSession: async (prompt) => {
+    stepBudget: maxTurns,
+    stepBudgetUnit: "turns",
+    systemPromptMode: "native",
+    runSession: async (prompt, systemPrompt) => {
       const sessionResult = await runClaudeAgentSession({
         prompt,
         model,
@@ -81,7 +93,7 @@ export async function runClaudeCodeAgent({
             toolAdapter?.allowedTools ??
             readCsvEnv("EVAL_CLAUDE_CODE_ALLOWED_TOOLS", ["WebFetch", "WebSearch"]),
           permissionMode: process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default",
-          maxTurns: readPositiveIntEnv("EVAL_CLAUDE_CODE_MAX_TURNS", 50),
+          maxTurns,
           pathToClaudeCodeExecutable: process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined,
           cwd: toolAdapter?.cwd,
           env: toolAdapter?.env,
@@ -90,8 +102,7 @@ export async function runClaudeCodeAgent({
           settingSources: toolAdapter?.settingSources ?? [],
           systemPromptPreset: {
             preset: "claude_code",
-            append:
-              "You are being evaluated. Do not edit repository files. Complete the browser task and emit the requested EVAL_RESULT line.",
+            append: `${systemPrompt}\n\nYou are being evaluated. Do not edit repository files. Complete the browser task and emit the requested EVAL_RESULT line.`,
           },
         },
         onToolResult: toolAdapter?.onToolResult,
@@ -112,6 +123,7 @@ export async function runClaudeCodeAgent({
         status: sessionResult.status,
         stopReason: sessionResult.stopReason,
         usage: {
+          reported: tokenUsage.reported,
           inputTokens: tokenUsage.inputTokens,
           outputTokens: tokenUsage.outputTokens,
           cachedInputTokens: tokenUsage.cacheReadInputTokens,
@@ -169,11 +181,4 @@ function readCsvEnv(key: string, fallback: string[]): string[] {
     .map((value) => value.trim())
     .filter(Boolean);
   return values.length > 0 ? values : fallback;
-}
-
-function readPositiveIntEnv(key: string, fallback: number): number {
-  const raw = process.env[key];
-  if (!raw) return fallback;
-  const parsed = Number(raw);
-  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }

@@ -104,6 +104,98 @@ describe("Eve trajectory adapter", () => {
     expect(trajectory.steps[0].reasoning).toBe("inspect first");
   });
 
+  it("pairs each step's reasoning with that step's tool call, whatever order eve streams them", () => {
+    // Observed shape: eve finalizes the reasoning block after the step's tool
+    // result has streamed, so arrival-order pairing shifted every reasoning
+    // onto the following step (step 1 carried "get a snapshot", step 2 the
+    // cookie-dialog plan, ...).
+    const step = (index: number, callId: string, toolName: string, reasoning: string) =>
+      [
+        { type: "step.started", data: { stepIndex: index } },
+        {
+          type: "actions.requested",
+          data: {
+            stepIndex: index,
+            actions: [{ kind: "tool-call", callId, toolName, input: { step: index } }],
+          },
+        },
+        {
+          type: "action.result",
+          data: {
+            stepIndex: index,
+            status: "completed",
+            result: { kind: "tool-result", callId, toolName, output: "ok" },
+          },
+        },
+        { type: "reasoning.completed", data: { stepIndex: index, reasoning } },
+        {
+          type: "message.completed",
+          data: { stepIndex: index, finishReason: "tool-calls", message: `narration ${index}` },
+        },
+        { type: "step.completed", data: { stepIndex: index, finishReason: "tool-calls" } },
+      ] satisfies EveEvent[];
+    const trajectory = eveAdapter.fromHarnessResult(
+      {
+        events: [
+          ...step(0, "c0", "stagehand__run", "Let's start by moving to UPS.com."),
+          ...step(1, "c1", "stagehand__snapshot", "Let's get a snapshot of the home page."),
+          ...step(2, "c2", "stagehand__run", "Let me close the cookie dialog."),
+        ],
+      },
+      taskSpec,
+    );
+    expect(trajectory.steps.map((s) => [s.actionName, s.reasoning])).toEqual([
+      ["stagehand__run", "Let's start by moving to UPS.com."],
+      ["stagehand__snapshot", "Let's get a snapshot of the home page."],
+      ["stagehand__run", "Let me close the cookie dialog."],
+    ]);
+    // Tool-call narration is not a conclusion, so it never becomes the answer.
+    expect(trajectory.finalAnswer).toBeUndefined();
+  });
+
+  it("gives a step's reasoning to its first tool call when the step requests several", () => {
+    const trajectory = eveAdapter.fromHarnessResult(
+      {
+        events: [
+          { type: "reasoning.completed", data: { stepIndex: 0, reasoning: "two things" } },
+          {
+            type: "actions.requested",
+            data: {
+              stepIndex: 0,
+              actions: [
+                { kind: "tool-call", callId: "a", toolName: "stagehand__run", input: {} },
+                { kind: "tool-call", callId: "b", toolName: "stagehand__snapshot", input: {} },
+              ],
+            },
+          },
+          {
+            type: "action.result",
+            data: {
+              stepIndex: 0,
+              status: "completed",
+              result: { kind: "tool-result", callId: "a", toolName: "stagehand__run", output: 1 },
+            },
+          },
+          {
+            type: "action.result",
+            data: {
+              stepIndex: 0,
+              status: "completed",
+              result: {
+                kind: "tool-result",
+                callId: "b",
+                toolName: "stagehand__snapshot",
+                output: 2,
+              },
+            },
+          },
+        ],
+      },
+      taskSpec,
+    );
+    expect(trajectory.steps.map((s) => s.reasoning)).toEqual(["two things", ""]);
+  });
+
   it("uses the last completed message as the final answer", () => {
     const trajectory = eveAdapter.fromHarnessResult(
       {

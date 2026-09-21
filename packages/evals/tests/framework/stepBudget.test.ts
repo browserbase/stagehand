@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readDeepagentsRecursionLimit } from "../../framework/deepagentsRunner.js";
 import { DATASET_STEP_BUDGETS, resolveStepBudget } from "../../framework/stepBudget.js";
 
 describe("resolveStepBudget", () => {
@@ -64,5 +65,17 @@ describe("resolveStepBudget", () => {
         env: { EVAL_FX_MAX_STEPS: "0", AGENT_EVAL_MAX_STEPS: "lots" },
       }),
     ).toBe(100);
+  });
+});
+
+describe("readDeepagentsRecursionLimit", () => {
+  it("stays at or above 2 × maxToolSteps + 1 for every budget", () => {
+    for (const steps of [1, 50, 75, 200]) {
+      expect(readDeepagentsRecursionLimit(steps, {})).toBeGreaterThanOrEqual(2 * steps + 1);
+    }
+  });
+
+  it("honors an explicit EVAL_DEEPAGENTS_RECURSION_LIMIT", () => {
+    expect(readDeepagentsRecursionLimit(75, { EVAL_DEEPAGENTS_RECURSION_LIMIT: "500" })).toBe(500);
   });
 });

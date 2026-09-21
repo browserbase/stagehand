@@ -161,6 +161,40 @@ describe("Mastra trajectory adapter", () => {
     });
   });
 
+  it("captures a streamed reasoning summary as the next step's reasoning", () => {
+    const trajectory = mastraAdapter.fromHarnessResult(
+      {
+        events: [
+          { type: "reasoning-start", payload: { id: "rs_1" } },
+          {
+            type: "reasoning-delta",
+            payload: { id: "rs_1", text: "**Locating the seat map**\n\n" },
+          },
+          {
+            type: "reasoning-delta",
+            payload: { id: "rs_1", text: "Open the booking page first." },
+          },
+          { type: "reasoning-end", payload: { id: "rs_1" } },
+          {
+            type: "tool-call",
+            payload: { toolCallId: "c1", toolName: "stagehand_run", args: { code: "1" } },
+          },
+          {
+            type: "tool-result",
+            payload: { toolCallId: "c1", toolName: "stagehand_run", result: "ok" },
+          },
+          { type: "text-delta", payload: { text: "Done." } },
+        ],
+      },
+      TASK_SPEC,
+    );
+    expect(trajectory.steps).toHaveLength(1);
+    expect(trajectory.steps[0]?.reasoning).toBe(
+      "**Locating the seat map**\n\nOpen the booking page first.",
+    );
+    expect(trajectory.finalAnswer).toBe("Done.");
+  });
+
   it("folds pre-call reasoning and text while keeping trailing text as the answer", () => {
     const trajectory = mastraAdapter.fromHarnessResult(
       {
