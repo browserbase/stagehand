@@ -303,7 +303,7 @@ async function decideAndAct(
   // Intent fan-out: every question that only needs the instruction rides in
   // one request, so press / not-an-action / whole-page scroll finish here.
   if (config.targetReadiness && deps.settled) {
-    ctx.earlySnapshot = capture(deps);
+    ctx.earlySnapshot = capture(deps, trace);
     ctx.earlySnapshot.catch(() => {});
   }
 
@@ -1475,7 +1475,7 @@ async function pickWhenReady(
       attempt++;
       const early = ctx.earlySnapshot;
       ctx.earlySnapshot = undefined;
-      const snap = await (early ?? capture(deps));
+      const snap = await (early ?? capture(deps, ctx.trace));
       const signature = buildView(snap.nodes, view)
         .map((node) => `${node.id}:${node.name}`)
         .join("|");
@@ -1661,13 +1661,20 @@ async function snapshot(deps: JevActDeps): Promise<Snapshot> {
   return await capture(deps);
 }
 
-async function capture(deps: JevActDeps): Promise<Snapshot> {
+async function capture(deps: JevActDeps, trace?: TraceEntry[]): Promise<Snapshot> {
   deps.ensureTimeRemaining();
+  const startedAt = performance.now();
   const { combinedTree, combinedXpathMap, combinedEditableIds } = await deps.page.captureSnapshot(
     deps.snapshotOptions,
   );
   const nodes = parseOutline(combinedTree);
   markEditable(nodes, combinedEditableIds);
+  // On heavy, still-loading pages this is seconds; the trace makes that visible.
+  trace?.push({
+    node: "snapshot",
+    ms: Math.round(performance.now() - startedAt),
+    lines: nodes.length,
+  });
   return { tree: combinedTree, xpathMap: combinedXpathMap as Record<string, string>, nodes };
 }
 
