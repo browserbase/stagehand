@@ -20,6 +20,7 @@ import {
   StagehandInitParamsSchema,
   StagehandLogLevelSchema,
 } from "@browserbasehq/stagehand-protocol/schemas";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { Page } from "./page.js";
 import { Locator } from "./locator.js";
 import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
@@ -267,8 +268,40 @@ export const StagehandBrowserSchema = z
   )
   .meta({ id: "StagehandBrowser" });
 
+export type StagehandRPCMethodName =
+  (typeof StagehandMethods)[keyof typeof StagehandMethods]["name"];
+export type StagehandRPCTimeouts = {
+  defaultMs?: number;
+  methods?: Partial<Record<StagehandRPCMethodName, number>>;
+};
+
+const MAX_RPC_TIMEOUT_MS = 2_147_473_647;
+const RPCTimeoutMsSchema = z.int().positive().max(MAX_RPC_TIMEOUT_MS);
+
+export const StagehandRPCTimeoutsSchema = z
+  .strictObject({
+    defaultMs: RPCTimeoutMsSchema.optional(),
+    methods: z.record(z.string(), RPCTimeoutMsSchema).optional(),
+  })
+  .meta({ id: "StagehandRPCTimeouts" });
+
+export const StagehandCallOptionsSchema = z
+  .strictObject({
+    signal: z.custom<AbortSignal>((value) => value instanceof AbortSignal).optional(),
+  })
+  .meta({ id: "StagehandCallOptions" });
+
+export const StagehandGetCallOptionsSchema = z
+  .custom<() => StagehandCallOptions | undefined>(
+    (value) => typeof value === "function",
+    "getCallOptions must be a function",
+  )
+  .meta({ id: "StagehandGetCallOptions" });
+
 export const StagehandCreateOptionsSchema = StagehandClientCreateConfigSchema.extend({
   browser: StagehandBrowserSchema,
+  rpcTimeouts: StagehandRPCTimeoutsSchema.optional(),
+  getCallOptions: StagehandGetCallOptionsSchema.optional(),
 }).meta({ id: "StagehandCreateOptions" });
 
 export type ClientLLM = z.infer<typeof ClientLLMSchema>;
@@ -298,6 +331,8 @@ export type ResolvedStagehandClientCreateConfig = z.output<
 >;
 export type StagehandCreateOptions = z.input<typeof StagehandCreateOptionsSchema>;
 export type ResolvedStagehandCreateOptions = z.output<typeof StagehandCreateOptionsSchema>;
+export type StagehandCallOptions = z.input<typeof StagehandCallOptionsSchema>;
+export type StagehandGetCallOptions = z.input<typeof StagehandGetCallOptionsSchema>;
 export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
 export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
 export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;
