@@ -37,6 +37,16 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
+
+<p align="center">
+  <a href="https://stagehand.dev">
+    <img src="media/stagehand-website-banner.png" alt="Stagehand homepage showing browser automation in TypeScript, Python, and Go and a speed comparison with Playwright" width="100%" />
+  </a>
+</p>
+
 ## AI that uses the browser like humans.
 
 Sign in once, keep the session, and pull structured data out the other side.
