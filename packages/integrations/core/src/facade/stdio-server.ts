@@ -17,7 +17,6 @@ import {
   facadeSurfaceFromArgs,
   facadeToolsFor,
   SESSION_INFO_TOOL_NAME,
-  SESSION_LOST_TELEMETRY_PREFIX,
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
@@ -133,7 +132,6 @@ async function ensureResources(): Promise<FacadeResources> {
 
 async function createResources(): Promise<FacadeResources> {
   const config = stagehandFacadeConfigFromEnv();
-  const launchedAt = Date.now();
   const browser =
     config.browser.type === "browserbase"
       ? await browserbase.launch(config.browser.launchOptions)
@@ -143,25 +141,6 @@ async function createResources(): Promise<FacadeResources> {
     const tools = new StagehandFacadeTools(stagehand, {
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
-      // The browser is not recreated on purpose: a fresh session would silently
-      // change the evidence trail mid-task. Tools keep answering with the
-      // terminal error and the host decides what to do with the run.
-      // Age includes launch and initialization time. Compare it with configured
-      // timeout and remote session status when diagnosing a disconnect.
-      onSessionLost: (loss) =>
-        process.stderr.write(
-          `${SESSION_LOST_TELEMETRY_PREFIX}${JSON.stringify({
-            ...loss,
-            cause: sanitizeErrorMessage(loss.cause),
-            provider: browser.provider,
-            ...(browser.sessionId && { sessionId: browser.sessionId }),
-            sessionAgeMs: Date.now() - launchedAt,
-            ...(config.browser.type === "browserbase" &&
-              typeof config.browser.launchOptions.timeout === "number" && {
-                sessionTimeoutMs: config.browser.launchOptions.timeout * 1000,
-              }),
-          })}\n`,
-        ),
     });
     return { browser, stagehand, tools };
   } catch (error) {
