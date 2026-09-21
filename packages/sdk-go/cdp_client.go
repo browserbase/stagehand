@@ -65,6 +65,11 @@ type cdpClientOptions struct {
 	pollInterval             time.Duration
 	activationDelay          time.Duration
 	httpClient               *http.Client
+	// allowFallbackInstall is reserved for flows that can replace an
+	// incompatible preloaded extension. When false (the default) an
+	// incompatible runtime marker fails initialization on the first poll
+	// instead of polling until the initialization deadline.
+	allowFallbackInstall bool
 }
 
 type cdpClient struct {
@@ -377,6 +382,7 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 		ctx,
 		sessionID,
 		options.pollInterval,
+		options.allowFallbackInstall,
 	)
 }
 
@@ -962,6 +968,7 @@ func (c *cdpClient) waitForRuntimeReady(
 	ctx context.Context,
 	sessionID string,
 	pollInterval time.Duration,
+	allowFallbackInstall bool,
 ) error {
 	lastError := ""
 	for {
@@ -978,9 +985,12 @@ func (c *cdpClient) waitForRuntimeReady(
 				err,
 			)
 		}
-		ready, detail := c.evaluateRuntimeReadiness(ctx, sessionID)
+		ready, incompatible, detail := c.evaluateRuntimeReadiness(ctx, sessionID)
 		if ready {
 			return nil
+		}
+		if incompatible != nil && !allowFallbackInstall {
+			return incompatible
 		}
 		lastError = detail
 		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
@@ -989,10 +999,14 @@ func (c *cdpClient) waitForRuntimeReady(
 	}
 }
 
+// evaluateRuntimeReadiness reports whether the runtime is ready. When the
+// marker is present but incompatible it also returns the typed error so the
+// caller can stop polling; detail always describes why the runtime is not
+// ready yet.
 func (c *cdpClient) evaluateRuntimeReadiness(
 	ctx context.Context,
 	sessionID string,
-) (bool, string) {
+) (ready bool, incompatible *RuntimeIncompatibleError, detail string) {
 	var evaluated cdpRuntimeEvaluateResult
 	err := c.sendCommand(
 		ctx,
@@ -1005,30 +1019,34 @@ func (c *cdpClient) evaluateRuntimeReadiness(
 		&evaluated,
 	)
 	if err != nil {
-		return false, err.Error()
+		return false, nil, err.Error()
 	}
 	if evaluated.ExceptionDetails != nil {
-		return false, runtimeExceptionMessage(
+		return false, nil, runtimeExceptionMessage(
 			evaluated.ExceptionDetails,
 			"readiness evaluation threw",
 		)
 	}
 	if evaluated.Result == nil || len(evaluated.Result.Value) == 0 {
-		return false, "readiness evaluation returned no value"
+		return false, nil, "readiness evaluation returned no value"
 	}
 	var readiness cdpRuntimeReadiness
 	if err := json.Unmarshal(evaluated.Result.Value, &readiness); err != nil {
-		return false, "readiness evaluation returned an invalid value"
+		return false, nil, "readiness evaluation returned an invalid value"
 	}
-	compatible, detail := negotiateRuntimeCompatibility(readiness.Marker)
-	if compatible && readiness.HasReceiver {
-		return true, ""
+	negotiation := negotiateRuntimeCompatibility(readiness.Marker)
+	if negotiation.compatible() && readiness.HasReceiver {
+		return true, nil, ""
 	}
-	return false, fmt.Sprintf(
+	detail = fmt.Sprintf(
 		"runtime %s, __stagehandReceiveFromHost=%t",
-		detail,
+		negotiation.detail,
 		readiness.HasReceiver,
 	)
+	if negotiation.kind == runtimeIncompatible {
+		return false, negotiation.incompatibleError(), detail
+	}
+	return false, nil, detail
 }
 
 func (c *cdpClient) bestEffortCommand(ctx context.Context, method string, params any) {

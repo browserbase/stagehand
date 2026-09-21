@@ -11,6 +11,7 @@ import {
   BROWSE_CLI_ENTRYPOINT,
   BROWSE_CLI_PACKAGE_JSON,
   BROWSE_SKILL_SOURCE,
+  createBrowseCliSessionName,
 } from "../browseCliPaths.js";
 import {
   AGENT_RUN_TOOL_NAME,
@@ -287,7 +288,7 @@ export async function prepareBrowseCliHarnessAdapter(
     );
   }
 
-  const session = createBrowseSessionName();
+  const session = createBrowseCliSessionName();
   const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-browse-"));
   const wrapperPath = path.join(cwd, "browse");
   await installBrowseSkill(cwd);
@@ -739,10 +740,6 @@ function stringifyToolResult(value: unknown): string {
 
 function clip(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
-}
-
-function createBrowseSessionName(): string {
-  return `evals-claude-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 async function runBrowseCommand(

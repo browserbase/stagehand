@@ -180,6 +180,7 @@ jobs:
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm check
       - run: pnpm test:unit
+      - run: pnpm --filter browse test:cli
       - run: uv lock --check
         working-directory: packages/sdk-python
       - run: uv run --locked python scripts/generate.py --check
@@ -286,12 +287,9 @@ jobs:
           use-prebuilt-artifacts: "true"
 
       - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
 
+      # Browser-runtime specs run in browser-ts; root Vitest would repeat the unit suites.
       - run: pnpm exec turbo run test:unit
-      - run: pnpm exec vitest run
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
   browser-ts:
     name: TypeScript browser

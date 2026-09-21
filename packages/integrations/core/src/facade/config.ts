@@ -66,7 +66,7 @@ export function stagehandFacadeConfigFromEnv(
 
   const inferredGoogleKey = providerApiKey("google", env);
   const modelName =
-    explicitModelName ?? (inferredGoogleKey ? "google/gemini-3.6-flash" : undefined);
+    explicitModelName ?? (inferredGoogleKey ? "google/gemini-3.8-flash" : undefined);
   const modelProvider = modelName ? providerName(modelName) : undefined;
   const modelApiKey = explicitModelApiKey ?? providerApiKey(modelProvider, env);
   const parsed = StagehandClientCreateConfigSchema.safeParse({
