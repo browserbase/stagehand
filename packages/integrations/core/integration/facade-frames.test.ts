@@ -155,6 +155,7 @@ it("runs the shared facade against same-origin and out-of-process local frames",
       ),
     ).toBe(true);
     expect(generate).not.toHaveBeenCalled();
+    expect(tools.sessionLoss).toBeUndefined();
   } finally {
     try {
       await stagehand?.close();
