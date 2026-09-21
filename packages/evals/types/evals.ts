@@ -76,6 +76,7 @@ export interface Testcase extends EvalCase<
     api?: boolean;
     provider?: string;
     toolSurface?: string;
+    promptVariant?: string;
     startupProfile?: string;
     toolCommand?: string;
     browseCliVersion?: string;
@@ -115,6 +116,7 @@ export interface Testcase extends EvalCase<
     api?: boolean;
     provider?: string;
     toolSurface?: string;
+    promptVariant?: string;
     startupProfile?: string;
     toolCommand?: string;
     browseCliVersion?: string;

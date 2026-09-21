@@ -1,5 +1,6 @@
 import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
+import { explicitSnapshotActionsEnabled } from "@browserbasehq/stagehand-integrations/facade";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildHardBenchmarkTestcases } from "../suites/hardbenchmark.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
@@ -366,11 +367,15 @@ function withBenchMetadata(
 }
 
 function buildToolMetadata(row: BenchMatrixRow): Partial<Testcase["metadata"]> {
+  const promptVariant =
+    row.toolSurface === "stagehand_facade" && explicitSnapshotActionsEnabled()
+      ? { promptVariant: "explicit_snapshot_actions" }
+      : {};
   if (
     getBenchHarness(row.harness).supportedToolSurfaces.includes("browse_cli") &&
     row.toolSurface === "browse_cli"
   ) {
-    return getBrowseCliToolMetadata();
+    return { ...getBrowseCliToolMetadata(), ...promptVariant };
   }
-  return {};
+  return promptVariant;
 }
