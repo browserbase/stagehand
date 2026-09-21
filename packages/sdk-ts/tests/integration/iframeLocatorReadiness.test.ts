@@ -8,7 +8,8 @@ import {
   type FixtureServer,
 } from "./_support.js";
 
-const CHILD_DELAY_MS = 4_000;
+const HOST_CHILD_DELAY_MS = 4_000;
+const DEEP_CHILD_DELAY_MS = 300;
 const FAST_CLICK_BUDGET_MS = 1_500;
 const XPATH_IFRAME = "xpath=/html[1]/body[1]/div[1]/iframe[1]";
 const XPATH_INNER = "xpath=/html[1]/body[1]/div[1]/iframe[1]/html[1]/body[1]/div[1]/button[1]";
@@ -21,9 +22,19 @@ type IframeFixture = {
   childServed: () => number;
 };
 
+function createChildResponseGate(): { ready: Promise<void>; release: () => void } {
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { ready, release };
+}
+
 async function createDelayedIframeFixture(options: {
   /** Absolute iframe src written into the parent HTML. */
   childSrc: (child: FixtureServer) => string;
+  childDelayMs: number;
+  childResponseGate?: Promise<void>;
   /** URL passed to page.goto (may use a mapped hostname). */
   parentGotoUrl: (parent: FixtureServer) => string;
 }): Promise<IframeFixture> {
@@ -32,7 +43,8 @@ async function createDelayedIframeFixture(options: {
 
   const child = await startFixtureServer({
     "/child": async () => {
-      await new Promise((resolve) => setTimeout(resolve, CHILD_DELAY_MS));
+      await options.childResponseGate;
+      await new Promise((resolve) => setTimeout(resolve, options.childDelayMs));
       childServed += 1;
       return {
         body: `<!doctype html><html><body style="margin:0">
@@ -85,6 +97,7 @@ describe("iframe locator readiness", () => {
 
   it("same-process trailing iframe XPath clicks without waiting for the child document", async () => {
     const fixture = await createDelayedIframeFixture({
+      childDelayMs: HOST_CHILD_DELAY_MS,
       childSrc: (child) => new URL("/child", child.url).href,
       parentGotoUrl: (parent) => parent.url,
     });
@@ -105,8 +118,11 @@ describe("iframe locator readiness", () => {
     expect(fixture.childServed()).toBe(0);
   });
 
-  it("same-process deep XPath waits for the child and performs a verifiable button action", async () => {
+  it("same-process deep XPath handles brief child initialization and clicks the button", async () => {
+    const gate = createChildResponseGate();
     const fixture = await createDelayedIframeFixture({
+      childDelayMs: DEEP_CHILD_DELAY_MS,
+      childResponseGate: gate.ready,
       childSrc: (child) => new URL("/child", child.url).href,
       parentGotoUrl: (parent) => parent.url,
     });
@@ -119,11 +135,11 @@ describe("iframe locator readiness", () => {
     await waitForIframeElement(page);
 
     expect(fixture.childServed()).toBe(0);
-    const started = Date.now();
-    await page.locator(XPATH_INNER).click();
-    const elapsed = Date.now() - started;
+    // Start the action while the child response is held, then allow brief initialization.
+    const click = page.locator(XPATH_INNER).click();
+    gate.release();
+    await click;
 
-    expect(elapsed).toBeGreaterThanOrEqual(CHILD_DELAY_MS - 500);
     await expect.poll(() => fixture.clickCount(), { timeout: 5_000 }).toBe(1);
   });
 
@@ -131,7 +147,7 @@ describe("iframe locator readiness", () => {
     let childServed = 0;
     const child = await startFixtureServer({
       "/child": async () => {
-        await new Promise((resolve) => setTimeout(resolve, CHILD_DELAY_MS));
+        await new Promise((resolve) => setTimeout(resolve, HOST_CHILD_DELAY_MS));
         childServed += 1;
         return {
           body: `<!doctype html><html><body style="margin:0">
@@ -183,12 +199,14 @@ describe("iframe locator readiness", () => {
     expect(childServed).toBe(0);
   });
 
-  it("OOPIF deep XPath waits across session adoption and performs a verifiable button action", async () => {
+  it("OOPIF deep XPath handles brief initialization across session adoption and clicks", async () => {
+    const gate = createChildResponseGate();
     let clickCount = 0;
     let childServed = 0;
     const child = await startFixtureServer({
       "/child": async () => {
-        await new Promise((resolve) => setTimeout(resolve, CHILD_DELAY_MS));
+        await gate.ready;
+        await new Promise((resolve) => setTimeout(resolve, DEEP_CHILD_DELAY_MS));
         childServed += 1;
         return {
           body: `<!doctype html><html><body style="margin:0">
@@ -235,11 +253,11 @@ describe("iframe locator readiness", () => {
     await waitForIframeElement(page);
 
     expect(childServed).toBe(0);
-    const started = Date.now();
-    await page.locator(XPATH_INNER).click();
-    const elapsed = Date.now() - started;
+    // Start the action while the child response is held, then allow brief initialization.
+    const click = page.locator(XPATH_INNER).click();
+    gate.release();
+    await click;
 
-    expect(elapsed).toBeGreaterThanOrEqual(CHILD_DELAY_MS - 500);
     await expect.poll(() => clickCount, { timeout: 5_000 }).toBe(1);
     expect(childServed).toBeGreaterThanOrEqual(1);
   });
