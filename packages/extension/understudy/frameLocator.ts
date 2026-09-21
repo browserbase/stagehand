@@ -227,6 +227,8 @@ async function ensureChildFrameReady(
     }
   }
 
-  if (lastError instanceof Error) throw lastError;
-  throw new Error(`Locator world not ready for frame ${childFrameId}`);
+  throw new Error(
+    `Locator world not ready for frame ${childFrameId}: exhausted ${budgetMs} ms frame-readiness budget`,
+    { cause: lastError },
+  );
 }
