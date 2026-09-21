@@ -1,6 +1,6 @@
 # Stagehand Evals
 
-Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys).
+Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys, HardBench).
 
 Driven by an interactive TUI (`evals`) or single-shot CLI (`evals run …`). Tasks are auto-discovered from `tasks/bench/<category>/` — no registration step.
 
@@ -83,6 +83,12 @@ Defaults live in `evals.config.json` and can be edited via `evals config set …
 A live run paints an in-place progress table, then prints a final summary with a per-model breakdown:
 
 ![Live bench run](./assets/readme/run.gif)
+
+## Shared harness behavior
+
+See [the harness contract](docs/harness-contract.md) for tool surfaces, prompt policy,
+budget units, session diagnostics, verification, and usage accounting.
+See [HardBench](datasets/hardbenchmark/README.md) for corpus selection and rubric v1.2.
 
 ## Adding a bench task
 
