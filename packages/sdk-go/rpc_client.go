@@ -388,6 +388,10 @@ func (c *rpcClient) onPageCDPEvent(handler func(PageCDPEventNotification)) func(
 	return registerNotification(c, "page.cdp_event", handler)
 }
 
+func (c *rpcClient) onPageEvent(handler func(PageEventNotification)) func() {
+	return registerNotification(c, "page.event", handler)
+}
+
 func registerNotification[Notification any](
 	c *rpcClient,
 	method string,

@@ -75,7 +75,14 @@ from .client_types import (
 )
 from .file_upload import FileInput, FilePayload
 from .locator import Locator
-from .page import CDPSubscription, Page, PageEventListener
+from .page import (
+    CDPSubscription,
+    Page,
+    PageEventListener,
+    ToolsAddedListener,
+    ToolsRemovedListener,
+    WebMCPToolIdentity,
+)
 from .response import Response
 from .stagehand import Stagehand
 from .webmcp import (
@@ -136,6 +143,9 @@ __all__ = [
     "PageCDPEvent",
     "PageDragAndDropRoutePoint",
     "PageEventListener",
+    "ToolsAddedListener",
+    "ToolsRemovedListener",
+    "WebMCPToolIdentity",
     "PageEventName",
     "PageScreenshotClip",
     "ProtocolLocator",

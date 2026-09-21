@@ -11,6 +11,7 @@ install:
 generate:
     pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
+    uv --directory {{python_dir}} run --locked ty check
     pnpm --filter ./packages/extension build
     go -C {{go_dir}} generate ./...
 
