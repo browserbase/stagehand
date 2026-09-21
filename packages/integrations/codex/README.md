@@ -65,6 +65,7 @@ service worker — browser-side, never on your machine. Browserbase is the recom
 boundary: the privileged execution environment is a disposable cloud browser. The SDK example
 spawns the facade server with an explicit `STAGEHAND_*`/`BROWSERBASE_*` allowlist; Codex's own
 model credentials never reach the browser session.
+
 ## Codex isolation and tool-call diagnostics
 
 The SDK example runs in a temporary working directory with separate `HOME` and
