@@ -53,7 +53,7 @@ describe("FrameLocator readiness", () => {
     vi.restoreAllMocks();
   });
 
-  it("propagates readiness failures after finding the matching child frame", async () => {
+  it("reports the readiness budget and preserves the underlying failure", async () => {
     const session = createSession("session-a");
     const readinessError = new Error("Stagehand extension world not ready for frame child");
     vi.useFakeTimers();
@@ -64,7 +64,10 @@ describe("FrameLocator readiness", () => {
     });
     const { locator } = createFrameLocator(session, () => session);
 
-    await expect(locator.resolveFrame()).rejects.toBe(readinessError);
+    await expect(locator.resolveFrame()).rejects.toMatchObject({
+      message: "Locator world not ready for frame child: exhausted 1200 ms frame-readiness budget",
+      cause: readinessError,
+    });
   });
 
   it("stops retrying at the readiness budget and preserves the last error", async () => {
@@ -82,7 +85,10 @@ describe("FrameLocator readiness", () => {
       });
     const { locator } = createFrameLocator(session, () => session);
 
-    await expect(locator.resolveFrame()).rejects.toBe(lastError);
+    await expect(locator.resolveFrame()).rejects.toMatchObject({
+      message: "Locator world not ready for frame child: exhausted 1200 ms frame-readiness budget",
+      cause: lastError,
+    });
     expect(waitForLocatorWorld.mock.calls.map((call) => call[2])).toEqual([
       200, 200, 200, 200, 200,
     ]);
@@ -102,7 +108,10 @@ describe("FrameLocator readiness", () => {
       });
     const { locator } = createFrameLocator(session, () => session);
 
-    await expect(locator.resolveFrame()).rejects.toBe(readinessError);
+    await expect(locator.resolveFrame()).rejects.toMatchObject({
+      message: "Locator world not ready for frame child: exhausted 1200 ms frame-readiness budget",
+      cause: readinessError,
+    });
     expect(waitForLocatorWorld.mock.calls.map((call) => call[2])).toEqual([200, 100]);
     expect(Date.now()).toBe(1_200);
   });
