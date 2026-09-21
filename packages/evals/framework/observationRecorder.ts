@@ -3,6 +3,7 @@ import type { ProbeEvidence } from "stagehand-v3";
 /** A probe observation captured after the Nth run-tool execution (0-based). */
 export interface StepObservation {
   runIndex: number;
+  toolCallId?: string;
   evidence: ProbeEvidence;
 }
 
@@ -32,13 +33,13 @@ export class ObservationRecorder {
 
   constructor(private readonly capture: () => Promise<ProbeEvidence>) {}
 
-  async record(): Promise<void> {
+  async record(toolCallId?: string): Promise<void> {
     const runIndex = this.runIndex++;
     const attempt = (async () => {
       try {
         const evidence = await withTimeout(this.capture(), observationTimeoutMs());
         if (evidence.screenshot || evidence.url || evidence.ariaTree) {
-          this.observations.push({ runIndex, evidence });
+          this.observations.push({ runIndex, evidence, ...(toolCallId && { toolCallId }) });
         }
       } catch {
         // best-effort only — a failed probe must never fail the run tool
