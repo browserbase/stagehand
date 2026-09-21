@@ -29,6 +29,7 @@ const (
 )
 
 var customDefinitions = map[string]string{
+	"PageEventNotification":        "PageEventNotification",
 	"Caching":                      "Caching",
 	"CookieFilter":                 "CookieFilter",
 	"ContextActivePageResult":      "ContextActivePageResult",
