@@ -438,10 +438,14 @@ async function getFrameUrl(frame: Frame): Promise<string> {
  * More robust DOM settle using Network + Page events to detect network quiet.
  * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
  */
+/** Live view of the settle wait's network tracking, for callers that decide to act before it ends. */
+export type NetworkActivity = { inflight: number };
+
 export async function waitForDomNetworkQuiet(
   frame: Frame,
   logger: StagehandLogger,
   timeout?: number,
+  activity?: NetworkActivity,
 ): Promise<void> {
   const overallTimeout =
     typeof timeout === "number" && Number.isFinite(timeout) ? Math.max(0, timeout) : 5_000;
@@ -497,11 +501,13 @@ export async function waitForDomNetworkQuiet(
     };
 
     const maybeQuiet = () => {
+      if (activity) activity.inflight = inflight.size;
       if (inflight.size === 0 && !quietTimer) quietTimer = setTimeout(() => resolveDone(), 500);
     };
 
     const finishReq = (id: string) => {
       if (!inflight.delete(id)) return;
+      if (activity) activity.inflight = inflight.size;
       meta.delete(id);
       for (const [fid, rid] of docByFrame) if (rid === id) docByFrame.delete(fid);
       clearQuiet();
@@ -514,6 +520,7 @@ export async function waitForDomNetworkQuiet(
       if (p.type === "WebSocket" || p.type === "EventSource") return;
 
       inflight.add(p.requestId);
+      if (activity) activity.inflight = inflight.size;
       meta.set(p.requestId, { url: p.request.url, start: Date.now() });
 
       if (p.type === "Document" && p.frameId) docByFrame.set(p.frameId, p.requestId);

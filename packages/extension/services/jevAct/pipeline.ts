@@ -30,6 +30,7 @@ import {
   type Snapshot,
   type TargetResult,
   type TraceEntry,
+  round,
 } from "./pick.js";
 import {
   buildView,
@@ -42,8 +43,15 @@ import {
   parseOutline,
   selectedNativeOptions,
   type OutlineNode,
+  pageDigest,
 } from "./tree.js";
-import { choiceAnswer, noulAnswer, type JevConfig, type JevResponse } from "./typesafeClient.js";
+import {
+  choiceAnswer,
+  noulAnswer,
+  type JevConfig,
+  type JevResponse,
+  type JsonValue,
+} from "./typesafeClient.js";
 
 export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
 
@@ -105,6 +113,15 @@ export type JevActConfig = JevConfig & {
    */
   targetReadiness?: boolean;
   /**
+   * With `targetReadiness`: also require the page to look settled before going
+   * early. Loading cues (in-flight requests, pending images, aria-busy,
+   * progress bars, spinner-like elements) must be quiet on two readings, and
+   * one Jev question over the cues and the content must call the page settled.
+   * Guards against a target that is rendered but whose data is still arriving.
+   * Costs ~150 ms per early act. Default false.
+   */
+  pageSettled?: boolean;
+  /**
    * Let act() invoke a WebMCP tool the page registered when Jev is sure the
    * tool is the request. Sends tool names and descriptions, and for the likely
    * tools their parameter names, descriptions, types and enum values, to
@@ -133,6 +150,8 @@ export type JevActDeps = {
    * it runs while this is pending; nothing reads or touches the page before it.
    */
   settled?: Promise<void>;
+  /** Live in-flight request count from the settle wait's network tracking. */
+  network?: { inflight: number };
   /** Present when `tools` is on and the act is not scoped to a locator. */
   webmcp?: JevToolDeps;
 };
@@ -1461,15 +1480,29 @@ async function pickWhenReady(
       ctx.earlySnapshot = undefined;
       const snap = await (early ?? capture(deps));
       const picked = await pick(snap);
-      const verdict = picked.target
-        ? await staysPut(deps, snap, picked.target, pointer)
-        : "not_found";
-      const stable = verdict === true;
+      const gate = ctx.config.pageSettled === true;
+      const inflightBefore = deps.network?.inflight ?? 0;
+      const guard = picked.target
+        ? await staysPut(deps, snap, picked.target, pointer, gate ? CUE_GAP_MS : 0)
+        : { verdict: "not_found" };
+      let verdict = guard.verdict;
+      if (verdict === "ok" && gate && guard.cues && guard.cuesLater) {
+        const inflightAfter = deps.network?.inflight ?? 0;
+        const quiet =
+          cuesQuiet(guard.cues, inflightBefore) && cuesQuiet(guard.cuesLater, inflightAfter);
+        annotate(ctx.trace, {
+          cues: { ...guard.cuesLater, inflight: inflightAfter } as unknown as JsonValue,
+        });
+        if (!quiet) verdict = "page_busy";
+        else if ((await pageSettledScore(ctx, snap, guard.cuesLater, inflightAfter)) < SETTLED_MIN)
+          verdict = "page_not_settled";
+      }
+      const stable = verdict === "ok";
       ctx.trace.push({
         node: stable ? "ready" : "not_ready",
         ms: Math.round(performance.now() - startedAt),
         attempt,
-        ...(stable ? {} : { why: verdict as string }),
+        ...(stable ? {} : { why: verdict }),
         settled,
       });
       if (stable) {
@@ -1495,13 +1528,14 @@ async function staysPut(
   snap: Snapshot,
   target: OutlineNode,
   pointer: boolean,
-): Promise<string | true> {
+  gapMs: number,
+): Promise<{ verdict: string; cues?: LoadingCues; cuesLater?: LoadingCues }> {
   const selector = selectorFor(snap, target);
-  if (!selector) return "no_selector";
+  if (!selector) return { verdict: "no_selector" };
   try {
     const locator = await resolveLocatorWithHops(deps.page, deps.page.mainFrame(), selector);
     const expected = Number(target.id.slice(target.id.lastIndexOf("-") + 1));
-    if ((await locator.backendNodeId()) !== expected) return "other_node";
+    if ((await locator.backendNodeId()) !== expected) return { verdict: "other_node" };
     const session = locator.getFrame().session;
     const { objectId } = await locator.resolveNode();
     try {
@@ -1510,40 +1544,142 @@ async function staysPut(
         {
           objectId,
           functionDeclaration: targetGuard.toString(),
-          arguments: [{ value: pointer }],
+          arguments: [{ value: pointer }, { value: gapMs }],
           awaitPromise: true,
           returnByValue: true,
         },
       );
-      const verdict = String(response.result.value ?? "no_verdict");
-      return verdict === "ok" ? true : verdict;
+      const result = response.result.value as GuardResult | undefined;
+      return result ?? { verdict: "no_verdict" };
     } finally {
       await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
     }
   } catch {
-    return "probe_failed";
+    return { verdict: "probe_failed" };
   }
 }
 
-/** Runs in the page with the target as `this`. Frames when they tick, else 50 ms (background tabs). */
-function targetGuard(this: Element, pointer: boolean): Promise<string> {
+const SETTLED_MIN = 0.6;
+const SPINNER_MAX = 10;
+/** Two cue readings this far apart must both be quiet (offline: 1–2 premature exits in 40 sites vs 5–7 with one). */
+const CUE_GAP_MS = 150;
+
+function cuesQuiet(cues: LoadingCues, inflight: number): boolean {
+  return (
+    inflight === 0 &&
+    cues.imgs_pending === 0 &&
+    cues.aria_busy === 0 &&
+    cues.progressbars === 0 &&
+    cues.spinner_like <= SPINNER_MAX &&
+    cues.interactive > 0
+  );
+}
+
+/**
+ * "Is this page still loading" cannot be read off content alone (a half-loaded
+ * page looks like a smaller finished one), but with the loading cues in front
+ * of it Jev separates settled from still-arriving pages: on 40 sites the cue
+ * rule plus this question let 15 acts go early with 2 premature, against 7
+ * premature for the network-quiet heuristic itself.
+ */
+async function pageSettledScore(
+  ctx: PipelineContext,
+  snap: Snapshot,
+  cues: LoadingCues,
+  inflight: number,
+): Promise<number> {
+  const response = await ask(
+    ctx,
+    "page_settled",
+    {
+      url: withoutQuery(ctx.deps.page.url()),
+      ...pageDigest(snap.nodes),
+      loading_cues: { ...cues, inflight_requests: inflight },
+    },
+    {
+      stage: {
+        type: "choice",
+        instructions: {
+          question:
+            "Which best describes this page right now, weighing the loading cues and the content together?",
+        },
+        criteria: {
+          loading: "Content is still arriving or being fetched; acting now risks a half-built page",
+          settled:
+            "The page has finished loading as far as a visitor can tell; it is safe to interact with",
+          shell: "Only navigation or a frame is present; the main content has not started",
+        },
+      },
+    },
+  );
+  const settled = choiceAnswer(response, "stage").probabilities.settled ?? 0;
+  annotate(ctx.trace, { settled: round(settled) });
+  return settled;
+}
+
+type LoadingCues = {
+  imgs_pending: number;
+  aria_busy: number;
+  progressbars: number;
+  spinner_like: number;
+  interactive: number;
+  text_chars: number;
+};
+type GuardResult = { verdict: string; cues: LoadingCues; cuesLater: LoadingCues };
+
+/**
+ * Runs in the page with the target as `this`. Frames when they tick, else a
+ * timer (background tabs). Besides the target checks it reads the document's
+ * loading cues twice, `gapMs` apart, so "quiet on two readings" costs no extra
+ * round trip.
+ */
+function targetGuard(this: Element, pointer: boolean, gapMs: number): Promise<GuardResult> {
   // oxlint-disable-next-line typescript/no-this-alias -- runs in the page with the element as `this`
   const element = this;
+  const doc = element.ownerDocument;
+  const visible = (node: Element): boolean => {
+    const rect = node.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+  const SPIN = /spinner|skeleton|shimmer|loading|placeholder|pulse|progress/i;
+  const cues = (): LoadingCues => {
+    let spinnerLike = 0;
+    for (const node of doc.querySelectorAll("[class],[id]")) {
+      if (SPIN.test(`${node.className} ${node.id}`) && visible(node)) spinnerLike++;
+      if (spinnerLike > 50) break;
+    }
+    return {
+      imgs_pending: [...doc.images].filter((img) => img.getAttribute("src") && !img.complete)
+        .length,
+      aria_busy: doc.querySelectorAll('[aria-busy="true"]').length,
+      progressbars: [...doc.querySelectorAll("[role=progressbar],progress")].filter(visible).length,
+      spinner_like: spinnerLike,
+      interactive: [
+        ...doc.querySelectorAll(
+          "a[href],button,input,select,textarea,[role=button],[role=link],[role=tab],[role=menuitem]",
+        ),
+      ].filter(visible).length,
+      text_chars: (doc.body?.innerText ?? "").length,
+    };
+  };
   const place = (): string => {
     const rect = element.getBoundingClientRect();
     return [rect.x, rect.y, rect.width, rect.height].map((value) => Math.round(value)).join(",");
   };
+  const first = cues();
   const before = place();
-  return new Promise<string>((resolve) => {
+  return new Promise<GuardResult>((resolve) => {
     let frames = 0;
     let done = false;
     const finish = (): void => {
       if (done) return;
       done = true;
-      if (!element.isConnected) return resolve("detached");
+      const later = cues();
+      const out = (verdict: string): void => resolve({ verdict, cues: first, cuesLater: later });
+      if (!element.isConnected) return out("detached");
       if (element.matches(":disabled") || element.closest('[aria-disabled="true"],[inert]'))
-        return resolve("disabled");
-      if (place() !== before) return resolve("moving");
+        return out("disabled");
+      if (place() !== before) return out("moving");
       const rect = element.getBoundingClientRect();
       const x = rect.x + rect.width / 2;
       const y = rect.y + rect.height / 2;
@@ -1554,16 +1690,17 @@ function targetGuard(this: Element, pointer: boolean): Promise<string> {
         const root = element.getRootNode() as Document | ShadowRoot;
         const hit = root.elementFromPoint(x, y);
         if (hit && hit !== element && !element.contains(hit) && !hit.contains(element))
-          return resolve("covered");
+          return out("covered");
       }
-      resolve("ok");
+      out("ok");
     };
     const tick = (): void => {
-      if (++frames >= 2) finish();
+      if (++frames >= 2 && performance.now() - started >= gapMs) finish();
       else requestAnimationFrame(tick);
     };
+    const started = performance.now();
     requestAnimationFrame(tick);
-    setTimeout(finish, 50);
+    setTimeout(finish, Math.max(50, gapMs + 20));
   });
 }
 

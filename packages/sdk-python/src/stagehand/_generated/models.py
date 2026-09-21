@@ -585,6 +585,7 @@ class ExperimentalJevAct(WireModel):
     observe: Optional[StrictBool] = None
     tools: Optional[StrictBool] = None
     target_readiness: Optional[StrictBool] = None
+    page_settled: Optional[StrictBool] = None
 
 
 class ExternalProxyConfig(WireModel):
