@@ -1535,7 +1535,7 @@ async function staysPut(
   target: OutlineNode,
   pointer: boolean,
   gapMs: number,
-): Promise<{ verdict: string; cues?: LoadingCues; cuesLater?: LoadingCues }> {
+): Promise<{ verdict: string; cues?: LoadingCues; cuesLater?: LoadingCues; cover?: string }> {
   const selector = selectorFor(snap, target);
   if (!selector) return { verdict: "no_selector" };
   try {
@@ -1579,20 +1579,23 @@ async function waitForClickable(
   target: OutlineNode,
 ): Promise<void> {
   const startedAt = performance.now();
-  let verdict = "";
+  let result: { verdict: string; cover?: string } = { verdict: "" };
   let polls = 0;
   while (performance.now() - startedAt < PRE_ACT_GUARD_MS) {
-    verdict = (await staysPut(ctx.deps, snap, target, true, 0)).verdict;
-    if (verdict !== "covered" && verdict !== "moving") break;
+    result = await staysPut(ctx.deps, snap, target, true, 0);
+    if (result.verdict !== "covered" && result.verdict !== "moving") break;
     polls++;
     await sleep(PRE_ACT_POLL_MS);
   }
   if (polls > 0) {
+    // Still covered after the cap: the click goes ahead (a wrapper that forwards
+    // clicks looks the same to a hit-test), but the trace names what it will hit.
     ctx.trace.push({
       node: "pre_act_guard",
       ms: Math.round(performance.now() - startedAt),
       polls,
-      verdict,
+      verdict: result.verdict,
+      ...(result.cover ? { cover: result.cover } : {}),
     });
   }
 }
@@ -1663,7 +1666,13 @@ type LoadingCues = {
   interactive: number;
   text_chars: number;
 };
-type GuardResult = { verdict: string; cues: LoadingCues; cuesLater: LoadingCues };
+type GuardResult = {
+  verdict: string;
+  cues: LoadingCues;
+  cuesLater: LoadingCues;
+  /** What a click at the target's centre would hit instead, when covered. */
+  cover?: string;
+};
 
 /**
  * Runs in the page with the target as `this`. Frames when they tick, else a
@@ -1713,7 +1722,8 @@ function targetGuard(this: Element, pointer: boolean, gapMs: number): Promise<Gu
       if (done) return;
       done = true;
       const later = cues();
-      const out = (verdict: string): void => resolve({ verdict, cues: first, cuesLater: later });
+      const out = (verdict: string, cover?: string): void =>
+        resolve({ verdict, cues: first, cuesLater: later, ...(cover ? { cover } : {}) });
       if (!element.isConnected) return out("detached");
       if (element.matches(":disabled") || element.closest('[aria-disabled="true"],[inert]'))
         return out("disabled");
@@ -1727,8 +1737,13 @@ function targetGuard(this: Element, pointer: boolean, gapMs: number): Promise<Gu
       if (pointer && inView) {
         const root = element.getRootNode() as Document | ShadowRoot;
         const hit = root.elementFromPoint(x, y);
-        if (hit && hit !== element && !element.contains(hit) && !hit.contains(element))
-          return out("covered");
+        if (hit && hit !== element && !element.contains(hit) && !hit.contains(element)) {
+          const label =
+            hit.getAttribute("aria-label") ??
+            hit.getAttribute("id") ??
+            (hit.textContent ?? "").trim().slice(0, 60);
+          return out("covered", `${hit.tagName.toLowerCase()}${label ? `: ${label}` : ""}`);
+        }
       }
       out("ok");
     };
