@@ -24,6 +24,8 @@ export {
   type PageClickOptions,
   type PageDragAndDropOptions,
   type PageEventListener,
+  type ToolsAddedListener,
+  type ToolsRemovedListener,
   type PageKeyPressOptions,
   type PageReloadOptions,
   type PageSetViewportSizeOptions,
@@ -104,6 +106,7 @@ export type {
   WebMCPInvocationStatus,
   WebMCPRemoteObject,
   WebMCPToolResponse,
+  WebMCPToolIdentity,
 } from "@browserbasehq/stagehand-protocol/types";
 export {
   BrowserbaseConnectOptionsSchema,
