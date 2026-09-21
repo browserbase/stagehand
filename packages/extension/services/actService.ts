@@ -29,7 +29,6 @@ import * as cacheService from "./cacheService.js";
 import { checkCachedAction } from "./jevAct/cacheCheck.js";
 import { runJevActPipeline, type JevActConfig, type JevActOutcome } from "./jevAct/pipeline.js";
 import { redactor } from "./jevAct/args.js";
-import { runJevToolAct } from "./jevAct/toolAct.js";
 import type { JevToolDeps } from "./jevAct/toolAct.js";
 import { focusOutline, parseOutline } from "./jevAct/tree.js";
 import type { JsonValue } from "./jevAct/typesafeClient.js";
