@@ -593,7 +593,7 @@ async function runPointer(
   const action = { selector, description: describeLine(target), method, arguments: buttonArgs };
 
   if (method !== "click" || !ctx.config.retryNoEffect || ctx.config.verify === "off") {
-    return await act(ctx, action, { before: snap });
+    return await act(ctx, action, { before: snap, target });
   }
 
   // Opt-in (retryNoEffect): when the click provably changed nothing and Jev had
@@ -603,10 +603,10 @@ async function runPointer(
     (entry) =>
       entry.id !== target.id && entry.id !== picked.target!.id && entry.p >= RETRY_RUNNER_UP,
   );
-  if (!runnerUp) return await act(ctx, action, { before: snap });
+  if (!runnerUp) return await act(ctx, action, { before: snap, target });
 
   const probe = beginEffectProbe(ctx);
-  const first = await act(ctx, action, { before: snap });
+  const first = await act(ctx, action, { before: snap, target });
   if (first.kind === "fallback") return first;
   const after = await probe.unchanged(snap);
   if (!after) return first;
@@ -872,7 +872,7 @@ async function runSelect(ctx: PipelineContext): Promise<JevActOutcome> {
     return await act(
       ctx,
       { selector, description: describeLine(target), method: "click", arguments: [] },
-      { before: snap },
+      { before: snap, target },
     );
   }
 
@@ -1012,7 +1012,7 @@ async function chooseFromAppeared(
   return await act(
     ctx,
     { selector, description: describeLine(picked.target), method: "click", arguments: [] },
-    { before: after },
+    { before: after, target: picked.target },
   );
 }
 
@@ -1155,10 +1155,16 @@ function focusIds(picked: TargetResult): string[] | undefined {
 async function act(
   ctx: PipelineContext,
   action: Action,
-  options: { before?: Snapshot; expectedValue?: string } = {},
+  options: { before?: Snapshot; expectedValue?: string; target?: OutlineNode } = {},
 ): Promise<Done | Fallback> {
   // Press and whole-page scroll get here without ever taking a snapshot.
   if (!ctx.ready) await ctx.deps.settled;
+  // The settle wait is about the network, not about what a click would hit:
+  // a consent overlay that arrives after load covers the target the pick
+  // found. Re-validate right before input and give the cover a moment to go.
+  if (ctx.config.targetReadiness && options.before && options.target && isPointer(action)) {
+    await waitForClickable(ctx, options.before, options.target);
+  }
   const urlBefore = ctx.deps.page.url();
   const pagesBefore = ctx.deps.openPageCount?.();
   ctx.deps.ensureTimeRemaining();
@@ -1556,6 +1562,38 @@ async function staysPut(
     }
   } catch {
     return { verdict: "probe_failed" };
+  }
+}
+
+const PRE_ACT_GUARD_MS = 1500;
+const PRE_ACT_POLL_MS = 150;
+
+function isPointer(action: Action): boolean {
+  return action.method === "click" || action.method === "hover" || action.method === "doubleClick";
+}
+
+/** Polls the guard until the target is hittable, up to a cap; the act proceeds either way. */
+async function waitForClickable(
+  ctx: PipelineContext,
+  snap: Snapshot,
+  target: OutlineNode,
+): Promise<void> {
+  const startedAt = performance.now();
+  let verdict = "";
+  let polls = 0;
+  while (performance.now() - startedAt < PRE_ACT_GUARD_MS) {
+    verdict = (await staysPut(ctx.deps, snap, target, true, 0)).verdict;
+    if (verdict !== "covered" && verdict !== "moving") break;
+    polls++;
+    await sleep(PRE_ACT_POLL_MS);
+  }
+  if (polls > 0) {
+    ctx.trace.push({
+      node: "pre_act_guard",
+      ms: Math.round(performance.now() - startedAt),
+      polls,
+      verdict,
+    });
   }
 }
 

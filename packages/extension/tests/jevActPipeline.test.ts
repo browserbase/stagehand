@@ -1051,6 +1051,40 @@ describe("jev act pipeline target readiness", () => {
     );
   });
 
+  it("after the settle wait, holds a click while the target is covered and clicks once it clears", async () => {
+    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    // Readiness attempt: covered. Pre-act guard: covered, covered, then clear.
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(
+      locator(["covered", "covered", "covered", "ok"]),
+    );
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: Promise.resolve() });
+    const started = Date.now();
+    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    // Two polls of 150 ms before the cover cleared.
+    expect(Date.now() - started).toBeGreaterThanOrEqual(250);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("after the settle wait, still clicks a target that stays covered past the guard cap", async () => {
+    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["covered"]));
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: Promise.resolve() });
+    const started = Date.now();
+    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1400);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
   it("with pageSettled, waits while loading cues are busy even though the target is stable", async () => {
     stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"], 7, BUSY));
