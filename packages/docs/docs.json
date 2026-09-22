@@ -54,7 +54,7 @@
             "pages": [
               "v4/integrations/overview",
               {
-                "group": "Agent integrations",
+                "group": "Agents",
                 "pages": [
                   "v4/integrations/agents",
                   "v4/integrations/claude-code",
@@ -69,7 +69,7 @@
                 ]
               },
               {
-                "group": "Non-agent integrations",
+                "group": "Automations",
                 "pages": ["v4/integrations/stripe"]
               }
             ]
