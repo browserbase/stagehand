@@ -43,6 +43,26 @@ Version 0.2 replaces the previous focused `search`, `fetch`, session, navigation
 extraction tools with this Code Mode surface. Eve's built-in `web_search` and `web_fetch` remain
 available unless the consuming agent explicitly overrides them.
 
+## Optional Web Search and Web Fetch overrides
+
+To use Browserbase Search and Fetch instead of Eve's built-in web tools, add these files to your agent:
+
+```ts
+// agent/tools/web_search.ts
+import { browserbaseWebSearch } from "@browserbasehq/eve/tools";
+
+export default browserbaseWebSearch();
+```
+
+```ts
+// agent/tools/web_fetch.ts
+import { browserbaseWebFetch } from "@browserbasehq/eve/tools";
+
+export default browserbaseWebFetch();
+```
+
+Set `BROWSERBASE_API_KEY` in your agent's environment.
+
 ## Configuration
 
 | Option                  | Default               | Description                                                 |
