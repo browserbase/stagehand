@@ -22,7 +22,7 @@ Reach for a stronger model only on the calls that need it, with a per-call model
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
-    modelName: "google/gemini-2.5-flash",
+    modelName: "google/gemini-3.8-flash",
   },
 });
 
@@ -31,7 +31,7 @@ const termsSchema = z.object({ summary: z.string() });
 // One hard extraction gets the expensive model, everything else stays cheap
 await stagehand.extract("summarize the contract terms", termsSchema, {
   model: {
-    modelName: "anthropic/claude-sonnet-4-6",
+    modelName: "anthropic/claude-sonnet-5",
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
 });
@@ -48,7 +48,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model="google/gemini-2.5-flash",
+    model="google/gemini-3.8-flash",
     model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
 )
 
@@ -60,7 +60,7 @@ await stagehand.extract(
     instruction="summarize the contract terms",
     schema=Terms,
     model=ModelConfig(
-        model_name="anthropic/claude-sonnet-4-6",
+        model_name="anthropic/claude-sonnet-5",
         api_key=os.environ["ANTHROPIC_API_KEY"],
     ),
 )
@@ -76,7 +76,7 @@ type terms struct {
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
 cheapModel := stagehand.ModelConfig{
-	ModelName: "google/gemini-2.5-flash",
+	ModelName: "google/gemini-3.8-flash",
 	APIKey:    &googleKey,
 }
 
@@ -98,7 +98,7 @@ if err != nil {
 // One hard extraction gets the expensive model, everything else stays cheap
 anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
 strongModel := stagehand.ModelConfig{
-	ModelName: "anthropic/claude-sonnet-4-6",
+	ModelName: "anthropic/claude-sonnet-5",
 	APIKey:    &anthropicKey,
 }
 
@@ -270,7 +270,7 @@ Automatically fall back to cheaper models for simple tasks. Escalate on `observe
 // See stagehand.dev/evals for performance comparisons
 async function smartAct(stagehand: Stagehand, prompt: string) {
   const models = [
-    { modelName: "google/gemini-2.5-flash", apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY },
+    { modelName: "google/gemini-3.8-flash", apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY },
     { modelName: "openai/gpt-5.4", apiKey: process.env.OPENAI_API_KEY },
   ] as const;
 
@@ -299,7 +299,7 @@ async function smartAct(stagehand: Stagehand, prompt: string) {
 async def smart_act(stagehand: Stagehand, prompt: str):
     models = [
         {
-            "model_name": "google/gemini-2.5-flash",
+            "model_name": "google/gemini-3.8-flash",
             "api_key": os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
         },
         {"model_name": "openai/gpt-5.4", "api_key": os.environ["OPENAI_API_KEY"]},
@@ -334,7 +334,7 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 
 	models := []stagehand.ModelConfig{
 		stagehand.ModelConfig{
-			ModelName: "google/gemini-2.5-flash",
+			ModelName: "google/gemini-3.8-flash",
 			APIKey:    &googleKey,
 		},
 		stagehand.ModelConfig{

@@ -319,7 +319,10 @@ async function connectBrowser(options: {
     });
   } catch (error) {
     cdpClient?.close();
-    if (ownsSource) {
+    // No browser handle escaped this failed launch. A newly created remote
+    // session remains ours to release, even if successful handles stay alive
+    // after transport loss. Connecting to somebody else's session stays unowned.
+    if (ownsSource || (options.provider === "browserbase" && options.origin === "launched")) {
       try {
         await closeSource(options.source);
       } catch (cleanupError) {

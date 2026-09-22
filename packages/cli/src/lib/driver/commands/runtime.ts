@@ -94,7 +94,7 @@ export const runtimeHandlers: DriverCommandHandlers = {
     await page.addInitScript(CURSOR_OVERLAY_SCRIPT);
     await page.evaluate(CURSOR_OVERLAY_SCRIPT);
     manager.markCursorOverlayEnabled(page);
-    return { enabled: true };
+    return { cursor: "enabled" };
   },
 };
 

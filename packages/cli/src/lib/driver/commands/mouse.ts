@@ -76,10 +76,7 @@ export const mouseHandlers: DriverCommandHandlers = {
       ...(delay === undefined ? {} : { delay }),
       ...(steps === undefined ? {} : { steps }),
     });
-    // A successful drag may navigate and destroy the old execution context.
-    // The final marker position is visual-only, so do not turn that race into a
-    // reported drag failure.
-    await positionCursorOverlay(manager, page, toX, toY).catch(() => undefined);
+    await positionCursorOverlay(manager, page, toX, toY);
     return { dragged: true };
   },
 };
@@ -91,5 +88,11 @@ async function positionCursorOverlay(
   y: number,
 ): Promise<void> {
   if (!manager.isCursorOverlayEnabled(page)) return;
-  await page.evaluate(updateCursorOverlayPosition, { x, y });
+  // The overlay is visual-only. A navigation can destroy its execution
+  // context, but that must not prevent or invalidate the real mouse action.
+  try {
+    await page.evaluate(updateCursorOverlayPosition, { x, y });
+  } catch {
+    // Best-effort parity with V3's cursor updates.
+  }
 }

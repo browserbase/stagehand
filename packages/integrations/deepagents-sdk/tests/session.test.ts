@@ -1,6 +1,7 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
+  extractDeepagentsTokenUsage,
   buildDeepagentsRunnerArgs,
   buildDeepagentsTranscript,
   normalizeDeepagentsModel,
@@ -99,6 +100,7 @@ describe("Deep Agents session", () => {
     expect(result.finalMessage).toBe("complete");
     expect(result.status).toBe("completed");
     expect(result.tokenUsage).toEqual({
+      reported: true,
       inputTokens: 10,
       outputTokens: 4,
       cacheReadInputTokens: 3,
@@ -418,5 +420,26 @@ describe("Deep Agents session", () => {
     expect(kills).toEqual(["SIGTERM", "SIGKILL"]);
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toContain("SIGKILL");
+  });
+});
+
+describe("DeepAgents token usage presence", () => {
+  it.each([
+    undefined,
+    {},
+    { total_tokens: 0 },
+    { input_tokens: null, output_tokens: -1 },
+    { reported: false, input_tokens: 0, output_tokens: 0 },
+  ])("keeps missing or explicitly unavailable usage unreported: %j", (event) => {
+    expect(extractDeepagentsTokenUsage(event).reported).toBe(false);
+  });
+  it("preserves observed zero and legacy usage events", () => {
+    expect(extractDeepagentsTokenUsage({ input_tokens: 0, output_tokens: "0" })).toMatchObject({
+      reported: true,
+      totalTokens: 0,
+    });
+    expect(
+      extractDeepagentsTokenUsage({ reported: true, input_tokens: 2, output_tokens: 1 }),
+    ).toMatchObject({ reported: true, inputTokens: 2, outputTokens: 1 });
   });
 });

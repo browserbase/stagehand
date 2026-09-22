@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import {
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -30,6 +31,8 @@ export type DeepagentsSessionConfig = {
 };
 
 export type DeepagentsTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadInputTokens: number;
@@ -349,6 +352,8 @@ export function extractDeepagentsTokenUsage(
   event: Record<string, unknown> | undefined,
 ): DeepagentsTokenUsage {
   return {
+    reported:
+      event?.reported !== false && [event?.input_tokens, event?.output_tokens].some(isTokenCount),
     inputTokens: toFiniteNumber(event?.input_tokens),
     outputTokens: toFiniteNumber(event?.output_tokens),
     cacheReadInputTokens: toFiniteNumber(event?.cache_read_input_tokens),
@@ -366,11 +371,17 @@ export function buildDeepagentsTranscript(events: DeepagentsEvent[]): string {
 }
 
 export function logDeepagentsEvent(logger: HarnessLogger, event: DeepagentsEvent): void {
+  const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError: type === "error" || (type === "tool_result" && event.ok === false),
+    hasContent: type === "assistant" || type === "tool_result" || type === "final",
+  });
+  if (level === undefined) return;
   const summary = summarizeDeepagentsEvent(event);
   logger.log({
     category: "deepagents",
     message: sanitizeErrorMessage(summary.message),
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && {
@@ -524,4 +535,12 @@ export function toFiniteNumber(value: unknown): number {
         ? Number(value)
         : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

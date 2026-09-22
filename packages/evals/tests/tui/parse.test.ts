@@ -48,6 +48,16 @@ describe("resolveRunOptions", () => {
     expect(webtailbench.envOverrides.EVAL_WEBTAILBENCH_LIMIT).toBe("2");
   });
 
+  it("supports HardBench shorthand without an implicit corpus limit", () => {
+    const full = applyBenchmarkShorthand("b:hardbenchmark", {});
+    expect(full.target).toBe("agent/hardbenchmark");
+    expect(full.envOverrides.EVAL_HARDBENCHMARK_LIMIT).toBeUndefined();
+    expect(
+      applyBenchmarkShorthand("b:hardbenchmark", { limit: 7 }).envOverrides
+        .EVAL_HARDBENCHMARK_LIMIT,
+    ).toBe("7");
+  });
+
   it("no longer recognizes GAIA (removed benchmark)", () => {
     expect(() => applyBenchmarkShorthand("b:gaia", {})).toThrow(/Unknown benchmark/);
   });

@@ -38,8 +38,23 @@ export const CURSOR_OVERLAY_SCRIPT = `(() => {
     cursor.style.top = Math.max(0, y) + "px";
   };
 
+  const installCursor = () => {
+    if (ensureCursor()) return;
+    if (globalThis.__browseCursorOverlayDomReadyListenerInstalled__) return;
+
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        globalThis.__browseCursorOverlayDomReadyListenerInstalled__ = false;
+        ensureCursor();
+      },
+      { once: true },
+    );
+    globalThis.__browseCursorOverlayDomReadyListenerInstalled__ = true;
+  };
+
   globalThis.__browseMoveCursorOverlay__ = moveCursor;
-  ensureCursor();
+  installCursor();
   if (!globalThis.__browseCursorOverlayListenerInstalled__) {
     document.addEventListener(
       "mousemove",
