@@ -338,7 +338,7 @@ Both frameworks keep secrets out of the model's context. Browser Use uses a `sen
 + await stagehand.act("click the login button")
 ```
 
-Stagehand exposes only the variable names to the model and substitutes the real values locally. One exception: with [server-side caching](/v4/best-practices/caching) on, variable values travel to the cache service, so turn `cache` off for calls that carry credentials. See [act](/v4/basics/act#secure-your-automations). For Browser Use's TOTP support (`sensitive_data` keys ending in `bu_2fa_code`), generate the code in your own script and pass it as a variable; v4 has no built-in 2FA step.
+Stagehand exposes only the variable names to the model and substitutes the real values locally. One exception: [server-side caching](/v4/best-practices/caching) is on by default and sends variable values to the cache service. Set `cache: false` on calls that carry credentials. See [act](/v4/basics/act#secure-your-automations). For Browser Use's TOTP support (`sensitive_data` keys ending in `bu_2fa_code`), generate the code in your own script and pass it as a variable; v4 has no built-in 2FA step.
 
 ### Custom tools
 
