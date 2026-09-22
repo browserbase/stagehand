@@ -95,13 +95,18 @@ describe("stagehand facade tool surface", () => {
     await running.cleanup();
   });
 
-  it("preserves facade MCP timeouts in the Codex config", () => {
+  it("configures facade MCP timeouts and unattended tool approvals for Codex", () => {
     const server = { command: "node", args: ["stdio-server.mjs"] };
     expect(buildCodexMcpServers("stagehand_facade", { stagehand: server })).toEqual({
       stagehand: {
         ...server,
         startup_timeout_sec: 60,
         tool_timeout_sec: 300,
+        tools: {
+          run: { approval_mode: "approve" },
+          snapshot: { approval_mode: "approve" },
+          screenshot: { approval_mode: "approve" },
+        },
       },
     });
     expect(buildCodexMcpServers("playwright_mcp", { playwright: server })).toEqual({
