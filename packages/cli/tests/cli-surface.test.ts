@@ -34,6 +34,7 @@ const cloudCommandsWithExamples = [
 
 const functionsCommandsWithExamples = [
   ["functions", "secrets", "attach"],
+  ["functions", "secrets", "detach"],
   ["functions", "init"],
   ["functions", "dev"],
   ["functions", "publish"],
