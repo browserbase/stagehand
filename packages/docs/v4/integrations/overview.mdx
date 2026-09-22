@@ -1,14 +1,16 @@
 ---
 title: "Integrations"
 sidebarTitle: "Overview"
-description: "Connect Claude Code, Codex, CrewAI, Deep Agents, Eve, Mastra, fx, Pi, or the Vercel AI SDK to a persistent Stagehand browser."
+description: "Connect agent frameworks to a persistent Stagehand browser or automate Stripe Checkout with WebMCP."
 ---
 
-Each integration gives your agent one persistent browser and three tools: `run`, `snapshot`, and `screenshot`. Your agent decides how to navigate and interact while Stagehand manages the browser session.
+The agent framework integrations give your agent one persistent browser and three tools: `run`, `snapshot`, and `screenshot`. Your agent decides how to navigate and interact while Stagehand manages the browser session.
 
 <Info>
-Stagehand ships these experimental integrations from the monorepo and does not publish the adapters or shared integration package as standalone packages.
+Stagehand ships these experimental agent framework integrations from the monorepo and does not publish the adapters or shared integration package as standalone packages.
 </Info>
+
+Use the [Stripe integration](/v4/integrations/stripe) to interact with Checkout through page-provided WebMCP tools. It runs as a separate sample in Stripe’s repository.
 
 ## Choose an integration
 
@@ -40,11 +42,14 @@ Stagehand ships these experimental integrations from the monorepo and does not p
   <Card title="Vercel AI SDK" icon="/images/integrations/vercel-ai-sdk.svg" href="/v4/integrations/vercel-ai-sdk">
     Use Stagehand tools in a Vercel AI SDK tool loop over MCP/stdio.
   </Card>
+  <Card title="Stripe" icon="credit-card" href="/v4/integrations/stripe">
+    Fill Stripe Checkout through WebMCP tools and submit payment with Stagehand.
+  </Card>
 </CardGroup>
 
 ## Tool contract
 
-Every integration exposes the same browser capabilities.
+The agent framework integrations expose the same browser capabilities.
 
 <AccordionGroup>
   <Accordion title="snapshot">

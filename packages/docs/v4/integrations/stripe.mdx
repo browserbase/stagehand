@@ -1,0 +1,79 @@
+---
+title: "Stripe"
+description: "Use Stagehand and WebMCP to fill Stripe Checkout and submit payment."
+---
+
+The [Stripe WebMCP sample](https://github.com/stripe-samples/webmcp/pull/5) opens a Stripe Checkout page, selects a payment method, and fills the form through tools published by the page. Stagehand clicks the Pay button to submit payment.
+
+<Note>
+The checkout flow is currently proposed in [stripe-samples/webmcp#5](https://github.com/stripe-samples/webmcp/pull/5). The setup below checks out the reviewed sample commit because the default branch may still contain the earlier tool-discovery example.
+</Note>
+
+## Requirements
+
+- Node.js 24 and pnpm 10.32.1.
+- Google Chrome with WebMCP support. The sample was tested with Chrome 153; Stagehand enables the required launch flags.
+- A Stripe Checkout URL that exposes WebMCP tools. Use a test-mode payment link and test card data to try the sample.
+
+The sample uses the published Stagehand TypeScript SDK and launches local Chrome. It does not require the shared agent framework integration package or a model-provider API key.
+
+## Run the sample
+
+<Steps>
+  <Step title="Clone the Stripe sample">
+```bash
+git clone https://github.com/stripe-samples/webmcp.git
+cd webmcp
+git fetch origin pull/5/head
+git checkout a4075bf887a5e87855ea2e2e9cb0b19734770e88
+cd stagehand
+pnpm install --frozen-lockfile
+cp .env.example .env
+```
+  </Step>
+  <Step title="Configure Checkout">
+Edit `.env` with your Checkout URL, buyer details, shipping address, and test card data. The sample's `.env.example` lists the individual fields.
+
+| Variable | Purpose |
+| --- | --- |
+| `STRIPE_URL` | Checkout URL that exposes WebMCP tools. |
+| `CONFIRM_PURCHASE` | Must be `yes` to run the script and submit payment. |
+| `MAX_TOTAL_MINOR` | Positive spending limit in the order currency's minor units. For USD, `900` means $9.00. |
+| `BUYER_EMAIL`, `BUYER_PHONE`, `BUYER_PHONE_COUNTRY` | Contact details for the form. |
+| `SHIPPING_*` | Name and address fields, also used for billing when the session exposes billing fields. |
+| `CARD_NUMBER`, `CARD_EXPIRY`, `CARD_CVC` | Card details. Use the test values in `.env.example` with a test-mode Checkout URL. |
+| `KEEP_OPEN` | Optional. Set to `yes` to leave Chrome open after the payment step. |
+
+<Warning>
+This script clicks Pay and can charge a real card on a live Checkout page. `CONFIRM_PURCHASE=yes` and `MAX_TOTAL_MINOR` do not enforce test mode.
+</Warning>
+  </Step>
+  <Step title="Run Checkout">
+```bash
+pnpm start
+```
+
+The script logs the order before payment, clicks Pay if the total is within the configured limit, then logs the page URL and an order summary. Confirm the payment outcome in Checkout: if the final summary cannot be retrieved, the sample prints the pre-payment summary instead.
+  </Step>
+</Steps>
+
+## How it works
+
+The sample discovers tools with [`page.tools()`](/v4/basics/webmcp) and invokes them through Stagehand's WebMCP API.
+
+1. Poll for `select_payment_method` and select `card`.
+2. Read `fill_payment_form.inputSchema` and send only fields present in that Checkout session. Shipping and billing field names vary by session.
+3. Fill one field per invocation, rediscovering the tool between calls because the form can re-render.
+4. Read `get_order_summary` and abort if `totalAmount` exceeds `MAX_TOTAL_MINOR`.
+5. Click `.SubmitButton` with a Stagehand locator. The sample's Checkout flow exposes no Pay tool.
+
+The sample catches errors from individual form-fill calls because a re-render can prevent an invocation from acknowledging a value that was applied. Those errors do not prove that a field was filled successfully; check the form when adapting the flow.
+
+<CardGroup cols={2}>
+  <Card title="Stripe sample source" icon="github" href="https://github.com/stripe-samples/webmcp/tree/a4075bf887a5e87855ea2e2e9cb0b19734770e88/stagehand">
+    Read the complete script and environment configuration.
+  </Card>
+  <Card title="WebMCP guide" icon="browser" href="/v4/basics/webmcp">
+    Discover, invoke, and handle results from page-provided tools.
+  </Card>
+</CardGroup>
