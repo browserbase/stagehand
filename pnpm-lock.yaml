@@ -596,8 +596,8 @@ importers:
         specifier: ^3.21.0
         version: 3.28.0(@aws-sdk/credential-provider-web-identity@3.972.74)(zod@4.4.3)
       browse:
-        specifier: 0.9.5
-        version: 0.9.5(bufferutil@4.1.0)(playwright-core@1.56.1)
+        specifier: workspace:*
+        version: link:../cli
       dotenv:
         specifier: ^17.3.1
         version: 17.4.2

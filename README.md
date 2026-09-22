@@ -9,8 +9,11 @@
   </ul>
 </div>
 <p align="center">
-  <strong>Stagehand is the SDK to extract data and interact with any site on the web.</strong><br>
-  Playwright was built for testing. Stagehand is built for agents, in TypeScript, Python, and Go.
+  <strong>Stagehand is the SDK for browser agents</strong><br>
+</p>
+
+<p align="center">
+  <a href="https://trendshift.io/repositories/12122" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12122" alt="browserbase%2Fstagehand | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
 <p align="center">
@@ -37,12 +40,15 @@
   </a>
 </p>
 
+<p align="center">
+  <a href="https://stagehand.dev">
+    <img src="media/stagehand-website-banner.png" alt="Stagehand homepage showing browser automation in TypeScript, Python, and Go and a speed comparison with Playwright" width="100%" />
+  </a>
+</p>
 
 ## AI that uses the browser like humans.
 
-Sign in once, keep the session, and pull structured data out the other side. 
-
-
+Sign in once, keep the session, and pull structured data out the other side.
 
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
@@ -72,9 +78,7 @@ await stagehand.act("open the billing page");
 const { data } = await stagehand.extract(
   "extract every invoice in the table",
   z.object({
-    invoices: z.array(
-      z.object({ number: z.string(), amount: z.number(), paid: z.boolean() }),
-    ),
+    invoices: z.array(z.object({ number: z.string(), amount: z.number(), paid: z.boolean() })),
   }),
 );
 
@@ -258,7 +262,6 @@ func run(ctx context.Context) (err error) {
 
 </details>
 
-
 ## Install
 
 ```bash
@@ -285,18 +288,34 @@ go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
 
 Local runs need [Chrome](https://www.google.com/chrome/) installed. Full setup: [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart).
 
-
 ## Why Stagehand
 
-| | |
-| --- | --- |
-| **Familiar APIs** | The Playwright-style methods you and your agents already know: `goto`, `click`, `locator`, `screenshot`. |
-| **Token efficiency** | Hybrid accessibility-tree trimming gives agents exactly the page context they need and nothing more. |
-| **Faster in production** | Stagehand runs as an extension next to the browser, cutting round-trip latency on every action. |
-| **Self-healing** | `act`, `observe`, and `extract` refresh how an action happens when the site changes underneath it. |
-| **Built for agents** | WebMCP, clipboard support, batch commands, deep locators for nested iframes and closed Shadow DOMs, OTel traces. |
-| **Three languages** | One complete browser driver across TypeScript, Python, and Go. |
-
+<table>
+  <tr>
+    <td><strong>Familiar APIs</strong></td>
+    <td>The Playwright-style methods you and your agents already know: <code>goto</code>, <code>click</code>, <code>locator</code>, <code>screenshot</code>.</td>
+  </tr>
+  <tr>
+    <td><strong>Token efficiency</strong></td>
+    <td>Hybrid accessibility-tree trimming gives agents exactly the page context they need and nothing more.</td>
+  </tr>
+  <tr>
+    <td><strong>Faster in production</strong></td>
+    <td>Stagehand runs as an extension next to the browser, cutting round-trip latency on every action.</td>
+  </tr>
+  <tr>
+    <td><strong>Self-healing</strong></td>
+    <td><code>act</code>, <code>observe</code>, and <code>extract</code> refresh how an action happens when the site changes underneath it.</td>
+  </tr>
+  <tr>
+    <td><strong>Built for agents</strong></td>
+    <td>WebMCP, clipboard support, batch commands, deep locators for nested iframes and closed Shadow DOMs, OTel traces.</td>
+  </tr>
+  <tr>
+    <td><strong>Three languages</strong></td>
+    <td>One complete browser driver across TypeScript, Python, and Go.</td>
+  </tr>
+</table>
 
 ## Run it on Browserbase
 
@@ -354,11 +373,11 @@ if err != nil {
 
 </details>
 
-Stealth mode, residential proxies, persistent contexts, and session recordings come with it. [Get an API key](https://www.browserbase.com/overview) · [Browser configuration](https://docs.stagehand.dev/v4/configuration/browser)
+[Verified mode](https://docs.browserbase.com/platform/identity/verified-customization), [residential proxies](https://docs.browserbase.com/platform/identity/proxies), [persistent contexts](https://docs.browserbase.com/platform/browser/core-features/contexts), and [session recordings](https://docs.browserbase.com/platform/browser/observability/session-replay) come with it. [Get an API key](https://www.browserbase.com/overview) and learn how to configure your browser [here](https://docs.stagehand.dev/v4/configuration/browser).
 
 ## Give your coding agent a browser
 
-The hosted Browserbase MCP server puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
+The hosted Browserbase [MCP server](https://docs.stagehand.dev/integrations/mcp/setup) puts `navigate`, `act`, `observe`, and `extract` in any MCP client — no install, no local browser.
 
 ```bash
 claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
@@ -381,11 +400,9 @@ claude mcp add --transport http browserbase https://mcp.browserbase.com/mcp \
 
 </details>
 
-[MCP setup](https://docs.stagehand.dev/integrations/mcp/setup) · [Available tools](https://docs.stagehand.dev/integrations/mcp/tools)
-
 ## Search and fetch without a browser
 
-Fetch lets you grab the content of any URL as markdown. Search provides fast, token-efficient web search results.
+[Fetch](https://docs.stagehand.dev/v4/add-ons/fetch) lets you grab the content of any URL as markdown. [Search](https://docs.stagehand.dev/v4/add-ons/search) provides fast, token-efficient web search results.
 Both as a lightweight complement to browser sessions.
 
 ```typescript
@@ -406,19 +423,46 @@ const fetched = await browserbase.fetch({
 console.log(fetched.content);
 ```
 
-[Search](https://docs.stagehand.dev/v4/add-ons/search) · [Fetch](https://docs.stagehand.dev/v4/add-ons/fetch)
-
-
 ## Docs and resources
 
-| | |
-| --- | --- |
-| [Quickstart](https://docs.stagehand.dev/v4/first-steps/quickstart) | Empty directory to working automation in three steps |
-| [act](https://docs.stagehand.dev/v4/basics/act) · [extract](https://docs.stagehand.dev/v4/basics/extract) · [observe](https://docs.stagehand.dev/v4/basics/observe) | The three primitives |
-| [Migrate from Playwright](https://docs.stagehand.dev/v4/migrations/playwright) | Port an existing suite |
-| [Integrations](https://docs.stagehand.dev/v4/integrations/overview) | CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex |
-| [Python SDK](./packages/sdk-python/README.md) · [Go SDK](./packages/sdk-go/README.md) | Language-specific guides |
-| [Ask DeepWiki](https://deepwiki.com/browserbase/stagehand) | Ask questions about this codebase |
+<table>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/first-steps/quickstart">Quickstart</a></td>
+    <td>Empty directory to working automation in three steps</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/reference/page">page</a> · <a href="https://docs.stagehand.dev/v4/reference/locator">locator</a></td>
+    <td>Playwright-style browser and element APIs</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/basics/webmcp">WebMCP</a></td>
+    <td>Discover and invoke WebMCP tools exposed by web pages</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/basics/act">act</a> · <a href="https://docs.stagehand.dev/v4/basics/extract">extract</a> · <a href="https://docs.stagehand.dev/v4/basics/observe">observe</a></td>
+    <td>Browser actions and data extraction with natural language</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/add-ons/search">Search</a> · <a href="https://docs.stagehand.dev/v4/add-ons/fetch">Fetch</a></td>
+    <td>Web search and page content without a browser</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/migrations/playwright">Migrate from Playwright</a></td>
+    <td>Port an existing suite</td>
+  </tr>
+  <tr>
+    <td><a href="https://docs.stagehand.dev/v4/integrations/overview">Integrations</a></td>
+    <td>CrewAI, Mastra, Deep Agents, Vercel AI SDK, Claude Code, Codex</td>
+  </tr>
+  <tr>
+    <td><a href="./packages/sdk-python/README.md">Python SDK</a> · <a href="./packages/sdk-go/README.md">Go SDK</a></td>
+    <td>Language-specific guides</td>
+  </tr>
+  <tr>
+    <td><a href="https://deepwiki.com/browserbase/stagehand">Ask DeepWiki</a></td>
+    <td>Ask questions about this codebase</td>
+  </tr>
+</table>
 
 ## Join the community
 
