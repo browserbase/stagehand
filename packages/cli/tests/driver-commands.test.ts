@@ -503,8 +503,18 @@ describe("driver commands", () => {
     ).rejects.toBe(actionError);
   });
 
-  it("rejects removed coordinate XPath fields at the driver boundary", async () => {
-    const manager = {} as Parameters<
+  it("rejects unsupported coordinate options before accessing the page or performing mouse input", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const activePage = vi.fn(async () => page);
+    const manager = {
+      activePage,
+      isCursorOverlayEnabled: vi.fn(() => false),
+    } as unknown as Parameters<
       NonNullable<(typeof mouseHandlers)["mouse.click"]>
     >[0];
 
@@ -521,6 +531,12 @@ describe("driver commands", () => {
         /returnXPath/,
       );
     }
+
+    expect(activePage).not.toHaveBeenCalled();
+    expect(page.click).not.toHaveBeenCalled();
+    expect(page.hover).not.toHaveBeenCalled();
+    expect(page.scroll).not.toHaveBeenCalled();
+    expect(page.dragAndDrop).not.toHaveBeenCalled();
   });
 
   it("enables sidecar network capture", async () => {
@@ -858,13 +874,6 @@ describe("driver commands", () => {
     const result = await runCli(["tab", "switch", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Prefer targetId");
-  });
-  it("does not expose the removed coordinate XPath flag", async () => {
-    for (const command of ["click", "hover", "scroll", "drag"]) {
-      const result = await runCli(["mouse", command, "--help"]);
-      expect(result.exitCode).toBe(0);
-      expect(result.stdout).not.toContain("--return-xpath");
-    }
   });
 });
 
