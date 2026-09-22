@@ -1,5 +1,11 @@
 # browse
 
+## 0.10.0
+
+### Minor Changes
+
+- [#2835](https://github.com/browserbase/stagehand/pull/2835) [`38e3a20`](https://github.com/browserbase/stagehand/commit/38e3a2045f1f92951e2e01b636f120eac90cdf81) Thanks [@shrey150](https://github.com/shrey150)! - migrate the Browse CLI runtime to Stagehand V4 and remove the `--return-xpath` option from coordinate actions
+
 ## 0.9.6
 
 ### Patch Changes
