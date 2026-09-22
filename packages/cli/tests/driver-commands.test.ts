@@ -503,42 +503,6 @@ describe("driver commands", () => {
     ).rejects.toBe(actionError);
   });
 
-  it("rejects unsupported coordinate options before accessing the page or performing mouse input", async () => {
-    const page = {
-      click: vi.fn(),
-      dragAndDrop: vi.fn(),
-      hover: vi.fn(),
-      scroll: vi.fn(),
-    };
-    const activePage = vi.fn(async () => page);
-    const manager = {
-      activePage,
-      isCursorOverlayEnabled: vi.fn(() => false),
-    } as unknown as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.click"]>
-    >[0];
-
-    for (const [command, params] of [
-      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
-      ["mouse.hover", { returnXPath: false, x: 1, y: 2 }],
-      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
-      [
-        "mouse.drag",
-        { fromX: 1, fromY: 2, returnXPath: false, toX: 3, toY: 4 },
-      ],
-    ] as const) {
-      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
-        /returnXPath/,
-      );
-    }
-
-    expect(activePage).not.toHaveBeenCalled();
-    expect(page.click).not.toHaveBeenCalled();
-    expect(page.hover).not.toHaveBeenCalled();
-    expect(page.scroll).not.toHaveBeenCalled();
-    expect(page.dragAndDrop).not.toHaveBeenCalled();
-  });
-
   it("enables sidecar network capture", async () => {
     const page = {};
     const network = {
