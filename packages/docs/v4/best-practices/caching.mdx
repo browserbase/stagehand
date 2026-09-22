@@ -17,9 +17,9 @@ Browserbase builds the cache key from the instruction, page content, and the opt
 Caching requires a Browserbase browser and the Browserbase API key you passed to `browserbase.launch()`. With a local browser there is no Browserbase session to key against, so the `cache` option has no effect and every call runs inference.
 </Note>
 
-### Setting on create()
+### Default behavior
 
-Stagehand enables caching by default. Pass `cache` on `Stagehand.create()` to set the behavior for every request from that instance. Set it to `false` to opt out, or pass an object to tune the threshold:
+Stagehand enables caching by default, so a Browserbase browser caches every eligible call with no extra configuration. Pass `cache` on `Stagehand.create()` to change that for the instance: `false` opts out, and an object tunes the threshold.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -28,9 +28,9 @@ import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
 
+// Caching is on by default, so no cache option is needed here
 const stagehand = await Stagehand.create({
   browser,
-  cache: true,
 });
 
 const page = await browser.context.activePage();
@@ -50,9 +50,9 @@ from stagehand import Stagehand, browserbase
 
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
+# Caching is on by default, so no cache option is needed here
 stagehand = await Stagehand.create(
     browser=browser,
-    cache=True,
 )
 
 page = await browser.context.active_page()
@@ -67,7 +67,6 @@ await stagehand.act("click the login button")
 <Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-cache := stagehand.CacheEnabled(true)
 
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
 	APIKey: apiKey,
@@ -76,9 +75,9 @@ if err != nil {
 	return err
 }
 
+// Caching is on by default, so no cache option is needed here
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
-	Cache:   &cache,
 })
 if err != nil {
 	return err
