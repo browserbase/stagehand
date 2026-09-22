@@ -306,3 +306,83 @@ export async function actTextArgument(params: {
     inference_time_ms: result.durationMs,
   };
 }
+
+/**
+ * Argument-only inference for a WebMCP tool Jev already chose: the prompt is
+ * one tool, not the catalog, and the tool's own input schema shapes the answer.
+ */
+export async function toolArguments(params: {
+  instruction: string;
+  tool: { name: string; description: string; inputSchema?: Record<string, unknown> };
+  variableNames: string[];
+  generate: GenerateLlm;
+}): Promise<{
+  input: Record<string, unknown> | null;
+  prompt_tokens: number;
+  completion_tokens: number;
+  reasoning_tokens: number;
+  cached_input_tokens: number;
+  inference_time_ms: number;
+}> {
+  const startedAt = Date.now();
+  const variables =
+    params.variableNames.length > 0
+      ? ` Declared variables: ${params.variableNames.map((name) => `%${name}%`).join(", ")}; when one stands for a value, return it as written including the percent signs.`
+      : "";
+  const request = (schema: Record<string, unknown>, extra: string) =>
+    params.generate({
+      systemPrompt: `You fill in the input of one tool from a user's request. Use only values the request states or clearly implies; leave optional parameters out otherwise.${variables}${extra}`,
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `tool: ${JSON.stringify(params.tool)}\nrequest: ${params.instruction}`,
+          },
+        },
+      ],
+      responseFormat: { type: "json_schema", name: "ToolInput", schema: z.json().parse(schema) },
+    });
+  // A site's schema is whatever the site wrote; providers with strict
+  // structured output reject some of them (optional properties, keywords they
+  // do not know). Then the input travels as a JSON string instead.
+  let content: unknown;
+  let response: Awaited<ReturnType<GenerateLlm>>;
+  const properties = Object.keys((params.tool.inputSchema?.properties as object | undefined) ?? {});
+  const required = params.tool.inputSchema?.required;
+  // Optional properties are the common rejection; do not pay a failed call to find out.
+  const strictFriendly =
+    Array.isArray(required) && properties.every((name) => required.includes(name));
+  try {
+    if (!strictFriendly) throw new Error("schema has optional properties");
+    response = await request({ type: "object", ...params.tool.inputSchema }, "");
+    content = response.outputFormat === "json_schema" ? response.structuredContent : null;
+  } catch {
+    response = await request(
+      {
+        type: "object",
+        properties: { input_json: { type: "string" } },
+        required: ["input_json"],
+        additionalProperties: false,
+      },
+      " Return the tool's input object serialised as JSON in input_json.",
+    );
+    const wrapped = response.outputFormat === "json_schema" ? response.structuredContent : null;
+    try {
+      content = JSON.parse((wrapped as { input_json?: string } | null)?.input_json ?? "null");
+    } catch {
+      content = null;
+    }
+  }
+  return {
+    input:
+      content && typeof content === "object" && !Array.isArray(content)
+        ? (content as Record<string, unknown>)
+        : null,
+    prompt_tokens: response.usage?.inputTokens ?? 0,
+    completion_tokens: response.usage?.outputTokens ?? 0,
+    reasoning_tokens: response.usage?.reasoningTokens ?? 0,
+    cached_input_tokens: response.usage?.cachedInputTokens ?? 0,
+    inference_time_ms: Date.now() - startedAt,
+  };
+}

@@ -18,6 +18,8 @@ import {
   redactor,
   substituteVariables,
 } from "./args.js";
+import { invokeTool, type JevToolDeps } from "./toolAct.js";
+import { readToolDecision, toolQuestions } from "./tools.js";
 import { blockingSignal, readPageState } from "./pageState.js";
 import {
   NONE,
@@ -95,6 +97,11 @@ export type JevActConfig = JevConfig & {
   extract?: "off" | "judge" | "pick";
   /** Resolve observe() through Jev first. Default false. */
   observe?: boolean;
+  /**
+   * Let act() invoke a WebMCP tool the page registered when Jev is sure the
+   * tool is the request. Sends tool names and descriptions to TypeSafe. Default false.
+   */
+  tools?: boolean;
 };
 
 export type JevActDeps = {
@@ -112,6 +119,8 @@ export type JevActDeps = {
    */
   extractText?: (instruction: string) => Promise<string | null>;
   takeAction: (action: Action) => Promise<ActResultData>;
+  /** Present when `tools` is on and the act is not scoped to a locator. */
+  webmcp?: JevToolDeps;
 };
 
 export type JevActOutcome =
@@ -119,6 +128,8 @@ export type JevActOutcome =
       kind: "done";
       result: ActResultData;
       /** Must not be written to the act cache. */ noCache?: boolean;
+      /** The act was a WebMCP tool call; `argumentLlm` when its input came from the LLM. */
+      viaTool?: { argumentLlm: boolean };
     }
   | {
       kind: "fallback";
@@ -271,6 +282,16 @@ async function decideAndAct(
   // Intent fan-out: every question that only needs the instruction rides in
   // one request, so press / not-an-action / whole-page scroll finish here.
   const fillValues = fillValueCandidates(deps.instruction, deps.variables);
+  // Tool choice only needs the instruction too, so it costs no round trip of
+  // its own, and a page without tools adds no question at all.
+  const tools = deps.webmcp ? await deps.webmcp.tools.catch(() => []) : [];
+  const asked = tools.length > 0 ? toolQuestions(deps.instruction, tools) : undefined;
+  // Known from the schema alone: if this tool wins, only the LLM can fill it.
+  const speculative = asked?.needsArgumentLlm;
+  const speculativeInput =
+    speculative && deps.webmcp?.fillArguments && config.argumentLlm !== false
+      ? deps.webmcp.fillArguments(speculative).catch(() => null)
+      : undefined;
   const intent = await ask(
     ctx,
     "intent",
@@ -348,10 +369,52 @@ async function decideAndAct(
           other: "Some other key, or the instruction is not a key press",
         },
       },
+      ...asked?.questions,
     },
   );
+  const intentEntry = trace[trace.length - 1]!;
+  if (asked && deps.webmcp) {
+    const decision = await readToolDecision(ctx, intent, asked, intentEntry);
+    if (decision.kind === "tool") {
+      let input = decision.input;
+      let argumentLlm = false;
+      if (!input && deps.webmcp.fillArguments && config.argumentLlm !== false) {
+        argumentLlm = true;
+        const started = performance.now();
+        input =
+          (await (decision.tool === speculative && speculativeInput
+            ? speculativeInput
+            : deps.webmcp.fillArguments(decision.tool).catch(() => null))) ?? undefined;
+        trace.push({
+          node: "tool_arguments_llm",
+          ms: Math.round(performance.now() - started),
+          speculative: decision.tool === speculative,
+        });
+      }
+      if (input) {
+        deps.ensureTimeRemaining();
+        const result = await invokeTool(
+          deps.webmcp,
+          deps.instruction,
+          deps.variables,
+          decision.tool,
+          input,
+          trace,
+        );
+        // Replay only knows element actions.
+        return { kind: "done", result, noCache: true, viaTool: { argumentLlm } };
+      }
+      intentEntry.tool_skip = "arguments_not_filled";
+    } else {
+      intentEntry.tool_skip = decision.reason;
+    }
+  }
   const family = resolveFamily(choiceAnswer(intent, "family"), ctx.threshold);
-  annotate(trace, { choice: family.choice, confidence: family.confidence, top: family.top });
+  Object.assign(intentEntry, {
+    choice: family.choice,
+    confidence: family.confidence,
+    top: family.top,
+  });
   if (family.confidence < ctx.threshold) return fallback(`intent_low_confidence:${family.top}`);
 
   if (family.choice === "not_an_action") {
