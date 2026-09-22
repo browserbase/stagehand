@@ -36,6 +36,10 @@ export {
   type CodeModeRunInput,
 } from "./contract.js";
 export {
+  StagehandFacadeCleanupError,
+  StagehandFacadeInitializationError,
+  StagehandFacadeExecutionError,
+  StagehandFacadeInputError,
   StagehandFacadeTools,
   type StagehandFacadeRunReport,
   type StagehandFacadeToolsOptions,
