@@ -8,6 +8,7 @@ import {
   focusElement,
   isElementChecked,
   isElementVisible,
+  isSingleCharacterInput,
   prepareElementForTyping,
   readElementInnerHTML,
   readElementInnerText,
@@ -24,6 +25,7 @@ import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
+const AUTO_ADVANCE_KEY_DELAY_MS = 10;
 
 /**
  * Locator
@@ -508,6 +510,8 @@ export class Locator {
             windowsVirtualKeyCode: 8,
             nativeVirtualKeyCode: 8,
           } as Protocol.Input.DispatchKeyEventRequest);
+        } else if (result?.reason === "single-character-input") {
+          await this.type(valueToType, { delay: AUTO_ADVANCE_KEY_DELAY_MS });
         } else {
           await session.send<never>("Input.insertText", { text: valueToType });
         }
@@ -537,7 +541,8 @@ export class Locator {
   /**
    * Type text into the element (focuses first).
    * - Focus via element.focus() in page JS (no DOM.focus(nodeId)).
-   * - If no delay, uses `Input.insertText` for efficiency.
+   * - If no delay, uses `Input.insertText` for efficiency, except on single-character
+   *   fields where input handlers may move focus to the next field.
    * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
   async type(text: string, options?: { delay?: number }): Promise<void> {
@@ -552,7 +557,16 @@ export class Locator {
         returnByValue: true,
       });
 
-      if (!options?.delay) {
+      let delay = options?.delay;
+      if (!delay && text.length > 1) {
+        const result = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+          "Runtime.callFunctionOn",
+          { objectId, functionDeclaration: isSingleCharacterInput.toString(), returnByValue: true },
+        );
+        if (result.result.value === true) delay = AUTO_ADVANCE_KEY_DELAY_MS;
+      }
+
+      if (!delay) {
         await session.send<never>("Input.insertText", { text });
         return;
       }
@@ -570,7 +584,7 @@ export class Locator {
           key: ch,
         } as Protocol.Input.DispatchKeyEventRequest);
 
-        await new Promise((r) => setTimeout(r, options.delay));
+        await new Promise((r) => setTimeout(r, delay));
       }
     } finally {
       await session.send<never>("Runtime.releaseObject", { objectId });

@@ -323,7 +323,13 @@ export function fillElementValue(this: Element, rawValue: string): FillElementRe
         return { status: "done" };
       }
 
-      return { status: "needsinput", value: valueForTyping };
+      return {
+        status: "needsinput",
+        value: valueForTyping,
+        ...(element.maxLength === 1 && valueForTyping.length > 1
+          ? { reason: "single-character-input" }
+          : {}),
+      };
     }
 
     if (element instanceof win.HTMLTextAreaElement) {
@@ -362,6 +368,10 @@ export function focusElement(this: Element): void {
   } catch {
     /* ignore */
   }
+}
+
+export function isSingleCharacterInput(this: Element): boolean {
+  return this instanceof HTMLInputElement && this.maxLength === 1;
 }
 
 export function selectElementOptions(this: Element, rawValues: string | string[]): string[] {
