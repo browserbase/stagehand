@@ -147,6 +147,13 @@ export function createStagehandController(
         systemPrompt: state.initParams.systemPrompt,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
+        // Separate opt-in: this sends the extracted data to TypeSafe.
+        jev:
+          state.initParams.experimentalJevAct?.extract &&
+          state.initParams.experimentalJevAct.extract !== "off" &&
+          state.initParams.experimentalJevAct.enabled !== false
+            ? state.initParams.experimentalJevAct
+            : undefined,
       });
       runtime.metrics.record("extract", result.metadata.usage);
       return result;

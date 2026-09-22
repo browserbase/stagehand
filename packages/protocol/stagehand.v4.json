@@ -1243,6 +1243,10 @@
             "cache_check": {
               "type": "boolean"
             },
+            "extract": {
+              "type": "string",
+              "enum": ["off", "judge", "pick"]
+            },
             "act_confidence": {
               "type": "number",
               "minimum": 0,

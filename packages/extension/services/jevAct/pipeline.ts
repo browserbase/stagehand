@@ -86,6 +86,13 @@ export type JevActConfig = JevConfig & {
   focusFallback?: boolean;
   /** Check cached actions against the page before replaying them. Default false. */
   cacheCheck?: boolean;
+  /**
+   * extract() on Jev. `"judge"`: only the completion yes/no replaces the second
+   * LLM call. `"pick"`: Jev picks the elements holding each field's value and
+   * code copies their text; the LLM extracts only when that does not fit.
+   * Both send page or extracted content to TypeSafe. Default `"off"`.
+   */
+  extract?: "off" | "judge" | "pick";
   /** Resolve observe() through Jev first. Default false. */
   observe?: boolean;
 };

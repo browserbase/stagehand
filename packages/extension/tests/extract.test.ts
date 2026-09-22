@@ -9,6 +9,43 @@ import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
 
 describe("extract inference", () => {
+  it("skips the metadata LLM call when completion is judged elsewhere, and falls back to it on error", async () => {
+    const generate = vi.fn(
+      async (params: LLMGenerateParams): Promise<LLMGenerateResult> => ({
+        role: "assistant",
+        content: { type: "text", text: "structured" },
+        outputFormat: "json_schema",
+        structuredContent:
+          params.responseFormat?.type === "json_schema" &&
+          params.responseFormat.name === "Extraction"
+            ? { heading: "Example Domain" }
+            : { progress: "done", completed: true },
+        usage: { inputTokens: 10, outputTokens: 4, totalTokens: 14 },
+      }),
+    );
+    const base = {
+      instruction: "Extract the page heading",
+      domElements: "[0-1] heading: Example Domain",
+      schema: z.object({ heading: z.string() }),
+      generate,
+    };
+
+    const judged = await extract({ ...base, judgeCompleted: async () => false });
+    expect(judged.metadata.completed).toBe(false);
+    expect(judged.prompt_tokens).toBe(10);
+    expect(generate).toHaveBeenCalledTimes(1);
+
+    generate.mockClear();
+    const recovered = await extract({
+      ...base,
+      judgeCompleted: async () => {
+        throw new Error("jev unavailable");
+      },
+    });
+    expect(recovered.metadata.completed).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+
   it("runs extraction and completion metadata through structured LLM calls", async () => {
     const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
       const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;

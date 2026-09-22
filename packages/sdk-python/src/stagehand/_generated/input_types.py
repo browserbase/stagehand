@@ -232,6 +232,7 @@ class ExperimentalJevAct(TypedDict):
     retry_no_effect: NotRequired[bool]
     focus_fallback: NotRequired[bool]
     cache_check: NotRequired[bool]
+    extract: NotRequired[Literal["off", "judge", "pick"]]
     act_confidence: NotRequired[float]
     verify: NotRequired[Literal["off", "checks", "full"]]
     llm_fallback: NotRequired[bool]
