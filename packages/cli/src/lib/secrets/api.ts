@@ -95,3 +95,19 @@ async function encryptValue(options: SecretsApiOptions, value: Uint8Array) {
   const sealedSecretValue = await sealSecret(keypair.publicKey, value);
   return { keypairId: keypair.id, sealedSecretValue };
 }
+
+export async function attachFunctionSecret(
+  options: SecretsApiOptions,
+  functionId: string,
+  secretId: string,
+): Promise<void> {
+  await requestBrowserbase(
+    options,
+    `/v1/functions/${encodeURIComponent(functionId)}/secrets`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ secretId }),
+    },
+  );
+}
