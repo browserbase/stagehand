@@ -7,12 +7,14 @@ type LocatorOperationOptions = {
 };
 
 const MAX_TIMER_MS = 2_147_483_647;
+const CLEANUP_TIMEOUT_MS = 1_000;
 
 /** One invocation's lifetime, shared by its frame resolution and action steps. */
 export class LocatorOperation {
   private readonly controller = new AbortController();
   private readonly deadline: number | null;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private readonly phases = new Map<symbol, string>();
 
   constructor(
     readonly name: string,
@@ -39,6 +41,99 @@ export class LocatorOperation {
     this.signal.throwIfAborted();
   }
 
+  /**
+   * Start work only while active, and stop waiting at the shared deadline.
+   * onLateResult releases a resource that could not be delivered to the caller.
+   * Resources delivered successfully remain the caller's responsibility.
+   */
+  async run<T>(
+    phase: string,
+    work: () => Promise<T>,
+    onLateResult?: (value: T) => void | Promise<unknown>,
+  ): Promise<T> {
+    this.throwIfStopped();
+    const step = Symbol();
+    this.phases.set(step, phase);
+    let onAbort: (() => void) | undefined;
+    let abandoned = false;
+    let result: { value: T } | undefined;
+    const discard = (value: T) => {
+      if (onLateResult) void this.cleanup(() => onLateResult(value));
+    };
+
+    try {
+      const stopped = new Promise<never>((_, reject) => {
+        onAbort = () => reject(this.signal.reason);
+        this.signal.addEventListener("abort", onAbort, { once: true });
+      });
+      // Observe rejection before invoking work, including synchronous throws.
+      const pending = Promise.resolve()
+        .then(() => {
+          this.throwIfStopped();
+          return work();
+        })
+        .then((value) => {
+          if (abandoned) discard(value);
+          else result = { value };
+          return value;
+        });
+      const value = await Promise.race([pending, stopped]);
+      this.throwIfStopped();
+      return value;
+    } catch (error) {
+      abandoned = true;
+      // The result may have arrived just before expiry, but not been delivered.
+      if (result) discard(result.value);
+      throw error;
+    } finally {
+      if (onAbort) this.signal.removeEventListener("abort", onAbort);
+      this.phases.delete(step);
+    }
+  }
+
+  /** Sleep within the operation's budget and remove the sleep timer on expiry. */
+  async delay(ms: number): Promise<void> {
+    if (!Number.isFinite(ms) || ms < 0) {
+      throw new RangeError("Locator delay must be a finite, non-negative number");
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await this.run("waiting between steps", () => {
+        const deadline = performance.now() + ms;
+        return new Promise<void>((resolve) => {
+          const tick = () => {
+            const remaining = deadline - performance.now();
+            if (remaining <= 0) resolve();
+            else timer = setTimeout(tick, Math.min(MAX_TIMER_MS, Math.ceil(remaining)));
+          };
+          tick();
+        });
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Attempt cleanup even after expiry, waiting at most one second.
+   * Failures are best-effort; issued cleanup commands may still finish later.
+   */
+  async cleanup(work: () => void | Promise<unknown>): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.resolve().then(work),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, CLEANUP_TIMEOUT_MS);
+        }),
+      ]);
+    } catch {
+      // Cleanup must not replace the action's result or timeout error.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   /** Only the runner that created this context owns its timer. */
   dispose(): void {
     clearTimeout(this.timer);
@@ -48,7 +143,10 @@ export class LocatorOperation {
   private expireIfNeeded(): void {
     if (!this.signal.aborted && this.remainingMs() === 0) {
       this.dispose();
-      this.controller.abort(new TimeoutError(this.name, this.timeout));
+      const error = new TimeoutError(this.name, this.timeout);
+      const phase = [...this.phases.values()].at(-1);
+      if (phase && phase !== this.name) error.message += ` while ${phase}`;
+      this.controller.abort(error);
     }
   }
 
@@ -78,23 +176,9 @@ export async function runLocatorOperation<T>(
       ? options
       : new LocatorOperation(options.name, options.timeout);
 
-  let onAbort: (() => void) | undefined;
   try {
-    operation.throwIfStopped();
-    const stopped = new Promise<never>((_, reject) => {
-      onAbort = () => reject(operation.signal.reason);
-      operation.signal.addEventListener("abort", onAbort, { once: true });
-    });
-    // Attach both handlers before invoking work, including work that throws synchronously.
-    const pending = Promise.resolve().then(() => {
-      operation.throwIfStopped();
-      return work(operation);
-    });
-    const result = await Promise.race([pending, stopped]);
-    operation.throwIfStopped();
-    return result;
+    return await operation.run(operation.name, () => work(operation));
   } finally {
-    if (onAbort) operation.signal.removeEventListener("abort", onAbort);
     if (ownsOperation) operation.dispose();
   }
 }
