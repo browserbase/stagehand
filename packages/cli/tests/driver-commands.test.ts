@@ -503,23 +503,6 @@ describe("driver commands", () => {
     ).rejects.toBe(actionError);
   });
 
-  it("fails explicitly for the V4 coordinate XPath capability", async () => {
-    const manager = {} as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.click"]>
-    >[0];
-
-    for (const [command, params] of [
-      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
-      ["mouse.hover", { returnXPath: true, x: 1, y: 2 }],
-      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
-      ["mouse.drag", { fromX: 1, fromY: 2, returnXPath: true, toX: 3, toY: 4 }],
-    ] as const) {
-      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
-        "Coordinate XPath lookup is not exposed by Stagehand V4",
-      );
-    }
-  });
-
   it("enables sidecar network capture", async () => {
     const page = {};
     const network = {

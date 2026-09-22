@@ -1,4 +1,4 @@
-import { Args, Flags } from "@oclif/core";
+import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
 import {
@@ -14,7 +14,6 @@ export default class MouseScroll extends BrowseCommand {
   static override examples = [
     "browse mouse scroll 400 500 0 600",
     "browse mouse scroll 400 500 0 -600",
-    "browse mouse scroll 400 500 0 600 --return-xpath",
   ];
 
   static override args = {
@@ -32,10 +31,6 @@ export default class MouseScroll extends BrowseCommand {
 
   static override flags = {
     ...driverCommandFlags,
-    "return-xpath": Flags.boolean({
-      description:
-        "Include the XPath under the coordinate when the driver can return it.",
-    }),
   };
 
   async run(): Promise<void> {
@@ -45,7 +40,6 @@ export default class MouseScroll extends BrowseCommand {
       {
         deltaX: parseNumber(args.deltaX, "deltaX"),
         deltaY: parseNumber(args.deltaY, "deltaY"),
-        returnXPath: flags["return-xpath"],
         x: parseNumber(args.x, "x"),
         y: parseNumber(args.y, "y"),
       },
