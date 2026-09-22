@@ -1,0 +1,11 @@
+{
+  "name": "stagehand",
+  "version": "0.1.0",
+  "description": "Give Claude Code a persistent browser with Stagehand run, snapshot, and screenshot tools.",
+  "author": {
+    "name": "Browserbase"
+  },
+  "homepage": "https://docs.stagehand.dev/v4/integrations/claude-code",
+  "repository": "https://github.com/browserbase/stagehand",
+  "license": "MIT"
+}

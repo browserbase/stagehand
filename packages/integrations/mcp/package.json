@@ -1,0 +1,38 @@
+{
+  "name": "@browserbasehq/stagehand-mcp",
+  "version": "0.0.0",
+  "description": "Persistent Stagehand browser tools over MCP for agent plugins.",
+  "license": "MIT",
+  "author": "Browserbase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/integrations/mcp"
+  },
+  "bin": {
+    "stagehand-mcp": "./dist/server.mjs"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "tsdown": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

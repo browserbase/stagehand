@@ -3,20 +3,35 @@ title: "Claude Code"
 description: "Give a Claude Code agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The Claude Code integration connects a Claude Agent SDK `query` loop to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+The Claude Code plugin installs through Claude Code’s official marketplace system and connects to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
 
 <Note>
-Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+The marketplace plugin requires the first `@browserbasehq/stagehand-mcp@0.1.0` npm release. Until it is published, use the source workflow below.
 </Note>
 
-## Prerequisites
+## Install the plugin
+
+In Claude Code, run:
+
+```text
+/plugin marketplace add browserbase/stagehand
+/plugin install stagehand@browserbase-stagehand
+```
+
+Restart Claude Code, then use `/mcp` to check the Stagehand server. The plugin registers `run`, `snapshot`, and `screenshot` and keeps one browser alive across calls. You can use your existing Claude Code login; the plugin does not require a separate Anthropic API key.
+
+You need Node.js 24+ and either local Chrome or a Browserbase credential. Export `BROWSERBASE_API_KEY` before starting Claude Code to use Browserbase. See below for optional `STAGEHAND_*` settings.
+
+This uses [Claude Code’s plugin marketplace](https://code.claude.com/docs/en/discover-plugins). The Agent SDK example below is for embedding Claude in an application.
+
+## Source example prerequisites
 
 - Node.js 24 or newer
 - pnpm 11.10.0
 - An Anthropic API key for the example agent
 - A current Google Chrome installation for local browser mode
 
-## Quickstart
+## Run the Agent SDK example from source
 
 <Steps>
   <Step title="Clone and build Stagehand">
