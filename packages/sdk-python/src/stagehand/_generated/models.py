@@ -1523,6 +1523,10 @@ class PageCloseResult(WireModel):
     closed: Literal[True]
 
 
+class PageContentResult(RootModel[StrictStr]):
+    root: StrictStr
+
+
 class PageDragAndDropOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1777,6 +1781,16 @@ class PageScrollParams(WireModel):
     y: StrictFloat
     delta_x: StrictFloat
     delta_y: StrictFloat
+
+
+class PageSetContentParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    html: StrictStr
+    options: Optional[PageNavigationOptions] = None
 
 
 class PageSetExtraHTTPHeadersParams(WireModel):

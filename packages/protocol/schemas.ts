@@ -1906,6 +1906,11 @@ export const PageEvaluateParamsSchema = PageIdParamsSchema.extend({
   expression: z.string(),
 }).meta({ id: "PageEvaluateParams" });
 
+export const PageSetContentParamsSchema = PageIdParamsSchema.extend({
+  html: z.string(),
+  options: PageNavigationOptionsSchema.optional(),
+}).meta({ id: "PageSetContentParams" });
+
 export const PageAddInitScriptParamsSchema = PageIdParamsSchema.extend({
   source: z.string(),
 }).meta({ id: "PageAddInitScriptParams" });
@@ -2104,6 +2109,8 @@ export const ContextClipboardReadTextResultSchema = z
 export const PageUrlResultSchema = z.string().meta({ id: "PageUrlResult" });
 
 export const PageTitleResultSchema = z.string().meta({ id: "PageTitleResult" });
+
+export const PageContentResultSchema = z.string().meta({ id: "PageContentResult" });
 
 export const PageCloseResultSchema = z
   .strictObject({

@@ -49,6 +49,16 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			},
 		},
 		{
+			name:       "page content",
+			method:     "page.content",
+			response:   PageContentResult("<!DOCTYPE html><html></html>"),
+			want:       "<!DOCTYPE html><html></html>",
+			wantParams: PageIDParams{PageID: "page-1"},
+			invoke: func(rpc *recordingProtocolClient) (any, error) {
+				return (&Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}).Content(context.Background())
+			},
+		},
+		{
 			name:       "page title",
 			method:     "page.title",
 			response:   PageTitleResult("Example title"),

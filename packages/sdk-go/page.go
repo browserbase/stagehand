@@ -478,6 +478,24 @@ func (p *Page) Tools(
 	return tools, nil
 }
 
+// Content returns the full HTML serialization of the page's main document.
+func (p *Page) Content(ctx context.Context) (string, error) {
+	params := PageIDParams{PageID: p.PageID()}
+	var result PageContentResult
+	if err := p.rpc.call(ctx, "page.content", params, &result); err != nil {
+		return "", err
+	}
+	return string(result), nil
+}
+
+// SetContent replaces the page's main document with the given HTML and waits
+// for the requested load state.
+func (p *Page) SetContent(ctx context.Context, html string, options *PageNavigationOptions) error {
+	params := PageSetContentParams{PageID: p.PageID(), HTML: html, Options: options}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.set_content", params, &result)
+}
+
 // URL returns the page URL.
 func (p *Page) URL(ctx context.Context) (string, error) {
 	params := PageIDParams{PageID: p.PageID()}

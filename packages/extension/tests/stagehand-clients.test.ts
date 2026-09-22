@@ -221,6 +221,8 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   readonly pageTypeCalls: Array<{ text: string; options?: PageTypeParams["options"] }> = [];
   readonly keyPressCalls: Array<{ key: string; options?: PageKeyPressParams["options"] }> = [];
   readonly evaluateCalls: string[] = [];
+  readonly setContentCalls: Array<{ html: string; options?: PageNavigationOptions }> = [];
+  contentResult = "<!DOCTYPE html><html><head></head><body>fake</body></html>";
   readonly addInitScriptCalls: string[] = [];
   readonly setExtraHTTPHeadersCalls: Array<PageSetExtraHTTPHeadersParams["headers"]> = [];
   readonly setViewportSizeCalls: Array<{
@@ -357,6 +359,14 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 
   async setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void> {
     this.setExtraHTTPHeadersCalls.push(headers);
+  }
+
+  async content(): Promise<string> {
+    return this.contentResult;
+  }
+
+  async setContent(html: string, options?: PageNavigationOptions): Promise<void> {
+    this.setContentCalls.push({ html, options });
   }
 
   async setViewportSize(
@@ -2277,6 +2287,59 @@ describe("Stagehand worker clients", () => {
       id: 10,
       result: "https://example.test/current",
     });
+  });
+
+  it("returns page.content from the resolved understudy page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    page.contentResult = "<!DOCTYPE html><html><head></head><body>hello</body></html>";
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 13,
+        method: "page.content",
+        params: {
+          pageId: "page-a",
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 13,
+      result: "<!DOCTYPE html><html><head></head><body>hello</body></html>",
+    });
+  });
+
+  it("routes page.set_content with navigation options to the understudy page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 14,
+        method: "page.set_content",
+        params: {
+          page_id: "page-a",
+          html: "<h1>Replaced</h1>",
+          options: { wait_until: "domcontentloaded", timeout: 2_000 },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 14, result: { ok: true } });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 15,
+        method: "page.set_content",
+        params: { page_id: "page-a", html: "<p>plain</p>" },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 15, result: { ok: true } });
+
+    expect(page.setContentCalls).toStrictEqual([
+      { html: "<h1>Replaced</h1>", options: { waitUntil: "domcontentloaded", timeout: 2_000 } },
+      { html: "<p>plain</p>", options: undefined },
+    ]);
   });
 
   it("returns page.title from the resolved understudy page", async () => {

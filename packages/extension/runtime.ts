@@ -58,6 +58,7 @@ import type {
   PageCloseResult,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageContentResult,
   PageEventNotification,
   PageEventName,
   PageAddInitScriptParams,
@@ -80,6 +81,7 @@ import type {
   PageScreenshotOptions,
   PageScreenshotParams,
   PageScreenshotResult,
+  PageSetContentParams,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
   PageSnapshotParams,
@@ -150,6 +152,8 @@ export type UnderstudyRuntimePage = {
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
+  content(): Promise<string>;
+  setContent(html: string, options?: PageNavigationOptions): Promise<void>;
   evaluateWithShadowRoots?(functionSource: string): Promise<unknown>;
   addInitScript(source: string): Promise<void>;
   setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
@@ -649,6 +653,15 @@ export class StagehandRuntime {
     return {
       value: value === undefined ? null : (value as PageEvaluateResult["value"]),
     };
+  }
+
+  async pageContent(params: PageIdParams): Promise<PageContentResult> {
+    return await this.resolvePage(params.pageId).content();
+  }
+
+  async pageSetContent(params: PageSetContentParams): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).setContent(params.html, params.options);
+    return { ok: true };
   }
 
   async pageAddInitScript(params: PageAddInitScriptParams): Promise<PageVoidResult> {

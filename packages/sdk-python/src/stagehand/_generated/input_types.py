@@ -703,6 +703,9 @@ class PageCloseResult(TypedDict):
     closed: Literal[True]
 
 
+PageContentResult: TypeAlias = str
+
+
 class PageDragAndDropRoutePoint(TypedDict):
     x: float
     y: float
@@ -846,6 +849,12 @@ class PageScrollParams(TypedDict):
     y: float
     delta_x: float
     delta_y: float
+
+
+class PageSetContentParams(TypedDict):
+    page_id: str
+    html: str
+    options: NotRequired[PageNavigationOptions]
 
 
 class PageSetExtraHTTPHeadersParams(TypedDict):

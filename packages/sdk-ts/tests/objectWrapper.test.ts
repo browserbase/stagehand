@@ -1326,6 +1326,35 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("routes page.content", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageContent, "<!DOCTYPE html><html></html>");
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.content()).resolves.toBe("<!DOCTYPE html><html></html>");
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageContent, { pageId: "page-1" }),
+    ]);
+  });
+
+  it("routes page.set_content with optional navigation options", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageSetContent, { ok: true });
+    client.queueResponse(StagehandMethods.pageSetContent, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await page.setContent("<h1>Hello</h1>");
+    await page.setContent("<h1>Hello</h1>", { waitUntil: "domcontentloaded", timeout: 1_000 });
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageSetContent, { pageId: "page-1", html: "<h1>Hello</h1>" }),
+      requestCall(StagehandMethods.pageSetContent, {
+        pageId: "page-1",
+        html: "<h1>Hello</h1>",
+        options: { waitUntil: "domcontentloaded", timeout: 1_000 },
+      }),
+    ]);
+  });
+
   it("routes page.title", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageTitle, "Example");

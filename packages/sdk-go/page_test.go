@@ -639,3 +639,46 @@ func TestPageReferenceSupportsConcurrentReadersAndWriters(t *testing.T) {
 	}
 	group.Wait()
 }
+
+func TestPageSetContentSendsHTMLAndOptionalNavigationOptions(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.set_content": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	ctx := context.Background()
+	waitUntil := LoadStateDOMContentLoaded
+	timeout := 1000
+
+	if err := page.SetContent(ctx, "<h1>Hello</h1>", nil); err != nil {
+		t.Fatalf("SetContent() error = %v", err)
+	}
+	if err := page.SetContent(ctx, "<h1>Hello</h1>", &PageNavigationOptions{
+		WaitUntil: &waitUntil,
+		Timeout:   &timeout,
+	}); err != nil {
+		t.Fatalf("SetContent() with options error = %v", err)
+	}
+
+	want := []recordedCall{
+		{
+			method: "page.set_content",
+			params: PageSetContentParams{PageID: "page-1", HTML: "<h1>Hello</h1>"},
+		},
+		{
+			method: "page.set_content",
+			params: PageSetContentParams{
+				PageID: "page-1",
+				HTML:   "<h1>Hello</h1>",
+				Options: &PageNavigationOptions{
+					WaitUntil: &waitUntil,
+					Timeout:   &timeout,
+				},
+			},
+		},
+	}
+	if !reflect.DeepEqual(rpc.calls, want) {
+		t.Fatalf("calls = %#v, want %#v", rpc.calls, want)
+	}
+}

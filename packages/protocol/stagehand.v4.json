@@ -513,6 +513,32 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.content": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageContentResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.set_content": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageSetContentParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.add_init_script": {
           "type": "object",
           "properties": {
@@ -1035,6 +1061,8 @@
         "page.type",
         "page.key_press",
         "page.evaluate",
+        "page.content",
+        "page.set_content",
         "page.add_init_script",
         "page.on",
         "page.off",
@@ -3614,6 +3642,25 @@
           }
         }
       ]
+    },
+    "PageContentResult": {
+      "type": "string"
+    },
+    "PageSetContentParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "html": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PageNavigationOptions"
+        }
+      },
+      "required": ["page_id", "html"],
+      "additionalProperties": false
     },
     "PageAddInitScriptParams": {
       "type": "object",
@@ -6327,6 +6374,60 @@
             },
             "params": {
               "$ref": "#/$defs/PageEvaluateParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.content"
+            },
+            "params": {
+              "$ref": "#/$defs/PageIdParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.set_content"
+            },
+            "params": {
+              "$ref": "#/$defs/PageSetContentParams"
             },
             "traceparent": {
               "type": "string"

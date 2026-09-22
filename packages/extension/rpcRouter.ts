@@ -318,6 +318,16 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageEvaluate, request.params),
           context,
         );
+      case "page.content":
+        return this.pageController.content(
+          parseParams(StagehandMethods.pageContent, request.params),
+          context,
+        );
+      case "page.set_content":
+        return this.pageController.setContent(
+          parseParams(StagehandMethods.pageSetContent, request.params),
+          context,
+        );
       case "page.add_init_script":
         return this.pageController.addInitScript(
           parseParams(StagehandMethods.pageAddInitScript, request.params),
