@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { assertPublishedCliDependencies, runReleaseCommand } from "./scoped-release.ts";
@@ -34,17 +34,14 @@ try {
   );
   const binary = path.join(directory, "node_modules/browse/bin/run.js");
   const expected = JSON.parse(
-    execFileSync("node", ["-p", "JSON.stringify(require('./packages/cli/package.json'))"], {
-      cwd: root,
-      encoding: "utf8",
-    }),
+    await readFile(path.join(root, "packages/cli/package.json"), "utf8"),
   ).version;
   const actual = execFileSync("node", [binary, "--version"], { cwd: directory, encoding: "utf8" });
   if (!actual.includes(`browse/${expected}`))
     throw new Error(`Unexpected packed CLI version: ${actual}`);
   process.stdout.write(actual);
   runReleaseCommand("node", [binary, "--help"], directory);
-  runReleaseCommand("node", [binary, "start", "--help"], directory);
+  runReleaseCommand("node", [binary, "open", "--help"], directory);
 } finally {
   await rm(directory, { recursive: true, force: true });
 }
