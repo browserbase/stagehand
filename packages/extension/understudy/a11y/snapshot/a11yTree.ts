@@ -94,11 +94,19 @@ export async function a11yForFrame(
     urlMap[enc] = url;
   }
 
+  const editableIds: string[] = [];
+  for (const n of filteredNodes) {
+    if (typeof n.backendDOMNodeId !== "number") continue;
+    const editable = n.properties?.find((property) => property.name === "editable")?.value?.value;
+    if (editable === "richtext" || editable === "plaintext")
+      editableIds.push(opts.encode(n.backendDOMNodeId));
+  }
+
   const decorated = decorateRoles(filteredNodes, opts);
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
   const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
-  return { outline: simplified.trimEnd(), urlMap, scopeApplied };
+  return { outline: simplified.trimEnd(), urlMap, scopeApplied, editableIds };
 }
 
 export function decorateRoles(
