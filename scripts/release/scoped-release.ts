@@ -5,6 +5,7 @@ import { getPackages } from "@manypkg/get-packages";
 import { execFileSync, spawnSync } from "node:child_process";
 import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { setTimeout } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { belongsToScope, parseReleaseScope, scopedChangesets } from "./release-scope.ts";
 import type { ReleaseScope } from "./release-scope.ts";
@@ -52,7 +53,9 @@ export function runReleaseCommand(command: string, args: string[], repositoryRoo
 export async function assertPublishedCliDependencies(
   repositoryRoot: string,
   registry = "https://registry.npmjs.org",
+  waitMs = 0,
 ): Promise<void> {
+  const deadline = Date.now() + waitMs;
   const packages = await getPackages(repositoryRoot);
   const browse = packages.packages.find((pkg) => pkg.packageJson.name === "browse");
   if (!browse) throw new Error("Missing browse package");
@@ -60,13 +63,20 @@ export async function assertPublishedCliDependencies(
     if (!range.startsWith("workspace:")) continue;
     const dependency = packages.packages.find((pkg) => pkg.packageJson.name === name);
     if (!dependency) throw new Error(`Missing workspace dependency ${name}`);
-    const response = await fetch(
-      `${registry}/${encodeURIComponent(name)}/${dependency.packageJson.version}`,
-    );
-    if (!response.ok) {
-      throw new Error(
-        `Publish ${name}@${dependency.packageJson.version} before Browse (registry status ${response.status})`,
+    for (;;) {
+      const response = await fetch(
+        `${registry}/${encodeURIComponent(name)}/${dependency.packageJson.version}`,
       );
+      await response.body?.cancel();
+      if (response.ok) break;
+      const remaining = deadline - Date.now();
+      if (response.status !== 404 || remaining <= 0) {
+        throw new Error(
+          `Publish ${name}@${dependency.packageJson.version} before Browse (registry status ${response.status})`,
+        );
+      }
+      process.stdout.write(`Waiting for ${name}@${dependency.packageJson.version} on npm\n`);
+      await setTimeout(Math.min(15_000, remaining));
     }
   }
 }
@@ -124,6 +134,10 @@ async function main(): Promise<void> {
         `should-publish=${!pending && !(await isCliVersionPublished(repositoryRoot))}\n`,
       );
     }
+  } else if (command === "wait-dependencies" && scope === "cli") {
+    // An SDK release may be publishing concurrently. Gate only on the actual
+    // dependency, so unrelated SDK checks cannot block a CLI release.
+    await assertPublishedCliDependencies(repositoryRoot, undefined, 15 * 60_000);
   } else if (command === "version") {
     if (flags.some((flag) => flag !== "--snapshot")) throw new Error("Unknown version flag");
     const plan = await versionScope(repositoryRoot, scope, flags.includes("--snapshot"));
@@ -147,7 +161,7 @@ async function main(): Promise<void> {
       );
     });
   } else {
-    throw new Error("Expected command: status, version, or publish");
+    throw new Error("Expected command: status, version, publish, or wait-dependencies cli");
   }
 }
 

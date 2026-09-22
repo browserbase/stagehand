@@ -8,6 +8,7 @@ import { assertPublishedCliDependencies, runReleaseCommand } from "./scoped-rele
 // tarball in isolation so its dependency is resolved from the public registry.
 const root = process.cwd();
 await assertPublishedCliDependencies(root);
+runReleaseCommand("pnpm", ["exec", "turbo", "run", "build", "--filter=browse"], root);
 const directory = await mkdtemp(path.join(os.tmpdir(), "browse-package-smoke-"));
 try {
   runReleaseCommand(

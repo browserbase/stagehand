@@ -87,7 +87,7 @@ jobs:
     name: Release Browse CLI
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -120,12 +120,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Wait for published SDK dependencies
+        if: steps.status.outputs.should-publish == 'true'
+        run: pnpm exec tsx scripts/release/scoped-release.ts wait-dependencies cli
+
       - name: Build and smoke-test Browse against the published SDK
         if: steps.status.outputs.should-publish == 'true'
         run: |
-          pnpm exec turbo run build --filter=browse
-          pnpm --filter browse test:cli
           pnpm exec tsx scripts/release/smoke-cli-package.ts
+          pnpm --filter browse test:cli
 
       - name: Publish Browse
         if: steps.status.outputs.should-publish == 'true'
@@ -135,12 +138,8 @@ jobs:
           pnpm exec tsx scripts/release/scoped-release.ts publish cli
 
       - name: Push Browse release tag
-        if: steps.status.outputs.has-changesets == 'false'
-        run: |
-          version=$(node -p 'require("./packages/cli/package.json").version')
-          # Recover the tag if a previous run published npm but stopped before tagging.
-          git rev-parse --verify "refs/tags/browse@$version" || git tag "browse@$version"
-          git push origin "refs/tags/browse@$version"
+        if: always() && !cancelled() && steps.status.outcome == 'success' && steps.status.outputs.has-changesets == 'false'
+        run: pnpm exec tsx scripts/release/push-cli-release-tag.ts
 
   publish-typescript-alpha:
     name: Publish TypeScript SDK alpha

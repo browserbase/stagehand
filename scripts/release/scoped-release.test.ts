@@ -78,6 +78,39 @@ const manifest = async (root: string, name: string) =>
   JSON.parse(await readFile(path.join(root, "packages", name, "package.json"), "utf8"));
 
 describe("independent release scopes using the real Changesets engine", () => {
+  it("waits for an in-flight SDK publication without waiting on unrelated SDK jobs", async () => {
+    const root = await fixture("cli");
+    let requests = 0;
+    let status = 404;
+    const server = createServer((_request, response) => {
+      requests++;
+      response.writeHead(requests === 1 ? 404 : status).end("{}");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing HTTP server address");
+    const registry = `http://127.0.0.1:${address.port}`;
+    try {
+      status = 200;
+      await assertPublishedCliDependencies(root, registry, 1000);
+      expect(requests).toBe(2);
+      status = 404;
+      await expect(assertPublishedCliDependencies(root, registry, 20)).rejects.toThrow(
+        "Publish sdk@4.1.0 before Browse",
+      );
+      status = 503;
+      const before = requests;
+      await expect(assertPublishedCliDependencies(root, registry, 1000)).rejects.toThrow(
+        "registry status 503",
+      );
+      expect(requests).toBe(before + 1);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
   it("checks the CLI version before rebuilding and distinguishes missing versions from registry failures", async () => {
     const root = await fixture();
     let status = 404;

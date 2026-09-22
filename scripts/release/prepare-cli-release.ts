@@ -32,6 +32,7 @@ if (changesets.length > 0) {
     throw new Error(`Unexpected CLI release files: ${changed.join(", ")}`);
   const manifest = JSON.parse(await readFile("packages/cli/package.json", "utf8"));
   const title = `Release browse@${manifest.version}`;
+  // GitHub's documented bot identity: https://github.com/actions/checkout#push-a-commit-using-the-built-in-token
   runReleaseCommand("git", ["config", "user.name", "github-actions[bot]"], repositoryRoot);
   runReleaseCommand(
     "git",
