@@ -1,4 +1,6 @@
 // lib/v3/understudy/frame.ts
+import { TimeoutBudget } from "../timeoutBudget.js";
+import { LocatorOperation } from "./locatorOperation.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
@@ -182,35 +184,68 @@ export class Frame implements FrameManager {
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
-  async evaluateInLocatorWorld<R = unknown>(expression: string): Promise<R> {
-    await this.session.send("Runtime.enable").catch(() => {});
-    let locatorWorld = await executionContexts.waitForLocatorWorld(
-      this.session,
-      this.frameId,
-      1000,
-    );
-
+  async evaluateInLocatorWorld<R = unknown>(
+    expression: string | (() => string),
+    operation?: LocatorOperation,
+    cancelExpression?: string,
+  ): Promise<R> {
+    const budget = operation?.budget;
+    const context = operation ?? new LocatorOperation(new TimeoutBudget());
+    const session = this.session;
+    await context.send(session, "Runtime.enable").catch(() => {});
+    const evaluate = async (): Promise<Protocol.Runtime.EvaluateResponse> => {
+      const world = budget
+        ? await executionContexts.waitForLocatorWorldReady(() => this.session, this.frameId, budget)
+        : await executionContexts.waitForLocatorWorld(this.session, this.frameId);
+      const ownerSession = this.session;
+      const run = async (signal: AbortSignal) => {
+        const cancel = () => {
+          if (cancelExpression)
+            void ownerSession
+              .send("Runtime.evaluate", {
+                expression: cancelExpression,
+                contextId: world.contextId,
+              })
+              .catch(() => {});
+        };
+        signal.addEventListener("abort", cancel, { once: true });
+        try {
+          const source = typeof expression === "function" ? expression() : expression;
+          budget?.throwIfExpired();
+          // context.run owns the deadline and abort cleanup for this by-value evaluation.
+          return await ownerSession.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression: source,
+            contextId: world.contextId,
+            awaitPromise: true,
+            returnByValue: true,
+          });
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message.includes("Cannot find context with specified id")
+          ) {
+            executionContexts.unregisterLocatorContext(ownerSession, world.contextId);
+          }
+          throw error;
+        } finally {
+          if (!signal.aborted && budget?.remainingMs() === 0) cancel();
+          signal.removeEventListener("abort", cancel);
+        }
+      };
+      return context.run(run);
+    };
     let response: Protocol.Runtime.EvaluateResponse;
     try {
-      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId: locatorWorld.contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      });
+      response = await evaluate();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes("Cannot find context with specified id")) throw error;
-      executionContexts.unregisterLocatorContext(this.session, locatorWorld.contextId);
-      locatorWorld = await executionContexts.waitForLocatorWorld(this.session, this.frameId, 1000);
-      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId: locatorWorld.contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      });
+      budget?.throwIfExpired();
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes("Cannot find context with specified id")
+      )
+        throw error;
+      response = await evaluate();
     }
-
     if (response.exceptionDetails) {
       throw new Error(response.exceptionDetails.text ?? "Locator-world evaluation failed");
     }
@@ -334,8 +369,12 @@ export class Frame implements FrameManager {
   }
 
   /** Simple placeholder for your own locator abstraction */
-  locator(selector: string, options?: { deep?: boolean; depth?: number }): Locator {
-    return new Locator(this, selector, options);
+  locator(
+    selector: string,
+    options?: { deep?: boolean; depth?: number },
+    operation?: LocatorOperation,
+  ): Locator {
+    return new Locator(this, selector, options, -1, operation);
   }
 
   /** Resolve the main-world execution context id for this frame. */

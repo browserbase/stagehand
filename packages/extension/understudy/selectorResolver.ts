@@ -1,3 +1,5 @@
+import { sendCdpCommand, isClosedSessionError, type LocatorOperation } from "./locatorOperation.js";
+import type { CDPSessionLike } from "./cdp.js";
 import type { Protocol } from "devtools-protocol";
 import type { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -18,7 +20,24 @@ export interface ResolveManyOptions {
 }
 
 export class FrameSelectorResolver {
-  constructor(readonly frame: Frame) {}
+  constructor(
+    readonly frame: Frame,
+    readonly operation?: LocatorOperation,
+  ) {}
+
+  private send<R = unknown>(session: CDPSessionLike, method: string, params?: object): Promise<R> {
+    return sendCdpCommand(session, this.operation?.budget, method, params);
+  }
+
+  private locatorWorld() {
+    return this.operation
+      ? executionContexts.waitForLocatorWorldReady(
+          () => this.frame.session,
+          this.frame.frameId,
+          this.operation.budget,
+        )
+      : executionContexts.waitForLocatorWorld(this.frame.session, this.frame.frameId);
+  }
 
   public static parseSelector(raw: string): SelectorQuery {
     const trimmed = raw.trim();
@@ -99,12 +118,7 @@ export class FrameSelectorResolver {
   async resolveCss(selector: string, limit: number): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
+    const { contextId: ctxId } = await this.locatorWorld();
 
     const results: ResolvedNode[] = [];
 
@@ -124,12 +138,7 @@ export class FrameSelectorResolver {
   async resolveText(value: string, limit: number): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
+    const { contextId: ctxId } = await this.locatorWorld();
 
     const results: ResolvedNode[] = [];
     for (let index = 0; index < limit; index += 1) {
@@ -148,12 +157,7 @@ export class FrameSelectorResolver {
   async resolveXPath(value: string, limit: number): Promise<ResolvedNode[]> {
     if (limit <= 0) return [];
 
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
+    const { contextId: ctxId } = await this.locatorWorld();
 
     const results: ResolvedNode[] = [];
     for (let index = 0; index < limit; index += 1) {
@@ -170,12 +174,7 @@ export class FrameSelectorResolver {
   }
 
   async countCss(selector: string): Promise<number> {
-    const session = this.frame.session;
-    const { contextId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
+    const { contextId } = await this.locatorWorld();
 
     const primaryExpr = buildLocatorInvocation("countCssMatchesPrimary", [
       JSON.stringify(selector),
@@ -184,22 +183,22 @@ export class FrameSelectorResolver {
   }
 
   async countText(value: string): Promise<number> {
+    const { contextId: ctxId } = await this.locatorWorld();
     const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
 
     const expr = buildLocatorInvocation("countTextMatches", [JSON.stringify(value)]);
 
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: expr,
-        contextId: ctxId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const evalRes = await this.send<Protocol.Runtime.EvaluateResponse>(
+        session,
+        "Runtime.evaluate",
+        {
+          expression: expr,
+          contextId: ctxId,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      );
 
       if (evalRes.exceptionDetails) {
         const details = evalRes.exceptionDetails;
@@ -221,29 +220,30 @@ export class FrameSelectorResolver {
       const num = typeof data.count === "number" ? data.count : Number(data.count);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      this.operation?.budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
       return 0;
     }
   }
 
   async countXPath(value: string): Promise<number> {
+    const { contextId: ctxId } = await this.locatorWorld();
     const session = this.frame.session;
-
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
 
     const expr = buildLocatorInvocation("countXPathMatchesMainWorld", [JSON.stringify(value)]);
 
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: expr,
-        contextId: ctxId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const evalRes = await this.send<Protocol.Runtime.EvaluateResponse>(
+        session,
+        "Runtime.evaluate",
+        {
+          expression: expr,
+          contextId: ctxId,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      );
 
       if (evalRes.exceptionDetails) {
         return 0;
@@ -255,7 +255,9 @@ export class FrameSelectorResolver {
           : Number(evalRes.result.value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      this.operation?.budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
       return 0;
     }
   }
@@ -266,11 +268,13 @@ export class FrameSelectorResolver {
     const session = this.frame.session;
     let nodeId: Protocol.DOM.NodeId | null;
     try {
-      const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>("DOM.requestNode", {
+      const rn = await this.send<{ nodeId: Protocol.DOM.NodeId }>(session, "DOM.requestNode", {
         objectId,
       });
       nodeId = rn.nodeId ?? null;
-    } catch {
+    } catch (error) {
+      this.operation?.budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
       nodeId = null;
     }
 
@@ -284,12 +288,16 @@ export class FrameSelectorResolver {
     const session = this.frame.session;
 
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const evalRes = await this.send<Protocol.Runtime.EvaluateResponse>(
+        session,
+        "Runtime.evaluate",
+        {
+          expression,
+          contextId,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      );
 
       if (evalRes.exceptionDetails) {
         return 0;
@@ -299,7 +307,9 @@ export class FrameSelectorResolver {
       const num = typeof value === "number" ? value : Number(value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      this.operation?.budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
       return 0;
     }
   }
@@ -311,19 +321,32 @@ export class FrameSelectorResolver {
     const session = this.frame.session;
 
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId,
-        returnByValue: false,
-        awaitPromise: true,
-      });
+      const evalRes = await this.send<Protocol.Runtime.EvaluateResponse>(
+        session,
+        "Runtime.evaluate",
+        {
+          expression,
+          contextId,
+          returnByValue: false,
+          awaitPromise: true,
+        },
+      );
 
       if (evalRes.exceptionDetails || !evalRes.result.objectId) {
         return null;
       }
 
-      return this.resolveFromObjectId(evalRes.result.objectId);
-    } catch {
+      try {
+        return await this.resolveFromObjectId(evalRes.result.objectId);
+      } catch (error) {
+        void this.send(session, "Runtime.releaseObject", {
+          objectId: evalRes.result.objectId,
+        }).catch(() => {});
+        throw error;
+      }
+    } catch (error) {
+      this.operation?.budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
       return null;
     }
   }

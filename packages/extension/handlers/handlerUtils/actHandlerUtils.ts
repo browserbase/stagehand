@@ -1,4 +1,6 @@
 // lib/v3/handlers/handlerUtils/actHandlerUtils.ts
+import { TimeoutBudget } from "../../timeoutBudget.js";
+import { LocatorOperation } from "../../understudy/locatorOperation.js";
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
@@ -18,6 +20,7 @@ export interface UnderstudyMethodHandlerContext {
   initialUrl: string;
   logger: StagehandLogger;
   domSettleTimeoutMs?: number;
+  operation: LocatorOperation;
 }
 
 // Normalize cases where the XPath is the root "/" to point to the HTML element.
@@ -50,8 +53,10 @@ export async function performUnderstudyMethod(
   args: ReadonlyArray<unknown>,
   logger: StagehandLogger,
   domSettleTimeoutMs?: number,
+  budget?: TimeoutBudget,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
+  const operation = new LocatorOperation(budget);
 
   try {
     await logger.span(
@@ -59,8 +64,8 @@ export async function performUnderstudyMethod(
       { target: selectorRaw },
       async (spanLogger) => {
         // Unified resolver: supports '>>' hops and XPath across iframes.
-        const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw);
-        const initialUrl = await getFrameUrl(frame);
+        const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw, operation);
+        const initialUrl = await operation.run(() => getFrameUrl(frame));
 
         spanLogger.debug("Performing understudy method", {
           category: "action",
@@ -79,11 +84,12 @@ export async function performUnderstudyMethod(
           initialUrl,
           logger: spanLogger,
           domSettleTimeoutMs,
+          operation,
         };
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
         if (handler) {
-          await handler(ctx);
+          await operation.run(() => handler(ctx));
           return;
         }
 
@@ -156,8 +162,8 @@ async function scrollIntoView(ctx: UnderstudyMethodHandlerContext): Promise<void
   });
   const { objectId } = await locator.resolveNode();
   const ownerSession = locator.getFrame().session;
-  await ownerSession.send("DOM.scrollIntoViewIfNeeded", { objectId });
-  await ownerSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+  await ctx.operation.send(ownerSession, "DOM.scrollIntoViewIfNeeded", { objectId });
+  await ctx.operation.send(ownerSession, "Runtime.releaseObject", { objectId }).catch(() => {});
 }
 
 async function scrollElementToPercentage(ctx: UnderstudyMethodHandlerContext): Promise<void> {
@@ -179,7 +185,7 @@ async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise
   const dy = Number(args[1] ?? 0);
 
   const { x, y } = await locator.centroid();
-  await page.scroll(x, y, dx, dy);
+  await page.scroll(x, y, dx, dy, ctx.operation);
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
@@ -189,7 +195,7 @@ async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
     category: "action",
     deltaY,
   });
-  await frame.session.send<never>("Input.dispatchMouseEvent", {
+  await ctx.operation.send<never>(frame.session, "Input.dispatchMouseEvent", {
     type: "mouseWheel",
     x: 0,
     y: 0,
@@ -238,7 +244,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       key,
       xpath,
     });
-    await page.keyPress(key);
+    await page.keyPress(key, undefined, ctx.operation);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.debug("Error pressing key", {
@@ -286,7 +292,7 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath) throw new Error("dragAndDrop requires a target XPath arg");
 
-  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath, ctx.operation);
 
   try {
     // 1) Centers in local (owning-frame) viewport
@@ -335,10 +341,17 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       );
 
     // 3) Perform drag in main session
-    await page.dragAndDrop(fromAbs.x, fromAbs.y, toAbs.x, toAbs.y, {
-      steps: 10,
-      delay: 5,
-    });
+    await page.dragAndDrop(
+      fromAbs.x,
+      fromAbs.y,
+      toAbs.x,
+      toAbs.y,
+      {
+        steps: 10,
+        delay: 5,
+      },
+      ctx.operation,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.error("Error performing drag and drop", {
@@ -372,9 +385,12 @@ async function scrollByElementHeight(
   const { objectId } = await locator.resolveNode();
   try {
     const ownerSession = locator.getFrame().session;
-    await ownerSession.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-      objectId,
-      functionDeclaration: `
+    await ctx.operation.send<Protocol.Runtime.CallFunctionOnResponse>(
+      ownerSession,
+      "Runtime.callFunctionOn",
+      {
+        objectId,
+        functionDeclaration: `
           function(dir) {
             const waitForScrollEnd = (el) => new Promise((resolve) => {
               let last = el.scrollTop ?? 0;
@@ -399,13 +415,14 @@ async function scrollByElementHeight(
             return waitForScrollEnd(this);
           }
         `,
-      arguments: [{ value: direction }],
-      awaitPromise: true,
-      returnByValue: true,
-    });
+        arguments: [{ value: direction }],
+        awaitPromise: true,
+        returnByValue: true,
+      },
+    );
   } finally {
     const ownerSession = locator.getFrame().session;
-    await ownerSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    await ctx.operation.send(ownerSession, "Runtime.releaseObject", { objectId }).catch(() => {});
   }
 }
 

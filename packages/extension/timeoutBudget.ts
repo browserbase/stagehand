@@ -80,6 +80,23 @@ export class TimeoutBudget {
     }
   }
 
+  async wait(ms: number): Promise<void> {
+    return this.run(
+      (signal) =>
+        new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+          }, ms);
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+          };
+          signal.addEventListener("abort", onAbort, { once: true });
+        }),
+    );
+  }
+
   private expiryError(): Error {
     return (this.timeoutError ??= this.errorFactory(this.timeoutMs!));
   }

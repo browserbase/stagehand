@@ -43,6 +43,14 @@ describe("TimeoutBudget", () => {
     expect(() => new TimeoutBudget(timeout)).toThrow(RangeError);
   });
 
+  it("cancels a polling delay when the shared budget expires", async () => {
+    const waiting = new TimeoutBudget(50).wait(1000);
+    const rejected = expect(waiting).rejects.toThrow("50ms");
+    await vi.advanceTimersByTimeAsync(50);
+    await rejected;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("uses monotonic elapsed time despite wall-clock changes", async () => {
     const budget = new TimeoutBudget(1_000);
     await vi.advanceTimersByTimeAsync(250);

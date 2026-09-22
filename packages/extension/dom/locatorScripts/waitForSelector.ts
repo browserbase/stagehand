@@ -10,6 +10,12 @@
 import { resolveXPathFirst } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
+const activeSelectorWaits = new Map<string, () => void>();
+
+export function cancelWaitForSelector(id: string): void {
+  activeSelectorWaits.get(id)?.();
+}
+
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
 /**
@@ -194,10 +200,11 @@ export function waitForSelector(
   stateRaw?: string,
   timeoutRaw?: number,
   pierceShadowRaw?: boolean,
+  waitId?: string,
 ): Promise<boolean> {
   const selector = String(selectorRaw ?? "").trim();
   const state = (String(stateRaw ?? "visible") as WaitForSelectorState) || "visible";
-  const timeout = typeof timeoutRaw === "number" && timeoutRaw > 0 ? timeoutRaw : 30000;
+  const timeout = typeof timeoutRaw === "number" && timeoutRaw >= 0 ? timeoutRaw : 30000;
   const pierceShadow = pierceShadowRaw !== false;
 
   return new Promise<boolean>((resolve, reject) => {
@@ -224,6 +231,7 @@ export function waitForSelector(
     let rescanShadowRoots: (() => void) | null = null;
 
     const cleanup = (): void => {
+      if (waitId) activeSelectorWaits.delete(waitId);
       for (const obs of observers) {
         obs.disconnect();
       }
@@ -237,6 +245,15 @@ export function waitForSelector(
       }
     };
 
+    if (waitId)
+      activeSelectorWaits.set(waitId, () => {
+        if (settled) return;
+        settled = true;
+        clearTimer();
+        cleanup();
+        reject(new Error("waitForSelector canceled"));
+      });
+
     const check = (): void => {
       if (settled) return;
       const el = findElement(selector, pierceShadow);
@@ -248,33 +265,9 @@ export function waitForSelector(
       }
     };
 
-    // Handle case where document.body is not ready yet
-    const observeRoot = document.body || document.documentElement;
-    if (!observeRoot) {
-      domReadyHandler = (): void => {
-        document.removeEventListener("DOMContentLoaded", domReadyHandler!);
-        domReadyHandler = null;
-        check();
-        setupObservers();
-      };
-      document.addEventListener("DOMContentLoaded", domReadyHandler);
-      timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        clearTimer();
-        cleanup();
-        reject(
-          new Error(
-            `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
-          ),
-        );
-      }, timeout);
-      return;
-    }
-
     const setupObservers = (): void => {
       const root = document.body || document.documentElement;
-      if (!root) return;
+      if (!root || settled) return;
 
       // Main document observer
       const mainObserver = new MutationObserver(() => {
@@ -299,19 +292,45 @@ export function waitForSelector(
       }
     };
 
+    // Handle case where document.body is not ready yet
+    const observeRoot = document.body || document.documentElement;
+    if (!observeRoot) {
+      domReadyHandler = (): void => {
+        document.removeEventListener("DOMContentLoaded", domReadyHandler!);
+        domReadyHandler = null;
+        check();
+        setupObservers();
+      };
+      document.addEventListener("DOMContentLoaded", domReadyHandler);
+      if (timeout > 0)
+        timeoutId = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          clearTimer();
+          cleanup();
+          reject(
+            new Error(
+              `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
+            ),
+          );
+        }, timeout);
+      return;
+    }
+
     setupObservers();
 
     // Set up timeout
-    timeoutId = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      clearTimer();
-      cleanup();
-      reject(
-        new Error(
-          `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
-        ),
-      );
-    }, timeout);
+    if (timeout > 0)
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        clearTimer();
+        cleanup();
+        reject(
+          new Error(
+            `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
+          ),
+        );
+      }, timeout);
   });
 }

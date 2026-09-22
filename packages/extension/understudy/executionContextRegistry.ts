@@ -1,3 +1,5 @@
+import { TimeoutBudget } from "../timeoutBudget.js";
+import { sendCdpCommand, isClosedSessionError } from "./locatorOperation.js";
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 
@@ -28,6 +30,10 @@ export class ExecutionContextRegistry {
   readonly extensionCandidates = new WeakMap<CDPSessionLike, Map<FrameId, Set<ExecId>>>();
   readonly fallbackByFrame = new WeakMap<CDPSessionLike, Map<FrameId, ExecId>>();
   readonly fallbackByExec = new WeakMap<CDPSessionLike, Map<ExecId, FrameId>>();
+  readonly fallbackWaiters = new WeakMap<
+    CDPSessionLike,
+    Map<FrameId, Set<{ budget: TimeoutBudget }>>
+  >();
   readonly fallbackCreation = new WeakMap<CDPSessionLike, Map<FrameId, Promise<ExecId>>>();
   readonly fallbackInstallerSource = new WeakMap<CDPSessionLike, string>();
 
@@ -71,6 +77,7 @@ export class ExecutionContextRegistry {
       this.fallbackByFrame.delete(session);
       this.fallbackByExec.delete(session);
       this.fallbackCreation.delete(session);
+      this.fallbackWaiters.delete(session);
     };
 
     session.on("Runtime.executionContextCreated", onCreated);
@@ -90,11 +97,49 @@ export class ExecutionContextRegistry {
     return this.fallbackByFrame.get(session)?.get(frameId) ?? null;
   }
 
+  /** Retry helper acquisition within one caller budget, refreshing session ownership. */
+  async waitForLocatorWorldReady(
+    getSession: () => CDPSessionLike,
+    frameId: FrameId,
+    budget: TimeoutBudget,
+  ): Promise<LocatorWorld> {
+    let lastError: unknown;
+    try {
+      while (true) {
+        budget.throwIfExpired();
+        const session = getSession();
+        const started = performance.now();
+        try {
+          const world = await this.waitForLocatorWorld(
+            session,
+            frameId,
+            Math.min(200, budget.remainingMs() ?? Infinity),
+            budget,
+          );
+          budget.throwIfExpired();
+          if (getSession() === session) return world;
+        } catch (error) {
+          if (isClosedSessionError(error) && getSession() === session) throw error;
+          lastError = error;
+          budget.throwIfExpired();
+          // Avoid a microtask-only retry loop on immediately rejected commands.
+          if (performance.now() - started < 25) await budget.wait(25);
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && lastError !== undefined && error !== lastError)
+        error.cause = lastError;
+      throw error;
+    }
+  }
+
   async waitForLocatorWorld(
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 1000,
+    budget: TimeoutBudget = new TimeoutBudget(),
   ): Promise<LocatorWorld> {
+    budget.throwIfExpired();
     const extensionContextId = this.getExtensionWorld(session, frameId);
     if (extensionContextId) return this.extensionWorld(extensionContextId);
 
@@ -102,10 +147,14 @@ export class ExecutionContextRegistry {
     if (fallbackContextId) return this.fallbackWorld(fallbackContextId);
 
     try {
-      return this.extensionWorld(await this.waitForExtensionWorld(session, frameId, timeout));
+      return this.extensionWorld(
+        await this.waitForExtensionWorld(session, frameId, timeout, budget),
+      );
     } catch (extensionError) {
-      if (!(await this.isFallbackEligible(session, frameId))) throw extensionError;
-      return this.fallbackWorld(await this.createFallbackWorld(session, frameId));
+      budget.throwIfExpired();
+      if (isClosedSessionError(extensionError)) throw extensionError;
+      if (!(await this.isFallbackEligible(session, frameId, budget))) throw extensionError;
+      return this.fallbackWorld(await this.createFallbackWorld(session, frameId, budget));
     }
   }
 
@@ -113,28 +162,36 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 1000,
+    budget: TimeoutBudget = new TimeoutBudget(),
   ): Promise<ExecId> {
+    budget.throwIfExpired();
     const cached = this.getExtensionWorld(session, frameId);
     if (cached) return cached;
-
-    await session.send("Runtime.enable").catch(() => {});
-    const deadline = Date.now() + timeout;
+    await sendCdpCommand(session, budget, "Runtime.enable").catch((error) => {
+      budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
+    });
+    const deadline = performance.now() + timeout;
     const checkedContextIds = new Set<ExecId>();
     const diagnostics = new Map<ExecId, string>();
 
-    while (Date.now() <= deadline) {
+    while (performance.now() <= deadline) {
       const candidates = this.extensionCandidates.get(session)?.get(frameId);
       for (const contextId of candidates ?? []) {
         checkedContextIds.add(contextId);
-        const diagnostic = await this.inspectExtensionWorld(session, contextId);
+        const diagnostic = await this.inspectExtensionWorld(session, contextId, budget);
+        budget.throwIfExpired();
         diagnostics.set(contextId, JSON.stringify(diagnostic));
-        if (diagnostic.ready) {
+        if (
+          diagnostic.ready &&
+          this.extensionCandidates.get(session)?.get(frameId)?.has(contextId)
+        ) {
           this.registerExtensionWorld(session, frameId, contextId);
           return contextId;
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      await budget.wait(25);
     }
 
     throw new Error(
@@ -150,40 +207,46 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 800,
+    budget: TimeoutBudget = new TimeoutBudget(),
   ): Promise<ExecId> {
-    const cached = this.getMainWorld(session, frameId);
-    if (cached) return cached;
-
-    await session.send("Runtime.enable").catch(() => {});
-    const after = this.getMainWorld(session, frameId);
-    if (after) return after;
-
-    return await new Promise<ExecId>((resolve, reject) => {
-      let done = false;
-      const onCreated = (evt: Protocol.Runtime.ExecutionContextCreatedEvent): void => {
-        const aux = (evt.context.auxData ?? {}) as {
-          frameId?: string;
-          isDefault?: boolean;
+    const wait = async (signal: AbortSignal): Promise<ExecId> => {
+      budget.throwIfExpired();
+      const cached = this.getMainWorld(session, frameId);
+      if (cached) return cached;
+      await sendCdpCommand(session, budget, "Runtime.enable").catch((error) => {
+        budget.throwIfExpired();
+        if (isClosedSessionError(error)) throw error;
+      });
+      signal.throwIfAborted();
+      const after = this.getMainWorld(session, frameId);
+      if (after) return after;
+      return new Promise<ExecId>((resolve, reject) => {
+        const cleanup = () => {
+          clearTimeout(timer);
+          signal.removeEventListener("abort", onAbort);
+          session.off("Runtime.executionContextCreated", onCreated);
         };
-        if (aux.isDefault === true && aux.frameId === frameId) {
-          this.register(session, frameId, evt.context.id);
-          if (!done) {
-            done = true;
-            clearTimeout(timer);
-            session.off("Runtime.executionContextCreated", onCreated);
+        const onAbort = () => {
+          cleanup();
+          reject(signal.reason);
+        };
+        const onCreated = (evt: Protocol.Runtime.ExecutionContextCreatedEvent) => {
+          const aux = evt.context.auxData as { frameId?: string; isDefault?: boolean } | undefined;
+          if (aux?.isDefault && aux.frameId === frameId) {
+            cleanup();
+            this.register(session, frameId, evt.context.id);
             resolve(evt.context.id);
           }
-        }
-      };
-      const timer = setTimeout(() => {
-        if (!done) {
-          done = true;
-          session.off("Runtime.executionContextCreated", onCreated);
+        };
+        const timer = setTimeout(() => {
+          cleanup();
           reject(new Error(`main world not ready for frame ${frameId}`));
-        }
-      }, timeout);
-      session.on("Runtime.executionContextCreated", onCreated);
-    });
+        }, timeout);
+        session.on("Runtime.executionContextCreated", onCreated);
+        signal.addEventListener("abort", onAbort, { once: true });
+      });
+    };
+    return budget.run(wait);
   }
 
   register(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
@@ -292,14 +355,23 @@ export class ExecutionContextRegistry {
     };
   }
 
-  private async isFallbackEligible(session: CDPSessionLike, frameId: FrameId): Promise<boolean> {
+  private async isFallbackEligible(
+    session: CDPSessionLike,
+    frameId: FrameId,
+    budget: TimeoutBudget = new TimeoutBudget(),
+  ): Promise<boolean> {
     try {
-      const contextId = await this.waitForMainWorld(session, frameId, 800);
-      const response = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: "globalThis.location?.protocol ?? ''",
-        contextId,
-        returnByValue: true,
-      });
+      const contextId = await this.waitForMainWorld(session, frameId, 800, budget);
+      const response = await sendCdpCommand<Protocol.Runtime.EvaluateResponse>(
+        session,
+        budget,
+        "Runtime.evaluate",
+        {
+          expression: "globalThis.location?.protocol ?? ''",
+          contextId,
+          returnByValue: true,
+        },
+      );
       const protocol = response.result.value;
       return (
         protocol === "data:" ||
@@ -308,31 +380,76 @@ export class ExecutionContextRegistry {
         protocol === "file:" ||
         protocol === "filesystem:"
       );
-    } catch {
+    } catch (error) {
+      budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
       return false;
     }
   }
 
-  private async createFallbackWorld(session: CDPSessionLike, frameId: FrameId): Promise<ExecId> {
+  private async createFallbackWorld(
+    session: CDPSessionLike,
+    frameId: FrameId,
+    budget: TimeoutBudget = new TimeoutBudget(),
+  ): Promise<ExecId> {
+    budget.throwIfExpired();
     const cached = this.getFallbackWorld(session, frameId);
     if (cached) return cached;
-
     let pendingByFrame = this.fallbackCreation.get(session);
     if (!pendingByFrame) {
-      pendingByFrame = new Map<FrameId, Promise<ExecId>>();
+      pendingByFrame = new Map();
       this.fallbackCreation.set(session, pendingByFrame);
     }
-    const existing = pendingByFrame.get(frameId);
-    if (existing) return existing;
-
-    const pending = this.installFallbackWorld(session, frameId).finally(() => {
-      pendingByFrame?.delete(frameId);
-    });
-    pendingByFrame.set(frameId, pending);
-    return pending;
+    let waitersByFrame = this.fallbackWaiters.get(session);
+    if (!waitersByFrame) {
+      waitersByFrame = new Map();
+      this.fallbackWaiters.set(session, waitersByFrame);
+    }
+    let pending = pendingByFrame.get(frameId);
+    let waiters = waitersByFrame.get(frameId);
+    if (!pending || !waiters) {
+      waiters = new Set();
+      waitersByFrame.set(frameId, waiters);
+      const activeWaiters = waiters;
+      const mainWorld = this.getMainWorld(session, frameId);
+      const checkActive = () => {
+        if (
+          this.getMainWorld(session, frameId) !== mainWorld ||
+          this.fallbackCreation.get(session) !== pendingByFrame ||
+          pendingByFrame!.get(frameId) !== pending ||
+          ![...activeWaiters].some((waiter) => waiter.budget.remainingMs() !== 0)
+        ) {
+          throw new Error(`Locator fallback initialization no longer needed for frame ${frameId}`);
+        }
+      };
+      pending = Promise.resolve()
+        .then(() => this.installFallbackWorld(session, frameId, checkActive))
+        .then((id) => {
+          checkActive();
+          this.registerFallbackWorld(session, frameId, id);
+          return id;
+        });
+      pendingByFrame.set(frameId, pending);
+    }
+    const lease = { budget };
+    waiters.add(lease);
+    try {
+      return await budget.run(() => pending!);
+    } finally {
+      waiters.delete(lease);
+      if (waiters.size === 0 && pendingByFrame.get(frameId) === pending) {
+        pendingByFrame.delete(frameId);
+        waitersByFrame.delete(frameId);
+      }
+    }
   }
 
-  private async installFallbackWorld(session: CDPSessionLike, frameId: FrameId): Promise<ExecId> {
+  private async installFallbackWorld(
+    session: CDPSessionLike,
+    frameId: FrameId,
+    checkActive: () => void,
+  ): Promise<ExecId> {
+    checkActive();
     const source = this.fallbackInstallerSource.get(session);
     if (!source) {
       throw new Error(`Stagehand locator fallback source is unavailable for frame ${frameId}`);
@@ -345,6 +462,7 @@ export class ExecutionContextRegistry {
         grantUniveralAccess: false,
       },
     );
+    checkActive();
     const installed = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
       expression: `${source}\n;void 0;`,
       contextId: executionContextId,
@@ -357,13 +475,14 @@ export class ExecutionContextRegistry {
           `Failed to install Stagehand locator fallback for frame ${frameId}`,
       );
     }
+    checkActive();
     const diagnostic = await this.inspectLocatorWorld(session, executionContextId);
     if (!diagnostic.ready || diagnostic.kind !== "cdp-fallback" || diagnostic.closedShadowRoots) {
       throw new Error(
         `Stagehand locator fallback failed health check for frame ${frameId}: ${JSON.stringify(diagnostic)}`,
       );
     }
-    this.registerFallbackWorld(session, frameId, executionContextId);
+    checkActive();
     return executionContextId;
   }
 
@@ -401,18 +520,24 @@ export class ExecutionContextRegistry {
   async inspectExtensionWorld(
     session: CDPSessionLike,
     contextId: ExecId,
+    budget: TimeoutBudget = new TimeoutBudget(),
   ): Promise<{ ready: boolean; marker: boolean; domApi: string }> {
     try {
-      const response = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: `({
+      const response = await sendCdpCommand<Protocol.Runtime.EvaluateResponse>(
+        session,
+        budget,
+        "Runtime.evaluate",
+        {
+          expression: `({
           ready: Boolean(${STAGEHAND_EXTENSION_WORLD_HEALTH_EXPRESSION}),
           marker: globalThis.__stagehandExtensionWorld?.version === "stagehand.v4",
           domApi: typeof globalThis.chrome?.dom?.openOrClosedShadowRoot,
         })`,
-        contextId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+          contextId,
+          returnByValue: true,
+          awaitPromise: true,
+        },
+      );
       if (response.exceptionDetails) return { ready: false, marker: false, domApi: "exception" };
       const value = response.result.value as
         | { ready?: unknown; marker?: unknown; domApi?: unknown }
@@ -422,7 +547,9 @@ export class ExecutionContextRegistry {
         marker: value?.marker === true,
         domApi: typeof value?.domApi === "string" ? value.domApi : "unknown",
       };
-    } catch {
+    } catch (error) {
+      budget.throwIfExpired();
+      if (isClosedSessionError(error)) throw error;
       return { ready: false, marker: false, domApi: "unavailable" };
     }
   }

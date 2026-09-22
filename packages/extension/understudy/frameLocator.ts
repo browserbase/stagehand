@@ -1,16 +1,14 @@
+import { LocatorOperation, isClosedSessionError } from "./locatorOperation.js";
 import type { Protocol } from "devtools-protocol";
 import { Locator } from "./locator.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
-/** Best-effort readiness budget for frame transitions, not an overall operation timeout. */
-const FRAME_LOCATOR_READY_TIMEOUT_MS = 1_200;
 /**
  * Best-effort timeout for each locator-world attempt. Fallback eligibility can
  * extend an attempt while it waits for the main world.
  */
-const LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS = 200;
 
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows
@@ -35,28 +33,32 @@ export class FrameLocator {
   }
 
   /** Resolve to the concrete Frame for this FrameLocator chain. */
-  async resolveFrame(): Promise<Frame> {
+  async resolveFrame(operation = new LocatorOperation()): Promise<Frame> {
     const parentFrame: Frame = this.parent
-      ? await this.parent.resolveFrame()
+      ? await this.parent.resolveFrame(operation)
       : (this.root ?? this.page.mainFrame());
 
     // Resolve the iframe element inside the parent frame
-    const tmp = parentFrame.locator(this.selector);
-    const parentSession = parentFrame.session;
+    const tmp = parentFrame.locator(this.selector, undefined, operation);
     const { objectId } = await tmp.resolveNode();
+    const parentSession = parentFrame.session;
 
     try {
-      await parentSession.send("DOM.enable").catch(() => {});
-      const desc = await parentSession.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
-        objectId,
-      });
+      await operation.send(parentSession, "DOM.enable").catch(() => {});
+      const desc = await operation.send<Protocol.DOM.DescribeNodeResponse>(
+        parentSession,
+        "DOM.describeNode",
+        {
+          objectId,
+        },
+      );
       const iframeBackendNodeId = desc.node.backendNodeId;
 
       // Find direct child frames under the parent by consulting the Page's registry
       const childIds = await listDirectChildFrameIdsFromRegistry(
         this.page,
         parentFrame.frameId,
-        1000,
+        operation,
       );
 
       for (const fid of childIds) {
@@ -65,23 +67,25 @@ export class FrameLocator {
           nodeId?: Protocol.DOM.NodeId;
         };
         try {
-          owner = await parentSession.send<{
+          owner = await operation.send<{
             backendNodeId: Protocol.DOM.BackendNodeId;
             nodeId?: Protocol.DOM.NodeId;
-          }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
-        } catch {
+          }>(parentSession, "DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
+        } catch (error) {
+          operation.budget.throwIfExpired();
+          if (isClosedSessionError(error)) throw error;
           // ignore and try next
           continue;
         }
         if (owner.backendNodeId === iframeBackendNodeId) {
           // Readiness failures must propagate after the matching child is identified.
-          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS);
+          await ensureChildFrameReady(this.page, fid, operation);
           return this.page.frameForId(fid);
         }
       }
       throw new Error(`Unable to obtain a content frame for selector: ${this.selector}`);
     } finally {
-      await parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      await operation.send(parentSession, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -99,52 +103,57 @@ class LocatorDelegate {
     readonly nthIndex: number = -1,
   ) {}
 
-  async real(): Promise<Locator> {
-    const frame = await this.fl.resolveFrame();
-    const locator = frame.locator(this.sel);
+  async real(operation = new LocatorOperation()): Promise<Locator> {
+    const frame = await this.fl.resolveFrame(operation);
+    const locator = frame.locator(this.sel, undefined, operation);
     if (this.nthIndex < 0) return locator;
     return locator.nth(this.nthIndex);
   }
 
+  private perform<T>(action: (locator: Locator) => Promise<T>): Promise<T> {
+    const operation = new LocatorOperation();
+    return operation.run(async () => action(await this.real(operation)));
+  }
+
   // Locator API delegates
   async click(options?: { button?: "left" | "right" | "middle"; clickCount?: number }) {
-    return (await this.real()).click(options);
+    return this.perform((locator) => locator.click(options));
   }
   async hover() {
-    return (await this.real()).hover();
+    return this.perform((locator) => locator.hover());
   }
   async fill(value: string) {
-    return (await this.real()).fill(value);
+    return this.perform((locator) => locator.fill(value));
   }
   async type(text: string, options?: { delay?: number }) {
-    return (await this.real()).type(text, options);
+    return this.perform((locator) => locator.type(text, options));
   }
   async selectOption(values: string | string[]) {
-    return (await this.real()).selectOption(values);
+    return this.perform((locator) => locator.selectOption(values));
   }
   async scrollTo(percent: number | string) {
-    return (await this.real()).scrollTo(percent);
+    return this.perform((locator) => locator.scrollTo(percent));
   }
   async isVisible() {
-    return (await this.real()).isVisible();
+    return this.perform((locator) => locator.isVisible());
   }
   async isChecked() {
-    return (await this.real()).isChecked();
+    return this.perform((locator) => locator.isChecked());
   }
   async inputValue() {
-    return (await this.real()).inputValue();
+    return this.perform((locator) => locator.inputValue());
   }
   async textContent() {
-    return (await this.real()).textContent();
+    return this.perform((locator) => locator.textContent());
   }
   async innerHtml() {
-    return (await this.real()).innerHtml();
+    return this.perform((locator) => locator.innerHtml());
   }
   async innerText() {
-    return (await this.real()).innerText();
+    return this.perform((locator) => locator.innerText());
   }
   async count() {
-    return (await this.real()).count();
+    return this.perform((locator) => locator.count());
   }
   first(): LocatorDelegate {
     return this.nth(0);
@@ -170,19 +179,18 @@ export function frameLocatorFromFrame(page: Page, root: Frame, selector: string)
 async function listDirectChildFrameIdsFromRegistry(
   page: Page,
   parentFrameId: string,
-  timeout: number,
+  operation: LocatorOperation,
 ): Promise<string[]> {
-  const deadline = Date.now() + timeout;
   while (true) {
     try {
       const tree = page.getFullFrameTree();
       const node = findFrameNode(tree, parentFrameId);
       const ids = node?.childFrames?.map((c) => c.frame.id as string) ?? [];
-      if (ids.length > 0 || Date.now() >= deadline) return ids;
+      if (ids.length > 0) return ids;
     } catch {
       // ignore
     }
-    await new Promise((r) => setTimeout(r, 50));
+    await operation.budget.wait(50);
   }
 }
 
@@ -206,29 +214,11 @@ function findFrameNode(
 async function ensureChildFrameReady(
   page: Page,
   childFrameId: string,
-  budgetMs: number,
+  operation: LocatorOperation,
 ): Promise<void> {
-  const deadline = Date.now() + Math.max(0, budgetMs);
-  let lastError: unknown;
-
-  while (Date.now() < deadline) {
-    const session = page.getSessionForFrame(childFrameId);
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    try {
-      await executionContexts.waitForLocatorWorld(
-        session,
-        childFrameId,
-        Math.min(remaining, LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS),
-      );
-      if (page.getSessionForFrame(childFrameId) === session) return;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  throw new Error(
-    `Locator world not ready for frame ${childFrameId}: exhausted ${budgetMs} ms frame-readiness budget`,
-    { cause: lastError },
+  await executionContexts.waitForLocatorWorldReady(
+    () => page.getSessionForFrame(childFrameId),
+    childFrameId,
+    operation.budget,
   );
 }

@@ -9,6 +9,7 @@ import {
 } from "../handlers/handlerUtils/actHandlerUtils.js";
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
+import { TimeoutBudget } from "../timeoutBudget.js";
 import * as actService from "../services/actService.js";
 import type { Page } from "../understudy/page.js";
 
@@ -140,6 +141,7 @@ describe("act service", () => {
       ["user@example.com"],
       logger,
       2_000,
+      undefined,
     );
     expect(result).toStrictEqual({
       data: {
@@ -334,6 +336,7 @@ describe("act service", () => {
       [],
       expect.any(StagehandLogger),
       undefined,
+      undefined,
     );
     expect(performAction).toHaveBeenNthCalledWith(
       2,
@@ -343,6 +346,7 @@ describe("act service", () => {
       "xpath=/html/body/button[2]",
       [],
       expect.any(StagehandLogger),
+      undefined,
       undefined,
     );
     expect(result.data).toMatchObject({
@@ -394,7 +398,11 @@ describe("act service", () => {
       .mockReturnValueOnce(23);
     try {
       const result = await actService.act({
-        params: { pageId: "page-1", instruction: "Choose Switzerland from the country dropdown" },
+        params: {
+          pageId: "page-1",
+          instruction: "Choose Switzerland from the country dropdown",
+          options: { timeout: 1000 },
+        },
         page,
         model: { source: "client" },
         clientLLMGenerate,
@@ -403,6 +411,8 @@ describe("act service", () => {
 
       expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
       expect(performAction).toHaveBeenCalledTimes(2);
+      expect(performAction.mock.calls[0]?.[7]).toBeInstanceOf(TimeoutBudget);
+      expect(performAction.mock.calls[1]?.[7]).toBe(performAction.mock.calls[0]?.[7]);
       expect(result.data.success).toBe(true);
       expect(result.data.actions).toHaveLength(2);
       expect(result.metadata.usage).toStrictEqual({
@@ -461,6 +471,7 @@ describe("act service", () => {
       "xpath=/html/body/button[2]",
       [],
       expect.any(StagehandLogger),
+      undefined,
       undefined,
     );
     expect(result.data).toMatchObject({
@@ -622,9 +633,114 @@ describe("act service", () => {
     expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
   });
 
+  it("does not apply the locator default to act inference", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let finish!: (value: LLMGenerateResult) => void;
+      const pending = new Promise<LLMGenerateResult>((resolve) => {
+        finish = resolve;
+      });
+      const result = actService.act({
+        params: { pageId: "page-1", instruction: "Click submit" },
+        page: actPage(
+          {},
+          vi.fn(async () => snapshot("0-12", "/html/body/button")),
+        ),
+        model: { source: "client" },
+        clientLLMGenerate: () => pending,
+        logger: testLogger(),
+      });
+      await vi.advanceTimersByTimeAsync(6000);
+      finish(
+        actGeneration({ elementId: "0-12", description: "Submit", method: "click", arguments: [] }),
+      );
+      await expect(result).resolves.toMatchObject({ data: { success: true } });
+      expect(performAction).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not dispatch an action when inference completes after the deadline", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let finish!: (value: LLMGenerateResult) => void;
+      const pending = new Promise<LLMGenerateResult>((resolve) => {
+        finish = resolve;
+      });
+      const generate = vi.fn(() => pending);
+      const page = actPage(
+        {},
+        vi.fn(async () => snapshot("0-12", "/html/body/button")),
+      );
+      const result = actService.act({
+        params: { pageId: "page-1", instruction: "Click submit", options: { timeout: 50 } },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate: generate,
+        logger: testLogger(),
+      });
+      const rejected = expect(result).rejects.toThrow("act() timed out after 50ms");
+      await vi.advanceTimersByTimeAsync(50);
+      await rejected;
+      expect(generate).toHaveBeenCalledTimes(1);
+      finish(
+        actGeneration({ elementId: "0-12", description: "Submit", method: "click", arguments: [] }),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(performAction).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not begin self-healing after an execution deadline expires", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      let fail!: (error: Error) => void;
+      performAction.mockImplementation(
+        () =>
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+      );
+      const captureSnapshot = vi.fn();
+      const generate = vi.fn();
+      const result = actService.act({
+        params: {
+          pageId: "page-1",
+          instruction: {
+            selector: "#button",
+            method: "click",
+            arguments: [],
+            description: "Click",
+          },
+          options: { timeout: 50 },
+        },
+        page: actPage({}, captureSnapshot),
+        model: { source: "client" },
+        clientLLMGenerate: generate,
+        logger: testLogger(),
+        selfHeal: true,
+      });
+      const rejected = expect(result).rejects.toThrow("50ms");
+      await vi.advanceTimersByTimeAsync(50);
+      await rejected;
+      fail(new Error("Element detached"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(performAction).toHaveBeenCalledTimes(1);
+      expect(captureSnapshot).not.toHaveBeenCalled();
+      expect(generate).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("respects the act timeout across page preparation", async () => {
     const now = vi
-      .spyOn(Date, "now")
+      .spyOn(performance, "now")
       .mockReturnValueOnce(0)
       .mockReturnValueOnce(0)
       .mockReturnValue(6);

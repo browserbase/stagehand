@@ -2,7 +2,7 @@ import { countCssMatchesPrimary, countTextMatches, countXPathMatchesMainWorld } 
 import { installCursorOverlay, moveCursorOverlay } from "./cursorOverlay.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 import { resolveCssSelector, resolveTextSelector, resolveXPathMainWorld } from "./selectors.js";
-import { waitForSelector } from "./waitForSelector.js";
+import { cancelWaitForSelector, waitForSelector } from "./waitForSelector.js";
 
 export const locatorScripts = Object.freeze({
   countCssMatchesPrimary,
@@ -15,6 +15,7 @@ export const locatorScripts = Object.freeze({
   resolveTextSelector,
   resolveXPathMainWorld,
   waitForSelector,
+  cancelWaitForSelector,
 });
 
 export type LocatorScriptName = keyof typeof locatorScripts;

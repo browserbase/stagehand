@@ -13,7 +13,7 @@ import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
 } from "../handlers/handlerUtils/actHandlerUtils.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
+import { TimeoutBudget } from "../timeoutBudget.js";
 import { resolveVariableValue } from "../handlers/handlerUtils/variables.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
@@ -41,37 +41,49 @@ type ActContext = {
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
   ensureTimeRemaining: () => void;
+  budget?: TimeoutBudget;
   gateway?: GatewayContext;
   recordUsage: (response: ActInferenceResponse) => void;
 };
 
-export async function act({
-  params,
-  page,
-  model,
-  clientLLMGenerate,
-  logger,
-  systemPrompt = "",
-  selfHeal = false,
-  domSettleTimeoutMs,
-  cache,
-  gateway,
-}: {
-  params: StagehandActParams;
-  page: Page;
-  model: ModelConfig | ClientModelReference | undefined;
-  clientLLMGenerate: ClientLlmRequest;
-  logger: StagehandLogger;
-  systemPrompt?: string;
-  selfHeal?: boolean;
-  domSettleTimeoutMs?: number;
-  cache?: cacheService.CacheContext;
-  gateway?: GatewayContext;
-}): Promise<ActResult> {
+export async function act(args: Parameters<typeof actInternal>[0]): Promise<ActResult> {
+  const timeout = args.params.options?.timeout;
+  const budget =
+    timeout && timeout > 0
+      ? new TimeoutBudget(timeout, (ms) => new TimeoutError("act()", ms))
+      : undefined;
+  return (budget ?? new TimeoutBudget()).run(() => actInternal(args, budget));
+}
+
+async function actInternal(
+  {
+    params,
+    page,
+    model,
+    clientLLMGenerate,
+    logger,
+    systemPrompt = "",
+    selfHeal = false,
+    domSettleTimeoutMs,
+    cache,
+    gateway,
+  }: {
+    params: StagehandActParams;
+    page: Page;
+    model: ModelConfig | ClientModelReference | undefined;
+    clientLLMGenerate: ClientLlmRequest;
+    logger: StagehandLogger;
+    systemPrompt?: string;
+    selfHeal?: boolean;
+    domSettleTimeoutMs?: number;
+    cache?: cacheService.CacheContext;
+    gateway?: GatewayContext;
+  },
+  budget?: TimeoutBudget,
+): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
-  const timeout = options?.timeout;
-  const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
+  const ensureTimeRemaining = () => budget?.throwIfExpired();
   let operationUsage = zeroStagehandResultUsage();
   const recordUsage = (response: ActInferenceResponse): void => {
     operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
@@ -85,6 +97,7 @@ export async function act({
     selfHeal,
     domSettleTimeoutMs,
     ensureTimeRemaining,
+    budget,
     gateway,
     recordUsage,
   };
@@ -138,6 +151,7 @@ export async function act({
   });
 
   async function runActPipeline(): Promise<ActResult> {
+    ensureTimeRemaining();
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot(snapshotOptions);
 
     const actPrompt = buildActPrompt(
@@ -277,6 +291,7 @@ async function getActionFromLLM({
   xpathMap: Record<string, string>;
   context: ActContext;
 }): Promise<{ action?: Action; response: ActInferenceResponse }> {
+  context.ensureTimeRemaining();
   const response = await inference.act({
     instruction,
     domElements,
@@ -284,6 +299,7 @@ async function getActionFromLLM({
       llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
     userProvidedInstructions: context.systemPrompt,
   });
+  context.ensureTimeRemaining();
   context.recordUsage(response);
 
   context.logger.info("Act inference completed", {
@@ -338,9 +354,12 @@ async function takeDeterministicAction({
       resolvedArgs,
       context.logger,
       context.domSettleTimeoutMs,
+      context.budget,
     );
+    context.ensureTimeRemaining();
     return successfulActionResult(action, method, action.selector, placeholderArgs);
   } catch (error) {
+    context.ensureTimeRemaining();
     if (error instanceof TimeoutError) throw error;
     const message = error instanceof Error ? error.message : String(error);
 
@@ -416,9 +435,12 @@ async function selfHealAction({
       resolvedArgs,
       context.logger,
       context.domSettleTimeoutMs,
+      context.budget,
     );
+    context.ensureTimeRemaining();
     return successfulActionResult(action, method, selector, placeholderArgs);
   } catch (error) {
+    context.ensureTimeRemaining();
     if (error instanceof TimeoutError) throw error;
     const message = error instanceof Error ? error.message : String(error);
     return {

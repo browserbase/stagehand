@@ -1,4 +1,7 @@
 // lib/v3/understudy/locator.ts
+import { TimeoutBudget } from "../timeoutBudget.js";
+import { sendCdpCommand, type LocatorOperation } from "./locatorOperation.js";
+import type { CDPSessionLike } from "./cdp.js";
 import { Protocol } from "devtools-protocol";
 import {
   assignFilePayloadsToInputElement,
@@ -57,8 +60,9 @@ export class Locator {
     readonly selector: string,
     readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
+    readonly operation?: LocatorOperation,
   ) {
-    this.selectorResolver = new FrameSelectorResolver(this.frame);
+    this.selectorResolver = new FrameSelectorResolver(this.frame, operation);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
     const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
     this.nthIndex = normalized < 0 ? -1 : normalized;
@@ -69,6 +73,17 @@ export class Locator {
     return this.frame;
   }
 
+  private send<R = unknown>(session: CDPSessionLike, method: string, params?: object): Promise<R> {
+    return sendCdpCommand(session, this.operation?.budget, method, params);
+  }
+
+  private async prepareForResolution(): Promise<void> {
+    const session = this.frame.session;
+    const budget = this.operation?.budget;
+    await sendCdpCommand(session, budget, "Runtime.enable");
+    await sendCdpCommand(session, budget, "DOM.enable");
+  }
+
   /**
    * Set files on an <input type="file"> element.
    *
@@ -77,12 +92,13 @@ export class Locator {
    * - Passing an empty array clears the selection.
    */
   public async setInputFiles(files: SetInputFilesArgument): Promise<void> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
 
     try {
       // Validate element is an <input type="file">
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -102,7 +118,7 @@ export class Locator {
 
       await this.assignFilesViaPayloadInjection(objectId, normalized);
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -128,7 +144,8 @@ export class Locator {
       base64: bytesToBase64(payload.bytes),
     }));
 
-    const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+    const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+      session,
       "Runtime.callFunctionOn",
       {
         objectId,
@@ -153,24 +170,22 @@ export class Locator {
    * Useful for identity comparisons without needing element handles.
    */
   async backendNodeId(): Promise<Protocol.DOM.BackendNodeId> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      await session.send("DOM.enable").catch(() => {});
-      const { node } = await session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
+      await this.send(session, "DOM.enable").catch(() => {});
+      const { node } = await this.send<{ node: Protocol.DOM.Node }>(session, "DOM.describeNode", {
         objectId,
       });
       return node.backendNodeId as Protocol.DOM.BackendNodeId;
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
   /** Return how many nodes the current selector resolves to. */
   public async count(): Promise<number> {
-    const session = this.frame.session;
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
+    await this.prepareForResolution();
     return this.selectorResolver.count(this.selectorQuery);
   }
 
@@ -179,18 +194,18 @@ export class Locator {
    * (CSS pixels), rounded to integers. Scrolls into view best-effort.
    */
   public async centroid(): Promise<{ x: number; y: number }> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
+      await this.send(session, "DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
+      const box = await this.send<Protocol.DOM.GetBoxModelResponse>(session, "DOM.getBoxModel", {
         objectId,
       });
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -204,22 +219,22 @@ export class Locator {
     borderColor?: { r: number; g: number; b: number; a?: number };
     contentColor?: { r: number; g: number; b: number; a?: number };
   }): Promise<void> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     const duration = Math.max(0, options?.durationMs ?? 800);
 
     const borderColor = options?.borderColor ?? { r: 255, g: 0, b: 0, a: 0.9 };
     const contentColor = options?.contentColor ?? ({ r: 255, g: 200, b: 0, a: 0.2 } as const);
 
     try {
-      await session.send("Overlay.enable").catch(() => {});
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
+      await this.send(session, "Overlay.enable").catch(() => {});
+      await this.send(session, "DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
 
       // Prefer backendNodeId to keep highlight stable even if objectId is released.
-      await session.send("DOM.enable").catch(() => {});
+      await this.send(session, "DOM.enable").catch(() => {});
       let backendNodeId: Protocol.DOM.BackendNodeId | undefined;
       try {
-        const { node } = await session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
+        const { node } = await this.send<{ node: Protocol.DOM.Node }>(session, "DOM.describeNode", {
           objectId,
         });
         backendNodeId = node.backendNodeId as Protocol.DOM.BackendNodeId;
@@ -237,7 +252,7 @@ export class Locator {
       } as Protocol.Overlay.HighlightConfig;
 
       const highlightOnce = async () => {
-        await session.send<never>("Overlay.highlightNode", {
+        await this.send<never>(session, "Overlay.highlightNode", {
           ...(backendNodeId ? { backendNodeId } : { objectId }),
           highlightConfig,
         });
@@ -258,11 +273,11 @@ export class Locator {
             // ignore transient errors
           }
         }
-        await session.send<never>("Overlay.hideHighlight").catch(() => {});
+        await this.send<never>(session, "Overlay.hideHighlight").catch(() => {});
       }
     } finally {
       // Releasing objectId should not affect highlight when using backendNodeId.
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -271,25 +286,25 @@ export class Locator {
    * - Scrolls into view best-effort, resolves geometry, then dispatches a mouse move.
    */
   async hover(): Promise<void> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
+      await this.send(session, "DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
 
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
+      const box = await this.send<Protocol.DOM.GetBoxModelResponse>(session, "DOM.getBoxModel", {
         objectId,
       });
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      await session.send<never>("Input.dispatchMouseEvent", {
+      await this.send<never>(session, "Input.dispatchMouseEvent", {
         type: "mouseMoved",
         x: cx,
         y: cy,
         button: "none",
       } as Protocol.Input.DispatchMouseEventRequest);
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -302,18 +317,18 @@ export class Locator {
    *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
   async click(options?: { button?: MouseButton; clickCount?: number }): Promise<void> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
 
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
     try {
       // Scroll into view using objectId (avoids frontend nodeId dependence)
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId });
+      await this.send(session, "DOM.scrollIntoViewIfNeeded", { objectId });
 
       // Get geometry using objectId
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
+      const box = await this.send<Protocol.DOM.GetBoxModelResponse>(session, "DOM.getBoxModel", {
         objectId,
       });
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
@@ -323,7 +338,7 @@ export class Locator {
       // from network/CPU jitter between round trips.
       const dispatches: Array<Promise<unknown>> = [];
       dispatches.push(
-        session.send<never>("Input.dispatchMouseEvent", {
+        this.send<never>(session, "Input.dispatchMouseEvent", {
           type: "mouseMoved",
           x: cx,
           y: cy,
@@ -333,7 +348,7 @@ export class Locator {
 
       for (let i = 1; i <= clickCount; i++) {
         dispatches.push(
-          session.send<never>("Input.dispatchMouseEvent", {
+          this.send<never>(session, "Input.dispatchMouseEvent", {
             type: "mousePressed",
             x: cx,
             y: cy,
@@ -342,7 +357,7 @@ export class Locator {
           } as Protocol.Input.DispatchMouseEventRequest),
         );
         dispatches.push(
-          session.send<never>("Input.dispatchMouseEvent", {
+          this.send<never>(session, "Input.dispatchMouseEvent", {
             type: "mouseReleased",
             x: cx,
             y: cy,
@@ -355,7 +370,7 @@ export class Locator {
     } finally {
       // release the element handle
       try {
-        await session.send<never>("Runtime.releaseObject", { objectId });
+        await this.send<never>(session, "Runtime.releaseObject", { objectId });
       } catch {
         // If the context navigated or was destroyed (e.g., link opens new tab),
         // releaseObject may fail with -32000. Ignore as best-effort cleanup.
@@ -374,15 +389,15 @@ export class Locator {
     composed?: boolean;
     detail?: number;
   }): Promise<void> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     const bubbles = options?.bubbles ?? true;
     const cancelable = options?.cancelable ?? true;
     const composed = options?.composed ?? true;
     const detail = options?.detail ?? 1;
     try {
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+      await this.send(session, "DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
+      await this.send<Protocol.Runtime.CallFunctionOnResponse>(session, "Runtime.callFunctionOn", {
         objectId,
         functionDeclaration: dispatchDomClick.toString(),
         arguments: [
@@ -393,7 +408,7 @@ export class Locator {
         returnByValue: true,
       });
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -403,17 +418,17 @@ export class Locator {
    * - Otherwise, scrolls the element itself via element.scrollTo.
    */
   async scrollTo(percent: number | string): Promise<void> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+      await this.send<Protocol.Runtime.CallFunctionOnResponse>(session, "Runtime.callFunctionOn", {
         objectId,
         functionDeclaration: scrollElementToPercent.toString(),
         arguments: [{ value: percent as unknown as number }],
         returnByValue: true,
       });
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -424,13 +439,14 @@ export class Locator {
    * Input domain after focusing/selecting.
    */
   async fill(value: string): Promise<void> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
 
     let releaseNeeded = true;
 
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -460,7 +476,7 @@ export class Locator {
 
       if (status === "needsinput") {
         // Release the current handle before synthesizing keyboard input to avoid leaking it.
-        await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+        await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
         releaseNeeded = false;
 
         const valueToType = typeof result?.value === "string" ? result.value : value;
@@ -469,7 +485,8 @@ export class Locator {
         try {
           const { objectId: prepObjectId } = await this.resolveNode();
           try {
-            const prepRes = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+            const prepRes = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+              session,
               "Runtime.callFunctionOn",
               {
                 objectId: prepObjectId,
@@ -479,9 +496,9 @@ export class Locator {
             );
             prepared = Boolean(prepRes.result.value);
           } finally {
-            await session
-              .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
-              .catch(() => {});
+            await this.send<never>(session, "Runtime.releaseObject", {
+              objectId: prepObjectId,
+            }).catch(() => {});
           }
         } catch {
           // Ignore preparation failures; we'll fall back to typing best-effort.
@@ -494,14 +511,14 @@ export class Locator {
 
         if (valueToType.length === 0) {
           // Simulate deleting the currently selected text to clear the field.
-          await session.send<never>("Input.dispatchKeyEvent", {
+          await this.send<never>(session, "Input.dispatchKeyEvent", {
             type: "keyDown",
             key: "Backspace",
             code: "Backspace",
             windowsVirtualKeyCode: 8,
             nativeVirtualKeyCode: 8,
           } as Protocol.Input.DispatchKeyEventRequest);
-          await session.send<never>("Input.dispatchKeyEvent", {
+          await this.send<never>(session, "Input.dispatchKeyEvent", {
             type: "keyUp",
             key: "Backspace",
             code: "Backspace",
@@ -509,7 +526,7 @@ export class Locator {
             nativeVirtualKeyCode: 8,
           } as Protocol.Input.DispatchKeyEventRequest);
         } else {
-          await session.send<never>("Input.insertText", { text: valueToType });
+          await this.send<never>(session, "Input.insertText", { text: valueToType });
         }
 
         return;
@@ -529,7 +546,7 @@ export class Locator {
       }
     } finally {
       if (releaseNeeded) {
-        await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+        await this.send<never>(session, "Runtime.releaseObject", { objectId }).catch(() => {});
       }
     }
   }
@@ -541,39 +558,40 @@ export class Locator {
    * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
   async type(text: string, options?: { delay?: number }): Promise<void> {
-    const session = this.frame.session;
+    const budget = this.operation?.budget ?? new TimeoutBudget();
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
 
     try {
       // Focus using JS (avoids DOM.focus(nodeId))
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+      await this.send<Protocol.Runtime.CallFunctionOnResponse>(session, "Runtime.callFunctionOn", {
         objectId,
         functionDeclaration: focusElement.toString(),
         returnByValue: true,
       });
 
       if (!options?.delay) {
-        await session.send<never>("Input.insertText", { text });
+        await this.send<never>(session, "Input.insertText", { text });
         return;
       }
 
       for (const ch of text) {
-        await session.send<never>("Input.dispatchKeyEvent", {
+        await this.send<never>(session, "Input.dispatchKeyEvent", {
           type: "keyDown",
           text: ch,
           key: ch,
         } as Protocol.Input.DispatchKeyEventRequest);
 
-        await session.send<never>("Input.dispatchKeyEvent", {
+        await this.send<never>(session, "Input.dispatchKeyEvent", {
           type: "keyUp",
           text: ch,
           key: ch,
         } as Protocol.Input.DispatchKeyEventRequest);
 
-        await new Promise((r) => setTimeout(r, options.delay));
+        await budget.wait(options.delay);
       }
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -587,7 +605,8 @@ export class Locator {
     const { objectId } = await this.resolveNode();
 
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -599,7 +618,7 @@ export class Locator {
 
       return (res.result.value as string[]) ?? [];
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -607,10 +626,11 @@ export class Locator {
    * Return true if the element is attached and visible (rough heuristic).
    */
   async isVisible(): Promise<boolean> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -620,7 +640,7 @@ export class Locator {
       );
       return Boolean(res.result.value);
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -629,10 +649,11 @@ export class Locator {
    * Also considers aria-checked for ARIA widgets.
    */
   async isChecked(): Promise<boolean> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -642,7 +663,7 @@ export class Locator {
       );
       return Boolean(res.result.value);
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -650,10 +671,11 @@ export class Locator {
    * Return the element's input value (for input/textarea/select/contenteditable).
    */
   async inputValue(): Promise<string> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -663,7 +685,7 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -671,10 +693,11 @@ export class Locator {
    * Return the element's textContent (raw, not innerText).
    */
   async textContent(): Promise<string> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -684,7 +707,7 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -692,10 +715,11 @@ export class Locator {
    * Return the element's innerHTML string.
    */
   async innerHtml(): Promise<string> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -705,7 +729,7 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -713,10 +737,11 @@ export class Locator {
    * Return the element's innerText (layout-aware, visible text).
    */
   async innerText(): Promise<string> {
-    const session = this.frame.session;
     const { objectId } = await this.resolveNode();
+    const session = this.frame.session;
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      const res = await this.send<Protocol.Runtime.CallFunctionOnResponse>(
+        session,
         "Runtime.callFunctionOn",
         {
           objectId,
@@ -726,7 +751,7 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      await this.send<never>(session, "Runtime.releaseObject", { objectId });
     }
   }
 
@@ -749,7 +774,7 @@ export class Locator {
       return this;
     }
 
-    return new Locator(this.frame, this.selector, this.options, nextIndex);
+    return new Locator(this.frame, this.selector, this.options, nextIndex, this.operation);
   }
 
   // ---------- helpers ----------
@@ -762,10 +787,7 @@ export class Locator {
     nodeId: Protocol.DOM.NodeId | null;
     objectId: Protocol.Runtime.RemoteObjectId;
   }> {
-    const session = this.frame.session;
-
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
+    await this.prepareForResolution();
 
     const index = this.nthIndex < 0 ? 0 : this.nthIndex;
     const resolved = await this.selectorResolver.resolveAtIndex(this.selectorQuery, index);
@@ -786,10 +808,7 @@ export class Locator {
       objectId: Protocol.Runtime.RemoteObjectId;
     }>
   > {
-    const session = this.frame.session;
-
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
+    await this.prepareForResolution();
 
     if (this.nthIndex >= 0) {
       const resolved = await this.selectorResolver.resolveAtIndex(

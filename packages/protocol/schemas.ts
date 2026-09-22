@@ -1979,6 +1979,9 @@ export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
     .optional(),
 }).meta({ id: "PageWaitForSelectorParams" });
 
+/** Default overall timeout for a locator operation, in milliseconds. */
+export const DEFAULT_LOCATOR_TIMEOUT_MS = 5_000;
+
 export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
   options: z
     .strictObject({

@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { TimeoutBudget } from "../timeoutBudget.js";
 import type { CDPSessionLike } from "../understudy/cdp.js";
 import { ExecutionContextRegistry } from "../understudy/executionContextRegistry.js";
 
@@ -87,6 +88,91 @@ const contextCreated = (
   }) as Protocol.Runtime.ExecutionContextCreatedEvent;
 
 describe("ExecutionContextRegistry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("bounds a stalled Runtime.enable by the caller deadline", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const session = new FakeSession();
+    vi.spyOn(session, "send").mockImplementation(() => new Promise(() => {}));
+    const registry = new ExecutionContextRegistry();
+    const result = registry.waitForLocatorWorld(session, "frame-a", 1000, new TimeoutBudget(50));
+    const rejected = expect(result).rejects.toThrow("50ms");
+    await vi.advanceTimersByTimeAsync(50);
+    await rejected;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("cleans up main-world event listeners when the caller expires", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    const session = new FakeSession();
+    const registry = new ExecutionContextRegistry();
+    const result = registry.waitForMainWorld(session, "frame-a", 800, new TimeoutBudget(50));
+    const rejected = expect(result).rejects.toThrow("50ms");
+    await vi.advanceTimersByTimeAsync(50);
+    await rejected;
+    expect(session.handlers.get("Runtime.executionContextCreated")?.size).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each([false, true])(
+    "protects shared fallback setup with a surviving caller: %s",
+    async (survives) => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+      const session = new FakeSession();
+      session.protocol = "data:";
+      const registry = new ExecutionContextRegistry();
+      registry.attachSession(session);
+      registry.register(session, "frame-a", 1);
+      registry.setFallbackInstallerSource(session, "install locator runtime");
+      let finish!: (value: unknown) => void;
+      const pending = new Promise((resolve) => {
+        finish = resolve;
+      });
+      const original = session.send.bind(session);
+      const send = vi
+        .spyOn(session, "send")
+        .mockImplementation((method, params) =>
+          method === "Page.createIsolatedWorld" ? pending : original(method, params),
+        );
+      const short = registry.waitForLocatorWorld(session, "frame-a", 1, new TimeoutBudget(100));
+      const rejected = expect(short).rejects.toThrow("100ms");
+      const long = survives
+        ? registry.waitForLocatorWorld(session, "frame-a", 1, new TimeoutBudget(1000))
+        : undefined;
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      finish({ executionContextId: 11 });
+      await vi.advanceTimersByTimeAsync(0);
+      if (long) {
+        await expect(long).resolves.toMatchObject({ contextId: 11 });
+        expect(registry.getFallbackWorld(session, "frame-a")).toBe(11);
+      } else {
+        expect(session.fallbackInstalled).toBe(false);
+        expect(registry.getFallbackWorld(session, "frame-a")).toBeNull();
+      }
+      expect(
+        send.mock.calls.filter(([method]) => method === "Page.createIsolatedWorld"),
+      ).toHaveLength(1);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it("does not retry confirmed session closure", async () => {
+    const session = new FakeSession();
+    const send = vi.spyOn(session, "send").mockRejectedValue(new Error("CDP connection closed"));
+    await expect(
+      new ExecutionContextRegistry().waitForLocatorWorldReady(
+        () => session,
+        "frame-a",
+        new TimeoutBudget(15000),
+      ),
+    ).rejects.toThrow("CDP connection closed");
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   it("selects only the isolated context with the Stagehand marker and chrome.dom", async () => {
     const registry = new ExecutionContextRegistry();
     const session = new FakeSession();

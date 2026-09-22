@@ -95,6 +95,85 @@ describe("iframe locator readiness", () => {
     );
   });
 
+  it.each([
+    { oopif: false, directClick: false },
+    { oopif: true, directClick: false },
+    { oopif: false, directClick: true },
+    { oopif: true, directClick: true },
+  ])(
+    "four-second child load (OOPIF: $oopif, default locator timeout: $directClick)",
+    async ({ oopif, directClick }) => {
+      const gate = createChildResponseGate();
+      const fixture = await createDelayedIframeFixture({
+        childDelayMs: 4000,
+        childResponseGate: gate.ready,
+        childSrc: (child) =>
+          oopif
+            ? new URL("/child", child.url.replace("127.0.0.1", "child.test")).href
+            : new URL("/child", child.url).href,
+        parentGotoUrl: (parent) =>
+          oopif ? parent.url.replace("127.0.0.1", "parent.test") : parent.url,
+      });
+      fixtures.push(fixture);
+      const stagehand = await createStagehand(
+        oopif
+          ? {
+              browser: {
+                args: [
+                  "--host-resolver-rules=MAP parent.test 127.0.0.1,MAP child.test 127.0.0.1",
+                  "--site-per-process",
+                ],
+              },
+            }
+          : undefined,
+      );
+      stagehands.push(stagehand);
+      const page = await firstPage(stagehand);
+      await page.goto(fixture.parentGotoUrl, { waitUntil: "domcontentloaded" });
+      await waitForIframeElement(page);
+      const waiting = directClick
+        ? page.locator(XPATH_INNER).click()
+        : page.waitForSelector(XPATH_INNER, { timeout: 8000 });
+      gate.release();
+      await waiting;
+      if (!directClick) await page.locator(XPATH_INNER).click();
+      await expect.poll(fixture.clickCount).toBe(1);
+    },
+  );
+
+  it("short act and selector deadlines expire during readiness without a late click", async () => {
+    const gate = createChildResponseGate();
+    const fixture = await createDelayedIframeFixture({
+      childDelayMs: 0,
+      childResponseGate: gate.ready,
+      childSrc: (child) => new URL("/child", child.url).href,
+      parentGotoUrl: (parent) => parent.url,
+    });
+    fixtures.push(fixture);
+    const stagehand = await createStagehand();
+    stagehands.push(stagehand);
+    const page = await firstPage(stagehand);
+    await page.goto(fixture.parentGotoUrl, { waitUntil: "domcontentloaded" });
+    await waitForIframeElement(page);
+    try {
+      const started = Date.now();
+      await expect(page.waitForSelector(XPATH_INNER, { timeout: 250 })).rejects.toThrow(/250ms/);
+      await expect(
+        stagehand.act(
+          { selector: XPATH_INNER, method: "click", arguments: [], description: "click child" },
+          { timeout: 250 },
+        ),
+      ).rejects.toThrow(/250ms/);
+      expect(Date.now() - started).toBeLessThan(2000);
+    } finally {
+      gate.release();
+    }
+    await page.waitForSelector(XPATH_INNER, { timeout: 5000 });
+    // Readiness completing later must not resume either expired operation.
+    await page.waitForTimeout(200);
+    expect(fixture.clickCount()).toBe(0);
+  });
+
   it("same-process trailing iframe XPath clicks without waiting for the child document", async () => {
     const fixture = await createDelayedIframeFixture({
       childDelayMs: HOST_CHILD_DELAY_MS,

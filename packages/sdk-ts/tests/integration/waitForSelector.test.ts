@@ -181,7 +181,7 @@ describe("Page.waitForSelector tests", () => {
       }
 
       expect(error).not.toBeNull();
-      expect(error?.message).toContain("Timeout");
+      expect(error?.message).toMatch(/Timeout|timed out/);
       expect(error?.message).toContain("#nonexistent");
     });
 
@@ -271,7 +271,7 @@ describe("Page.waitForSelector tests", () => {
       }
 
       expect(error).not.toBeNull();
-      expect(error?.message).toContain("Timeout");
+      expect(error?.message).toMatch(/Timeout|timed out/);
     });
 
     it("finds element in nested open shadow DOM", async () => {

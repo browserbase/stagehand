@@ -1,3 +1,4 @@
+import { LocatorOperation } from "./locatorOperation.js";
 import { Locator } from "./locator.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
@@ -54,9 +55,10 @@ export async function deepLocatorThroughIframes(
   page: Page,
   root: Frame,
   xpathOrSelector: string,
+  operation = new LocatorOperation(),
 ): Promise<Locator> {
-  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector);
-  return new Locator(target.frame, target.selector);
+  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector, operation);
+  return new Locator(target.frame, target.selector, undefined, -1, operation);
 }
 
 /**
@@ -67,6 +69,7 @@ export async function resolveLocatorTarget(
   page: Page,
   root: Frame,
   selectorRaw: string,
+  operation = new LocatorOperation(),
 ): Promise<ResolvedLocatorTarget> {
   const sel = selectorRaw.trim();
   const parts = sel
@@ -80,14 +83,14 @@ export async function resolveLocatorTarget(
     for (let i = 1; i < parts.length - 1; i++) {
       fl = fl.frameLocator(parts[i]!);
     }
-    const targetFrame = await fl.resolveFrame();
+    const targetFrame = await fl.resolveFrame(operation);
     return { frame: targetFrame, selector: parts[parts.length - 1]! };
   }
 
   // No hops — delegate to XPath-aware deep resolver when needed
   const isXPath = sel.startsWith("xpath=") || sel.startsWith("/");
   if (isXPath) {
-    return resolveDeepXPathTarget(page, root, sel);
+    return resolveDeepXPathTarget(page, root, sel, operation);
   }
   return { frame: root, selector: sel };
 }
@@ -96,9 +99,10 @@ export async function resolveLocatorWithHops(
   page: Page,
   root: Frame,
   selectorRaw: string,
+  operation = new LocatorOperation(),
 ): Promise<Locator> {
-  const target = await resolveLocatorTarget(page, root, selectorRaw);
-  return new Locator(target.frame, target.selector);
+  const target = await resolveLocatorTarget(page, root, selectorRaw, operation);
+  return new Locator(target.frame, target.selector, undefined, -1, operation);
 }
 
 /**
@@ -118,63 +122,68 @@ export class DeepLocatorDelegate {
     readonly nthIndex: number = -1,
   ) {}
 
-  async real(): Promise<Locator> {
-    const base = await resolveLocatorWithHops(this.page, this.root, this.selector);
+  async real(operation = new LocatorOperation()): Promise<Locator> {
+    const base = await resolveLocatorWithHops(this.page, this.root, this.selector, operation);
     return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
+  }
+
+  private perform<T>(action: (locator: Locator) => Promise<T>): Promise<T> {
+    const operation = new LocatorOperation();
+    return operation.run(async () => action(await this.real(operation)));
   }
 
   // Locator API delegates
   async click(options?: { button?: MouseButton; clickCount?: number }) {
-    return (await this.real()).click(options);
+    return this.perform((locator) => locator.click(options));
   }
   async count() {
-    return (await this.real()).count();
+    return this.perform((locator) => locator.count());
   }
   async hover() {
-    return (await this.real()).hover();
+    return this.perform((locator) => locator.hover());
   }
   async fill(value: string) {
-    return (await this.real()).fill(value);
+    return this.perform((locator) => locator.fill(value));
   }
   async type(text: string, options?: { delay?: number }) {
-    return (await this.real()).type(text, options);
+    return this.perform((locator) => locator.type(text, options));
   }
   async selectOption(values: string | string[]) {
-    return (await this.real()).selectOption(values);
+    return this.perform((locator) => locator.selectOption(values));
   }
   async scrollTo(percent: number | string) {
-    return (await this.real()).scrollTo(percent);
+    return this.perform((locator) => locator.scrollTo(percent));
   }
   async isVisible() {
-    return (await this.real()).isVisible();
+    return this.perform((locator) => locator.isVisible());
   }
   async isChecked() {
-    return (await this.real()).isChecked();
+    return this.perform((locator) => locator.isChecked());
   }
   async inputValue() {
-    return (await this.real()).inputValue();
+    return this.perform((locator) => locator.inputValue());
   }
   async textContent() {
-    return (await this.real()).textContent();
+    return this.perform((locator) => locator.textContent());
   }
   async innerHtml() {
-    return (await this.real()).innerHtml();
+    return this.perform((locator) => locator.innerHtml());
   }
   async innerText() {
-    return (await this.real()).innerText();
+    return this.perform((locator) => locator.innerText());
   }
   async centroid() {
-    return (await this.real()).centroid();
+    return this.perform((locator) => locator.centroid());
   }
   async backendNodeId() {
-    return (await this.real()).backendNodeId();
+    return this.perform((locator) => locator.backendNodeId());
   }
   async highlight(options?: {
     durationMs?: number;
     borderColor?: { r: number; g: number; b: number; a?: number };
     contentColor?: { r: number; g: number; b: number; a?: number };
   }) {
-    return (await this.real()).highlight(options);
+    return this.perform((locator) => locator.highlight(options));
   }
   async sendClickEvent(options?: {
     bubbles?: boolean;
@@ -182,10 +191,10 @@ export class DeepLocatorDelegate {
     composed?: boolean;
     detail?: number;
   }) {
-    return (await this.real()).sendClickEvent(options);
+    return this.perform((locator) => locator.sendClickEvent(options));
   }
   async setInputFiles(files: SetInputFilesArgument) {
-    return (await this.real()).setInputFiles(files);
+    return this.perform((locator) => locator.setInputFiles(files));
   }
   first() {
     return this.nth(0);
@@ -249,12 +258,13 @@ async function resolveDeepXPathTarget(
   page: Page,
   root: Frame,
   xpathOrSelector: string,
+  operation: LocatorOperation,
 ): Promise<ResolvedLocatorTarget> {
   const plan = planDeepXPathTarget(xpathOrSelector);
   let fl: FrameLocator | undefined;
   for (const hop of plan.frameHopSelectors) {
     fl = fl ? fl.frameLocator(hop) : frameLocatorFromFrame(page, root, hop);
   }
-  const targetFrame = fl ? await fl.resolveFrame() : root;
+  const targetFrame = fl ? await fl.resolveFrame(operation) : root;
   return { frame: targetFrame, selector: plan.finalSelector };
 }

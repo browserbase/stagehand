@@ -1,3 +1,6 @@
+import { TimeoutBudget } from "../timeoutBudget.js";
+import { TimeoutError } from "../errors.js";
+import { LocatorOperation } from "./locatorOperation.js";
 import { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike } from "./cdp.js";
@@ -308,11 +311,12 @@ export class Page {
     this.cursorEnabled = true;
   }
 
-  async updateCursor(x: number, y: number): Promise<void> {
+  async updateCursor(x: number, y: number, operation?: LocatorOperation): Promise<void> {
     if (!this.cursorEnabled) return;
     try {
       await this.mainFrameWrapper.evaluateInLocatorWorld(
         `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        operation,
       );
     } catch {
       //
@@ -1716,25 +1720,37 @@ export class Page {
     },
   ): Promise<boolean> {
     const timeout = options?.timeout ?? 30000;
+    const budget = new TimeoutBudget(
+      timeout,
+      (ms) => new TimeoutError(`waitForSelector(${JSON.stringify(selector)})`, ms),
+    );
+    const operation = new LocatorOperation(budget);
     const state = options?.state ?? "visible";
     const pierceShadow = options?.pierceShadow ?? true;
-    const startTime = Date.now();
-    const root = this.mainFrameWrapper;
-    const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
-      this,
-      root,
-      selector,
-    );
-    const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(0, timeout - elapsed);
-
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluateInLocatorWorld(expression);
+    const waitId = crypto.randomUUID();
+    return budget.run(async () => {
+      const { frame, selector: finalSelector } = await resolveLocatorTarget(
+        this,
+        this.mainFrameWrapper,
+        selector,
+        operation,
+      );
+      const expression = () => {
+        budget.throwIfExpired();
+        return buildLocatorInvocation("waitForSelector", [
+          JSON.stringify(finalSelector),
+          JSON.stringify(state),
+          String(budget.remainingMs() ?? 0),
+          String(pierceShadow),
+          JSON.stringify(waitId),
+        ]);
+      };
+      return frame.evaluateInLocatorWorld<boolean>(
+        expression,
+        operation,
+        buildLocatorInvocation("cancelWaitForSelector", [JSON.stringify(waitId)]),
+      );
+    });
   }
 
   /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
@@ -1893,9 +1909,16 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
   }
-  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
-    await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    operation?: LocatorOperation,
+  ): Promise<void> {
+    const context = operation ?? new LocatorOperation(new TimeoutBudget());
+    await this.updateCursor(x, y, operation);
+    await context.send<never>(this.mainSession, "Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x,
       y,
@@ -1903,7 +1926,7 @@ export class Page {
     } as Protocol.Input.DispatchMouseEventRequest);
 
     // Synthesize a simple mouse move + press + release sequence
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+    await context.send<never>(this.mainSession, "Input.dispatchMouseEvent", {
       type: "mouseWheel",
       x,
       y,
@@ -1928,12 +1951,14 @@ export class Page {
       delay?: number;
       route?: Array<{ x: number; y: number }>;
     },
+    operation?: LocatorOperation,
   ): Promise<void> {
+    const context = operation ?? new LocatorOperation(new TimeoutBudget());
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
 
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) => context.wait(ms);
 
     const buttonMask = (b: typeof button): number => {
       switch (b) {
@@ -1949,8 +1974,8 @@ export class Page {
     };
 
     // Move to start
-    await this.updateCursor(fromX, fromY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+    await this.updateCursor(fromX, fromY, operation);
+    await context.send<never>(this.mainSession, "Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x: fromX,
       y: fromY,
@@ -1958,7 +1983,7 @@ export class Page {
     } as Protocol.Input.DispatchMouseEventRequest);
 
     // Press
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+    await context.send<never>(this.mainSession, "Input.dispatchMouseEvent", {
       type: "mousePressed",
       x: fromX,
       y: fromY,
@@ -1987,8 +2012,8 @@ export class Page {
           });
 
     for (const { x, y } of movementPoints) {
-      await this.updateCursor(x, y);
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      await this.updateCursor(x, y, operation);
+      await context.send<never>(this.mainSession, "Input.dispatchMouseEvent", {
         type: "mouseMoved",
         x,
         y,
@@ -1999,8 +2024,8 @@ export class Page {
     }
 
     // Release at end
-    await this.updateCursor(toX, toY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+    await this.updateCursor(toX, toY, operation);
+    await context.send<never>(this.mainSession, "Input.dispatchMouseEvent", {
       type: "mouseReleased",
       x: toX,
       y: toY,
@@ -2138,9 +2163,14 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
-  async keyPress(key: string, options?: { delay?: number }): Promise<void> {
+  async keyPress(
+    key: string,
+    options?: { delay?: number },
+    operation?: LocatorOperation,
+  ): Promise<void> {
+    const context = operation ?? new LocatorOperation(new TimeoutBudget());
     const delay = Math.max(0, options?.delay ?? 0);
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) => context.wait(ms);
 
     // Split key combination by + but handle the special case of "+" key itself
     function split(keyString: string): string[] {
@@ -2171,15 +2201,15 @@ export class Page {
 
     try {
       for (const modKey of modifierKeys) {
-        await this.keyDown(modKey);
+        await this.keyDown(modKey, operation);
       }
 
-      await this.keyDown(mainKey);
+      await this.keyDown(mainKey, operation);
       if (delay) await sleep(delay);
-      await this.keyUp(mainKey);
+      await this.keyUp(mainKey, operation);
 
       for (let i = modifierKeys.length - 1; i >= 0; i--) {
-        await this.keyUp(modifierKeys[i]);
+        await this.keyUp(modifierKeys[i], operation);
       }
     } catch (error) {
       // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
@@ -2208,7 +2238,8 @@ export class Page {
   _pressedModifiers = new Set<string>();
 
   /** Press a key down without releasing it */
-  async keyDown(key: string): Promise<void> {
+  async keyDown(key: string, operation?: LocatorOperation): Promise<void> {
+    const context = operation ?? new LocatorOperation(new TimeoutBudget());
     const normalizedKey = this.normalizeModifierKey(key);
 
     const modifierKeys = ["Alt", "Control", "Meta", "Shift"];
@@ -2241,10 +2272,10 @@ export class Page {
           ...(typeof desc.vk === "number" ? { windowsVirtualKeyCode: desc.vk } : {}),
           ...(macCommands.length ? { commands: macCommands } : {}),
         } as Protocol.Input.DispatchKeyEventRequest;
-        await this.mainSession.send("Input.dispatchKeyEvent", req);
+        await context.send(this.mainSession, "Input.dispatchKeyEvent", req);
       } else {
         // Typing path (no non-Shift modifiers): send text to generate input
-        await this.mainSession.send("Input.dispatchKeyEvent", {
+        await context.send(this.mainSession, "Input.dispatchKeyEvent", {
           type: "keyDown",
           text: normalizedKey,
           unmodifiedText: normalizedKey,
@@ -2272,12 +2303,12 @@ export class Page {
           : {}),
         ...(macCommands.length ? { commands: macCommands } : {}),
       } as Protocol.Input.DispatchKeyEventRequest;
-      await this.mainSession.send("Input.dispatchKeyEvent", keyDown);
+      await context.send(this.mainSession, "Input.dispatchKeyEvent", keyDown);
       return;
     }
 
     // Fallback: send with key property only
-    await this.mainSession.send("Input.dispatchKeyEvent", {
+    await context.send(this.mainSession, "Input.dispatchKeyEvent", {
       type: "keyDown",
       key: normalizedKey,
       modifiers,
@@ -2285,7 +2316,8 @@ export class Page {
   }
 
   /** Release a pressed key */
-  async keyUp(key: string): Promise<void> {
+  async keyUp(key: string, operation?: LocatorOperation): Promise<void> {
+    const context = operation ?? new LocatorOperation(new TimeoutBudget());
     const normalizedKey = this.normalizeModifierKey(key);
 
     let modifiers = 0;
@@ -2303,7 +2335,7 @@ export class Page {
 
     if (normalizedKey.length === 1) {
       const desc = this.describePrintableKey(normalizedKey);
-      await this.mainSession.send("Input.dispatchKeyEvent", {
+      await context.send(this.mainSession, "Input.dispatchKeyEvent", {
         type: "keyUp",
         key: desc.key,
         code: desc.code,
@@ -2315,7 +2347,7 @@ export class Page {
 
     const entry = named[normalizedKey] ?? null;
     if (entry) {
-      await this.mainSession.send("Input.dispatchKeyEvent", {
+      await context.send(this.mainSession, "Input.dispatchKeyEvent", {
         type: "keyUp",
         key: entry.key,
         code: entry.code,
@@ -2326,7 +2358,7 @@ export class Page {
     }
 
     // Fallback: send with key property only
-    await this.mainSession.send("Input.dispatchKeyEvent", {
+    await context.send(this.mainSession, "Input.dispatchKeyEvent", {
       type: "keyUp",
       key: normalizedKey,
       modifiers,
