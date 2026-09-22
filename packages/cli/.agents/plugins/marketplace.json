@@ -1,0 +1,20 @@
+{
+  "name": "browse-plugins",
+  "interface": {
+    "displayName": "Browse"
+  },
+  "plugins": [
+    {
+      "name": "browse",
+      "source": {
+        "source": "local",
+        "path": "./plugins/browse"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "OPTIONAL"
+      },
+      "category": "Automation"
+    }
+  ]
+}

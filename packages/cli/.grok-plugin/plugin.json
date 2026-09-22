@@ -1,0 +1,30 @@
+{
+  "_comment": "Best-effort manifest for xAI Grok. Grok has no published plugin-marketplace spec yet; this mirrors the Codex/OpenAI plugin schema as a forward-compatible placeholder. Revisit when an official format ships.",
+  "name": "browse",
+  "description": "Unified Browserbase CLI for browser automation and cloud APIs",
+  "author": {
+    "name": "Browserbase",
+    "url": "https://browserbase.com"
+  },
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli",
+  "repository": "https://github.com/browserbase/stagehand",
+  "license": "MIT",
+  "keywords": [
+    "browser-automation",
+    "browserbase",
+    "stagehand",
+    "scraping",
+    "web",
+    "agents",
+    "cli"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Browse",
+    "shortDescription": "Browser automation for agents",
+    "longDescription": "Drive a local or Browserbase-hosted browser, inspect and interact with pages, manage Browserbase cloud resources and Functions, scaffold templates, and discover Browse.sh skills.",
+    "developerName": "Browserbase",
+    "category": "Automation",
+    "websiteURL": "https://browserbase.com"
+  }
+}
