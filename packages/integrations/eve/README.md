@@ -45,9 +45,7 @@ available unless the consuming agent explicitly overrides them.
 
 ## Optional Web Search and Web Fetch overrides
 
-Browserbase Web Search and Web Fetch are exported as standalone tool factories. Importing them does
-not add tools to the extension mount. To replace Eve's built-ins, export each factory result from a
-root tool file with the matching name:
+To use Browserbase Search and Fetch instead of Eve's built-in web tools, add these files to your agent:
 
 ```ts
 // agent/tools/web_search.ts
@@ -63,12 +61,7 @@ import { browserbaseWebFetch } from "@browserbasehq/eve/tools";
 export default browserbaseWebFetch();
 ```
 
-The filenames perform the override: the model sees `web_search` and `web_fetch`, while the mounted
-extension still contributes only the three `browserbase__*` Code Mode tools. Each factory also
-accepts optional `apiKey`, `baseUrl`, `maxRetries`, and `timeoutMs` client settings. Building the
-agent does not require an API key. Executing either override does: pass `apiKey` or set
-`BROWSERBASE_API_KEY` in the runtime environment. The default factory resolves the environment
-variable lazily on first execution.
+Set `BROWSERBASE_API_KEY` in your agent's environment.
 
 ## Configuration
 

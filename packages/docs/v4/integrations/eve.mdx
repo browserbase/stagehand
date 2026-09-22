@@ -65,7 +65,7 @@ Stagehand runs JavaScript from `browserbase__run` in its browser extension, wher
 
 ## Optional web tool overrides
 
-The browser extension works with Eve’s built-in web tools. To use Browserbase Search and Fetch instead, add these files to your existing agent:
+To use Browserbase Search and Fetch instead of Eve’s built-in web tools, add these files to your agent:
 
 ```ts agent/tools/web_search.ts
 import { browserbaseWebSearch } from "@browserbasehq/eve/tools";
@@ -78,12 +78,6 @@ import { browserbaseWebFetch } from "@browserbasehq/eve/tools";
 
 export default browserbaseWebFetch();
 ```
-
-Eve uses these filenames to replace `web_search` and `web_fetch`. The extension continues to expose its three namespaced browser tools. The factories read `BROWSERBASE_API_KEY` when first executed, so building your agent does not require credentials. Both accept optional `apiKey`, `baseUrl`, `maxRetries`, and `timeoutMs` settings.
-
-<Note>
-These optional exports are pending in [PR #2822](https://github.com/browserbase/stagehand/pull/2822). Before publication, install a tarball built from that PR to test them. They are not required to use the native browser extension.
-</Note>
 
 ## Configuration
 
