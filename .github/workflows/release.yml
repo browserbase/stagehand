@@ -121,18 +121,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and smoke-test Browse against the published SDK
-        if: steps.status.outputs.has-changesets == 'false'
+        if: steps.status.outputs.should-publish == 'true'
         run: |
           pnpm exec turbo run build --filter=browse
           pnpm --filter browse test:cli
           pnpm exec tsx scripts/release/smoke-cli-package.ts
 
       - name: Publish Browse
-        if: steps.status.outputs.has-changesets == 'false'
+        if: steps.status.outputs.should-publish == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           pnpm exec tsx scripts/release/scoped-release.ts publish cli
+
+      - name: Push Browse release tag
+        if: steps.status.outputs.has-changesets == 'false'
+        run: |
           version=$(node -p 'require("./packages/cli/package.json").version')
           # Recover the tag if a previous run published npm but stopped before tagging.
           git rev-parse --verify "refs/tags/browse@$version" || git tag "browse@$version"

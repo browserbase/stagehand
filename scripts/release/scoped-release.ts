@@ -71,6 +71,20 @@ export async function assertPublishedCliDependencies(
   }
 }
 
+export async function isCliVersionPublished(
+  repositoryRoot: string,
+  registry = "https://registry.npmjs.org",
+): Promise<boolean> {
+  const { version } = JSON.parse(
+    await readFile(path.join(repositoryRoot, "packages/cli/package.json"), "utf8"),
+  );
+  const response = await fetch(`${registry}/browse/${version}`);
+  if (response.status === 404) return false;
+  if (!response.ok)
+    throw new Error(`Registry returned ${response.status} while checking browse@${version}`);
+  return true;
+}
+
 // Changesets 2.x publish does not honor config.ignore. Give each package exactly
 // one publisher, while retaining Changesets' registry checks, tags and OIDC path.
 // These flags exist only during publishing; they never enter a release commit.
@@ -103,9 +117,13 @@ async function main(): Promise<void> {
   const scope = parseReleaseScope(target);
   const repositoryRoot = process.cwd();
   if (command === "status") {
-    process.stdout.write(
-      `has-changesets=${(await scopedChangesets(repositoryRoot, scope)).length > 0}\n`,
-    );
+    const pending = (await scopedChangesets(repositoryRoot, scope)).length > 0;
+    process.stdout.write(`has-changesets=${pending}\n`);
+    if (scope === "cli") {
+      process.stdout.write(
+        `should-publish=${!pending && !(await isCliVersionPublished(repositoryRoot))}\n`,
+      );
+    }
   } else if (command === "version") {
     if (flags.some((flag) => flag !== "--snapshot")) throw new Error("Unknown version flag");
     const plan = await versionScope(repositoryRoot, scope, flags.includes("--snapshot"));

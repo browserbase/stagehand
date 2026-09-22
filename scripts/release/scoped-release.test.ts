@@ -2,9 +2,15 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { scopedChangesets } from "./release-scope.ts";
-import { versionScope, withPublishScope } from "./scoped-release.ts";
+import {
+  assertPublishedCliDependencies,
+  isCliVersionPublished,
+  versionScope,
+  withPublishScope,
+} from "./scoped-release.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -72,6 +78,37 @@ const manifest = async (root: string, name: string) =>
   JSON.parse(await readFile(path.join(root, "packages", name, "package.json"), "utf8"));
 
 describe("independent release scopes using the real Changesets engine", () => {
+  it("checks the CLI version before rebuilding and distinguishes missing versions from registry failures", async () => {
+    const root = await fixture();
+    let status = 404;
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? "");
+      response.writeHead(status).end("{}");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing HTTP server address");
+    const registry = `http://127.0.0.1:${address.port}`;
+    try {
+      expect(await isCliVersionPublished(root, registry)).toBe(false);
+      await expect(assertPublishedCliDependencies(root, registry)).rejects.toThrow(
+        "Publish sdk@4.1.0 before Browse",
+      );
+      status = 200;
+      expect(await isCliVersionPublished(root, registry)).toBe(true);
+      await assertPublishedCliDependencies(root, registry);
+      status = 503;
+      await expect(isCliVersionPublished(root, registry)).rejects.toThrow("Registry returned 503");
+      expect(requests).toContain("/browse/0.9.6");
+      expect(requests).toContain("/sdk/4.1.0");
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
   for (const first of ["cli", "sdk"] as const) {
     it(`versions ${first} first without consuming or changing the other release`, async () => {
       const root = await fixture();
