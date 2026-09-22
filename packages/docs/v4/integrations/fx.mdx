@@ -154,7 +154,7 @@ Denying `run_command` prevents a browser-only task from falling back to shell ex
 Leave the MCP entry's `environment` field unset to inherit exported variables. If you add an `environment` object, fx replaces the child environment rather than merging it, so include `PATH` and every variable the facade needs.
 
 <Warning>
-`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/agents#security-boundary).
 </Warning>
 
 <Card title="fx integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/fx">

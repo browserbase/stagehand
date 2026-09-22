@@ -53,16 +53,25 @@
             "group": "Integrations",
             "pages": [
               "v4/integrations/overview",
-              "v4/integrations/claude-code",
-              "v4/integrations/codex",
-              "v4/integrations/eve",
-              "v4/integrations/deep-agents",
-              "v4/integrations/crewai",
-              "v4/integrations/mastra",
-              "v4/integrations/fx",
-              "v4/integrations/pi",
-              "v4/integrations/vercel-ai-sdk",
-              "v4/integrations/stripe"
+              {
+                "group": "Agent integrations",
+                "pages": [
+                  "v4/integrations/agents",
+                  "v4/integrations/claude-code",
+                  "v4/integrations/codex",
+                  "v4/integrations/eve",
+                  "v4/integrations/deep-agents",
+                  "v4/integrations/crewai",
+                  "v4/integrations/mastra",
+                  "v4/integrations/fx",
+                  "v4/integrations/pi",
+                  "v4/integrations/vercel-ai-sdk"
+                ]
+              },
+              {
+                "group": "Non-agent integrations",
+                "pages": ["v4/integrations/stripe"]
+              }
             ]
           },
           {
