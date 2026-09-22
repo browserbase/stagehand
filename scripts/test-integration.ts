@@ -55,7 +55,7 @@ export const integrationTestGroups = {
     "pageScroll",
   ],
   "local/snapshots-ai": ["observeElementIdFormat", "unicodeWellFormed"],
-  "local/waits-timeouts": ["waitForSelector", "waitForTimeout"],
+  "local/waits-timeouts": ["locatorTimeouts", "waitForSelector", "waitForTimeout"],
 } as const;
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
