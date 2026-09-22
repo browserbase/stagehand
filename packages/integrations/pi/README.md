@@ -1,49 +1,26 @@
-# pi + Stagehand facade (native tools)
+# Stagehand for Pi
 
-[pi](https://pi.dev) has no built-in MCP by design — extensions register tools directly. This
-package is a pi extension exposing the Stagehand facade tools (`run`, `snapshot`,
-`screenshot`) natively, with descriptions, validation, and agent guidance imported from
-`@browserbasehq/stagehand-integrations/facade`.
+Install the native extension with Pi’s package manager:
 
-## Setup
-
-Use Node.js 24 or later. From the repository root, build the integrations package first:
-
-```bash
-pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+```sh
+pi install npm:@browserbasehq/pi
+pi
 ```
 
-Export the browser credentials (Browserbase is the default and recommended backend) and a model
-key pi supports:
+Requires Node.js 24+, an authenticated Pi model provider, and local Chrome (or `BROWSERBASE_API_KEY` for Browserbase). The initial npm release is pending; before publishing, use the development build below. No private workspace dependency is needed by the installed package.
 
-```bash
-export BROWSERBASE_API_KEY=bb_live_...
-export OPENAI_API_KEY=sk-...   # or ANTHROPIC_API_KEY
+The extension registers `run`, `snapshot`, and `screenshot` directly through Pi’s extension API. It launches a browser on the first call, reuses it throughout the session, and closes it on shutdown.
+
+## Develop from source
+
+From the Stagehand repository root:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm exec turbo run build --filter @browserbasehq/pi
+pi install ./packages/integrations/pi
 ```
 
-## Run
+The package uses the official `pi.extensions` manifest and `pi-package` catalog keyword. The build bundles the private Core facade and leaves Stagehand (including its browser extension assets) as a runtime dependency.
 
-One-off, pointing pi at the extension file (no install needed; pi loads TypeScript directly and
-resolves `@browserbasehq/stagehand-integrations` through the workspace):
-
-```bash
-cd packages/integrations/pi
-pi -e ./extensions/stagehand.ts --no-session -p "Use your browser tools: open https://example.com, snapshot it, and report the heading citing the snapshot ID." </dev/null
-```
-
-Two headless gotchas: print mode reads piped stdin (always redirect `</dev/null`), and
-non-interactive runs never show the project-trust prompt — use `-e` as above, or `-a` after
-trusting the project.
-
-To install permanently instead: `pi install ./packages/integrations/pi` (the `pi` manifest key
-in `package.json` points at the extension).
-
-## Security model
-
-The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's
-service worker — browser-side, never in the pi process. Browserbase is the recommended
-isolation boundary: the privileged execution environment is a disposable cloud browser. The
-browser launches lazily on first tool use and closes on session shutdown; only
-`STAGEHAND_*`/`BROWSERBASE_*` variables configure it, and pi's model credentials never reach
-the browser session.
+[Setup and configuration](https://docs.stagehand.dev/v4/integrations/pi) · [Pi package format](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md)

@@ -6,6 +6,10 @@ const repositoryRoot = path.resolve(import.meta.dirname, "../..");
 const rootChangelogPath = path.join(repositoryRoot, "CHANGELOG.md");
 const packageChangelogs = [
   {
+    label: "Pi extension",
+    path: path.join(repositoryRoot, "packages/integrations/pi/CHANGELOG.md"),
+  },
+  {
     label: "TypeScript SDK",
     path: path.join(repositoryRoot, "packages/sdk-ts/CHANGELOG.md"),
   },

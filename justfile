@@ -88,6 +88,7 @@ _preview commit:
 
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
+    pnpm exec turbo run build --filter @browserbasehq/pi
     pnpm exec changeset publish
 
 # Publishes a commit-addressed alpha of the TypeScript SDK (`<next>-alpha-<sha>`)
@@ -96,6 +97,7 @@ _publish-typescript:
 _publish-typescript-alpha:
     pnpm exec changeset version --snapshot
     pnpm --filter ./packages/sdk-ts build
+    pnpm exec turbo run build --filter @browserbasehq/pi
     pnpm exec changeset publish --tag alpha --no-git-tag
 
 # Rewrites the Python project to the commit-addressed alpha (`<next>a0.dev<N>`)
