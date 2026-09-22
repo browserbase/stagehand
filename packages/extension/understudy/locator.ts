@@ -25,7 +25,8 @@ import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
-const AUTO_ADVANCE_KEY_DELAY_MS = 10;
+const AUTO_ADVANCE_FOCUS_TIMEOUT_MS = 150;
+const AUTO_ADVANCE_POLL_INTERVAL_MS = 8;
 
 /**
  * Locator
@@ -461,6 +462,8 @@ export class Locator {
       }
 
       if (status === "needsinput") {
+        const singleCharacterInput =
+          value.length > 1 && (await this.isSingleCharacterInput(objectId));
         // Release the current handle before synthesizing keyboard input to avoid leaking it.
         await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
         releaseNeeded = false;
@@ -510,8 +513,8 @@ export class Locator {
             windowsVirtualKeyCode: 8,
             nativeVirtualKeyCode: 8,
           } as Protocol.Input.DispatchKeyEventRequest);
-        } else if (result?.reason === "single-character-input") {
-          await this.type(valueToType, { delay: AUTO_ADVANCE_KEY_DELAY_MS });
+        } else if (singleCharacterInput) {
+          await this.type(valueToType);
         } else {
           await session.send<never>("Input.insertText", { text: valueToType });
         }
@@ -557,13 +560,40 @@ export class Locator {
         returnByValue: true,
       });
 
-      let delay = options?.delay;
-      if (!delay && text.length > 1) {
-        const result = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-          "Runtime.callFunctionOn",
-          { objectId, functionDeclaration: isSingleCharacterInput.toString(), returnByValue: true },
-        );
-        if (result.result.value === true) delay = AUTO_ADVANCE_KEY_DELAY_MS;
+      const delay = options?.delay;
+      if (text.length > 1 && (await this.isSingleCharacterInput(objectId))) {
+        for (const [index, ch] of [...text].entries()) {
+          const focused = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
+            "Runtime.callFunctionOn",
+            {
+              objectId,
+              functionDeclaration: "function() { return this.ownerDocument.activeElement; }",
+            },
+          );
+          const focusedObjectId = focused.result.objectId;
+          try {
+            await session.send<never>("Input.dispatchKeyEvent", {
+              type: "keyDown",
+              text: ch,
+              key: ch,
+            } as Protocol.Input.DispatchKeyEventRequest);
+            await session.send<never>("Input.dispatchKeyEvent", {
+              type: "keyUp",
+              text: ch,
+              key: ch,
+            } as Protocol.Input.DispatchKeyEventRequest);
+            if (index < text.length - 1 && focusedObjectId) {
+              await this.waitForFocusChange(focusedObjectId);
+            }
+          } finally {
+            if (focusedObjectId) {
+              await session
+                .send<never>("Runtime.releaseObject", { objectId: focusedObjectId })
+                .catch(() => {});
+            }
+          }
+        }
+        return;
       }
 
       if (!delay) {
@@ -588,6 +618,30 @@ export class Locator {
       }
     } finally {
       await session.send<never>("Runtime.releaseObject", { objectId });
+    }
+  }
+
+  private async isSingleCharacterInput(objectId: string): Promise<boolean> {
+    const result = await this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
+      "Runtime.callFunctionOn",
+      { objectId, functionDeclaration: isSingleCharacterInput.toString(), returnByValue: true },
+    );
+    return result.result.value === true;
+  }
+
+  private async waitForFocusChange(objectId: string): Promise<void> {
+    const deadline = Date.now() + AUTO_ADVANCE_FOCUS_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const result = await this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId,
+          functionDeclaration: "function() { return this.ownerDocument.activeElement !== this; }",
+          returnByValue: true,
+        },
+      );
+      if (result.result.value === true) return;
+      await new Promise((resolve) => setTimeout(resolve, AUTO_ADVANCE_POLL_INTERVAL_MS));
     }
   }
 

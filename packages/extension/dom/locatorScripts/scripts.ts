@@ -323,13 +323,7 @@ export function fillElementValue(this: Element, rawValue: string): FillElementRe
         return { status: "done" };
       }
 
-      return {
-        status: "needsinput",
-        value: valueForTyping,
-        ...(element.maxLength === 1 && valueForTyping.length > 1
-          ? { reason: "single-character-input" }
-          : {}),
-      };
+      return { status: "needsinput", value: valueForTyping };
     }
 
     if (element instanceof win.HTMLTextAreaElement) {
@@ -371,7 +365,23 @@ export function focusElement(this: Element): void {
 }
 
 export function isSingleCharacterInput(this: Element): boolean {
-  return this instanceof HTMLInputElement && this.maxLength === 1;
+  if (!(this instanceof HTMLInputElement)) return false;
+  if (this.maxLength === 1 || this.getAttribute("maxlength") === "1" || this.size === 1) {
+    return true;
+  }
+
+  const siblings = this.parentElement?.children;
+  if (!siblings) return false;
+  const index = Array.prototype.indexOf.call(siblings, this) as number;
+  let count = 1;
+  for (const direction of [-1, 1]) {
+    for (let i = index + direction; i >= 0 && i < siblings.length; i += direction) {
+      const sibling = siblings[i];
+      if (!(sibling instanceof HTMLInputElement) || sibling.type !== this.type) break;
+      count++;
+    }
+  }
+  return count >= 3;
 }
 
 export function selectElementOptions(this: Element, rawValues: string | string[]): string[] {
