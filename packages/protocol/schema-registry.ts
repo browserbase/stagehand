@@ -63,6 +63,7 @@ import {
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageCDPEventNotificationSchema,
+  PageContentResultSchema,
   PageEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
@@ -83,6 +84,7 @@ import {
   PageScreenshotParamsSchema,
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
+  PageSetContentParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
   PageSetViewportSizeParamsSchema,
   PageSnapshotParamsSchema,
@@ -319,6 +321,16 @@ export const StagehandMethods = {
     params: PageEvaluateParamsSchema,
     result: PageEvaluateResultSchema,
     resultWire: { opaqueKeys: ["value"] },
+  },
+  pageContent: {
+    name: "page.content",
+    params: PageIdParamsSchema,
+    result: PageContentResultSchema,
+  },
+  pageSetContent: {
+    name: "page.set_content",
+    params: PageSetContentParamsSchema,
+    result: PageVoidResultSchema,
   },
   pageAddInitScript: {
     name: "page.add_init_script",

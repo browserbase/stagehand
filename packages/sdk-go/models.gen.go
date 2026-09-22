@@ -1257,6 +1257,8 @@ type PageCloseResult struct {
 	Closed bool `json:"closed"`
 }
 
+type PageContentResult string
+
 type PageDragAndDropOptions struct {
 	// Button corresponds to the JSON schema field "button".
 	Button *MouseButton `json:"button,omitempty,omitzero"`
@@ -1537,6 +1539,17 @@ type PageScrollParams struct {
 
 	// Y corresponds to the JSON schema field "y".
 	Y float64 `json:"y"`
+}
+
+type PageSetContentParams struct {
+	// HTML corresponds to the JSON schema field "html".
+	HTML string `json:"html"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *PageNavigationOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
 }
 
 type PageSetExtraHTTPHeadersParams struct {
@@ -2614,6 +2627,9 @@ type generatedModelCatalog struct {
 	// PageCloseResult corresponds to the JSON schema field "PageCloseResult".
 	PageCloseResult *PageCloseResult `json:"PageCloseResult,omitempty,omitzero"`
 
+	// PageContentResult corresponds to the JSON schema field "PageContentResult".
+	PageContentResult *PageContentResult `json:"PageContentResult,omitempty,omitzero"`
+
 	// PageDragAndDropOptions corresponds to the JSON schema field
 	// "PageDragAndDropOptions".
 	PageDragAndDropOptions *PageDragAndDropOptions `json:"PageDragAndDropOptions,omitempty,omitzero"`
@@ -2700,6 +2716,10 @@ type generatedModelCatalog struct {
 
 	// PageScrollParams corresponds to the JSON schema field "PageScrollParams".
 	PageScrollParams *PageScrollParams `json:"PageScrollParams,omitempty,omitzero"`
+
+	// PageSetContentParams corresponds to the JSON schema field
+	// "PageSetContentParams".
+	PageSetContentParams *PageSetContentParams `json:"PageSetContentParams,omitempty,omitzero"`
 
 	// PageSetExtraHTTPHeadersParams corresponds to the JSON schema field
 	// "PageSetExtraHTTPHeadersParams".

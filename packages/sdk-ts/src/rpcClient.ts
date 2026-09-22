@@ -65,6 +65,7 @@ const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
   [StagehandMethods.pageReload.name, 15_000],
   [StagehandMethods.pageGoBack.name, 15_000],
   [StagehandMethods.pageGoForward.name, 15_000],
+  [StagehandMethods.pageSetContent.name, 15_000],
   [StagehandMethods.pageWaitForLoadState.name, 15_000],
   [StagehandMethods.pageWaitForSelector.name, 30_000],
   [StagehandMethods.pageWebMCPTools.name, 1_000],
@@ -520,6 +521,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.pageReload.name:
     case StagehandMethods.pageGoBack.name:
     case StagehandMethods.pageGoForward.name:
+    case StagehandMethods.pageSetContent.name:
     case StagehandMethods.pageScreenshot.name:
     case StagehandMethods.pageWaitForSelector.name:
     case StagehandMethods.pageWebMCPTools.name:

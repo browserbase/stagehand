@@ -28,6 +28,7 @@ from ._generated.models import (
     PageClickOptions,
     PageClickParams,
     PageCloseResult,
+    PageContentResult,
     PageDragAndDropOptions,
     PageDragAndDropParams,
     PageEvaluateParams,
@@ -51,6 +52,7 @@ from ._generated.models import (
     PageScreenshotParams,
     PageScreenshotResult,
     PageScrollParams,
+    PageSetContentParams,
     PageSetExtraHTTPHeadersParams,
     PageSetViewportSizeOptions,
     PageSetViewportSizeParams,
@@ -629,6 +631,32 @@ class Page:
             PageWebMCPToolsResult,
         )
         return [WebMCPTool(self._rpc_client, self.page_id, tool) for tool in result.tools]
+
+    async def content(self) -> str:
+        return await self._rpc_client.send(
+            "page.content",
+            PageIdParams(page_id=self.page_id),
+            PageContentResult,
+        )
+
+    async def set_content(
+        self,
+        html: str,
+        *,
+        wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
+        timeout: int | None = None,
+    ) -> None:
+        options = {
+            name: value
+            for name, value in (("wait_until", wait_until), ("timeout", timeout))
+            if value is not None
+        }
+        params = PageSetContentParams.model_validate({
+            "page_id": self.page_id,
+            "html": html,
+            **({"options": options} if options else {}),
+        })
+        await self._rpc_client.send("page.set_content", params, PageVoidResult)
 
     async def url(self) -> str:
         return await self._rpc_client.send(

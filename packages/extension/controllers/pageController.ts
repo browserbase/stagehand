@@ -14,6 +14,7 @@ import type {
   PageReloadParams,
   PageScrollParams,
   PageScreenshotParams,
+  PageSetContentParams,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
   PageSnapshotParams,
@@ -83,6 +84,16 @@ export function createPageController(runtime: StagehandRuntime) {
   async function evaluate(params: PageEvaluateParams, { logger }: HandlerContext) {
     logger.debug("page.evaluate", {});
     return runtime.pageEvaluate(params);
+  }
+
+  async function content(params: PageIdParams, { logger }: HandlerContext) {
+    logger.debug("page.content", {});
+    return runtime.pageContent(params);
+  }
+
+  async function setContent(params: PageSetContentParams, { logger }: HandlerContext) {
+    logger.debug("page.set_content", {});
+    return runtime.pageSetContent(params);
   }
 
   async function addInitScript(params: PageAddInitScriptParams, { logger }: HandlerContext) {
@@ -191,6 +202,8 @@ export function createPageController(runtime: StagehandRuntime) {
     type,
     keyPress,
     evaluate,
+    content,
+    setContent,
     addInitScript,
     setExtraHTTPHeaders,
     setViewportSize,

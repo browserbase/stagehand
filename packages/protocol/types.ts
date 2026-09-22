@@ -150,6 +150,7 @@ import type {
   PageCDPEventSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
+  PageContentResultSchema,
   PageDragAndDropParamsSchema,
   PageDragAndDropRoutePointSchema,
   PageEvaluateParamsSchema,
@@ -161,6 +162,7 @@ import type {
   PageIdParamsSchema,
   PageKeyPressParamsSchema,
   PageEventNameSchema,
+  PageSetContentParamsSchema,
   PageSubscriptionEventNameSchema,
   PageEventNotificationSchema,
   PageToolsAddedNotificationSchema,
@@ -381,6 +383,7 @@ export type PageTypeParams = z.infer<typeof PageTypeParamsSchema>;
 export type PageKeyPressParams = z.infer<typeof PageKeyPressParamsSchema>;
 export type PageEvaluateParams = z.infer<typeof PageEvaluateParamsSchema>;
 export type PageAddInitScriptParams = z.infer<typeof PageAddInitScriptParamsSchema>;
+export type PageSetContentParams = z.infer<typeof PageSetContentParamsSchema>;
 export type PageSetExtraHTTPHeadersParams = z.infer<typeof PageSetExtraHTTPHeadersParamsSchema>;
 export type PageScreenshotOptions = z.infer<typeof PageScreenshotOptionsSchema>;
 export type PageScreenshotParams = z.infer<typeof PageScreenshotParamsSchema>;
@@ -422,6 +425,7 @@ export type ContextActivePageResult = z.infer<typeof ContextActivePageResultSche
 export type ContextGetDomainPolicyResult = z.infer<typeof ContextGetDomainPolicyResultSchema>;
 export type PageUrlResult = z.infer<typeof PageUrlResultSchema>;
 export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
+export type PageContentResult = z.infer<typeof PageContentResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
 export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;

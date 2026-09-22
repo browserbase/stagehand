@@ -334,6 +334,47 @@ const title = await page.evaluate(() => document.title);
   The operation result.
 </ResponseField>
 
+## content()
+
+Return the full HTML serialization of the page's main document, including its doctype.
+
+```typescript
+const html = await page.content();
+```
+
+<ResponseField name="result" type="Promise<string>">
+  The operation result.
+</ResponseField>
+
+## setContent()
+
+Replace the page's main document with the given HTML and wait for it to load.
+
+```typescript
+await page.setContent("<h1>Hello</h1>");
+```
+
+<ParamField path="html" type="string">
+  The HTML markup to load into the page.
+</ParamField>
+
+<ParamField path="options" type="PageNavigationOptions" optional>
+  Options that configure this operation.
+
+<ParamField path="options.timeout" type="number" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.waitUntil" type="LoadState" optional>
+    The target load state: `"load"`, `"domcontentloaded"`, or `"networkidle"`. Defaults to
+    `"load"`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
 ## on()
 
 Subscribe to console messages from this page and its page-owned sessions. Stagehand
@@ -1012,6 +1053,46 @@ title = await page.evaluate("document.title", result_type=str)
 
 <ResponseField name="result" type="JsonValue | EvaluateResult">
   The operation result.
+</ResponseField>
+
+## content()
+
+Return the full HTML serialization of the page's main document, including its doctype.
+
+```python
+html = await page.content()
+```
+
+<ResponseField name="result" type="str">
+  The operation result.
+</ResponseField>
+
+## set_content()
+
+Replace the page's main document with the given HTML and wait for it to load.
+
+```python
+await page.set_content("<h1>Hello</h1>")
+```
+
+<ParamField path="html" type="str">
+  The HTML markup to load into the page.
+</ParamField>
+
+<ParamField
+  path="wait_until"
+  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  optional
+>
+  The load state to wait for. Defaults to `"load"`.
+</ParamField>
+
+<ParamField path="timeout" type="int | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
 </ResponseField>
 
 ## on()
@@ -1718,6 +1799,53 @@ fmt.Println(title)
 
 <ResponseField name="result" type="(json.RawMessage, error)">
   The operation result as raw JSON. `EvaluateAs[T]` decodes it into `T` instead.
+</ResponseField>
+
+## Content()
+
+Return the full HTML serialization of the page's main document, including its doctype.
+
+```go
+html, err := page.Content(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(html)
+```
+
+<ResponseField name="result" type="(string, error)">
+  The operation result.
+</ResponseField>
+
+## SetContent()
+
+Replace the page's main document with the given HTML and wait for it to load.
+
+```go
+if err := page.SetContent(ctx, "<h1>Hello</h1>", nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="html" type="string">
+  The HTML markup to load into the page.
+</ParamField>
+
+<ParamField path="options" type="*PageNavigationOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Timeout" type="*int" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.WaitUntil" type="*LoadState" optional>
+    The target load state: `LoadStateLoad`, `LoadStateDOMContentLoaded`, or
+    `LoadStateNetworkIdle`. Defaults to `LoadStateLoad`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
 </ResponseField>
 
 ## On()

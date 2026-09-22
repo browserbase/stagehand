@@ -390,6 +390,20 @@ export class Page {
     );
   }
 
+  async content(): Promise<string> {
+    return await this.rpcClient.send(StagehandMethods.pageContent, {
+      pageId: this.pageId,
+    });
+  }
+
+  async setContent(html: string, options?: PageNavigationOptions): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageSetContent, {
+      pageId: this.pageId,
+      html,
+      ...(options ? { options } : {}),
+    });
+  }
+
   async url(): Promise<string> {
     return await this.rpcClient.send(StagehandMethods.pageUrl, {
       pageId: this.pageId,

@@ -14,6 +14,7 @@ from stagehand._generated.models import (
     NavigationResponseDescriptor,
     PageCDPEventNotification,
     PageClickParams,
+    PageContentResult,
     PageDragAndDropParams,
     PageEvaluateResult,
     PageEventNotification,
@@ -25,6 +26,7 @@ from stagehand._generated.models import (
     PageOnParams,
     PageRef,
     PageScrollParams,
+    PageSetContentParams,
     PageUrlResult,
     PageVoidResult,
     PageWebMCPCancelInvocationParams,
@@ -906,3 +908,39 @@ def test_optional_page_arguments_are_keyword_only() -> None:
                 offenders.append(f"Page.{name}({parameter.name}=...)")
 
     assert offenders == []
+
+
+@pytest.mark.asyncio
+async def test_content_returns_document_html() -> None:
+    html = "<!DOCTYPE html><html><head></head><body>hi</body></html>"
+    recording = RecordingRPCClient({"page.content": PageContentResult(html)})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    content = await page.content()
+
+    assert content == html
+    method, params, result_model = recording.calls[0]
+    assert method == "page.content"
+    assert params == PageIdParams(page_id="page-1")
+    assert result_model is PageContentResult
+
+
+@pytest.mark.asyncio
+async def test_set_content_sends_html_and_optional_navigation_options() -> None:
+    recording = RecordingRPCClient({"page.set_content": PageVoidResult(ok=True)})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.set_content("<h1>Hello</h1>")
+    await page.set_content("<h1>Hello</h1>", wait_until="domcontentloaded", timeout=1_000)
+
+    assert [call[0] for call in recording.calls] == ["page.set_content", "page.set_content"]
+    assert recording.calls[0][1] == PageSetContentParams.model_validate({
+        "page_id": "page-1",
+        "html": "<h1>Hello</h1>",
+    })
+    assert recording.calls[1][1] == PageSetContentParams.model_validate({
+        "page_id": "page-1",
+        "html": "<h1>Hello</h1>",
+        "options": {"wait_until": "domcontentloaded", "timeout": 1_000},
+    })
+    assert recording.calls[1][2] is PageVoidResult

@@ -1798,6 +1798,76 @@ export class Page {
   }
 
   /**
+   * Return the full HTML serialization of the current main-frame document,
+   * including its doctype when one is present.
+   */
+  async content(): Promise<string> {
+    await this.mainSession.send("Runtime.enable").catch(() => {});
+    const ctxId = await this.mainWorldExecutionContextId();
+    const { result, exceptionDetails } =
+      await this.mainSession.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+        expression: `(() => {
+          let doctype = "";
+          const node = document.doctype;
+          if (node) {
+            doctype = "<!DOCTYPE " + node.name;
+            if (node.publicId) doctype += ' PUBLIC "' + node.publicId + '"';
+            if (!node.publicId && node.systemId) doctype += " SYSTEM";
+            if (node.systemId) doctype += ' "' + node.systemId + '"';
+            doctype += ">";
+          }
+          const root = document.documentElement;
+          return doctype + (root ? root.outerHTML : "");
+        })()`,
+        contextId: ctxId,
+        returnByValue: true,
+      });
+    if (exceptionDetails) {
+      throw new Error(
+        exceptionDetails.text ||
+          exceptionDetails.exception?.description ||
+          "Failed to read page content",
+      );
+    }
+    return String(result?.value ?? "");
+  }
+
+  /**
+   * Replace the main-frame document with the given HTML, then wait for the
+   * requested lifecycle state (default: "load").
+   */
+  async setContent(
+    html: string,
+    options?: { waitUntil?: LoadState; timeout?: number },
+  ): Promise<void> {
+    const waitUntil: LoadState = options?.waitUntil ?? "load";
+    const timeout = options?.timeout ?? 15000;
+
+    await this.mainSession.send("Runtime.enable").catch(() => {});
+    const ctxId = await this.mainWorldExecutionContextId();
+    const { exceptionDetails } = await this.mainSession.send<Protocol.Runtime.EvaluateResponse>(
+      "Runtime.evaluate",
+      {
+        expression: `(() => {
+          document.open();
+          document.write(${JSON.stringify(html)});
+          document.close();
+        })()`,
+        contextId: ctxId,
+        returnByValue: true,
+      },
+    );
+    if (exceptionDetails) {
+      throw new Error(
+        exceptionDetails.text ||
+          exceptionDetails.exception?.description ||
+          "Failed to set page content",
+      );
+    }
+    await this.waitForMainLoadState(waitUntil, timeout);
+  }
+
+  /**
    * Force the page viewport to an exact CSS size and device scale factor.
    * Ensures screenshots match width x height pixels when deviceScaleFactor = 1.
    */

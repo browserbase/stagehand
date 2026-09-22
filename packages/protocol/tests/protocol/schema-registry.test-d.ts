@@ -93,6 +93,17 @@ expectTypeOf(StagehandMethods.pageScreenshot.name).toEqualTypeOf<"page.screensho
 expectTypeOf<z.output<typeof StagehandMethods.pageScreenshot.result>>().toEqualTypeOf<{
   data: string;
 }>();
+expectTypeOf(StagehandMethods.pageContent.name).toEqualTypeOf<"page.content">();
+expectTypeOf<z.output<typeof StagehandMethods.pageContent.result>>().toEqualTypeOf<string>();
+expectTypeOf(StagehandMethods.pageSetContent.name).toEqualTypeOf<"page.set_content">();
+expectTypeOf<z.input<typeof StagehandMethods.pageSetContent.params>>().toEqualTypeOf<{
+  pageId: string;
+  html: string;
+  options?: {
+    waitUntil?: "load" | "domcontentloaded" | "networkidle";
+    timeout?: number;
+  };
+}>();
 expectTypeOf(StagehandMethods.pageWaitForSelector.name).toEqualTypeOf<"page.wait_for_selector">();
 expectTypeOf<z.output<typeof StagehandMethods.pageWaitForSelector.result>>().toEqualTypeOf<{
   matched: boolean;
