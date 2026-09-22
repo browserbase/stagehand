@@ -68,7 +68,7 @@ export async function assertPublishedCliDependencies(
       const requestTimeoutMs = waitMs > 0 ? Math.min(30_000, deadline - Date.now()) : 30_000;
       if (requestTimeoutMs <= 0) {
         throw new Error(
-          `Publish ${name}@${dependency.packageJson.version} before Browse (wait timed out)`,
+          `Publish ${name}@${dependency.packageJson.version} before Browse (wait timed out after ${waitMs} ms)`,
         );
       }
       const response = await fetch(
