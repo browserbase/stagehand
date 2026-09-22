@@ -54,6 +54,7 @@ export async function assertPublishedCliDependencies(
   repositoryRoot: string,
   registry = "https://registry.npmjs.org",
   waitMs = 0,
+  retryIntervalMs = 15_000,
 ): Promise<void> {
   const deadline = Date.now() + waitMs;
   const packages = await getPackages(repositoryRoot);
@@ -64,8 +65,15 @@ export async function assertPublishedCliDependencies(
     const dependency = packages.packages.find((pkg) => pkg.packageJson.name === name);
     if (!dependency) throw new Error(`Missing workspace dependency ${name}`);
     for (;;) {
+      const requestTimeoutMs = waitMs > 0 ? Math.min(30_000, deadline - Date.now()) : 30_000;
+      if (requestTimeoutMs <= 0) {
+        throw new Error(
+          `Publish ${name}@${dependency.packageJson.version} before Browse (wait timed out)`,
+        );
+      }
       const response = await fetch(
         `${registry}/${encodeURIComponent(name)}/${dependency.packageJson.version}`,
+        { signal: AbortSignal.timeout(requestTimeoutMs) },
       );
       await response.body?.cancel();
       if (response.ok) break;
@@ -76,7 +84,7 @@ export async function assertPublishedCliDependencies(
         );
       }
       process.stdout.write(`Waiting for ${name}@${dependency.packageJson.version} on npm\n`);
-      await setTimeout(Math.min(15_000, remaining));
+      await setTimeout(Math.min(retryIntervalMs, remaining));
     }
   }
 }

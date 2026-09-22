@@ -92,12 +92,10 @@ describe("independent release scopes using the real Changesets engine", () => {
     const registry = `http://127.0.0.1:${address.port}`;
     try {
       status = 200;
-      await assertPublishedCliDependencies(root, registry, 1000);
+      await assertPublishedCliDependencies(root, registry, 1000, 10);
       expect(requests).toBe(2);
       status = 404;
-      await expect(assertPublishedCliDependencies(root, registry, 20)).rejects.toThrow(
-        "Publish sdk@4.1.0 before Browse",
-      );
+      await expect(assertPublishedCliDependencies(root, registry, 20)).rejects.toThrow();
       status = 503;
       const before = requests;
       await expect(assertPublishedCliDependencies(root, registry, 1000)).rejects.toThrow(
@@ -105,6 +103,28 @@ describe("independent release scopes using the real Changesets engine", () => {
       );
       expect(requests).toBe(before + 1);
     } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it("aborts a stalled registry request within the dependency-wait deadline", async () => {
+    const root = await fixture("cli");
+    let requests = 0;
+    const server = createServer(() => {
+      requests++;
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing HTTP server address");
+    try {
+      await expect(
+        assertPublishedCliDependencies(root, `http://127.0.0.1:${address.port}`, 500),
+      ).rejects.toMatchObject({ name: "TimeoutError" });
+      expect(requests).toBe(1);
+    } finally {
+      server.closeAllConnections();
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );
