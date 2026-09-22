@@ -63,7 +63,7 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			method:     "locator.is_checked",
 			response:   LocatorIsCheckedResult(true),
 			want:       true,
-			wantParams: descriptor,
+			wantParams: LocatorOperationParams{PageID: descriptor.PageID, Selector: descriptor.Selector, Nth: descriptor.Nth},
 			invoke: func(rpc *recordingProtocolClient) (any, error) {
 				return (&PageLocator{rpc: rpc, descriptor: descriptor}).IsChecked(context.Background())
 			},
@@ -73,7 +73,7 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			method:     "locator.input_value",
 			response:   LocatorInputValueResult("typed value"),
 			want:       "typed value",
-			wantParams: descriptor,
+			wantParams: LocatorOperationParams{PageID: descriptor.PageID, Selector: descriptor.Selector, Nth: descriptor.Nth},
 			invoke: func(rpc *recordingProtocolClient) (any, error) {
 				return (&PageLocator{rpc: rpc, descriptor: descriptor}).InputValue(context.Background())
 			},
@@ -83,7 +83,7 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			method:     "locator.is_visible",
 			response:   LocatorIsVisibleResult(true),
 			want:       true,
-			wantParams: descriptor,
+			wantParams: LocatorOperationParams{PageID: descriptor.PageID, Selector: descriptor.Selector, Nth: descriptor.Nth},
 			invoke: func(rpc *recordingProtocolClient) (any, error) {
 				return (&PageLocator{rpc: rpc, descriptor: descriptor}).IsVisible(context.Background())
 			},
@@ -93,7 +93,7 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			method:     "locator.inner_text",
 			response:   LocatorInnerTextResult("rendered text"),
 			want:       "rendered text",
-			wantParams: descriptor,
+			wantParams: LocatorOperationParams{PageID: descriptor.PageID, Selector: descriptor.Selector, Nth: descriptor.Nth},
 			invoke: func(rpc *recordingProtocolClient) (any, error) {
 				return (&PageLocator{rpc: rpc, descriptor: descriptor}).InnerText(context.Background())
 			},
@@ -103,7 +103,7 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			method:     "locator.inner_html",
 			response:   LocatorInnerHTMLResult("<strong>content</strong>"),
 			want:       "<strong>content</strong>",
-			wantParams: descriptor,
+			wantParams: LocatorOperationParams{PageID: descriptor.PageID, Selector: descriptor.Selector, Nth: descriptor.Nth},
 			invoke: func(rpc *recordingProtocolClient) (any, error) {
 				return (&PageLocator{rpc: rpc, descriptor: descriptor}).InnerHTML(context.Background())
 			},
@@ -113,7 +113,7 @@ func TestSimpleGettersMapGeneratedResults(t *testing.T) {
 			method:     "locator.text_content",
 			response:   LocatorTextContentResult("raw text"),
 			want:       "raw text",
-			wantParams: descriptor,
+			wantParams: LocatorOperationParams{PageID: descriptor.PageID, Selector: descriptor.Selector, Nth: descriptor.Nth},
 			invoke: func(rpc *recordingProtocolClient) (any, error) {
 				return (&PageLocator{rpc: rpc, descriptor: descriptor}).TextContent(context.Background())
 			},

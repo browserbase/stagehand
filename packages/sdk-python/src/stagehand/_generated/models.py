@@ -1061,6 +1061,8 @@ class LocatorClickOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 5000
+    """Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout."""
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
 
@@ -1073,7 +1075,13 @@ class LocatorClickParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
-    options: Optional[LocatorClickOptions] = None
+    options: Annotated[LocatorClickOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorClickOptions.model_validate(
+            {
+                "timeout": 5000
+            }
+        )
+    )
 
 
 class LocatorClickResult(WireModel):
@@ -1106,6 +1114,11 @@ class LocatorFillParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Annotated[LocatorOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorOptions.model_validate(
+            {"timeout": 5000}
+        )
+    )
     value: StrictStr
 
 
@@ -1122,6 +1135,8 @@ class LocatorHighlightOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 5000
+    """Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout."""
     duration_ms: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     border_color: Optional[RgbaColor] = None
     content_color: Optional[RgbaColor] = None
@@ -1135,7 +1150,13 @@ class LocatorHighlightParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
-    options: Optional[LocatorHighlightOptions] = None
+    options: Annotated[LocatorHighlightOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorHighlightOptions.model_validate(
+            {
+                "timeout": 5000
+            }
+        )
+    )
 
 
 class LocatorHighlightResult(WireModel):
@@ -1174,6 +1195,30 @@ class LocatorIsVisibleResult(RootModel[StrictBool]):
     root: StrictBool
 
 
+class LocatorOperationParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    selector: Annotated[StrictStr, Field(min_length=1)]
+    nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Annotated[LocatorOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorOptions.model_validate(
+            {"timeout": 5000}
+        )
+    )
+
+
+class LocatorOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 5000
+    """Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout."""
+
+
 class LocatorScrollToParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1182,6 +1227,11 @@ class LocatorScrollToParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Annotated[LocatorOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorOptions.model_validate(
+            {"timeout": 5000}
+        )
+    )
     percent: Union[StrictFloat, StrictStr]
 
 
@@ -1201,6 +1251,11 @@ class LocatorSelectOptionParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Annotated[LocatorOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorOptions.model_validate(
+            {"timeout": 5000}
+        )
+    )
     values: Union[StrictStr, list[StrictStr]]
 
 
@@ -1213,6 +1268,8 @@ class LocatorSendClickEventOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 5000
+    """Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout."""
     bubbles: Optional[StrictBool] = None
     cancelable: Optional[StrictBool] = None
     composed: Optional[StrictBool] = None
@@ -1227,7 +1284,13 @@ class LocatorSendClickEventParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
-    options: Optional[LocatorSendClickEventOptions] = None
+    options: Annotated[LocatorSendClickEventOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorSendClickEventOptions.model_validate(
+            {
+                "timeout": 5000
+            }
+        )
+    )
 
 
 class LocatorSendClickEventResult(WireModel):
@@ -1246,6 +1309,11 @@ class LocatorSetInputFilesParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Annotated[LocatorOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorOptions.model_validate(
+            {"timeout": 5000}
+        )
+    )
     files: list[InputFilePayload]
 
 
@@ -1266,6 +1334,8 @@ class LocatorTypeOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 5000
+    """Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout."""
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
 
 
@@ -1278,7 +1348,13 @@ class LocatorTypeParams(WireModel):
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     text: StrictStr
-    options: Optional[LocatorTypeOptions] = None
+    options: Annotated[LocatorTypeOptions, Field(validate_default=True)] = Field(
+        default_factory=lambda: LocatorTypeOptions.model_validate(
+            {
+                "timeout": 5000
+            }
+        )
+    )
 
 
 class LocatorTypeResult(WireModel):

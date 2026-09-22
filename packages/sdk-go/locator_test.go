@@ -2,6 +2,7 @@ package stagehand
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -188,5 +189,117 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	if err := locator.SetInputFiles(context.Background(), invalidPayload); err == nil ||
 		err.Error() != "set input files: last modified must be non-negative" {
 		t.Fatalf("SetInputFiles(negative last modified) error = %v", err)
+	}
+}
+
+func TestAllLocatorMethodsForwardTimeout(t *testing.T) {
+	for _, timeout := range []*int{nil, locatorTestPtr(0), locatorTestPtr(15000)} {
+		var options *LocatorOptions
+		if timeout != nil {
+			options = &LocatorOptions{Timeout: timeout}
+		}
+		rpc := &recordingProtocolClient{}
+		locator := &PageLocator{rpc: rpc, descriptor: LocatorDescriptor{PageID: "page", Selector: "iframe >> button", Nth: locatorTestPtr(2)}}
+		ctx := context.Background()
+		calls := []func() error{
+			func() error {
+				return locator.Click(ctx, &LocatorClickOptions{Timeout: timeout, ClickCount: locatorTestPtr(2)})
+			},
+			func() error { return locator.Hover(ctx, options) },
+			func() error { return locator.Fill(ctx, "hello", options) },
+			func() error {
+				return locator.Type(ctx, "hello", &LocatorTypeOptions{Timeout: timeout, Delay: locatorTestPtr(float64(25))})
+			},
+			func() error { _, err := locator.SelectOption(ctx, StringList{"one"}, options); return err },
+			func() error { return locator.SetInputFilesWithOptions(ctx, options) },
+			func() error { return locator.ScrollTo(ctx, NumericScrollPercent(50), options) },
+			func() error {
+				return locator.SendClickEvent(ctx, &LocatorSendClickEventOptions{Timeout: timeout, Bubbles: locatorTestPtr(false)})
+			},
+			func() error { _, err := locator.InnerText(ctx, options); return err },
+			func() error { _, err := locator.InnerHTML(ctx, options); return err },
+			func() error { _, err := locator.TextContent(ctx, options); return err },
+			func() error { _, err := locator.InputValue(ctx, options); return err },
+			func() error { _, err := locator.IsChecked(ctx, options); return err },
+			func() error { _, err := locator.Centroid(ctx, options); return err },
+			func() error { _, err := locator.Count(ctx, options); return err },
+			func() error { _, err := locator.IsVisible(ctx, options); return err },
+			func() error {
+				return locator.Highlight(ctx, &LocatorHighlightOptions{Timeout: timeout, DurationMs: locatorTestPtr(100)})
+			},
+		}
+		for _, call := range calls {
+			if err := call(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, call := range rpc.calls {
+			wire, err := json.Marshal(call.params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var params struct {
+				PageID   string `json:"page_id"`
+				Selector string `json:"selector"`
+				Nth      int    `json:"nth"`
+				Options  struct {
+					Timeout *int `json:"timeout"`
+				} `json:"options"`
+			}
+			if err := json.Unmarshal(wire, &params); err != nil {
+				t.Fatal(err)
+			}
+			if params.PageID != "page" || params.Selector != "iframe >> button" || params.Nth != 2 {
+				t.Fatalf("descriptor lost: %s", wire)
+			}
+			if timeout == nil {
+				if params.Options.Timeout != nil {
+					t.Fatalf("omitted timeout filled: %s", wire)
+				}
+			} else if params.Options.Timeout == nil || *params.Options.Timeout != *timeout {
+				t.Fatalf("timeout lost: %s", wire)
+			}
+			duration, bounded := rpcResponseTimeout(call.method, wire)
+			expected := 15 * time.Second
+			if timeout != nil {
+				expected = time.Duration(*timeout)*time.Millisecond + 10*time.Second
+			}
+			if timeout != nil && *timeout == 0 {
+				if bounded {
+					t.Fatal("zero timeout must be unbounded")
+				}
+			} else if !bounded || duration != expected {
+				t.Fatalf("response timeout = %v, %v; want %v", duration, bounded, expected)
+			}
+		}
+	}
+}
+
+func locatorTestPtr[T any](value T) *T { return &value }
+
+// The transport fallback must track the schema-owned server default.
+func TestLocatorTransportDefaultMatchesProtocol(t *testing.T) {
+	data, err := os.ReadFile("../protocol/stagehand.v4.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var schema struct {
+		Defs struct {
+			LocatorOptions struct {
+				Properties struct {
+					Timeout struct {
+						Default float64 `json:"default"`
+					} `json:"timeout"`
+				} `json:"properties"`
+			} `json:"LocatorOptions"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatal(err)
+	}
+	timeout, bounded := rpcResponseTimeout("locator.click", json.RawMessage(`{}`))
+	expected := rpcResponseGrace + time.Duration(schema.Defs.LocatorOptions.Properties.Timeout.Default)*time.Millisecond
+	if !bounded || timeout != expected {
+		t.Fatalf("response timeout = %v; schema default plus grace = %v", timeout, expected)
 	}
 }

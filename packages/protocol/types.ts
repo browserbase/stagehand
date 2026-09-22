@@ -81,6 +81,8 @@ import type {
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
   LocatorDescriptorSchema,
+  LocatorOptionsSchema,
+  LocatorOperationParamsSchema,
   LocatorFillParamsSchema,
   LocatorFillResultSchema,
   LocatorHighlightParamsSchema,
@@ -398,6 +400,8 @@ export type PageWebMCPInvocationResultParams = z.infer<
 export type PageWebMCPCancelInvocationParams = z.infer<
   typeof PageWebMCPCancelInvocationParamsSchema
 >;
+export type LocatorOptions = z.infer<typeof LocatorOptionsSchema>;
+export type LocatorOperationParams = z.infer<typeof LocatorOperationParamsSchema>;
 export type LocatorClickParams = z.infer<typeof LocatorClickParamsSchema>;
 export type LocatorFillParams = z.infer<typeof LocatorFillParamsSchema>;
 export type LocatorScrollToParams = z.infer<typeof LocatorScrollToParamsSchema>;

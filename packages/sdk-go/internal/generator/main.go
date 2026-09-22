@@ -441,6 +441,12 @@ func transform(value any, path []string) (any, error) {
 
 		result := make(map[string]any, len(value))
 		for key, entry := range value {
+			// Defaults are applied by the server. Keep locator options/timeout
+			// as pointers so an explicit zero survives JSON encoding.
+			if key == "default" && strings.HasPrefix(pathString, "$defs/Locator") &&
+				len(path) == 4 && path[2] == "properties" && (path[3] == "options" || path[3] == "timeout") {
+				continue
+			}
 			transformed, err := transform(entry, appendPath(path, key))
 			if err != nil {
 				return nil, err

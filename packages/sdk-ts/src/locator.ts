@@ -1,22 +1,31 @@
+import type { z } from "zod/v4";
 import { LocatorDescriptorSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
-  LocatorClickParams,
   LocatorCentroidResult,
   LocatorDescriptor,
-  LocatorHighlightParams,
   LocatorScrollToParams,
   LocatorSelectOptionParams,
-  LocatorSendClickEventParams,
-  LocatorTypeParams,
 } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 
-export type LocatorClickOptions = NonNullable<LocatorClickParams["options"]>;
-export type LocatorHighlightOptions = NonNullable<LocatorHighlightParams["options"]>;
-export type LocatorSendClickEventOptions = NonNullable<LocatorSendClickEventParams["options"]>;
-export type LocatorTypeOptions = NonNullable<LocatorTypeParams["options"]>;
+export type LocatorOptions = NonNullable<
+  z.input<typeof StagehandMethods.locatorHover.params>["options"]
+>;
+
+export type LocatorClickOptions = NonNullable<
+  z.input<typeof StagehandMethods.locatorClick.params>["options"]
+>;
+export type LocatorHighlightOptions = NonNullable<
+  z.input<typeof StagehandMethods.locatorHighlight.params>["options"]
+>;
+export type LocatorSendClickEventOptions = NonNullable<
+  z.input<typeof StagehandMethods.locatorSendClickEvent.params>["options"]
+>;
+export type LocatorTypeOptions = NonNullable<
+  z.input<typeof StagehandMethods.locatorType.params>["options"]
+>;
 
 export class Locator {
   constructor(
@@ -31,54 +40,86 @@ export class Locator {
     });
   }
 
-  async hover(): Promise<void> {
-    await this.rpcClient.send(StagehandMethods.locatorHover, this.descriptor);
+  async hover(options?: LocatorOptions): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.locatorHover, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async fill(value: string): Promise<void> {
+  async fill(value: string, options?: LocatorOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorFill, {
       ...this.descriptor,
       value,
+      ...(options ? { options } : {}),
     });
   }
 
-  async count(): Promise<number> {
-    return await this.rpcClient.send(StagehandMethods.locatorCount, this.descriptor);
+  async count(options?: LocatorOptions): Promise<number> {
+    return await this.rpcClient.send(StagehandMethods.locatorCount, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async isChecked(): Promise<boolean> {
-    return await this.rpcClient.send(StagehandMethods.locatorIsChecked, this.descriptor);
+  async isChecked(options?: LocatorOptions): Promise<boolean> {
+    return await this.rpcClient.send(StagehandMethods.locatorIsChecked, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async inputValue(): Promise<string> {
-    return await this.rpcClient.send(StagehandMethods.locatorInputValue, this.descriptor);
+  async inputValue(options?: LocatorOptions): Promise<string> {
+    return await this.rpcClient.send(StagehandMethods.locatorInputValue, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async isVisible(): Promise<boolean> {
-    return await this.rpcClient.send(StagehandMethods.locatorIsVisible, this.descriptor);
+  async isVisible(options?: LocatorOptions): Promise<boolean> {
+    return await this.rpcClient.send(StagehandMethods.locatorIsVisible, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async innerText(): Promise<string> {
-    return await this.rpcClient.send(StagehandMethods.locatorInnerText, this.descriptor);
+  async innerText(options?: LocatorOptions): Promise<string> {
+    return await this.rpcClient.send(StagehandMethods.locatorInnerText, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async innerHtml(): Promise<string> {
-    return await this.rpcClient.send(StagehandMethods.locatorInnerHtml, this.descriptor);
+  async innerHtml(options?: LocatorOptions): Promise<string> {
+    return await this.rpcClient.send(StagehandMethods.locatorInnerHtml, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async textContent(): Promise<string> {
-    return await this.rpcClient.send(StagehandMethods.locatorTextContent, this.descriptor);
+  async textContent(options?: LocatorOptions): Promise<string> {
+    return await this.rpcClient.send(StagehandMethods.locatorTextContent, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
-  async scrollTo(percent: LocatorScrollToParams["percent"]): Promise<void> {
+  async scrollTo(
+    percent: LocatorScrollToParams["percent"],
+    options?: LocatorOptions,
+  ): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorScrollTo, {
       ...this.descriptor,
       percent,
+      ...(options ? { options } : {}),
     });
   }
 
-  async centroid(): Promise<LocatorCentroidResult> {
-    return this.rpcClient.send(StagehandMethods.locatorCentroid, this.descriptor);
+  async centroid(options?: LocatorOptions): Promise<LocatorCentroidResult> {
+    return this.rpcClient.send(StagehandMethods.locatorCentroid, {
+      ...this.descriptor,
+      ...(options ? { options } : {}),
+    });
   }
 
   async highlight(options?: LocatorHighlightOptions): Promise<void> {
@@ -103,17 +144,22 @@ export class Locator {
     });
   }
 
-  async selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]> {
+  async selectOption(
+    values: LocatorSelectOptionParams["values"],
+    options?: LocatorOptions,
+  ): Promise<string[]> {
     return await this.rpcClient.send(StagehandMethods.locatorSelectOption, {
       ...this.descriptor,
       values,
+      ...(options ? { options } : {}),
     });
   }
 
-  async setInputFiles(files: FileInput): Promise<void> {
+  async setInputFiles(files: FileInput, options?: LocatorOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorSetInputFiles, {
       ...this.descriptor,
       files: await normalizeFileInput(files),
+      ...(options ? { options } : {}),
     });
   }
 

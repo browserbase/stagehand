@@ -244,6 +244,7 @@ async def test_send_omits_unset_nested_file_metadata() -> None:
         "page_id": "page-1",
         "selector": "#upload",
         "files": [{"name": "hello.txt", "data": "aGVsbG8="}],
+        "options": {"timeout": 5000},
     }
     await transport.incoming.put({
         "jsonrpc": "2.0",
@@ -666,23 +667,6 @@ def test_response_deadline_preserves_v3_unbounded_operations() -> None:
         "page.screenshot",
         "page.snapshot",
         "page.webmcp_invocation_result",
-        "locator.click",
-        "locator.fill",
-        "locator.hover",
-        "locator.count",
-        "locator.is_checked",
-        "locator.input_value",
-        "locator.is_visible",
-        "locator.inner_text",
-        "locator.inner_html",
-        "locator.text_content",
-        "locator.scroll_to",
-        "locator.centroid",
-        "locator.highlight",
-        "locator.send_click_event",
-        "locator.type",
-        "locator.select_option",
-        "locator.set_input_files",
     }
 
     for method in methods:
@@ -758,3 +742,33 @@ async def test_close_can_detach_without_closing_transport() -> None:
             ),
             models.CallbackBatchResult,
         )
+
+
+@pytest.mark.parametrize("timeout", [0, 15000])
+async def test_locator_wait_can_be_cancelled(timeout: int) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    task = asyncio.create_task(
+        client.send(
+            "locator.click",
+            models.LocatorClickParams.model_validate({
+                "page_id": "page",
+                "selector": "button",
+                "options": {"timeout": timeout},
+            }),
+            models.LocatorClickResult,
+        )
+    )
+    try:
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        assert request["params"] == {
+            "page_id": "page",
+            "selector": "button",
+            "options": {"timeout": timeout},
+        }
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert not client._pending
+    finally:
+        await client.close()

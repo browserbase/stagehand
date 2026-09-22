@@ -496,13 +496,6 @@ class LocatorDescriptor(TypedDict):
     nth: NotRequired[int]
 
 
-class LocatorFillParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    value: str
-
-
 class LocatorFillResult(TypedDict):
     filled: Literal[True]
 
@@ -530,10 +523,30 @@ LocatorIsCheckedResult: TypeAlias = bool
 LocatorIsVisibleResult: TypeAlias = bool
 
 
+class LocatorOptions(TypedDict):
+    timeout: NotRequired[int]
+
+
+class LocatorFillParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
+    value: str
+
+
+class LocatorOperationParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
+
+
 class LocatorScrollToParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
     percent: float | str
 
 
@@ -545,6 +558,7 @@ class LocatorSelectOptionParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
     values: str | list[str]
 
 
@@ -552,6 +566,7 @@ LocatorSelectOptionResult: TypeAlias = list[str]
 
 
 class LocatorSendClickEventOptions(TypedDict):
+    timeout: NotRequired[int]
     bubbles: NotRequired[bool]
     cancelable: NotRequired[bool]
     composed: NotRequired[bool]
@@ -573,6 +588,7 @@ class LocatorSetInputFilesParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
     files: list[InputFilePayload]
 
 
@@ -584,6 +600,7 @@ LocatorTextContentResult: TypeAlias = str
 
 
 class LocatorTypeOptions(TypedDict):
+    timeout: NotRequired[int]
     delay: NotRequired[float]
 
 
@@ -603,6 +620,7 @@ MouseButton: TypeAlias = Literal["left", "right", "middle"]
 
 
 class LocatorClickOptions(TypedDict):
+    timeout: NotRequired[int]
     button: NotRequired[MouseButton]
     click_count: NotRequired[int]
 
@@ -985,6 +1003,7 @@ class RgbaColor(TypedDict):
 
 
 class LocatorHighlightOptions(TypedDict):
+    timeout: NotRequired[int]
     duration_ms: NotRequired[int]
     border_color: NotRequired[RgbaColor]
     content_color: NotRequired[RgbaColor]

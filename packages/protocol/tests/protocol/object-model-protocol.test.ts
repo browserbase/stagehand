@@ -435,6 +435,7 @@ describe("Stagehand object-model protocol", () => {
       pageId: "target-1",
       selector: "h1",
       nth: 2,
+      options: { timeout: 5000 },
     });
 
     expect(() =>
@@ -447,9 +448,10 @@ describe("Stagehand object-model protocol", () => {
   });
 
   it("defines locator parity method parameter and result schemas", () => {
-    expect(StagehandMethods.locatorHover.params.parse(locatorDescriptor())).toStrictEqual(
-      locatorDescriptor(),
-    );
+    expect(StagehandMethods.locatorHover.params.parse(locatorDescriptor())).toStrictEqual({
+      ...locatorDescriptor(),
+      options: { timeout: 5000 },
+    });
     expect(StagehandMethods.locatorHover.result.parse({ hovered: true })).toStrictEqual({
       hovered: true,
     });
@@ -472,6 +474,7 @@ describe("Stagehand object-model protocol", () => {
     ).toStrictEqual({
       ...locatorDescriptor(),
       percent: "bottom",
+      options: { timeout: 5000 },
     });
     expect(StagehandMethods.locatorCentroid.result.parse({ x: 12.5, y: 44 })).toStrictEqual({
       x: 12.5,
@@ -488,10 +491,7 @@ describe("Stagehand object-model protocol", () => {
       }),
     ).toStrictEqual({
       ...locatorDescriptor(),
-      options: {
-        durationMs: 250,
-        borderColor: { r: 255, g: 0, b: 0, a: 0.9 },
-      },
+      options: { timeout: 5000, durationMs: 250, borderColor: { r: 255, g: 0, b: 0, a: 0.9 } },
     });
 
     expect(
@@ -501,7 +501,7 @@ describe("Stagehand object-model protocol", () => {
       }),
     ).toStrictEqual({
       ...locatorDescriptor(),
-      options: { bubbles: true, cancelable: true, composed: true, detail: 2 },
+      options: { timeout: 5000, bubbles: true, cancelable: true, composed: true, detail: 2 },
     });
 
     expect(
@@ -513,7 +513,7 @@ describe("Stagehand object-model protocol", () => {
     ).toStrictEqual({
       ...locatorDescriptor(),
       text: "hello",
-      options: { delay: 10 },
+      options: { timeout: 5000, delay: 10 },
     });
 
     expect(
@@ -524,6 +524,7 @@ describe("Stagehand object-model protocol", () => {
     ).toStrictEqual({
       ...locatorDescriptor(),
       values: ["a", "b"],
+      options: { timeout: 5000 },
     });
     expect(StagehandMethods.locatorSelectOption.result.parse(["a"])).toStrictEqual(["a"]);
 
@@ -549,6 +550,7 @@ describe("Stagehand object-model protocol", () => {
           lastModified: 1_700_000_000_000,
         },
       ],
+      options: { timeout: 5000 },
     });
     expect(StagehandMethods.locatorSetInputFiles.result.parse({ set: true })).toStrictEqual({
       set: true,

@@ -1982,21 +1982,41 @@ export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
 /** Default overall timeout for a locator operation, in milliseconds. */
 export const DEFAULT_LOCATOR_TIMEOUT_MS = 5_000;
 
+const LocatorTimeoutSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .default(DEFAULT_LOCATOR_TIMEOUT_MS)
+  .describe(
+    "Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout.",
+  );
+
+export const LocatorOptionsSchema = z
+  .strictObject({
+    timeout: LocatorTimeoutSchema,
+  })
+  .meta({ id: "LocatorOptions" });
+
+export const LocatorOperationParamsSchema = LocatorDescriptorSchema.extend({
+  options: LocatorOptionsSchema.default({ timeout: DEFAULT_LOCATOR_TIMEOUT_MS }),
+}).meta({ id: "LocatorOperationParams" });
+
 export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
   options: z
     .strictObject({
+      timeout: LocatorTimeoutSchema,
       button: MouseButtonSchema.optional(),
       clickCount: z.number().int().positive().optional(),
     })
     .meta({ id: "LocatorClickOptions" })
-    .optional(),
+    .default({ timeout: DEFAULT_LOCATOR_TIMEOUT_MS }),
 }).meta({ id: "LocatorClickParams" });
 
-export const LocatorFillParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorFillParamsSchema = LocatorOperationParamsSchema.extend({
   value: z.string(),
 }).meta({ id: "LocatorFillParams" });
 
-export const LocatorScrollToParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorScrollToParamsSchema = LocatorOperationParamsSchema.extend({
   percent: z.union([z.number(), z.string()]),
 }).meta({ id: "LocatorScrollToParams" });
 
@@ -2012,37 +2032,40 @@ export const RgbaColorSchema = z
 export const LocatorHighlightParamsSchema = LocatorDescriptorSchema.extend({
   options: z
     .strictObject({
+      timeout: LocatorTimeoutSchema,
       durationMs: z.number().int().nonnegative().optional(),
       borderColor: RgbaColorSchema.optional(),
       contentColor: RgbaColorSchema.optional(),
     })
     .meta({ id: "LocatorHighlightOptions" })
-    .optional(),
+    .default({ timeout: DEFAULT_LOCATOR_TIMEOUT_MS }),
 }).meta({ id: "LocatorHighlightParams" });
 
 export const LocatorSendClickEventParamsSchema = LocatorDescriptorSchema.extend({
   options: z
     .strictObject({
+      timeout: LocatorTimeoutSchema,
       bubbles: z.boolean().optional(),
       cancelable: z.boolean().optional(),
       composed: z.boolean().optional(),
       detail: z.number().optional(),
     })
     .meta({ id: "LocatorSendClickEventOptions" })
-    .optional(),
+    .default({ timeout: DEFAULT_LOCATOR_TIMEOUT_MS }),
 }).meta({ id: "LocatorSendClickEventParams" });
 
 export const LocatorTypeParamsSchema = LocatorDescriptorSchema.extend({
   text: z.string(),
   options: z
     .strictObject({
+      timeout: LocatorTimeoutSchema,
       delay: z.number().nonnegative().optional(),
     })
     .meta({ id: "LocatorTypeOptions" })
-    .optional(),
+    .default({ timeout: DEFAULT_LOCATOR_TIMEOUT_MS }),
 }).meta({ id: "LocatorTypeParams" });
 
-export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorSelectOptionParamsSchema = LocatorOperationParamsSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
@@ -2069,7 +2092,7 @@ export const InputFilePayloadSchema = z
   })
   .meta({ id: "InputFilePayload" });
 
-export const LocatorSetInputFilesParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorSetInputFilesParamsSchema = LocatorOperationParamsSchema.extend({
   files: z.array(InputFilePayloadSchema),
 }).meta({ id: "LocatorSetInputFilesParams" });
 

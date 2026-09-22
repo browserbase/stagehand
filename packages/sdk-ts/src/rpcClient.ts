@@ -1,3 +1,4 @@
+import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   ROOT_CONTEXT,
   context,
@@ -510,6 +511,11 @@ function asError(error: unknown): Error {
 }
 
 export function rpcResponseTimeoutMs(method: string, params: unknown): number | undefined {
+  if (method.startsWith("locator.")) {
+    const timeout =
+      numericProperty(recordProperty(params, "options"), "timeout") ?? DEFAULT_LOCATOR_TIMEOUT_MS;
+    return timeout === 0 ? undefined : RPC_RESPONSE_GRACE_MS + timeout;
+  }
   let operationTimeoutMs: number | undefined;
   switch (method) {
     case StagehandMethods.stagehandAct.name:
@@ -545,7 +551,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
 
   // These operations had no v3 deadline. Keep the server as the owner of their
   // lifetime instead of turning the transport grace period into a 10s ceiling.
-  if (UNBOUNDED_BY_DEFAULT_METHODS.has(method) || method.startsWith("locator.")) {
+  if (UNBOUNDED_BY_DEFAULT_METHODS.has(method)) {
     return undefined;
   }
 

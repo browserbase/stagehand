@@ -8,6 +8,7 @@ import type { JSONRPCResponse } from "@browserbasehq/stagehand-protocol/json-rpc
 import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
+  StagehandMethods,
   StagehandRpcNotificationSchema,
   StagehandSendToHostBindingSchema,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
@@ -495,12 +496,16 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 }
 
 class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
-  readonly clickCalls: Array<LocatorClickParams["options"]> = [];
+  readonly clickCalls: Array<Partial<LocatorClickParams["options"]> | undefined> = [];
   readonly fillCalls: string[] = [];
   readonly scrollToCalls: LocatorScrollToParams["percent"][] = [];
-  readonly highlightCalls: Array<LocatorHighlightParams["options"]> = [];
-  readonly sendClickEventCalls: Array<LocatorSendClickEventParams["options"]> = [];
-  readonly typeCalls: Array<{ text: string; options?: LocatorTypeParams["options"] }> = [];
+  readonly highlightCalls: Array<Partial<LocatorHighlightParams["options"]> | undefined> = [];
+  readonly sendClickEventCalls: Array<Partial<LocatorSendClickEventParams["options"]> | undefined> =
+    [];
+  readonly typeCalls: Array<{
+    text: string;
+    options?: Partial<LocatorTypeParams["options"]> | undefined;
+  }> = [];
   readonly selectOptionCalls: Array<LocatorSelectOptionParams["values"]> = [];
   readonly setInputFilesCalls: Array<Parameters<UnderstudyRuntimeLocator["setInputFiles"]>[0]> = [];
   readonly nthCalls: number[] = [];
@@ -520,7 +525,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
     } = {},
   ) {}
 
-  click(options?: LocatorClickParams["options"]): void {
+  click(options?: Partial<LocatorClickParams["options"]> | undefined): void {
     this.clickCalls.push(options ?? {});
   }
 
@@ -566,15 +571,15 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
     return this.values.centroid ?? { x: 0, y: 0 };
   }
 
-  highlight(options?: LocatorHighlightParams["options"]): void {
+  highlight(options?: Partial<LocatorHighlightParams["options"]> | undefined): void {
     this.highlightCalls.push(options);
   }
 
-  sendClickEvent(options?: LocatorSendClickEventParams["options"]): void {
+  sendClickEvent(options?: Partial<LocatorSendClickEventParams["options"]> | undefined): void {
     this.sendClickEventCalls.push(options);
   }
 
-  type(text: string, options?: LocatorTypeParams["options"]): void {
+  type(text: string, options?: Partial<LocatorTypeParams["options"]> | undefined): void {
     this.typeCalls.push({ text, options });
   }
 
@@ -2377,14 +2382,16 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
 
     await expect(
-      runtime.locatorClick({
-        pageId: "page-a",
-        selector: "button.submit",
-        options: {
-          button: "left",
-          clickCount: 2,
-        },
-      }),
+      runtime.locatorClick(
+        StagehandMethods.locatorClick.params.parse({
+          pageId: "page-a",
+          selector: "button.submit",
+          options: {
+            button: "left",
+            clickCount: 2,
+          },
+        }),
+      ),
     ).resolves.toStrictEqual({
       clicked: true,
     });
@@ -2395,6 +2402,7 @@ describe("Stagehand worker clients", () => {
       {
         button: "left",
         clickCount: 2,
+        timeout: 5000,
       },
     ]);
   });
@@ -2404,11 +2412,13 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
 
     await expect(
-      runtime.locatorFill({
-        pageId: "page-a",
-        selector: "input[name=email]",
-        value: "user@example.com",
-      }),
+      runtime.locatorFill(
+        StagehandMethods.locatorFill.params.parse({
+          pageId: "page-a",
+          selector: "input[name=email]",
+          value: "user@example.com",
+        }),
+      ),
     ).resolves.toStrictEqual({
       filled: true,
     });
@@ -2427,10 +2437,12 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
 
     await expect(
-      runtime.locatorIsVisible({
-        pageId: "page-a",
-        selector: "section.visible",
-      }),
+      runtime.locatorIsVisible(
+        StagehandMethods.locatorIsVisible.params.parse({
+          pageId: "page-a",
+          selector: "section.visible",
+        }),
+      ),
     ).resolves.toBe(true);
 
     expect(page.locatorRefs).toHaveLength(1);
@@ -2446,10 +2458,12 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
 
     await expect(
-      runtime.locatorTextContent({
-        pageId: "page-a",
-        selector: "p.message",
-      }),
+      runtime.locatorTextContent(
+        StagehandMethods.locatorTextContent.params.parse({
+          pageId: "page-a",
+          selector: "p.message",
+        }),
+      ),
     ).resolves.toBe("hello from locator");
 
     expect(page.locatorRefs).toHaveLength(1);
@@ -2463,11 +2477,13 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
 
     await expect(
-      runtime.locatorCount({
-        pageId: "page-a",
-        selector: "li.item",
-        nth: 2,
-      }),
+      runtime.locatorCount(
+        StagehandMethods.locatorCount.params.parse({
+          pageId: "page-a",
+          selector: "li.item",
+          nth: 2,
+        }),
+      ),
     ).resolves.toBe(1);
 
     expect(locator.nthCalls).toStrictEqual([2]);
@@ -2492,12 +2508,24 @@ describe("Stagehand worker clients", () => {
       selector: "input.email",
     };
 
-    await expect(runtime.locatorCount(descriptor)).resolves.toBe(3);
-    await expect(runtime.locatorIsChecked(descriptor)).resolves.toBe(true);
-    await expect(runtime.locatorInputValue(descriptor)).resolves.toBe("user@example.com");
-    await expect(runtime.locatorInnerText(descriptor)).resolves.toBe("visible text");
-    await expect(runtime.locatorInnerHtml(descriptor)).resolves.toBe("<span>visible text</span>");
-    await expect(runtime.locatorCentroid(descriptor)).resolves.toStrictEqual({ x: 12, y: 34 });
+    await expect(
+      runtime.locatorCount(StagehandMethods.locatorCount.params.parse(descriptor)),
+    ).resolves.toBe(3);
+    await expect(
+      runtime.locatorIsChecked(StagehandMethods.locatorIsChecked.params.parse(descriptor)),
+    ).resolves.toBe(true);
+    await expect(
+      runtime.locatorInputValue(StagehandMethods.locatorInputValue.params.parse(descriptor)),
+    ).resolves.toBe("user@example.com");
+    await expect(
+      runtime.locatorInnerText(StagehandMethods.locatorInnerText.params.parse(descriptor)),
+    ).resolves.toBe("visible text");
+    await expect(
+      runtime.locatorInnerHtml(StagehandMethods.locatorInnerHtml.params.parse(descriptor)),
+    ).resolves.toBe("<span>visible text</span>");
+    await expect(
+      runtime.locatorCentroid(StagehandMethods.locatorCentroid.params.parse(descriptor)),
+    ).resolves.toStrictEqual({ x: 12, y: 34 });
   });
 
   it("resolves write locator methods through an understudy deep locator", async () => {
@@ -2512,38 +2540,63 @@ describe("Stagehand worker clients", () => {
       selector: "input.email",
     };
 
-    await expect(runtime.locatorHover(descriptor)).resolves.toStrictEqual({ hovered: true });
-    await expect(runtime.locatorScrollTo({ ...descriptor, percent: 50 })).resolves.toStrictEqual({
+    await expect(
+      runtime.locatorHover(StagehandMethods.locatorHover.params.parse(descriptor)),
+    ).resolves.toStrictEqual({ hovered: true });
+    await expect(
+      runtime.locatorScrollTo(
+        StagehandMethods.locatorScrollTo.params.parse({ ...descriptor, percent: 50 }),
+      ),
+    ).resolves.toStrictEqual({
       scrolled: true,
     });
     await expect(
-      runtime.locatorHighlight({
-        ...descriptor,
-        options: { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } },
-      }),
+      runtime.locatorHighlight(
+        StagehandMethods.locatorHighlight.params.parse({
+          ...descriptor,
+          options: { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } },
+        }),
+      ),
     ).resolves.toStrictEqual({ highlighted: true });
     await expect(
-      runtime.locatorSendClickEvent({ ...descriptor, options: { detail: 2 } }),
+      runtime.locatorSendClickEvent(
+        StagehandMethods.locatorSendClickEvent.params.parse({
+          ...descriptor,
+          options: { detail: 2 },
+        }),
+      ),
     ).resolves.toStrictEqual({ clicked: true });
     await expect(
-      runtime.locatorType({ ...descriptor, text: "hello", options: { delay: 1 } }),
+      runtime.locatorType(
+        StagehandMethods.locatorType.params.parse({
+          ...descriptor,
+          text: "hello",
+          options: { delay: 1 },
+        }),
+      ),
     ).resolves.toStrictEqual({ typed: true });
     await expect(
-      runtime.locatorSelectOption({ ...descriptor, values: ["a", "b"] }),
+      runtime.locatorSelectOption(
+        StagehandMethods.locatorSelectOption.params.parse({ ...descriptor, values: ["a", "b"] }),
+      ),
     ).resolves.toStrictEqual(["b"]);
     await expect(
-      runtime.locatorSetInputFiles({
-        ...descriptor,
-        files: [{ name: "hello.txt", data: "aGVsbG8=", mimeType: "text/plain" }],
-      }),
+      runtime.locatorSetInputFiles(
+        StagehandMethods.locatorSetInputFiles.params.parse({
+          ...descriptor,
+          files: [{ name: "hello.txt", data: "aGVsbG8=", mimeType: "text/plain" }],
+        }),
+      ),
     ).resolves.toStrictEqual({ set: true });
 
     expect(locator.scrollToCalls).toStrictEqual([50]);
     expect(locator.highlightCalls).toStrictEqual([
-      { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 } },
+      { durationMs: 0, borderColor: { r: 1, g: 2, b: 3 }, timeout: 5000 },
     ]);
-    expect(locator.sendClickEventCalls).toStrictEqual([{ detail: 2 }]);
-    expect(locator.typeCalls).toStrictEqual([{ text: "hello", options: { delay: 1 } }]);
+    expect(locator.sendClickEventCalls).toStrictEqual([{ detail: 2, timeout: 5000 }]);
+    expect(locator.typeCalls).toStrictEqual([
+      { text: "hello", options: { delay: 1, timeout: 5000 } },
+    ]);
     expect(locator.selectOptionCalls).toStrictEqual([["a", "b"]]);
     expect(locator.setInputFilesCalls).toHaveLength(1);
     expect(locator.setInputFilesCalls[0]).toStrictEqual([
@@ -2560,10 +2613,12 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession());
 
     await expect(
-      runtime.locatorClick({
-        pageId: "missing-page",
-        selector: "button",
-      }),
+      runtime.locatorClick(
+        StagehandMethods.locatorClick.params.parse({
+          pageId: "missing-page",
+          selector: "button",
+        }),
+      ),
     ).rejects.toThrow('Stagehand page "missing-page" was not found; call context.pages and retry');
   });
 
@@ -2571,48 +2626,55 @@ describe("Stagehand worker clients", () => {
     const runtime = createStagehandRuntime();
 
     await expect(
-      runtime.locatorIsVisible({
-        pageId: "page-a",
-        selector: "button",
-      }),
+      runtime.locatorIsVisible(
+        StagehandMethods.locatorIsVisible.params.parse({
+          pageId: "page-a",
+          selector: "button",
+        }),
+      ),
     ).rejects.toThrow("Stagehand loopback CDP is not configured");
   });
 
-  it("routes locator.click through the RPC app", async () => {
-    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
-    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+  it.each([undefined, 0, 15000])(
+    "routes locator.click timeout %s through the RPC app",
+    async (timeout) => {
+      const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+      const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
 
-    await expect(
-      handle({
+      await expect(
+        handle({
+          jsonrpc: "2.0",
+          id: 13,
+          method: "locator.click",
+          params: {
+            page_id: "page-a",
+            selector: "button.submit",
+            options: {
+              button: "left",
+              click_count: 2,
+              ...(timeout === undefined ? {} : { timeout }),
+            },
+          },
+        }),
+      ).resolves.toStrictEqual({
         jsonrpc: "2.0",
         id: 13,
-        method: "locator.click",
-        params: {
-          page_id: "page-a",
-          selector: "button.submit",
-          options: {
-            button: "left",
-            click_count: 2,
-          },
+        result: {
+          clicked: true,
         },
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 13,
-      result: {
-        clicked: true,
-      },
-    });
+      });
 
-    expect(page.locatorRefs).toHaveLength(1);
-    expect(page.locatorRefs[0]?.selector).toBe("button.submit");
-    expect(page.locatorRefs[0]?.clickCalls).toStrictEqual([
-      {
-        button: "left",
-        clickCount: 2,
-      },
-    ]);
-  });
+      expect(page.locatorRefs).toHaveLength(1);
+      expect(page.locatorRefs[0]?.selector).toBe("button.submit");
+      expect(page.locatorRefs[0]?.clickCalls).toStrictEqual([
+        {
+          button: "left",
+          clickCount: 2,
+          timeout: timeout ?? 5000,
+        },
+      ]);
+    },
+  );
 
   it("routes locator.fill through the RPC app", async () => {
     const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");

@@ -1,3 +1,7 @@
+import { LocatorOptionsSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import type { LocatorOptions } from "@browserbasehq/stagehand-protocol/types";
+import { TimeoutBudget } from "../timeoutBudget.js";
+import { TimeoutError } from "../errors.js";
 import { LocatorOperation, isClosedSessionError } from "./locatorOperation.js";
 import type { Protocol } from "devtools-protocol";
 import { Locator } from "./locator.js";
@@ -110,50 +114,60 @@ class LocatorDelegate {
     return locator.nth(this.nthIndex);
   }
 
-  private perform<T>(action: (locator: Locator) => Promise<T>): Promise<T> {
-    const operation = new LocatorOperation();
+  private perform<T>(
+    action: (locator: Locator) => Promise<T>,
+    options?: Partial<LocatorOptions>,
+  ): Promise<T> {
+    const { timeout } = LocatorOptionsSchema.parse({ timeout: options?.timeout });
+    const operation = new LocatorOperation(
+      new TimeoutBudget(timeout, (ms) => new TimeoutError("Locator operation", ms)),
+    );
     return operation.run(async () => action(await this.real(operation)));
   }
 
   // Locator API delegates
-  async click(options?: { button?: "left" | "right" | "middle"; clickCount?: number }) {
-    return this.perform((locator) => locator.click(options));
+  async click(options?: {
+    button?: "left" | "right" | "middle";
+    clickCount?: number;
+    timeout?: number;
+  }) {
+    return this.perform((locator) => locator.click(options), options);
   }
-  async hover() {
-    return this.perform((locator) => locator.hover());
+  async hover(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.hover(), options);
   }
-  async fill(value: string) {
-    return this.perform((locator) => locator.fill(value));
+  async fill(value: string, options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.fill(value), options);
   }
-  async type(text: string, options?: { delay?: number }) {
-    return this.perform((locator) => locator.type(text, options));
+  async type(text: string, options?: { delay?: number; timeout?: number }) {
+    return this.perform((locator) => locator.type(text, options), options);
   }
-  async selectOption(values: string | string[]) {
-    return this.perform((locator) => locator.selectOption(values));
+  async selectOption(values: string | string[], options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.selectOption(values), options);
   }
-  async scrollTo(percent: number | string) {
-    return this.perform((locator) => locator.scrollTo(percent));
+  async scrollTo(percent: number | string, options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.scrollTo(percent), options);
   }
-  async isVisible() {
-    return this.perform((locator) => locator.isVisible());
+  async isVisible(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.isVisible(), options);
   }
-  async isChecked() {
-    return this.perform((locator) => locator.isChecked());
+  async isChecked(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.isChecked(), options);
   }
-  async inputValue() {
-    return this.perform((locator) => locator.inputValue());
+  async inputValue(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.inputValue(), options);
   }
-  async textContent() {
-    return this.perform((locator) => locator.textContent());
+  async textContent(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.textContent(), options);
   }
-  async innerHtml() {
-    return this.perform((locator) => locator.innerHtml());
+  async innerHtml(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.innerHtml(), options);
   }
-  async innerText() {
-    return this.perform((locator) => locator.innerText());
+  async innerText(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.innerText(), options);
   }
-  async count() {
-    return this.perform((locator) => locator.count());
+  async count(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.count(), options);
   }
   first(): LocatorDelegate {
     return this.nth(0);

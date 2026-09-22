@@ -445,9 +445,6 @@ describe("RPCClient", () => {
       StagehandMethods.pageScreenshot.name,
       StagehandMethods.pageSnapshot.name,
       StagehandMethods.pageWebMCPInvocationResult.name,
-      ...Object.values(StagehandMethods)
-        .map(({ name }) => name)
-        .filter((name) => name.startsWith("locator.")),
     ];
 
     for (const method of methods) {

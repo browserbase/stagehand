@@ -10,9 +10,9 @@ from stagehand._generated.models import (
     LocatorClickParams,
     LocatorClickResult,
     LocatorCountResult,
-    LocatorDescriptor,
     LocatorInputValueResult,
     LocatorIsCheckedResult,
+    LocatorOperationParams,
     LocatorSetInputFilesParams,
     LocatorSetInputFilesResult,
 )
@@ -53,7 +53,7 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
     assert result_model is LocatorClickResult
     assert recording.calls[1] == (
         "locator.count",
-        LocatorDescriptor(page_id="page-1", selector="select", nth=1),
+        LocatorOperationParams(page_id="page-1", selector="select", nth=1),
         LocatorCountResult,
     )
 
@@ -72,7 +72,7 @@ async def test_locator_boolean_and_string_getters_return_scalars() -> None:
 
     assert await locator.is_checked() is True
     assert await locator.input_value() == "selected"
-    descriptor = LocatorDescriptor(page_id="page-1", selector="select")
+    descriptor = LocatorOperationParams(page_id="page-1", selector="select")
     assert recording.calls == [
         ("locator.is_checked", descriptor, LocatorIsCheckedResult),
         ("locator.input_value", descriptor, LocatorInputValueResult),
@@ -187,3 +187,73 @@ def test_set_input_files_rejects_named_pipes_without_blocking(tmp_path: Path) ->
 
     with pytest.raises(ValueError, match="expected a readable file"):
         normalize_file_input(pipe_path)
+
+
+@pytest.mark.parametrize("timeout", [None, 0, 15000])
+@pytest.mark.parametrize(
+    "method,args,options",
+    [
+        ("click", [], {"button": "right"}),
+        ("hover", [], {}),
+        ("fill", ["hello"], {}),
+        ("type", ["hello"], {"delay": 25}),
+        ("select_option", ["one"], {}),
+        ("set_input_files", [[]], {}),
+        ("scroll_to", [50.0], {}),
+        ("send_click_event", [], {"bubbles": False}),
+        ("inner_text", [], {}),
+        ("inner_html", [], {}),
+        ("text_content", [], {}),
+        ("input_value", [], {}),
+        ("is_checked", [], {}),
+        ("centroid", [], {}),
+        ("count", [], {}),
+        ("is_visible", [], {}),
+        ("highlight", [], {"duration_ms": 100}),
+    ],
+)
+async def test_all_locator_methods_forward_timeout(
+    method: str,
+    args: list[object],
+    options: dict[str, object],
+    timeout: int | None,
+) -> None:
+    from stagehand.rpc_client import _rpc_response_timeout_seconds
+
+    responses: dict[str, object] = {
+        "click": {"clicked": True},
+        "hover": {"hovered": True},
+        "fill": {"filled": True},
+        "type": {"typed": True},
+        "select_option": ["one"],
+        "set_input_files": {"set": True},
+        "scroll_to": {"scrolled": True},
+        "send_click_event": {"clicked": True},
+        "inner_text": "text",
+        "inner_html": "html",
+        "text_content": "text",
+        "input_value": "value",
+        "is_checked": False,
+        "centroid": {"x": 1.0, "y": 2.0},
+        "count": 0,
+        "is_visible": False,
+        "highlight": {"highlighted": True},
+    }
+    recording = RecordingRPCClient({f"locator.{method}": responses[method]})
+    locator = Locator(cast(RPCClient, recording), page_id="page", selector="iframe >> button").nth(
+        2
+    )
+    kwargs = dict(options)
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    await getattr(locator, method)(*args, **kwargs)
+    name, params, _ = recording.calls[0]
+    wire = params.model_dump(exclude_unset=True, by_alias=True)
+    assert wire["page_id"] == "page"
+    assert wire["selector"] == "iframe >> button"
+    assert wire["nth"] == 2
+    expected_options = {**options, "timeout": 5000 if timeout is None else timeout}
+    assert wire["options"] == expected_options
+    assert _rpc_response_timeout_seconds(name, params) == (
+        None if timeout == 0 else (10000 + (5000 if timeout is None else timeout)) / 1000
+    )

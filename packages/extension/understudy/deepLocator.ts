@@ -1,3 +1,7 @@
+import { LocatorOptionsSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import type { LocatorOptions } from "@browserbasehq/stagehand-protocol/types";
+import { TimeoutBudget } from "../timeoutBudget.js";
+import { TimeoutError } from "../errors.js";
 import { LocatorOperation } from "./locatorOperation.js";
 import { Locator } from "./locator.js";
 import type { Frame } from "./frame.js";
@@ -127,74 +131,82 @@ export class DeepLocatorDelegate {
     return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
   }
 
-  private perform<T>(action: (locator: Locator) => Promise<T>): Promise<T> {
-    const operation = new LocatorOperation();
+  private perform<T>(
+    action: (locator: Locator) => Promise<T>,
+    options?: Partial<LocatorOptions>,
+  ): Promise<T> {
+    const { timeout } = LocatorOptionsSchema.parse({ timeout: options?.timeout });
+    const operation = new LocatorOperation(
+      new TimeoutBudget(timeout, (ms) => new TimeoutError("Locator operation", ms)),
+    );
     return operation.run(async () => action(await this.real(operation)));
   }
 
   // Locator API delegates
-  async click(options?: { button?: MouseButton; clickCount?: number }) {
-    return this.perform((locator) => locator.click(options));
+  async click(options?: { button?: MouseButton; clickCount?: number; timeout?: number }) {
+    return this.perform((locator) => locator.click(options), options);
   }
-  async count() {
-    return this.perform((locator) => locator.count());
+  async count(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.count(), options);
   }
-  async hover() {
-    return this.perform((locator) => locator.hover());
+  async hover(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.hover(), options);
   }
-  async fill(value: string) {
-    return this.perform((locator) => locator.fill(value));
+  async fill(value: string, options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.fill(value), options);
   }
-  async type(text: string, options?: { delay?: number }) {
-    return this.perform((locator) => locator.type(text, options));
+  async type(text: string, options?: { delay?: number; timeout?: number }) {
+    return this.perform((locator) => locator.type(text, options), options);
   }
-  async selectOption(values: string | string[]) {
-    return this.perform((locator) => locator.selectOption(values));
+  async selectOption(values: string | string[], options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.selectOption(values), options);
   }
-  async scrollTo(percent: number | string) {
-    return this.perform((locator) => locator.scrollTo(percent));
+  async scrollTo(percent: number | string, options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.scrollTo(percent), options);
   }
-  async isVisible() {
-    return this.perform((locator) => locator.isVisible());
+  async isVisible(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.isVisible(), options);
   }
-  async isChecked() {
-    return this.perform((locator) => locator.isChecked());
+  async isChecked(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.isChecked(), options);
   }
-  async inputValue() {
-    return this.perform((locator) => locator.inputValue());
+  async inputValue(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.inputValue(), options);
   }
-  async textContent() {
-    return this.perform((locator) => locator.textContent());
+  async textContent(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.textContent(), options);
   }
-  async innerHtml() {
-    return this.perform((locator) => locator.innerHtml());
+  async innerHtml(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.innerHtml(), options);
   }
-  async innerText() {
-    return this.perform((locator) => locator.innerText());
+  async innerText(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.innerText(), options);
   }
-  async centroid() {
-    return this.perform((locator) => locator.centroid());
+  async centroid(options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.centroid(), options);
   }
   async backendNodeId() {
     return this.perform((locator) => locator.backendNodeId());
   }
   async highlight(options?: {
+    timeout?: number;
     durationMs?: number;
     borderColor?: { r: number; g: number; b: number; a?: number };
     contentColor?: { r: number; g: number; b: number; a?: number };
   }) {
-    return this.perform((locator) => locator.highlight(options));
+    return this.perform((locator) => locator.highlight(options), options);
   }
   async sendClickEvent(options?: {
+    timeout?: number;
     bubbles?: boolean;
     cancelable?: boolean;
     composed?: boolean;
     detail?: number;
   }) {
-    return this.perform((locator) => locator.sendClickEvent(options));
+    return this.perform((locator) => locator.sendClickEvent(options), options);
   }
-  async setInputFiles(files: SetInputFilesArgument) {
-    return this.perform((locator) => locator.setInputFiles(files));
+  async setInputFiles(files: SetInputFilesArgument, options?: Partial<LocatorOptions>) {
+    return this.perform((locator) => locator.setInputFiles(files), options);
   }
   first() {
     return this.nth(0);

@@ -184,23 +184,6 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"page.screenshot",
 		"page.snapshot",
 		"page.webmcp_invocation_result",
-		"locator.click",
-		"locator.fill",
-		"locator.hover",
-		"locator.count",
-		"locator.is_checked",
-		"locator.input_value",
-		"locator.is_visible",
-		"locator.inner_text",
-		"locator.inner_html",
-		"locator.text_content",
-		"locator.scroll_to",
-		"locator.centroid",
-		"locator.highlight",
-		"locator.send_click_event",
-		"locator.type",
-		"locator.select_option",
-		"locator.set_input_files",
 	}
 	for _, method := range unboundedMethods {
 		if timeout, ok := rpcResponseTimeout(method, json.RawMessage(`{}`)); ok {
@@ -1247,4 +1230,23 @@ func contextWithTestSpan(
 		TraceState: traceState,
 	})
 	return trace.ContextWithSpanContext(context.Background(), spanContext)
+}
+
+func TestLocatorTimeoutHonorsShorterContextDeadline(t *testing.T) {
+	for _, timeout := range []int{0, 15000} {
+		transport := newQueueRPCTransport()
+		client := newTestRPCClient(t, transport)
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		done := make(chan error, 1)
+		go func() {
+			locator := &PageLocator{rpc: client, descriptor: LocatorDescriptor{PageID: "page", Selector: "button"}}
+			done <- locator.Click(ctx, &LocatorClickOptions{Timeout: &timeout})
+		}()
+		_ = receiveSentRPC(t, transport)
+		err := receiveCallError(t, done)
+		cancel()
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("expected context deadline, got %v", err)
+		}
+	}
 }

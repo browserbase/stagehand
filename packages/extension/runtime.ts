@@ -29,11 +29,14 @@ import type {
   LLMGenerateResult,
   LoadState,
   LocatorClickParams,
+  LocatorFillParams,
+  LocatorOperationParams,
+  LocatorSetInputFilesParams,
   LocatorClickResult,
   LocatorCentroidResult,
   LocatorCountResult,
   LocatorDescriptor,
-  LocatorFillParams,
+  LocatorOptions,
   LocatorFillResult,
   LocatorHighlightParams,
   LocatorHighlightResult,
@@ -47,7 +50,6 @@ import type {
   LocatorScrollToResult,
   LocatorSelectOptionParams,
   LocatorSelectOptionResult,
-  LocatorSetInputFilesParams,
   LocatorSetInputFilesResult,
   LocatorSendClickEventParams,
   LocatorSendClickEventResult,
@@ -220,23 +222,29 @@ export type UnderstudyRuntimeClipboard = {
 };
 
 export type UnderstudyRuntimeLocator = {
-  click(options?: LocatorClickParams["options"]): Promise<void> | void;
-  hover(): Promise<void> | void;
-  fill(value: string): Promise<void> | void;
-  count(): Promise<number>;
-  isChecked(): Promise<boolean>;
-  inputValue(): Promise<string>;
-  isVisible(): Promise<boolean>;
-  innerText(): Promise<string>;
-  innerHtml(): Promise<string>;
-  textContent(): Promise<string>;
-  scrollTo(percent: LocatorScrollToParams["percent"]): Promise<void> | void;
-  centroid(): Promise<LocatorCentroidResult>;
-  highlight(options?: LocatorHighlightParams["options"]): Promise<void> | void;
-  sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> | void;
-  type(text: string, options?: LocatorTypeParams["options"]): Promise<void> | void;
-  selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]>;
-  setInputFiles(files: SetInputFilesArgument): Promise<void>;
+  click(options?: Partial<LocatorClickParams["options"]>): Promise<void> | void;
+  hover(options?: Partial<LocatorOptions>): Promise<void> | void;
+  fill(value: string, options?: Partial<LocatorOptions>): Promise<void> | void;
+  count(options?: Partial<LocatorOptions>): Promise<number>;
+  isChecked(options?: Partial<LocatorOptions>): Promise<boolean>;
+  inputValue(options?: Partial<LocatorOptions>): Promise<string>;
+  isVisible(options?: Partial<LocatorOptions>): Promise<boolean>;
+  innerText(options?: Partial<LocatorOptions>): Promise<string>;
+  innerHtml(options?: Partial<LocatorOptions>): Promise<string>;
+  textContent(options?: Partial<LocatorOptions>): Promise<string>;
+  scrollTo(
+    percent: LocatorScrollToParams["percent"],
+    options?: Partial<LocatorOptions>,
+  ): Promise<void> | void;
+  centroid(options?: Partial<LocatorOptions>): Promise<LocatorCentroidResult>;
+  highlight(options?: Partial<LocatorHighlightParams["options"]>): Promise<void> | void;
+  sendClickEvent(options?: Partial<LocatorSendClickEventParams["options"]>): Promise<void> | void;
+  type(text: string, options?: Partial<LocatorTypeParams["options"]>): Promise<void> | void;
+  selectOption(
+    values: LocatorSelectOptionParams["values"],
+    options?: Partial<LocatorOptions>,
+  ): Promise<string[]>;
+  setInputFiles(files: SetInputFilesArgument, options?: Partial<LocatorOptions>): Promise<void>;
   nth(index: number): UnderstudyRuntimeLocator;
 };
 
@@ -827,51 +835,51 @@ export class StagehandRuntime {
     return { clicked: true };
   }
 
-  async locatorHover(params: LocatorDescriptor): Promise<LocatorHoverResult> {
-    await this.resolveLocator(params).hover();
+  async locatorHover(params: LocatorOperationParams): Promise<LocatorHoverResult> {
+    await this.resolveLocator(params).hover(params.options);
     return { hovered: true };
   }
 
   async locatorFill(params: LocatorFillParams): Promise<LocatorFillResult> {
-    await this.resolveLocator(params).fill(params.value);
+    await this.resolveLocator(params).fill(params.value, params.options);
     return { filled: true };
   }
 
-  async locatorCount(params: LocatorDescriptor): Promise<LocatorCountResult> {
-    return await this.resolveLocator(params).count();
+  async locatorCount(params: LocatorOperationParams): Promise<LocatorCountResult> {
+    return await this.resolveLocator(params).count(params.options);
   }
 
-  async locatorIsChecked(params: LocatorDescriptor): Promise<LocatorIsCheckedResult> {
-    return await this.resolveLocator(params).isChecked();
+  async locatorIsChecked(params: LocatorOperationParams): Promise<LocatorIsCheckedResult> {
+    return await this.resolveLocator(params).isChecked(params.options);
   }
 
-  async locatorInputValue(params: LocatorDescriptor): Promise<LocatorInputValueResult> {
-    return await this.resolveLocator(params).inputValue();
+  async locatorInputValue(params: LocatorOperationParams): Promise<LocatorInputValueResult> {
+    return await this.resolveLocator(params).inputValue(params.options);
   }
 
-  async locatorIsVisible(params: LocatorDescriptor): Promise<LocatorIsVisibleResult> {
-    return await this.resolveLocator(params).isVisible();
+  async locatorIsVisible(params: LocatorOperationParams): Promise<LocatorIsVisibleResult> {
+    return await this.resolveLocator(params).isVisible(params.options);
   }
 
-  async locatorInnerText(params: LocatorDescriptor): Promise<LocatorInnerTextResult> {
-    return await this.resolveLocator(params).innerText();
+  async locatorInnerText(params: LocatorOperationParams): Promise<LocatorInnerTextResult> {
+    return await this.resolveLocator(params).innerText(params.options);
   }
 
-  async locatorInnerHtml(params: LocatorDescriptor): Promise<LocatorInnerHtmlResult> {
-    return await this.resolveLocator(params).innerHtml();
+  async locatorInnerHtml(params: LocatorOperationParams): Promise<LocatorInnerHtmlResult> {
+    return await this.resolveLocator(params).innerHtml(params.options);
   }
 
-  async locatorTextContent(params: LocatorDescriptor): Promise<LocatorTextContentResult> {
-    return await this.resolveLocator(params).textContent();
+  async locatorTextContent(params: LocatorOperationParams): Promise<LocatorTextContentResult> {
+    return await this.resolveLocator(params).textContent(params.options);
   }
 
   async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
-    await this.resolveLocator(params).scrollTo(params.percent);
+    await this.resolveLocator(params).scrollTo(params.percent, params.options);
     return { scrolled: true };
   }
 
-  async locatorCentroid(params: LocatorDescriptor): Promise<LocatorCentroidResult> {
-    return await this.resolveLocator(params).centroid();
+  async locatorCentroid(params: LocatorOperationParams): Promise<LocatorCentroidResult> {
+    return await this.resolveLocator(params).centroid(params.options);
   }
 
   async locatorHighlight(params: LocatorHighlightParams): Promise<LocatorHighlightResult> {
@@ -892,7 +900,7 @@ export class StagehandRuntime {
   }
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
-    return await this.resolveLocator(params).selectOption(params.values);
+    return await this.resolveLocator(params).selectOption(params.values, params.options);
   }
 
   async locatorSetInputFiles(
@@ -912,6 +920,7 @@ export class StagehandRuntime {
           lastModified: file.lastModified,
         };
       }),
+      params.options,
     );
     return { set: true };
   }

@@ -204,6 +204,7 @@ describe("JSON-RPC wire casing", () => {
       selector: "button",
       nth: 0,
       options: {
+        timeout: 5000,
         cancelable: true,
         composed: true,
       },
@@ -213,6 +214,7 @@ describe("JSON-RPC wire casing", () => {
       selector: "button",
       nth: 0,
       options: {
+        timeout: 5000,
         cancelable: true,
         composed: true,
       },

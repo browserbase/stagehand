@@ -725,7 +725,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorHoverResult"
@@ -738,7 +738,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorCountResult"
@@ -751,7 +751,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorIsCheckedResult"
@@ -764,7 +764,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorInputValueResult"
@@ -777,7 +777,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorIsVisibleResult"
@@ -790,7 +790,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorInnerTextResult"
@@ -803,7 +803,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorInnerHtmlResult"
@@ -816,7 +816,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorTextContentResult"
@@ -842,7 +842,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorCentroidResult"
@@ -4228,6 +4228,9 @@
           "maximum": 9007199254740991
         },
         "options": {
+          "default": {
+            "timeout": 5000
+          },
           "$ref": "#/$defs/LocatorClickOptions"
         }
       },
@@ -4237,6 +4240,13 @@
     "LocatorClickOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "default": 5000,
+          "description": "Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "button": {
           "$ref": "#/$defs/MouseButton"
         },
@@ -4274,11 +4284,30 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "options": {
+          "default": {
+            "timeout": 5000
+          },
+          "$ref": "#/$defs/LocatorOptions"
+        },
         "value": {
           "type": "string"
         }
       },
       "required": ["page_id", "selector", "value"],
+      "additionalProperties": false
+    },
+    "LocatorOptions": {
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "default": 5000,
+          "description": "Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
       "additionalProperties": false
     },
     "LocatorFillResult": {
@@ -4290,6 +4319,31 @@
         }
       },
       "required": ["filled"],
+      "additionalProperties": false
+    },
+    "LocatorOperationParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "options": {
+          "default": {
+            "timeout": 5000
+          },
+          "$ref": "#/$defs/LocatorOptions"
+        }
+      },
+      "required": ["page_id", "selector"],
       "additionalProperties": false
     },
     "LocatorHoverResult": {
@@ -4340,6 +4394,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "options": {
+          "default": {
+            "timeout": 5000
+          },
+          "$ref": "#/$defs/LocatorOptions"
         },
         "percent": {
           "anyOf": [
@@ -4395,6 +4455,9 @@
           "maximum": 9007199254740991
         },
         "options": {
+          "default": {
+            "timeout": 5000
+          },
           "$ref": "#/$defs/LocatorHighlightOptions"
         }
       },
@@ -4404,6 +4467,13 @@
     "LocatorHighlightOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "default": 5000,
+          "description": "Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "duration_ms": {
           "type": "integer",
           "minimum": 0,
@@ -4464,6 +4534,9 @@
           "maximum": 9007199254740991
         },
         "options": {
+          "default": {
+            "timeout": 5000
+          },
           "$ref": "#/$defs/LocatorSendClickEventOptions"
         }
       },
@@ -4473,6 +4546,13 @@
     "LocatorSendClickEventOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "default": 5000,
+          "description": "Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "bubbles": {
           "type": "boolean"
         },
@@ -4518,6 +4598,9 @@
           "type": "string"
         },
         "options": {
+          "default": {
+            "timeout": 5000
+          },
           "$ref": "#/$defs/LocatorTypeOptions"
         }
       },
@@ -4527,6 +4610,13 @@
     "LocatorTypeOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "default": 5000,
+          "description": "Overall operation timeout in milliseconds, including iframe setup. Defaults to 5000; 0 disables the timeout.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "delay": {
           "type": "number",
           "minimum": 0
@@ -4559,6 +4649,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "options": {
+          "default": {
+            "timeout": 5000
+          },
+          "$ref": "#/$defs/LocatorOptions"
         },
         "values": {
           "anyOf": [
@@ -4597,6 +4693,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "options": {
+          "default": {
+            "timeout": 5000
+          },
+          "$ref": "#/$defs/LocatorOptions"
         },
         "files": {
           "type": "array",
@@ -6785,7 +6887,7 @@
               "const": "locator.hover"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -6812,7 +6914,7 @@
               "const": "locator.count"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -6839,7 +6941,7 @@
               "const": "locator.is_checked"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -6866,7 +6968,7 @@
               "const": "locator.input_value"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -6893,7 +6995,7 @@
               "const": "locator.is_visible"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -6920,7 +7022,7 @@
               "const": "locator.inner_text"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -6947,7 +7049,7 @@
               "const": "locator.inner_html"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -6974,7 +7076,7 @@
               "const": "locator.text_content"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"
@@ -7028,7 +7130,7 @@
               "const": "locator.centroid"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorOperationParams"
             },
             "traceparent": {
               "type": "string"

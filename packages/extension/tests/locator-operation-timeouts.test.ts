@@ -41,6 +41,34 @@ describe("locator operation timeouts", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it.each([0, 15000])("uses public timeout %s across readiness and execution", async (timeout) => {
+    const delegate = new DeepLocatorDelegate({} as Page, {} as Frame, "iframe >> button");
+    const click = vi.fn(async () => {});
+    vi.spyOn(delegate, "real").mockImplementation(async (operation) => {
+      await operation!.wait(14000);
+      return { click } as unknown as Locator;
+    });
+    const result = delegate.click({ timeout, button: "right" });
+    await vi.advanceTimersByTimeAsync(14000);
+    await result;
+    expect(click).toHaveBeenCalledExactlyOnceWith({ timeout, button: "right" });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("expires the public timeout during readiness before dispatching a click", async () => {
+    const delegate = new DeepLocatorDelegate({} as Page, {} as Frame, "iframe >> button");
+    const click = vi.fn();
+    vi.spyOn(delegate, "real").mockImplementation(async (operation) => {
+      await operation!.wait(14000);
+      return { click } as unknown as Locator;
+    });
+    const rejected = expect(delegate.click({ timeout: 1000 })).rejects.toThrow("1000ms");
+    await vi.advanceTimersByTimeAsync(15000);
+    await rejected;
+    expect(click).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("defaults to five seconds for the entire operation", async () => {
     const operation = new LocatorOperation();
     const result = operation.run(() => new Promise<void>(() => {}));
