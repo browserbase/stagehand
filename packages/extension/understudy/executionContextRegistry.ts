@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
+import { type LocatorOperation, runLocatorStep } from "./locatorOperation.js";
 
 type FrameId = Protocol.Page.FrameId;
 type ExecId = Protocol.Runtime.ExecutionContextId;
@@ -90,22 +91,40 @@ export class ExecutionContextRegistry {
     return this.fallbackByFrame.get(session)?.get(frameId) ?? null;
   }
 
+  /** With an operation, timeout limits each extension probe, not the whole wait.
+   * Frame traversal disables retries here so it can recheck session ownership.
+   */
   async waitForLocatorWorld(
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 1000,
+    operation?: LocatorOperation,
+    retryUntilDeadline = true,
   ): Promise<LocatorWorld> {
-    const extensionContextId = this.getExtensionWorld(session, frameId);
-    if (extensionContextId) return this.extensionWorld(extensionContextId);
+    while (true) {
+      operation?.throwIfStopped();
+      const extensionContextId = this.getExtensionWorld(session, frameId);
+      if (extensionContextId) return this.extensionWorld(extensionContextId);
 
-    const fallbackContextId = this.getFallbackWorld(session, frameId);
-    if (fallbackContextId) return this.fallbackWorld(fallbackContextId);
+      const fallbackContextId = this.getFallbackWorld(session, frameId);
+      if (fallbackContextId) return this.fallbackWorld(fallbackContextId);
 
-    try {
-      return this.extensionWorld(await this.waitForExtensionWorld(session, frameId, timeout));
-    } catch (extensionError) {
-      if (!(await this.isFallbackEligible(session, frameId))) throw extensionError;
-      return this.fallbackWorld(await this.createFallbackWorld(session, frameId));
+      try {
+        return this.extensionWorld(
+          await this.waitForExtensionWorld(session, frameId, timeout, operation),
+        );
+      } catch (extensionError) {
+        operation?.throwIfStopped();
+        if (await this.isFallbackEligible(session, frameId, operation)) {
+          // Installation is shared. Only this caller's wait belongs to its operation.
+          return this.fallbackWorld(
+            await runLocatorStep(operation, "installing locator helpers", () =>
+              this.createFallbackWorld(session, frameId),
+            ),
+          );
+        }
+        if (!operation || !retryUntilDeadline) throw extensionError;
+      }
     }
   }
 
@@ -113,20 +132,28 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 1000,
+    operation?: LocatorOperation,
   ): Promise<ExecId> {
+    operation?.throwIfStopped();
     const cached = this.getExtensionWorld(session, frameId);
     if (cached) return cached;
 
-    await session.send("Runtime.enable").catch(() => {});
-    const deadline = Date.now() + timeout;
+    await runLocatorStep(operation, "enabling runtime", () =>
+      session.send("Runtime.enable").catch(() => {}),
+    );
+    const now = () => (operation ? performance.now() : Date.now());
+    const deadline = now() + Math.min(timeout, operation?.remainingMs() ?? Infinity);
     const checkedContextIds = new Set<ExecId>();
     const diagnostics = new Map<ExecId, string>();
 
-    while (Date.now() <= deadline) {
+    while (now() <= deadline) {
+      operation?.throwIfStopped();
       const candidates = this.extensionCandidates.get(session)?.get(frameId);
       for (const contextId of candidates ?? []) {
         checkedContextIds.add(contextId);
-        const diagnostic = await this.inspectExtensionWorld(session, contextId);
+        const diagnostic = await runLocatorStep(operation, "inspecting locator helpers", () =>
+          this.inspectExtensionWorld(session, contextId),
+        );
         diagnostics.set(contextId, JSON.stringify(diagnostic));
         if (diagnostic.ready) {
           this.registerExtensionWorld(session, frameId, contextId);
@@ -134,7 +161,8 @@ export class ExecutionContextRegistry {
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      if (operation) await operation.delay(Math.min(25, Math.max(1, deadline - now())));
+      else await new Promise((resolve) => setTimeout(resolve, 25));
     }
 
     throw new Error(
@@ -150,40 +178,59 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 800,
+    operation?: LocatorOperation,
   ): Promise<ExecId> {
+    operation?.throwIfStopped();
     const cached = this.getMainWorld(session, frameId);
     if (cached) return cached;
 
-    await session.send("Runtime.enable").catch(() => {});
+    await runLocatorStep(operation, "enabling runtime", () =>
+      session.send("Runtime.enable").catch(() => {}),
+    );
     const after = this.getMainWorld(session, frameId);
     if (after) return after;
 
-    return await new Promise<ExecId>((resolve, reject) => {
-      let done = false;
-      const onCreated = (evt: Protocol.Runtime.ExecutionContextCreatedEvent): void => {
-        const aux = (evt.context.auxData ?? {}) as {
-          frameId?: string;
-          isDefault?: boolean;
-        };
-        if (aux.isDefault === true && aux.frameId === frameId) {
-          this.register(session, frameId, evt.context.id);
-          if (!done) {
-            done = true;
-            clearTimeout(timer);
-            session.off("Runtime.executionContextCreated", onCreated);
-            resolve(evt.context.id);
-          }
-        }
-      };
-      const timer = setTimeout(() => {
-        if (!done) {
-          done = true;
-          session.off("Runtime.executionContextCreated", onCreated);
-          reject(new Error(`main world not ready for frame ${frameId}`));
-        }
-      }, timeout);
-      session.on("Runtime.executionContextCreated", onCreated);
-    });
+    let dispose = () => {};
+    try {
+      return await runLocatorStep(
+        operation,
+        "waiting for main world",
+        () =>
+          new Promise<ExecId>((resolve, reject) => {
+            let done = false;
+            const onCreated = (evt: Protocol.Runtime.ExecutionContextCreatedEvent): void => {
+              const aux = (evt.context.auxData ?? {}) as {
+                frameId?: string;
+                isDefault?: boolean;
+              };
+              if (aux.isDefault === true && aux.frameId === frameId) {
+                this.register(session, frameId, evt.context.id);
+                if (!done) {
+                  done = true;
+                  clearTimeout(timer);
+                  session.off("Runtime.executionContextCreated", onCreated);
+                  resolve(evt.context.id);
+                }
+              }
+            };
+            const timer = setTimeout(() => {
+              if (!done) {
+                done = true;
+                session.off("Runtime.executionContextCreated", onCreated);
+                reject(new Error(`main world not ready for frame ${frameId}`));
+              }
+            }, timeout);
+            session.on("Runtime.executionContextCreated", onCreated);
+            dispose = () => {
+              done = true;
+              clearTimeout(timer);
+              session.off("Runtime.executionContextCreated", onCreated);
+            };
+          }),
+      );
+    } finally {
+      dispose();
+    }
   }
 
   register(session: CDPSessionLike, frameId: FrameId, ctxId: ExecId): void {
@@ -292,14 +339,20 @@ export class ExecutionContextRegistry {
     };
   }
 
-  private async isFallbackEligible(session: CDPSessionLike, frameId: FrameId): Promise<boolean> {
+  private async isFallbackEligible(
+    session: CDPSessionLike,
+    frameId: FrameId,
+    operation?: LocatorOperation,
+  ): Promise<boolean> {
     try {
-      const contextId = await this.waitForMainWorld(session, frameId, 800);
-      const response = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: "globalThis.location?.protocol ?? ''",
-        contextId,
-        returnByValue: true,
-      });
+      const contextId = await this.waitForMainWorld(session, frameId, 800, operation);
+      const response = await runLocatorStep(operation, "checking locator fallback", () =>
+        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression: "globalThis.location?.protocol ?? ''",
+          contextId,
+          returnByValue: true,
+        }),
+      );
       const protocol = response.result.value;
       return (
         protocol === "data:" ||
@@ -309,6 +362,7 @@ export class ExecutionContextRegistry {
         protocol === "filesystem:"
       );
     } catch {
+      operation?.throwIfStopped();
       return false;
     }
   }

@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { Frame } from "./frame.js";
-import type { LocatorOperation } from "./locatorOperation.js";
+import { type LocatorOperation, runLocatorStep } from "./locatorOperation.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 
@@ -104,7 +104,20 @@ export class FrameSelectorResolver {
     operation?.throwIfStopped();
     if (index < 0 || !Number.isFinite(index)) return null;
     const results = await this.resolveAll(query, { limit: index + 1 }, operation);
-    return results[index] ?? null;
+    const selected = results[index] ?? null;
+    if (operation) {
+      await this.releaseNodes(
+        results.filter((node) => node !== selected),
+        operation,
+      );
+      try {
+        operation.throwIfStopped();
+      } catch (error) {
+        if (selected) await this.releaseNodes([selected], operation);
+        throw error;
+      }
+    }
+    return selected;
   }
 
   async resolveCss(
@@ -112,29 +125,7 @@ export class FrameSelectorResolver {
     limit: number,
     operation?: LocatorOperation,
   ): Promise<ResolvedNode[]> {
-    operation?.throwIfStopped();
-    if (limit <= 0) return [];
-
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
-
-    const results: ResolvedNode[] = [];
-
-    for (let index = 0; index < limit; index += 1) {
-      const expression = buildLocatorInvocation("resolveCssSelector", [
-        JSON.stringify(selector),
-        String(index),
-      ]);
-      const resolved = await this.evaluateElement(expression, ctxId);
-      if (!resolved) break;
-      results.push(resolved);
-    }
-
-    return results;
+    return this.resolveElements("resolveCssSelector", selector, limit, operation);
   }
 
   async resolveText(
@@ -142,28 +133,7 @@ export class FrameSelectorResolver {
     limit: number,
     operation?: LocatorOperation,
   ): Promise<ResolvedNode[]> {
-    operation?.throwIfStopped();
-    if (limit <= 0) return [];
-
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
-
-    const results: ResolvedNode[] = [];
-    for (let index = 0; index < limit; index += 1) {
-      const expr = buildLocatorInvocation("resolveTextSelector", [
-        JSON.stringify(value),
-        String(index),
-      ]);
-      const resolved = await this.evaluateElement(expr, ctxId);
-      if (!resolved) break;
-      results.push(resolved);
-    }
-
-    return results;
+    return this.resolveElements("resolveTextSelector", value, limit, operation);
   }
 
   async resolveXPath(
@@ -171,28 +141,47 @@ export class FrameSelectorResolver {
     limit: number,
     operation?: LocatorOperation,
   ): Promise<ResolvedNode[]> {
+    return this.resolveElements("resolveXPathMainWorld", value, limit, operation);
+  }
+
+  private async resolveElements(
+    helper: "resolveCssSelector" | "resolveTextSelector" | "resolveXPathMainWorld",
+    value: string,
+    limit: number,
+    operation?: LocatorOperation,
+  ): Promise<ResolvedNode[]> {
     operation?.throwIfStopped();
     if (limit <= 0) return [];
-
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      this.frame.session,
       this.frame.frameId,
       1000,
+      operation,
     );
-
     const results: ResolvedNode[] = [];
-    for (let index = 0; index < limit; index += 1) {
-      const expr = buildLocatorInvocation("resolveXPathMainWorld", [
-        JSON.stringify(value),
-        String(index),
-      ]);
-      const resolved = await this.evaluateElement(expr, ctxId);
-      if (!resolved) break;
-      results.push(resolved);
+    try {
+      for (let index = 0; index < limit; index += 1) {
+        const expression = buildLocatorInvocation(helper, [JSON.stringify(value), String(index)]);
+        const resolved = await this.evaluateElement(expression, contextId, operation);
+        if (!resolved) break;
+        results.push(resolved);
+      }
+      return results;
+    } catch (error) {
+      if (operation) await this.releaseNodes(results, operation);
+      throw error;
     }
+  }
 
-    return results;
+  private async releaseNodes(nodes: ResolvedNode[], operation: LocatorOperation): Promise<void> {
+    if (nodes.length)
+      await operation.cleanup(() =>
+        Promise.all(
+          nodes.map(({ objectId }) =>
+            this.frame.session.send("Runtime.releaseObject", { objectId }).catch(() => {}),
+          ),
+        ),
+      );
   }
 
   async countCss(selector: string): Promise<number> {
@@ -288,15 +277,17 @@ export class FrameSelectorResolver {
 
   async resolveFromObjectId(
     objectId: Protocol.Runtime.RemoteObjectId,
+    operation?: LocatorOperation,
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
     let nodeId: Protocol.DOM.NodeId | null;
     try {
-      const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>("DOM.requestNode", {
-        objectId,
-      });
+      const rn = await runLocatorStep(operation, "resolving DOM node", () =>
+        session.send<{ nodeId: Protocol.DOM.NodeId }>("DOM.requestNode", { objectId }),
+      );
       nodeId = rn.nodeId ?? null;
     } catch {
+      operation?.throwIfStopped();
       nodeId = null;
     }
 
@@ -333,23 +324,33 @@ export class FrameSelectorResolver {
   async evaluateElement(
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
+    operation?: LocatorOperation,
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
-
+    let objectId: Protocol.Runtime.RemoteObjectId | undefined;
+    const release = (id: string) => session.send("Runtime.releaseObject", { objectId: id });
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId,
-        returnByValue: false,
-        awaitPromise: true,
-      });
-
-      if (evalRes.exceptionDetails || !evalRes.result.objectId) {
+      const evalRes = await runLocatorStep(
+        operation,
+        "evaluating selector",
+        () =>
+          session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression,
+            contextId,
+            returnByValue: false,
+            awaitPromise: true,
+          }),
+        (late) => (late.result.objectId ? release(late.result.objectId) : undefined),
+      );
+      objectId = evalRes.result.objectId;
+      if (evalRes.exceptionDetails || !objectId) {
+        if (operation && objectId) await operation.cleanup(() => release(objectId!));
         return null;
       }
-
-      return this.resolveFromObjectId(evalRes.result.objectId);
+      return await this.resolveFromObjectId(objectId, operation);
     } catch {
+      if (operation && objectId) await operation.cleanup(() => release(objectId!));
+      operation?.throwIfStopped();
       return null;
     }
   }

@@ -183,3 +183,13 @@ export async function runLocatorOperation<T>(
     if (ownsOperation) operation.dispose();
   }
 }
+
+/** Keep legacy callers unchanged while resolution adopts operation contexts. */
+export function runLocatorStep<T>(
+  operation: LocatorOperation | undefined,
+  phase: string,
+  work: () => Promise<T>,
+  onLateResult?: (value: T) => void | Promise<unknown>,
+): Promise<T> {
+  return operation ? operation.run(phase, work, onLateResult) : work();
+}
