@@ -259,13 +259,42 @@ async function sendDriverRequest<T>(
   });
 }
 
+/**
+ * Commands carry their own deadline inside the opaque `params` payload
+ * (`timeoutMs`, see commands/navigation.ts and commands/runtime.ts). Read it
+ * back out so the transport can outlive the work it is waiting on.
+ */
+function commandTimeoutHintMs(params: unknown): number | undefined {
+  if (typeof params !== "object" || params === null) return undefined;
+  const { timeoutMs } = params as { timeoutMs?: unknown };
+  if (typeof timeoutMs !== "number") return undefined;
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) return undefined;
+  return timeoutMs;
+}
+
 export function daemonRequestTimeoutMs(request: DriverRequest): number {
-  if (request.type !== "open") return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
-  return Math.min(
-    OPEN_INITIALIZATION_ALLOWANCE_MS +
-      (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS),
-    MAX_NODE_TIMER_DELAY_MS,
-  );
+  if (request.type === "open") {
+    return Math.min(
+      OPEN_INITIALIZATION_ALLOWANCE_MS +
+        (request.timeoutMs ?? DEFAULT_NAVIGATION_TIMEOUT_MS),
+      MAX_NODE_TIMER_DELAY_MS,
+    );
+  }
+
+  // A command that declares its own deadline needs the transport to wait at
+  // least that long, plus the standard allowance for daemon round trips.
+  // Commands without one keep the previous fixed budget exactly.
+  if (request.type === "command") {
+    const commandTimeoutMs = commandTimeoutHintMs(request.params);
+    if (commandTimeoutMs !== undefined) {
+      return Math.min(
+        DEFAULT_DAEMON_REQUEST_TIMEOUT_MS + commandTimeoutMs,
+        MAX_NODE_TIMER_DELAY_MS,
+      );
+    }
+  }
+
+  return DEFAULT_DAEMON_REQUEST_TIMEOUT_MS;
 }
 
 function spawnDaemon(session: string, target: ConnectionTarget): void {
