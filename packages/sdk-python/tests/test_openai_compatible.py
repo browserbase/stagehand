@@ -29,5 +29,7 @@ async def test_open_ai_compatible_maps_structured_request() -> None:
     assert api_key == "test-key"
     assert headers == {}
     assert payload["messages"] == [{"role": "user", "content": "hello"}]
+    assert "temperature" not in payload
+    assert "description" not in payload["response_format"]["json_schema"]
     assert payload["response_format"]["json_schema"]["strict"] is True
     assert result.structured_content.model_dump() == {"answer": "ok"}

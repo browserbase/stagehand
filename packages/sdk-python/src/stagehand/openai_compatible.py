@@ -76,22 +76,22 @@ def open_ai_compatible(
             {"role": message.role.value, "content": _content(message)}
             for message in params.messages
         )
-        payload = {
+        json_schema: dict[str, Any] = {
+            "name": response_format.name,
+            "schema": response_format.schema_.model_dump(by_alias=True)
+            if response_format.schema_ is not None
+            else None,
+            "strict": True,
+        }
+        if response_format.description is not None:
+            json_schema["description"] = response_format.description
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
-            "temperature": params.temperature,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": response_format.name,
-                    "description": response_format.description,
-                    "schema": response_format.schema_.model_dump(by_alias=True)
-                    if response_format.schema_ is not None
-                    else None,
-                    "strict": True,
-                },
-            },
+            "response_format": {"type": "json_schema", "json_schema": json_schema},
         }
+        if params.temperature is not None:
+            payload["temperature"] = params.temperature
         response = await asyncio.to_thread(_post_json, url, api_key, extra_headers, payload)
         choices = response.get("choices", [])
         text = choices[0].get("message", {}).get("content") if choices else None

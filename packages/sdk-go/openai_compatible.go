@@ -76,20 +76,26 @@ func OpenAICompatible(options OpenAICompatibleOptions) LLMGenerateFunc {
 			}
 			messages = append(messages, map[string]any{"role": message.Role, "content": content})
 		}
-		body, err := json.Marshal(map[string]any{
-			"model":       options.Model,
-			"messages":    messages,
-			"temperature": request.Temperature,
+		jsonSchema := map[string]any{
+			"name":   request.ResponseFormat.Name,
+			"schema": request.ResponseFormat.Schema,
+			"strict": true,
+		}
+		if request.ResponseFormat.Description != nil {
+			jsonSchema["description"] = *request.ResponseFormat.Description
+		}
+		payload := map[string]any{
+			"model":    options.Model,
+			"messages": messages,
 			"response_format": map[string]any{
-				"type": "json_schema",
-				"json_schema": map[string]any{
-					"name":        request.ResponseFormat.Name,
-					"description": request.ResponseFormat.Description,
-					"schema":      request.ResponseFormat.Schema,
-					"strict":      true,
-				},
+				"type":        "json_schema",
+				"json_schema": jsonSchema,
 			},
-		})
+		}
+		if request.Temperature != nil {
+			payload["temperature"] = *request.Temperature
+		}
+		body, err := json.Marshal(payload)
 		if err != nil {
 			return LLMGenerateResult{}, err
 		}

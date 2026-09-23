@@ -15,8 +15,10 @@ func TestOpenAICompatible(t *testing.T) {
 			Role    string `json:"role"`
 			Content string `json:"content"`
 		} `json:"messages"`
+		Temperature    *float64 `json:"temperature"`
 		ResponseFormat struct {
-			Type string `json:"type"`
+			Type       string         `json:"type"`
+			JSONSchema map[string]any `json:"json_schema"`
 		} `json:"response_format"`
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -50,5 +52,11 @@ func TestOpenAICompatible(t *testing.T) {
 	}
 	if request.Model != "example/model" || len(request.Messages) != 1 || request.Messages[0].Content != "hello" || request.ResponseFormat.Type != "json_schema" {
 		t.Fatalf("unexpected request: %#v", request)
+	}
+	if request.Temperature != nil {
+		t.Fatalf("unset temperature was sent: %v", *request.Temperature)
+	}
+	if _, ok := request.ResponseFormat.JSONSchema["description"]; ok {
+		t.Fatal("unset schema description was sent")
 	}
 }
