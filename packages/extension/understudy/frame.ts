@@ -2,7 +2,7 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
-import { type LocatorOperation, runLocatorStep } from "./locatorOperation.js";
+import { type Progress, runLocatorStep } from "./progress.js";
 import { waitForScreenshot } from "./screenshotUtils.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandLogger } from "../logger.js";
@@ -183,23 +183,20 @@ export class Frame implements FrameManager {
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
-  async evaluateInLocatorWorld<R = unknown>(
-    expression: string,
-    operation?: LocatorOperation,
-  ): Promise<R> {
-    await runLocatorStep(operation, "enabling runtime", () =>
+  async evaluateInLocatorWorld<R = unknown>(expression: string, progress?: Progress): Promise<R> {
+    await runLocatorStep(progress, "enabling runtime", () =>
       this.session.send("Runtime.enable").catch(() => {}),
     );
     let locatorWorld = await executionContexts.waitForLocatorWorld(
       this.session,
       this.frameId,
       1000,
-      operation,
+      progress,
     );
 
     let response: Protocol.Runtime.EvaluateResponse;
     try {
-      response = await runLocatorStep(operation, "evaluating locator helper", () =>
+      response = await runLocatorStep(progress, "evaluating locator helper", () =>
         this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
           expression,
           contextId: locatorWorld.contextId,
@@ -208,7 +205,7 @@ export class Frame implements FrameManager {
         }),
       );
     } catch (error) {
-      operation?.throwIfStopped();
+      progress?.throwIfStopped();
       const message = error instanceof Error ? error.message : String(error);
       if (!message.includes("Cannot find context with specified id")) throw error;
       executionContexts.unregisterLocatorContext(this.session, locatorWorld.contextId);
@@ -216,9 +213,9 @@ export class Frame implements FrameManager {
         this.session,
         this.frameId,
         1000,
-        operation,
+        progress,
       );
-      response = await runLocatorStep(operation, "evaluating locator helper", () =>
+      response = await runLocatorStep(progress, "evaluating locator helper", () =>
         this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
           expression,
           contextId: locatorWorld.contextId,

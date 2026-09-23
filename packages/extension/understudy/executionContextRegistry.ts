@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
-import { type LocatorOperation, runLocatorStep } from "./locatorOperation.js";
+import { type Progress, runLocatorStep } from "./progress.js";
 
 type FrameId = Protocol.Page.FrameId;
 type ExecId = Protocol.Runtime.ExecutionContextId;
@@ -91,18 +91,18 @@ export class ExecutionContextRegistry {
     return this.fallbackByFrame.get(session)?.get(frameId) ?? null;
   }
 
-  /** With an operation, timeout limits each extension probe, not the whole wait.
+  /** With progress, timeout limits each extension probe, not the whole wait.
    * Frame traversal disables retries here so it can recheck session ownership.
    */
   async waitForLocatorWorld(
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 1000,
-    operation?: LocatorOperation,
+    progress?: Progress,
     retryUntilDeadline = true,
   ): Promise<LocatorWorld> {
     while (true) {
-      operation?.throwIfStopped();
+      progress?.throwIfStopped();
       const extensionContextId = this.getExtensionWorld(session, frameId);
       if (extensionContextId) return this.extensionWorld(extensionContextId);
 
@@ -111,19 +111,19 @@ export class ExecutionContextRegistry {
 
       try {
         return this.extensionWorld(
-          await this.waitForExtensionWorld(session, frameId, timeout, operation),
+          await this.waitForExtensionWorld(session, frameId, timeout, progress),
         );
       } catch (extensionError) {
-        operation?.throwIfStopped();
-        if (await this.isFallbackEligible(session, frameId, operation)) {
-          // Installation is shared. Only this caller's wait belongs to its operation.
+        progress?.throwIfStopped();
+        if (await this.isFallbackEligible(session, frameId, progress)) {
+          // Installation is shared. Only this caller's wait belongs to its progress.
           return this.fallbackWorld(
-            await runLocatorStep(operation, "installing locator helpers", () =>
+            await runLocatorStep(progress, "installing locator helpers", () =>
               this.createFallbackWorld(session, frameId),
             ),
           );
         }
-        if (!operation || !retryUntilDeadline) throw extensionError;
+        if (!progress || !retryUntilDeadline) throw extensionError;
       }
     }
   }
@@ -132,26 +132,26 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 1000,
-    operation?: LocatorOperation,
+    progress?: Progress,
   ): Promise<ExecId> {
-    operation?.throwIfStopped();
+    progress?.throwIfStopped();
     const cached = this.getExtensionWorld(session, frameId);
     if (cached) return cached;
 
-    await runLocatorStep(operation, "enabling runtime", () =>
+    await runLocatorStep(progress, "enabling runtime", () =>
       session.send("Runtime.enable").catch(() => {}),
     );
-    const now = () => (operation ? performance.now() : Date.now());
-    const deadline = now() + Math.min(timeout, operation?.remainingMs() ?? Infinity);
+    const now = () => (progress ? performance.now() : Date.now());
+    const deadline = now() + Math.min(timeout, progress?.remainingMs() ?? Infinity);
     const checkedContextIds = new Set<ExecId>();
     const diagnostics = new Map<ExecId, string>();
 
     while (now() <= deadline) {
-      operation?.throwIfStopped();
+      progress?.throwIfStopped();
       const candidates = this.extensionCandidates.get(session)?.get(frameId);
       for (const contextId of candidates ?? []) {
         checkedContextIds.add(contextId);
-        const diagnostic = await runLocatorStep(operation, "inspecting locator helpers", () =>
+        const diagnostic = await runLocatorStep(progress, "inspecting locator helpers", () =>
           this.inspectExtensionWorld(session, contextId),
         );
         diagnostics.set(contextId, JSON.stringify(diagnostic));
@@ -161,7 +161,7 @@ export class ExecutionContextRegistry {
         }
       }
 
-      if (operation) await operation.delay(Math.min(25, Math.max(1, deadline - now())));
+      if (progress) await progress.delay(Math.min(25, Math.max(1, deadline - now())));
       else await new Promise((resolve) => setTimeout(resolve, 25));
     }
 
@@ -178,13 +178,13 @@ export class ExecutionContextRegistry {
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 800,
-    operation?: LocatorOperation,
+    progress?: Progress,
   ): Promise<ExecId> {
-    operation?.throwIfStopped();
+    progress?.throwIfStopped();
     const cached = this.getMainWorld(session, frameId);
     if (cached) return cached;
 
-    await runLocatorStep(operation, "enabling runtime", () =>
+    await runLocatorStep(progress, "enabling runtime", () =>
       session.send("Runtime.enable").catch(() => {}),
     );
     const after = this.getMainWorld(session, frameId);
@@ -193,7 +193,7 @@ export class ExecutionContextRegistry {
     let dispose = () => {};
     try {
       return await runLocatorStep(
-        operation,
+        progress,
         "waiting for main world",
         () =>
           new Promise<ExecId>((resolve, reject) => {
@@ -342,11 +342,11 @@ export class ExecutionContextRegistry {
   private async isFallbackEligible(
     session: CDPSessionLike,
     frameId: FrameId,
-    operation?: LocatorOperation,
+    progress?: Progress,
   ): Promise<boolean> {
     try {
-      const contextId = await this.waitForMainWorld(session, frameId, 800, operation);
-      const response = await runLocatorStep(operation, "checking locator fallback", () =>
+      const contextId = await this.waitForMainWorld(session, frameId, 800, progress);
+      const response = await runLocatorStep(progress, "checking locator fallback", () =>
         session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
           expression: "globalThis.location?.protocol ?? ''",
           contextId,
@@ -362,7 +362,7 @@ export class ExecutionContextRegistry {
         protocol === "filesystem:"
       );
     } catch {
-      operation?.throwIfStopped();
+      progress?.throwIfStopped();
       return false;
     }
   }

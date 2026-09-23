@@ -1,5 +1,5 @@
 import { Locator } from "./locator.js";
-import type { LocatorOperation } from "./locatorOperation.js";
+import type { Progress } from "./progress.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
@@ -55,9 +55,9 @@ export async function deepLocatorThroughIframes(
   page: Page,
   root: Frame,
   xpathOrSelector: string,
-  operation?: LocatorOperation,
+  progress?: Progress,
 ): Promise<Locator> {
-  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector, operation);
+  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector, progress);
   return new Locator(target.frame, target.selector);
 }
 
@@ -69,9 +69,9 @@ export async function resolveLocatorTarget(
   page: Page,
   root: Frame,
   selectorRaw: string,
-  operation?: LocatorOperation,
+  progress?: Progress,
 ): Promise<ResolvedLocatorTarget> {
-  operation?.throwIfStopped();
+  progress?.throwIfStopped();
   const sel = selectorRaw.trim();
   const parts = sel
     .split(">>")
@@ -84,14 +84,14 @@ export async function resolveLocatorTarget(
     for (let i = 1; i < parts.length - 1; i++) {
       fl = fl.frameLocator(parts[i]!);
     }
-    const targetFrame = await fl.resolveFrame(operation);
+    const targetFrame = await fl.resolveFrame(progress);
     return { frame: targetFrame, selector: parts[parts.length - 1]! };
   }
 
   // No hops — delegate to XPath-aware deep resolver when needed
   const isXPath = sel.startsWith("xpath=") || sel.startsWith("/");
   if (isXPath) {
-    return resolveDeepXPathTarget(page, root, sel, operation);
+    return resolveDeepXPathTarget(page, root, sel, progress);
   }
   return { frame: root, selector: sel };
 }
@@ -100,9 +100,9 @@ export async function resolveLocatorWithHops(
   page: Page,
   root: Frame,
   selectorRaw: string,
-  operation?: LocatorOperation,
+  progress?: Progress,
 ): Promise<Locator> {
-  const target = await resolveLocatorTarget(page, root, selectorRaw, operation);
+  const target = await resolveLocatorTarget(page, root, selectorRaw, progress);
   return new Locator(target.frame, target.selector);
 }
 
@@ -123,8 +123,8 @@ export class DeepLocatorDelegate {
     readonly nthIndex: number = -1,
   ) {}
 
-  async real(operation?: LocatorOperation): Promise<Locator> {
-    const base = await resolveLocatorWithHops(this.page, this.root, this.selector, operation);
+  async real(progress?: Progress): Promise<Locator> {
+    const base = await resolveLocatorWithHops(this.page, this.root, this.selector, progress);
     return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
   }
 
@@ -254,14 +254,14 @@ async function resolveDeepXPathTarget(
   page: Page,
   root: Frame,
   xpathOrSelector: string,
-  operation?: LocatorOperation,
+  progress?: Progress,
 ): Promise<ResolvedLocatorTarget> {
-  operation?.throwIfStopped();
+  progress?.throwIfStopped();
   const plan = planDeepXPathTarget(xpathOrSelector);
   let fl: FrameLocator | undefined;
   for (const hop of plan.frameHopSelectors) {
     fl = fl ? fl.frameLocator(hop) : frameLocatorFromFrame(page, root, hop);
   }
-  const targetFrame = fl ? await fl.resolveFrame(operation) : root;
+  const targetFrame = fl ? await fl.resolveFrame(progress) : root;
   return { frame: targetFrame, selector: plan.finalSelector };
 }

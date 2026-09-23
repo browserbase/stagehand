@@ -6,7 +6,7 @@ import { TimeoutError } from "../errors.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { Frame } from "./frame.js";
 import { frameLocatorFromFrame } from "./frameLocator.js";
-import { LocatorOperation, runLocatorOperation } from "./locatorOperation.js";
+import { Progress, runWithProgress } from "./progress.js";
 import type { Page } from "./page.js";
 
 function deferred<T = unknown>() {
@@ -67,17 +67,17 @@ function createPage(...frames: Frame[]) {
 }
 
 describe("locator resolution deadlines", () => {
-  const operations: LocatorOperation[] = [];
-  const operation = (timeout = 100) => {
-    const context = new LocatorOperation("resolve", timeout);
-    operations.push(context);
+  const contexts: Progress[] = [];
+  const createProgress = (timeout = 100) => {
+    const context = new Progress("resolve", timeout);
+    contexts.push(context);
     return context;
   };
   beforeEach(() =>
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] }),
   );
   afterEach(() => {
-    operations.splice(0).forEach((context) => context.dispose());
+    contexts.splice(0).forEach((context) => context.dispose());
     expect(vi.getTimerCount()).toBe(0);
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -100,7 +100,7 @@ describe("locator resolution deadlines", () => {
           ? ({ frame: { id: "root" } } as ReturnType<Page["getFullFrameTree"]>)
           : getTree(),
       );
-      const context = operation(timeout);
+      const context = createProgress(timeout);
       const pending = frameLocatorFromFrame(page, root.frame, "iframe").resolveFrame(context);
       await vi.advanceTimersByTimeAsync(1500);
       expect(context.signal.aborted).toBe(false);
@@ -114,7 +114,7 @@ describe("locator resolution deadlines", () => {
     "allows direct helper readiness beyond its old cap with timeout %s",
     async (timeout) => {
       const { frame, state } = createFrame("root", false);
-      const pending = frame.locator("button").resolveNode(operation(timeout));
+      const pending = frame.locator("button").resolveNode(createProgress(timeout));
       await vi.advanceTimersByTimeAsync(1400);
       state.ready = true;
       await vi.advanceTimersByTimeAsync(25);
@@ -129,7 +129,7 @@ describe("locator resolution deadlines", () => {
     const page = createPage(root.frame, middle.frame, inner.frame);
     const pending = frameLocatorFromFrame(page, root.frame, "iframe")
       .frameLocator("iframe")
-      .resolveFrame(operation());
+      .resolveFrame(createProgress());
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(60);
     middle.state.ready = true;
@@ -145,7 +145,7 @@ describe("locator resolution deadlines", () => {
   it("caps readiness probes to the remaining budget", async () => {
     const root = createFrame("root");
     const child = createFrame("child", false);
-    const context = operation(250);
+    const context = createProgress(250);
     const wait = vi.spyOn(executionContexts, "waitForLocatorWorld");
     const pending = frameLocatorFromFrame(
       createPage(root.frame, child.frame),
@@ -172,7 +172,9 @@ describe("locator resolution deadlines", () => {
     );
     vi.spyOn(page, "frameForId").mockReturnValue(adoptedChild.frame);
     const wait = vi.spyOn(executionContexts, "waitForLocatorWorld");
-    const pending = frameLocatorFromFrame(page, root.frame, "iframe").resolveFrame(operation(500));
+    const pending = frameLocatorFromFrame(page, root.frame, "iframe").resolveFrame(
+      createProgress(500),
+    );
     await vi.advanceTimersByTimeAsync(250);
     await expect(pending).resolves.toBe(adoptedChild.frame);
     expect(wait.mock.calls.filter(([, id]) => id === "child").map(([session]) => session)).toEqual([
@@ -195,7 +197,7 @@ describe("locator resolution deadlines", () => {
     root.send.mockImplementation((command, params) =>
       command === method ? gate.promise : root.respond(command, params),
     );
-    const context = operation();
+    const context = createProgress();
     await vi.advanceTimersByTimeAsync(60);
     const pending =
       method === "DOM.describeNode" || method === "DOM.getFrameOwner"
@@ -233,7 +235,7 @@ describe("locator resolution deadlines", () => {
           : Promise.resolve({ result: { objectId: "first" } })
         : respond(method, params),
     );
-    const pending = frame.locator("button").nth(1).resolveNode(operation());
+    const pending = frame.locator("button").nth(1).resolveNode(createProgress());
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
     await rejected;
@@ -246,7 +248,7 @@ describe("locator resolution deadlines", () => {
   it("removes the main-world listener & timer when its caller expires", async () => {
     const { session, events } = createFrame("root", false);
     executionContexts.byFrame.delete(session);
-    const pending = executionContexts.waitForMainWorld(session, "root", 800, operation());
+    const pending = executionContexts.waitForMainWorld(session, "root", 800, createProgress());
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(0);
     expect(events.listenerCount("Runtime.executionContextCreated")).toBe(1);
@@ -263,8 +265,8 @@ describe("locator resolution deadlines", () => {
     send.mockImplementation((method, params) =>
       method === "Page.createIsolatedWorld" ? gate.promise : respond(method, params),
     );
-    const first = executionContexts.waitForLocatorWorld(session, "root", 10, operation(100));
-    const second = executionContexts.waitForLocatorWorld(session, "root", 10, operation(300));
+    const first = executionContexts.waitForLocatorWorld(session, "root", 10, createProgress(100));
+    const second = executionContexts.waitForLocatorWorld(session, "root", 10, createProgress(300));
     const rejected = expect(first).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
     await rejected;
@@ -283,7 +285,7 @@ describe("locator resolution deadlines", () => {
     send.mockImplementation((method, params) =>
       method === "Runtime.evaluate" ? gate.promise : respond(method, params),
     );
-    const pending = frame.evaluateInLocatorWorld("1", operation());
+    const pending = frame.evaluateInLocatorWorld("1", createProgress());
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
     await rejected;
@@ -300,7 +302,7 @@ describe("locator resolution deadlines", () => {
         ? gate.promise
         : respond(method, params),
     );
-    const pending = runLocatorOperation({ name: "resolve", timeout: 100 }, (context) =>
+    const pending = runWithProgress({ name: "resolve", timeout: 100 }, (context) =>
       frame.locator("button").resolveNode(context),
     );
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
