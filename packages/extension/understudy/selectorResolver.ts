@@ -1,4 +1,5 @@
 import type { Protocol } from "devtools-protocol";
+import { isCdpClosedError } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -154,9 +155,11 @@ export class FrameSelectorResolver {
         if (!resolved) break;
         results.push(resolved);
       }
+      progress?.throwIfStopped();
       return results;
     } catch (error) {
       if (progress) await this.releaseNodes(results, progress);
+      progress?.throwIfStopped();
       throw error;
     }
   }
@@ -274,8 +277,9 @@ export class FrameSelectorResolver {
         session.send<{ nodeId: Protocol.DOM.NodeId }>("DOM.requestNode", { objectId }),
       );
       nodeId = rn.nodeId ?? null;
-    } catch {
+    } catch (error) {
       progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       nodeId = null;
     }
 
@@ -332,13 +336,21 @@ export class FrameSelectorResolver {
       );
       objectId = evalRes.result.objectId;
       if (evalRes.exceptionDetails || !objectId) {
-        if (progress && objectId) await progress.cleanup(() => release(objectId!));
+        if (progress && objectId) {
+          const discardedId = objectId;
+          objectId = undefined;
+          await progress.cleanup(() => release(discardedId));
+        }
+        progress?.throwIfStopped();
         return null;
       }
-      return await this.resolveFromObjectId(objectId, progress);
-    } catch {
+      const resolved = await this.resolveFromObjectId(objectId, progress);
+      progress?.throwIfStopped();
+      return resolved;
+    } catch (error) {
       if (progress && objectId) await progress.cleanup(() => release(objectId!));
       progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       return null;
     }
   }
