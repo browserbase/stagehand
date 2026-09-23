@@ -948,6 +948,27 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 <Accordion title="OpenAI-compatible SDKs">
 
+For a Chat Completions endpoint, the TypeScript SDK can call it directly. `openAICompatible` uses `fetch`, so you do not install the `openai` package. Python and Go still use the callback below.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase, openAICompatible, Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  model: openAICompatible({
+    model: "xiaomi/mimo-v2.6-pro",
+    baseURL: "https://ai-gateway.vercel.sh/v1",
+    apiKey: process.env.MIMO_API_KEY!,
+  }),
+});
+```
+</Tab>
+</Tabs>
+
+Write the callback yourself when the endpoint does not implement Chat Completions, or when you need to map the request differently.
+
 <Steps>
 <Step title="Install dependencies">
 Install your provider's SDK.
