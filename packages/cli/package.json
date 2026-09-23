@@ -37,7 +37,7 @@
         "description": "Manage Browserbase cloud resources and APIs."
       },
       "cloud:secrets": {
-        "description": "List, retrieve, and delete project secrets."
+        "description": "Create, list, retrieve, and delete project secrets."
       },
       "cloud:projects": {
         "description": "Manage Browserbase projects."
@@ -107,6 +107,9 @@
   "dependencies": {
     "@browserbasehq/sdk": "^2.14.0",
     "@browserbasehq/stagehand": "workspace:*",
+    "@hpke/core": "^1.9.0",
+    "@hpke/dhkem-x25519": "^1.8.0",
+    "@inquirer/password": "^4.0.23",
     "@oclif/core": "^4.11.0",
     "@vercel/detect-agent": "^1.2.3",
     "archiver": "^7.0.1",

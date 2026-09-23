@@ -4,6 +4,7 @@ import { runCli } from "./helpers/run-cli.js";
 
 const cloudCommandsWithExamples = [
   ["cloud", "secrets", "list"],
+  ["cloud", "secrets", "create"],
   ["cloud", "secrets", "get"],
   ["cloud", "secrets", "delete"],
   ["cloud", "projects", "list"],
