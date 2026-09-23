@@ -84,14 +84,14 @@ export class FrameSelectorResolver {
     }
   }
 
-  public async count(query: SelectorQuery): Promise<number> {
+  public async count(query: SelectorQuery, progress?: Progress): Promise<number> {
     switch (query.kind) {
       case "css":
-        return this.countCss(query.value);
+        return this.countCss(query.value, progress);
       case "text":
-        return this.countText(query.value);
+        return this.countText(query.value, progress);
       case "xpath":
-        return this.countXPath(query.value);
+        return this.countXPath(query.value, progress);
       default:
         return 0;
     }
@@ -175,26 +175,28 @@ export class FrameSelectorResolver {
       );
   }
 
-  async countCss(selector: string): Promise<number> {
+  async countCss(selector: string, progress?: Progress): Promise<number> {
     const session = this.frame.session;
     const { contextId } = await executionContexts.waitForLocatorWorld(
       session,
       this.frame.frameId,
       1000,
+      progress,
     );
 
     const primaryExpr = buildLocatorInvocation("countCssMatchesPrimary", [
       JSON.stringify(selector),
     ]);
-    return this.evaluateCount(primaryExpr, contextId);
+    return this.evaluateCount(primaryExpr, contextId, progress);
   }
 
-  async countText(value: string): Promise<number> {
+  async countText(value: string, progress?: Progress): Promise<number> {
     const session = this.frame.session;
     const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
       session,
       this.frame.frameId,
       1000,
+      progress,
     );
 
     const expr = buildLocatorInvocation("countTextMatches", [JSON.stringify(value)]);
@@ -232,13 +234,14 @@ export class FrameSelectorResolver {
     }
   }
 
-  async countXPath(value: string): Promise<number> {
+  async countXPath(value: string, progress?: Progress): Promise<number> {
     const session = this.frame.session;
 
     const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
       session,
       this.frame.frameId,
       1000,
+      progress,
     );
 
     const expr = buildLocatorInvocation("countXPathMatchesMainWorld", [JSON.stringify(value)]);
@@ -289,6 +292,7 @@ export class FrameSelectorResolver {
   async evaluateCount(
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
+    _progress?: Progress,
   ): Promise<number> {
     const session = this.frame.session;
 

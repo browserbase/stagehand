@@ -123,11 +123,14 @@ class LocatorDelegate {
   }
 
   // Locator API delegates
-  async click(options?: { button?: "left" | "right" | "middle"; clickCount?: number }) {
-    return (await this.real()).click(options);
+  async click(
+    options?: { button?: "left" | "right" | "middle"; clickCount?: number },
+    progress?: Progress,
+  ) {
+    return (await this.real(progress)).click(options, progress);
   }
-  async hover() {
-    return (await this.real()).hover();
+  async hover(progress?: Progress) {
+    return (await this.real(progress)).hover(progress);
   }
   async fill(value: string) {
     return (await this.real()).fill(value);
@@ -135,32 +138,32 @@ class LocatorDelegate {
   async type(text: string, options?: { delay?: number }) {
     return (await this.real()).type(text, options);
   }
-  async selectOption(values: string | string[]) {
-    return (await this.real()).selectOption(values);
+  async selectOption(values: string | string[], progress?: Progress) {
+    return (await this.real(progress)).selectOption(values, progress);
   }
-  async scrollTo(percent: number | string) {
-    return (await this.real()).scrollTo(percent);
+  async scrollTo(percent: number | string, progress?: Progress) {
+    return (await this.real(progress)).scrollTo(percent, progress);
   }
-  async isVisible() {
-    return (await this.real()).isVisible();
+  async isVisible(progress?: Progress) {
+    return (await this.real(progress)).isVisible(progress);
   }
-  async isChecked() {
-    return (await this.real()).isChecked();
+  async isChecked(progress?: Progress) {
+    return (await this.real(progress)).isChecked(progress);
   }
-  async inputValue() {
-    return (await this.real()).inputValue();
+  async inputValue(progress?: Progress) {
+    return (await this.real(progress)).inputValue(progress);
   }
-  async textContent() {
-    return (await this.real()).textContent();
+  async textContent(progress?: Progress) {
+    return (await this.real(progress)).textContent(progress);
   }
-  async innerHtml() {
-    return (await this.real()).innerHtml();
+  async innerHtml(progress?: Progress) {
+    return (await this.real(progress)).innerHtml(progress);
   }
-  async innerText() {
-    return (await this.real()).innerText();
+  async innerText(progress?: Progress) {
+    return (await this.real(progress)).innerText(progress);
   }
-  async count() {
-    return (await this.real()).count();
+  async count(progress?: Progress) {
+    return (await this.real(progress)).count(progress);
   }
   first(): LocatorDelegate {
     return this.nth(0);
