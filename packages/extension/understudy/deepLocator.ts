@@ -129,14 +129,14 @@ export class DeepLocatorDelegate {
   }
 
   // Locator API delegates
-  async click(options?: { button?: MouseButton; clickCount?: number }) {
-    return (await this.real()).click(options);
+  async click(options?: { button?: MouseButton; clickCount?: number }, progress?: Progress) {
+    return (await this.real(progress)).click(options, progress);
   }
-  async count() {
-    return (await this.real()).count();
+  async count(progress?: Progress) {
+    return (await this.real(progress)).count(progress);
   }
-  async hover() {
-    return (await this.real()).hover();
+  async hover(progress?: Progress) {
+    return (await this.real(progress)).hover(progress);
   }
   async fill(value: string) {
     return (await this.real()).fill(value);
@@ -144,35 +144,35 @@ export class DeepLocatorDelegate {
   async type(text: string, options?: { delay?: number }) {
     return (await this.real()).type(text, options);
   }
-  async selectOption(values: string | string[]) {
-    return (await this.real()).selectOption(values);
+  async selectOption(values: string | string[], progress?: Progress) {
+    return (await this.real(progress)).selectOption(values, progress);
   }
-  async scrollTo(percent: number | string) {
-    return (await this.real()).scrollTo(percent);
+  async scrollTo(percent: number | string, progress?: Progress) {
+    return (await this.real(progress)).scrollTo(percent, progress);
   }
-  async isVisible() {
-    return (await this.real()).isVisible();
+  async isVisible(progress?: Progress) {
+    return (await this.real(progress)).isVisible(progress);
   }
-  async isChecked() {
-    return (await this.real()).isChecked();
+  async isChecked(progress?: Progress) {
+    return (await this.real(progress)).isChecked(progress);
   }
-  async inputValue() {
-    return (await this.real()).inputValue();
+  async inputValue(progress?: Progress) {
+    return (await this.real(progress)).inputValue(progress);
   }
-  async textContent() {
-    return (await this.real()).textContent();
+  async textContent(progress?: Progress) {
+    return (await this.real(progress)).textContent(progress);
   }
-  async innerHtml() {
-    return (await this.real()).innerHtml();
+  async innerHtml(progress?: Progress) {
+    return (await this.real(progress)).innerHtml(progress);
   }
-  async innerText() {
-    return (await this.real()).innerText();
+  async innerText(progress?: Progress) {
+    return (await this.real(progress)).innerText(progress);
   }
-  async centroid() {
-    return (await this.real()).centroid();
+  async centroid(progress?: Progress) {
+    return (await this.real(progress)).centroid(progress);
   }
-  async backendNodeId() {
-    return (await this.real()).backendNodeId();
+  async backendNodeId(progress?: Progress) {
+    return (await this.real(progress)).backendNodeId(progress);
   }
   async highlight(options?: {
     durationMs?: number;
@@ -181,13 +181,16 @@ export class DeepLocatorDelegate {
   }) {
     return (await this.real()).highlight(options);
   }
-  async sendClickEvent(options?: {
-    bubbles?: boolean;
-    cancelable?: boolean;
-    composed?: boolean;
-    detail?: number;
-  }) {
-    return (await this.real()).sendClickEvent(options);
+  async sendClickEvent(
+    options?: {
+      bubbles?: boolean;
+      cancelable?: boolean;
+      composed?: boolean;
+      detail?: number;
+    },
+    progress?: Progress,
+  ) {
+    return (await this.real(progress)).sendClickEvent(options, progress);
   }
   async setInputFiles(files: SetInputFilesArgument) {
     return (await this.real()).setInputFiles(files);
