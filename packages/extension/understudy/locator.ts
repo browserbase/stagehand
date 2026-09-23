@@ -81,6 +81,7 @@ export class Locator {
   public async setInputFiles(files: SetInputFilesArgument, progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
+    let completed = false;
 
     try {
       // Validate element is an <input type="file">
@@ -98,10 +99,13 @@ export class Locator {
         normalizeInputFiles(files),
       );
       await this.assignFilesViaPayloadInjection(objectId, normalized, progress);
+      completed = true;
     } finally {
       const release = () =>
         session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
-      if (progress) await progress.cleanup(release);
+      // A failed action must reach the caller before cleanup can consume its deadline.
+      if (progress && !completed) void progress.cleanup(release);
+      else if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
     }
@@ -248,7 +252,9 @@ export class Locator {
           ...(removeHighlight ? [hide()] : []),
           session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {}),
         ]);
-      if (progress) await progress.cleanup(work);
+      // A failed action must reach the caller before cleanup can consume its deadline.
+      if (progress && !completed) void progress.cleanup(work);
+      else if (progress) await progress.cleanup(work);
       else await work();
       try {
         progress?.throwIfStopped();
