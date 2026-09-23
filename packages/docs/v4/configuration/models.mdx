@@ -949,28 +949,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 <Accordion title="OpenAI-compatible SDKs">
 
 <Steps>
-<Step title="Install dependencies">
-TypeScript uses the built-in `openAICompatible` helper for Chat Completions endpoints. Python and Go use the provider SDK for their callbacks.
-
-<Tabs>
-<Tab title="TypeScript">
-```bash
-# No additional package needed
-```
-</Tab>
-
-<Tab title="Python">
-```bash
-pip install openai
-```
-</Tab>
-
-<Tab title="Go">
-```bash
-go get github.com/openai/openai-go
-```
-</Tab>
-</Tabs>
+<Step title="Use the Stagehand SDK">
+The OpenAI-compatible helpers are included in the TypeScript, Python, and Go SDKs. No provider SDK is required.
 </Step>
 
 <Step title="Configure the model">
@@ -991,104 +971,34 @@ const model = openAICompatible({
 <Tab title="Python">
 ```python
 import os
-import json
 
-from openai import AsyncOpenAI
+from stagehand import Stagehand, browserbase, open_ai_compatible
 
-from stagehand import LLMStructuredGenerateResult
-
-openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
-
-def content_part(block):
-    # Each block is a LLMTextContent or LLMImageContent under `.root`. The
-    # Responses API takes input parts, so map text to an input text part and
-    # images (which `extract(screenshot=True)` sends) to an input image data URL.
-    if block.root.type == "text":
-        return {"type": "input_text", "text": block.root.text}
-    return {
-        "type": "input_image",
-        "image_url": f"data:{block.root.mime_type};base64,{block.root.data}",
-        "detail": "auto",
-    }
-
-def message_content(message):
-    # A message's content is one block or a list of them.
-    content = message.content
-    blocks = content if isinstance(content, list) else [content]
-    return [content_part(block) for block in blocks]
-
-async def generate_with_openai(params):
-    response_format = params.response_format
-    response = await openai.responses.create(
-        model="gpt-5.6-sol",
-        instructions=params.system_prompt,
-        input=[
-            {"role": message.role.value, "content": message_content(message)}
-            for message in params.messages
-        ],
-        temperature=params.temperature,
-        text={
-            "format": {
-                "type": "json_schema",
-                "name": response_format.name,
-                "schema": response_format.schema_.model_dump(),
-                "strict": True,
-            }
-        },
-    )
-
-    return LLMStructuredGenerateResult.model_validate({
-        "role": "assistant",
-        "content": {"type": "text", "text": response.output_text},
-        "output_format": "json_schema",
-        "structured_content": json.loads(response.output_text),
-    })
+model = open_ai_compatible(
+    model="xiaomi/mimo-v2.6-pro",
+    base_url="https://ai-gateway.vercel.sh/v1",
+    api_key=os.environ["AI_GATEWAY_API_KEY"],
+)
 ```
 </Tab>
 
 <Tab title="Go">
 ```go
-func generateWithOpenAI(
-	ctx context.Context,
-	params stagehand.LLMGenerateParams,
-) (stagehand.LLMGenerateResult, error) {
-	request, ok := params.AsStructured()
-	if !ok {
-		return stagehand.LLMGenerateResult{}, errors.New("Stagehand only issues structured generations")
-	}
-
-	text, err := callOpenAI(ctx, callOpenAIInput{
-		Model:          "gpt-5.6-luna",
-		Instructions:   request.SystemPrompt,
-		Messages:       request.Messages,
-		Temperature:    request.Temperature,
-		SchemaName:     request.ResponseFormat.Name,
-		Schema:         request.ResponseFormat.Schema,
-	})
-	if err != nil {
-		return stagehand.LLMGenerateResult{}, err
-	}
-
-	return stagehand.StructuredGenerateResult(stagehand.LLMStructuredGenerateResult{
-		Role:              stagehand.LLMRoleAssistant,
-		Content:           stagehand.LLMMessageContent{stagehand.TextContentBlock(stagehand.LLMTextContent{Text: text})},
-		StructuredContent: json.RawMessage(text),
-	}), nil
-}
+model := stagehand.OpenAICompatible(stagehand.OpenAICompatibleOptions{
+    Model:   "xiaomi/mimo-v2.6-pro",
+    BaseURL: "https://ai-gateway.vercel.sh/v1",
+    APIKey:  os.Getenv("AI_GATEWAY_API_KEY"),
+})
 ```
 </Tab>
 </Tabs>
 
 <Note>
-The TypeScript helper calls an OpenAI-compatible Chat Completions endpoint. For a provider that does not support Chat Completions, write a callback as shown under [Custom models](#custom-models).
-</Note>
-
-<Note>
-Reporting token usage is optional. To report it, add a `usage` field to the result and map your provider's own usage field names onto Stagehand's: input tokens, output tokens, and total tokens are required, while reasoning tokens and cached input tokens are optional. Providers spell these differently, so read the names off your provider's response type rather than assuming they match Stagehand's.
+These helpers call an OpenAI-compatible Chat Completions endpoint. For a provider that does not support Chat Completions, write a callback as shown under [Custom models](#custom-models).
 </Note>
 </Step>
 
-<Step title="Pass the callback to Stagehand">
+<Step title="Pass the helper to Stagehand">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -1106,7 +1016,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model=generate_with_openai,
+    model=model,
 )
 ```
 </Tab>
@@ -1124,7 +1034,7 @@ if err != nil {
 
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser:  browser,
-	Generate: generateWithOpenAI,
+	Generate: model,
 })
 if err != nil {
 	return err
