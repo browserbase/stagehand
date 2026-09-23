@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
-import type { CookieParam } from "../../protocol/types.js";
+import type { CookieParam } from "@browserbasehq/stagehand-protocol/types";
 import { filterCookies, normalizeCookieParams } from "./cookies.js";
 
 describe("cookie validation and normalization", () => {

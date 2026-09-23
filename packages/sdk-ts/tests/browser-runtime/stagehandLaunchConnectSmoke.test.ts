@@ -6,7 +6,7 @@ import type {
   LLMImageContent,
   StagehandMetrics,
   StagehandResultUsage,
-} from "../../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import {
   localBrowser,
   Stagehand,
@@ -326,6 +326,41 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     expect(snapshot.formattedTree.length).toBeGreaterThan(0);
     expect(snapshot.xpathMap).toBeTypeOf("object");
     expect(snapshot.urlMap).toBeTypeOf("object");
+  });
+
+  it("captures distinct viewport screenshots concurrently across background tabs", async () => {
+    const context = requireStagehand(stagehand).browser.context;
+    const url = requireFixtureServer(fixtureServer).url;
+    const pages: Page[] = [];
+    try {
+      const target = await context.newPage(url);
+      pages.push(target);
+      await target.setViewportSize(300, 200, { deviceScaleFactor: 1 });
+      const foreground = await context.newPage(url);
+      pages.push(foreground);
+      await foreground.setViewportSize(400, 250, { deviceScaleFactor: 1 });
+      await context.setActivePage(foreground);
+      await waitForActivePageId(context, foreground.pageId);
+
+      const screenshots = await Promise.all([
+        target.screenshot({ fullPage: false, timeout: 5_000 }),
+        foreground.screenshot({ fullPage: false, timeout: 5_000 }),
+      ]);
+      expect(
+        screenshots.map((bytes) => {
+          const png = Buffer.from(bytes);
+          expect([...png.subarray(0, 8)]).toStrictEqual([
+            0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+          ]);
+          return [png.readUInt32BE(16), png.readUInt32BE(20)];
+        }),
+      ).toStrictEqual([
+        [300, 200],
+        [400, 250],
+      ]);
+    } finally {
+      await closePages(pages);
+    }
   });
 
   it("extracts structured data from a real page through the connected SDK", async () => {
@@ -719,6 +754,36 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
     await expect(activeStagehand.metrics()).resolves.toStrictEqual(after);
     expect(rawMetricsSnapshots.at(-1)).toStrictEqual(metricsToWire(after));
+  });
+
+  it("closes and reattaches Stagehand without closing the local browser or its pages", async () => {
+    const firstStagehand = requireStagehand(stagehand);
+    const activeBrowser = firstStagehand.browser;
+    const page =
+      (await activeBrowser.context.pages())[0] ?? (await activeBrowser.context.newPage());
+    await page.goto(requireFixtureServer(fixtureServer).url, { waitUntil: "load" });
+    const pageId = page.pageId;
+
+    await expect(firstStagehand.close()).resolves.toBeUndefined();
+    expect(activeBrowser.closed).toBe(false);
+
+    const nextStagehand = await Stagehand.create({
+      browser: activeBrowser,
+      logging: { level: "off" },
+    });
+    stagehand = nextStagehand;
+    const reattachedPage = (await activeBrowser.context.pages()).find(
+      (candidate) => candidate.pageId === pageId,
+    );
+
+    expect(reattachedPage).toBeDefined();
+    if (!reattachedPage) throw new Error("Reattached Stagehand did not retain the existing page");
+    await expect(reattachedPage.title()).resolves.toBe("Stagehand SDK Smoke");
+
+    await nextStagehand.close();
+    stagehand = undefined;
+    await activeBrowser.close();
+    expect(activeBrowser.closed).toBe(true);
   });
 });
 

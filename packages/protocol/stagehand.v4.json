@@ -162,19 +162,6 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
-        "context.close": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/ContextCloseResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
         "context.add_init_script": {
           "type": "object",
           "properties": {
@@ -1021,7 +1008,6 @@
         "context.new_page",
         "context.active_page",
         "context.set_active_page",
-        "context.close",
         "context.add_init_script",
         "context.set_extra_http_headers",
         "context.get_domain_policy",
@@ -1111,9 +1097,19 @@
           },
           "required": ["params"],
           "additionalProperties": false
+        },
+        "page.event": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageEventNotification"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
         }
       },
-      "required": ["stagehand.log", "page.cdp_event"],
+      "required": ["stagehand.log", "page.cdp_event", "page.event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -1121,9 +1117,12 @@
       "properties": {
         "browserbase_session_create_params": {
           "$ref": "#/$defs/BrowserbaseSessionCreateParams"
+        },
+        "page_event_name": {
+          "$ref": "#/$defs/PageEventName"
         }
       },
-      "required": ["browserbase_session_create_params"],
+      "required": ["browserbase_session_create_params", "page_event_name"],
       "additionalProperties": false
     },
     "jsonrpc": {
@@ -2915,17 +2914,6 @@
       "required": ["ok"],
       "additionalProperties": false
     },
-    "ContextCloseResult": {
-      "type": "object",
-      "properties": {
-        "closed": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["closed"],
-      "additionalProperties": false
-    },
     "ContextAddInitScriptParams": {
       "type": "object",
       "properties": {
@@ -3651,15 +3639,15 @@
           "minLength": 1
         },
         "event": {
-          "$ref": "#/$defs/PageEventName"
+          "$ref": "#/$defs/PageSubscriptionEventName"
         }
       },
       "required": ["page_id", "subscription_id", "event"],
       "additionalProperties": false
     },
-    "PageEventName": {
+    "PageSubscriptionEventName": {
       "type": "string",
-      "enum": ["console"]
+      "enum": ["console", "toolsadded", "toolsremoved"]
     },
     "PageOffParams": {
       "type": "object",
@@ -3804,13 +3792,9 @@
           "format": "byte",
           "contentEncoding": "base64",
           "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["png", "jpeg"]
         }
       },
-      "required": ["data", "type"],
+      "required": ["data"],
       "additionalProperties": false
     },
     "PageSnapshotParams": {
@@ -4911,7 +4895,7 @@
         },
         "method": {
           "type": "string",
-          "const": "Runtime.consoleAPICalled"
+          "enum": ["Runtime.consoleAPICalled"]
         },
         "params": {
           "$ref": "#/$defs/PageCDPEventParams"
@@ -4967,6 +4951,97 @@
           }
         }
       ]
+    },
+    "PageEventNotification": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PageToolsAddedNotification"
+        },
+        {
+          "$ref": "#/$defs/PageToolsRemovedNotification"
+        }
+      ]
+    },
+    "PageToolsAddedNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "const": "toolsadded"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebMCPToolDescriptor"
+          }
+        }
+      },
+      "required": ["subscription_id", "page_id", "session_id", "target_id", "event", "tools"],
+      "additionalProperties": false
+    },
+    "PageToolsRemovedNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "const": "toolsremoved"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebMCPToolIdentity"
+          }
+        }
+      },
+      "required": ["subscription_id", "page_id", "session_id", "target_id", "event", "tools"],
+      "additionalProperties": false
+    },
+    "WebMCPToolIdentity": {
+      "type": "object",
+      "properties": {
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["frame_id", "name"],
+      "additionalProperties": false
     },
     "BrowserbaseSessionCreateParams": {
       "type": "object",
@@ -5203,6 +5278,10 @@
       },
       "required": ["type", "server"],
       "additionalProperties": false
+    },
+    "PageEventName": {
+      "type": "string",
+      "enum": ["console"]
     },
     "StagehandRpcRequest": {
       "anyOf": [
@@ -5519,33 +5598,6 @@
             },
             "params": {
               "$ref": "#/$defs/ContextSetActivePageParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "context.close"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
             },
             "traceparent": {
               "type": "string"
@@ -7325,6 +7377,24 @@
             },
             "params": {
               "$ref": "#/$defs/PageCDPEventNotification"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.event"
+            },
+            "params": {
+              "$ref": "#/$defs/PageEventNotification"
             }
           },
           "required": ["jsonrpc", "method", "params"],

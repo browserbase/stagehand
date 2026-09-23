@@ -1,3 +1,4 @@
+import { ShadowRootEvaluationUnavailableError } from "./errors.js";
 import type {
   ClearCookieOptions,
   ContextActivePageResult,
@@ -11,7 +12,6 @@ import type {
   ContextClipboardReadTextParams,
   ContextClipboardReadTextResult,
   ContextClipboardWriteTextParams,
-  ContextCloseResult,
   ContextCookiesParams,
   ContextCookiesResult,
   ContextGetDomainPolicyResult,
@@ -58,6 +58,8 @@ import type {
   PageCloseResult,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
+  PageEventName,
   PageAddInitScriptParams,
   PageDragAndDropParams,
   PageEvaluateParams,
@@ -111,7 +113,7 @@ import type {
   WebMCPToolDescriptor,
   WebMCPToolResponse,
   WebMCPToolsOptions,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
@@ -122,7 +124,7 @@ import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runti
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
-import { Page } from "./understudy/page.js";
+import { Page, type WebMCPToolsEvent } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
@@ -148,6 +150,7 @@ export type UnderstudyRuntimePage = {
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
+  evaluateWithShadowRoots?(functionSource: string): Promise<unknown>;
   addInitScript(source: string): Promise<void>;
   setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
   setViewportSize(
@@ -178,7 +181,15 @@ export type UnderstudyRuntimePage = {
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
-  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void;
+  subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
+  subscribeWebMCPToolsChanged(
+    listener: (event: WebMCPToolsEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
 };
 
 export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
@@ -263,6 +274,7 @@ export type StagehandRuntimeAdapters = {
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
+  emitPageEvent?: (notification: PageEventNotification) => void;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -286,25 +298,37 @@ export function createStagehandRuntime(
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
+      emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
     },
     tracing,
   );
 }
+
+type RuntimePageEventSubscription = {
+  pageId: string;
+  controller: AbortController;
+  dispose?: () => void;
+};
 
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
   readonly metrics = new StagehandMetricsAccumulator();
   readonly responseHandles = new ResponseHandleTable();
   readonly state = createStore<StagehandRuntimeState>()(() =>
-    StagehandRuntimeStateSchema.parse({ status: "created" }),
+    StagehandRuntimeStateSchema.parse({ status: "idle" }),
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
-  private readonly pageEventSubscriptions = new Map<
-    string,
-    { pageId: string; dispose: () => void }
-  >();
+  private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
   private initializationInProgress = false;
+  private lifecycleTail = Promise.resolve();
+  private stagehandInstanceClosing = false;
+  private activeStagehandInstanceRequests = 0;
+  private stagehandInstanceRequestsDrained?: {
+    promise: Promise<void>;
+    resolve: () => void;
+  };
+  private stagehandInstanceDisposal?: Promise<void>;
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -342,46 +366,48 @@ export class StagehandRuntime {
     params: StagehandInitParams,
     logger: StagehandLogger = this.logger,
   ): Promise<StagehandInitResult> {
-    const state = this.state.getState();
-    if (state.status === "closed") {
-      throw new Error("Stagehand has been closed and cannot be initialized again");
-    }
     if (this.initializationInProgress) {
       throw new Error("Stagehand initialization is already in progress");
     }
     this.initializationInProgress = true;
 
     try {
-      this.logger.setLevel(params.logLevel);
-      if (!this.browserSession) {
-        if (!params.browserCdpUrl) {
-          throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+      return await this.enqueueLifecycle(async () => {
+        const state = this.state.getState();
+        if (state.status !== "idle") {
+          throw new Error("A Stagehand instance is already initialized");
         }
-        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
-      }
-      const pages = await this.runWithTelemetryContext(
-        Symbol("stagehand.init"),
-        logger,
-        async () => {
-          if (state.status === "created") {
-            await this.browserSession?.prepareForInitialization?.();
+        this.logger.setLevel(params.logLevel);
+        if (!this.browserSession?.connected) {
+          if (!params.browserCdpUrl) {
+            throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
           }
-          return await this.contextPages();
-        },
-      );
-      this.tracing.configure(params.telemetry, params.clientInfo);
-      this.state.setState(
-        StagehandRuntimeStateSchema.parse({
-          status: "initialized",
-          initParams: params,
-        }),
-        true,
-      );
+          await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
+        }
+        const pages = await this.runWithTelemetryContext(
+          Symbol("stagehand.init"),
+          logger,
+          async () => {
+            if (state.status === "idle") {
+              await this.browserSession?.prepareForInitialization?.();
+            }
+            return await this.contextPages();
+          },
+        );
+        await this.tracing.configure(params.telemetry, params.clientInfo);
+        this.state.setState(
+          StagehandRuntimeStateSchema.parse({
+            status: "initialized",
+            initParams: params,
+          }),
+          true,
+        );
 
-      return {
-        initialized: true,
-        pages,
-      };
+        return {
+          initialized: true,
+          pages,
+        };
+      });
     } finally {
       this.initializationInProgress = false;
     }
@@ -431,11 +457,6 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     await this.requireBrowserSession().setActivePage(page);
     return { ok: true };
-  }
-
-  async contextClose(): Promise<ContextCloseResult> {
-    await this.close();
-    return { closed: true };
   }
 
   async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {
@@ -616,6 +637,13 @@ export class StagehandRuntime {
     return { ok: true };
   }
 
+  async evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown> {
+    const page = this.resolvePage(pageId);
+    this.logger.debug("page.evaluateWithShadowRoots", { pageId });
+    if (!page.evaluateWithShadowRoots) throw new ShadowRootEvaluationUnavailableError();
+    return page.evaluateWithShadowRoots(functionSource);
+  }
+
   async pageEvaluate(params: PageEvaluateParams): Promise<PageEvaluateResult> {
     const value = await this.resolvePage(params.pageId).evaluate(params.expression);
     return {
@@ -681,7 +709,6 @@ export class StagehandRuntime {
     const bytes = await page.screenshot(options);
     return {
       data: bytesToBase64(bytes),
-      type: params.options?.type ?? "png",
     };
   }
 
@@ -729,6 +756,7 @@ export class StagehandRuntime {
 
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
     const page = this.resolvePage(params.pageId);
+    this.disposePageEventSubscriptions(params.pageId, true);
     await page.close();
     this.disposePageEventSubscriptions(params.pageId);
     this.pagesById.delete(params.pageId);
@@ -736,21 +764,60 @@ export class StagehandRuntime {
     return { closed: true };
   }
 
-  pageOn(params: PageOnParams): PageVoidResult {
+  async pageOn(params: PageOnParams): Promise<PageVoidResult> {
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
       throw new DuplicatePageEventSubscriptionError();
     }
-    const dispose = this.resolvePage(params.pageId).subscribeCDPEvent((event) => {
-      this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
-    });
-    this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });
-    return { ok: true };
+    const page = this.resolvePage(params.pageId);
+    const subscription: RuntimePageEventSubscription = {
+      pageId: params.pageId,
+      controller: new AbortController(),
+    };
+    this.pageEventSubscriptions.set(params.subscriptionId, subscription);
+    try {
+      const isActive = () =>
+        this.pageEventSubscriptions.get(params.subscriptionId) === subscription &&
+        !subscription.controller.signal.aborted;
+      switch (params.event) {
+        case "console":
+          subscription.dispose = await page.subscribeCDPEvent(
+            params.event,
+            (event) => {
+              if (!isActive()) return;
+              this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+            },
+            subscription.controller.signal,
+          );
+          break;
+        case "toolsadded":
+        case "toolsremoved":
+          subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
+            if (!isActive() || event.event !== params.event) return;
+            this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+          }, subscription.controller.signal);
+          break;
+        default: {
+          const unsupportedEvent: never = params.event;
+          throw new Error(`Unsupported page subscription event: ${unsupportedEvent}`);
+        }
+      }
+      subscription.controller.signal.throwIfAborted();
+      return { ok: true };
+    } catch (error) {
+      subscription.controller.abort();
+      subscription.dispose?.();
+      if (this.pageEventSubscriptions.get(params.subscriptionId) === subscription) {
+        this.pageEventSubscriptions.delete(params.subscriptionId);
+      }
+      throw error;
+    }
   }
 
   pageOff(params: PageOffParams): PageVoidResult {
     const subscription = this.pageEventSubscriptions.get(params.subscriptionId);
     if (!subscription) return { ok: true };
-    subscription.dispose();
+    subscription.controller.abort();
+    subscription.dispose?.();
     this.pageEventSubscriptions.delete(params.subscriptionId);
     return { ok: true };
   }
@@ -850,16 +917,75 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
-    const session = this.browserSession;
-    this.browserSession = undefined;
+    await this.enqueueLifecycle(async () => {
+      const session = this.browserSession;
+      this.browserSession = undefined;
+      this.clearStagehandInstance();
+      await session?.close();
+    });
+  }
+
+  async disposeStagehandInstance(): Promise<void> {
+    if (this.stagehandInstanceDisposal) return await this.stagehandInstanceDisposal;
+
+    this.stagehandInstanceClosing = true;
+    const disposal = this.enqueueLifecycle(async () => {
+      // Pending registrations must release their request leases before disposal can drain them.
+      this.disposeAllPageEventSubscriptions();
+      await this.waitForStagehandInstanceRequests();
+      this.clearStagehandInstance();
+    });
+    this.stagehandInstanceDisposal = disposal.finally(() => {
+      this.stagehandInstanceClosing = false;
+      this.stagehandInstanceDisposal = undefined;
+    });
+    return await this.stagehandInstanceDisposal;
+  }
+
+  acquireStagehandInstanceRequest(): () => void {
+    if (this.stagehandInstanceClosing) {
+      throw new Error("Stagehand instance is closing");
+    }
+
+    this.activeStagehandInstanceRequests += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.activeStagehandInstanceRequests -= 1;
+      if (this.activeStagehandInstanceRequests !== 0) return;
+      this.stagehandInstanceRequestsDrained?.resolve();
+      this.stagehandInstanceRequestsDrained = undefined;
+    };
+  }
+
+  private clearStagehandInstance(): void {
     this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
-    try {
-      await session?.close();
-    } finally {
-      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
+    this.metrics.reset();
+    this.state.setState(StagehandRuntimeStateSchema.parse({ status: "idle" }), true);
+  }
+
+  private enqueueLifecycle<Result>(run: () => Promise<Result>): Promise<Result> {
+    const result = this.lifecycleTail.then(run, run);
+    this.lifecycleTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  private waitForStagehandInstanceRequests(): Promise<void> {
+    if (this.activeStagehandInstanceRequests === 0) return Promise.resolve();
+    if (!this.stagehandInstanceRequestsDrained) {
+      let resolve!: () => void;
+      const promise = new Promise<void>((drained) => {
+        resolve = drained;
+      });
+      this.stagehandInstanceRequestsDrained = { promise, resolve };
     }
+    return this.stagehandInstanceRequestsDrained.promise;
   }
 
   pageRefForId(pageId: string): PageRef {
@@ -911,17 +1037,17 @@ export class StagehandRuntime {
     }
   }
 
-  private disposePageEventSubscriptions(pageId: string): void {
+  private disposePageEventSubscriptions(pageId: string, pendingOnly = false): void {
     for (const [subscriptionId, subscription] of this.pageEventSubscriptions) {
       if (subscription.pageId !== pageId) continue;
-      subscription.dispose();
-      this.pageEventSubscriptions.delete(subscriptionId);
+      if (pendingOnly && subscription.dispose) continue;
+      this.pageOff({ subscriptionId });
     }
   }
 
   private disposeAllPageEventSubscriptions(): void {
-    for (const subscription of this.pageEventSubscriptions.values()) subscription.dispose();
-    this.pageEventSubscriptions.clear();
+    for (const subscriptionId of this.pageEventSubscriptions.keys())
+      this.pageOff({ subscriptionId });
   }
 
   registerPage(page: UnderstudyRuntimePage): string {

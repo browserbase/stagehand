@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 
 import { createFacadeMCPClient } from "../src/client.js";
 
@@ -53,7 +54,6 @@ describe("Stagehand facade MCP client", () => {
   it("allowlist excludes non-STAGEHAND/BROWSERBASE host vars", async () => {
     process.env.STAGEHAND_BROWSER = "local";
     process.env.NOT_ALLOWLISTED_SECRET = "must-not-cross";
-    const { buildAllowlistedEnv } = await import("../src/client.js");
     const env = buildAllowlistedEnv();
     expect(env.STAGEHAND_BROWSER).toBe("local");
     expect(env).not.toHaveProperty("NOT_ALLOWLISTED_SECRET");

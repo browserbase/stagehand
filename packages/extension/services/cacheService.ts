@@ -6,7 +6,7 @@ import type {
   StagehandExtractParams,
   StagehandInitParams,
   StagehandObserveParams,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import {
   CacheClient,
   type CacheGetResponse,
@@ -43,7 +43,12 @@ interface CachePage {
 export interface CacheContext {
   sessionId: string;
   client: CacheClient;
-  /** Instance-level default; each request can override via options.cache. */
+  /**
+   * Instance-level default; each request can override via options.cache.
+   * Defaults to enabled, matching v3, where server-side caching ran unless a
+   * call opted out. The server still gates every lookup on the per-project
+   * LaunchDarkly flag, so this only decides whether we ask.
+   */
   defaultCaching: Caching;
 }
 
@@ -62,7 +67,7 @@ export function buildCacheContext(initParams: StagehandInitParams): CacheContext
       apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
       initParams.apiKey,
     ),
-    defaultCaching: initParams.cache ?? false,
+    defaultCaching: initParams.cache ?? true,
   };
 }
 
@@ -220,7 +225,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   onHit: (value: unknown) => Promise<Result> | Result;
   execute: () => Promise<CacheExecuteOutcome<Result>>;
 }): Promise<Result> {
-  const resolvedCaching = caching ?? context?.defaultCaching ?? false;
+  const resolvedCaching = caching ?? context?.defaultCaching ?? true;
   const cachePage = resolvedCaching !== false ? asCachePage(page) : null;
   if (bypass || !context || !cachePage) {
     return (await execute()).result;

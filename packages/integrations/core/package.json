@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "private": true,
   "description": "Shared integration surfaces for Stagehand V4",
   "bin": {
@@ -19,13 +19,18 @@
     },
     "./facade/stdio-server": {
       "import": "./dist/facade/stdio-server.mjs"
+    },
+    "./harness": {
+      "types": "./dist/harness/index.d.mts",
+      "import": "./dist/harness/index.mjs"
     }
   },
   "scripts": {
     "build": "tsdown",
     "test": "pnpm run build && vitest run --root ../../.. packages/integrations/core/tests",
     "test:unit": "vitest run --root ../../.. packages/integrations/core/tests",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:browser": "vitest run --root ../../.. --config packages/integrations/core/vitest.browser.config.ts"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "workspace:*",
@@ -34,6 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "playwright": ">=1.55.1 <1.57.0",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

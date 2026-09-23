@@ -33,6 +33,18 @@ Do not release this package.
     ).toThrow("forbidden.md selects non-versioned packages: @browserbasehq/stagehand-docs");
   });
 
+  it("accepts Browse alone and rejects a combined CLI/SDK release", () => {
+    expect(() =>
+      validateChangeset('---\n"browse": minor\n---\nCLI release', "cli.md"),
+    ).not.toThrow();
+    expect(() =>
+      validateChangeset(
+        '---\n"browse": minor\n"@browserbasehq/stagehand": patch\n---\nCombined',
+        "mixed.md",
+      ),
+    ).toThrow("must separate Browse and SDK releases");
+  });
+
   it("rejects malformed frontmatter", () => {
     expect(() => validateChangeset("not a changeset", "invalid.md")).toThrow(
       "invalid.md does not contain valid changeset frontmatter",

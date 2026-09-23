@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -17,6 +18,7 @@ concurrency:
 jobs:
   release-typescript:
     name: Release TypeScript SDK
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -58,6 +60,10 @@ jobs:
       - run: just build
       - run: just check
 
+      - name: Scope the Changesets action to SDK changes
+        id: sdk-changesets
+        run: pnpm exec tsx scripts/release/sdk-action-changesets.ts hide >> "$GITHUB_OUTPUT"
+
       - name: Create release pull request or publish TypeScript
         id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
@@ -70,6 +76,70 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANGESETS_ACTION_PRESERVE_CHANGELOGS: "true"
+
+      - name: Restore pending Browse changesets
+        if: always() && steps.sdk-changesets.outputs.directory != ''
+        env:
+          CHANGESET_BACKUP: ${{ steps.sdk-changesets.outputs.directory }}
+        run: pnpm exec tsx scripts/release/sdk-action-changesets.ts restore "$CHANGESET_BACKUP"
+
+  release-cli:
+    name: Release Browse CLI
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install npm
+        run: npm install --global npm@11.16.0
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check Browse changesets
+        id: status
+        run: pnpm exec tsx scripts/release/scoped-release.ts status cli >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Browse release PR
+        if: steps.status.outputs.has-changesets == 'true'
+        run: pnpm exec tsx scripts/release/prepare-cli-release.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Wait for published SDK dependencies
+        if: steps.status.outputs.should-publish == 'true'
+        run: pnpm exec tsx scripts/release/scoped-release.ts wait-dependencies cli
+
+      - name: Build and smoke-test Browse against the published SDK
+        if: steps.status.outputs.should-publish == 'true'
+        run: |
+          pnpm exec tsx scripts/release/smoke-cli-package.ts
+          pnpm --filter browse test:cli
+
+      - name: Publish Browse
+        if: steps.status.outputs.should-publish == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          pnpm exec tsx scripts/release/scoped-release.ts publish cli
+
+      - name: Push Browse release tag
+        if: always() && !cancelled() && steps.status.outcome == 'success' && steps.status.outputs.has-changesets == 'false'
+        run: pnpm exec tsx scripts/release/push-cli-release-tag.ts
 
   publish-typescript-alpha:
     name: Publish TypeScript SDK alpha
@@ -105,7 +175,7 @@ jobs:
       # The TypeScript SDK bundles the extension, which in turn needs the protocol schema.
       - run: pnpm exec turbo run build --filter=@browserbasehq/stagehand
 
-      # Versions every package with a pending changeset as `<next>-alpha-<sha>` and
+      # Versions SDK packages with a pending changeset as `<next>-alpha-<sha>` and
       # publishes the public ones under the `alpha` dist-tag. The working tree is
       # discarded afterwards, so nothing is committed. No-op when there are no
       # unreleased changesets (e.g. the push that just cut a stable release).
@@ -149,6 +219,52 @@ jobs:
     uses: ./.github/workflows/publish-python.yml
     secrets: inherit
 
+  python-alpha-status:
+    name: Check Python alpha status
+    needs: release-typescript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      should-publish: ${{ steps.status.outputs.should-publish }}
+      version: ${{ steps.status.outputs.version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Only packages with pending changesets receive a snapshot version, so this
+      # tells us whether the Python SDK has anything unreleased to publish.
+      - run: pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check alpha version
+        id: status
+        run: node scripts/release/python-alpha-version.ts --check >> "$GITHUB_OUTPUT"
+
+  publish-python-alpha:
+    name: Release Python SDK alpha
+    needs: python-alpha-status
+    if: needs.python-alpha-status.outputs.should-publish == 'true'
+    uses: ./.github/workflows/publish-python.yml
+    with:
+      alpha: true
+    secrets: inherit
+
   publish-go:
     name: Release Go SDK
     needs: release-typescript
@@ -165,9 +281,16 @@ jobs:
         with:
           node-version: "24"
 
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - run: pnpm install --frozen-lockfile
+
       - name: Check Go release status
         id: status
-        run: node scripts/release/go-publish-status.ts >> "$GITHUB_OUTPUT"
+        run: pnpm exec tsx scripts/release/go-publish-status.ts >> "$GITHUB_OUTPUT"
 
       - name: Tag Go release
         if: steps.status.outputs.should-tag == 'true'

@@ -7,8 +7,8 @@
 
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
-import * as ProtocolSchemas from "../../protocol/schemas.js";
-import type { StagehandLog } from "../../protocol/types.js";
+import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
+import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
@@ -19,7 +19,7 @@ import {
   ObserveOptionsSchema,
   StagehandInitParamsSchema,
   StagehandLogLevelSchema,
-} from "../../protocol/schemas.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
 import { Page } from "./page.js";
 import { Locator } from "./locator.js";
 import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
@@ -97,6 +97,68 @@ export const BrowserbaseConnectOptionsSchema = z
     extensionId: z.string().min(1).optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });
+
+const BrowserbaseClientOptionsSchema = {
+  apiKey: z.string().min(1),
+  baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+};
+
+export const BrowserbaseSearchOptionsSchema = z
+  .strictObject({
+    ...BrowserbaseClientOptionsSchema,
+    query: z.string().min(1).max(200),
+    numResults: z.int().min(1).max(25).optional(),
+  })
+  .meta({ id: "BrowserbaseSearchOptions" });
+
+export const BrowserbaseFetchOptionsSchema = z
+  .strictObject({
+    ...BrowserbaseClientOptionsSchema,
+    url: z.url(),
+    allowInsecureSsl: z.boolean().optional(),
+    allowRedirects: z.boolean().optional(),
+    format: z.enum(["raw", "json", "markdown"]).optional(),
+    proxies: z.boolean().optional(),
+    schema: z.record(z.string(), z.unknown()).optional(),
+  })
+  .refine(({ format, schema }) => schema === undefined || format === "json", {
+    message: 'schema is only valid when format is "json"',
+    path: ["schema"],
+  })
+  .refine(({ format, schema }) => format !== "json" || schema !== undefined, {
+    message: 'schema is required when format is "json"',
+    path: ["schema"],
+  })
+  .meta({ id: "BrowserbaseFetchOptions" });
+
+export const BrowserbaseSearchResultSchema = z
+  .object({
+    query: z.string(),
+    requestId: z.string(),
+    results: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        url: z.string(),
+        author: z.string().nullish(),
+        favicon: z.string().nullish(),
+        image: z.string().nullish(),
+        publishedDate: z.string().nullish(),
+      }),
+    ),
+  })
+  .meta({ id: "BrowserbaseSearchResult" });
+
+export const BrowserbaseFetchResultSchema = z
+  .object({
+    id: z.string(),
+    content: z.union([z.string(), z.record(z.string(), z.unknown())]),
+    contentType: z.string(),
+    encoding: z.string(),
+    headers: z.record(z.string(), z.string()),
+    statusCode: z.number().int(),
+  })
+  .meta({ id: "BrowserbaseFetchResult" });
 
 /** Data returned by the Browserbase SDK after creating a session. */
 export const BrowserbaseSessionCreateResultSchema = z
@@ -221,6 +283,10 @@ export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptions
 export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
 export type BrowserbaseLaunchOptions = z.input<typeof BrowserbaseLaunchOptionsSchema>;
 export type BrowserbaseConnectOptions = z.input<typeof BrowserbaseConnectOptionsSchema>;
+export type BrowserbaseSearchOptions = z.input<typeof BrowserbaseSearchOptionsSchema>;
+export type BrowserbaseFetchOptions = z.input<typeof BrowserbaseFetchOptionsSchema>;
+export type BrowserbaseSearchResult = z.infer<typeof BrowserbaseSearchResultSchema>;
+export type BrowserbaseFetchResult = z.infer<typeof BrowserbaseFetchResultSchema>;
 export type BrowserbaseSessionCreateResult = z.infer<typeof BrowserbaseSessionCreateResultSchema>;
 export type BrowserbaseSessionRetrieveResult = z.infer<
   typeof BrowserbaseSessionRetrieveResultSchema

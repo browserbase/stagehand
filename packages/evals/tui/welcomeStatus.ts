@@ -32,6 +32,11 @@ export type GoogleKeyEntry = ProviderKeyEntry & {
   var: "GOOGLE_GENERATIVE_AI_API_KEY" | "GEMINI_API_KEY" | null;
 };
 
+export type LangSmithKeyEntry = ProviderKeyEntry & {
+  /** Which env var actually held the value, or null if missing. */
+  var: "LANGSMITH_API_KEY" | "LANGCHAIN_API_KEY" | null;
+};
+
 export type BrowserbaseKeyEntry = {
   apiKey: KeyState;
   projectId: KeyState;
@@ -45,6 +50,7 @@ export type EnvSnapshot = {
   google: GoogleKeyEntry;
   browserbase: BrowserbaseKeyEntry;
   braintrust: ProviderKeyEntry;
+  langsmith: LangSmithKeyEntry;
 };
 
 // ---------------------------------------------------------------------------
@@ -101,6 +107,16 @@ function providerEntry(name: string): ProviderKeyEntry {
   return {
     state: r.value ? "set" : "missing",
     source: r.source,
+  };
+}
+
+function langSmithEntry(): LangSmithKeyEntry {
+  const primary = providerEntry("LANGSMITH_API_KEY");
+  if (primary.state === "set") return { ...primary, var: "LANGSMITH_API_KEY" };
+  const fallback = providerEntry("LANGCHAIN_API_KEY");
+  return {
+    ...fallback,
+    var: fallback.state === "set" ? "LANGCHAIN_API_KEY" : null,
   };
 }
 
@@ -166,6 +182,7 @@ export function snapshotEnv(): EnvSnapshot {
     google: googleEntry(),
     browserbase: browserbaseEntry(),
     braintrust: providerEntry("BRAINTRUST_API_KEY"),
+    langsmith: langSmithEntry(),
   };
 }
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { StagehandMetrics, StagehandResultUsage } from "../../protocol/types.js";
+import type {
+  StagehandMetrics,
+  StagehandResultUsage,
+} from "@browserbasehq/stagehand-protocol/types";
 import { StagehandMetricsAccumulator } from "../metrics.js";
 
 const ACT_USAGE: StagehandResultUsage = {
@@ -77,6 +80,15 @@ describe("StagehandMetricsAccumulator", () => {
 
     expect(metrics.snapshot()).toStrictEqual(emptyMetrics());
     expect(metrics.snapshot()).not.toBe(metrics.snapshot());
+  });
+
+  it("resets accumulated usage for a new Stagehand instance", () => {
+    const metrics = new StagehandMetricsAccumulator();
+    metrics.record("act", ACT_USAGE);
+
+    metrics.reset();
+
+    expect(metrics.snapshot()).toStrictEqual(emptyMetrics());
   });
 });
 
