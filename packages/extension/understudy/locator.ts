@@ -491,21 +491,28 @@ export class Locator {
    * value setter (for special input types) or asks us to type text via the CDP
    * Input domain after focusing/selecting.
    */
-  async fill(value: string): Promise<void> {
+  async fill(value: string, progress?: Progress): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
 
     let releaseNeeded = true;
+    const release = async () => {
+      if (!releaseNeeded) return;
+      releaseNeeded = false;
+      const work = () => session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(work);
+      else await work();
+      progress?.throwIfStopped();
+    };
 
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "filling element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: fillElementValue.toString(),
           arguments: [{ value }],
           returnByValue: true,
-        },
+        }),
       );
       if (res.exceptionDetails) {
         // prefer exception.description over text (eg "Uncaught")
@@ -528,56 +535,66 @@ export class Locator {
 
       if (status === "needsinput") {
         // Release the current handle before synthesizing keyboard input to avoid leaking it.
-        await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
-        releaseNeeded = false;
+        await release();
 
         const valueToType = typeof result?.value === "string" ? result.value : value;
 
         let prepared = false;
         try {
-          const { objectId: prepObjectId } = await this.resolveNode();
+          const { objectId: prepObjectId } = await this.resolveNode(progress);
           try {
-            const prepRes = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-              "Runtime.callFunctionOn",
-              {
+            const prepRes = await runLocatorStep(progress, "preparing text input", () =>
+              session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
                 objectId: prepObjectId,
                 functionDeclaration: prepareElementForTyping.toString(),
                 returnByValue: true,
-              },
+              }),
             );
             prepared = Boolean(prepRes.result.value);
           } finally {
-            await session
-              .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
-              .catch(() => {});
+            const releasePrep = () =>
+              session
+                .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
+                .catch(() => {});
+            if (progress) await progress.cleanup(releasePrep);
+            else await releasePrep();
+            progress?.throwIfStopped();
           }
-        } catch {
-          // Ignore preparation failures; we'll fall back to typing best-effort.
+        } catch (error) {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+          // Ordinary preparation failures can still fall back to typing.
         }
 
         if (!prepared && valueToType.length > 0) {
-          await this.type(valueToType);
+          await this.type(valueToType, undefined, progress);
           return;
         }
 
         if (valueToType.length === 0) {
           // Simulate deleting the currently selected text to clear the field.
-          await session.send<never>("Input.dispatchKeyEvent", {
-            type: "keyDown",
-            key: "Backspace",
-            code: "Backspace",
-            windowsVirtualKeyCode: 8,
-            nativeVirtualKeyCode: 8,
-          } as Protocol.Input.DispatchKeyEventRequest);
-          await session.send<never>("Input.dispatchKeyEvent", {
-            type: "keyUp",
-            key: "Backspace",
-            code: "Backspace",
-            windowsVirtualKeyCode: 8,
-            nativeVirtualKeyCode: 8,
-          } as Protocol.Input.DispatchKeyEventRequest);
+          await runLocatorStep(progress, "dispatching keyboard events", () =>
+            session.send<never>("Input.dispatchKeyEvent", {
+              type: "keyDown",
+              key: "Backspace",
+              code: "Backspace",
+              windowsVirtualKeyCode: 8,
+              nativeVirtualKeyCode: 8,
+            } as Protocol.Input.DispatchKeyEventRequest),
+          );
+          await runLocatorStep(progress, "dispatching keyboard events", () =>
+            session.send<never>("Input.dispatchKeyEvent", {
+              type: "keyUp",
+              key: "Backspace",
+              code: "Backspace",
+              windowsVirtualKeyCode: 8,
+              nativeVirtualKeyCode: 8,
+            } as Protocol.Input.DispatchKeyEventRequest),
+          );
         } else {
-          await session.send<never>("Input.insertText", { text: valueToType });
+          await runLocatorStep(progress, "inserting text", () =>
+            session.send<never>("Input.insertText", { text: valueToType }),
+          );
         }
 
         return;
@@ -593,12 +610,12 @@ export class Locator {
 
       // Backward compatibility: if no status is returned (older bundle), fall back to setter logic.
       if (!status) {
-        await this.type(value);
+        await release();
+        await this.type(value, undefined, progress);
       }
     } finally {
-      if (releaseNeeded) {
-        await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
-      }
+      await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -608,40 +625,52 @@ export class Locator {
    * - If no delay, uses `Input.insertText` for efficiency.
    * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
-  async type(text: string, options?: { delay?: number }): Promise<void> {
+  async type(text: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
 
     try {
       // Focus using JS (avoids DOM.focus(nodeId))
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: focusElement.toString(),
-        returnByValue: true,
-      });
+      await runLocatorStep(progress, "focusing element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: focusElement.toString(),
+          returnByValue: true,
+        }),
+      );
 
       if (!options?.delay) {
-        await session.send<never>("Input.insertText", { text });
+        await runLocatorStep(progress, "inserting text", () =>
+          session.send<never>("Input.insertText", { text }),
+        );
         return;
       }
 
       for (const ch of text) {
-        await session.send<never>("Input.dispatchKeyEvent", {
-          type: "keyDown",
-          text: ch,
-          key: ch,
-        } as Protocol.Input.DispatchKeyEventRequest);
+        await runLocatorStep(progress, "dispatching keyboard events", () =>
+          session.send<never>("Input.dispatchKeyEvent", {
+            type: "keyDown",
+            text: ch,
+            key: ch,
+          } as Protocol.Input.DispatchKeyEventRequest),
+        );
 
-        await session.send<never>("Input.dispatchKeyEvent", {
-          type: "keyUp",
-          text: ch,
-          key: ch,
-        } as Protocol.Input.DispatchKeyEventRequest);
+        await runLocatorStep(progress, "dispatching keyboard events", () =>
+          session.send<never>("Input.dispatchKeyEvent", {
+            type: "keyUp",
+            text: ch,
+            key: ch,
+          } as Protocol.Input.DispatchKeyEventRequest),
+        );
 
-        await new Promise((r) => setTimeout(r, options.delay));
+        if (progress) await progress.delay(options.delay);
+        else await new Promise((r) => setTimeout(r, options.delay));
       }
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
