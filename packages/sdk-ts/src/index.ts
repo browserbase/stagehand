@@ -57,6 +57,7 @@ export type {
   ExperimentalBatchOptions,
 } from "./batch.js";
 export { browserbase, localBrowser } from "./browser/factories.js";
+export { openAICompatible, type OpenAICompatibleOptions } from "./openAICompatible.js";
 export type {
   BrowserbaseBrowser,
   BrowserbaseConnectOptions,
