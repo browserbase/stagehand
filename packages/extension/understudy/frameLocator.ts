@@ -1,4 +1,5 @@
 import type { Protocol } from "devtools-protocol";
+import { isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import type { Page } from "./page.js";
@@ -49,7 +50,9 @@ export class FrameLocator {
 
     try {
       await runLocatorStep(progress, "enabling DOM", () =>
-        parentSession.send("DOM.enable").catch(() => {}),
+        parentSession.send("DOM.enable").catch((error) => {
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
       );
       const desc = await runLocatorStep(progress, "describing iframe", () =>
         parentSession.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
@@ -76,8 +79,9 @@ export class FrameLocator {
               nodeId?: Protocol.DOM.NodeId;
             }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId }),
           );
-        } catch {
+        } catch (error) {
           progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
           // ignore and try next
           continue;
         }
@@ -93,6 +97,7 @@ export class FrameLocator {
         parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -193,8 +198,9 @@ async function listDirectChildFrameIdsFromRegistry(
       const node = findFrameNode(tree, parentFrameId);
       const ids = node?.childFrames?.map((c) => c.frame.id as string) ?? [];
       if (ids.length > 0 || Date.now() >= deadline) return ids;
-    } catch {
+    } catch (error) {
       progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       // ignore
     }
     if (progress) await progress.delay(50);
@@ -246,6 +252,14 @@ async function ensureChildFrameReady(
       if (page.getSessionForFrame(childFrameId) === session) return;
     } catch (error) {
       progress?.throwIfStopped();
+      if (
+        progress &&
+        isCdpClosedError(error) &&
+        (error.message.startsWith("CDP connection closed:") ||
+          page.getSessionForFrame(childFrameId) === session)
+      ) {
+        throw error;
+      }
       lastError = error;
     }
   }

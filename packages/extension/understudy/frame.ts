@@ -1,6 +1,6 @@
 // lib/v3/understudy/frame.ts
 import { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "./cdp.js";
+import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 import { waitForScreenshot } from "./screenshotUtils.js";
@@ -185,7 +185,9 @@ export class Frame implements FrameManager {
   /** Evaluate an internal expression in Stagehand's selected locator world. */
   async evaluateInLocatorWorld<R = unknown>(expression: string, progress?: Progress): Promise<R> {
     await runLocatorStep(progress, "enabling runtime", () =>
-      this.session.send("Runtime.enable").catch(() => {}),
+      this.session.send("Runtime.enable").catch((error) => {
+        if (progress && isCdpClosedError(error)) throw error;
+      }),
     );
     let locatorWorld = await executionContexts.waitForLocatorWorld(
       this.session,

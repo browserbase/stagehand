@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "./cdp.js";
+import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import { type Progress, runLocatorStep } from "./progress.js";
 
 type FrameId = Protocol.Page.FrameId;
@@ -115,6 +115,7 @@ export class ExecutionContextRegistry {
         );
       } catch (extensionError) {
         progress?.throwIfStopped();
+        if (progress && isCdpClosedError(extensionError)) throw extensionError;
         if (await this.isFallbackEligible(session, frameId, progress)) {
           // Installation is shared. Only this caller's wait belongs to its progress.
           return this.fallbackWorld(
@@ -139,7 +140,9 @@ export class ExecutionContextRegistry {
     if (cached) return cached;
 
     await runLocatorStep(progress, "enabling runtime", () =>
-      session.send("Runtime.enable").catch(() => {}),
+      session.send("Runtime.enable").catch((error) => {
+        if (progress && isCdpClosedError(error)) throw error;
+      }),
     );
     const now = () => (progress ? performance.now() : Date.now());
     const deadline = now() + Math.min(timeout, progress?.remainingMs() ?? Infinity);
@@ -152,7 +155,7 @@ export class ExecutionContextRegistry {
       for (const contextId of candidates ?? []) {
         checkedContextIds.add(contextId);
         const diagnostic = await runLocatorStep(progress, "inspecting locator helpers", () =>
-          this.inspectExtensionWorld(session, contextId),
+          this.inspectExtensionWorld(session, contextId, progress),
         );
         diagnostics.set(contextId, JSON.stringify(diagnostic));
         if (diagnostic.ready) {
@@ -185,7 +188,9 @@ export class ExecutionContextRegistry {
     if (cached) return cached;
 
     await runLocatorStep(progress, "enabling runtime", () =>
-      session.send("Runtime.enable").catch(() => {}),
+      session.send("Runtime.enable").catch((error) => {
+        if (progress && isCdpClosedError(error)) throw error;
+      }),
     );
     const after = this.getMainWorld(session, frameId);
     if (after) return after;
@@ -361,8 +366,9 @@ export class ExecutionContextRegistry {
         protocol === "file:" ||
         protocol === "filesystem:"
       );
-    } catch {
+    } catch (error) {
       progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       return false;
     }
   }
@@ -443,7 +449,9 @@ export class ExecutionContextRegistry {
         kind: typeof value?.kind === "string" ? value.kind : "unknown",
         closedShadowRoots: value?.closedShadowRoots === true,
       };
-    } catch {
+    } catch (error) {
+      // Shared installation must retain closure errors for every waiting caller.
+      if (isCdpClosedError(error)) throw error;
       return { ready: false, kind: "unavailable", closedShadowRoots: false };
     }
   }
@@ -455,6 +463,7 @@ export class ExecutionContextRegistry {
   async inspectExtensionWorld(
     session: CDPSessionLike,
     contextId: ExecId,
+    progress?: Progress,
   ): Promise<{ ready: boolean; marker: boolean; domApi: string }> {
     try {
       const response = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
@@ -476,7 +485,9 @@ export class ExecutionContextRegistry {
         marker: value?.marker === true,
         domApi: typeof value?.domApi === "string" ? value.domApi : "unknown",
       };
-    } catch {
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       return { ready: false, marker: false, domApi: "unavailable" };
     }
   }

@@ -312,4 +312,227 @@ describe("locator resolution deadlines", () => {
     gate.resolve({});
     await vi.advanceTimersByTimeAsync(0);
   });
+
+  it.each(["frame", "empty selector result"] as const)(
+    "rejects %s when cleanup crosses the deadline before its timer fires",
+    async (kind) => {
+      const root = createFrame("root");
+      const child = createFrame("child");
+      const progress = createProgress();
+      root.send.mockImplementation((method, params) => {
+        if (method === "Runtime.releaseObject") {
+          vi.spyOn(performance, "now").mockReturnValue(101);
+          expect(progress.signal.aborted).toBe(false);
+        }
+        if (kind === "empty selector result" && method === "Runtime.evaluate") {
+          return Promise.resolve({
+            result: { objectId: "failed-node" },
+            exceptionDetails: { text: "evaluation failed" },
+          });
+        }
+        return root.respond(method, params);
+      });
+      const pending =
+        kind === "frame"
+          ? frameLocatorFromFrame(
+              createPage(root.frame, child.frame),
+              root.frame,
+              "iframe",
+            ).resolveFrame(progress)
+          : root.frame
+              .locator("button")
+              .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, progress);
+      await expect(pending).rejects.toThrow(TimeoutError);
+      expect(
+        root.send.mock.calls.filter(([method]) => method === "Runtime.releaseObject"),
+      ).toHaveLength(1);
+    },
+  );
+
+  it.each(["runtime", "inspection", "fallback"] as const)(
+    "preserves closure during %s instead of retrying or installing a fallback",
+    async (phase) => {
+      const { session, send, respond } = createFrame("root", false);
+      const closed = new Error("CDP connection closed: socket-close");
+      send.mockImplementation((method, params) => {
+        const expression = (params as { expression?: string } | undefined)?.expression ?? "";
+        if (
+          (phase === "runtime" && method === "Runtime.enable") ||
+          (phase === "inspection" && expression.includes("__stagehandExtensionWorld")) ||
+          (phase === "fallback" && expression.includes("location?.protocol"))
+        ) {
+          return Promise.reject(closed);
+        }
+        return respond(method, params);
+      });
+      let failure: unknown;
+      const done = executionContexts
+        .waitForLocatorWorld(session, "root", 10, createProgress())
+        .catch((error) => {
+          failure = error;
+        });
+      await vi.advanceTimersByTimeAsync(50);
+      const earlyFailure = failure;
+      // Drain the finite deadline even if the regression keeps retrying.
+      await vi.advanceTimersByTimeAsync(50);
+      await done;
+      expect(earlyFailure).toBe(closed);
+      expect(send.mock.calls.some(([method]) => method === "Page.createIsolatedWorld")).toBe(false);
+    },
+  );
+
+  it.each(["Runtime.evaluate", "DOM.requestNode", "DOM.getFrameOwner"])(
+    "preserves session closure from %s during resolution",
+    async (command) => {
+      const root = createFrame("root");
+      const child = createFrame("child");
+      const closed = new Error(
+        "No Page found for target closed before CDP response (sessionId=root, targetId=page)",
+      );
+      root.send.mockImplementation((method, params) =>
+        method === command ? Promise.reject(closed) : root.respond(method, params),
+      );
+      const progress = createProgress(0);
+      const pending =
+        command === "DOM.getFrameOwner"
+          ? frameLocatorFromFrame(
+              createPage(root.frame, child.frame),
+              root.frame,
+              "iframe",
+            ).resolveFrame(progress)
+          : root.frame.locator("button").resolveNode(progress);
+      await expect(pending).rejects.toBe(closed);
+    },
+  );
+
+  it.each([false, true])(
+    "handles a lookup error with expired=%s before the deadline timer runs",
+    async (expired) => {
+      const { frame, send, respond } = createFrame("root");
+      const progress = createProgress();
+      send.mockImplementation((method, params) => {
+        if (method === "Runtime.evaluate") {
+          if (expired) vi.spyOn(performance, "now").mockReturnValue(101);
+          expect(progress.signal.aborted).toBe(false);
+          return Promise.reject(new Error("element detached"));
+        }
+        return respond(method, params);
+      });
+      const pending = frame
+        .locator("button")
+        .selectorResolver.resolveAll({ kind: "css", value: "button" }, {}, progress);
+      if (expired) await expect(pending).rejects.toThrow(TimeoutError);
+      else await expect(pending).resolves.toEqual([]);
+      expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
+    },
+  );
+
+  it.each([false, true])(
+    "recovers a missing execution context only while active (expired=%s)",
+    async (expired) => {
+      const { frame, session, send, respond } = createFrame("root");
+      const progress = createProgress();
+      let evaluations = 0;
+      send.mockImplementation((method, params) => {
+        if (method === "Runtime.evaluate") {
+          if (++evaluations === 1) {
+            if (expired) vi.spyOn(performance, "now").mockReturnValue(101);
+            expect(progress.signal.aborted).toBe(false);
+            executionContexts.registerExtensionWorld(session, "root", 3);
+            return Promise.reject(new Error("Cannot find context with specified id"));
+          }
+          return Promise.resolve({ result: { value: "recovered" } });
+        }
+        return respond(method, params);
+      });
+      const pending = frame.evaluateInLocatorWorld("1", progress);
+      if (expired) await expect(pending).rejects.toThrow(TimeoutError);
+      else await expect(pending).resolves.toBe("recovered");
+      expect(evaluations).toBe(expired ? 1 : 2);
+      if (!expired)
+        expect(send).toHaveBeenLastCalledWith(
+          "Runtime.evaluate",
+          expect.objectContaining({ contextId: 3 }),
+        );
+    },
+  );
+
+  it.each([
+    { adopted: false, expired: false, connectionClosed: false },
+    { adopted: true, expired: false, connectionClosed: false },
+    { adopted: true, expired: true, connectionClosed: false },
+    { adopted: true, expired: false, connectionClosed: true },
+  ])(
+    "handles closure with adopted=$adopted, expired=$expired, connectionClosed=$connectionClosed",
+    async ({ adopted, expired, connectionClosed }) => {
+      const root = createFrame("root");
+      const oldChild = createFrame("child", false);
+      const newChild = createFrame("child");
+      const page = createPage(root.frame, oldChild.frame);
+      let owner = oldChild.session;
+      vi.spyOn(page, "getSessionForFrame").mockImplementation(() => owner);
+      vi.spyOn(page, "frameForId").mockReturnValue(newChild.frame);
+      const closed = new Error(
+        connectionClosed
+          ? "CDP connection closed: socket-close"
+          : "No Page found for target closed before CDP response (sessionId=child, targetId=child)",
+      );
+      const progress = createProgress(expired ? 100 : 0);
+      oldChild.send.mockImplementation(() => {
+        if (adopted) owner = newChild.session;
+        if (expired) vi.spyOn(performance, "now").mockReturnValue(101);
+        return Promise.reject(closed);
+      });
+      const wait = vi.spyOn(executionContexts, "waitForLocatorWorld");
+      const pending = frameLocatorFromFrame(page, root.frame, "iframe").resolveFrame(progress);
+      if (expired) await expect(pending).rejects.toThrow(TimeoutError);
+      else if (!adopted || connectionClosed) await expect(pending).rejects.toBe(closed);
+      else await expect(pending).resolves.toBe(newChild.frame);
+      const probes = wait.mock.calls.filter(([, id]) => id === "child");
+      expect(probes.map(([session]) => session)).toEqual(
+        adopted && !expired && !connectionClosed
+          ? [oldChild.session, newChild.session]
+          : [oldChild.session],
+      );
+      expect(probes.every(([, , , passed]) => passed === progress)).toBe(true);
+    },
+  );
+
+  it("preserves closure during shared fallback inspection", async () => {
+    const { session, state, send, respond } = createFrame("root", false);
+    state.protocol = "data:";
+    executionContexts.setFallbackInstallerSource(session, "install locator runtime");
+    const closed = new Error("CDP connection closed: socket-close");
+    send.mockImplementation((method, params) => {
+      if (method === "Page.createIsolatedWorld") return Promise.resolve({ executionContextId: 9 });
+      if (
+        (params as { expression?: string } | undefined)?.expression?.includes(
+          "__stagehandLocatorWorld",
+        )
+      )
+        return Promise.reject(closed);
+      return respond(method, params);
+    });
+    const rejected = expect(
+      executionContexts.waitForLocatorWorld(session, "root", 10, createProgress(0)),
+    ).rejects.toBe(closed);
+    await vi.advanceTimersByTimeAsync(25);
+    await rejected;
+    expect(executionContexts.getFallbackWorld(session, "root")).toBeNull();
+    expect(executionContexts.fallbackCreation.get(session)?.size).toBe(0);
+  });
+
+  it("releases a selector result delivered after the deadline", async () => {
+    const { frame, send } = createFrame("root");
+    const resolver = frame.locator("button").selectorResolver;
+    const progress = createProgress();
+    vi.spyOn(resolver, "evaluateElement").mockImplementation(async () => {
+      vi.spyOn(performance, "now").mockReturnValue(101);
+      return { objectId: "late-node", nodeId: 1 };
+    });
+    await expect(
+      resolver.resolveAll({ kind: "css", value: "button" }, { limit: 1 }, progress),
+    ).rejects.toThrow(TimeoutError);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "late-node" });
+  });
 });
