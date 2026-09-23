@@ -8,11 +8,16 @@ export default class FunctionSecretsDetach extends BrowseCommand {
     "Detach a secret from a function without deleting the secret.";
   static override examples = [
     "browse functions secrets detach <functionId> <secretId>",
+    "browse functions secrets detach 7b6e1c42-8d93-4a15-b2f0-9c6d3e8a5041 d2c4f48f-38e9-4b82-a36a-2b373fd14a65",
   ];
   static override args = {
-    functionId: Args.string({ description: "Function ID.", required: true }),
+    functionId: Args.string({
+      description: "Function ID (e.g. 7b6e1c42-8d93-4a15-b2f0-9c6d3e8a5041).",
+      required: true,
+    }),
     secretId: Args.string({
-      description: "Project secret ID.",
+      description:
+        "Project secret ID (e.g. d2c4f48f-38e9-4b82-a36a-2b373fd14a65).",
       required: true,
     }),
   };
