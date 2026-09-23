@@ -84,6 +84,7 @@ export class LocatorOperation {
       abandoned = true;
       // The result may have arrived just before expiry, but not been delivered.
       if (result) discard(result.value);
+      this.throwIfStopped();
       throw error;
     } finally {
       if (onAbort) this.signal.removeEventListener("abort", onAbort);

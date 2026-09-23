@@ -124,6 +124,24 @@ describe("locator operations", () => {
     expect(command).not.toHaveBeenCalled();
   });
 
+  it.each(["throws", "rejects"] as const)(
+    "reports timeout when work %s after the deadline before the timer runs",
+    async (failure) => {
+      const operation = createOperation();
+      const pending = operation.run("reading geometry", () => {
+        vi.spyOn(performance, "now").mockReturnValue(101);
+        expect(operation.signal.aborted).toBe(false);
+        const error = new Error("browser error");
+        if (failure === "throws") throw error;
+        return Promise.reject(error);
+      });
+      await expect(pending).rejects.toThrow(
+        "locator.click timed out after 100ms while reading geometry",
+      );
+      expect(operation.signal.reason).toBeInstanceOf(TimeoutError);
+    },
+  );
+
   it("delivers a successful resource without invoking late cleanup", async () => {
     const operation = createOperation();
     const release = vi.fn(async () => {});
@@ -131,8 +149,8 @@ describe("locator operations", () => {
     expect(release).not.toHaveBeenCalled();
   });
 
-  it.each(["resolve", "reject"] as const)(
-    "does not resume timed-out work when a late command %ss",
+  it.each(["resolves", "rejects"] as const)(
+    "does not resume timed-out work when a late command %s",
     async (outcome) => {
       const operation = createOperation();
       const command = deferred<string>();
@@ -152,11 +170,11 @@ describe("locator operations", () => {
       await vi.advanceTimersByTimeAsync(40);
       await rejected;
       expect(remove).toHaveBeenCalledTimes(3);
-      if (outcome === "resolve") command.resolve("late-node");
+      if (outcome === "resolves") command.resolve("late-node");
       else command.reject(new Error("late browser error"));
       await vi.advanceTimersByTimeAsync(0);
       expect(nextStep).not.toHaveBeenCalled();
-      if (outcome === "resolve") expect(release).toHaveBeenCalledExactlyOnceWith("late-node");
+      if (outcome === "resolves") expect(release).toHaveBeenCalledExactlyOnceWith("late-node");
       else expect(release).not.toHaveBeenCalled();
       expect(vi.getTimerCount()).toBe(0);
     },
