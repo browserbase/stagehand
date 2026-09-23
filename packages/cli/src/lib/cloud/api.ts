@@ -45,6 +45,7 @@ export type BrowserbaseApiCommand =
   | "contexts"
   | "extensions"
   | "functions"
+  | "secrets"
   | "sessions";
 
 export function resolveApiKey(args: { apiKey?: string }): string {
@@ -440,6 +441,10 @@ function resolveCommandFromPathname(
 
   if (pathname.startsWith("/v1/extensions")) {
     return "extensions";
+  }
+
+  if (pathname.startsWith("/v1/secrets")) {
+    return "secrets";
   }
 
   if (pathname.startsWith("/v1/functions")) {
