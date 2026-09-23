@@ -142,6 +142,7 @@ describe("secret update CLI HTTP contracts", () => {
     expect(result.exitCode).not.toBe(0);
     expect(server.requests).toHaveLength(1);
     expect(result.stderr).toContain("invalid X25519 public key");
+    expect(result.stdout + result.stderr).not.toContain("private-value");
   });
 
   it("requires --stdin for noninteractive input", async () => {
