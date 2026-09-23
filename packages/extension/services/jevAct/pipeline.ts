@@ -1475,8 +1475,26 @@ async function pickWhenReady(
       attempt++;
       const early = ctx.earlySnapshot;
       ctx.earlySnapshot = undefined;
-      const snap = await (early ?? capture(deps, ctx.trace));
-      const signature = buildView(snap.nodes, view)
+      // A capture can fail while a navigation commits; that is "not ready
+      // yet", and the settle wait still bounds the loop.
+      let snap: Snapshot;
+      try {
+        snap = await (early ?? capture(deps, ctx.trace));
+      } catch (error) {
+        ctx.trace.push({
+          node: "not_ready",
+          ms: Math.round(performance.now() - startedAt),
+          attempt,
+          why: "snapshot_failed",
+          detail: error instanceof Error ? error.name : "error",
+          settled,
+        });
+        await Promise.race([deps.settled.catch(() => {}), sleep(READY_POLL_MS)]);
+        continue;
+      }
+      // Jev looks at the role view and then at every named node: a change in
+      // either is a reason to ask again.
+      const signature = [...buildView(snap.nodes, view), ...buildView(snap.nodes, "broad")]
         .map((node) => `${node.id}:${node.name}`)
         .join("|");
       let picked: TargetResult;
@@ -1503,7 +1521,7 @@ async function pickWhenReady(
         attempt,
         asked,
         ...(stable ? {} : { why: guard.verdict }),
-        ...(guard.cover ? { cover: guard.cover } : {}),
+        ...(guard.cover ? { cover: (ctx.redact ?? ((text: string) => text))(guard.cover) } : {}),
         settled,
       });
       if (stable) {
@@ -1589,7 +1607,7 @@ async function waitForClickable(
       ms: Math.round(performance.now() - startedAt),
       polls,
       verdict: result.verdict,
-      ...(result.cover ? { cover: result.cover } : {}),
+      ...(result.cover ? { cover: (ctx.redact ?? ((text: string) => text))(result.cover) } : {}),
     });
   }
 }
@@ -1632,8 +1650,19 @@ function targetGuard(this: Element, pointer: boolean): Promise<GuardResult> {
       // Off-screen targets get scrolled into view by the action; nothing to hit-test yet.
       if (pointer && inView) {
         const root = element.getRootNode() as Document | ShadowRoot;
-        const hit = root.elementFromPoint(x, y);
-        if (hit && hit !== element && !element.contains(hit) && !hit.contains(element)) {
+        // Inside a shadow root, a cover that lives in the light DOM makes
+        // elementFromPoint return null; the document's answer is then the
+        // cover (or the host chain, which counts as "hits the target").
+        const hit = root.elementFromPoint(x, y) ?? document.elementFromPoint(x, y);
+        const encloses = (outer: Element, inner: Element): boolean => {
+          for (let node: Node | null = inner; node; ) {
+            if (node === outer || (node instanceof Element && outer.contains(node))) return true;
+            const rootNode = node.getRootNode();
+            node = rootNode instanceof ShadowRoot ? rootNode.host : null;
+          }
+          return false;
+        };
+        if (hit && hit !== element && !element.contains(hit) && !encloses(hit, element)) {
           const label =
             hit.getAttribute("aria-label") ??
             hit.getAttribute("id") ??

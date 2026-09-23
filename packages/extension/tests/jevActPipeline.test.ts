@@ -1035,6 +1035,60 @@ describe("jev act pipeline target readiness", () => {
     );
   });
 
+  it("treats a failed snapshot during readiness as not-ready and keeps looking", async () => {
+    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"]));
+    let captures = 0;
+    const d = deps(tree, xpaths, { instruction: "click Checkout", settled: never });
+    d.captureSnapshot.mockImplementation(async () => {
+      if (++captures <= 2) throw new Error("Frame with the given id was not found");
+      return { combinedTree: tree, combinedXpathMap: xpaths, combinedUrlMap: {} };
+    });
+    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    expect(outcome.kind).toBe("done");
+    expect(d.takeAction).toHaveBeenCalledTimes(1);
+    expect(captures).toBe(3);
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
+  it("redacts %variable% values from the cover the guard names", async () => {
+    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    const lines: string[] = [];
+    const logger = new StagehandLogger({ tracer: trace.getTracer("jev-cover-test") }, (line) => {
+      lines.push(JSON.stringify(line));
+    });
+    vi.mocked(resolveLocatorWithHops).mockResolvedValue({
+      backendNodeId: async () => 7,
+      resolveNode: async () => ({ objectId: "obj-1" }),
+      getFrame: () => ({
+        session: {
+          send: async (method: string) =>
+            method === "Runtime.callFunctionOn"
+              ? { result: { value: { verdict: "covered", cover: "li: jane@corp.com" } } }
+              : {},
+        },
+      }),
+      inputValue: async () => "",
+    } as never);
+    const d = deps(tree, xpaths, {
+      instruction: "click Checkout",
+      variables: { email: "jane@corp.com" },
+      settled: Promise.resolve(),
+      logger,
+    });
+    await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const logged = lines.join("\n");
+    expect(logged).toContain("%email%");
+    expect(logged).not.toContain("jane@corp.com");
+    vi.mocked(resolveLocatorWithHops).mockReset();
+    vi.mocked(resolveLocatorWithHops).mockImplementation(
+      async () => ({ inputValue: async () => "business" }) as never,
+    );
+  });
+
   it("keeps looking while the settle wait runs and acts the moment a late target lands", async () => {
     const calls = stubJev({
       family: choice("click"),
