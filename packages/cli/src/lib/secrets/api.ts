@@ -111,3 +111,15 @@ export async function attachFunctionSecret(
     },
   );
 }
+
+export async function detachFunctionSecret(
+  options: SecretsApiOptions,
+  functionId: string,
+  secretId: string,
+): Promise<void> {
+  await requestBrowserbase(
+    options,
+    `/v1/functions/${encodeURIComponent(functionId)}/secrets/${encodeURIComponent(secretId)}`,
+    { method: "DELETE" },
+  );
+}
