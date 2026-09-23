@@ -752,6 +752,98 @@ describe("locator action deadlines", () => {
     },
   );
 
+  it.each(["highlight", "upload"] as const)(
+    "preserves the primary %s error while cleanup is stalled",
+    async (action) => {
+      const { locator, send } = createLocator();
+      const primary = new Error("action failed");
+      const gate = deferred();
+      const respond = send.getMockImplementation()!;
+      send.mockImplementation(async (method, params) => {
+        if (["Overlay.hideHighlight", "Runtime.releaseObject"].includes(method))
+          return gate.promise;
+        if (
+          method === "Overlay.highlightNode" ||
+          (params as { functionDeclaration?: string })?.functionDeclaration ===
+            assignFilePayloadsToInputElement.toString()
+        )
+          throw primary;
+        return respond(method, params);
+      });
+      const settled = vi.fn();
+      const pending = runWithProgress({ name: action, timeout: 100 }, (progress) =>
+        action === "highlight"
+          ? locator.highlight({ durationMs: 0 }, progress)
+          : locator.setInputFiles(upload, progress),
+      );
+      void pending.then(settled, settled);
+      try {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(settled).toHaveBeenCalledExactlyOnceWith(primary);
+        expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
+        if (action === "highlight") expect(send).toHaveBeenCalledWith("Overlay.hideHighlight");
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(settled).toHaveBeenCalledExactlyOnceWith(primary);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        gate.resolve({});
+        await vi.advanceTimersByTimeAsync(0);
+      }
+    },
+  );
+
+  it.each(["highlight", "upload"] as const)(
+    "reports an expired %s without waiting for stalled cleanup",
+    async (action) => {
+      const { locator, send } = createLocator();
+      const work = deferred();
+      const cleanup = deferred();
+      const respond = send.getMockImplementation()!;
+      send.mockImplementation((method, params) => {
+        if (["Overlay.hideHighlight", "Runtime.releaseObject"].includes(method))
+          return cleanup.promise;
+        if (
+          method === "Overlay.highlightNode" ||
+          (params as { functionDeclaration?: string })?.functionDeclaration ===
+            assignFilePayloadsToInputElement.toString()
+        )
+          return work.promise;
+        return respond(method, params);
+      });
+      const progress = createProgress();
+      const pending =
+        action === "highlight"
+          ? locator.highlight({ durationMs: 0 }, progress)
+          : locator.setInputFiles(upload, progress);
+      const settled = vi.fn();
+      void pending.then(settled, settled);
+      try {
+        await vi.advanceTimersByTimeAsync(100);
+        expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(TimeoutError));
+        expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
+      } finally {
+        work.resolve({ result: { value: true } });
+        cleanup.resolve({});
+        await vi.advanceTimersByTimeAsync(0);
+      }
+    },
+  );
+
+  it("still reports timeout when successful upload cleanup crosses the deadline", async () => {
+    const { locator, send } = createLocator();
+    const gate = deferred();
+    const respond = send.getMockImplementation()!;
+    send.mockImplementation((method, params) =>
+      method === "Runtime.releaseObject" ? gate.promise : respond(method, params),
+    );
+    const pending = locator.setInputFiles(upload, createProgress());
+    const rejected = expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(1000);
+    await rejected;
+    gate.resolve({});
+    await vi.advanceTimersByTimeAsync(0);
+  });
+
   it("preserves a highlight failure when both cleanup commands fail", async () => {
     const { locator, send } = createLocator();
     const primary = new Error("drawing failed");
