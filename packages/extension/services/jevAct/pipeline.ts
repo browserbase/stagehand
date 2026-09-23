@@ -99,7 +99,9 @@ export type JevActConfig = JevConfig & {
   observe?: boolean;
   /**
    * Let act() invoke a WebMCP tool the page registered when Jev is sure the
-   * tool is the request. Sends tool names and descriptions to TypeSafe. Default false.
+   * tool is the request. Sends tool names and descriptions, and for the likely
+   * tools their parameter names, descriptions, types and enum values, to
+   * TypeSafe. Default false.
    */
   tools?: boolean;
 };

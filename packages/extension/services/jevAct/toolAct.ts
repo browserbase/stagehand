@@ -4,7 +4,7 @@ import type {
   WebMCPToolDescriptor,
 } from "@browserbasehq/stagehand-protocol/types";
 import type { Page } from "../../understudy/page.js";
-import { substituteVariables } from "./args.js";
+import { redactor, substituteVariables } from "./args.js";
 import type { TraceEntry } from "./pick.js";
 import type { JsonValue } from "./typesafeClient.js";
 
@@ -59,11 +59,14 @@ export async function invokeTool(
   });
 
   const success = response.status === "Completed";
+  // The tool may echo what it was given; the message goes to the caller and
+  // the logs, so resolved %variable% values are put back behind their names.
+  const redact = redactor(variables) ?? ((text: string) => text);
   const detail = success
     ? response.output === undefined
       ? ""
-      : `: ${JSON.stringify(response.output).slice(0, RESULT_MESSAGE_CHARS)}`
-    : `: ${response.errorText ?? response.status}`;
+      : `: ${redact(JSON.stringify(response.output)).slice(0, RESULT_MESSAGE_CHARS)}`
+    : `: ${redact(response.errorText ?? response.status)}`;
   return {
     success,
     message: `${success ? "Invoked" : "Failed to invoke"} WebMCP tool ${tool.name}${detail}`,
@@ -80,11 +83,15 @@ export async function invokeTool(
   };
 }
 
+/** Placeholders can sit inside arrays and objects when the argument LLM shaped the input. */
 function resolveVariables(input: ToolInput, variables: Variables | undefined): ToolInput {
-  return Object.fromEntries(
-    Object.entries(input).map(([name, value]) => [
-      name,
-      typeof value === "string" ? substituteVariables(value, variables) : value,
-    ]),
-  );
+  const resolve = (value: JsonValue): JsonValue => {
+    if (typeof value === "string") return substituteVariables(value, variables);
+    if (Array.isArray(value)) return value.map(resolve);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, resolve(child)]));
+    }
+    return value;
+  };
+  return Object.fromEntries(Object.entries(input).map(([name, value]) => [name, resolve(value)]));
 }

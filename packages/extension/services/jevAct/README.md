@@ -49,7 +49,7 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 | `cacheCheck`    | `false`    | Before each cached action is replayed, one Jev yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it.                                                                                                                                                             |
 | `extract`       | `"off"`    | `"judge"`: Jev's yes/no replaces extract()'s completion LLM call. `"pick"`: Jev picks the elements holding each scalar or list field's value and code copies their text; booleans and enums are judged directly; schemas the planner cannot map, unresolved required fields, or a failed completion gate send the whole extraction to the LLM. **Both send page or extracted content to TypeSafe.** |
 | `observe`       | `false`    | Resolve `observe()` through Jev first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                                                                                                                                                                                      |
-| `tools`         | `false`    | Let `act()` invoke a WebMCP tool the page registered when Jev is sure the tool is the request (see below). Sends tool names, descriptions and parameter names to TypeSafe.                                                                                                                                                                                                                          |
+| `tools`         | `false`    | Let `act()` invoke a WebMCP tool the page registered when Jev is sure the tool is the request (see below). Sends tool names and descriptions to TypeSafe, and for the two tools sharing most words with the instruction also their parameter names, descriptions, types and enum values.                                                                                                            |
 | `retryNoEffect` | `false`    | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                                                                                                                                                                            |
 | `focusFallback` | `false`    | On trees over 120K chars, show the LLM Jev's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                                                                                                                                                                                |
 
@@ -101,7 +101,9 @@ logs its instruction and a trace of candidate descriptions at info level.
 
 ## Known limits
 
-- Jev usage is logged but not part of `result.metadata.usage`.
+- Jev usage is logged but not part of `result.metadata.usage`. With `tools`, an argument LLM call
+  started speculatively and not used finishes after the act has returned, and its tokens are not
+  counted anywhere.
 - Thresholds (0.7 accept, 0.9 none veto, 0.7 held-pick cap) were set on the act and breadth suites.
   The cache-check threshold (0.35) comes from direct API probes; no eval exercises the cache path.
 - No eval exercises page-state fail-fast or `retryNoEffect` end to end; both have unit tests only.

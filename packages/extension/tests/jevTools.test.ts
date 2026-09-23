@@ -284,6 +284,21 @@ describe("Jev WebMCP tool act", () => {
     );
   });
 
+  it("resolves %variables% nested inside LLM-shaped arguments and redacts what the tool echoes", async () => {
+    stubJev({ tool: "search_flights" });
+    const fillArguments = vi.fn(async () => ({ legs: ["%from%-%to%"], note: { who: "%from%" } }));
+    const h = harness("fly %from% to %to%", { fillArguments }, { from: "SFO", to: "JFK" });
+    h.webmcp.page.waitForWebMCPInvocationResult = async () => ({
+      invocationId: "inv-1",
+      status: "Completed",
+      output: { booked: "SFO-JFK for SFO" },
+    });
+    const outcome = await runJevActPipeline(config, h.deps);
+    expect(h.invoked[0]?.input).toEqual({ legs: ["SFO-JFK"], note: { who: "SFO" } });
+    expect(outcome.kind === "done" && outcome.result.message).toContain("%from%-%to%");
+    expect(outcome.kind === "done" && outcome.result.message).not.toContain("SFO");
+  });
+
   it("reports a tool error as a failed act instead of falling through to the UI", async () => {
     stubJev({ tool: "clear_cart" });
     const h = harness("empty my cart");
