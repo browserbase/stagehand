@@ -57,6 +57,9 @@
       "cloud:sessions:uploads": {
         "description": "Upload files to Browserbase sessions."
       },
+      "functions:secrets": {
+        "description": "Attach project secrets to functions."
+      },
       "functions": {
         "description": "Develop, publish, and invoke Browserbase Functions."
       },
