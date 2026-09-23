@@ -1,15 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TimeoutError } from "../errors.js";
-import { fillElementValue, prepareElementForTyping } from "../dom/locatorScripts/scripts.js";
+import {
+  assignFilePayloadsToInputElement,
+  fillElementValue,
+  prepareElementForTyping,
+} from "../dom/locatorScripts/scripts.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { DeepLocatorDelegate } from "./deepLocator.js";
 import { frameLocatorFromFrame } from "./frameLocator.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { Locator } from "./locator.js";
+import * as fileUploads from "./fileUploadUtils.js";
 import { Progress, runWithProgress } from "./progress.js";
 
+const upload = { name: "test.txt", buffer: "abc", lastModified: 1 };
 const actions = [
+  ["highlight", [{ durationMs: 0 }]],
+  ["setInputFiles", [upload]],
   ["fill", ["hello"]],
   ["type", ["hello", undefined]],
   ["click", [{ button: "right", clickCount: 2 }]],
@@ -88,7 +96,10 @@ afterEach(() => vi.restoreAllMocks());
 describe.each(["direct", "deep", "frame"] as const)("%s locator progress forwarding", (kind) => {
   const supported = actions.filter(
     ([method]) =>
-      kind !== "frame" || !["sendClickEvent", "centroid", "backendNodeId"].includes(method),
+      kind !== "frame" ||
+      !["sendClickEvent", "centroid", "backendNodeId", "highlight", "setInputFiles"].includes(
+        method,
+      ),
   );
 
   it.each(supported)("passes the caller's progress through %s", async (method, args) => {
@@ -158,7 +169,9 @@ describe("locator action deadlines", () => {
     contexts.push(progress);
     return progress;
   };
-  beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] }));
+  beforeEach(() =>
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] }),
+  );
   afterEach(() => {
     contexts.splice(0).forEach((progress) => progress.dispose());
     expect(vi.getTimerCount()).toBe(0);
@@ -166,6 +179,13 @@ describe("locator action deadlines", () => {
   });
 
   const stalledCommands: Partial<Record<Action, string[]>> = {
+    highlight: [
+      "Overlay.enable",
+      "DOM.scrollIntoViewIfNeeded",
+      "DOM.enable",
+      "DOM.describeNode",
+      "Overlay.highlightNode",
+    ],
     type: ["Runtime.callFunctionOn", "Input.insertText"],
     click: ["DOM.scrollIntoViewIfNeeded", "DOM.getBoxModel", "Input.dispatchMouseEvent"],
     hover: ["DOM.getBoxModel", "Input.dispatchMouseEvent"],
@@ -192,12 +212,16 @@ describe("locator action deadlines", () => {
       const rejected = expect(pending).rejects.toThrow(TimeoutError);
       await vi.advanceTimersByTimeAsync(100);
       await rejected;
-      const sent = send.mock.calls.filter(([name]) => name !== "Runtime.releaseObject").length;
+      const sent = send.mock.calls.filter(
+        ([name]) => !["Runtime.releaseObject", "Overlay.hideHighlight"].includes(name),
+      ).length;
       gate.resolve(await respond(command));
       await vi.advanceTimersByTimeAsync(0);
-      expect(send.mock.calls.filter(([name]) => name !== "Runtime.releaseObject")).toHaveLength(
-        sent,
-      );
+      expect(
+        send.mock.calls.filter(
+          ([name]) => !["Runtime.releaseObject", "Overlay.hideHighlight"].includes(name),
+        ),
+      ).toHaveLength(sent);
       if (method !== "count")
         expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
       if (command !== "Input.dispatchMouseEvent")
@@ -212,7 +236,11 @@ describe("locator action deadlines", () => {
     const pending =
       method === "click" ? locator.click(undefined, progress) : locator.count(progress);
     await expect(pending).rejects.toThrow(TimeoutError);
-    expect(send.mock.calls.filter(([name]) => name !== "Runtime.releaseObject")).toHaveLength(0);
+    expect(
+      send.mock.calls.filter(
+        ([name]) => !["Runtime.releaseObject", "Overlay.hideHighlight"].includes(name),
+      ),
+    ).toHaveLength(0);
   });
 
   it.each([
@@ -575,5 +603,276 @@ describe("locator action deadlines", () => {
     expect(send.mock.calls.some(([method]) => method.startsWith("Input."))).toBe(false);
     gate.resolve({});
     await vi.advanceTimersByTimeAsync(0);
+  });
+
+  it.each([undefined, 0, 100])("includes highlight duration in timeout %s", async (timeout) => {
+    const { locator, send } = createLocator();
+    const pending = locator.highlight(
+      { durationMs: 250 },
+      timeout === undefined ? undefined : createProgress(timeout),
+    );
+    const result = timeout
+      ? expect(pending).rejects.toThrow(TimeoutError)
+      : expect(pending).resolves.toBeUndefined();
+    await vi.advanceTimersByTimeAsync(100);
+    if (timeout) await result;
+    await vi.advanceTimersByTimeAsync(200);
+    await result;
+    expect(send.mock.calls.filter(([method]) => method === "Overlay.highlightNode")).toHaveLength(
+      timeout ? 1 : 3,
+    );
+    expect(send.mock.calls.filter(([method]) => method === "Overlay.hideHighlight")).toHaveLength(
+      1,
+    );
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toHaveLength(
+      1,
+    );
+  });
+
+  it.each([undefined, 0, 100])(
+    "keeps a successful zero-duration highlight with timeout %s",
+    async (timeout) => {
+      const { locator, send } = createLocator();
+      await locator.highlight(
+        { durationMs: 0 },
+        timeout === undefined ? undefined : createProgress(timeout),
+      );
+      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
+      expect(send).not.toHaveBeenCalledWith("Overlay.hideHighlight");
+    },
+  );
+
+  it.each(["ordinary", "closed", "expired"])(
+    "handles a %s highlight node lookup failure",
+    async (kind) => {
+      const { locator, send } = createLocator();
+      const error = new Error(
+        kind === "closed" ? "CDP connection closed: gone" : "node lookup failed",
+      );
+      const respond = send.getMockImplementation()!;
+      send.mockImplementation(async (method, params) => {
+        if (method === "DOM.describeNode") {
+          if (kind === "expired") vi.spyOn(performance, "now").mockReturnValue(101);
+          throw error;
+        }
+        return respond(method, params);
+      });
+      const pending = locator.highlight({ durationMs: 0 }, createProgress());
+      if (kind === "ordinary") {
+        await pending;
+        expect(send).toHaveBeenCalledWith(
+          "Overlay.highlightNode",
+          expect.objectContaining({ objectId: "node" }),
+        );
+      } else {
+        if (kind === "closed") await expect(pending).rejects.toBe(error);
+        else await expect(pending).rejects.toThrow(TimeoutError);
+        expect(send).toHaveBeenCalledWith("Overlay.hideHighlight");
+        expect(send.mock.calls.some(([method]) => method === "Overlay.highlightNode")).toBe(false);
+      }
+    },
+  );
+
+  it.each([false, true])(
+    "only retries ordinary highlight refresh failures (closed: %s)",
+    async (closed) => {
+      const { locator, send } = createLocator();
+      const error = new Error(
+        closed ? "No Page found for target closed before CDP response: gone" : "node moved",
+      );
+      const respond = send.getMockImplementation()!;
+      let draws = 0;
+      send.mockImplementation(async (method, params) => {
+        if (method === "Overlay.highlightNode" && ++draws === 2) throw error;
+        return respond(method, params);
+      });
+      const pending = locator.highlight({ durationMs: 250 }, createProgress(500));
+      const result = closed
+        ? expect(pending).rejects.toBe(error)
+        : expect(pending).resolves.toBeUndefined();
+      await vi.advanceTimersByTimeAsync(250);
+      await result;
+      expect(draws).toBe(closed ? 2 : 3);
+      expect(send).toHaveBeenCalledWith("Overlay.hideHighlight");
+    },
+  );
+
+  it("hides a highlight that finishes drawing after timeout", async () => {
+    const { locator, send } = createLocator();
+    const gate = deferred();
+    const respond = send.getMockImplementation()!;
+    send.mockImplementation((method, params) =>
+      method === "Overlay.highlightNode" ? gate.promise : respond(method, params),
+    );
+    const pending = locator.highlight({ durationMs: 0 }, createProgress());
+    const rejected = expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    expect(send.mock.calls.filter(([method]) => method === "Overlay.hideHighlight")).toHaveLength(
+      1,
+    );
+    gate.resolve({});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send.mock.calls.filter(([method]) => method === "Overlay.hideHighlight")).toHaveLength(
+      2,
+    );
+    expect(send.mock.calls.filter(([method]) => method === "Overlay.highlightNode")).toHaveLength(
+      1,
+    );
+  });
+
+  it.each([false, true])(
+    "does not stack highlight cleanup waits (zero duration: %s)",
+    async (zeroDuration) => {
+      const { locator, send } = createLocator();
+      const gate = deferred();
+      const respond = send.getMockImplementation()!;
+      send.mockImplementation((method, params) =>
+        ["Overlay.hideHighlight", "Runtime.releaseObject"].includes(method)
+          ? gate.promise
+          : respond(method, params),
+      );
+      const pending = locator.highlight({ durationMs: zeroDuration ? 0 : 50 }, createProgress());
+      const rejected = expect(pending).rejects.toThrow(TimeoutError);
+      await vi.advanceTimersByTimeAsync(50);
+      if (!zeroDuration) {
+        expect(send).toHaveBeenCalledWith("Overlay.hideHighlight");
+        expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
+      }
+      await vi.advanceTimersByTimeAsync(1000);
+      await rejected;
+      expect(send.mock.calls.filter(([method]) => method === "Overlay.hideHighlight")).toHaveLength(
+        1,
+      );
+      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toHaveLength(
+        1,
+      );
+      gate.resolve({});
+      await vi.advanceTimersByTimeAsync(0);
+    },
+  );
+
+  it("preserves a highlight failure when both cleanup commands fail", async () => {
+    const { locator, send } = createLocator();
+    const primary = new Error("drawing failed");
+    const respond = send.getMockImplementation()!;
+    send.mockImplementation(async (method, params) => {
+      if (method === "Overlay.highlightNode") throw primary;
+      if (["Overlay.hideHighlight", "Runtime.releaseObject"].includes(method))
+        throw new Error("cleanup failed");
+      return respond(method, params);
+    });
+    await expect(locator.highlight({ durationMs: 0 }, createProgress())).rejects.toBe(primary);
+    expect(send).toHaveBeenCalledWith("Overlay.hideHighlight");
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "node" });
+  });
+
+  it.each(["normalization", "encoding"])(
+    "does not inject files when %s exhausts the budget",
+    async (stage) => {
+      const { locator } = createLocator();
+      const inject = vi.spyOn(locator, "assignFilesViaPayloadInjection");
+      if (stage === "normalization") {
+        const normalize = fileUploads.normalizeInputFiles;
+        vi.spyOn(fileUploads, "normalizeInputFiles").mockImplementation(async (files) => {
+          const result = await normalize(files);
+          vi.spyOn(performance, "now").mockReturnValue(101);
+          return result;
+        });
+      } else {
+        const encode = fileUploads.bytesToBase64;
+        vi.spyOn(fileUploads, "bytesToBase64").mockImplementation((bytes) => {
+          const result = encode(bytes);
+          vi.spyOn(performance, "now").mockReturnValue(101);
+          return result;
+        });
+      }
+      const send = vi.spyOn(locator.frame.session, "send");
+      await expect(locator.setInputFiles(upload, createProgress())).rejects.toThrow(TimeoutError);
+      if (stage === "normalization") expect(inject).not.toHaveBeenCalled();
+      expect(
+        send.mock.calls.some(
+          ([, params]) =>
+            (params as { functionDeclaration?: string })?.functionDeclaration ===
+            assignFilePayloadsToInputElement.toString(),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("bounds stalled upload normalization & ignores its late result", async () => {
+    const { locator } = createLocator();
+    const gate = deferred();
+    vi.spyOn(fileUploads, "normalizeInputFiles").mockImplementation(async () => {
+      await gate.promise;
+      return [];
+    });
+    const inject = vi.spyOn(locator, "assignFilesViaPayloadInjection");
+    const pending = locator.setInputFiles(upload, createProgress());
+    const rejected = expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    gate.resolve({});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(inject).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 100])("bounds upload injection with timeout %s", async (timeout) => {
+    const { locator, send } = createLocator();
+    const gate = deferred();
+    const respond = send.getMockImplementation()!;
+    send.mockImplementation((method, params) =>
+      (params as { functionDeclaration?: string })?.functionDeclaration ===
+      assignFilePayloadsToInputElement.toString()
+        ? gate.promise
+        : respond(method, params),
+    );
+    const pending = locator.setInputFiles(upload, createProgress(timeout));
+    const result = timeout
+      ? expect(pending).rejects.toThrow(TimeoutError)
+      : expect(pending).resolves.toBeUndefined();
+    await vi.advanceTimersByTimeAsync(100);
+    if (timeout) await result;
+    gate.resolve({ result: { value: true } });
+    await result;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.callFunctionOn")).toHaveLength(
+      2,
+    );
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toHaveLength(
+      1,
+    );
+  });
+
+  it.each([false, true])("passes progress through file injection (clear: %s)", async (clear) => {
+    const { locator, send } = createLocator();
+    const progress = createProgress();
+    const inject = vi.spyOn(locator, "assignFilesViaPayloadInjection");
+    await locator.setInputFiles(clear ? [] : upload, progress);
+    expect(inject).toHaveBeenCalledExactlyOnceWith(
+      "node",
+      clear ? [] : [expect.objectContaining({ name: "test.txt" })],
+      progress,
+    );
+    expect(send).toHaveBeenCalledWith(
+      "Runtime.callFunctionOn",
+      expect.objectContaining({
+        functionDeclaration: assignFilePayloadsToInputElement.toString(),
+        arguments: [
+          {
+            value: clear
+              ? []
+              : [
+                  {
+                    name: "test.txt",
+                    mimeType: "application/octet-stream",
+                    lastModified: 1,
+                    base64: "YWJj",
+                  },
+                ],
+          },
+        ],
+      }),
+    );
   });
 });
