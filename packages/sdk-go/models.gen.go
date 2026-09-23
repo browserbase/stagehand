@@ -1944,6 +1944,9 @@ type StagehandInitParamsExperimentalJevAct struct {
 	// RetryNoEffect corresponds to the JSON schema field "retry_no_effect".
 	RetryNoEffect *bool `json:"retry_no_effect,omitempty,omitzero"`
 
+	// TargetReadiness corresponds to the JSON schema field "target_readiness".
+	TargetReadiness *bool `json:"target_readiness,omitempty,omitzero"`
+
 	// Tools corresponds to the JSON schema field "tools".
 	Tools *bool `json:"tools,omitempty,omitzero"`
 
