@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { Frame } from "./frame.js";
+import type { LocatorOperation } from "./locatorOperation.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 
@@ -56,22 +57,27 @@ export class FrameSelectorResolver {
     return { kind: "css", value: selector };
   }
 
-  public async resolveFirst(query: SelectorQuery): Promise<ResolvedNode | null> {
-    return this.resolveAtIndex(query, 0);
+  public async resolveFirst(
+    query: SelectorQuery,
+    operation?: LocatorOperation,
+  ): Promise<ResolvedNode | null> {
+    return this.resolveAtIndex(query, 0, operation);
   }
 
   public async resolveAll(
     query: SelectorQuery,
     { limit = Infinity }: ResolveManyOptions = {},
+    operation?: LocatorOperation,
   ): Promise<ResolvedNode[]> {
+    operation?.throwIfStopped();
     if (limit <= 0) return [];
     switch (query.kind) {
       case "css":
-        return this.resolveCss(query.value, limit);
+        return this.resolveCss(query.value, limit, operation);
       case "text":
-        return this.resolveText(query.value, limit);
+        return this.resolveText(query.value, limit, operation);
       case "xpath":
-        return this.resolveXPath(query.value, limit);
+        return this.resolveXPath(query.value, limit, operation);
       default:
         return [];
     }
@@ -90,13 +96,23 @@ export class FrameSelectorResolver {
     }
   }
 
-  public async resolveAtIndex(query: SelectorQuery, index: number): Promise<ResolvedNode | null> {
+  public async resolveAtIndex(
+    query: SelectorQuery,
+    index: number,
+    operation?: LocatorOperation,
+  ): Promise<ResolvedNode | null> {
+    operation?.throwIfStopped();
     if (index < 0 || !Number.isFinite(index)) return null;
-    const results = await this.resolveAll(query, { limit: index + 1 });
+    const results = await this.resolveAll(query, { limit: index + 1 }, operation);
     return results[index] ?? null;
   }
 
-  async resolveCss(selector: string, limit: number): Promise<ResolvedNode[]> {
+  async resolveCss(
+    selector: string,
+    limit: number,
+    operation?: LocatorOperation,
+  ): Promise<ResolvedNode[]> {
+    operation?.throwIfStopped();
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -121,7 +137,12 @@ export class FrameSelectorResolver {
     return results;
   }
 
-  async resolveText(value: string, limit: number): Promise<ResolvedNode[]> {
+  async resolveText(
+    value: string,
+    limit: number,
+    operation?: LocatorOperation,
+  ): Promise<ResolvedNode[]> {
+    operation?.throwIfStopped();
     if (limit <= 0) return [];
 
     const session = this.frame.session;
@@ -145,7 +166,12 @@ export class FrameSelectorResolver {
     return results;
   }
 
-  async resolveXPath(value: string, limit: number): Promise<ResolvedNode[]> {
+  async resolveXPath(
+    value: string,
+    limit: number,
+    operation?: LocatorOperation,
+  ): Promise<ResolvedNode[]> {
+    operation?.throwIfStopped();
     if (limit <= 0) return [];
 
     const session = this.frame.session;
