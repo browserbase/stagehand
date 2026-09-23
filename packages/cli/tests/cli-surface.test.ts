@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { runCli } from "./helpers/run-cli.js";
 
 const cloudCommandsWithExamples = [
+  ["cloud", "secrets", "list"],
+  ["cloud", "secrets", "create"],
+  ["cloud", "secrets", "update"],
+  ["cloud", "secrets", "get"],
+  ["cloud", "secrets", "delete"],
   ["cloud", "projects", "list"],
   ["cloud", "projects", "get"],
   ["cloud", "projects", "usage"],
@@ -28,6 +33,9 @@ const cloudCommandsWithExamples = [
 ];
 
 const functionsCommandsWithExamples = [
+  ["functions", "secrets", "list"],
+  ["functions", "secrets", "attach"],
+  ["functions", "secrets", "detach"],
   ["functions", "init"],
   ["functions", "dev"],
   ["functions", "publish"],
