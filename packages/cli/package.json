@@ -58,7 +58,7 @@
         "description": "Upload files to Browserbase sessions."
       },
       "functions:secrets": {
-        "description": "Attach and detach project secrets from functions."
+        "description": "List, attach, and detach project secrets for functions."
       },
       "functions": {
         "description": "Develop, publish, and invoke Browserbase Functions."
