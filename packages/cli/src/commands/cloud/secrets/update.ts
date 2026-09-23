@@ -11,6 +11,7 @@ export default class SecretsUpdate extends BrowseCommand {
     "Replace a secret value, encrypting it locally with the current project public key.";
   static override examples = [
     "browse cloud secrets update <secretId>",
+    "browse cloud secrets update d2c4f48f-38e9-4b82-a36a-2b373fd14a65",
     "browse cloud secrets update <secretId> --env MY_SERVICE_TOKEN",
     "browse cloud secrets update <secretId> --stdin < ./secret.txt",
   ];
