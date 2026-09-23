@@ -200,6 +200,7 @@ class StagehandClientLoggingConfig(WireModel):
 class StagehandClientCreateConfig(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
+    browser_cdp_url: Annotated[str | None, Field(min_length=1)] = None
     api_key: Annotated[str | None, Field(min_length=1)] = None
     api_url: Annotated[str | None, Field(min_length=1)] = None
     model: ModelConfig | ClientLLM | None = None

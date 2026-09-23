@@ -84,6 +84,7 @@ class StagehandClientLoggingConfig(TypedDict, total=False):
 
 
 class StagehandClientCreateConfig(TypedDict, total=False):
+    browser_cdp_url: str
     api_key: str
     api_url: str
     model: ModelConfig | ClientLLM
