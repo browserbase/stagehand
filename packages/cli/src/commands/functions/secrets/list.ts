@@ -1,4 +1,4 @@
-import { functionIdArg } from "../../../lib/secrets/args.js";
+import { functionIdArg } from "../../../lib/cloud/args.js";
 import { BrowseCommand } from "../../../base.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { listFunctionSecrets } from "../../../lib/secrets/api.js";
