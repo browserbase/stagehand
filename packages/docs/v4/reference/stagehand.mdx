@@ -41,6 +41,10 @@ const stagehand = await Stagehand.create({ browser });
   A browser handle from `browserbase.launch()`, `browserbase.connect()`, `localBrowser.launch()`, or `localBrowser.connect()`. Each handle can back only one Stagehand instance.
 </ParamField>
 
+<ParamField path="browserCdpUrl" type="string" optional>
+  CDP WebSocket URL reachable from the browser's extension. Defaults to the browser handle's CDP URL. Set this when the SDK and browser need different addresses, such as across Docker port mappings. Both URLs must connect to the same browser.
+</ParamField>
+
 <ParamField path="apiKey" type="string" optional>
   Browserbase API key used by managed services such as Model Gateway and server-side caching.
 </ParamField>
@@ -890,6 +894,10 @@ stagehand = await Stagehand.create(browser=browser)
   A browser handle from `browserbase.launch()`, `browserbase.connect()`, `local_browser.launch()`, or `local_browser.connect()`. Each handle can back only one Stagehand instance.
 </ParamField>
 
+<ParamField path="browser_cdp_url" type="str" optional>
+  CDP WebSocket URL reachable from the browser's extension. Defaults to the browser handle's CDP URL. Set this when the SDK and browser need different addresses, such as across Docker port mappings. Both URLs must connect to the same browser.
+</ParamField>
+
 <ParamField path="api_key" type="str" optional>
   Browserbase API key used by managed services such as Model Gateway and server-side caching.
 </ParamField>
@@ -1709,6 +1717,10 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
 
 <ParamField path="options.Browser" type="*Browser" required>
   A browser handle from `LaunchBrowserbase()`, `ConnectBrowserbase()`, `LaunchLocalBrowser()`, or `ConnectLocalBrowser()`. Each handle can back only one Stagehand instance.
+</ParamField>
+
+<ParamField path="options.BrowserCDPURL" type="*string" optional>
+  CDP WebSocket URL reachable from the browser's extension. Defaults to the browser handle's CDP URL. Set this when the SDK and browser need different addresses, such as across Docker port mappings. Both URLs must connect to the same browser.
 </ParamField>
 
 <ParamField path="options.APIKey" type="*string" optional>

@@ -456,6 +456,25 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	}
 }
 
+func TestCreateOverridesExtensionBrowserCDPURL(t *testing.T) {
+	browserCDPURL := "ws://127.0.0.1:9222/devtools/browser/test"
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init": StagehandInitResult{Initialized: true},
+	}}
+	client, err := newStagehandWithClient(CreateOptions{BrowserCDPURL: &browserCDPURL}, rpc)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	defer client.Close(context.Background())
+	params, ok := rpc.calls[0].params.(StagehandInitParams)
+	if !ok {
+		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
+	}
+	if params.BrowserCDPURL == nil || *params.BrowserCDPURL != browserCDPURL {
+		t.Fatalf("BrowserCDPURL = %#v, want %q", params.BrowserCDPURL, browserCDPURL)
+	}
+}
+
 func TestCreateRejectsBrowserNotCreatedByFactoryAndReleasesClaim(t *testing.T) {
 	browser := &Browser{}
 	_, err := Create(context.Background(), CreateOptions{Browser: browser})

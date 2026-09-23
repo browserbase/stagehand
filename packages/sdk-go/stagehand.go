@@ -82,12 +82,16 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if claimed.workerAPIKey != nil {
 		apiKey = claimed.workerAPIKey
 	}
+	browserCDPURL := rpc.browserWebSocketDebuggerURL()
+	if options.BrowserCDPURL != nil {
+		browserCDPURL = *options.BrowserCDPURL
+	}
 	initParams := workerInitParams(workerInitOptions{
 		apiKey: apiKey, apiURL: options.APIURL, browser: claimed.workerBrowser, cache: options.Cache,
 		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
 		generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
-		telemetry: options.Telemetry, browserCDPURL: rpc.browserWebSocketDebuggerURL(),
+		telemetry: options.Telemetry, browserCDPURL: browserCDPURL,
 	})
 	var initResult StagehandInitResult
 	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {

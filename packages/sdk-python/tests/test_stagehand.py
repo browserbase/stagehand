@@ -311,8 +311,10 @@ async def test_create_requires_a_factory_browser_before_validating_config() -> N
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("browser_cdp_url", [None, "ws://127.0.0.1:9222/devtools/browser/test"])
 async def test_create_builds_wire_params_and_worker_metadata_wins(
     monkeypatch: pytest.MonkeyPatch,
+    browser_cdp_url: str | None,
 ) -> None:
     recording = _recording()
     _install_rpc_client(monkeypatch, recording)
@@ -337,6 +339,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
         browser=browser,
         api_key="caller-key",
         api_url="https://api.stagehand.dev.browserbase.com",
+        browser_cdp_url=browser_cdp_url,
         model=generate,
         logging={"level": "debug"},
     )
@@ -346,7 +349,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     assert params.protocol_version == STAGEHAND_PROTOCOL_VERSION
     assert params.client_info.name == "stagehand-sdk-python"
     assert params.client_info.version
-    assert params.browser_cdp_url == "ws://browser"
+    assert params.browser_cdp_url == (browser_cdp_url or "ws://browser")
     assert params.log_level == "debug"
     assert params.model == ClientModelReference(source="client")
     assert params.api_key == "worker-key"

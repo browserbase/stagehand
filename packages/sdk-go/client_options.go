@@ -57,6 +57,7 @@ const (
 // CreateOptions configures Stagehand over a factory-created Browser handle.
 type CreateOptions struct {
 	Browser            *Browser
+	BrowserCDPURL      *string
 	APIKey             *string
 	APIURL             *string
 	Cache              *Caching

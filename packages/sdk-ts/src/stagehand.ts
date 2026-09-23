@@ -333,13 +333,13 @@ function stagehandCreateParamsForWorker(
   createConfig: ResolvedStagehandClientCreateConfig,
   browser: ClaimedStagehandBrowser,
 ) {
-  const { logging, model, ...protocolParams } = createConfig;
+  const { logging, model, browserCdpUrl, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
   return StagehandInitParamsSchema.parse({
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-    browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,
+    browserCdpUrl: browserCdpUrl ?? browser.cdpClient.webSocketDebuggerUrl,
     logLevel: logging.level,
     ...protocolParams,
     ...browser.workerInitMetadata,

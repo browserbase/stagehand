@@ -74,7 +74,11 @@ describe("Stagehand.create", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("attaches to a ready browser without taking transport ownership", async () => {
+  it.each([
+    {},
+    { browserCdpUrl: undefined },
+    { browserCdpUrl: "ws://127.0.0.1:19222/devtools/browser/test" },
+  ])("attaches to a ready browser without taking transport ownership with %o", async (options) => {
     const cdp = new FakeCDPClient();
     const { localBrowser } = createBrowserFactoriesForTest({
       connectCdp: async () => cdp as unknown as CDPClient,
@@ -89,6 +93,7 @@ describe("Stagehand.create", () => {
       browser,
       apiKey: "bb_worker_key",
       apiUrl: "https://api.stagehand.dev.browserbase.com",
+      ...options,
     });
 
     expect(stagehand.initialized).toBe(true);
@@ -98,7 +103,7 @@ describe("Stagehand.create", () => {
     expect(cdp.requests[0]).toMatchObject({
       method: "stagehand.init",
       params: {
-        browser_cdp_url: cdp.webSocketDebuggerUrl,
+        browser_cdp_url: options.browserCdpUrl ?? cdp.webSocketDebuggerUrl,
         log_level: "info",
         api_key: "bb_worker_key",
         api_url: "https://api.stagehand.dev.browserbase.com",

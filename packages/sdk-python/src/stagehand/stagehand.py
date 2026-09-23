@@ -118,6 +118,7 @@ class Stagehand:
         cls,
         *,
         browser: StagehandBrowser,
+        browser_cdp_url: str | None = None,
         api_key: str | None = None,
         api_url: str | None = None,
         model: str | LLMGenerateCallback | None = None,
@@ -153,6 +154,7 @@ class Stagehand:
         values: dict[str, object] = {
             name: value
             for name, value in (
+                ("browser_cdp_url", browser_cdp_url),
                 ("api_key", api_key),
                 ("api_url", api_url),
                 ("system_prompt", system_prompt),
@@ -487,7 +489,9 @@ class Stagehand:
         return self._rpc_client
 
     def _worker_init_params(self, claimed: _ClaimedBrowser) -> StagehandInitParams:
-        browser_cdp_url = claimed.cdp_client.web_socket_debugger_url
+        browser_cdp_url = (
+            self._create_config.browser_cdp_url or claimed.cdp_client.web_socket_debugger_url
+        )
         if browser_cdp_url is None:
             raise RuntimeError("The browser CDP WebSocket URL is unavailable")
         values = self._create_config.model_dump(
