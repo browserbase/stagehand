@@ -123,3 +123,14 @@ export async function detachFunctionSecret(
     { method: "DELETE" },
   );
 }
+
+export function listFunctionSecrets(
+  options: SecretsApiOptions,
+  functionId: string,
+  query: ListSecretsOptions,
+): Promise<SecretPage> {
+  return requestBrowserbaseJson(
+    options,
+    withQuery(`/v1/functions/${encodeURIComponent(functionId)}/secrets`, query),
+  );
+}
