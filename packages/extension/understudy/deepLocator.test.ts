@@ -4,7 +4,7 @@ import type { Page } from "./page.js";
 import { DeepLocatorDelegate } from "./deepLocator.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { Locator } from "./locator.js";
-import { LocatorOperation, runLocatorOperation } from "./locatorOperation.js";
+import { Progress, runWithProgress } from "./progress.js";
 import { FrameSelectorResolver } from "./selectorResolver.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
@@ -101,19 +101,19 @@ describe("locator resolution contexts", () => {
                 : "xpath=/html/iframe/html/iframe/html/button",
             );
 
-      await runLocatorOperation({ name: "resolve", timeout: 100 }, async (operation) => {
-        const locator = await delegate.nth(1).real(operation);
+      await runWithProgress({ name: "resolve", timeout: 100 }, async (progress) => {
+        const locator = await delegate.nth(1).real(progress);
         expect(locator.getFrame()).toBe(inner);
         expect(locator.nthIndex).toBe(1);
-        await expect(locator.resolveNode(operation)).resolves.toEqual({
+        await expect(locator.resolveNode(progress)).resolves.toEqual({
           objectId: "node",
           nodeId: 1,
         });
-        expect(resolveFrame.mock.calls).toEqual([[operation], [operation]]);
+        expect(resolveFrame.mock.calls).toEqual([[progress], [progress]]);
         const calls = lookups.flatMap((lookup) => lookup.mock.calls);
         expect(calls).toHaveLength(3);
-        expect(calls.every(([, , context]) => context === operation)).toBe(true);
-        expect(operation.remainingMs()).toBe(100);
+        expect(calls.every(([, , context]) => context === progress)).toBe(true);
+        expect(progress.remainingMs()).toBe(100);
       });
       expect(vi.getTimerCount()).toBe(0);
     },
@@ -122,17 +122,17 @@ describe("locator resolution contexts", () => {
   it("rejects an expired context before resolving a target or sending commands", async () => {
     vi.useFakeTimers();
     const { page, root, send } = createFrames();
-    const operation = new LocatorOperation("resolve", 100);
+    const progress = new Progress("resolve", 100);
     await vi.advanceTimersByTimeAsync(100);
 
-    await expect(new DeepLocatorDelegate(page, root, "#target").real(operation)).rejects.toBe(
-      operation.signal.reason,
+    await expect(new DeepLocatorDelegate(page, root, "#target").real(progress)).rejects.toBe(
+      progress.signal.reason,
     );
-    await expect(frameLocatorFromFrame(page, root, "#outer").resolveFrame(operation)).rejects.toBe(
-      operation.signal.reason,
+    await expect(frameLocatorFromFrame(page, root, "#outer").resolveFrame(progress)).rejects.toBe(
+      progress.signal.reason,
     );
-    await expect(root.locator("#target").resolveNode(operation)).rejects.toBe(
-      operation.signal.reason,
+    await expect(root.locator("#target").resolveNode(progress)).rejects.toBe(
+      progress.signal.reason,
     );
     expect(send).not.toHaveBeenCalled();
     expect(vi.getTimerCount()).toBe(0);

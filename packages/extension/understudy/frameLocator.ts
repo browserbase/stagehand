@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import { Locator } from "./locator.js";
-import { type LocatorOperation, runLocatorStep } from "./locatorOperation.js";
+import { type Progress, runLocatorStep } from "./progress.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -36,22 +36,22 @@ export class FrameLocator {
   }
 
   /** Resolve to the concrete Frame for this FrameLocator chain. */
-  async resolveFrame(operation?: LocatorOperation): Promise<Frame> {
-    operation?.throwIfStopped();
+  async resolveFrame(progress?: Progress): Promise<Frame> {
+    progress?.throwIfStopped();
     const parentFrame: Frame = this.parent
-      ? await this.parent.resolveFrame(operation)
+      ? await this.parent.resolveFrame(progress)
       : (this.root ?? this.page.mainFrame());
 
     // Resolve the iframe element inside the parent frame
     const tmp = parentFrame.locator(this.selector);
     const parentSession = parentFrame.session;
-    const { objectId } = await tmp.resolveNode(operation);
+    const { objectId } = await tmp.resolveNode(progress);
 
     try {
-      await runLocatorStep(operation, "enabling DOM", () =>
+      await runLocatorStep(progress, "enabling DOM", () =>
         parentSession.send("DOM.enable").catch(() => {}),
       );
-      const desc = await runLocatorStep(operation, "describing iframe", () =>
+      const desc = await runLocatorStep(progress, "describing iframe", () =>
         parentSession.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
       );
       const iframeBackendNodeId = desc.node.backendNodeId;
@@ -61,7 +61,7 @@ export class FrameLocator {
         this.page,
         parentFrame.frameId,
         1000,
-        operation,
+        progress,
       );
 
       for (const fid of childIds) {
@@ -70,20 +70,20 @@ export class FrameLocator {
           nodeId?: Protocol.DOM.NodeId;
         };
         try {
-          owner = await runLocatorStep(operation, "finding frame owner", () =>
+          owner = await runLocatorStep(progress, "finding frame owner", () =>
             parentSession.send<{
               backendNodeId: Protocol.DOM.BackendNodeId;
               nodeId?: Protocol.DOM.NodeId;
             }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId }),
           );
         } catch {
-          operation?.throwIfStopped();
+          progress?.throwIfStopped();
           // ignore and try next
           continue;
         }
         if (owner.backendNodeId === iframeBackendNodeId) {
           // Readiness failures must propagate after the matching child is identified.
-          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, operation);
+          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, progress);
           return this.page.frameForId(fid);
         }
       }
@@ -91,7 +91,7 @@ export class FrameLocator {
     } finally {
       const release = () =>
         parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
-      if (operation) await operation.cleanup(release);
+      if (progress) await progress.cleanup(release);
       else await release();
     }
   }
@@ -110,8 +110,8 @@ class LocatorDelegate {
     readonly nthIndex: number = -1,
   ) {}
 
-  async real(operation?: LocatorOperation): Promise<Locator> {
-    const frame = await this.fl.resolveFrame(operation);
+  async real(progress?: Progress): Promise<Locator> {
+    const frame = await this.fl.resolveFrame(progress);
     const locator = frame.locator(this.sel);
     if (this.nthIndex < 0) return locator;
     return locator.nth(this.nthIndex);
@@ -182,22 +182,22 @@ async function listDirectChildFrameIdsFromRegistry(
   page: Page,
   parentFrameId: string,
   timeout: number,
-  operation?: LocatorOperation,
+  progress?: Progress,
 ): Promise<string[]> {
-  operation?.throwIfStopped();
-  const deadline = operation ? Infinity : Date.now() + timeout;
+  progress?.throwIfStopped();
+  const deadline = progress ? Infinity : Date.now() + timeout;
   while (true) {
-    operation?.throwIfStopped();
+    progress?.throwIfStopped();
     try {
       const tree = page.getFullFrameTree();
       const node = findFrameNode(tree, parentFrameId);
       const ids = node?.childFrames?.map((c) => c.frame.id as string) ?? [];
       if (ids.length > 0 || Date.now() >= deadline) return ids;
     } catch {
-      operation?.throwIfStopped();
+      progress?.throwIfStopped();
       // ignore
     }
-    if (operation) await operation.delay(50);
+    if (progress) await progress.delay(50);
     else await new Promise((r) => setTimeout(r, 50));
   }
 }
@@ -223,29 +223,29 @@ async function ensureChildFrameReady(
   page: Page,
   childFrameId: string,
   budgetMs: number,
-  operation?: LocatorOperation,
+  progress?: Progress,
 ): Promise<void> {
-  operation?.throwIfStopped();
+  progress?.throwIfStopped();
   const deadline = Date.now() + Math.max(0, budgetMs);
   let lastError: unknown;
 
-  while (operation || Date.now() < deadline) {
-    operation?.throwIfStopped();
+  while (progress || Date.now() < deadline) {
+    progress?.throwIfStopped();
     const session = page.getSessionForFrame(childFrameId);
-    const remaining = operation?.remainingMs() ?? deadline - Date.now();
+    const remaining = progress?.remainingMs() ?? deadline - Date.now();
     if (remaining <= 0) break;
     try {
       await executionContexts.waitForLocatorWorld(
         session,
         childFrameId,
         Math.min(remaining, LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS),
-        operation,
+        progress,
         false, // Recheck session ownership between attempts.
       );
-      operation?.throwIfStopped();
+      progress?.throwIfStopped();
       if (page.getSessionForFrame(childFrameId) === session) return;
     } catch (error) {
-      operation?.throwIfStopped();
+      progress?.throwIfStopped();
       lastError = error;
     }
   }
