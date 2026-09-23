@@ -132,11 +132,11 @@ class LocatorDelegate {
   async hover(progress?: Progress) {
     return (await this.real(progress)).hover(progress);
   }
-  async fill(value: string) {
-    return (await this.real()).fill(value);
+  async fill(value: string, progress?: Progress) {
+    return (await this.real(progress)).fill(value, progress);
   }
-  async type(text: string, options?: { delay?: number }) {
-    return (await this.real()).type(text, options);
+  async type(text: string, options?: { delay?: number }, progress?: Progress) {
+    return (await this.real(progress)).type(text, options, progress);
   }
   async selectOption(values: string | string[], progress?: Progress) {
     return (await this.real(progress)).selectOption(values, progress);
