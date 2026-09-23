@@ -54,6 +54,8 @@ export const OpenAIModelIdSchema = z
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
   ])
   .meta({ id: "OpenAIModelId" });
 
@@ -71,6 +73,7 @@ export const AnthropicModelIdSchema = z
     "claude-opus-4-7",
     "claude-opus-4-8",
     "claude-opus-5",
+    "claude-opus-5-5",
     "claude-fable-5",
     "claude-fable-5-1",
   ])
