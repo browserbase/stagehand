@@ -17,7 +17,8 @@ export default class SecretsUpdate extends BrowseCommand {
   ];
   static override args = {
     secretId: Args.string({
-      description: "Project secret ID.",
+      description:
+        "Project secret ID (e.g. d2c4f48f-38e9-4b82-a36a-2b373fd14a65).",
       required: true,
     }),
   };
