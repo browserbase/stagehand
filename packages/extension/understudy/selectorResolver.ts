@@ -115,7 +115,7 @@ export class FrameSelectorResolver {
       try {
         progress.throwIfStopped();
       } catch (error) {
-        if (selected) await this.releaseNodes([selected], progress);
+        if (selected) void this.releaseNodes([selected], progress);
         throw error;
       }
     }
