@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import { Locator } from "./locator.js";
+import type { LocatorOperation } from "./locatorOperation.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -35,15 +36,16 @@ export class FrameLocator {
   }
 
   /** Resolve to the concrete Frame for this FrameLocator chain. */
-  async resolveFrame(): Promise<Frame> {
+  async resolveFrame(operation?: LocatorOperation): Promise<Frame> {
+    operation?.throwIfStopped();
     const parentFrame: Frame = this.parent
-      ? await this.parent.resolveFrame()
+      ? await this.parent.resolveFrame(operation)
       : (this.root ?? this.page.mainFrame());
 
     // Resolve the iframe element inside the parent frame
     const tmp = parentFrame.locator(this.selector);
     const parentSession = parentFrame.session;
-    const { objectId } = await tmp.resolveNode();
+    const { objectId } = await tmp.resolveNode(operation);
 
     try {
       await parentSession.send("DOM.enable").catch(() => {});
@@ -57,6 +59,7 @@ export class FrameLocator {
         this.page,
         parentFrame.frameId,
         1000,
+        operation,
       );
 
       for (const fid of childIds) {
@@ -75,7 +78,7 @@ export class FrameLocator {
         }
         if (owner.backendNodeId === iframeBackendNodeId) {
           // Readiness failures must propagate after the matching child is identified.
-          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS);
+          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS, operation);
           return this.page.frameForId(fid);
         }
       }
@@ -99,8 +102,8 @@ class LocatorDelegate {
     readonly nthIndex: number = -1,
   ) {}
 
-  async real(): Promise<Locator> {
-    const frame = await this.fl.resolveFrame();
+  async real(operation?: LocatorOperation): Promise<Locator> {
+    const frame = await this.fl.resolveFrame(operation);
     const locator = frame.locator(this.sel);
     if (this.nthIndex < 0) return locator;
     return locator.nth(this.nthIndex);
@@ -171,7 +174,9 @@ async function listDirectChildFrameIdsFromRegistry(
   page: Page,
   parentFrameId: string,
   timeout: number,
+  operation?: LocatorOperation,
 ): Promise<string[]> {
+  operation?.throwIfStopped();
   const deadline = Date.now() + timeout;
   while (true) {
     try {
@@ -207,7 +212,9 @@ async function ensureChildFrameReady(
   page: Page,
   childFrameId: string,
   budgetMs: number,
+  operation?: LocatorOperation,
 ): Promise<void> {
+  operation?.throwIfStopped();
   const deadline = Date.now() + Math.max(0, budgetMs);
   let lastError: unknown;
 
