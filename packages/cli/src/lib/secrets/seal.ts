@@ -3,9 +3,12 @@ import { DhkemX25519HkdfSha256 } from "@hpke/dhkem-x25519";
 import { fail } from "../errors.js";
 
 export async function sealSecret(
-  publicKey: string,
+  publicKey: unknown,
   value: Uint8Array,
 ): Promise<string> {
+  if (typeof publicKey !== "string") {
+    fail("The secrets API returned an invalid X25519 public key.");
+  }
   const rawKey = Buffer.from(publicKey, "base64");
   if (rawKey.length !== 32 || rawKey.toString("base64") !== publicKey) {
     fail("The secrets API returned an invalid X25519 public key.");

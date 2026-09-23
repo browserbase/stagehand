@@ -123,26 +123,30 @@ describe("secret CLI HTTP contracts", () => {
     expect(result.stdout + result.stderr).not.toContain("private-value");
   });
 
-  it("rejects a malformed public key without submitting a secret", async () => {
-    server = await startFakeBrowserbaseServer((_request, response) =>
-      jsonResponse(response, 200, { id: "keypair-1", publicKey: "bad" }),
-    );
-    const result = await runCli(
-      [
-        "cloud",
-        "secrets",
-        "create",
-        "TOKEN",
-        "--stdin",
-        "--base-url",
-        server.baseUrl,
-      ],
-      { env, stdin: "private-value" },
-    );
-    expect(result.exitCode).not.toBe(0);
-    expect(server.requests).toHaveLength(1);
-    expect(result.stderr).toContain("invalid X25519 public key");
-  });
+  it.each(["bad", undefined, null, 123, true, {}, []].map((key) => [key]))(
+    "rejects malformed public key %j without submitting a secret",
+    async (publicKey) => {
+      server = await startFakeBrowserbaseServer((_request, response) =>
+        jsonResponse(response, 200, { id: "keypair-1", publicKey }),
+      );
+      const result = await runCli(
+        [
+          "cloud",
+          "secrets",
+          "create",
+          "TOKEN",
+          "--stdin",
+          "--base-url",
+          server.baseUrl,
+        ],
+        { env, stdin: "private-value" },
+      );
+      expect(result.exitCode).not.toBe(0);
+      expect(server.requests).toHaveLength(1);
+      expect(result.stderr).toContain("invalid X25519 public key");
+      expect(result.stdout + result.stderr).not.toContain("private-value");
+    },
+  );
 
   it("requires --stdin for noninteractive input", async () => {
     const result = await runCli(["cloud", "secrets", "create", "TOKEN"], {

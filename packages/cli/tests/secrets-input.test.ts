@@ -33,13 +33,35 @@ describe("interactive secret input", () => {
 
   it("reports cancellation without echoing the prompt error", async () => {
     vi.mocked(password).mockRejectedValue(new Error("private-value"));
-    await expect(readSecretValue({})).rejects.toThrow(
-      "Secret input cancelled.",
-    );
+    await expect(readSecretValue({})).rejects.toMatchObject({
+      message: "Secret input cancelled.",
+    });
   });
 });
 
 describe("environment secret input", () => {
+  it.each(["constructor", "toString"])(
+    "rejects an unset inherited environment property %s",
+    async (env) => {
+      vi.stubEnv(env, undefined);
+      await expect(readSecretValue({ env })).rejects.toMatchObject({
+        name: "CommandFailure",
+        message: "The environment variable selected by --env is not set.",
+      });
+      expect(password).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["constructor", "toString"])(
+    "reads an explicitly set environment property %s",
+    async (env) => {
+      vi.stubEnv(env, "private-value");
+      expect(Buffer.from(await readSecretValue({ env })).toString()).toBe(
+        "private-value",
+      );
+    },
+  );
+
   it("preserves an explicitly empty value without prompting", async () => {
     vi.stubEnv("BROWSE_TEST_SECRET_VALUE", "");
     expect(

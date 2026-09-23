@@ -8,7 +8,9 @@ export async function readSecretValue(options: {
   if (options.env !== undefined) {
     if (options.stdin) fail("--env and --stdin cannot be used together.");
     if (!options.env) fail("--env requires an environment variable name.");
-    const value = process.env[options.env];
+    const value = Object.prototype.hasOwnProperty.call(process.env, options.env)
+      ? process.env[options.env]
+      : undefined;
     if (value === undefined)
       fail("The environment variable selected by --env is not set.");
     return Buffer.from(value, "utf8");
