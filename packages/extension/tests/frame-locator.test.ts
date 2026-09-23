@@ -152,7 +152,21 @@ describe("FrameLocator readiness", () => {
     const { locator, childFrame } = createFrameLocator(oldSession, getSessionForFrame);
 
     await expect(locator.resolveFrame()).resolves.toBe(childFrame);
-    expect(waitForLocatorWorld).toHaveBeenNthCalledWith(1, oldSession, "child", 200);
-    expect(waitForLocatorWorld).toHaveBeenNthCalledWith(2, adoptedSession, "child", 200);
+    expect(waitForLocatorWorld).toHaveBeenNthCalledWith(
+      1,
+      oldSession,
+      "child",
+      200,
+      undefined,
+      false,
+    );
+    expect(waitForLocatorWorld).toHaveBeenNthCalledWith(
+      2,
+      adoptedSession,
+      "child",
+      200,
+      undefined,
+      false,
+    );
   });
 });

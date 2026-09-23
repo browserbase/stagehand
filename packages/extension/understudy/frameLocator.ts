@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import { Locator } from "./locator.js";
-import type { LocatorOperation } from "./locatorOperation.js";
+import { type LocatorOperation, runLocatorStep } from "./locatorOperation.js";
 import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -48,10 +48,12 @@ export class FrameLocator {
     const { objectId } = await tmp.resolveNode(operation);
 
     try {
-      await parentSession.send("DOM.enable").catch(() => {});
-      const desc = await parentSession.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
-        objectId,
-      });
+      await runLocatorStep(operation, "enabling DOM", () =>
+        parentSession.send("DOM.enable").catch(() => {}),
+      );
+      const desc = await runLocatorStep(operation, "describing iframe", () =>
+        parentSession.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
+      );
       const iframeBackendNodeId = desc.node.backendNodeId;
 
       // Find direct child frames under the parent by consulting the Page's registry
@@ -68,11 +70,14 @@ export class FrameLocator {
           nodeId?: Protocol.DOM.NodeId;
         };
         try {
-          owner = await parentSession.send<{
-            backendNodeId: Protocol.DOM.BackendNodeId;
-            nodeId?: Protocol.DOM.NodeId;
-          }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
+          owner = await runLocatorStep(operation, "finding frame owner", () =>
+            parentSession.send<{
+              backendNodeId: Protocol.DOM.BackendNodeId;
+              nodeId?: Protocol.DOM.NodeId;
+            }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId }),
+          );
         } catch {
+          operation?.throwIfStopped();
           // ignore and try next
           continue;
         }
@@ -84,7 +89,10 @@ export class FrameLocator {
       }
       throw new Error(`Unable to obtain a content frame for selector: ${this.selector}`);
     } finally {
-      await parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      const release = () =>
+        parentSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (operation) await operation.cleanup(release);
+      else await release();
     }
   }
 
@@ -177,17 +185,20 @@ async function listDirectChildFrameIdsFromRegistry(
   operation?: LocatorOperation,
 ): Promise<string[]> {
   operation?.throwIfStopped();
-  const deadline = Date.now() + timeout;
+  const deadline = operation ? Infinity : Date.now() + timeout;
   while (true) {
+    operation?.throwIfStopped();
     try {
       const tree = page.getFullFrameTree();
       const node = findFrameNode(tree, parentFrameId);
       const ids = node?.childFrames?.map((c) => c.frame.id as string) ?? [];
       if (ids.length > 0 || Date.now() >= deadline) return ids;
     } catch {
+      operation?.throwIfStopped();
       // ignore
     }
-    await new Promise((r) => setTimeout(r, 50));
+    if (operation) await operation.delay(50);
+    else await new Promise((r) => setTimeout(r, 50));
   }
 }
 
@@ -218,18 +229,23 @@ async function ensureChildFrameReady(
   const deadline = Date.now() + Math.max(0, budgetMs);
   let lastError: unknown;
 
-  while (Date.now() < deadline) {
+  while (operation || Date.now() < deadline) {
+    operation?.throwIfStopped();
     const session = page.getSessionForFrame(childFrameId);
-    const remaining = deadline - Date.now();
+    const remaining = operation?.remainingMs() ?? deadline - Date.now();
     if (remaining <= 0) break;
     try {
       await executionContexts.waitForLocatorWorld(
         session,
         childFrameId,
         Math.min(remaining, LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS),
+        operation,
+        false, // Recheck session ownership between attempts.
       );
+      operation?.throwIfStopped();
       if (page.getSessionForFrame(childFrameId) === session) return;
     } catch (error) {
+      operation?.throwIfStopped();
       lastError = error;
     }
   }
