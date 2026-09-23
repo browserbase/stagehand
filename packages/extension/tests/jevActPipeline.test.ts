@@ -916,6 +916,9 @@ describe("resolveFamily merges", () => {
     );
     expect(merged.choice).toBe("press");
     expect(merged.confidence).toBeCloseTo(0.9);
+  });
+});
+
 describe("jev act pipeline and DOM settle", () => {
   afterEach(() => vi.unstubAllGlobals());
 

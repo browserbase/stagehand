@@ -401,6 +401,8 @@ async function decideAndAct(
         });
       }
       if (input) {
+        // A tool runs page code: not before the document has settled.
+        await deps.settled;
         deps.ensureTimeRemaining();
         const result = await invokeTool(
           deps.webmcp,
