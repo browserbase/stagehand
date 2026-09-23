@@ -369,6 +369,25 @@ describe("Stagehand service worker RPC client smoke", () => {
       }),
     ).resolves.toBe("2026-07-21");
 
+    for (const { selector, value } of [
+      { selector: "#locator-month", value: "2026-07" },
+      { selector: "#locator-week", value: "2026-W30" },
+    ] as const) {
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorFill, {
+          pageId: page.pageId,
+          selector,
+          value,
+        }),
+      ).resolves.toStrictEqual({ filled: true });
+      await expect(
+        activeRpcClient.send(StagehandMethods.locatorInputValue, {
+          pageId: page.pageId,
+          selector,
+        }),
+      ).resolves.toBe(value);
+    }
+
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
@@ -624,6 +643,8 @@ async function startFixtureServer(): Promise<FixtureServer> {
     <input id="locator-input" name="email" />
     <label for="locator-date">Date</label>
     <input id="locator-date" type="date" />
+    <input id="locator-month" type="month" />
+    <input id="locator-week" type="week" />
     <button
       id="locator-button"
       onclick="document.querySelector('#locator-output').textContent = 'clicked:' + document.querySelector('#locator-input').value;"
