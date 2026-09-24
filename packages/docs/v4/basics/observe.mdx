@@ -264,7 +264,7 @@ const page = await stagehand.browser.context.activePage();
 // Custom model configuration
 const { data: actions } = await stagehand.observe("find navigation links", {
   model: {
-    modelName: "openai/gpt-5.4-mini",
+    modelName: "openai/gpt-5.6-luna",
     apiKey: process.env.OPENAI_API_KEY,
   },
   timeout: 30000,
@@ -285,7 +285,7 @@ page = await stagehand.browser.context.active_page()
 result = await stagehand.observe(
     "find navigation links",
     model=ModelConfig(
-        model_name="openai/gpt-5.4-mini",
+        model_name="openai/gpt-5.6-luna",
         api_key=os.environ["OPENAI_API_KEY"],
     ),
     timeout=30000,
@@ -299,7 +299,7 @@ result = await stagehand.observe(
 // Custom model configuration
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "openai/gpt-5.4-mini",
+	ModelName: "openai/gpt-5.6-luna",
 	APIKey:    &modelAPIKey,
 }
 timeout := 30000.0
@@ -499,7 +499,7 @@ if emailField != nil && passwordField != nil {
 `cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
-When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Caching is on by default. Set `cache` on the constructor to change it for the instance, or override it per call:
 
 Locator-scoped observations, including calls with `locator` or `ignoreLocators`, bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
 

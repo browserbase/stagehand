@@ -1,7 +1,9 @@
 /* eslint-disable require-yield */
 import { describe, expect, it, vi } from "vitest";
 import {
+  extractMastraTokenUsage,
   buildMastraTranscript,
+  compactMastraEvent,
   normalizeMastraModel,
   runMastraSession,
   type MastraEvent,
@@ -140,6 +142,7 @@ describe("Mastra SDK session", () => {
     expect(result.finishReason).toBe("stop");
     expect(result.stepCount).toBe(1);
     expect(result.tokenUsage).toEqual({
+      reported: true,
       inputTokens: 100,
       outputTokens: 25,
       reasoningTokens: 5,
@@ -288,23 +291,65 @@ describe("Mastra SDK session", () => {
     }
   });
 
-  it("sanitizes the returned final text", async () => {
+  it("does not retain or log step-finish request bodies", async () => {
+    const history = "x".repeat(200_000);
+    const log = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
       model: "gpt-5.4-mini",
-      logger,
+      logger: { ...logger, log },
       sdk: fakeSdk({
         events: [
+          { type: "step-start", payload: { messageId: "m1", request: { body: history } } },
           {
-            type: "text-delta",
-            payload: { text: "done https://x.test?apiKey=secret123" },
+            type: "tool-call",
+            payload: { toolCallId: "1", toolName: "stagehand_run", args: { code: "1" } },
+          },
+          {
+            type: "step-finish",
+            payload: {
+              stepResult: { reason: "tool-calls", isContinued: true },
+              output: { usage: { inputTokens: 7, outputTokens: 3 } },
+              metadata: {
+                request: { body: history },
+                response: { messages: [{ role: "assistant", content: history }] },
+              },
+              messages: { all: [{ role: "user", content: history }] },
+            },
+          },
+          {
+            type: "finish",
+            payload: {
+              stepResult: { reason: "stop" },
+              output: { usage: { inputTokens: 7, outputTokens: 3 } },
+              metadata: { request: { body: history } },
+            },
           },
         ],
       }),
       session: {},
     });
 
-    expect(result.finalText).toBe("done https://x.test?apiKey=[redacted]");
+    expect(result.events).toHaveLength(4);
+    expect(result.events[1]).toMatchObject({ type: "tool-call" });
+    expect(result.events[2]).toEqual({
+      type: "step-finish",
+      payload: {
+        stepResult: { reason: "tool-calls", isContinued: true },
+        output: { usage: { inputTokens: 7, outputTokens: 3 } },
+      },
+    });
+    expect(JSON.stringify(result.events)).not.toContain(history.slice(0, 10_000));
+    expect(result.finishReason).toBe("stop");
+    expect(result.tokenUsage.inputTokens).toBe(7);
+
+    const logged = JSON.stringify(log.mock.calls);
+    expect(logged).not.toContain(history.slice(0, 10_000));
+    expect(logged.length).toBeLessThan(20_000);
+    expect(compactMastraEvent({ type: "text-delta", payload: { text: "hi" } })).toEqual({
+      type: "text-delta",
+      payload: { text: "hi" },
+    });
   });
 
   it("aborts MCP discovery and disconnects without creating an agent", async () => {
@@ -364,5 +409,77 @@ describe("Mastra SDK session", () => {
     expect(streamSignal?.aborted).toBe(true);
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("stop");
+  });
+
+  it("sanitizes the returned final text", async () => {
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      sdk: fakeSdk({
+        events: [
+          {
+            type: "text-delta",
+            payload: { text: "done https://x.test?apiKey=secret123" },
+          },
+        ],
+      }),
+      session: {},
+    });
+
+    expect(result.finalText).toBe("done https://x.test?apiKey=[redacted]");
+  });
+});
+
+describe("Mastra token usage presence", () => {
+  it.each([undefined, {}, { totalTokens: 0 }, { inputTokens: null, outputTokens: -1 }])(
+    "keeps absent or invalid telemetry unreported: %j",
+    (usage) => {
+      expect(extractMastraTokenUsage(usage).reported).toBe(false);
+    },
+  );
+  it("recognizes observed zero", () => {
+    expect(extractMastraTokenUsage({ inputTokens: 0, outputTokens: "0" })).toMatchObject({
+      reported: true,
+      totalTokens: 0,
+    });
+  });
+  it.each([
+    { finish: undefined, expectedInput: 7, reported: true },
+    { finish: {}, expectedInput: 7, reported: true },
+    { finish: { inputTokens: 0, outputTokens: 0 }, expectedInput: 0, reported: true },
+  ])(
+    "uses step usage only when finish telemetry is absent: %j",
+    async ({ finish, expectedInput, reported }) => {
+      const result = await runMastraSession({
+        prompt: "task",
+        model: "gpt-5.4-mini",
+        logger,
+        session: {},
+        sdk: fakeSdk({
+          events: [
+            {
+              type: "step-finish",
+              payload: { output: { usage: { inputTokens: 7, outputTokens: 3 } } },
+            },
+            {
+              type: "finish",
+              payload: { stepResult: { reason: "stop" }, output: { usage: finish } },
+            },
+          ],
+        }),
+      });
+      expect(result.tokenUsage).toMatchObject({ reported, inputTokens: expectedInput });
+    },
+  );
+  it("does not invent usage on an empty stream", async () => {
+    const result = await runMastraSession({
+      prompt: "task",
+      model: "gpt-5.4-mini",
+      logger,
+      session: {},
+      sdk: fakeSdk({ events: [] }),
+    });
+    expect(result.tokenUsage.reported).toBe(false);
   });
 });

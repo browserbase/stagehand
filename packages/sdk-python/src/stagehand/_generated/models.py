@@ -1654,7 +1654,7 @@ class PageOnParams(WireModel):
     )
     page_id: StrictStr
     subscription_id: Annotated[StrictStr, Field(min_length=1)]
-    event: PageEventName
+    event: PageSubscriptionEventName
 
 
 class PageRef(WireModel):
@@ -1804,8 +1804,46 @@ class PageSnapshotParams(WireModel):
     options: Optional[PageSnapshotOptions] = None
 
 
+class PageSubscriptionEventName(StrEnum):
+    console = "console"
+    toolsadded = "toolsadded"
+    toolsremoved = "toolsremoved"
+
+
 class PageTitleResult(RootModel[StrictStr]):
     root: StrictStr
+
+
+class PageToolsAddedNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Literal["toolsadded"]
+    tools: list[WebMCPToolDescriptor]
+
+
+class PageToolsRemovedNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Literal["toolsremoved"]
+    tools: list[WebMCPToolIdentity]
+
+
+class PageEventNotification(
+    RootModel[Union[PageToolsAddedNotification, PageToolsRemovedNotification]]
+):
+    root: Union[PageToolsAddedNotification, PageToolsRemovedNotification]
 
 
 class PageTypeOptions(WireModel):
@@ -2059,13 +2097,17 @@ class StagehandExtractParams(WireModel):
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Annotated[StrictStr, Field(min_length=1)]
-    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {"extraction": {"type": "string"}},
-        "required": ["extraction"],
-        "additionalProperties": False,
-    }
+    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = Field(
+        default_factory=lambda: FieldSchema0.model_validate(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {"extraction": {"type": "string"}},
+                "required": ["extraction"],
+                "additionalProperties": False,
+            }
+        )
+    )
     options: Optional[ExtractOptions] = None
 
 
@@ -2089,9 +2131,13 @@ class StagehandInitParams(WireModel):
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
-        "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-    }
+    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = Field(
+        default_factory=lambda: TelemetryConfig.model_validate(
+            {
+                "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
+            }
+        )
+    )
     log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None
@@ -2310,6 +2356,15 @@ class WebMCPToolDescriptor(WireModel):
     backend_node_id: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
         None
     )
+
+
+class WebMCPToolIdentity(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    name: Annotated[StrictStr, Field(min_length=1)]
 
 
 class WebMCPToolResponse(WireModel):
