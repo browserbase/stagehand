@@ -43,7 +43,7 @@ async def test_open_ai_compatible_maps_structured_request() -> None:
 
 
 @pytest.mark.asyncio
-async def test_open_ai_compatible_query_params_and_extra_body() -> None:
+async def test_open_ai_compatible_extra_body() -> None:
     with patch(
         "stagehand.openai_compatible._post_json",
         return_value={"choices": [{"message": {"content": '{"ok":true}'}}]},
@@ -52,8 +52,8 @@ async def test_open_ai_compatible_query_params_and_extra_body() -> None:
             model="openai/gpt-6-luna",
             base_url="https://ai-gateway.vercel.sh/v1",
             api_key="test-key",
-            query_params={"api-version": "2026-01-01"},
             extra_body={
+                "model": "should-not-win",
                 "providerOptions": {
                     "gateway": {
                         "user": "user-12345",
@@ -74,8 +74,9 @@ async def test_open_ai_compatible_query_params_and_extra_body() -> None:
         result = await generate(params)
 
     url, api_key, headers, payload = post.call_args.args
-    assert url == "https://ai-gateway.vercel.sh/v1/chat/completions?api-version=2026-01-01"
+    assert url == "https://ai-gateway.vercel.sh/v1/chat/completions"
     assert api_key == "test-key"
+    assert payload["model"] == "openai/gpt-6-luna"
     assert payload["seed"] == 42
     assert payload["providerOptions"] == {
         "gateway": {

@@ -62,15 +62,16 @@ func TestOpenAICompatible(t *testing.T) {
 	}
 }
 
-func TestOpenAICompatibleQueryParamsAndExtraBody(t *testing.T) {
+func TestOpenAICompatibleExtraBody(t *testing.T) {
 	var request struct {
 		Model           string         `json:"model"`
 		Seed            int            `json:"seed"`
 		ProviderOptions map[string]any `json:"providerOptions"`
 	}
-	var queryParam string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		queryParam = r.URL.Query().Get("api-version")
+		if r.URL.RawQuery != "" {
+			t.Errorf("unexpected query: %s", r.URL.RawQuery)
+		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Error(err)
 		}
@@ -83,11 +84,9 @@ func TestOpenAICompatibleQueryParamsAndExtraBody(t *testing.T) {
 		Model:   "openai/gpt-6-luna",
 		BaseURL: server.URL + "/v1",
 		APIKey:  "test-key",
-		QueryParams: map[string]string{
-			"api-version": "2026-01-01",
-		},
 		ExtraBody: map[string]any{
-			"seed": 42,
+			"model": "should-not-win",
+			"seed":  42,
 			"providerOptions": map[string]any{
 				"gateway": map[string]any{
 					"user": "user-12345",
@@ -110,8 +109,8 @@ func TestOpenAICompatibleQueryParamsAndExtraBody(t *testing.T) {
 	if !ok || string(structured.StructuredContent) != `{"ok":true}` {
 		t.Fatalf("unexpected result: %#v", result)
 	}
-	if queryParam != "2026-01-01" {
-		t.Fatalf("expected query param 2026-01-01, got %s", queryParam)
+	if request.Model != "openai/gpt-6-luna" {
+		t.Fatalf("expected configured model, got %s", request.Model)
 	}
 	if request.Seed != 42 {
 		t.Fatalf("expected seed 42, got %d", request.Seed)

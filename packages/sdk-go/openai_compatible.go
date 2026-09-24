@@ -8,19 +8,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
 // OpenAICompatibleOptions configures an OpenAI-compatible Chat Completions endpoint.
 type OpenAICompatibleOptions struct {
-	Model       string
-	BaseURL     string
-	APIKey      string
-	Headers     http.Header
-	QueryParams map[string]string
-	ExtraBody   map[string]any
-	Client      *http.Client
+	Model     string
+	BaseURL   string
+	APIKey    string
+	Headers   http.Header
+	ExtraBody map[string]any
+	Client    *http.Client
 }
 
 type chatContentPart struct {
@@ -87,38 +85,26 @@ func OpenAICompatible(options OpenAICompatibleOptions) LLMGenerateFunc {
 		if request.ResponseFormat.Description != nil {
 			jsonSchema["description"] = *request.ResponseFormat.Description
 		}
-		payload := map[string]any{
-			"model":    options.Model,
-			"messages": messages,
-			"response_format": map[string]any{
-				"type":        "json_schema",
-				"json_schema": jsonSchema,
-			},
-		}
-		if request.Temperature != nil {
-			if _, ok := options.ExtraBody["temperature"]; !ok {
-				payload["temperature"] = *request.Temperature
-			}
-		}
+		payload := map[string]any{}
 		for k, v := range options.ExtraBody {
 			payload[k] = v
+		}
+		payload["model"] = options.Model
+		payload["messages"] = messages
+		payload["response_format"] = map[string]any{
+			"type":        "json_schema",
+			"json_schema": jsonSchema,
+		}
+		if request.Temperature != nil {
+			if _, ok := payload["temperature"]; !ok {
+				payload["temperature"] = *request.Temperature
+			}
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {
 			return LLMGenerateResult{}, err
 		}
 		endpoint := strings.TrimRight(options.BaseURL, "/") + "/chat/completions"
-		if len(options.QueryParams) > 0 {
-			values := url.Values{}
-			for k, v := range options.QueryParams {
-				values.Set(k, v)
-			}
-			separator := "?"
-			if strings.Contains(endpoint, "?") {
-				separator = "&"
-			}
-			endpoint += separator + values.Encode()
-		}
 		httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 		if err != nil {
 			return LLMGenerateResult{}, err

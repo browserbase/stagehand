@@ -83,7 +83,7 @@ describe("openAICompatible", () => {
     });
   });
 
-  it("appends queryParams to the URL and merges extraBody into the payload", async () => {
+  it("merges extraBody into the payload without overriding model or messages", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -98,8 +98,8 @@ describe("openAICompatible", () => {
       model: "openai/gpt-6-luna",
       baseURL: "https://ai-gateway.vercel.sh/v1",
       apiKey: "test-key",
-      queryParams: { "api-version": "2026-01-01" },
       extraBody: {
+        model: "should-not-win",
         providerOptions: {
           gateway: {
             user: "user-12345",
@@ -113,7 +113,7 @@ describe("openAICompatible", () => {
     await model.generate(params);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "https://ai-gateway.vercel.sh/v1/chat/completions?api-version=2026-01-01",
+      "https://ai-gateway.vercel.sh/v1/chat/completions",
       expect.objectContaining({ method: "POST" }),
     );
 
@@ -122,6 +122,7 @@ describe("openAICompatible", () => {
       seed: number;
       providerOptions: { gateway: { user: string; tags: string[] } };
     };
+    expect(body.model).toBe("openai/gpt-6-luna");
     expect(body.seed).toBe(42);
     expect(body.providerOptions).toEqual({
       gateway: {
@@ -184,7 +185,9 @@ describe("openAICompatible", () => {
           },
         },
       });
-      expect(res.outputFormat).toBe("json_schema");
+      if (res.outputFormat !== "json_schema") {
+        throw new Error(`expected json_schema, got ${res.outputFormat}`);
+      }
       expect(res.structuredContent).toBeDefined();
     },
   );

@@ -5,6 +5,7 @@ import type {
   LLMMessage,
   LLMMessageContentBlock,
 } from "@browserbasehq/stagehand-protocol/types";
+import { z } from "zod";
 import type { ClientLLM } from "./clientSchemas.js";
 
 export type OpenAICompatibleOptions = {
@@ -12,7 +13,6 @@ export type OpenAICompatibleOptions = {
   baseURL: string;
   apiKey: string;
   headers?: Record<string, string>;
-  queryParams?: Record<string, string>;
   extraBody?: Record<string, unknown>;
 };
 
@@ -89,16 +89,10 @@ function completionText(body: ChatCompletionResponse): string {
 
 /** A client-side model for any endpoint that implements OpenAI Chat Completions. */
 export function openAICompatible(options: OpenAICompatibleOptions): ClientLLM {
-  const baseURL = options.baseURL.replace(/\/+$/, "");
+  const endpoint = `${options.baseURL.replace(/\/+$/, "")}/chat/completions`;
   const headers = new Headers(options.headers);
   headers.set("authorization", `Bearer ${options.apiKey}`);
   headers.set("content-type", "application/json");
-
-  let endpoint = `${baseURL}/chat/completions`;
-  if (options.queryParams && Object.keys(options.queryParams).length > 0) {
-    const search = new URLSearchParams(options.queryParams).toString();
-    endpoint += (endpoint.includes("?") ? "&" : "?") + search;
-  }
 
   return {
     async generate(params: LLMGenerateParams): Promise<LLMGenerateResult> {
@@ -107,12 +101,12 @@ export function openAICompatible(options: OpenAICompatibleOptions): ClientLLM {
       }
 
       const body: Record<string, unknown> = {
+        ...options.extraBody,
         model: options.model,
         messages: chatMessages(params),
         response_format: structuredFormat(params.responseFormat),
-        ...options.extraBody,
       };
-      if (params.temperature !== undefined && !("temperature" in (options.extraBody ?? {}))) {
+      if (params.temperature !== undefined && !("temperature" in body)) {
         body.temperature = params.temperature;
       }
 
@@ -133,7 +127,7 @@ export function openAICompatible(options: OpenAICompatibleOptions): ClientLLM {
         role: "assistant",
         content: { type: "text", text },
         outputFormat: "json_schema",
-        structuredContent: JSON.parse(text) as unknown,
+        structuredContent: z.json().parse(JSON.parse(text)),
       };
     },
   };
