@@ -798,6 +798,7 @@ class PagePDFOptions(TypedDict):
     prefer_css_page_size: NotRequired[bool]
     generate_tagged_pdf: NotRequired[bool]
     generate_document_outline: NotRequired[bool]
+    timeout: NotRequired[float]
 
 
 class PagePDFParams(TypedDict):

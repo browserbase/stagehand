@@ -29,6 +29,7 @@ _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.go_forward": 15_000,
     "page.wait_for_load_state": 15_000,
     "page.wait_for_selector": 30_000,
+    "page.pdf": 30_000,
     "page.webmcp_tools": 1_000,
 }
 _UNBOUNDED_BY_DEFAULT_METHODS = {
@@ -53,7 +54,6 @@ _UNBOUNDED_BY_DEFAULT_METHODS = {
     "context.clipboard_cut",
     "page.close",
     "page.evaluate",
-    "page.pdf",
     "page.screenshot",
     "page.snapshot",
     "page.webmcp_invocation_result",
@@ -544,6 +544,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "page.go_back",
         "page.go_forward",
         "page.screenshot",
+        "page.pdf",
         "page.wait_for_selector",
         "page.webmcp_tools",
         "page.webmcp_invocation_result",
@@ -555,6 +556,8 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         operation_timeout_ms = _numeric_property(params, "ms")
 
     if operation_timeout_ms is not None:
+        if method == "page.pdf" and operation_timeout_ms == 0:
+            return None
         return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms)) / 1_000
 
     if (default_timeout_ms := _DEFAULT_OPERATION_TIMEOUT_MS.get(method)) is not None:

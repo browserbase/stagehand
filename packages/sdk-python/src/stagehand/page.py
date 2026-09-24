@@ -635,6 +635,7 @@ class Page:
         prefer_css_page_size: bool | None = None,
         generate_tagged_pdf: bool | None = None,
         generate_document_outline: bool | None = None,
+        timeout: float | None = None,
         path: str | Path | None = None,
     ) -> bytes:
         params = PagePDFParams(page_id=self.page_id)
@@ -657,6 +658,7 @@ class Page:
                 ("prefer_css_page_size", prefer_css_page_size),
                 ("generate_tagged_pdf", generate_tagged_pdf),
                 ("generate_document_outline", generate_document_outline),
+                ("timeout", timeout),
             )
             if value is not None
         })

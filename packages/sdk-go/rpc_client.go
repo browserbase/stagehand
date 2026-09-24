@@ -40,6 +40,7 @@ var (
 		"page.go_forward":          15 * time.Second,
 		"page.wait_for_load_state": 15 * time.Second,
 		"page.wait_for_selector":   30 * time.Second,
+		"page.pdf":                 30 * time.Second,
 		"page.webmcp_tools":        time.Second,
 	}
 	unboundedByDefaultMethods = map[string]struct{}{
@@ -64,7 +65,6 @@ var (
 		"context.clipboard_cut":          {},
 		"page.close":                     {},
 		"page.evaluate":                  {},
-		"page.pdf":                       {},
 		"page.screenshot":                {},
 		"page.snapshot":                  {},
 		"page.webmcp_invocation_result":  {},
@@ -289,6 +289,7 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 		"page.go_back",
 		"page.go_forward",
 		"page.screenshot",
+		"page.pdf",
 		"page.wait_for_selector",
 		"page.webmcp_tools",
 		"page.webmcp_invocation_result":
@@ -300,6 +301,9 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	}
 
 	if durationMilliseconds, found := jsonNumberAtPath(params, path...); found {
+		if method == "page.pdf" && durationMilliseconds == 0 {
+			return 0, false
+		}
 		return rpcResponseTimeoutForDuration(durationMilliseconds), true
 	}
 	if defaultTimeout, found := defaultOperationTimeouts[method]; found {

@@ -56,7 +56,7 @@ describe("Page.pdf", () => {
       expect(pdf.match(/\/Type\s*\/Page\b/g)).toHaveLength(2);
       expect(pdf).toMatch(/\/MediaBox\s*\[0\s+0\s+288\s+432\]/);
       expect(pdf).toMatch(/\/Marked\s+true\b/);
-      const secondPage = await page.pdf({ pageRanges: "2", preferCSSPageSize: true });
+      const secondPage = await page.pdf({ pageRanges: "2", preferCSSPageSize: true, timeout: 0 });
       expect(
         Buffer.from(secondPage)
           .toString("latin1")
@@ -65,5 +65,15 @@ describe("Page.pdf", () => {
     } finally {
       await fs.rm(outputPath, { force: true });
     }
+  });
+
+  it("preserves print errors and allows subsequent captures", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto("data:text/html,<h1>One page</h1>");
+
+    await expect(page.pdf({ pageRanges: "0" })).rejects.toThrow(/page range/i);
+    const bytes = await page.pdf();
+    expect(new TextDecoder().decode(bytes.subarray(0, 5))).toBe("%PDF-");
+    expect((await page.screenshot()).length).toBeGreaterThan(0);
   });
 });

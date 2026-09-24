@@ -623,7 +623,7 @@ def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() 
     assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
 
 
-def test_response_deadline_uses_v3_operation_defaults() -> None:
+def test_response_deadline_uses_operation_defaults() -> None:
     params = models.EmptyParams()
     expected = {
         "page.goto": 25,
@@ -632,11 +632,20 @@ def test_response_deadline_uses_v3_operation_defaults() -> None:
         "page.go_forward": 25,
         "page.wait_for_load_state": 25,
         "page.wait_for_selector": 40,
+        "page.pdf": 40,
         "page.webmcp_tools": 11,
     }
 
     for method, timeout in expected.items():
         assert rpc_client._rpc_response_timeout_seconds(method, params) == timeout
+
+
+@pytest.mark.parametrize("timeout,expected", [(250, 10.25), (45_000, 55), (0, None)])
+def test_pdf_response_deadline_honors_explicit_timeout(
+    timeout: float, expected: float | None
+) -> None:
+    params = models.PagePDFParams(page_id="page-1", options=models.PagePDFOptions(timeout=timeout))
+    assert rpc_client._rpc_response_timeout_seconds("page.pdf", params) == expected
 
 
 def test_response_deadline_preserves_v3_unbounded_operations() -> None:
@@ -663,7 +672,6 @@ def test_response_deadline_preserves_v3_unbounded_operations() -> None:
         "context.clipboard_cut",
         "page.close",
         "page.evaluate",
-        "page.pdf",
         "page.screenshot",
         "page.snapshot",
         "page.webmcp_invocation_result",

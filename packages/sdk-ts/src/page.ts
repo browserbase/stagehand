@@ -427,7 +427,7 @@ async function decodeCaptureResult(
   path?: string,
 ): Promise<Uint8Array> {
   const bytes = decodeBase64(data, `page.${method}`);
-  if (path) {
+  if (path !== undefined) {
     const moduleName = "node:" + "fs/promises";
     const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
       throw new TypeError(

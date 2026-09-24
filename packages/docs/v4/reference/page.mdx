@@ -590,6 +590,9 @@ const image = await page.screenshot({ fullPage: true });
 
 Render the current document to PDF with Chrome's print pipeline.
 
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
 ```typescript
 const pdf = await page.pdf({
   path: "page.pdf",
@@ -652,6 +655,11 @@ const pdf = await page.pdf({
 
   <ParamField path="options.scale" type="number" optional>
     Render scale from `0.1` to `2`.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum capture wait in milliseconds, including time queued behind another capture.
+    Defaults to `30000`; `0` disables the deadline.
   </ParamField>
 </ParamField>
 
@@ -1329,6 +1337,9 @@ image = await page.screenshot(full_page=True)
 
 Render the current document to PDF with Chrome's print pipeline.
 
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
 ```python
 pdf = await page.pdf(
     path="page.pdf",
@@ -1387,6 +1398,11 @@ All measurements are in inches.
 
 <ParamField path="scale" type="float | None" optional>
   Render scale from `0.1` to `2`.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum capture wait in milliseconds, including time queued behind another capture.
+  Defaults to `30000`; `0` disables the deadline.
 </ParamField>
 
 <ResponseField name="result" type="bytes">
@@ -2145,6 +2161,9 @@ if err := os.WriteFile("screenshot.png", image, 0o644); err != nil {
 Render the current document to PDF with Chrome's print pipeline. Write the returned bytes with
 `os.WriteFile` when a file is needed.
 
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
 ```go
 printBackground := true
 pdf, err := page.PDF(ctx, &stagehand.PagePDFOptions{PrintBackground: &printBackground})
@@ -2178,6 +2197,11 @@ if err := os.WriteFile("page.pdf", pdf, 0o644); err != nil {
 
   <ParamField path="options.Scale" type="*float64" optional>
     Render scale from `0.1` to `2`.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    Maximum capture wait in milliseconds, including time queued behind another capture.
+    Defaults to `30000`; `0` disables the deadline. The caller's context can end the wait earlier.
   </ParamField>
 </ParamField>
 

@@ -3882,6 +3882,11 @@
         },
         "generate_document_outline": {
           "type": "boolean"
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2147473647
         }
       },
       "additionalProperties": false

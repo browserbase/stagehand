@@ -17,6 +17,7 @@ export async function withScreenshotLock<T>(
   owner: object,
   capture: (signal: AbortSignal) => Promise<T>,
   timeout: number | undefined,
+  operation = "screenshot",
 ): Promise<T> {
   const queue = screenshotQueues.get(owner) ?? {
     tail: Promise.resolve(),
@@ -30,10 +31,10 @@ export async function withScreenshotLock<T>(
     typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
       ? setTimeout(
           () => {
-            controller.abort(new TimeoutError("screenshot", timeout));
+            controller.abort(new TimeoutError(operation, timeout));
             if (started) {
               queue.blocked.abort(
-                new Error("screenshot: a previous timed-out capture is still recovering"),
+                new Error(`${operation}: a previous timed-out capture is still recovering`),
               );
             }
           },

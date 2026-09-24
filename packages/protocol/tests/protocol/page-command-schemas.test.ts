@@ -314,4 +314,16 @@ describe("page command schemas", () => {
     expect(() => PagePDFParamsSchema.parse({ pageId, options: { paperWidth: 0 } })).toThrow();
     expect(() => PagePDFParamsSchema.parse({ pageId, options: { path: "page.pdf" } })).toThrow();
   });
+
+  it("validates PDF capture deadlines before dispatch", () => {
+    for (const timeout of [0, 0.5, 30_000, 2_147_473_647]) {
+      expect(PagePDFParamsSchema.parse({ pageId, options: { timeout } })).toStrictEqual({
+        pageId,
+        options: { timeout },
+      });
+    }
+    for (const timeout of [-1, NaN, Infinity, 2_147_473_648, 2_147_483_647]) {
+      expect(() => PagePDFParamsSchema.parse({ pageId, options: { timeout } })).toThrow();
+    }
+  });
 });

@@ -1591,16 +1591,18 @@ export class Page {
 
   /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
   async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
+    const { timeout = 30_000, ...printOptions } = options ?? {};
     return await withScreenshotLock(
       this,
       async () => {
         const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
           "Page.printToPDF",
-          { ...options, transferMode: "ReturnAsBase64" },
+          { ...printOptions, transferMode: "ReturnAsBase64" },
         );
         return { data };
       },
-      undefined,
+      timeout,
+      "pdf",
     );
   }
 

@@ -6,4 +6,4 @@
 "@browserbasehq/stagehand": minor
 ---
 
-Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and optional local file saving in TypeScript and Python.
+Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and timeouts, and optional local file saving in TypeScript and Python.

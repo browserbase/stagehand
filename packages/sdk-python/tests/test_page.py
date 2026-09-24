@@ -195,6 +195,7 @@ async def test_page_pdf_returns_bytes_writes_path_and_serializes_options(tmp_pat
         paper_width=8.5,
         paper_height=11,
         margin_top=0.25,
+        timeout=0,
         path=output_path,
     )
 
@@ -210,6 +211,7 @@ async def test_page_pdf_returns_bytes_writes_path_and_serializes_options(tmp_pat
             "paper_width": 8.5,
             "paper_height": 11,
             "margin_top": 0.25,
+            "timeout": 0,
         },
     })
     assert result_model is PagePDFResult

@@ -1457,6 +1457,9 @@ type PagePDFOptions struct {
 
 	// Scale corresponds to the JSON schema field "scale".
 	Scale *float64 `json:"scale,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type PagePDFParams struct {

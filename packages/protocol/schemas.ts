@@ -1961,6 +1961,8 @@ export const PagePDFOptionsSchema = z
     preferCSSPageSize: z.boolean().optional(),
     generateTaggedPDF: z.boolean().optional(),
     generateDocumentOutline: z.boolean().optional(),
+    // Leave room for the SDK's 10-second response grace within the JS timer limit.
+    timeout: z.number().nonnegative().max(2_147_473_647).optional(),
   })
   .meta({ id: "PagePDFOptions" });
 

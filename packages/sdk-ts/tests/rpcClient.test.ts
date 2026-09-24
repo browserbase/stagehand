@@ -414,9 +414,19 @@ describe("RPCClient", () => {
     [StagehandMethods.pageGoForward.name, 25_000],
     [StagehandMethods.pageWaitForLoadState.name, 25_000],
     [StagehandMethods.pageWaitForSelector.name, 40_000],
+    [StagehandMethods.pagePDF.name, 40_000],
     [StagehandMethods.pageWebMCPTools.name, 11_000],
-  ])("uses the v3 operation default plus transport grace for %s", (method, timeout) => {
+  ])("uses the operation default plus transport grace for %s", (method, timeout) => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
+  });
+
+  it("honors explicit PDF deadlines and allows disabling them", () => {
+    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 250 } })).toBe(10_250);
+    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 45_000 } })).toBe(55_000);
+    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 2_147_473_647 } })).toBe(
+      2_147_483_647,
+    );
+    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 0 } })).toBeUndefined();
   });
 
   it("does not impose response deadlines on operations that were unbounded in v3", () => {
@@ -442,7 +452,6 @@ describe("RPCClient", () => {
       StagehandMethods.contextClipboardCut.name,
       StagehandMethods.pageClose.name,
       StagehandMethods.pageEvaluate.name,
-      StagehandMethods.pagePDF.name,
       StagehandMethods.pageScreenshot.name,
       StagehandMethods.pageSnapshot.name,
       StagehandMethods.pageWebMCPInvocationResult.name,

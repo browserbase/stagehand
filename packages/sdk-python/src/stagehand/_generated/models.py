@@ -1698,6 +1698,7 @@ class PagePDFOptions(WireModel):
     prefer_css_page_size: Optional[StrictBool] = None
     generate_tagged_pdf: Optional[StrictBool] = None
     generate_document_outline: Optional[StrictBool] = None
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0, le=2147473647.0)] = None
 
 
 class PagePDFParams(WireModel):

@@ -1191,6 +1191,24 @@ describe("Stagehand TS object wrapper", () => {
     },
   );
 
+  it.each(["screenshot", "pdf"] as const)(
+    "preserves the filesystem error for an explicitly empty %s path",
+    async (method) => {
+      const client = new FakeProtocolClient();
+      client.queueResponse(
+        method === "pdf" ? StagehandMethods.pagePDF : StagehandMethods.pageScreenshot,
+        { data: method === "pdf" ? "JVBERi0xLjcK" : "iVBORw0KGgo=" },
+      );
+      const page = new Page(client, { pageId: "page-1" });
+
+      await expect(page[method]({ path: "" })).rejects.toMatchObject({
+        code: "ENOENT",
+        syscall: "open",
+        path: "",
+      });
+    },
+  );
+
   it("returns PDF bytes, writes paths locally, and serializes print options", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pagePDF, {
