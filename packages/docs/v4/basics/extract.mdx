@@ -380,7 +380,7 @@ const result = await stagehand.extract(
   z.object({ name: z.string() }),
   {
     model: {
-      modelName: "anthropic/claude-sonnet-4-6",
+      modelName: "anthropic/claude-sonnet-5",
       apiKey: process.env.ANTHROPIC_API_KEY,
     },
     timeout: 30000,
@@ -402,7 +402,7 @@ result = await stagehand.extract(
     "extract the repository name",
     Repository,
     model=ModelConfig(
-        model_name="anthropic/claude-sonnet-4-6",
+        model_name="anthropic/claude-sonnet-5",
         api_key=os.environ["ANTHROPIC_API_KEY"],
     ),
     timeout=30000,
@@ -416,7 +416,7 @@ result = await stagehand.extract(
 
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "anthropic/claude-sonnet-4-6",
+	ModelName: "anthropic/claude-sonnet-5",
 	APIKey:    &modelAPIKey,
 }
 timeout := 30000.0
@@ -442,7 +442,7 @@ fmt.Println(result.Data.Name)
 `cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
-When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on `Stagehand.create()` and override it per call:
+When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Caching is on by default. Set `cache` on `Stagehand.create()` to change it for the instance, or override it per call:
 
 Locator-scoped extractions, including calls with `locator` or `ignoreLocators`, bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
 
