@@ -74,6 +74,22 @@ interface StepHandlerOptions {
     | StreamTextOnStepFinishCallback<ToolSet>;
   evidenceCallback?: AgentEvidenceCallback;
   onFinalAnswer?: (answer: FinalAnswerDraft) => void;
+  onUsage?: (usage: LanguageModelUsage) => void;
+}
+
+function addUsage(
+  total: LanguageModelUsage | undefined,
+  step: LanguageModelUsage,
+): LanguageModelUsage {
+  return {
+    inputTokens: (total?.inputTokens ?? 0) + (step.inputTokens ?? 0),
+    outputTokens: (total?.outputTokens ?? 0) + (step.outputTokens ?? 0),
+    totalTokens: (total?.totalTokens ?? 0) + (step.totalTokens ?? 0),
+    reasoningTokens:
+      (total?.reasoningTokens ?? 0) + (step.reasoningTokens ?? 0),
+    cachedInputTokens:
+      (total?.cachedInputTokens ?? 0) + (step.cachedInputTokens ?? 0),
+  };
 }
 
 /**
@@ -296,9 +312,17 @@ export class V3AgentHandler {
 
   private createStepHandler(
     state: AgentState,
-    { userCallback, evidenceCallback, onFinalAnswer }: StepHandlerOptions,
+    {
+      userCallback,
+      evidenceCallback,
+      onFinalAnswer,
+      onUsage,
+    }: StepHandlerOptions,
   ) {
     return async (event: StepResult<ToolSet>) => {
+      // Record usage before any browser call below can throw.
+      if (event.usage) onUsage?.(event.usage);
+
       this.logger({
         category: "agent",
         message: `Step finished: ${event.finishReason}`,
@@ -408,6 +432,7 @@ export class V3AgentHandler {
       currentPageUrl: "",
     };
     let finalAnswerFromDoneTool: FinalAnswerDraft | undefined;
+    let usageSoFar: LanguageModelUsage | undefined;
 
     let messages: ModelMessage[] = [];
     let captchaSolver: CaptchaSolver | undefined;
@@ -478,6 +503,9 @@ export class V3AgentHandler {
           onFinalAnswer: (answer) => {
             finalAnswerFromDoneTool = answer;
           },
+          onUsage: (usage) => {
+            usageSoFar = addUsage(usageSoFar, usage);
+          },
         }),
         abortSignal: preparedOptions.signal,
         providerOptions: buildAgentProviderOptions(
@@ -525,6 +553,7 @@ export class V3AgentHandler {
 
       // Re-throw abort errors wrapped in AgentAbortError for consistent error typing
       if (signal?.aborted) {
+        this.recordUsage(usageSoFar, Date.now() - startTime);
         const reason = signal.reason ? String(signal.reason) : "aborted";
         throw new AgentAbortError(reason);
       }
@@ -536,12 +565,14 @@ export class V3AgentHandler {
         level: 0,
       });
 
-      // For non-abort errors, return a failure result instead of throwing
+      // For non-abort errors, return a failure result instead of throwing.
+      // Report tokens from steps that finished so callers can still bill them.
       return {
         success: false,
         actions: state.actions,
         message: `Failed to execute task: ${errorMessage}`,
         completed: false,
+        usage: this.recordUsage(usageSoFar, Date.now() - startTime),
         messages,
       };
     } finally {
@@ -763,35 +794,38 @@ export class V3AgentHandler {
       }
     }
 
-    const endTime = Date.now();
-    const inferenceTimeMs = endTime - startTime;
-    if (result.totalUsage) {
-      this.v3.updateMetrics(
-        V3FunctionName.AGENT,
-        result.totalUsage.inputTokens || 0,
-        result.totalUsage.outputTokens || 0,
-        result.totalUsage.reasoningTokens || 0,
-        result.totalUsage.cachedInputTokens || 0,
-        inferenceTimeMs,
-      );
-    }
-
     return {
       success: state.completed,
       message: state.finalMessage || "Task execution completed",
       actions: state.actions,
       completed: state.completed,
       output,
-      usage: result.totalUsage
-        ? {
-            input_tokens: result.totalUsage.inputTokens || 0,
-            output_tokens: result.totalUsage.outputTokens || 0,
-            reasoning_tokens: result.totalUsage.reasoningTokens || 0,
-            cached_input_tokens: result.totalUsage.cachedInputTokens || 0,
-            inference_time_ms: inferenceTimeMs,
-          }
-        : undefined,
+      usage: this.recordUsage(result.totalUsage, Date.now() - startTime),
       messages: inputMessages,
+    };
+  }
+
+  private recordUsage(
+    usage: LanguageModelUsage | undefined,
+    inferenceTimeMs: number,
+  ): AgentResult["usage"] {
+    if (!usage) return undefined;
+
+    this.v3.updateMetrics(
+      V3FunctionName.AGENT,
+      usage.inputTokens || 0,
+      usage.outputTokens || 0,
+      usage.reasoningTokens || 0,
+      usage.cachedInputTokens || 0,
+      inferenceTimeMs,
+    );
+
+    return {
+      input_tokens: usage.inputTokens || 0,
+      output_tokens: usage.outputTokens || 0,
+      reasoning_tokens: usage.reasoningTokens || 0,
+      cached_input_tokens: usage.cachedInputTokens || 0,
+      inference_time_ms: inferenceTimeMs,
     };
   }
 
