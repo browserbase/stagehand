@@ -138,6 +138,8 @@ The framework's agent model and Stagehand's optional browser model are separate.
 Use Browserbase as the isolation boundary for untrusted tasks. Treat authenticated browser sessions and any data reachable from them as privileged.
 </Warning>
 
+Stagehand blocks HTTP(S) requests to cloud metadata and link-local endpoints by default. `context.setDomainPolicy()` narrows the hosts a session can reach further, and an explicit policy replaces the default posture.
+
 The MCP examples forward only Stagehand and Browserbase configuration to the child process. Agent-model credentials remain in the framework process.
 
 <Card title="View all integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations">
