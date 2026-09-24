@@ -8,19 +8,11 @@ Use Stagehand to bring browser automation into the tools you already use. Connec
 
 The guides below cover setup, configuration, and working examples. Choose an integration based on what you want to connect.
 
-## Agents
+## Agent Frameworks
 
-Give a coding agent or agent framework a persistent browser. These integrations expose browser tools over MCP or through native bindings, letting your agent navigate pages, fill forms, and read results as part of its task.
-
-Start with the [agents overview](/v4/integrations/agents) for the shared tools, browser configuration, and setup, or open your framework's guide.
+Build browser capabilities into your own agent with Eve, Deep Agents, CrewAI, Mastra, or the Vercel AI SDK. The [Agent Frameworks overview](/v4/integrations/agents) explains the shared tools and how to connect them to your framework's agent loop.
 
 <CardGroup cols={2}>
-  <Card title="Claude Code" icon="/images/integrations/claude-code.svg" href="/v4/integrations/claude-code">
-    Give a Claude Code agent persistent Stagehand browser tools over MCP/stdio.
-  </Card>
-  <Card title="Codex" icon="/images/integrations/codex.svg" href="/v4/integrations/codex">
-    Give a Codex agent persistent Stagehand browser tools over MCP/stdio.
-  </Card>
   <Card title="Eve by Vercel" icon="/images/integrations/eve.svg" href="/v4/integrations/eve">
     Give Vercel's framework for building durable agents native Stagehand tools.
   </Card>
@@ -33,14 +25,27 @@ Start with the [agents overview](/v4/integrations/agents) for the shared tools, 
   <Card title="Mastra" icon="/images/integrations/mastra.svg" href="/v4/integrations/mastra">
     Connect a Mastra agent over MCP/stdio.
   </Card>
+  <Card title="Vercel AI SDK" icon="/images/integrations/vercel-ai-sdk.svg" href="/v4/integrations/vercel-ai-sdk">
+    Use Stagehand tools in a Vercel AI SDK tool loop over MCP/stdio.
+  </Card>
+</CardGroup>
+
+## CLI Agents
+
+Give a coding agent browser tools for tasks such as checking a running application or gathering information from the web. The [CLI Agents overview](/v4/integrations/cli-agents) covers the MCP adapter for Claude Code, Codex, and fx, plus Pi's native extension.
+
+<CardGroup cols={2}>
+  <Card title="Claude Code" icon="/images/integrations/claude-code.svg" href="/v4/integrations/claude-code">
+    Give a Claude Code agent persistent Stagehand browser tools over MCP/stdio.
+  </Card>
+  <Card title="Codex" icon="/images/integrations/codex.svg" href="/v4/integrations/codex">
+    Give a Codex agent persistent Stagehand browser tools over MCP/stdio.
+  </Card>
   <Card title="fx" icon="/images/integrations/fx.png" href="/v4/integrations/fx">
     Give the fx coding agent persistent Stagehand browser tools over MCP/stdio.
   </Card>
   <Card title="Pi" icon="/images/integrations/pi.svg" href="/v4/integrations/pi">
     Give the Pi coding agent native Stagehand browser tools registered directly by an extension.
-  </Card>
-  <Card title="Vercel AI SDK" icon="/images/integrations/vercel-ai-sdk.svg" href="/v4/integrations/vercel-ai-sdk">
-    Use Stagehand tools in a Vercel AI SDK tool loop over MCP/stdio.
   </Card>
 </CardGroup>
 

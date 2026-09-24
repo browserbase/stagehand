@@ -1,12 +1,22 @@
 ---
-title: "Agents"
+title: "Agent Frameworks"
 sidebarTitle: "Overview"
-description: "Give your agent a persistent Stagehand browser through MCP or native tools."
+description: "Add persistent browser tools to agents built with Eve, Deep Agents, CrewAI, Mastra, or the Vercel AI SDK."
 ---
 
-Stagehand's agent integrations connect coding agents and agent frameworks to a persistent browser. The agent decides what to do, and Stagehand provides the tools to navigate, interact with pages, and read their state.
+Use Stagehand as the browser layer in an agent you build with an agent framework. Your framework manages the model, instructions, and tool loop; Stagehand keeps the browser session available as the agent navigates, interacts with pages, and reads results.
 
-Each integration exposes three tools: `run`, `snapshot`, and `screenshot`. Use the shared setup below, then follow the guide for your agent or framework in the sidebar.
+Choose an integration based on your framework and how it connects tools:
+
+| Framework | Connection | Guide |
+| --- | --- | --- |
+| Eve | Native TypeScript tools in the Eve process. | [Eve](/v4/integrations/eve) |
+| Deep Agents | MCP over stdio locally, or native Python tools in Managed Deep Agents. | [Deep Agents](/v4/integrations/deep-agents) |
+| CrewAI | Python agent connected to the TypeScript MCP server over stdio. | [CrewAI](/v4/integrations/crewai) |
+| Mastra | MCP tools in a Mastra agent. | [Mastra](/v4/integrations/mastra) |
+| Vercel AI SDK | MCP tools in an AI SDK tool loop. | [Vercel AI SDK](/v4/integrations/vercel-ai-sdk) |
+
+Each integration provides `run`, `snapshot`, and `screenshot`. To connect an existing coding agent instead, see [CLI Agents](/v4/integrations/cli-agents).
 
 <Info>
 These integrations are experimental and run from the Stagehand repository. The adapters and shared integration package are not published as standalone packages.
@@ -48,7 +58,7 @@ The agent framework integrations expose the same browser capabilities.
 
 The tools share a browser for the lifetime of the integration's client session. A navigation performed by `run` is visible to the next `snapshot`, and authentication and page state remain available across calls.
 
-The Claude Code, Codex, CrewAI, Mastra, fx, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve, Pi, and Managed Deep Agents bind equivalent tools in-process.
+The CrewAI, Mastra, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve and Managed Deep Agents bind equivalent tools in-process.
 
 The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server. The TypeScript integrations and CrewAI use this package.
 
@@ -56,9 +66,9 @@ The private [`core/` workspace package](https://github.com/browserbase/stagehand
 Do not create a new MCP process for every tool call. Doing so starts a new browser and invalidates any snapshot IDs from the previous call.
 </Warning>
 
-## Run the integrations from source
+## Set up your framework
 
-Claude Code, Codex, CrewAI, Mastra, fx, and the Vercel AI SDK use the shared TypeScript Stagehand facade MCP server. Eve and Pi use native in-process bindings from the same package. These integrations require Node.js 24 or newer and [pnpm](https://pnpm.io/installation) 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
+CrewAI, Mastra, and the Vercel AI SDK use the shared TypeScript Stagehand facade MCP server. Eve uses native in-process bindings from the same package. The shared TypeScript package requires Node.js 24 or newer and [pnpm](https://pnpm.io/installation) 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
 
 <Steps>
   <Step title="Clone and install Stagehand">
@@ -81,7 +91,7 @@ Follow the page for your framework to install its remaining dependencies, config
 
 ## Choose a browser
 
-The examples use local Chrome when you leave `BROWSERBASE_API_KEY` unset. Local mode requires a current Google Chrome installation.
+The TypeScript MCP examples choose Browserbase when `BROWSERBASE_API_KEY` is set and local Chrome otherwise. Deep Agents defaults to local mode. Follow your framework guide for its browser defaults; local mode requires a current Google Chrome installation.
 
 Set these variables to use a disposable Browserbase browser instead:
 
@@ -96,7 +106,7 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID for the TypeScript integrations. |
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called from TypeScript integration tools. |
-| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. Eve and Pi can infer a supported provider key; the MCP examples require this variable. |
+| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. Eve can infer a supported provider key; the MCP examples require this variable. |
 
 The framework's agent model and Stagehand's optional browser model are separate. The agent model decides which tool to call. Configure a Stagehand model only when JavaScript passed to `run` calls AI methods such as `act`, `extract`, or `observe`.
 

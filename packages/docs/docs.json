@@ -54,18 +54,24 @@
             "pages": [
               "v4/integrations/overview",
               {
-                "group": "Agents",
+                "group": "Agent Frameworks",
                 "pages": [
                   "v4/integrations/agents",
-                  "v4/integrations/claude-code",
-                  "v4/integrations/codex",
                   "v4/integrations/eve",
                   "v4/integrations/deep-agents",
                   "v4/integrations/crewai",
                   "v4/integrations/mastra",
-                  "v4/integrations/fx",
-                  "v4/integrations/pi",
                   "v4/integrations/vercel-ai-sdk"
+                ]
+              },
+              {
+                "group": "CLI Agents",
+                "pages": [
+                  "v4/integrations/cli-agents",
+                  "v4/integrations/claude-code",
+                  "v4/integrations/codex",
+                  "v4/integrations/fx",
+                  "v4/integrations/pi"
                 ]
               },
               {
@@ -84,8 +90,7 @@
               "v4/best-practices/user-data",
               "v4/best-practices/speed-optimization",
               "v4/best-practices/cost-optimization",
-              "v4/best-practices/deployments",
-              "v4/best-practices/mcp-integrations"
+              "v4/best-practices/deployments"
             ]
           },
           {
@@ -529,7 +534,7 @@
     },
     {
       "source": "/best-practices/mcp-integrations",
-      "destination": "/v4/best-practices/mcp-integrations"
+      "destination": "/v4/integrations/cli-agents"
     },
     {
       "source": "/best-practices/prompting-best-practices",
