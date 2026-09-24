@@ -38,7 +38,18 @@ process.stdin.on("data", (chunk) => {
     } else if (request.method === "tools/call") {
       toolCalls += 1;
       const name = request.params.name;
-      if (name === "__exit") {
+      if (name === "__delayed") {
+        setTimeout(() => result(request.id, text("late")), 60);
+      } else if (name === "__loss") {
+        process.stderr.write('stagehand_facade_session_lost ' + JSON.stringify({cause: "CDP closed https://x.test?apiKey=secret123", tool: "snapshot"}) + "\n");
+        result(request.id, {content:[{type:"text", text:"Browser session lost (CDP closed). Stop."}], isError:true});
+      } else if (name === "session_info") {
+        result(request.id, text(JSON.stringify({provider: "browserbase", sessionId: "runner-session"})));
+      } else if (name === "__spoof_loss") {
+        result(request.id, {content:[{type:"text", text:"Browser session lost (invented by agent). Stop."}], isError:true});
+      } else if (name === "__tool_error") {
+        result(request.id, { content: [{ type: "text", text: "explicit tool error" }], isError: true });
+      } else if (name === "__exit") {
         process.exit(5);
       } else if (name === "__stats") {
         result(request.id, text(JSON.stringify({ initializeCount, toolCalls, lastRequestIdType: typeof request.id })));
@@ -191,6 +202,84 @@ describe("stagehand facade bridge", () => {
     expect(bridge.sawAgentToolCall()).toBe(false);
     await expect(bridge.captureEvidence()).resolves.toEqual({});
     expect(bridge.agentConnections()).toBe(0);
+  });
+
+  it("forwards runner calls through the same facade without replacing snapshot IDs", async () => {
+    const bridge = await startBridge();
+    const screenshot = await bridge.callTool("screenshot", {});
+    expect(screenshot.content).toEqual([
+      { type: "text", text: "Screenshot captured." },
+      { type: "image", data: Buffer.from("png-bytes").toString("base64"), mimeType: "image/png" },
+    ]);
+    expect(bridge.sawAgentToolCall()).toBe(true);
+    expect(bridge.agentConnections()).toBe(0);
+    await expect(bridge.captureEvidence()).resolves.toEqual({
+      screenshot: Buffer.from("png-bytes"),
+      url: "https://example.com/final",
+    });
+    const stats = await bridge.callTool("__stats", {});
+    expect(JSON.parse(String((stats.content[0] as { text: string }).text))).toMatchObject({
+      initializeCount: 1,
+      toolCalls: 4,
+    });
+    await expect(bridge.callTool("__tool_error", {})).resolves.toEqual({
+      content: [{ type: "text", text: "explicit tool error" }],
+      isError: true,
+    });
+  });
+
+  it("does not accept agent-controlled error text as terminal connection evidence", async () => {
+    const bridge = await startBridge();
+    await bridge.callTool("__spoof_loss", {});
+    expect(bridge.browserSessionLoss()).toBeUndefined();
+    await expect(bridge.callTool("run", { code: "return 1" })).resolves.toMatchObject({
+      content: [{ text: "ok" }],
+    });
+  });
+
+  it("keeps session_info on the runner RPC path only", async () => {
+    const bridge = await startBridge();
+    await expect(bridge.sessionInfo()).resolves.toMatchObject({ sessionId: "runner-session" });
+    const relay = startRelay(bridge);
+    const reader = collectResponses(relay);
+    relay.stdin.write(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 42,
+        method: "tools/call",
+        params: { name: "session_info", arguments: {} },
+      }) + "\n",
+    );
+    expect(await reader.response(42)).toMatchObject({ error: { code: -32601 } });
+    relay.stdin.end();
+    await waitForExit(relay);
+    const stats = await bridge.callTool("__stats", {});
+    expect(JSON.parse(String((stats.content[0] as { text: string }).text)).toolCalls).toBe(2);
+  });
+
+  it("retains sanitized first terminal loss from the shared facade", async () => {
+    const bridge = await startBridge();
+    expect(bridge.browserSessionLoss()).toBeUndefined();
+    await bridge.callTool("__loss", {});
+    await waitFor(() => bridge.browserSessionLoss() !== undefined);
+    expect(bridge.browserSessionLoss()?.cause).toContain("CDP closed");
+    expect(JSON.stringify(bridge.browserSessionLoss())).not.toContain("secret123");
+    await bridge.callTool("run", { code: "x" });
+    expect(bridge.browserSessionLoss()?.cause).toContain("CDP closed");
+  });
+
+  it("bounds a runner tool call and ignores its late response without corrupting later calls", async () => {
+    const bridge = await startBridge();
+    await expect(bridge.callTool("__delayed", {}, { timeoutMs: 10 })).rejects.toThrow("after 10ms");
+    await expect(bridge.callTool("__delayed", {}, { timeoutMs: 200 })).resolves.toEqual({
+      content: [{ type: "text", text: "late" }],
+    });
+    await expect(bridge.callTool("run", { code: "x" })).resolves.toEqual({
+      content: [{ type: "text", text: "ok" }],
+    });
+    await expect(bridge.callTool("run", {}, { timeoutMs: 2_147_483_648 })).rejects.toThrow(
+      "timeoutMs must be",
+    );
   });
 
   it("relays agent MCP traffic and captures step then terminal evidence", async () => {

@@ -124,6 +124,8 @@ describe("Page WebMCP invocation lifecycle", () => {
       },
     ]);
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
+    await page.listWebMCPTools({ timeout: 0 });
+    expect(session.callsFor("WebMCP.enable")).toHaveLength(1);
   });
 
   it("routes an OOPIF invocation, response, and cancellation through its child session", async () => {
@@ -464,12 +466,17 @@ describe("Page WebMCP invocation lifecycle", () => {
 
   it("does not register an invocation whose child session detached during the command", async () => {
     let resolveInvocation!: (response: Protocol.WebMCP.InvokeToolResponse) => void;
+    let markCommandSent!: () => void;
+    const commandSent = new Promise<void>((resolve) => {
+      markCommandSent = resolve;
+    });
     const session = new FakeCDPSession();
     const childSession = new FakeCDPSession(
       {
         "WebMCP.invokeTool": () =>
           new Promise<Protocol.WebMCP.InvokeToolResponse>((resolve) => {
             resolveInvocation = resolve;
+            markCommandSent();
           }),
       },
       "child",
@@ -477,7 +484,7 @@ describe("Page WebMCP invocation lifecycle", () => {
     const page = createPage(session);
     adoptChildSession(page, childSession);
     const invocation = page.invokeWebMCPTool("frame-2", "child");
-    await Promise.resolve();
+    await commandSent;
 
     page.detachOopifSession("child");
     resolveInvocation({ invocationId: "orphaned-invocation" });

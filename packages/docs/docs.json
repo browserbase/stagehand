@@ -16,7 +16,7 @@
     }
   },
   "api": {
-    "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml"
+    "openapi": "v3/openapi.json"
   },
   "navigation": {
     "versions": [
@@ -239,7 +239,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/python"
                 },
                 "pages": [
@@ -267,7 +267,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/java"
                 },
                 "pages": [
@@ -295,7 +295,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/go"
                 },
                 "pages": [
@@ -323,7 +323,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/ruby"
                 },
                 "pages": [

@@ -1398,7 +1398,7 @@ type PageOffParams struct {
 
 type PageOnParams struct {
 	// Event corresponds to the JSON schema field "event".
-	Event PageEventName `json:"event"`
+	Event PageSubscriptionEventName `json:"event"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1581,7 +1581,53 @@ type PageSnapshotParams struct {
 	PageID string `json:"page_id"`
 }
 
+type PageSubscriptionEventName string
+
+const PageSubscriptionEventNameConsole PageSubscriptionEventName = "console"
+const PageSubscriptionEventNameToolsadded PageSubscriptionEventName = "toolsadded"
+const PageSubscriptionEventNameToolsremoved PageSubscriptionEventName = "toolsremoved"
+
 type PageTitleResult string
+
+type PageToolsAddedNotification struct {
+	// Event corresponds to the JSON schema field "event".
+	Event string `json:"event"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// SessionID corresponds to the JSON schema field "session_id".
+	SessionID string `json:"session_id"`
+
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
+
+	// TargetID corresponds to the JSON schema field "target_id".
+	TargetID string `json:"target_id"`
+
+	// Tools corresponds to the JSON schema field "tools".
+	Tools []WebMCPToolDescriptor `json:"tools"`
+}
+
+type PageToolsRemovedNotification struct {
+	// Event corresponds to the JSON schema field "event".
+	Event string `json:"event"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// SessionID corresponds to the JSON schema field "session_id".
+	SessionID string `json:"session_id"`
+
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
+
+	// TargetID corresponds to the JSON schema field "target_id".
+	TargetID string `json:"target_id"`
+
+	// Tools corresponds to the JSON schema field "tools".
+	Tools []WebMCPToolIdentity `json:"tools"`
+}
 
 type PageTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
@@ -2088,6 +2134,14 @@ type WebMCPToolDescriptor struct {
 
 type WebMCPToolDescriptorInputSchema map[string]json.RawMessage
 
+type WebMCPToolIdentity struct {
+	// FrameID corresponds to the JSON schema field "frame_id".
+	FrameID string `json:"frame_id"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+}
+
 type WebMCPToolResponse struct {
 	// ErrorText corresponds to the JSON schema field "error_text".
 	ErrorText *string `json:"error_text,omitempty,omitzero"`
@@ -2581,6 +2635,10 @@ type generatedModelCatalog struct {
 	// PageEventName corresponds to the JSON schema field "PageEventName".
 	PageEventName *PageEventName `json:"PageEventName,omitempty,omitzero"`
 
+	// PageEventNotification corresponds to the JSON schema field
+	// "PageEventNotification".
+	PageEventNotification *PageEventNotification `json:"PageEventNotification,omitempty,omitzero"`
+
 	// PageGoBackParams corresponds to the JSON schema field "PageGoBackParams".
 	PageGoBackParams *PageGoBackParams `json:"PageGoBackParams,omitempty,omitzero"`
 
@@ -2661,8 +2719,20 @@ type generatedModelCatalog struct {
 	// PageSnapshotParams corresponds to the JSON schema field "PageSnapshotParams".
 	PageSnapshotParams *PageSnapshotParams `json:"PageSnapshotParams,omitempty,omitzero"`
 
+	// PageSubscriptionEventName corresponds to the JSON schema field
+	// "PageSubscriptionEventName".
+	PageSubscriptionEventName *PageSubscriptionEventName `json:"PageSubscriptionEventName,omitempty,omitzero"`
+
 	// PageTitleResult corresponds to the JSON schema field "PageTitleResult".
 	PageTitleResult *PageTitleResult `json:"PageTitleResult,omitempty,omitzero"`
+
+	// PageToolsAddedNotification corresponds to the JSON schema field
+	// "PageToolsAddedNotification".
+	PageToolsAddedNotification *PageToolsAddedNotification `json:"PageToolsAddedNotification,omitempty,omitzero"`
+
+	// PageToolsRemovedNotification corresponds to the JSON schema field
+	// "PageToolsRemovedNotification".
+	PageToolsRemovedNotification *PageToolsRemovedNotification `json:"PageToolsRemovedNotification,omitempty,omitzero"`
 
 	// PageTypeOptions corresponds to the JSON schema field "PageTypeOptions".
 	PageTypeOptions *PageTypeOptions `json:"PageTypeOptions,omitempty,omitzero"`
@@ -2830,6 +2900,9 @@ type generatedModelCatalog struct {
 	// WebMCPToolDescriptor corresponds to the JSON schema field
 	// "WebMCPToolDescriptor".
 	WebMCPToolDescriptor *WebMCPToolDescriptor `json:"WebMCPToolDescriptor,omitempty,omitzero"`
+
+	// WebMCPToolIdentity corresponds to the JSON schema field "WebMCPToolIdentity".
+	WebMCPToolIdentity *WebMCPToolIdentity `json:"WebMCPToolIdentity,omitempty,omitzero"`
 
 	// WebMCPToolResponse corresponds to the JSON schema field "WebMCPToolResponse".
 	WebMCPToolResponse *WebMCPToolResponse `json:"WebMCPToolResponse,omitempty,omitzero"`

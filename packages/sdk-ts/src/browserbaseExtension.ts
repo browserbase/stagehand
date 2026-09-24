@@ -14,7 +14,10 @@ export type ProvisionedBrowserbaseExtension = {
 
 export type BrowserbaseExtensionSdk = {
   extensions: {
-    create(params: { file: ReturnType<typeof createReadStream> }): Promise<{ id: string }>;
+    create(
+      params: { file: ReturnType<typeof createReadStream> },
+      options?: { maxRetries?: number },
+    ): Promise<{ id: string }>;
     delete(
       extensionId: string,
       options?: { headers?: Record<string, string | null> },
@@ -31,9 +34,10 @@ export function createBrowserbaseExtensionClient(
   const browserbase = createSdk(apiKey);
   return {
     async uploadExtension(archivePath) {
-      const extension = await browserbase.extensions.create({
-        file: createReadStream(archivePath),
-      });
+      const extension = await browserbase.extensions.create(
+        { file: createReadStream(archivePath) },
+        { maxRetries: 0 },
+      );
       return { id: extension.id };
     },
     async deleteExtension(extensionId) {
@@ -44,16 +48,54 @@ export function createBrowserbaseExtensionClient(
   };
 }
 
+/**
+ * Upload attempts and the pause between them. Many Stagehand sessions
+ * launching at once each upload the same archive; Browserbase rejects part
+ * of such a burst, and one rejection used to kill the session for good.
+ */
+const UPLOAD_ATTEMPTS = 4;
+const UPLOAD_BACKOFF_MS = [500, 1500, 4000];
+
+export type ProvisionBrowserbaseExtensionOptions = {
+  attempts?: number;
+  /** Test seam; defaults to a real delay. */
+  sleep?: (ms: number) => Promise<void>;
+};
+
 export async function provisionBrowserbaseExtension(
   client: BrowserbaseExtensionClient,
   archivePath = STAGEHAND_EXTENSION_ARCHIVE_PATH,
+  options: ProvisionBrowserbaseExtensionOptions = {},
 ): Promise<ProvisionedBrowserbaseExtension> {
-  let uploaded: { id: string };
+  const attempts = options.attempts ?? UPLOAD_ATTEMPTS;
+  if (!Number.isInteger(attempts) || attempts < 1 || attempts > UPLOAD_ATTEMPTS) {
+    throw new Error(`attempts must be an integer between 1 and ${UPLOAD_ATTEMPTS}`);
+  }
+  const sleep = options.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  let uploaded: { id: string } | undefined;
+  let lastError: unknown;
+  let attemptsMade = 0;
 
-  try {
-    uploaded = await client.uploadExtension(archivePath);
-  } catch (error) {
-    throw new Error("Failed to upload the Stagehand extension to Browserbase", { cause: error });
+  for (let attempt = 0; attempt < attempts && uploaded === undefined; attempt += 1) {
+    attemptsMade += 1;
+    try {
+      uploaded = await client.uploadExtension(archivePath);
+    } catch (error) {
+      lastError = error;
+      // Retry an explicit rate-limit rejection only. A transport/server error
+      // may follow a successful create whose ID we never received.
+      if (!error || typeof error !== "object" || !("status" in error) || error.status !== 429)
+        break;
+      if (attempt + 1 < attempts) {
+        await sleep(UPLOAD_BACKOFF_MS[Math.min(attempt, UPLOAD_BACKOFF_MS.length - 1)]!);
+      }
+    }
+  }
+  if (uploaded === undefined) {
+    throw new Error(
+      `Failed to upload the Stagehand extension to Browserbase after ${attemptsMade} attempt(s).`,
+      { cause: lastError },
+    );
   }
 
   const extensionId = uploaded.id.trim();
