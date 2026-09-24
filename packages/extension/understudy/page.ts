@@ -207,6 +207,7 @@ export class Page {
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
+  private readonly earlyWebMCPResponses = new Map<string, Protocol.WebMCP.ToolRespondedEvent>();
   private readonly webMCPResponseSessions = new Map<CDPSessionLike, WebMCPResponseSessionState>();
   private readonly webMCPToolSessions = new Map<CDPSessionLike, WebMCPToolSessionState>();
   private readonly webMCPToolsChanged = new Set<() => void>();
@@ -220,7 +221,11 @@ export class Page {
     event: Protocol.WebMCP.ToolRespondedEvent,
   ): void {
     const record = this.webMCPInvocations.get(event.invocationId);
-    if (!record || record.session !== session || record.result !== undefined) return;
+    if (!record) {
+      this.earlyWebMCPResponses.set(event.invocationId, event);
+      return;
+    }
+    if (record.session !== session || record.result !== undefined) return;
 
     const result = webMCPToolResponse(event);
     record.result = result;
@@ -1035,12 +1040,25 @@ export class Page {
       this.removeWebMCPResponseListenerIfIdle(session);
       throw error;
     }
-    this.webMCPInvocations.set(response.invocationId, {
+    const invocationRecord: WebMCPInvocationRecord = {
       descriptor,
       session,
       deferred: createDeferred<WebMCPToolResponse>(),
-    });
+    };
+    this.webMCPInvocations.set(response.invocationId, invocationRecord);
     responseState.invocationIds.add(response.invocationId);
+
+    const earlyEvent = this.earlyWebMCPResponses.get(response.invocationId);
+    if (earlyEvent !== undefined) {
+      this.earlyWebMCPResponses.delete(response.invocationId);
+      const result = webMCPToolResponse(earlyEvent);
+      invocationRecord.result = result;
+      invocationRecord.deferred.resolve(result);
+      invocationRecord.retentionTimer = setTimeout(() => {
+        this.removeWebMCPInvocation(response.invocationId, invocationRecord);
+      }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
+    }
+
     return descriptor;
   }
 
