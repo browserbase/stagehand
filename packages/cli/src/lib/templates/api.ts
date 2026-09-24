@@ -9,6 +9,7 @@ export interface Template {
   description?: string;
   descriptionTitle?: string;
   source?: string;
+  sourcePath?: string;
   category: string[];
   tags: string[];
   commands: string[];
@@ -176,6 +177,7 @@ function parseTemplate(payload: unknown, context: string): Template {
       "descriptionTitle",
     ),
     source: optionalString(payload.source, context, "source"),
+    sourcePath: optionalString(payload.sourcePath, context, "sourcePath"),
     category: optionalStringArray(payload.category, context, "category"),
     tags: optionalStringArray(payload.tags, context, "tags"),
     commands: optionalStringArray(payload.commands, context, "commands"),
