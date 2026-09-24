@@ -222,8 +222,9 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 	}
 	callContext := ctx
 	cancel := func() {}
-	if timeout, ok := rpcResponseTimeout(method, encodedParams); ok {
-		callContext, cancel = context.WithTimeout(ctx, timeout)
+	responseTimeout, bounded := rpcResponseTimeout(method, encodedParams)
+	if bounded {
+		callContext, cancel = context.WithTimeout(ctx, responseTimeout)
 	}
 	defer cancel()
 
@@ -255,7 +256,7 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 			return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
 		}
 		if callContext.Err() != nil {
-			return fmt.Errorf("RPC response timed out: %s: %w", method, callContext.Err())
+			return fmt.Errorf("RPC response timed out after %s: %s: %w", responseTimeout, method, callContext.Err())
 		}
 		return fmt.Errorf("send RPC request for %s: %w", method, err)
 	}
@@ -273,7 +274,7 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 		if ctx.Err() != nil {
 			return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
 		}
-		return fmt.Errorf("RPC response timed out: %s: %w", method, callContext.Err())
+		return fmt.Errorf("RPC response timed out after %s: %s: %w", responseTimeout, method, callContext.Err())
 	}
 }
 

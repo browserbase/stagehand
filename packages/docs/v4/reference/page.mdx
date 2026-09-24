@@ -659,7 +659,7 @@ const pdf = await page.pdf({
 
   <ParamField path="options.timeout" type="number" optional>
     Maximum capture wait in milliseconds, including time queued behind another capture.
-    Defaults to `30000`; `0` disables the deadline.
+    Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
   </ParamField>
 </ParamField>
 
@@ -1402,7 +1402,7 @@ All measurements are in inches.
 
 <ParamField path="timeout" type="float | None" optional>
   Maximum capture wait in milliseconds, including time queued behind another capture.
-  Defaults to `30000`; `0` disables the deadline.
+  Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
 </ParamField>
 
 <ResponseField name="result" type="bytes">
@@ -2201,7 +2201,8 @@ if err := os.WriteFile("page.pdf", pdf, 0o644); err != nil {
 
   <ParamField path="options.Timeout" type="*float64" optional>
     Maximum capture wait in milliseconds, including time queued behind another capture.
-    Defaults to `30000`; `0` disables the deadline. The caller's context can end the wait earlier.
+    Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
+    The caller's context can end the wait earlier.
   </ParamField>
 </ParamField>
 

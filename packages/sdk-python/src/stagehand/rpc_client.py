@@ -208,7 +208,8 @@ class RPCClient:
             tracestate=trace_context.get("tracestate"),
         )
 
-        response_timeout = asyncio.timeout(_rpc_response_timeout_seconds(method, parsed_params))
+        response_timeout_seconds = _rpc_response_timeout_seconds(method, parsed_params)
+        response_timeout = asyncio.timeout(response_timeout_seconds)
         try:
             try:
                 async with response_timeout:
@@ -220,8 +221,10 @@ class RPCClient:
                     )
                     return await response
             except TimeoutError as error:
-                if response_timeout.expired():
-                    raise TimeoutError(f"RPC response timed out: {method}") from error
+                if response_timeout.expired() and response_timeout_seconds is not None:
+                    raise TimeoutError(
+                        f"RPC response timed out after {response_timeout_seconds:g}s: {method}"
+                    ) from error
                 raise
         finally:
             self._pending.pop(request_id, None)

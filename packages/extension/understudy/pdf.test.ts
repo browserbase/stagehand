@@ -1,6 +1,6 @@
 import { trace } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TimeoutError } from "../errors.js";
+import { CaptureRecoveryError, TimeoutError } from "../errors.js";
 import { StagehandLogger } from "../logger.js";
 import { CdpConnection, type CDPSessionLike } from "./cdp.js";
 import { Page } from "./page.js";
@@ -146,11 +146,14 @@ describe("Page.pdf", () => {
       const error = await pdf;
       expect(error).toBeInstanceOf(TimeoutError);
       expect(error).toMatchObject({ message: "pdf timed out after 30000ms" });
-      expect(await queued).toMatchObject({
-        message: "pdf: a previous timed-out capture is still recovering",
+      const recoveryError = await queued;
+      expect(recoveryError).toBeInstanceOf(CaptureRecoveryError);
+      expect(recoveryError).toMatchObject({
+        message: "A previous capture is still recovering: pdf timed out after 30000ms",
       });
-      await expect(page.pdf()).rejects.toThrow(/still recovering/);
-      await expect(page.screenshot({ caret: "initial" })).rejects.toThrow(/still recovering/);
+      expect((recoveryError as Error).cause).toBe(error);
+      await expect(page.pdf()).rejects.toBe(recoveryError);
+      await expect(page.screenshot({ caret: "initial" })).rejects.toBe(recoveryError);
       await expect(otherPage.screenshot({ caret: "initial" })).resolves.toEqual(
         new Uint8Array([1]),
       );

@@ -16,6 +16,7 @@ import {
   rpcResponseTimeoutMs,
   type CDPTransport,
 } from "../src/rpcClient.js";
+import { RPCResponseTimeoutError } from "../src/timeouts.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -387,25 +388,52 @@ describe("RPCClient", () => {
     });
   });
 
-  it("times out an ordinary JSON-RPC response after the internal grace period", async () => {
-    vi.useFakeTimers();
-    const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp);
+  it.each([
+    {
+      method: StagehandMethods.contextPages.name,
+      send: (client: RPCClient) => client.send(StagehandMethods.contextPages, {}),
+      timeoutMs: 10_000,
+    },
+    {
+      method: StagehandMethods.pagePDF.name,
+      send: (client: RPCClient) => client.send(StagehandMethods.pagePDF, { pageId: "page-1" }),
+      timeoutMs: 40_000,
+    },
+    {
+      method: StagehandMethods.pagePDF.name,
+      send: (client: RPCClient) =>
+        client.send(StagehandMethods.pagePDF, { pageId: "page-1", options: { timeout: 250 } }),
+      timeoutMs: 10_250,
+    },
+  ])(
+    "reports the computed $timeoutMs ms deadline for $method",
+    async ({ method, send, timeoutMs }) => {
+      vi.useFakeTimers();
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
 
-    try {
-      const request = client.send(StagehandMethods.contextPages, {});
-      const rejection = expect(request).rejects.toThrow("RPC response timed out: context.pages");
-      await vi.advanceTimersByTimeAsync(9_999);
+      try {
+        const request = send(client);
+        const rejection = expect(request).rejects.toBeInstanceOf(RPCResponseTimeoutError);
+        await vi.advanceTimersByTimeAsync(timeoutMs - 1);
 
-      expect(client.pending.size).toBe(1);
-      await vi.advanceTimersByTimeAsync(1);
-      await rejection;
-      expect(client.pending.size).toBe(0);
-    } finally {
-      client.close();
-      vi.useRealTimers();
-    }
-  });
+        expect(client.pending.size).toBe(1);
+        await vi.advanceTimersByTimeAsync(1);
+        await rejection;
+        await expect(request).rejects.toMatchObject({
+          name: "RPCResponseTimeoutError",
+          message: `RPC response timed out after ${timeoutMs}ms: ${method}`,
+          method,
+          timeoutMs,
+          cause: { method, timeoutMs },
+        });
+        expect(client.pending.size).toBe(0);
+      } finally {
+        client.close();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it.each([
     [StagehandMethods.pageGoto.name, 25_000],
@@ -504,7 +532,9 @@ describe("RPCClient", () => {
 
     try {
       const request = client.send(method, params);
-      const rejection = expect(request).rejects.toThrow(`RPC response timed out: ${method.name}`);
+      const rejection = expect(request).rejects.toThrow(
+        `RPC response timed out after 40000ms: ${method.name}`,
+      );
       await vi.advanceTimersByTimeAsync(39_999);
 
       expect(client.pending.size).toBe(1);

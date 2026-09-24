@@ -585,8 +585,12 @@ async def test_response_timeout_and_transport_close_reject_pending_requests(
     timeout_transport = QueueTransport()
     timeout_client = RPCClient(timeout_transport)
     try:
-        with pytest.raises(TimeoutError, match=r"RPC response timed out: test\.request"):
+        with pytest.raises(
+            TimeoutError, match=r"RPC response timed out after 0\.05s: test\.request"
+        ) as raised:
             await timeout_client.send("test.request", models.EmptyParams(), RPCResult)
+        assert isinstance(raised.value.__cause__, TimeoutError)
+        assert not timeout_client._pending
     finally:
         await timeout_client.close()
 
@@ -598,6 +602,44 @@ async def test_response_timeout_and_transport_close_reject_pending_requests(
     with pytest.raises(RuntimeError, match="transport reader failed"):
         await call
     await asyncio.wait_for(failing_transport.closed.wait(), timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_pdf_timeout_reports_the_operation_deadline_plus_grace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 50)
+    client = RPCClient(QueueTransport())
+    try:
+        with pytest.raises(
+            TimeoutError, match=r"RPC response timed out after 0\.055s: page\.pdf"
+        ) as raised:
+            await client.send(
+                "page.pdf",
+                models.PagePDFParams(page_id="page-1", options=models.PagePDFOptions(timeout=5)),
+                models.PagePDFResult,
+            )
+        assert isinstance(raised.value.__cause__, TimeoutError)
+        assert not client._pending
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_pdf_caller_cancellation_is_not_converted_to_a_response_timeout() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(
+        client.send("page.pdf", models.PagePDFParams(page_id="page-1"), models.PagePDFResult)
+    )
+    try:
+        await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        call.cancel("caller canceled")
+        with pytest.raises(asyncio.CancelledError, match="caller canceled"):
+            await call
+        assert not client._pending
+    finally:
+        await client.close()
 
 
 def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() -> None:

@@ -1,4 +1,4 @@
-import { TimeoutError } from "../errors.js";
+import { CaptureRecoveryError, TimeoutError } from "../errors.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { DeepLocatorDelegate } from "./deepLocator.js";
@@ -31,11 +31,10 @@ export async function withScreenshotLock<T>(
     typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
       ? setTimeout(
           () => {
-            controller.abort(new TimeoutError(operation, timeout));
+            const error = new TimeoutError(operation, timeout);
+            controller.abort(error);
             if (started) {
-              queue.blocked.abort(
-                new Error(`${operation}: a previous timed-out capture is still recovering`),
-              );
+              queue.blocked.abort(new CaptureRecoveryError(error));
             }
           },
           Math.min(timeout, 2_147_483_647),

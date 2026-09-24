@@ -24,7 +24,11 @@ import type {
   UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
-import { DuplicatePageEventSubscriptionError } from "../errors.ts";
+import {
+  CaptureRecoveryError,
+  DuplicatePageEventSubscriptionError,
+  TimeoutError,
+} from "../errors.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
   ContextSetExtraHTTPHeadersParams,
@@ -2143,6 +2147,31 @@ describe("Stagehand worker clients", () => {
       },
     ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+  });
+
+  it("preserves the recovery error type and original PDF deadline over RPC", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    vi.spyOn(page, "pdf").mockRejectedValue(
+      new CaptureRecoveryError(new TimeoutError("pdf", 30_000)),
+    );
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 33,
+        method: "page.pdf",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 33,
+      error: {
+        code: -32603,
+        message: "A previous capture is still recovering: pdf timed out after 30000ms",
+        data: { name: "CaptureRecoveryError" },
+      },
+    });
   });
 
   it("routes WebMCP discovery and invocation operations through the owning page", async () => {
