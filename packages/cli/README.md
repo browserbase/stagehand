@@ -267,6 +267,47 @@ browse templates clone google-trends-keywords
 browse templates clone amazon-product-scraping --language python ./my-scraper
 ```
 
+## Common list behavior (opt-in)
+
+Existing commands keep their current output shapes and limits. Use `--list-version 2`
+to opt into shared collection behavior on `cloud projects list`, `cloud sessions list`,
+`cloud contexts list`, `cloud secrets list`, `functions secrets list`, and
+`skills` / `templates` `list` and `find`.
+
+```bash
+browse cloud sessions list --list-version 2 --limit 10 --json
+browse cloud secrets list --list-version 2 --all --format table
+browse functions secrets list <functionId> --list-version 2 --limit 50 --json
+browse templates find scraping --list-version 2 --limit 5 --wide
+```
+
+- `--limit N` is a total record limit in every output format; the default is 20.
+- `--all` removes that limit and follows available API cursors. It cannot be combined
+  with `--limit`.
+- `--format table|json`, `--json`, and `--wide` work across these commands. The default
+  is table output in a terminal and JSON when piped. Exact `find` matches also use
+  collection output in version 2.
+- JSON always has `{ "data": [...], "hasMore": true|false|null, "nextCursor": string|null }`.
+  Table output uses common empty and continuation messages with resource-specific columns.
+- `hasMore: true` means more records are known to exist; `false` means the source was
+  exhausted; `null` means the API does not expose completeness. Sessions use `null`
+  after all returned records are shown: `--all` cannot promise the entire session history.
+- Only the two secrets lists support `--cursor`. Resume from `nextCursor` with the same
+  filters. The token always follows the last emitted record; a total limit can span
+  multiple API pages. Array sources have no resume token even when output is truncated.
+- A pagination failure exits unsuccessfully without printing a partial collection.
+  Context lists cover locally saved aliases only.
+
+Version 1 remains the default, including existing JSON envelopes, JSON output that
+ignores table-only limits, and single-page secrets results. New collection-only flags
+require version 2 where the command did not already support them. No existing command
+or flag is removed. This opt-in is intended for a minor release; changing the default
+requires a separate compatibility decision.
+
+This initial collection adapter does not change ranked `cloud search` results (the
+API exposes a capped result set without pagination), browser-driver `tab list`, or
+non-collection commands such as logs and downloads.
+
 ## Configuration
 
 Set your Browserbase API key to enable remote sessions and cloud commands:

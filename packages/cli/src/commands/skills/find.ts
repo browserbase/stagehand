@@ -1,5 +1,11 @@
 import { Args, Flags } from "@oclif/core";
 
+import {
+  collectionVersionFlag,
+  usesCollectionContract,
+  outputCollection,
+  validateCollectionFlags,
+} from "../../lib/collections.js";
 import { BrowseCommand } from "../../base.js";
 import {
   outputFormatFlags,
@@ -35,12 +41,14 @@ export default class SkillsFind extends BrowseCommand {
 
   static override flags = {
     ...outputFormatFlags,
+    ...collectionVersionFlag,
     all: Flags.boolean({
-      description: "Show all matching skills in table output.",
+      description:
+        "Show all matching skills (all output formats in version 2).",
     }),
     limit: Flags.integer({
-      default: 25,
-      description: "Maximum matching skills to show in table output.",
+      description:
+        "Maximum matches: table rows in version 1 (default 25), records in version 2 (default 20).",
       helpValue: "<count>",
       min: 1,
     }),
@@ -48,10 +56,25 @@ export default class SkillsFind extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(SkillsFind);
+    if (usesCollectionContract(flags)) validateCollectionFlags(flags);
     const skills = prioritizeExactSkillMatch(
       await listCatalogSkills({ query: args.query }),
       args.query,
     );
+
+    if (usesCollectionContract(flags)) {
+      await outputCollection({
+        flags,
+        source: { kind: "array", complete: true, load: async () => skills },
+        table: (items) =>
+          outputSkillTable(items, {
+            limit: items.length,
+            wide: flags.wide,
+            footer: false,
+          }),
+      });
+      return;
+    }
 
     const outputFormat = resolveOutputFormat(flags);
     if (outputFormat === "json") {
@@ -67,7 +90,7 @@ export default class SkillsFind extends BrowseCommand {
 
     outputSkillTable(skills, {
       heading: `Skills matching "${args.query}"`,
-      limit: flags.all ? skills.length : flags.limit,
+      limit: flags.all ? skills.length : (flags.limit ?? 25),
       wide: flags.wide,
     });
   }

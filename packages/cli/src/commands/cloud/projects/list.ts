@@ -1,4 +1,12 @@
 import {
+  collectionVersionFlag,
+  collectionLimitFlags,
+  usesCollectionContract,
+  outputCollection,
+  validateCollectionFlags,
+  requireCollectionVersion,
+} from "../../../lib/collections.js";
+import {
   createBrowserbaseClient,
   outputJson,
   withBrowserbaseApi,
@@ -27,13 +35,29 @@ export default class ProjectsList extends BrowseCommand {
     "browse cloud projects list",
     "browse cloud projects list --json",
   ];
-  static override flags = { ...apiCommonFlags, ...outputFormatFlags };
+  static override flags = {
+    ...apiCommonFlags,
+    ...outputFormatFlags,
+    ...collectionVersionFlag,
+    ...collectionLimitFlags,
+  };
 
   async run(): Promise<void> {
     const { flags } = await this.parse(ProjectsList);
+    if (usesCollectionContract(flags)) validateCollectionFlags(flags);
+    else requireCollectionVersion(flags, ["limit", "all"]);
     await withBrowserbaseApi("projects", async () => {
       const client = createBrowserbaseClient(toApiOptions(flags));
       const projects = (await client.projects.list()) as BrowserbaseProject[];
+      if (usesCollectionContract(flags)) {
+        await outputCollection({
+          flags,
+          source: { kind: "array", complete: true, load: async () => projects },
+          table: (items) => outputProjectsTable(items, { wide: flags.wide }),
+        });
+        return;
+      }
+
       if (resolveOutputFormat(flags) === "json") {
         outputJson(projects);
         return;
