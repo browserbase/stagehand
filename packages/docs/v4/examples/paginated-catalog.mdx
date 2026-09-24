@@ -1,133 +1,85 @@
 ---
-title: "Extract a paginated catalog"
-description: "Collect typed records across an unknown number of pages with extract, observe, and act."
+title: "Export a paginated book catalog"
+description: "Collect every Books to Scrape result across pages with extract, observe, and act."
 ---
+
+## Goal and output
+
+Export the [Books to Scrape](https://books.toscrape.com/) catalog into `out/catalog.json`. Each entry has a nonempty title, displayed price, and availability. The file also reports `pages` and `count`. A page limit or broken pagination fails before writing a partial file.
 
 ## Agent prompt
 
-Copy this prompt into your coding agent. Have it adapt the storage layer, schema, and target site to your application.
+<Prompt description="Export a complete paginated catalog with Stagehand." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/paginated-catalog` to my catalog. Launch a Browserbase cloud browser. Extract a typed list from every page; use `observe()` to find the enabled Next link and pass its returned Action directly to `act()`. Stop when no Next action exists. Reject empty records, repeated URLs, failed actions, a Next click that does not navigate, and a page limit reached before the end. Write the JSON only after the final page. Begin with the runnable folder and keep its validation and cleanup.
+</Prompt>
 
-```text
-Add a paginated Stagehand v4 extraction job to this project.
+## Prerequisites and inputs
 
-Requirements:
-- Use @browserbasehq/stagehand and Zod 4.
-- Extract every visible record on the current page into a typed schema.
-- Discover the next-page control with observe(). Pass the returned Action
-  directly to act() so Stagehand does not locate the same control twice.
-- Stop when observe() returns no next-page action.
-- Track visited URLs and fail if pagination cycles.
-- Write each completed page through the project's existing persistence layer.
-- Close Stagehand and the browser in finally blocks.
+- Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. These folders use OpenAI as the example model provider. Set `MODEL_PROVIDER=gateway` to use [Browserbase Model Gateway](/v4/configuration/models#model-gateway) without a separate model key, or adapt the [model configuration](/v4/configuration/models) for another provider.
+- `CATALOG_URL` defaults to `https://books.toscrape.com/`. `MAX_PAGES` defaults to 50 and must be a positive integer.
+- TypeScript needs Node.js 22.18+ and pnpm; Python needs Python 3.11+ and uv; Go needs Go 1.26+.
 
-Do not guess a page count or build selectors from the current HTML.
+## Check out and run
 
-Verify with a multi-page fixture, a single-page fixture, and a fixture whose
-next link points back to an already visited URL.
-```
+The source is [`packages/examples/paginated-catalog`](https://github.com/browserbase/stagehand/tree/main/packages/examples/paginated-catalog). Clone this folder with the [overview command](/v4/examples/overview#check-out-one-job), then run one version:
 
-**Goal:** Collect a typed catalog when the number and shape of pages can change.
-
-**Outcome:** A bounded loop that extracts each page once, follows the site's own pagination control, and fails clearly on a cycle.
-
-## Stack
-
-- Node.js 24 or newer
-- `@browserbasehq/stagehand`
-- Zod 4
-- Browserbase
-
-## Set up the project
-
+<Tabs>
+<Tab title="TypeScript">
 ```bash
-mkdir stagehand-pagination && cd stagehand-pagination
-pnpm init -y
-pnpm add @browserbasehq/stagehand zod@4.4.3
+cd packages/examples/paginated-catalog/typescript
+cp .env.example .env
+pnpm install
+pnpm start
 ```
+</Tab>
+<Tab title="Python">
+```bash
+cd packages/examples/paginated-catalog/python
+cp .env.example .env
+uv sync
+uv run python main.py
+```
+</Tab>
+<Tab title="Go">
+```bash
+cd packages/examples/paginated-catalog/go
+cp .env.example .env
+set -a; . ./.env; set +a
+go run .
+```
+</Tab>
+</Tabs>
 
-Set `BROWSERBASE_API_KEY`, then create `index.ts`:
+## How the job works
+
+1. Launch one cloud browser and navigate to `CATALOG_URL`. Keep the same page for all extraction and navigation calls.
+2. Check the current URL against a visited set. Extract all visible books into a typed schema with nonempty fields.
+3. Ask `observe()` for the enabled Next link. If it returns no action, the catalog is complete. Otherwise, pass the returned Action to `act()` and require a new URL.
+4. Fail at `MAX_PAGES` when a Next action still exists. Write the file only after natural completion, then close Stagehand and the browser.
+
+The extraction schema checks each page before the code looks for Next:
 
 ```typescript
-import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod/v4";
+const result = await stagehand.extract(
+  "Extract every book in the product grid with its title, price, and availability.",
+  pageSchema,
+  { page },
+);
+books.push(...pageSchema.parse(result.data).books);
 
-const catalogSchema = z.object({
-  books: z.array(
-    z.object({
-      title: z.string(),
-      price: z.string(),
-      availability: z.string(),
-    }),
-  ),
-});
+const next = (await stagehand.observe(
+  "Find the enabled Next pagination link. Return no action on the last page.",
+  { page },
+)).data[0];
 
-const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
-if (!browserbaseApiKey) throw new Error("BROWSERBASE_API_KEY is required");
-
-const browser = await browserbase.launch({
-  apiKey: browserbaseApiKey,
-});
-
-try {
-  const stagehand = await Stagehand.create({ browser });
-  try {
-    const page = await browser.context.activePage();
-    if (!page) throw new Error("No active page");
-
-    await page.goto(
-      "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html",
-    );
-
-    const books: z.infer<typeof catalogSchema>["books"] = [];
-    const visited = new Set<string>();
-
-    while (true) {
-      const url = await page.url();
-      if (visited.has(url)) throw new Error(`Pagination loop detected at ${url}`);
-      visited.add(url);
-
-      const result = await stagehand.extract(
-        "Extract every book shown in the product grid. Keep each price exactly as displayed.",
-        catalogSchema,
-        { page },
-      );
-      books.push(...result.data.books);
-
-      const next = await stagehand.observe(
-        "Find the pagination control that opens the next page. Return no actions if it is disabled or absent.",
-        { page },
-      );
-      const nextAction = next.data[0];
-      if (!nextAction) break;
-
-      await stagehand.act(nextAction, { page });
-      await page.waitForLoadState("domcontentloaded");
-    }
-
-    console.log(JSON.stringify({ count: books.length, books }, null, 2));
-  } finally {
-    await stagehand.close();
+if (next) {
+  const acted = await stagehand.act(next, { page });
+  if (!acted.data.success) {
+    throw new Error(acted.data.message);
   }
-} finally {
-  await browser.close();
 }
 ```
 
-Run it:
+## Expected result and failure checks
 
-```bash
-export BROWSERBASE_API_KEY="bb_live_..."
-pnpm dlx tsx index.ts
-```
-
-## Why this works
-
-The script does not guess how many pages exist. `observe()` returns the concrete next-page action, and `act(nextAction)` replays that exact action. The visited-URL guard turns a broken or cyclic paginator into a clear error instead of an endless job.
-
-For a large catalog, write each page to your database inside the loop instead of retaining every record in memory.
-
-## Check your work
-
-- The final `count` matches the number of returned book objects.
-- No URL appears twice in the run.
-- The loop stops when the next-page control disappears.
+A completed run prints `Saved N books from P pages to out/catalog.json`. The file contains `pages`, `count`, and `books`; `count` equals the array length. Set `MAX_PAGES=1` against a multipage catalog to confirm the limit fails without producing output. A one-page fixture stops when Next is absent. A cycle or unchanged URL fails instead of looping.

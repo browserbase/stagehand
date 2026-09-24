@@ -1,0 +1,59 @@
+---
+title: "Save extracted files to a bucket"
+description: "Extract book data with Stagehand, download a cover, and upload both with Files SDK."
+---
+
+## Goal and output
+
+Read the first page of [Books to Scrape](https://books.toscrape.com/) in a Browserbase cloud browser. Stagehand extracts book data, and the job downloads the first cover as bytes. It always writes `out/catalog.json` and `out/cover.jpg`; when `S3_BUCKET` is set, Files SDK uploads both objects to that bucket. Bucket credentials stay in the server process, outside the browser.
+
+## Agent prompt
+
+<Prompt description="Connect Stagehand extraction to Files SDK storage." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/files-to-bucket` to my target page and S3-compatible bucket. Use a Browserbase cloud browser. Extract a validated book catalog, download a real cover image, and write JSON and image bytes locally. If `S3_BUCKET` is set, upload both through Files SDK's S3 adapter. Keep bucket credentials in the server process. Fail on empty extraction or an unsuccessful or empty download. Start from the runnable folder and preserve cleanup on failure.
+</Prompt>
+
+## Prerequisites and inputs
+
+Use Node.js 22.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. This folder uses OpenAI; see [model configuration](/v4/configuration/models) to use another provider. For upload, set `S3_BUCKET` and credentials supported by the AWS credential chain. `AWS_REGION` defaults to `us-east-1`, `S3_PREFIX` defaults to `stagehand-examples/files-to-bucket`, and `S3_ENDPOINT` can target an S3-compatible service. Without `S3_BUCKET`, the job stops after local output.
+
+## Check out and run
+
+The source is [`packages/examples/files-to-bucket`](https://github.com/browserbase/stagehand/tree/main/packages/examples/files-to-bucket). Clone it with the [overview command](/v4/examples/overview#check-out-one-job):
+
+```bash
+cd packages/examples/files-to-bucket/typescript
+cp .env.example .env
+pnpm install
+pnpm start
+```
+
+## How the job works
+
+1. Launch Browserbase and create Stagehand with an explicit OpenAI model. Open the catalog page and `extract()` titles, prices, and cover URLs into a nonempty schema.
+2. Resolve the first cover URL against the page URL, download it, and reject an unsuccessful or empty response.
+3. Write JSON and cover bytes under `out/`. When `S3_BUCKET` exists, create a Files SDK `s3()` adapter and upload the same bytes.
+4. Close Stagehand and the browser in `finally` blocks. Storage credentials are read only by the server-side adapter.
+
+The extraction runs in the browser. Files SDK receives the validated JSON in the server process:
+
+```typescript
+const extracted = await stagehand.extract(
+  "Extract each book with its title, price, and cover image URL.",
+  catalogSchema,
+  { page },
+);
+
+const validated = catalogSchema.parse(extracted.data);
+const files = new Files({ adapter: s3({ bucket, region }) });
+
+await files.upload(`${prefix}/catalog.json`, catalogJson, {
+  contentType: "application/json",
+});
+```
+
+The runnable folder includes the download, local writes, optional bucket branch, and cleanup. The S3 adapter's upload shape follows [Files SDK](https://files-sdk.dev/).
+
+## Expected result and failure checks
+
+`out/catalog.json` contains at least one book, and `out/cover.jpg` has nonzero bytes. Without `S3_BUCKET`, the CLI reports that upload was skipped. With it, the two objects appear under `S3_PREFIX`. An invalid page result, failed download, or upload error exits nonzero and still closes the browser.

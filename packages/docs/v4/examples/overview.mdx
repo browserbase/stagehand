@@ -1,51 +1,31 @@
 ---
-title: "Examples"
+title: "Stagehand examples"
 sidebarTitle: "Overview"
-description: "End-to-end Stagehand recipes for agents and developers using the tools and frameworks they already have."
+description: "Runnable Stagehand examples with prompts, setup instructions, and source code."
 ---
 
-These are complete Stagehand programs built with common tools and frameworks. The integration pages explain how to connect a stack. These examples show what to build after that.
+Stagehand examples show how to use the SDK to complete browser tasks and connect Stagehand to other tools. Each example page includes a prompt you can give to a coding agent, setup and run instructions, an explanation of the approach, and checks for common failures. The matching source folder contains the runnable project.
 
-When Codex, Claude Code, or another coding agent searches the Stagehand docs, these pages provide working patterns with code, inputs, and checks.
+Browse the examples in the navigation, then choose the language and setup described on that page. Examples may use different browser types, model providers, and integrations. See [model configuration](/v4/configuration/models) for provider options.
 
-Each recipe defines when the job stops, how it cleans up, and what to check after you adapt it.
+| Example | Use it when | Inputs | Output | Stagehand methods | Languages |
+| --- | --- | --- | --- | --- | --- |
+| [Approve a form submission](/v4/examples/approve-form-submission) | A browser action needs human consent | Test form values, approval answer | Submitted URL or a clear rejection | `act()` | TypeScript, Python, Go |
+| [Export a paginated book catalog](/v4/examples/paginated-catalog) | The number of result pages is unknown | Catalog URL, page limit | Validated `out/catalog.json` | `extract()`, `observe()`, `act()` | TypeScript, Python, Go |
+| [Save extracted files to a bucket](/v4/examples/files-to-bucket) | Extracted page data and downloaded bytes must reach object storage | Target page, optional S3 bucket | Local JSON and cover, optional bucket objects | `extract()` | TypeScript |
+| [Build an AI SDK research agent](/v4/examples/ai-sdk-research-agent) | An agent must research approved pages and cite sources | Research question, approved URLs | Typed report with source URLs | `extract()` | TypeScript |
+| [Smoke-test WebMCP](/v4/examples/webmcp-smoke-test) | A preview page registers tools for browser agents | Preview URL, tool name, tool input | Completed invocation or nonzero failure | `page.tools()` | TypeScript, Python, Go |
 
-## Data extraction
+## Run an example
 
-<CardGroup cols={2}>
-  <Card title="Extract a paginated catalog" href="/v4/examples/paginated-catalog">
-    Combine extract, observe, and act to collect an unknown number of pages.
-  </Card>
-</CardGroup>
+Choose an example folder in [`packages/examples`](https://github.com/browserbase/stagehand/tree/main/packages/examples), then check out that folder:
 
-## Multi-page workflows
+```bash
+git clone --depth 1 --sparse https://github.com/browserbase/stagehand.git
+cd stagehand
+git sparse-checkout set packages/examples/<example-name>
+```
 
-<CardGroup cols={2}>
-  <Card title="Compare pages in parallel" href="/v4/examples/compare-pages-in-parallel">
-    Keep each extraction bound to its own tab while the work runs concurrently.
-  </Card>
-</CardGroup>
+Open the example's README or docs page for its supported languages, required keys, install steps, and run command. Each example folder contains its own source and configuration.
 
-## Vercel AI SDK
-
-<CardGroup cols={2}>
-  <Card title="Build a typed AI SDK research agent" href="/v4/examples/ai-sdk-research-agent">
-    Run a persistent Stagehand browser inside an AI SDK tool loop and validate the final report.
-  </Card>
-</CardGroup>
-
-## Human-in-the-loop
-
-<CardGroup cols={2}>
-  <Card title="Approve before submitting a form" href="/v4/examples/approve-form-submission">
-    Pause an AI SDK tool call before Stagehand performs the final browser side effect.
-  </Card>
-</CardGroup>
-
-## TanStack AI
-
-<CardGroup cols={2}>
-  <Card title="Add Stagehand extraction to TanStack AI" href="/v4/examples/tanstack-ai-extraction-tool">
-    Wrap a one-shot Browserbase extraction as a typed TanStack AI server tool.
-  </Card>
-</CardGroup>
+For individual SDK methods, start with the [Stagehand basics](/v4/basics/act).
