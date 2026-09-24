@@ -91,9 +91,20 @@ func (client *browserbaseSessionClient) createSession(
 			)
 		}
 		if err := extension.validate(); err != nil {
-			return resolvedBrowserSource{}, fmt.Errorf(
-				"validate Browserbase extension upload: %w",
-				err,
+			var cleanupID string
+			if extension.ID != nil {
+				cleanupID = strings.TrimSpace(*extension.ID)
+			}
+			return resolvedBrowserSource{}, errors.Join(
+				fmt.Errorf(
+					"validate Browserbase extension upload: %w",
+					err,
+				),
+				client.deleteExtensionBestEffort(
+					context.WithoutCancel(ctx),
+					cleanupID,
+					cleanupID != "",
+				),
 			)
 		}
 		extensionID = strings.TrimSpace(*extension.ID)
