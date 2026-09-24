@@ -12,6 +12,8 @@ export type OpenAICompatibleOptions = {
   baseURL: string;
   apiKey: string;
   headers?: Record<string, string>;
+  queryParams?: Record<string, string>;
+  extraBody?: Record<string, unknown>;
 };
 
 type ChatContentPart =
@@ -92,21 +94,32 @@ export function openAICompatible(options: OpenAICompatibleOptions): ClientLLM {
   headers.set("authorization", `Bearer ${options.apiKey}`);
   headers.set("content-type", "application/json");
 
+  let endpoint = `${baseURL}/chat/completions`;
+  if (options.queryParams && Object.keys(options.queryParams).length > 0) {
+    const search = new URLSearchParams(options.queryParams).toString();
+    endpoint += (endpoint.includes("?") ? "&" : "?") + search;
+  }
+
   return {
     async generate(params: LLMGenerateParams): Promise<LLMGenerateResult> {
       if (params.responseFormat?.type !== "json_schema") {
         throw new TypeError("Stagehand only issues structured generations");
       }
 
-      const response = await fetch(`${baseURL}/chat/completions`, {
+      const body: Record<string, unknown> = {
+        model: options.model,
+        messages: chatMessages(params),
+        response_format: structuredFormat(params.responseFormat),
+        ...options.extraBody,
+      };
+      if (params.temperature !== undefined && !("temperature" in (options.extraBody ?? {}))) {
+        body.temperature = params.temperature;
+      }
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          model: options.model,
-          messages: chatMessages(params),
-          temperature: params.temperature,
-          response_format: structuredFormat(params.responseFormat),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

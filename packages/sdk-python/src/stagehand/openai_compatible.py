@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import urllib.parse
 from collections.abc import Mapping
 from typing import Any
 from urllib.request import Request, urlopen
@@ -60,10 +61,16 @@ def open_ai_compatible(
     base_url: str,
     api_key: str,
     headers: Mapping[str, str] | None = None,
+    query_params: Mapping[str, str] | None = None,
+    extra_body: Mapping[str, Any] | None = None,
 ) -> LLMGenerateCallback:
     """Return a callback for an OpenAI-compatible Chat Completions endpoint."""
     url = f"{base_url.rstrip('/')}/chat/completions"
+    if query_params:
+        query_string = urllib.parse.urlencode(dict(query_params))
+        url = f"{url}{'&' if '?' in url else '?'}{query_string}"
     extra_headers = dict(headers or {})
+    extra_payload = dict(extra_body or {})
 
     async def generate(params: LLMGenerateInput) -> LLMStructuredGenerateResult:
         if not isinstance(params, LLMStructuredGenerateParams):
@@ -89,8 +96,9 @@ def open_ai_compatible(
             "model": model,
             "messages": messages,
             "response_format": {"type": "json_schema", "json_schema": json_schema},
+            **extra_payload,
         }
-        if params.temperature is not None:
+        if params.temperature is not None and "temperature" not in extra_payload:
             payload["temperature"] = params.temperature
         response = await asyncio.to_thread(_post_json, url, api_key, extra_headers, payload)
         choices = response.get("choices", [])

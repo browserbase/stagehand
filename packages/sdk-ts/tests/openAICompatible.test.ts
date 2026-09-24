@@ -22,6 +22,9 @@ const params: LLMGenerateParams = {
   },
 };
 
+const livePng1x1 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
 describe("openAICompatible", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -80,6 +83,54 @@ describe("openAICompatible", () => {
     });
   });
 
+  it("appends queryParams to the URL and merges extraBody into the payload", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: JSON.stringify({ ok: true }) } }],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const model = openAICompatible({
+      model: "openai/gpt-6-luna",
+      baseURL: "https://ai-gateway.vercel.sh/v1",
+      apiKey: "test-key",
+      queryParams: { "api-version": "2026-01-01" },
+      extraBody: {
+        providerOptions: {
+          gateway: {
+            user: "user-12345",
+            tags: ["team:billing", "env:prod"],
+          },
+        },
+        seed: 42,
+      },
+    });
+
+    await model.generate(params);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://ai-gateway.vercel.sh/v1/chat/completions?api-version=2026-01-01",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      model: string;
+      seed: number;
+      providerOptions: { gateway: { user: string; tags: string[] } };
+    };
+    expect(body.seed).toBe(42);
+    expect(body.providerOptions).toEqual({
+      gateway: {
+        user: "user-12345",
+        tags: ["team:billing", "env:prod"],
+      },
+    });
+  });
+
   it("surfaces a non-OK gateway response", async () => {
     vi.stubGlobal(
       "fetch",
@@ -96,4 +147,45 @@ describe("openAICompatible", () => {
       "OpenAI-compatible request failed (404): model not found",
     );
   });
+
+  it.runIf(Boolean(process.env.AI_GATEWAY_API_KEY))(
+    "live: calls Vercel AI Gateway with gpt-6-luna and extraBody",
+    async () => {
+      const model = openAICompatible({
+        model: process.env.AI_GATEWAY_MODEL || "openai/gpt-6-luna",
+        baseURL: process.env.AI_GATEWAY_BASE_URL || "https://ai-gateway.vercel.sh/v1",
+        apiKey: process.env.AI_GATEWAY_API_KEY!,
+        extraBody: {
+          providerOptions: {
+            gateway: {
+              user: "test-user-live-vitest",
+              tags: ["smoke:vitest", "test:live-luna"],
+            },
+          },
+        },
+      });
+
+      const res = await model.generate({
+        messages: [
+          { role: "user", content: { type: "text", text: "what is on screen?" } },
+          {
+            role: "user",
+            content: [{ type: "image", data: livePng1x1, mimeType: "image/png" }],
+          },
+        ],
+        responseFormat: {
+          type: "json_schema",
+          name: "observation",
+          schema: {
+            type: "object",
+            properties: { status: { type: "string" } },
+            required: ["status"],
+            additionalProperties: false,
+          },
+        },
+      });
+      expect(res.outputFormat).toBe("json_schema");
+      expect(res.structuredContent).toBeDefined();
+    },
+  );
 });

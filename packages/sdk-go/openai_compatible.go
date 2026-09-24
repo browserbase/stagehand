@@ -8,16 +8,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
 // OpenAICompatibleOptions configures an OpenAI-compatible Chat Completions endpoint.
 type OpenAICompatibleOptions struct {
-	Model   string
-	BaseURL string
-	APIKey  string
-	Headers http.Header
-	Client  *http.Client
+	Model       string
+	BaseURL     string
+	APIKey      string
+	Headers     http.Header
+	QueryParams map[string]string
+	ExtraBody   map[string]any
+	Client      *http.Client
 }
 
 type chatContentPart struct {
@@ -93,13 +96,30 @@ func OpenAICompatible(options OpenAICompatibleOptions) LLMGenerateFunc {
 			},
 		}
 		if request.Temperature != nil {
-			payload["temperature"] = *request.Temperature
+			if _, ok := options.ExtraBody["temperature"]; !ok {
+				payload["temperature"] = *request.Temperature
+			}
+		}
+		for k, v := range options.ExtraBody {
+			payload[k] = v
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {
 			return LLMGenerateResult{}, err
 		}
-		httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(options.BaseURL, "/")+"/chat/completions", bytes.NewReader(body))
+		endpoint := strings.TrimRight(options.BaseURL, "/") + "/chat/completions"
+		if len(options.QueryParams) > 0 {
+			values := url.Values{}
+			for k, v := range options.QueryParams {
+				values.Set(k, v)
+			}
+			separator := "?"
+			if strings.Contains(endpoint, "?") {
+				separator = "&"
+			}
+			endpoint += separator + values.Encode()
+		}
+		httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 		if err != nil {
 			return LLMGenerateResult{}, err
 		}
