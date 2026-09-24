@@ -58,6 +58,7 @@ import type {
   PageCloseResult,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
   PageEventName,
   PageAddInitScriptParams,
   PageDragAndDropParams,
@@ -123,7 +124,7 @@ import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runti
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
-import { Page } from "./understudy/page.js";
+import { Page, type WebMCPToolsEvent } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
@@ -183,7 +184,12 @@ export type UnderstudyRuntimePage = {
   subscribeCDPEvent(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
-  ): () => void;
+    signal?: AbortSignal,
+  ): Promise<() => void>;
+  subscribeWebMCPToolsChanged(
+    listener: (event: WebMCPToolsEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
 };
 
 export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
@@ -268,6 +274,7 @@ export type StagehandRuntimeAdapters = {
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
+  emitPageEvent?: (notification: PageEventNotification) => void;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -291,10 +298,17 @@ export function createStagehandRuntime(
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
+      emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
     },
     tracing,
   );
 }
+
+type RuntimePageEventSubscription = {
+  pageId: string;
+  controller: AbortController;
+  dispose?: () => void;
+};
 
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
@@ -305,10 +319,7 @@ export class StagehandRuntime {
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
-  private readonly pageEventSubscriptions = new Map<
-    string,
-    { pageId: string; dispose: () => void }
-  >();
+  private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
@@ -745,6 +756,7 @@ export class StagehandRuntime {
 
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
     const page = this.resolvePage(params.pageId);
+    this.disposePageEventSubscriptions(params.pageId, true);
     await page.close();
     this.disposePageEventSubscriptions(params.pageId);
     this.pagesById.delete(params.pageId);
@@ -752,21 +764,60 @@ export class StagehandRuntime {
     return { closed: true };
   }
 
-  pageOn(params: PageOnParams): PageVoidResult {
+  async pageOn(params: PageOnParams): Promise<PageVoidResult> {
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
       throw new DuplicatePageEventSubscriptionError();
     }
-    const dispose = this.resolvePage(params.pageId).subscribeCDPEvent(params.event, (event) => {
-      this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
-    });
-    this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });
-    return { ok: true };
+    const page = this.resolvePage(params.pageId);
+    const subscription: RuntimePageEventSubscription = {
+      pageId: params.pageId,
+      controller: new AbortController(),
+    };
+    this.pageEventSubscriptions.set(params.subscriptionId, subscription);
+    try {
+      const isActive = () =>
+        this.pageEventSubscriptions.get(params.subscriptionId) === subscription &&
+        !subscription.controller.signal.aborted;
+      switch (params.event) {
+        case "console":
+          subscription.dispose = await page.subscribeCDPEvent(
+            params.event,
+            (event) => {
+              if (!isActive()) return;
+              this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+            },
+            subscription.controller.signal,
+          );
+          break;
+        case "toolsadded":
+        case "toolsremoved":
+          subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
+            if (!isActive() || event.event !== params.event) return;
+            this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+          }, subscription.controller.signal);
+          break;
+        default: {
+          const unsupportedEvent: never = params.event;
+          throw new Error(`Unsupported page subscription event: ${unsupportedEvent}`);
+        }
+      }
+      subscription.controller.signal.throwIfAborted();
+      return { ok: true };
+    } catch (error) {
+      subscription.controller.abort();
+      subscription.dispose?.();
+      if (this.pageEventSubscriptions.get(params.subscriptionId) === subscription) {
+        this.pageEventSubscriptions.delete(params.subscriptionId);
+      }
+      throw error;
+    }
   }
 
   pageOff(params: PageOffParams): PageVoidResult {
     const subscription = this.pageEventSubscriptions.get(params.subscriptionId);
     if (!subscription) return { ok: true };
-    subscription.dispose();
+    subscription.controller.abort();
+    subscription.dispose?.();
     this.pageEventSubscriptions.delete(params.subscriptionId);
     return { ok: true };
   }
@@ -879,6 +930,8 @@ export class StagehandRuntime {
 
     this.stagehandInstanceClosing = true;
     const disposal = this.enqueueLifecycle(async () => {
+      // Pending registrations must release their request leases before disposal can drain them.
+      this.disposeAllPageEventSubscriptions();
       await this.waitForStagehandInstanceRequests();
       this.clearStagehandInstance();
     });
@@ -984,17 +1037,17 @@ export class StagehandRuntime {
     }
   }
 
-  private disposePageEventSubscriptions(pageId: string): void {
+  private disposePageEventSubscriptions(pageId: string, pendingOnly = false): void {
     for (const [subscriptionId, subscription] of this.pageEventSubscriptions) {
       if (subscription.pageId !== pageId) continue;
-      subscription.dispose();
-      this.pageEventSubscriptions.delete(subscriptionId);
+      if (pendingOnly && subscription.dispose) continue;
+      this.pageOff({ subscriptionId });
     }
   }
 
   private disposeAllPageEventSubscriptions(): void {
-    for (const subscription of this.pageEventSubscriptions.values()) subscription.dispose();
-    this.pageEventSubscriptions.clear();
+    for (const subscriptionId of this.pageEventSubscriptions.keys())
+      this.pageOff({ subscriptionId });
   }
 
   registerPage(page: UnderstudyRuntimePage): string {

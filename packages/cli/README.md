@@ -111,7 +111,7 @@ browse highlight @0-12                         # Highlight an element (--duratio
 
 ### Mouse (raw coordinates)
 
-Use these when you need pixel coordinates instead of a ref. Add `--return-xpath` to get the XPath under the cursor.
+Use these when you need pixel coordinates instead of a ref.
 
 ```bash
 browse mouse click 240 320      # Click coordinates (--button, --click-count)

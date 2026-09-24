@@ -499,7 +499,7 @@ if emailField != nil && passwordField != nil {
 `cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
-When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Caching is on by default. Set `cache` on the constructor to change it for the instance, or override it per call:
 
 Locator-scoped observations, including calls with `locator` or `ignoreLocators`, bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
 

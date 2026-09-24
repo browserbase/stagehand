@@ -3,6 +3,7 @@ from typing import Annotated
 from urllib.parse import urlparse
 
 from pydantic import AfterValidator, AnyUrl, BaseModel, ConfigDict, TypeAdapter, model_validator
+from typing_extensions import override
 
 _url_adapter = TypeAdapter(AnyUrl)
 
@@ -18,6 +19,7 @@ WireUrl = Annotated[str, AfterValidator(_validate_url)]
 class WireModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True)
 
+    @override
     def model_post_init(self, context: object, /) -> None:
         super().model_post_init(context)
         # Protocol defaults must survive `model_dump(exclude_unset=True)` at the wire boundary.

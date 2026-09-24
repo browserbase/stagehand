@@ -6,6 +6,7 @@
     "src/commands/skills",
     "src/commands/templates",
     "src/lib/cloud",
+    "src/lib/secrets",
     "src/lib/functions",
     "src/lib/skills",
     "src/lib/templates",

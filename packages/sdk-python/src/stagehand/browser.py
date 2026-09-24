@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
 if TYPE_CHECKING:
     from .browser_context import BrowserContext
@@ -281,7 +281,8 @@ class _LocalBrowserOptions(Protocol):
 
 
 class _WaitableChromeProcess(Protocol):
-    returncode: int | None
+    @property
+    def returncode(self) -> int | None: ...
 
     async def wait(self) -> int: ...
 
@@ -721,7 +722,7 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
     process: _ChromeProcess | None = None
     try:
         try:
-            process = await asyncio.create_subprocess_exec(
+            launched_process = await asyncio.create_subprocess_exec(
                 chrome_path,
                 *flags,
                 stdin=asyncio.subprocess.DEVNULL,
@@ -729,9 +730,10 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
                 stderr=asyncio.subprocess.DEVNULL,
                 start_new_session=sys.platform != "win32",
             )
+            process = launched_process
         except OSError as error:
             raise RuntimeError(f"Failed to start Chrome: {error}") from error
-        await _wait_for_chrome(f"http://127.0.0.1:{port}", process)
+        await _wait_for_chrome(f"http://127.0.0.1:{port}", launched_process)
     except BaseException as launch_error:
         try:
             if process is not None:
@@ -746,7 +748,7 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
         raise
 
     async def close() -> None:
-        await _close_local_chrome(process, profile)
+        await _close_local_chrome(launched_process, profile)
 
     return ResolvedBrowserSource(
         cdp_url=f"http://127.0.0.1:{port}",
@@ -838,10 +840,10 @@ def _read_chrome_version(cdp_url: str) -> dict[str, object]:
         url,
         timeout=_CHROME_REQUEST_TIMEOUT_SECONDS,
     ) as response:
-        value: Any = json.load(response)
+        value: object = json.load(response)
     if not isinstance(value, dict):
         raise RuntimeError("Chrome version endpoint returned invalid JSON")
-    return value
+    return {str(key): item for key, item in value.items()}
 
 
 def _chrome_exited_before_ready_error(returncode: int | None) -> RuntimeError:
@@ -992,7 +994,8 @@ def _should_disable_chromium_sandbox(
 ) -> bool:
     platform = sys.platform if platform is None else platform
     environment = os.environ if environment is None else environment
-    getuid = getattr(os, "getuid", None) if getuid is None else getuid
+    if getuid is None:
+        getuid = cast("Callable[[], int] | None", getattr(os, "getuid", None))
     return (
         bool(environment.get("CI"))
         or options.chromium_sandbox is False

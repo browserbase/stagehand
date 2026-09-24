@@ -350,7 +350,7 @@ Target locators only affect instruction-based `act()` calls. When you pass an `A
 `cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
-When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Caching is on by default. Set `cache` on the constructor to change it for the instance, or override it per call:
 
 Instruction-based `act()` calls with a target locator or ignored locators bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
 
@@ -671,7 +671,7 @@ The cache lives on Browserbase, keyed on the instruction, page content, and call
 
 ### Secure your automations
 
-Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data. Stagehand exposes only the variable names to the model and substitutes the real values locally, so results record the placeholder rather than the secret. One exception: with [server-side caching](/v4/best-practices/caching) enabled, variable values travel to the cache service as part of the request, so turn the `cache` option off for calls that carry credentials.
+Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data. Stagehand exposes only the variable names to the model and substitutes the real values locally, so results record the placeholder rather than the secret. One exception: [server-side caching](/v4/best-practices/caching) is on by default, and it sends variable values to the cache service as part of the request. Set `cache: false` on calls that carry credentials.
 
 <Note>
 Load sensitive data from environment variables. Never hardcode API keys, passwords, or other secrets directly in your code.

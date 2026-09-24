@@ -692,6 +692,31 @@ func TestRPCClientValidatesPageCDPEventNotificationsWithoutRenamingRawParams(t *
 	}
 }
 
+func TestRPCClientDeliversTypedToolNotifications(t *testing.T) {
+	t.Parallel()
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport)
+	received := make(chan PageEventNotification, 1)
+	remove := client.onPageEvent(func(notification PageEventNotification) { received <- notification })
+	defer remove()
+	transport.receiveJSON(`{"jsonrpc":"2.0","method":"page.event","params":{
+		"subscription_id":"added","page_id":"page","session_id":"child","target_id":"target",
+		"event":"toolsadded","tools":[{"name":"search","description":"Search","frame_id":"child",
+		"input_schema":{"properties":{"searchQuery":{"type":"string"}}}}]}}`)
+	select {
+	case notification := <-received:
+		event, ok := notification.AsToolsAdded()
+		if !ok || event.SubscriptionID != "added" || len(event.Tools) != 1 {
+			t.Fatalf("notification = %#v", notification)
+		}
+		if string(event.Tools[0].InputSchema["properties"]) != `{"searchQuery":{"type":"string"}}` {
+			t.Fatalf("schema = %#v", event.Tools[0].InputSchema)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for typed notification")
+	}
+}
+
 func TestRPCClientDeliversNotificationToHandlersInRegistrationOrder(t *testing.T) {
 	t.Parallel()
 

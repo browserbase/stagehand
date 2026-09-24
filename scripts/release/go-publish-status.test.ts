@@ -24,6 +24,17 @@ async function repositoryFixture({
 }
 
 describe("goPublishStatus", () => {
+  it("does not let pending Browse changes block the SDK release", async () => {
+    const repositoryRoot = await repositoryFixture();
+    await writeFile(
+      path.join(repositoryRoot, ".changeset/browse.md"),
+      '---\n"browse": minor\n---\nCLI release\n',
+    );
+    expect(
+      (await goPublishStatus({ repositoryRoot, tagExists: async () => false })).shouldTag,
+    ).toBe(true);
+  });
+
   it("rejects a module path that does not match the package major", async () => {
     const repositoryRoot = await repositoryFixture({ modulePath: "example.com/sdk-go" });
 
@@ -32,17 +43,23 @@ describe("goPublishStatus", () => {
     );
   });
 
-  it("does not tag while a changeset is pending", async () => {
-    const repositoryRoot = await repositoryFixture();
-    await writeFile(path.join(repositoryRoot, ".changeset/release.md"), "pending\n");
-    const tagExists = vi.fn();
+  it.each(['"@browserbasehq/stagehand-go": patch', '{ "@browserbasehq/stagehand-go": patch }'])(
+    "does not tag while a changeset is pending (%s)",
+    async (frontmatter) => {
+      const repositoryRoot = await repositoryFixture();
+      await writeFile(
+        path.join(repositoryRoot, ".changeset/release.md"),
+        `---\n${frontmatter}\n---\nPending\n`,
+      );
+      const tagExists = vi.fn();
 
-    await expect(goPublishStatus({ repositoryRoot, tagExists })).resolves.toEqual({
-      shouldTag: false,
-      tag: "packages/sdk-go/v4.0.0",
-    });
-    expect(tagExists).not.toHaveBeenCalled();
-  });
+      await expect(goPublishStatus({ repositoryRoot, tagExists })).resolves.toEqual({
+        shouldTag: false,
+        tag: "packages/sdk-go/v4.0.0",
+      });
+      expect(tagExists).not.toHaveBeenCalled();
+    },
+  );
 
   it("does not recreate an existing tag", async () => {
     const repositoryRoot = await repositoryFixture();

@@ -1,4 +1,5 @@
-import { readdir, readFile } from "node:fs/promises";
+import { scopedChangesets } from "./release-scope.ts";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { readPythonProjectVersion } from "./python-version.ts";
@@ -17,14 +18,7 @@ export async function shouldPublishPython({
   repositoryRoot = path.resolve(import.meta.dirname, "../.."),
   fetchStatus = async (url) => await fetch(url),
 }: PythonPublishStatusOptions = {}): Promise<boolean> {
-  const changesetDirectory = path.join(repositoryRoot, ".changeset");
-  const pendingChangesets = (await readdir(changesetDirectory)).filter(
-    (file) => file.endsWith(".md") && file !== "README.md",
-  );
-
-  if (pendingChangesets.length > 0) {
-    return false;
-  }
+  if ((await scopedChangesets(repositoryRoot, "sdk")).length > 0) return false;
 
   const pyproject = await readFile(
     path.join(repositoryRoot, "packages/sdk-python/pyproject.toml"),

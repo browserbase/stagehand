@@ -66,7 +66,8 @@ Cache = bool | CacheOptions
 def _cache_config(cache: CacheInput) -> bool | dict[str, int]:
     if isinstance(cache, bool):
         return cache
-    return CacheOptions.model_validate(cache).model_dump(exclude_none=True)
+    options = CacheOptions.model_validate(cache)
+    return {"threshold": options.threshold} if options.threshold is not None else {}
 
 
 class LocalViewport(WireModel):
