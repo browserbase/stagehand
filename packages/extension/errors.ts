@@ -7,6 +7,13 @@ export class TimeoutError extends Error {
   }
 }
 
+export class CaptureRecoveryError extends Error {
+  constructor(cause: TimeoutError) {
+    super(`A previous capture is still recovering: ${cause.message}`, { cause });
+    this.name = "CaptureRecoveryError";
+  }
+}
+
 export class StagehandProtocolCompatibilityError extends Error {
   constructor(readonly reason: ProtocolIncompatibilityReason) {
     super(`Incompatible Stagehand protocol (${reason})`);
