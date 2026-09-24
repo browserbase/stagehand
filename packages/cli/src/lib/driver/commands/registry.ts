@@ -1,4 +1,5 @@
 import type { DriverSessionManager } from "../session-manager.js";
+import { clipboardHandlers } from "./clipboard.js";
 import { elementsHandlers } from "./elements.js";
 import { keyboardHandlers } from "./keyboard.js";
 import { mouseHandlers } from "./mouse.js";
@@ -12,6 +13,7 @@ import type { DriverCommandHandlers, DriverCommandName } from "./types.js";
 
 const handlers: DriverCommandHandlers = {
   ...navigationHandlers,
+  ...clipboardHandlers,
   ...elementsHandlers,
   ...keyboardHandlers,
   ...mouseHandlers,
