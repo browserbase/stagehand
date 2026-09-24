@@ -53,7 +53,7 @@
     "oxlint-tsgolint": "catalog:",
     "smol-toml": "catalog:",
     "tsx": "catalog:",
-    "turbo": "^2.8.10",
+    "turbo": "^2.10.13",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
