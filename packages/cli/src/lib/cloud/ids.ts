@@ -1,11 +1,12 @@
+import { z } from "zod";
+
 import { fail } from "../errors.js";
 
 // Check the UUID shape without pinning resource IDs to a UUID version.
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const uuidSchema = z.guid().length(36);
 
 export function isUuid(value: string): boolean {
-  return value.length === 36 && uuidPattern.test(value);
+  return uuidSchema.safeParse(value).success;
 }
 
 export function parseUuid(value: string, label: string): string {
