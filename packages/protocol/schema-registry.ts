@@ -36,7 +36,7 @@ import {
   LocatorClickResultSchema,
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
-  LocatorDescriptorSchema,
+  LocatorParamsSchema,
   LocatorFillParamsSchema,
   LocatorFillResultSchema,
   LocatorHighlightParamsSchema,
@@ -408,42 +408,42 @@ export const StagehandMethods = {
   },
   locatorHover: {
     name: "locator.hover",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorHoverResultSchema,
   },
   locatorCount: {
     name: "locator.count",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorCountResultSchema,
   },
   locatorIsChecked: {
     name: "locator.is_checked",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorIsCheckedResultSchema,
   },
   locatorInputValue: {
     name: "locator.input_value",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorInputValueResultSchema,
   },
   locatorIsVisible: {
     name: "locator.is_visible",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorIsVisibleResultSchema,
   },
   locatorInnerText: {
     name: "locator.inner_text",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorInnerTextResultSchema,
   },
   locatorInnerHtml: {
     name: "locator.inner_html",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorInnerHtmlResultSchema,
   },
   locatorTextContent: {
     name: "locator.text_content",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorTextContentResultSchema,
   },
   locatorScrollTo: {
@@ -453,7 +453,7 @@ export const StagehandMethods = {
   },
   locatorCentroid: {
     name: "locator.centroid",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorCentroidResultSchema,
   },
   locatorHighlight: {
