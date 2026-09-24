@@ -6,7 +6,7 @@ description: "Connect coding agents to a persistent Stagehand browser with the M
 
 Give your coding agent a browser it can use alongside its coding tools. Stagehand's MCP adapter lets the agent navigate a running application, interact with its UI, and read page content without adding a browser tool loop to your project.
 
-Claude Code, Codex, and fx connect to the same Stagehand MCP server over stdio. One server process owns the browser session, so navigation, authentication, and page state remain available across tool calls.
+CLI agents that support stdio MCP can connect to the Stagehand MCP adapter. One server process owns the browser session, so navigation, authentication, and page state remain available across tool calls.
 
 ## Choose a CLI agent
 
@@ -17,7 +17,7 @@ Claude Code, Codex, and fx connect to the same Stagehand MCP server over stdio. 
 | fx | MCP server configured in `~/.fx/mcp.json`. | [fx](/v4/integrations/fx) |
 | Pi | Native extension that registers Stagehand tools directly. | [Pi](/v4/integrations/pi) |
 
-Pi's integration uses an extension rather than the MCP adapter. It exposes the same `run`, `snapshot`, and `screenshot` capabilities.
+Agents with a native extension integration can register the browser tools directly. Follow the individual agent guide for that setup; the steps below cover the MCP adapter.
 
 <Note>
 These integrations are experimental and run from the Stagehand repository. The shared adapter is not published as a standalone package.
@@ -62,6 +62,12 @@ Use Stagehand to open https://example.com and report the page title.
 The agent should use `run` to navigate and report `Example Domain`. Your CLI agent manages its own model and authentication.
   </Step>
 </Steps>
+
+## Configure models
+
+Your CLI agent selects its own model and manages its authentication. The MCP adapter provides browser tools to that agent; it does not choose or replace the agent's model.
+
+Deterministic browser operations do not require a separate Stagehand model. If you use Stagehand AI methods through an integration that supports them, configure the Stagehand model separately and pass its required credentials to the browser runtime. See your agent's guide for supported settings and environment forwarding.
 
 ## Browser tools
 

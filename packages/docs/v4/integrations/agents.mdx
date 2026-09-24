@@ -1,7 +1,7 @@
 ---
 title: "Agent Frameworks"
 sidebarTitle: "Overview"
-description: "Add persistent browser tools to agents built with Eve, Deep Agents, CrewAI, Mastra, or the Vercel AI SDK."
+description: "Add persistent browser tools to your agent framework through MCP or native bindings."
 ---
 
 Use Stagehand as the browser layer in an agent you build with an agent framework. Your framework manages the model, instructions, and tool loop; Stagehand keeps the browser session available as the agent navigates, interacts with pages, and reads results.
@@ -50,7 +50,7 @@ The agent framework integrations expose the same browser capabilities.
 ```
   </Accordion>
   <Accordion title="screenshot">
-    Capture the active page as a PNG or JPEG for visual inspection. Frameworks that support multimodal tool results receive the image directly; the CrewAI adapter writes it to a temporary file because its current tool loop is text-only.
+    Capture the active page as a PNG or JPEG for visual inspection. The integration adapts the image to the tool-result format supported by your framework.
   </Accordion>
 </AccordionGroup>
 
@@ -58,9 +58,7 @@ The agent framework integrations expose the same browser capabilities.
 
 The tools share a browser for the lifetime of the integration's client session. A navigation performed by `run` is visible to the next `snapshot`, and authentication and page state remain available across calls.
 
-The CrewAI, Mastra, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve and Managed Deep Agents bind equivalent tools in-process.
-
-The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server. The TypeScript integrations and CrewAI use this package.
+With MCP, keep one client connection open so the server and browser stay alive across calls. With native bindings, keep the browser runtime available for the lifetime of the agent session. Deployment-specific persistence and reconnection behavior are documented in each integration guide.
 
 <Warning>
 Do not create a new MCP process for every tool call. Doing so starts a new browser and invalidates any snapshot IDs from the previous call.
@@ -68,47 +66,26 @@ Do not create a new MCP process for every tool call. Doing so starts a new brows
 
 ## Set up your framework
 
-CrewAI, Mastra, and the Vercel AI SDK use the shared TypeScript Stagehand facade MCP server. Eve uses native in-process bindings from the same package. The shared TypeScript package requires Node.js 24 or newer and [pnpm](https://pnpm.io/installation) 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
+Start with your framework's guide for its runtime requirements, installation steps, and tool registration. Integrations can connect through a stdio MCP server or bind browser tools directly in the agent process.
 
-<Steps>
-  <Step title="Clone and install Stagehand">
-```bash
-git clone https://github.com/browserbase/stagehand.git
-cd stagehand
-pnpm install --frozen-lockfile
-```
-  </Step>
-  <Step title="Build the shared integration package">
-```bash
-pnpm exec turbo run build \
-  --filter @browserbasehq/stagehand-integrations
-```
-  </Step>
-  <Step title="Open the framework guide">
-Follow the page for your framework to install its remaining dependencies, configure its agent model, and start a task. Deep Agents is a Python-native integration and has its own setup flow.
-  </Step>
-</Steps>
+1. Install the integration and its required runtime dependencies.
+2. Register the browser tools with your framework's agent loop.
+3. Configure the browser and the agent's model credentials.
+4. Keep the browser connection available across tool calls, and close it when the session ends.
 
 ## Choose a browser
 
-The TypeScript MCP examples choose Browserbase when `BROWSERBASE_API_KEY` is set and local Chrome otherwise. Deep Agents defaults to local mode. Follow your framework guide for its browser defaults; local mode requires a current Google Chrome installation.
+Use local Chrome for development or a Browserbase session for hosted browser execution. Set the browser mode explicitly when you need predictable behavior across environments; defaults and environment-variable handling depend on the integration.
 
-Set these variables to use a disposable Browserbase browser instead:
+For Browserbase, provide an API key and any project configuration required by the integration. For local mode, install a supported version of Chrome. See your framework's guide for the exact settings.
 
-```bash
-export STAGEHAND_BROWSER="browserbase"
-export BROWSERBASE_API_KEY="your-browserbase-api-key"
-```
+## Configure models
 
-| Variable | Purpose |
-| --- | --- |
-| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. The TypeScript integrations infer Browserbase when `BROWSERBASE_API_KEY` is set; Deep Agents defaults to local. |
-| `BROWSERBASE_API_KEY` | Required for Browserbase. |
-| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID for the TypeScript integrations. |
-| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called from TypeScript integration tools. |
-| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. Eve can infer a supported provider key; the MCP examples require this variable. |
+Your framework's agent model decides which browser tool to call and what input to send. Configure that model and its credentials through your framework.
 
-The framework's agent model and Stagehand's optional browser model are separate. The agent model decides which tool to call. Configure a Stagehand model only when JavaScript passed to `run` calls AI methods such as `act`, `extract`, or `observe`.
+Stagehand's browser tools do not require a separate model for deterministic operations such as navigation, snapshots, and screenshots. If your integration supports Stagehand AI methods such as `act`, `extract`, or `observe`, configure a Stagehand model when using those methods.
+
+Keep the agent model and Stagehand model configuration separate. Credential forwarding and provider-key inference vary by integration; use its guide for the supported configuration names and how to pass credentials.
 
 ## Security boundary
 
@@ -118,7 +95,7 @@ The framework's agent model and Stagehand's optional browser model are separate.
 Use Browserbase as the isolation boundary for untrusted tasks. Treat authenticated browser sessions and any data reachable from them as privileged.
 </Warning>
 
-The MCP examples forward only Stagehand and Browserbase configuration to the child process. Agent-model credentials remain in the framework process.
+Pass only the credentials required by the browser runtime. Configure the framework’s tool permissions and credential handling according to its integration guide.
 
 <Card title="View all integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations">
   Browse the shared implementation and all framework examples on GitHub.
