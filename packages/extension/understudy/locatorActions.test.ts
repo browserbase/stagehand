@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TimeoutError } from "../errors.js";
+import { createStagehandRuntime } from "../runtime.js";
 import {
   assignFilePayloadsToInputElement,
   fillElementValue,
@@ -65,6 +66,19 @@ function createLocator(selector = "button") {
     capabilities: { closedShadowRoots: true },
   });
   return { locator, frame, resolveNode, readiness, send };
+}
+
+function runPublicAction(locator: Locator, action: "highlight" | "upload") {
+  const runtime = createStagehandRuntime();
+  vi.spyOn(runtime, "resolveLocator").mockReturnValue(locator);
+  const descriptor = { pageId: "page-1", selector: "button" };
+  return action === "highlight"
+    ? runtime.locatorHighlight({ ...descriptor, options: { durationMs: 0, timeout: 100 } })
+    : runtime.locatorSetInputFiles({
+        ...descriptor,
+        files: [{ name: "test.txt", data: "YWJj", lastModified: 1 }],
+        options: { timeout: 100 },
+      });
 }
 
 function createFillLocator(legacy = false) {
@@ -753,7 +767,7 @@ describe("locator action deadlines", () => {
   );
 
   it.each(["highlight", "upload"] as const)(
-    "preserves the primary %s error while cleanup is stalled",
+    "preserves the primary %s error through the runtime while cleanup is stalled",
     async (action) => {
       const { locator, send } = createLocator();
       const primary = new Error("action failed");
@@ -771,11 +785,7 @@ describe("locator action deadlines", () => {
         return respond(method, params);
       });
       const settled = vi.fn();
-      const pending = runWithProgress({ name: action, timeout: 100 }, (progress) =>
-        action === "highlight"
-          ? locator.highlight({ durationMs: 0 }, progress)
-          : locator.setInputFiles(upload, progress),
-      );
+      const pending = runPublicAction(locator, action);
       void pending.then(settled, settled);
       try {
         await vi.advanceTimersByTimeAsync(0);
@@ -792,9 +802,14 @@ describe("locator action deadlines", () => {
     },
   );
 
-  it.each(["highlight", "upload"] as const)(
-    "reports an expired %s without waiting for stalled cleanup",
-    async (action) => {
+  it.each([
+    ["highlight", false],
+    ["upload", false],
+    ["highlight", true],
+    ["upload", true],
+  ] as const)(
+    "reports an expired %s without waiting for stalled cleanup (runtime: %s)",
+    async (action, throughRuntime) => {
       const { locator, send } = createLocator();
       const work = deferred();
       const cleanup = deferred();
@@ -810,11 +825,11 @@ describe("locator action deadlines", () => {
           return work.promise;
         return respond(method, params);
       });
-      const progress = createProgress();
-      const pending =
-        action === "highlight"
-          ? locator.highlight({ durationMs: 0 }, progress)
-          : locator.setInputFiles(upload, progress);
+      const pending = throughRuntime
+        ? runPublicAction(locator, action)
+        : action === "highlight"
+          ? locator.highlight({ durationMs: 0 }, createProgress())
+          : locator.setInputFiles(upload, createProgress());
       const settled = vi.fn();
       void pending.then(settled, settled);
       try {
