@@ -235,7 +235,9 @@ export async function buildSessionDomIndex(
   pierce: boolean,
 ): Promise<SessionDomIndex> {
   await session.send("DOM.enable").catch(() => {});
-  const root = await getDomTreeWithFallback(session, pierce);
+  // CDP uses one piercing flag for both shadow roots and iframe documents.
+  // Fetch both, then independently omit shadow roots while building the index.
+  const root = await getDomTreeWithFallback(session, true);
 
   const absByBe = new Map<number, string>();
   const tagByBe = new Map<number, string>();
@@ -289,7 +291,7 @@ export async function buildSessionDomIndex(
       }
     }
 
-    for (const sr of node.shadowRoots ?? []) {
+    for (const sr of pierce ? (node.shadowRoots ?? []) : []) {
       stack.push({
         node: sr,
         xp: joinXPath(xp, "//"),

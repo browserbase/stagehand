@@ -118,14 +118,7 @@ async function launchChrome(
 
   const chromePath = await findChromePath(options.executablePath, dependencies);
   const port = await resolveChromePort(options.port, dependencies);
-  const temporaryProfile = options.userDataDir === undefined;
-  const userDataDir =
-    options.userDataDir ?? (await dependencies.mkdtemp(path.join(tmpdir(), "stagehand-chrome-")));
-  const removeProfile = temporaryProfile && options.preserveUserDataDir !== true;
-
-  if (!temporaryProfile) {
-    await dependencies.mkdir(userDataDir, { recursive: true, mode: 0o700 });
-  }
+  const { userDataDir, removeProfile } = await resolveChromeProfile(options, dependencies);
 
   let child: ChildProcess | undefined;
   let close: (() => Promise<void>) | undefined;
@@ -172,6 +165,21 @@ async function launchChrome(
     }
     throw error;
   }
+}
+
+async function resolveChromeProfile(
+  options: LocalBrowserLaunchOptions,
+  dependencies: Pick<LocalBrowserLauncherDependencies, "mkdir" | "mkdtemp">,
+): Promise<{ userDataDir: string; removeProfile: boolean }> {
+  if (options.userDataDir !== undefined && options.userDataDir !== "") {
+    await dependencies.mkdir(options.userDataDir, { recursive: true, mode: 0o700 });
+    return { userDataDir: options.userDataDir, removeProfile: false };
+  }
+  const userDataDir = await dependencies.mkdtemp(path.join(tmpdir(), "stagehand-chrome-"));
+  return {
+    userDataDir,
+    removeProfile: options.preserveUserDataDir !== true,
+  };
 }
 
 export function localBrowserChromeFlags(

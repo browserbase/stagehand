@@ -9,6 +9,7 @@ const allowedPackages = new Set([
   "@browserbasehq/stagehand-protocol",
   "@browserbasehq/stagehand-python",
   "@browserbasehq/stagehand-extension",
+  "browse",
 ]);
 
 export function validateChangeset(contents: string, file: string): void {
@@ -17,6 +18,13 @@ export function validateChangeset(contents: string, file: string): void {
     releases = parseChangeset(contents).releases;
   } catch (error) {
     throw new Error(`${file} does not contain valid changeset frontmatter`, { cause: error });
+  }
+
+  if (
+    releases.some(({ name }) => name === "browse") &&
+    releases.some(({ name }) => name !== "browse")
+  ) {
+    throw new Error(`${file} must separate Browse and SDK releases into different changeset files`);
   }
 
   const invalidPackages = releases
