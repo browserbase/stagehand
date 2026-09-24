@@ -46,23 +46,29 @@ type QueryStep =
 
 type RoleStep = Extract<QueryStep, { kind: "role" }>;
 
+type LocatorTimeoutOptions = { timeout?: number };
+
 type RawLocator = {
-  click(options?: { button?: "left" | "right" | "middle"; clickCount?: number }): Promise<void>;
-  hover(): Promise<void>;
-  fill(value: string): Promise<void>;
-  type(text: string, options?: { delay?: number }): Promise<void>;
-  selectOption(values: string | string[]): Promise<string[]>;
-  setInputFiles(files: unknown): Promise<void>;
-  count(): Promise<number>;
+  click(options?: {
+    button?: "left" | "right" | "middle";
+    clickCount?: number;
+    timeout?: number;
+  }): Promise<void>;
+  hover(options?: LocatorTimeoutOptions): Promise<void>;
+  fill(value: string, options?: LocatorTimeoutOptions): Promise<void>;
+  type(text: string, options?: { delay?: number; timeout?: number }): Promise<void>;
+  selectOption(values: string | string[], options?: LocatorTimeoutOptions): Promise<string[]>;
+  setInputFiles(files: unknown, options?: LocatorTimeoutOptions): Promise<void>;
+  count(options?: LocatorTimeoutOptions): Promise<number>;
   nth(index: number): RawLocator;
-  isVisible(): Promise<boolean>;
-  isChecked(): Promise<boolean>;
-  inputValue(): Promise<string>;
-  innerText(): Promise<string>;
-  innerHtml(): Promise<string>;
-  textContent(): Promise<string>;
-  scrollTo(percent: number): Promise<void>;
-  centroid(): Promise<{ x: number; y: number }>;
+  isVisible(options?: LocatorTimeoutOptions): Promise<boolean>;
+  isChecked(options?: LocatorTimeoutOptions): Promise<boolean>;
+  inputValue(options?: LocatorTimeoutOptions): Promise<string>;
+  innerText(options?: LocatorTimeoutOptions): Promise<string>;
+  innerHtml(options?: LocatorTimeoutOptions): Promise<string>;
+  textContent(options?: LocatorTimeoutOptions): Promise<string>;
+  scrollTo(percent: number, options?: LocatorTimeoutOptions): Promise<void>;
+  centroid(options?: LocatorTimeoutOptions): Promise<{ x: number; y: number }>;
 };
 
 type CompatSelectOption =
@@ -167,6 +173,13 @@ export async function createPlaywrightCompatRuntime(
     token?: string;
     handleKind?: "element" | "value";
     error?: { name: string; message: string; stack?: string };
+  };
+
+  const locatorTimeoutOptions = (deadline: number, method: string): LocatorTimeoutOptions => {
+    if (deadline === Infinity) return { timeout: 0 };
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error(`${method}: timed out`);
+    return { timeout: remaining };
   };
 
   const stats: CompatStats = { calls: {}, misses: {} };
@@ -1396,7 +1409,7 @@ export async function createPlaywrightCompatRuntime(
 
     private async withTaggedTarget(
       method: string,
-      action: (locator: RawLocator) => Promise<void>,
+      action: (locator: RawLocator, options: LocatorTimeoutOptions) => Promise<void>,
       options: { timeout?: number } = {},
     ): Promise<void> {
       record("calls", method);
@@ -1409,7 +1422,7 @@ export async function createPlaywrightCompatRuntime(
       const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
       let result: QueryResult = { count: 0 };
       let lastActionError: unknown;
-      while (Date.now() <= deadline) {
+      while (Date.now() < deadline) {
         result = await this.state.execute(this.plan, "inspect");
         if (result.count > 1) throw await this.strictModeViolation(method, result.count);
         if (result.count === 1) {
@@ -1421,7 +1434,10 @@ export async function createPlaywrightCompatRuntime(
           await this.state.execute(this.plan, "tag", { token });
           let actionSucceeded = false;
           try {
-            await action(this.state.rawPage.locator(`[data-stagehand-pw-compat="${token}"]`));
+            await action(
+              this.state.rawPage.locator(`[data-stagehand-pw-compat="${token}"]`),
+              locatorTimeoutOptions(deadline, method),
+            );
             actionSucceeded = true;
           } catch (error) {
             lastActionError = error;
@@ -1481,8 +1497,9 @@ export async function createPlaywrightCompatRuntime(
       }
       await this.withTaggedTarget(
         method,
-        (locator) =>
+        (locator, timeoutOptions) =>
           locator.click({
+            ...timeoutOptions,
             ...(typeof options.button === "string"
               ? { button: options.button as "left" | "right" | "middle" }
               : {}),
@@ -1493,17 +1510,21 @@ export async function createPlaywrightCompatRuntime(
     }
 
     async fill(value: string, options: Record<string, unknown> = {}): Promise<void> {
-      await this.withTaggedTarget("locator.fill", (locator) => locator.fill(value), options);
+      await this.withTaggedTarget(
+        "locator.fill",
+        (locator, timeoutOptions) => locator.fill(value, timeoutOptions),
+        options,
+      );
     }
 
     async type(value: string, options: Record<string, unknown> = {}): Promise<void> {
       await this.withTaggedTarget(
         "locator.type",
-        (locator) =>
-          locator.type(
-            value,
-            typeof options.delay === "number" ? { delay: options.delay } : undefined,
-          ),
+        (locator, timeoutOptions) =>
+          locator.type(value, {
+            ...timeoutOptions,
+            ...(typeof options.delay === "number" ? { delay: options.delay } : {}),
+          }),
         options,
       );
     }
@@ -1516,8 +1537,8 @@ export async function createPlaywrightCompatRuntime(
     async press(key: string, options: Record<string, unknown> = {}): Promise<void> {
       await this.withTaggedTarget(
         "locator.press",
-        async (locator) => {
-          await locator.click();
+        async (locator, timeoutOptions) => {
+          await locator.click(timeoutOptions);
           await this.state.rawPage.keyPress(
             key,
             typeof options.delay === "number" ? { delay: options.delay } : undefined,
@@ -1528,7 +1549,11 @@ export async function createPlaywrightCompatRuntime(
     }
 
     async hover(options: Record<string, unknown> = {}): Promise<void> {
-      await this.withTaggedTarget("locator.hover", (locator) => locator.hover(), options);
+      await this.withTaggedTarget(
+        "locator.hover",
+        (locator, timeoutOptions) => locator.hover(timeoutOptions),
+        options,
+      );
     }
 
     async selectOption(
@@ -1564,9 +1589,10 @@ export async function createPlaywrightCompatRuntime(
       let selected: string[] = [];
       await this.withTaggedTarget(
         "locator.selectOption",
-        async (locator) => {
+        async (locator, timeoutOptions) => {
           selected = await locator.selectOption(
             Array.isArray(values) ? normalized : normalized[0]!,
+            timeoutOptions,
           );
         },
         options,
@@ -1577,7 +1603,7 @@ export async function createPlaywrightCompatRuntime(
     async setInputFiles(files: unknown, options: Record<string, unknown> = {}): Promise<void> {
       await this.withTaggedTarget(
         "locator.setInputFiles",
-        (locator) => locator.setInputFiles(files),
+        (locator, timeoutOptions) => locator.setInputFiles(files, timeoutOptions),
         options,
       );
     }
@@ -2032,11 +2058,11 @@ export async function createPlaywrightCompatRuntime(
       return { xpaths, names };
     }
 
-    private async resolve(): Promise<FrameResolution> {
+    private async resolve(options?: LocatorTimeoutOptions): Promise<FrameResolution> {
       const tail = this.selectorTail();
       if (tail !== null) {
         const raw = this.state.rawPage.locator([...this.hops, tail].join(" >> "));
-        const count = await raw.count();
+        const count = await raw.count(options);
         if (this.nthIndex === undefined) return { raw, count, candidates: [] };
         const index = this.nthIndex < 0 ? count + this.nthIndex : this.nthIndex;
         const within = index >= 0 && index < count;
@@ -2058,14 +2084,14 @@ export async function createPlaywrightCompatRuntime(
     }
 
     private async single(method: string, timeout = 10_000): Promise<RawLocator> {
-      const deadline = Date.now() + timeout;
+      const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
       let resolution: FrameResolution = {
         raw: this.state.rawPage.locator("__none__"),
         count: 0,
         candidates: [],
       };
-      while (Date.now() <= deadline) {
-        resolution = await this.resolve();
+      while (Date.now() < deadline) {
+        resolution = await this.resolve(locatorTimeoutOptions(deadline, method));
         if (resolution.count > 1) {
           throw new Error(strictModeMessage(method, resolution.count, resolution.candidates));
         }
@@ -2079,17 +2105,17 @@ export async function createPlaywrightCompatRuntime(
 
     private async act(
       method: string,
-      action: (raw: RawLocator) => Promise<void>,
+      action: (raw: RawLocator, options: LocatorTimeoutOptions) => Promise<void>,
       options: Record<string, unknown> = {},
     ): Promise<void> {
       record("calls", method);
       const timeout = typeof options.timeout === "number" ? options.timeout : 10_000;
-      const deadline = Date.now() + timeout;
+      const deadline = timeout === 0 ? Infinity : Date.now() + timeout;
       let lastError: unknown;
-      while (Date.now() <= deadline) {
+      while (Date.now() < deadline) {
         let raw: RawLocator;
         try {
-          raw = await this.single(method, Math.max(1, deadline - Date.now()));
+          raw = await this.single(method, locatorTimeoutOptions(deadline, method).timeout);
         } catch (resolveError) {
           // A re-resolve that runs out of the remaining window must not mask
           // the action error that caused the retry (e.g. a layout failure).
@@ -2097,7 +2123,7 @@ export async function createPlaywrightCompatRuntime(
           throw resolveError;
         }
         try {
-          await action(raw);
+          await action(raw, locatorTimeoutOptions(deadline, method));
           await this.state.refreshUrl();
           return;
         } catch (error) {
@@ -2125,8 +2151,9 @@ export async function createPlaywrightCompatRuntime(
       }
       await this.act(
         "frameLocator.locator.click",
-        (raw) =>
+        (raw, timeoutOptions) =>
           raw.click({
+            ...timeoutOptions,
             ...(typeof options.button === "string"
               ? { button: options.button as "left" | "right" | "middle" }
               : {}),
@@ -2141,11 +2168,19 @@ export async function createPlaywrightCompatRuntime(
     }
 
     async hover(options: Record<string, unknown> = {}): Promise<void> {
-      await this.act("frameLocator.locator.hover", (raw) => raw.hover(), options);
+      await this.act(
+        "frameLocator.locator.hover",
+        (raw, timeoutOptions) => raw.hover(timeoutOptions),
+        options,
+      );
     }
 
     async fill(value: string, options: Record<string, unknown> = {}): Promise<void> {
-      await this.act("frameLocator.locator.fill", (raw) => raw.fill(value), options);
+      await this.act(
+        "frameLocator.locator.fill",
+        (raw, timeoutOptions) => raw.fill(value, timeoutOptions),
+        options,
+      );
     }
 
     async clear(options: Record<string, unknown> = {}): Promise<void> {
@@ -2155,8 +2190,11 @@ export async function createPlaywrightCompatRuntime(
     async type(value: string, options: Record<string, unknown> = {}): Promise<void> {
       await this.act(
         "frameLocator.locator.type",
-        (raw) =>
-          raw.type(value, typeof options.delay === "number" ? { delay: options.delay } : undefined),
+        (raw, timeoutOptions) =>
+          raw.type(value, {
+            ...timeoutOptions,
+            ...(typeof options.delay === "number" ? { delay: options.delay } : {}),
+          }),
         options,
       );
     }
@@ -2168,8 +2206,8 @@ export async function createPlaywrightCompatRuntime(
     async press(key: string, options: Record<string, unknown> = {}): Promise<void> {
       await this.act(
         "frameLocator.locator.press",
-        async (raw) => {
-          await raw.click();
+        async (raw, timeoutOptions) => {
+          await raw.click(timeoutOptions);
           await this.state.rawPage.keyPress(
             key,
             typeof options.delay === "number" ? { delay: options.delay } : undefined,
@@ -2196,8 +2234,11 @@ export async function createPlaywrightCompatRuntime(
       let selected: string[] = [];
       await this.act(
         "frameLocator.locator.selectOption",
-        async (raw) => {
-          selected = await raw.selectOption(Array.isArray(values) ? normalized : normalized[0]!);
+        async (raw, timeoutOptions) => {
+          selected = await raw.selectOption(
+            Array.isArray(values) ? normalized : normalized[0]!,
+            timeoutOptions,
+          );
         },
         options,
       );
@@ -2207,19 +2248,27 @@ export async function createPlaywrightCompatRuntime(
     async setInputFiles(files: unknown, options: Record<string, unknown> = {}): Promise<void> {
       await this.act(
         "frameLocator.locator.setInputFiles",
-        (raw) => raw.setInputFiles(files),
+        (raw, timeoutOptions) => raw.setInputFiles(files, timeoutOptions),
         options,
       );
     }
 
     async check(options: Record<string, unknown> = {}): Promise<void> {
       if (!(await this.isChecked()))
-        await this.act("frameLocator.locator.check", (raw) => raw.click(), options);
+        await this.act(
+          "frameLocator.locator.check",
+          (raw, timeoutOptions) => raw.click(timeoutOptions),
+          options,
+        );
     }
 
     async uncheck(options: Record<string, unknown> = {}): Promise<void> {
       if (await this.isChecked())
-        await this.act("frameLocator.locator.uncheck", (raw) => raw.click(), options);
+        await this.act(
+          "frameLocator.locator.uncheck",
+          (raw, timeoutOptions) => raw.click(timeoutOptions),
+          options,
+        );
     }
 
     async scrollIntoViewIfNeeded(options: Record<string, unknown> = {}): Promise<void> {
@@ -2227,8 +2276,8 @@ export async function createPlaywrightCompatRuntime(
         "frameLocator.locator.scrollIntoViewIfNeeded",
         // Native centroid resolves in the owning frame and invokes
         // DOM.scrollIntoViewIfNeeded; it never scrolls the target's own contents.
-        async (raw) => {
-          await raw.centroid();
+        async (raw, timeoutOptions) => {
+          await raw.centroid(timeoutOptions);
         },
         options,
       );
@@ -2237,7 +2286,11 @@ export async function createPlaywrightCompatRuntime(
     async focus(options: Record<string, unknown> = {}): Promise<void> {
       // Native type() focuses before its character loop. Empty text with a
       // nonzero delay performs that focus and dispatches no input/key events.
-      await this.act("frameLocator.locator.focus", (raw) => raw.type("", { delay: 1 }), options);
+      await this.act(
+        "frameLocator.locator.focus",
+        (raw, timeoutOptions) => raw.type("", { delay: 1, ...timeoutOptions }),
+        options,
+      );
     }
 
     async count(): Promise<number> {

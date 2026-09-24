@@ -1695,6 +1695,48 @@ describe("Stagehand TS object wrapper", () => {
     expect(page).not.toHaveProperty("extract");
   });
 
+  it.each([undefined, {}, { timeout: 0 }, { timeout: 75 }])(
+    "forwards timeout options %j for every terminal locator method",
+    async (options) => {
+      const client = new FakeProtocolClient();
+      const send = vi.spyOn(client, "send").mockResolvedValue(undefined);
+      const locator = new Page(client, { pageId: "page-1" }).locator("button").nth(2);
+      await locator.click(options);
+      await locator.hover(options);
+      await locator.fill("hello", options);
+      await locator.count(options);
+      await locator.isChecked(options);
+      await locator.inputValue(options);
+      await locator.isVisible(options);
+      await locator.innerText(options);
+      await locator.innerHtml(options);
+      await locator.textContent(options);
+      await locator.scrollTo(50, options);
+      await locator.centroid(options);
+      await locator.highlight(options);
+      await locator.sendClickEvent(options);
+      await locator.type("hello", options);
+      await locator.selectOption("a", options);
+      await locator.setInputFiles([], options);
+
+      const registered = Object.values(StagehandMethods).filter(({ name }) =>
+        name.startsWith("locator."),
+      );
+      expect(send.mock.calls.map(([method]) => method.name).sort()).toEqual(
+        registered.map(({ name }) => name).sort(),
+      );
+      for (const [method, params] of send.mock.calls) {
+        expect(method.params.parse(params)).toMatchObject({
+          pageId: "page-1",
+          selector: "button",
+          nth: 2,
+        });
+        if (options === undefined) expect(params).not.toHaveProperty("options");
+        else expect(params).toHaveProperty("options", options);
+      }
+    },
+  );
+
   it("creates descriptor-backed locators without sending protocol calls", () => {
     const client = new FakeProtocolClient();
     const page = new Page(client, { pageId: "page-1" });

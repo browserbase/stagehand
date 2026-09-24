@@ -28,7 +28,7 @@ async function fixture({
       return { count: Date.now() >= appearedAt ? 1 : 0, value: checked, visible: true };
     }),
     waitForTimeout: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-    locator: () => ({ click }),
+    locator: () => ({ click, count: async () => (Date.now() >= appearedAt ? 1 : 0) }),
   };
   // Errors and timeout helpers must survive the callback serialization boundary.
   const create = new Function(
@@ -38,8 +38,15 @@ async function fixture({
     page: rawPage,
     context: { pages: async () => [rawPage] },
   } as unknown as Parameters<typeof createPlaywrightCompatRuntime>[0]);
-  const page = runtime.page as { locator(selector: string): Locator };
-  return { locator: page.locator("input"), click };
+  const page = runtime.page as {
+    locator(selector: string): Locator;
+    frameLocator(selector: string): { locator(selector: string): Locator };
+  };
+  return {
+    locator: page.locator("input"),
+    frameLocator: page.frameLocator("iframe").locator("input"),
+    click,
+  };
 }
 
 describe("facade locator action deadlines", () => {
@@ -48,6 +55,22 @@ describe("facade locator action deadlines", () => {
     vi.setSystemTime(0);
   });
   afterEach(() => vi.useRealTimers());
+
+  describe.each(["locator", "frameLocator"] as const)("%s forwarding", (kind) => {
+    it.each([undefined, 0, 75])("forwards timeout %s to the native action", async (timeout) => {
+      const fixtureResult = await fixture();
+      await fixtureResult[kind].click(timeout === undefined ? {} : { timeout });
+      expect(fixtureResult.click).toHaveBeenCalledWith({ timeout: timeout ?? 10_000 });
+    });
+
+    it("forwards only the budget left after finding the target", async () => {
+      const fixtureResult = await fixture({ appearedAt: 100 });
+      const pending = fixtureResult[kind].click({ timeout: 150 });
+      await vi.advanceTimersByTimeAsync(100);
+      await pending;
+      expect(fixtureResult.click).toHaveBeenCalledWith({ timeout: 50 });
+    });
+  });
 
   it.each(["check", "uncheck"] as const)("bounds the absent-element %s probe", async (method) => {
     const { locator, click } = await fixture({ appearedAt: Infinity });
