@@ -75,7 +75,7 @@
                 ]
               },
               {
-                "group": "Automations",
+                "group": "Applications",
                 "pages": ["v4/integrations/stripe"]
               }
             ]
