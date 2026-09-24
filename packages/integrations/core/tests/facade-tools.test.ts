@@ -415,7 +415,7 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     const clicked = world.locators.find((l) => l.selector.endsWith("button.background"));
     expect(clicked?.click).toHaveBeenCalledTimes(1);
     const filled = world.locators.find((l) => l.selector.includes("placeholder"));
-    expect(filled?.fill).toHaveBeenCalledWith("frog");
+    expect(filled?.fill).toHaveBeenCalledWith("frog", { timeout: expect.any(Number) });
   });
 
   it("chains nested frameLocator hops and descendant selectors", async () => {
