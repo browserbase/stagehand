@@ -51,6 +51,7 @@ import type {
   PageKeyPressParams,
   PageNavigationOptions,
   PagePDFOptions,
+  PagePDFResult,
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
@@ -266,7 +267,6 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   evaluationResult: unknown = null;
   waitForSelectorResult = true;
   screenshotBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  pdfBytes = new TextEncoder().encode("%PDF-1.7");
   snapshotResult: SnapshotResult = {
     formattedTree: "root",
     xpathMap: { frameOne: "/html/body" },
@@ -391,9 +391,9 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return this.screenshotBytes;
   }
 
-  async pdf(options?: PagePDFOptions): Promise<Uint8Array> {
+  async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
     this.pdfCalls.push(options);
-    return this.pdfBytes;
+    return { data: "JVBERi0xLjc=" };
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {

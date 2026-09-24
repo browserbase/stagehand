@@ -16,7 +16,7 @@ describe("Page.pdf", () => {
     await closeStagehand(stagehand);
   });
 
-  it("renders a valid PDF and writes the same bytes to disk", async () => {
+  it("renders CSS-sized pages, writes their bytes, and respects page ranges", async () => {
     const page = await firstPage(stagehand);
     const outputPath = path.join(os.tmpdir(), `stagehand-pdf-${Date.now()}.pdf`);
     await page.goto(
@@ -30,7 +30,7 @@ describe("Page.pdf", () => {
         </style>
         <h1>Stagehand PDF verification</h1>
         <p>This content was rendered by Chrome through Stagehand.</p>
-        <section class="second"><h2>Second page</h2><p>Page ranges and CSS sizing are active.</p></section>
+        <section class="second"><h2>Second page</h2><p>A second printed page.</p></section>
       `)}`,
     );
 
@@ -50,6 +50,18 @@ describe("Page.pdf", () => {
       expect(new TextDecoder().decode(bytes.subarray(-32))).toContain("%%EOF");
       expect(bytes.length).toBeGreaterThan(1_000);
       expect(await fs.readFile(outputPath)).toStrictEqual(Buffer.from(bytes));
+
+      // Chrome emits page dictionaries outside the compressed content streams.
+      const pdf = Buffer.from(bytes).toString("latin1");
+      expect(pdf.match(/\/Type\s*\/Page\b/g)).toHaveLength(2);
+      expect(pdf).toMatch(/\/MediaBox\s*\[0\s+0\s+288\s+432\]/);
+      expect(pdf).toMatch(/\/Marked\s+true\b/);
+      const secondPage = await page.pdf({ pageRanges: "2", preferCSSPageSize: true });
+      expect(
+        Buffer.from(secondPage)
+          .toString("latin1")
+          .match(/\/Type\s*\/Page\b/g),
+      ).toHaveLength(1);
     } finally {
       await fs.rm(outputPath, { force: true });
     }

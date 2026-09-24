@@ -365,36 +365,16 @@ export class Page {
         ...(mask ? { mask: mask.map((locator) => locator.descriptor) } : {}),
       },
     });
-    const bytes = decodeBase64(result.data, "page.screenshot");
-    if (path) {
-      const moduleName = "node:" + "fs/promises";
-      const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
-        throw new TypeError(
-          "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
-        );
-      })) as typeof import("node:fs/promises");
-      await writeFile(path, bytes);
-    }
-    return bytes;
+    return await decodeCaptureResult(result.data, "screenshot", path);
   }
 
   async pdf(options?: PDFOptions): Promise<Uint8Array> {
     const { path, ...pdfOptions } = options ?? {};
     const result = await this.rpcClient.send(StagehandMethods.pagePDF, {
       pageId: this.pageId,
-      ...(Object.keys(pdfOptions).length > 0 ? { options: pdfOptions } : {}),
+      options: pdfOptions,
     });
-    const bytes = decodeBase64(result.data, "page.pdf");
-    if (path) {
-      const moduleName = "node:" + "fs/promises";
-      const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
-        throw new TypeError(
-          "page.pdf(): path is only supported in Node.js; omit path to receive PDF bytes",
-        );
-      })) as typeof import("node:fs/promises");
-      await writeFile(path, bytes);
-    }
-    return bytes;
+    return await decodeCaptureResult(result.data, "pdf", path);
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -439,6 +419,24 @@ export class Page {
       selector,
     });
   }
+}
+
+async function decodeCaptureResult(
+  data: string,
+  method: "screenshot" | "pdf",
+  path?: string,
+): Promise<Uint8Array> {
+  const bytes = decodeBase64(data, `page.${method}`);
+  if (path) {
+    const moduleName = "node:" + "fs/promises";
+    const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
+      throw new TypeError(
+        `page.${method}(): path is only supported in Node.js; omit path to receive ${method === "pdf" ? "PDF" : "screenshot"} bytes`,
+      );
+    })) as typeof import("node:fs/promises");
+    await writeFile(path, bytes);
+  }
+  return bytes;
 }
 
 function reportPageEventListenerError(error: unknown): void {

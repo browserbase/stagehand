@@ -13,11 +13,11 @@ export type ScreenshotCleanup = () => Promise<void> | void;
 const screenshotQueues = new WeakMap<object, { tail: Promise<void>; blocked: AbortController }>();
 
 /** Serialize page mutations, or the browser-wide activation/capture critical section. */
-export async function withScreenshotLock(
+export async function withScreenshotLock<T>(
   owner: object,
-  capture: (signal: AbortSignal) => Promise<Uint8Array>,
+  capture: (signal: AbortSignal) => Promise<T>,
   timeout: number | undefined,
-): Promise<Uint8Array> {
+): Promise<T> {
   const queue = screenshotQueues.get(owner) ?? {
     tail: Promise.resolve(),
     blocked: new AbortController(),

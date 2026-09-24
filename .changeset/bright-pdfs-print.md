@@ -6,4 +6,4 @@
 "@browserbasehq/stagehand": minor
 ---
 
-Add page PDF rendering through Chrome's native print pipeline, with print options and byte or local-file output.
+Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and optional local file saving in TypeScript and Python.

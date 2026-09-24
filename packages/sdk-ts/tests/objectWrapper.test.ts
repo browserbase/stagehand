@@ -1166,24 +1166,30 @@ describe("Stagehand TS object wrapper", () => {
     }
   });
 
-  it("reports when screenshot paths are unavailable outside Node.js", async () => {
-    vi.doMock("node:fs/promises", () => {
-      throw new Error("module resolution failed");
-    });
-    try {
-      const client = new FakeProtocolClient();
-      client.queueResponse(StagehandMethods.pageScreenshot, {
-        data: "iVBORw0KGgo=",
+  it.each(["screenshot", "pdf"] as const)(
+    "reports when %s paths are unavailable outside Node.js",
+    async (method) => {
+      vi.doMock("node:fs/promises", () => {
+        throw new Error("module resolution failed");
       });
-      const page = new Page(client, { pageId: "page-1" });
+      try {
+        const client = new FakeProtocolClient();
+        client.queueResponse(
+          method === "pdf" ? StagehandMethods.pagePDF : StagehandMethods.pageScreenshot,
+          {
+            data: "iVBORw0KGgo=",
+          },
+        );
+        const page = new Page(client, { pageId: "page-1" });
 
-      await expect(page.screenshot({ path: "screenshot.png" })).rejects.toThrow(
-        "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
-      );
-    } finally {
-      vi.doUnmock("node:fs/promises");
-    }
-  });
+        await expect(page[method]({ path: `capture.${method}` })).rejects.toThrow(
+          `page.${method}(): path is only supported in Node.js; omit path to receive ${method === "pdf" ? "PDF" : "screenshot"} bytes`,
+        );
+      } finally {
+        vi.doUnmock("node:fs/promises");
+      }
+    },
+  );
 
   it("returns PDF bytes, writes paths locally, and serializes print options", async () => {
     const client = new FakeProtocolClient();
