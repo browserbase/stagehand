@@ -453,7 +453,7 @@ async def test_connect_explains_when_chrome_cannot_load_an_extension(
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
 
-    with pytest.raises(RuntimeError, match="does not support Extensions.loadUnpacked"):
+    with pytest.raises(RuntimeError, match=r"does not support Extensions.loadUnpacked"):
         await CDPClient.connect(
             cdp_url="http://127.0.0.1:9222",
             extension_dir="/tmp/stagehand-extension",
@@ -594,7 +594,7 @@ async def test_installed_extension_discovery_propagates_cdp_command_errors() -> 
     socket = FakeWebSocket(lambda _: {"error": {"code": -32601, "message": "Method not available"}})
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     try:
-        with pytest.raises(RuntimeError, match="Extensions.getExtensions: Method not available"):
+        with pytest.raises(RuntimeError, match=r"Extensions.getExtensions: Method not available"):
             await client._discover_installed_stagehand_extension_id()
     finally:
         await client.close()

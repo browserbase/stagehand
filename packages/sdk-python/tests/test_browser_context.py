@@ -70,7 +70,7 @@ async def test_browser_context_serializes_python_cookie_filters() -> None:
     context = BrowserContext(cast(RPCClient, recording), _close_browser)
 
     await context.clear_cookies(
-        name=re.compile("^session$", re.IGNORECASE),
+        name=re.compile(r"^session$", re.IGNORECASE),
         domain="example.com",
     )
 
