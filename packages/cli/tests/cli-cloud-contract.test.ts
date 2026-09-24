@@ -869,6 +869,9 @@ describe("cloud API contracts", () => {
                 "browse cloud sessions create --context-id <context-id|name> --persist",
               );
               expect(result.stderr).toContain("close the session");
+              expect(result.stderr).toContain(
+                "browse cloud sessions update <session-id> --status REQUEST_RELEASE",
+              );
               expect(result.stderr).not.toContain(
                 "Missing Browserbase API key",
               );
@@ -886,6 +889,7 @@ describe("cloud API contracts", () => {
     expect(result.stdout).toContain("deprecated");
     expect(result.stdout).toContain("no longer supports context uploads");
     expect(result.stdout).toContain("--persist");
+    expect(result.stdout).toContain("REQUEST_RELEASE");
   });
 
   it.each([
