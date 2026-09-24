@@ -14,6 +14,7 @@ permissions:
 jobs:
   build:
     name: Build Python distributions
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -98,6 +99,7 @@ jobs:
 
   publish:
     name: Publish Python distributions
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
