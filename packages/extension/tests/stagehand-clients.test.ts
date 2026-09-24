@@ -24,7 +24,11 @@ import type {
   UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
-import { DuplicatePageEventSubscriptionError } from "../errors.ts";
+import {
+  CaptureRecoveryError,
+  DuplicatePageEventSubscriptionError,
+  TimeoutError,
+} from "../errors.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
   ContextSetExtraHTTPHeadersParams,
@@ -50,6 +54,8 @@ import type {
   PageEvaluateParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PagePDFOptions,
+  PagePDFResult,
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
@@ -238,6 +244,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     options?: PageWaitForSelectorParams["options"];
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
+  readonly pdfCalls: Array<PagePDFOptions | undefined> = [];
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
   readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
   readonly invokeWebMCPToolCalls: Array<{
@@ -386,6 +393,11 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   async screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array> {
     this.screenshotCalls.push(options);
     return this.screenshotBytes;
+  }
+
+  async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
+    this.pdfCalls.push(options);
+    return { data: "JVBERi0xLjc=" };
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -2085,12 +2097,33 @@ describe("Stagehand worker clients", () => {
       handle({
         jsonrpc: "2.0",
         id: 31,
+        method: "page.pdf",
+        params: {
+          page_id: "page-a",
+          options: {
+            landscape: true,
+            print_background: true,
+            paper_width: 8.5,
+            paper_height: 11,
+          },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 31,
+      result: { data: "JVBERi0xLjc=" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 32,
         method: "page.snapshot",
         params: { page_id: "page-a", options: { include_iframes: true } },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
-      id: 31,
+      id: 32,
       result: {
         formatted_tree: "root",
         xpath_map: { frameOne: "/html/body" },
@@ -2105,7 +2138,40 @@ describe("Stagehand worker clients", () => {
         maskColor: "#000000",
       },
     ]);
+    expect(page.pdfCalls).toStrictEqual([
+      {
+        landscape: true,
+        printBackground: true,
+        paperWidth: 8.5,
+        paperHeight: 11,
+      },
+    ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+  });
+
+  it("preserves the recovery error type and original PDF deadline over RPC", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    vi.spyOn(page, "pdf").mockRejectedValue(
+      new CaptureRecoveryError(new TimeoutError("pdf", 30_000)),
+    );
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 33,
+        method: "page.pdf",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 33,
+      error: {
+        code: -32603,
+        message: "A previous capture is still recovering: pdf timed out after 30000ms",
+        data: { name: "CaptureRecoveryError" },
+      },
+    });
   });
 
   it("routes WebMCP discovery and invocation operations through the owning page", async () => {

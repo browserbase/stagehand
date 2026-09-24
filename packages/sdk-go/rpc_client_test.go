@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -93,6 +94,61 @@ type uppercaseRPCResult struct {
 	Value string `json:"value"`
 }
 
+func TestPDFResponseTimeout(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		params  string
+		want    time.Duration
+		bounded bool
+	}{
+		{`{"options":{"timeout":250}}`, 10*time.Second + 250*time.Millisecond, true},
+		{`{"options":{"timeout":45000}}`, 55 * time.Second, true},
+		{`{"options":{"timeout":0}}`, 0, false},
+	} {
+		got, bounded := rpcResponseTimeout("page.pdf", json.RawMessage(test.params))
+		if got != test.want || bounded != test.bounded {
+			t.Errorf("page.pdf %s timeout = %v, %t; want %v, %t", test.params, got, bounded, test.want, test.bounded)
+		}
+	}
+}
+
+func TestRPCClientTimeoutDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	for _, phase := range []string{"send", "response"} {
+		for _, callerDeadline := range []bool{false, true} {
+			t.Run(phase+"/callerDeadline="+strconv.FormatBool(callerDeadline), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					transport := newQueueRPCTransport()
+					if phase == "send" {
+						transport.sent = make(chan json.RawMessage)
+					}
+					client := newTestRPCClient(t, transport)
+					ctx := context.Background()
+					if callerDeadline {
+						var cancel context.CancelFunc
+						ctx, cancel = context.WithTimeout(ctx, time.Second)
+						defer cancel()
+					}
+					timeout := 250.0
+					var result PagePDFResult
+					err := client.call(ctx, "page.pdf", PagePDFParams{
+						PageID:  "page-1",
+						Options: &PagePDFOptions{Timeout: &timeout},
+					}, &result)
+					want := "RPC response timed out after 10.25s: page.pdf: context deadline exceeded"
+					if callerDeadline {
+						want = "RPC request canceled: page.pdf: context deadline exceeded"
+					}
+					if !errors.Is(err, context.DeadlineExceeded) || err.Error() != want {
+						t.Fatalf("call() error = %v, want wrapped deadline error %q", err, want)
+					}
+				})
+			})
+		}
+	}
+}
+
 func TestRPCResponseTimeoutPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -150,6 +206,7 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"page.go_forward":          25 * time.Second,
 		"page.wait_for_load_state": 25 * time.Second,
 		"page.wait_for_selector":   40 * time.Second,
+		"page.pdf":                 40 * time.Second,
 		"page.webmcp_tools":        11 * time.Second,
 	}
 	for method, expected := range defaultTimeouts {

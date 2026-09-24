@@ -586,6 +586,87 @@ const image = await page.screenshot({ fullPage: true });
   The screenshot image bytes.
 </ResponseField>
 
+## pdf()
+
+Render the current document to PDF with Chrome's print pipeline.
+
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
+```typescript
+const pdf = await page.pdf({
+  path: "page.pdf",
+  preferCSSPageSize: true,
+  printBackground: true,
+});
+```
+
+<ParamField path="options" type="PDFOptions" optional>
+  Options that configure PDF rendering. Paper sizes and margins are measured in inches.
+
+  <ParamField path="options.displayHeaderFooter" type="boolean" optional>
+    Whether to render the header and footer templates.
+  </ParamField>
+
+  <ParamField path="options.footerTemplate" type="string" optional>
+    HTML for the print footer. Chrome fills elements with `pageNumber`, `totalPages`, `date`,
+    `title`, and `url` classes.
+  </ParamField>
+
+  <ParamField path="options.generateDocumentOutline" type="boolean" optional>
+    Whether to generate a document outline from the page structure.
+  </ParamField>
+
+  <ParamField path="options.generateTaggedPDF" type="boolean" optional>
+    Include document structure tags in the PDF.
+  </ParamField>
+
+  <ParamField path="options.headerTemplate" type="string" optional>
+    HTML for the print header, with the same supported classes as `footerTemplate`.
+  </ParamField>
+
+  <ParamField path="options.landscape" type="boolean" optional>
+    Whether to use landscape orientation.
+  </ParamField>
+
+  <ParamField path="options.marginBottom" type="number" optional />
+  <ParamField path="options.marginLeft" type="number" optional />
+  <ParamField path="options.marginRight" type="number" optional />
+  <ParamField path="options.marginTop" type="number" optional />
+
+  <ParamField path="options.pageRanges" type="string" optional>
+    Page ranges to print, such as `"1-3, 5"`.
+  </ParamField>
+
+  <ParamField path="options.paperHeight" type="number" optional />
+  <ParamField path="options.paperWidth" type="number" optional />
+
+  <ParamField path="options.path" type="string" optional>
+    A local file path where the PDF is also written. Node.js only.
+  </ParamField>
+
+  <ParamField path="options.preferCSSPageSize" type="boolean" optional>
+    Whether CSS `@page` sizing takes precedence over `paperWidth` and `paperHeight`.
+  </ParamField>
+
+  <ParamField path="options.printBackground" type="boolean" optional>
+    Whether to include CSS backgrounds.
+  </ParamField>
+
+  <ParamField path="options.scale" type="number" optional>
+    Render scale from `0.1` to `2`.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum capture wait in milliseconds, including time queued behind another capture.
+    Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Uint8Array>">
+  The PDF bytes.
+</ResponseField>
+
 ## snapshot()
 
 Capture the page's accessibility-oriented DOM snapshot.
@@ -1250,6 +1331,82 @@ image = await page.screenshot(full_page=True)
 
 <ResponseField name="result" type="bytes">
   The operation result.
+</ResponseField>
+
+## pdf()
+
+Render the current document to PDF with Chrome's print pipeline.
+
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
+```python
+pdf = await page.pdf(
+    path="page.pdf",
+    prefer_css_page_size=True,
+    print_background=True,
+)
+```
+
+All measurements are in inches.
+
+<ParamField path="display_header_footer" type="bool | None" optional>
+  Whether to render the header and footer templates.
+</ParamField>
+
+<ParamField path="footer_template" type="str | None" optional>
+  HTML for the print footer. Chrome fills elements with `pageNumber`, `totalPages`, `date`,
+  `title`, and `url` classes.
+</ParamField>
+
+<ParamField path="generate_document_outline" type="bool | None" optional>
+  Whether to generate a document outline from the page structure.
+</ParamField>
+
+<ParamField path="generate_tagged_pdf" type="bool | None" optional>
+  Include document structure tags in the PDF.
+</ParamField>
+
+<ParamField path="header_template" type="str | None" optional>
+  HTML for the print header, with the same supported classes as `footer_template`.
+</ParamField>
+
+<ParamField path="landscape" type="bool | None" optional />
+<ParamField path="margin_bottom" type="float | None" optional />
+<ParamField path="margin_left" type="float | None" optional />
+<ParamField path="margin_right" type="float | None" optional />
+<ParamField path="margin_top" type="float | None" optional />
+
+<ParamField path="page_ranges" type="str | None" optional>
+  Page ranges to print, such as `"1-3, 5"`.
+</ParamField>
+
+<ParamField path="paper_height" type="float | None" optional />
+<ParamField path="paper_width" type="float | None" optional />
+
+<ParamField path="path" type="str | Path | None" optional>
+  A local path where the PDF is also written.
+</ParamField>
+
+<ParamField path="prefer_css_page_size" type="bool | None" optional>
+  Whether CSS `@page` sizing takes precedence over `paper_width` and `paper_height`.
+</ParamField>
+
+<ParamField path="print_background" type="bool | None" optional>
+  Whether to include CSS backgrounds.
+</ParamField>
+
+<ParamField path="scale" type="float | None" optional>
+  Render scale from `0.1` to `2`.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum capture wait in milliseconds, including time queued behind another capture.
+  Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
+</ParamField>
+
+<ResponseField name="result" type="bytes">
+  The PDF bytes.
 </ResponseField>
 
 ## snapshot()
@@ -1997,6 +2154,60 @@ if err := os.WriteFile("screenshot.png", image, 0o644); err != nil {
 
 <ResponseField name="result" type="([]byte, error)">
   The screenshot image bytes.
+</ResponseField>
+
+## PDF()
+
+Render the current document to PDF with Chrome's print pipeline. Write the returned bytes with
+`os.WriteFile` when a file is needed.
+
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
+```go
+printBackground := true
+pdf, err := page.PDF(ctx, &stagehand.PagePDFOptions{PrintBackground: &printBackground})
+if err != nil {
+    return err
+}
+if err := os.WriteFile("page.pdf", pdf, 0o644); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*PagePDFOptions" optional>
+  Options that configure PDF rendering. Pass `nil` for defaults. Paper sizes and margins are
+  measured in inches.
+
+  <ParamField path="options.DisplayHeaderFooter" type="*bool" optional />
+  <ParamField path="options.FooterTemplate" type="*string" optional />
+  <ParamField path="options.GenerateDocumentOutline" type="*bool" optional />
+  <ParamField path="options.GenerateTaggedPDF" type="*bool" optional />
+  <ParamField path="options.HeaderTemplate" type="*string" optional />
+  <ParamField path="options.Landscape" type="*bool" optional />
+  <ParamField path="options.MarginBottom" type="*float64" optional />
+  <ParamField path="options.MarginLeft" type="*float64" optional />
+  <ParamField path="options.MarginRight" type="*float64" optional />
+  <ParamField path="options.MarginTop" type="*float64" optional />
+  <ParamField path="options.PageRanges" type="*string" optional />
+  <ParamField path="options.PaperHeight" type="*float64" optional />
+  <ParamField path="options.PaperWidth" type="*float64" optional />
+  <ParamField path="options.PreferCSSPageSize" type="*bool" optional />
+  <ParamField path="options.PrintBackground" type="*bool" optional />
+
+  <ParamField path="options.Scale" type="*float64" optional>
+    Render scale from `0.1` to `2`.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    Maximum capture wait in milliseconds, including time queued behind another capture.
+    Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
+    The caller's context can end the wait earlier.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="([]byte, error)">
+  The PDF bytes.
 </ResponseField>
 
 ## Snapshot()

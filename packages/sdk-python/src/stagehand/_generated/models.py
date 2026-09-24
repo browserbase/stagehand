@@ -1677,6 +1677,53 @@ class PageOnParams(WireModel):
     event: PageSubscriptionEventName
 
 
+class PagePDFOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    landscape: Optional[StrictBool] = None
+    display_header_footer: Optional[StrictBool] = None
+    print_background: Optional[StrictBool] = None
+    scale: Annotated[Optional[StrictFloat], Field(ge=0.1, le=2.0)] = None
+    paper_width: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    paper_height: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    margin_top: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    margin_bottom: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    margin_left: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    margin_right: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    page_ranges: Optional[StrictStr] = None
+    header_template: Optional[StrictStr] = None
+    footer_template: Optional[StrictStr] = None
+    prefer_css_page_size: Optional[StrictBool] = None
+    generate_tagged_pdf: Optional[StrictBool] = None
+    generate_document_outline: Optional[StrictBool] = None
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0, le=2147473647.0)] = None
+
+
+class PagePDFParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[PagePDFOptions] = None
+
+
+class PagePDFResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    data: Annotated[
+        StrictStr,
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ]
+
+
 class PageRef(WireModel):
     model_config = ConfigDict(
         extra="forbid",

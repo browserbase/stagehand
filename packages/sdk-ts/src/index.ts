@@ -28,6 +28,7 @@ export {
   type ToolsRemovedListener,
   type PageKeyPressOptions,
   type PageReloadOptions,
+  type PDFOptions,
   type PageSetViewportSizeOptions,
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
@@ -43,6 +44,7 @@ export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
+export { RPCResponseTimeoutError } from "./timeouts.js";
 export type {
   ReportedRuntimeDescriptor,
   RuntimeCompatibility,
@@ -90,6 +92,7 @@ export type {
   PageDragAndDropRoutePoint,
   PageEventName,
   PageNavigationOptions,
+  PagePDFOptions,
   PageScreenshotClip,
   PageSnapshotOptions,
   RgbaColor,

@@ -113,6 +113,94 @@ describe("Stagehand RPC router", () => {
     await tracing.shutdown();
   });
 
+  it.each(["success", "failure"] as const)(
+    "traces page.pdf %s through the shared RPC telemetry",
+    async (outcome) => {
+      const spans = new InMemorySpanExporter();
+      const tracing = configuredTracing(
+        createStagehandTracingRuntime(
+          { registerGlobals: false },
+          { spanProcessors: [new SimpleSpanProcessor(spans)] },
+        ),
+      );
+      const router = createRouter(tracing);
+      const pdfResult = { data: "JVBERi0xLjcK" };
+      const failure = new TypeError("Page.printToPDF failed");
+      const pdf = vi.spyOn(router.runtime, "pagePDF");
+      if (outcome === "success") pdf.mockResolvedValue(pdfResult);
+      else pdf.mockRejectedValue(failure);
+
+      try {
+        const result = router.handle(
+          request({
+            id: 20,
+            method: "page.pdf",
+            params: {
+              page_id: "page-1",
+              options: { print_background: true, prefer_css_page_size: true },
+            },
+            traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            tracestate: "vendor=value",
+          }),
+        );
+        if (outcome === "success") await expect(result).resolves.toBe(pdfResult);
+        else await expect(result).rejects.toBe(failure);
+        expect(pdf).toHaveBeenCalledExactlyOnceWith({
+          pageId: "page-1",
+          options: { printBackground: true, preferCSSPageSize: true },
+        });
+        await tracing.forceFlush();
+
+        const finishedSpans = spans.getFinishedSpans();
+        const requestSpans = finishedSpans.filter((span) => span.kind === SpanKind.SERVER);
+        expect(requestSpans).toHaveLength(1);
+        const requestSpan = requestSpans[0]!;
+        expect(requestSpan.name).toBe("page.pdf");
+        expect(requestSpan.attributes).toMatchObject({
+          "rpc.system.name": "jsonrpc",
+          "rpc.method": "page.pdf",
+          "jsonrpc.request.id": "20",
+        });
+        expect(requestSpan.spanContext().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
+        expect(requestSpan.parentSpanContext?.spanId).toBe("00f067aa0ba902b7");
+        expect(requestSpan.parentSpanContext?.isRemote).toBe(true);
+        expect(requestSpan.parentSpanContext?.traceState?.get("vendor")).toBe("value");
+        const logSpan = finishedSpans.find(
+          (span) => span.attributes["stagehand.log.message"] === "page.pdf",
+        );
+        expect(logSpan?.spanContext().traceId).toBe(requestSpan.spanContext().traceId);
+        expect(logSpan?.parentSpanContext?.spanId).toBe(requestSpan.spanContext().spanId);
+
+        if (outcome === "failure") {
+          expect(requestSpan.status).toStrictEqual({
+            code: SpanStatusCode.ERROR,
+            message: failure.message,
+          });
+          expect(requestSpan.attributes).toMatchObject({
+            "rpc.response.status_code": "-32603",
+            "error.type": failure.name,
+          });
+          expect(requestSpan.events).toContainEqual(
+            expect.objectContaining({
+              name: "exception",
+              attributes: expect.objectContaining({
+                "exception.type": failure.name,
+                "exception.message": failure.message,
+                "exception.stacktrace": failure.stack,
+              }) as object,
+            }),
+          );
+        } else {
+          expect(requestSpan.status.code).toBe(SpanStatusCode.UNSET);
+          expect(requestSpan.attributes["error.type"]).toBeUndefined();
+          expect(requestSpan.events).toStrictEqual([]);
+        }
+      } finally {
+        await tracing.shutdown();
+      }
+    },
+  );
+
   it("ends the Stagehand close span before flushing reusable tracing", async () => {
     const lifecycle: string[] = [];
     const processor: SpanProcessor = {

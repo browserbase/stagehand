@@ -44,6 +44,9 @@ from ._generated.models import (
     PageNavigationResult,
     PageOffParams,
     PageOnParams,
+    PagePDFOptions,
+    PagePDFParams,
+    PagePDFResult,
     PageRef,
     PageReloadOptions,
     PageReloadParams,
@@ -608,6 +611,60 @@ class Page:
             params,
             PageScreenshotResult,
         )
+        data = base64.b64decode(result.data, validate=True)
+        if path is not None:
+            Path(path).write_bytes(data)
+        return data
+
+    async def pdf(
+        self,
+        *,
+        landscape: bool | None = None,
+        display_header_footer: bool | None = None,
+        print_background: bool | None = None,
+        scale: float | None = None,
+        paper_width: float | None = None,
+        paper_height: float | None = None,
+        margin_top: float | None = None,
+        margin_bottom: float | None = None,
+        margin_left: float | None = None,
+        margin_right: float | None = None,
+        page_ranges: str | None = None,
+        header_template: str | None = None,
+        footer_template: str | None = None,
+        prefer_css_page_size: bool | None = None,
+        generate_tagged_pdf: bool | None = None,
+        generate_document_outline: bool | None = None,
+        timeout: float | None = None,
+        path: str | Path | None = None,
+    ) -> bytes:
+        params = PagePDFParams(page_id=self.page_id)
+        options = PagePDFOptions.model_validate({
+            name: value
+            for name, value in (
+                ("landscape", landscape),
+                ("display_header_footer", display_header_footer),
+                ("print_background", print_background),
+                ("scale", scale),
+                ("paper_width", paper_width),
+                ("paper_height", paper_height),
+                ("margin_top", margin_top),
+                ("margin_bottom", margin_bottom),
+                ("margin_left", margin_left),
+                ("margin_right", margin_right),
+                ("page_ranges", page_ranges),
+                ("header_template", header_template),
+                ("footer_template", footer_template),
+                ("prefer_css_page_size", prefer_css_page_size),
+                ("generate_tagged_pdf", generate_tagged_pdf),
+                ("generate_document_outline", generate_document_outline),
+                ("timeout", timeout),
+            )
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        result = await self._rpc_client.send("page.pdf", params, PagePDFResult)
         data = base64.b64decode(result.data, validate=True)
         if path is not None:
             Path(path).write_bytes(data)
