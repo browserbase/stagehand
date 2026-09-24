@@ -20,9 +20,10 @@ export type TypeScriptRelease = {
 export type ReconcileGitHubReleasesOptions = {
   repositoryRoot?: string;
   repository?: string;
+  dryRun?: boolean;
   tagExists?: (tag: string) => Promise<boolean>;
   releaseExists?: (tag: string) => Promise<boolean>;
-  createRelease?: (release: TypeScriptRelease) => Promise<void>;
+  createRelease?: (release: TypeScriptRelease, options: { latest: boolean }) => Promise<void>;
 };
 
 type ExecFileError = Error & {
@@ -69,8 +70,7 @@ export function parseTypeScriptReleases(changelog: string): TypeScriptRelease[] 
     });
   }
 
-  // The root changelog is newest-first. Create missing historical releases
-  // oldest-first so GitHub's automatic "Latest" selection ends on the newest SDK.
+  // The root changelog is newest-first. Reconcile historical releases oldest-first.
   return releases.reverse();
 }
 
@@ -103,6 +103,7 @@ async function createGitHubRelease(
   repositoryRoot: string,
   repository: string,
   release: TypeScriptRelease,
+  { latest }: { latest: boolean },
 ): Promise<void> {
   const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "stagehand-release-"));
   const notesPath = path.join(temporaryDirectory, "notes.md");
@@ -120,6 +121,7 @@ async function createGitHubRelease(
       "--notes-file",
       notesPath,
       "--verify-tag",
+      `--latest=${latest}`,
     ];
     if (release.prerelease) args.push("--prerelease");
     await execFileAsync("gh", args, { cwd: repositoryRoot });
@@ -131,17 +133,28 @@ async function createGitHubRelease(
 export async function reconcileGitHubReleases({
   repositoryRoot = path.resolve(import.meta.dirname, "../.."),
   repository = process.env.GITHUB_REPOSITORY ?? "browserbase/stagehand",
+  dryRun = false,
   tagExists = async (tag) => await remoteTagExists(repositoryRoot, tag),
   releaseExists = async (tag) => await githubReleaseExists(repository, tag),
-  createRelease = async (release) => await createGitHubRelease(repositoryRoot, repository, release),
+  createRelease = async (release, options) =>
+    await createGitHubRelease(repositoryRoot, repository, release, options),
 }: ReconcileGitHubReleasesOptions = {}): Promise<string[]> {
   const changelog = await readFile(path.join(repositoryRoot, "CHANGELOG.md"), "utf8");
+  const taggedReleases: TypeScriptRelease[] = [];
+  for (const release of parseTypeScriptReleases(changelog)) {
+    if (await tagExists(release.tag)) taggedReleases.push(release);
+  }
+  // An untagged version is not published yet. Older backfills and prereleases
+  // must not replace the newest tagged stable SDK as GitHub's "Latest" release.
+  const latestStable = taggedReleases
+    .filter((release) => !release.prerelease)
+    .sort((a, b) => b.version.localeCompare(a.version, "en", { numeric: true }))[0];
   const created: string[] = [];
 
-  for (const release of parseTypeScriptReleases(changelog)) {
-    if (!(await tagExists(release.tag)) || (await releaseExists(release.tag))) continue;
+  for (const release of taggedReleases) {
+    if (await releaseExists(release.tag)) continue;
 
-    await createRelease(release);
+    if (!dryRun) await createRelease(release, { latest: release === latestStable });
     created.push(release.tag);
   }
 
@@ -153,10 +166,17 @@ if (
   invokedPath !== undefined &&
   import.meta.url === pathToFileURL(path.resolve(invokedPath)).href
 ) {
-  const created = await reconcileGitHubReleases();
+  const flags = process.argv.slice(2);
+  if (flags.some((flag) => flag !== "--dry-run")) {
+    throw new Error("Usage: reconcile-github-releases.ts [--dry-run]");
+  }
+  const dryRun = flags.includes("--dry-run");
+  const created = await reconcileGitHubReleases({ dryRun });
   if (created.length === 0) {
     process.stdout.write("GitHub Releases are already in sync.\n");
   } else {
-    process.stdout.write(`Created GitHub Releases: ${created.join(", ")}\n`);
+    process.stdout.write(
+      `${dryRun ? "Would create" : "Created"} GitHub Releases: ${created.join(", ")}\n`,
+    );
   }
 }

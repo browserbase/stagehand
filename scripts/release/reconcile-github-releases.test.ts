@@ -97,6 +97,117 @@ describe("parseTypeScriptReleases", () => {
 });
 
 describe("reconcileGitHubReleases", () => {
+  it("backfills missing releases once and marks only the newest tagged stable release latest", async () => {
+    const repositoryRoot = await repositoryFixture(
+      "## TypeScript SDK 4.2.0\n\n- Not tagged yet.\n\n" +
+        "## TypeScript SDK 4.2.0-beta.1\n\n- Preview.\n\n" +
+        "## TypeScript SDK 4.1.0\n\n- Current.\n\n" +
+        changelog,
+    );
+    const existing = new Set<string>();
+    const createRelease = vi.fn(async (release: TypeScriptRelease) => {
+      existing.add(release.tag);
+    });
+    const options = {
+      repositoryRoot,
+      tagExists: async (tag: string) => tag !== "@browserbasehq/stagehand@4.2.0",
+      releaseExists: async (tag: string) => existing.has(tag),
+      createRelease,
+    };
+
+    expect(await reconcileGitHubReleases(options)).toEqual([
+      "@browserbasehq/stagehand@4.0.1",
+      "@browserbasehq/stagehand@4.0.2",
+      "@browserbasehq/stagehand@4.1.0",
+      "@browserbasehq/stagehand@4.2.0-beta.1",
+    ]);
+    expect(createRelease.mock.calls.map((call) => call[0].version)).toEqual([
+      "4.0.1",
+      "4.0.2",
+      "4.1.0",
+      "4.2.0-beta.1",
+    ]);
+    expect(createRelease).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ version: "4.1.0" }),
+      { latest: true },
+    );
+    for (const call of [1, 2, 4]) {
+      expect(createRelease).toHaveBeenNthCalledWith(call, expect.anything(), { latest: false });
+    }
+    createRelease.mockClear();
+    expect(await reconcileGitHubReleases(options)).toEqual([]);
+    expect(createRelease).not.toHaveBeenCalled();
+  });
+
+  it("does not mark an older backfill latest when the newest release already exists", async () => {
+    const repositoryRoot = await repositoryFixture();
+    const createRelease = vi.fn();
+    expect(
+      await reconcileGitHubReleases({
+        repositoryRoot,
+        tagExists: async () => true,
+        releaseExists: async (tag) => tag.endsWith("4.0.2"),
+        createRelease,
+      }),
+    ).toEqual(["@browserbasehq/stagehand@4.0.1"]);
+    expect(createRelease).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ version: "4.0.1" }),
+      { latest: false },
+    );
+  });
+
+  it("chooses Latest by stable version even when a maintenance release appears first", async () => {
+    const repositoryRoot = await repositoryFixture(
+      "## TypeScript SDK 4.9.1\n\n- Maintenance release.\n\n" +
+        "## TypeScript SDK 4.10.0\n\n- Newest stable version.\n",
+    );
+    const createRelease = vi.fn();
+    await reconcileGitHubReleases({
+      repositoryRoot,
+      tagExists: async () => true,
+      releaseExists: async () => false,
+      createRelease,
+    });
+    expect(createRelease).toHaveBeenCalledWith(expect.objectContaining({ version: "4.10.0" }), {
+      latest: true,
+    });
+    expect(createRelease).toHaveBeenCalledWith(expect.objectContaining({ version: "4.9.1" }), {
+      latest: false,
+    });
+  });
+
+  it("reports the same missing releases in dry-run mode without publishing", async () => {
+    const repositoryRoot = await repositoryFixture();
+    const createRelease = vi.fn();
+    expect(
+      await reconcileGitHubReleases({
+        repositoryRoot,
+        dryRun: true,
+        tagExists: async () => true,
+        releaseExists: async () => false,
+        createRelease,
+      }),
+    ).toEqual(["@browserbasehq/stagehand@4.0.1", "@browserbasehq/stagehand@4.0.2"]);
+    expect(createRelease).not.toHaveBeenCalled();
+  });
+
+  it("propagates lookup failures instead of treating them as missing releases", async () => {
+    const repositoryRoot = await repositoryFixture();
+    const createRelease = vi.fn();
+    await expect(
+      reconcileGitHubReleases({
+        repositoryRoot,
+        tagExists: async () => true,
+        releaseExists: async () => {
+          throw new Error("GitHub unavailable");
+        },
+        createRelease,
+      }),
+    ).rejects.toThrow("GitHub unavailable");
+    expect(createRelease).not.toHaveBeenCalled();
+  });
+
   it("creates only tagged releases that do not already exist", async () => {
     const repositoryRoot = await repositoryFixture();
     const tagExists = vi.fn(async (tag: string) => !tag.endsWith("4.0.1"));
