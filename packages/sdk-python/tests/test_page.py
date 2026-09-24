@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TypeVar, cast, overload
 
 import pytest
@@ -23,6 +24,8 @@ from stagehand._generated.models import (
     PageNavigationResult,
     PageOffParams,
     PageOnParams,
+    PagePDFParams,
+    PagePDFResult,
     PageRef,
     PageScrollParams,
     PageUrlResult,
@@ -178,6 +181,38 @@ async def test_page_url_returns_a_scalar_string() -> None:
     assert recording.calls == [
         ("page.url", PageIdParams(page_id="page-1"), PageUrlResult),
     ]
+
+
+@pytest.mark.asyncio
+async def test_page_pdf_returns_bytes_writes_path_and_serializes_options(tmp_path: Path) -> None:
+    recording = RecordingRPCClient({"page.pdf": PagePDFResult(data="JVBERi0xLjcK")})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    output_path = tmp_path / "page.pdf"
+
+    data = await page.pdf(
+        landscape=True,
+        print_background=True,
+        paper_width=8.5,
+        paper_height=11,
+        margin_top=0.25,
+        path=output_path,
+    )
+
+    assert data == b"%PDF-1.7\n"
+    assert output_path.read_bytes() == data
+    method, params, result_model = recording.calls[0]
+    assert method == "page.pdf"
+    assert params == PagePDFParams.model_validate({
+        "page_id": "page-1",
+        "options": {
+            "landscape": True,
+            "print_background": True,
+            "paper_width": 8.5,
+            "paper_height": 11,
+            "margin_top": 0.25,
+        },
+    })
+    assert result_model is PagePDFResult
 
 
 @pytest.mark.asyncio

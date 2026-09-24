@@ -11,6 +11,7 @@ import type {
   PageKeyPressParams,
   PageOffParams,
   PageOnParams,
+  PagePDFParams,
   PageReloadParams,
   PageScrollParams,
   PageScreenshotParams,
@@ -123,6 +124,11 @@ export function createPageController(runtime: StagehandRuntime) {
     return runtime.pageScreenshot(params);
   }
 
+  async function pdf(params: PagePDFParams, { logger }: HandlerContext) {
+    logger.debug("page.pdf", {});
+    return runtime.pagePDF(params);
+  }
+
   async function snapshot(params: PageSnapshotParams, { logger }: HandlerContext) {
     logger.debug("page.snapshot", {});
     return runtime.pageSnapshot(params);
@@ -198,6 +204,7 @@ export function createPageController(runtime: StagehandRuntime) {
     waitForTimeout,
     waitForSelector,
     screenshot,
+    pdf,
     snapshot,
     webMCPTools,
     webMCPInvokeTool,

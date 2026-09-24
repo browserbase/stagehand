@@ -13,6 +13,13 @@ const defaultOpaqueKeys = new Set([
   "userMetadata",
 ]);
 
+// camelcase-keys cannot recover consecutive API acronyms from snake_case on its own.
+const apiAcronymWireKeys: Readonly<Record<string, string>> = {
+  base_url: "base_URL",
+  generate_tagged_pdf: "generate_tagged_PDF",
+  prefer_css_page_size: "prefer_CSS_page_size",
+};
+
 export type WireCasingOptions = {
   /** API-side container keys whose nested, user-controlled keys must retain their casing. */
   readonly opaqueKeys?: readonly string[];
@@ -148,7 +155,7 @@ function preserveApiAcronyms(
     if (!isRecord(entry)) return entry;
     return Object.fromEntries(
       Object.entries(entry).map(([key, child]) => [
-        key === "base_url" ? "base_URL" : key,
+        apiAcronymWireKeys[key] ?? key,
         opaqueKeys.has(key) ? child : visit(child),
       ]),
     );

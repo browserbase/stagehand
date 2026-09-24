@@ -181,6 +181,7 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"context.clipboard_cut",
 		"page.close",
 		"page.evaluate",
+		"page.pdf",
 		"page.screenshot",
 		"page.snapshot",
 		"page.webmcp_invocation_result",

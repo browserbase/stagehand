@@ -27,6 +27,7 @@ import type {
   PageToolsRemovedNotification,
   WebMCPToolIdentity,
   PageSnapshotOptions,
+  PagePDFOptions,
   SnapshotResult,
   WebMCPAnnotation,
   WebMCPInvocationDescriptor,
@@ -1585,6 +1586,23 @@ export class Page {
     };
 
     return await withScreenshotLock(this, exec, opts.timeout);
+  }
+
+  /** Render the current document to PDF using Chrome's native print pipeline. */
+  async pdf(options?: PagePDFOptions): Promise<Uint8Array> {
+    const result = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
+      "Page.printToPDF",
+      {
+        ...options,
+        transferMode: "ReturnAsBase64",
+      },
+    );
+    const binary = globalThis.atob(result.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
   }
 
   /**

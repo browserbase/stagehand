@@ -578,6 +578,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.pdf": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PagePDFParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PagePDFResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.snapshot": {
           "type": "object",
           "properties": {
@@ -1040,6 +1053,7 @@
         "page.off",
         "page.set_extra_http_headers",
         "page.screenshot",
+        "page.pdf",
         "page.snapshot",
         "page.set_viewport_size",
         "page.wait_for_load_state",
@@ -3797,6 +3811,94 @@
       "required": ["data"],
       "additionalProperties": false
     },
+    "PagePDFParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PagePDFOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "PagePDFOptions": {
+      "type": "object",
+      "properties": {
+        "landscape": {
+          "type": "boolean"
+        },
+        "display_header_footer": {
+          "type": "boolean"
+        },
+        "print_background": {
+          "type": "boolean"
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 2
+        },
+        "paper_width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "paper_height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "margin_top": {
+          "type": "number",
+          "minimum": 0
+        },
+        "margin_bottom": {
+          "type": "number",
+          "minimum": 0
+        },
+        "margin_left": {
+          "type": "number",
+          "minimum": 0
+        },
+        "margin_right": {
+          "type": "number",
+          "minimum": 0
+        },
+        "page_ranges": {
+          "type": "string"
+        },
+        "header_template": {
+          "type": "string"
+        },
+        "footer_template": {
+          "type": "string"
+        },
+        "prefer_css_page_size": {
+          "type": "boolean"
+        },
+        "generate_tagged_pdf": {
+          "type": "boolean"
+        },
+        "generate_document_outline": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePDFResult": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string",
+          "format": "byte",
+          "contentEncoding": "base64",
+          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+        }
+      },
+      "required": ["data"],
+      "additionalProperties": false
+    },
     "PageSnapshotParams": {
       "type": "object",
       "properties": {
@@ -6462,6 +6564,33 @@
             },
             "params": {
               "$ref": "#/$defs/PageScreenshotParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.pdf"
+            },
+            "params": {
+              "$ref": "#/$defs/PagePDFParams"
             },
             "traceparent": {
               "type": "string"

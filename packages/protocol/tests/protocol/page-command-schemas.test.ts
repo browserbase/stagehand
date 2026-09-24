@@ -9,6 +9,8 @@ import {
   PageGoForwardParamsSchema,
   PageHoverParamsSchema,
   PageKeyPressParamsSchema,
+  PagePDFParamsSchema,
+  PagePDFResultSchema,
   PageReloadParamsSchema,
   PageScreenshotParamsSchema,
   PageScreenshotResultSchema,
@@ -238,7 +240,7 @@ describe("page command schemas", () => {
     ).toThrow();
   });
 
-  it("defines wire-safe screenshot and snapshot params", () => {
+  it("defines wire-safe screenshot, PDF, and snapshot params", () => {
     expect(
       PageScreenshotParamsSchema.parse({
         pageId,
@@ -280,5 +282,36 @@ describe("page command schemas", () => {
     expect(() =>
       PageScreenshotParamsSchema.parse({ pageId, options: { path: "screenshot.png" } }),
     ).toThrow();
+    expect(
+      PagePDFParamsSchema.parse({
+        pageId,
+        options: {
+          landscape: true,
+          printBackground: true,
+          scale: 0.75,
+          paperWidth: 8.5,
+          paperHeight: 11,
+          marginTop: 0.25,
+          pageRanges: "1-3",
+          generateTaggedPDF: true,
+        },
+      }),
+    ).toStrictEqual({
+      pageId,
+      options: {
+        landscape: true,
+        printBackground: true,
+        scale: 0.75,
+        paperWidth: 8.5,
+        paperHeight: 11,
+        marginTop: 0.25,
+        pageRanges: "1-3",
+        generateTaggedPDF: true,
+      },
+    });
+    expect(PagePDFResultSchema.parse({ data: "JVBERi0=" })).toStrictEqual({ data: "JVBERi0=" });
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { scale: 2.1 } })).toThrow();
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { paperWidth: 0 } })).toThrow();
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { path: "page.pdf" } })).toThrow();
   });
 });

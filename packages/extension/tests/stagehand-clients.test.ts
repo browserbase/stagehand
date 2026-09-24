@@ -50,6 +50,7 @@ import type {
   PageEvaluateParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PagePDFOptions,
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
@@ -238,6 +239,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     options?: PageWaitForSelectorParams["options"];
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
+  readonly pdfCalls: Array<PagePDFOptions | undefined> = [];
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
   readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
   readonly invokeWebMCPToolCalls: Array<{
@@ -264,6 +266,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   evaluationResult: unknown = null;
   waitForSelectorResult = true;
   screenshotBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  pdfBytes = new TextEncoder().encode("%PDF-1.7");
   snapshotResult: SnapshotResult = {
     formattedTree: "root",
     xpathMap: { frameOne: "/html/body" },
@@ -386,6 +389,11 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   async screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array> {
     this.screenshotCalls.push(options);
     return this.screenshotBytes;
+  }
+
+  async pdf(options?: PagePDFOptions): Promise<Uint8Array> {
+    this.pdfCalls.push(options);
+    return this.pdfBytes;
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -2085,12 +2093,33 @@ describe("Stagehand worker clients", () => {
       handle({
         jsonrpc: "2.0",
         id: 31,
+        method: "page.pdf",
+        params: {
+          page_id: "page-a",
+          options: {
+            landscape: true,
+            print_background: true,
+            paper_width: 8.5,
+            paper_height: 11,
+          },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 31,
+      result: { data: "JVBERi0xLjc=" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 32,
         method: "page.snapshot",
         params: { page_id: "page-a", options: { include_iframes: true } },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
-      id: 31,
+      id: 32,
       result: {
         formatted_tree: "root",
         xpath_map: { frameOne: "/html/body" },
@@ -2103,6 +2132,14 @@ describe("Stagehand worker clients", () => {
         fullPage: true,
         mask: [page.locatorRefs[0]],
         maskColor: "#000000",
+      },
+    ]);
+    expect(page.pdfCalls).toStrictEqual([
+      {
+        landscape: true,
+        printBackground: true,
+        paperWidth: 8.5,
+        paperHeight: 11,
       },
     ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);

@@ -74,6 +74,9 @@ import type {
   PageNavigationResult,
   PageOffParams,
   PageOnParams,
+  PagePDFOptions,
+  PagePDFParams,
+  PagePDFResult,
   PageRef,
   PageReloadParams,
   PageScrollParams,
@@ -165,6 +168,7 @@ export type UnderstudyRuntimePage = {
     options?: PageWaitForSelectorParams["options"],
   ): Promise<boolean>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
+  pdf(options?: PagePDFOptions): Promise<Uint8Array>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
   listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]>;
   invokeWebMCPTool(
@@ -707,6 +711,13 @@ export class StagehandRuntime {
     }
 
     const bytes = await page.screenshot(options);
+    return {
+      data: bytesToBase64(bytes),
+    };
+  }
+
+  async pagePDF(params: PagePDFParams): Promise<PagePDFResult> {
+    const bytes = await this.resolvePage(params.pageId).pdf(params.options);
     return {
       data: bytesToBase64(bytes),
     };

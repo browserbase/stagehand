@@ -663,6 +663,7 @@ def test_response_deadline_preserves_v3_unbounded_operations() -> None:
         "context.clipboard_cut",
         "page.close",
         "page.evaluate",
+        "page.pdf",
         "page.screenshot",
         "page.snapshot",
         "page.webmcp_invocation_result",

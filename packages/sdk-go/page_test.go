@@ -538,6 +538,39 @@ func TestPageScreenshotSerializesOptionsAndMaskLocators(t *testing.T) {
 	}
 }
 
+func TestPagePDFDecodesBytesAndSerializesOptions(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.pdf": PagePDFResult{Data: "JVBERi0xLjcK"},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	landscape := true
+	printBackground := true
+	paperWidth := 8.5
+	paperHeight := 11.0
+	marginTop := 0.25
+	options := &PagePDFOptions{
+		Landscape:       &landscape,
+		PrintBackground: &printBackground,
+		PaperWidth:      &paperWidth,
+		PaperHeight:     &paperHeight,
+		MarginTop:       &marginTop,
+	}
+
+	data, err := page.PDF(context.Background(), options)
+	if err != nil {
+		t.Fatalf("PDF() error = %v", err)
+	}
+	if !bytes.Equal(data, []byte("%PDF-1.7\n")) {
+		t.Fatalf("PDF() = %q", data)
+	}
+	params, ok := rpc.calls[0].params.(PagePDFParams)
+	if !ok || params.PageID != "page-1" || params.Options != options {
+		t.Fatalf("PDF() params = %#v", rpc.calls[0].params)
+	}
+}
+
 func TestPageScreenshotRejectsCrossPageMaskLocators(t *testing.T) {
 	t.Parallel()
 
@@ -617,6 +650,19 @@ func TestPageScreenshotRejectsMalformedBase64(t *testing.T) {
 	if _, err := page.Screenshot(context.Background(), nil); err == nil ||
 		!strings.Contains(err.Error(), "decode page.screenshot result") {
 		t.Fatalf("Screenshot() error = %v", err)
+	}
+}
+
+func TestPagePDFRejectsMalformedBase64(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.pdf": PagePDFResult{Data: "%%%"},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	if _, err := page.PDF(context.Background(), nil); err == nil ||
+		!strings.Contains(err.Error(), "decode page.pdf result") {
+		t.Fatalf("PDF() error = %v", err)
 	}
 }
 

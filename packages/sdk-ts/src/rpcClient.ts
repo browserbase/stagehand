@@ -91,6 +91,7 @@ const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
   StagehandMethods.contextClipboardCut.name,
   StagehandMethods.pageClose.name,
   StagehandMethods.pageEvaluate.name,
+  StagehandMethods.pagePDF.name,
   StagehandMethods.pageScreenshot.name,
   StagehandMethods.pageSnapshot.name,
   StagehandMethods.pageWebMCPInvocationResult.name,

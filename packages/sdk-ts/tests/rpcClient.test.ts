@@ -442,6 +442,7 @@ describe("RPCClient", () => {
       StagehandMethods.contextClipboardCut.name,
       StagehandMethods.pageClose.name,
       StagehandMethods.pageEvaluate.name,
+      StagehandMethods.pagePDF.name,
       StagehandMethods.pageScreenshot.name,
       StagehandMethods.pageSnapshot.name,
       StagehandMethods.pageWebMCPInvocationResult.name,
