@@ -7,7 +7,10 @@ import {
   getNetworkDir,
   writePrivateFile,
 } from "./daemon/paths.js";
-import { DriverError } from "./errors.js";
+import {
+  NetworkCdpSidecar,
+  type NetworkCdpSession,
+} from "./network-cdp-sidecar.js";
 
 interface PendingRequest {
   body: string | null;
@@ -26,71 +29,102 @@ interface ResponseMetadata {
   statusText: string;
 }
 
-type CdpSession = {
-  off?: (event: string, listener: (...args: unknown[]) => void) => void;
-  on: (event: string, listener: (...args: unknown[]) => void) => void;
-  send: <T = unknown>(
-    method: string,
-    params?: Record<string, unknown>,
-  ) => Promise<T>;
+type StagehandV4Page = {
+  pageId: string;
 };
 
+/**
+ * The V3 Browse network writer, adapted only at the CDP-session boundary.
+ * Keeping request correlation and the on-disk request/response schema here
+ * unchanged gives the V4 CLI observable parity without adding a public
+ * Stagehand network-event API.
+ */
 export class NetworkCapture {
-  private cdpSession: CdpSession | null = null;
+  private cdpSession: NetworkCdpSession | null = null;
   private counter = 0;
   private enabled = false;
+  private lifecycle: Promise<void> = Promise.resolve();
   private readonly pendingRequests = new Map<string, PendingRequest>();
   private readonly requestDirs = new Map<string, Promise<string | null>>();
   private readonly requestStartTimes = new Map<string, number>();
   private readonly responseMetadata = new Map<string, ResponseMetadata>();
-  private readonly listeners: Array<[string, (...args: unknown[]) => void]> =
-    [];
+  private readonly listeners: Array<[string, (params: unknown) => void]> = [];
   private networkDir: string | null = null;
 
-  constructor(private readonly session: string) {}
+  constructor(
+    private readonly session: string,
+    private readonly sidecar = new NetworkCdpSidecar(),
+  ) {}
 
   async enable(
-    page: unknown,
+    page: StagehandV4Page,
+    browserWebSocketDebuggerUrl: string,
   ): Promise<{ alreadyEnabled?: boolean; enabled: true; path: string }> {
-    if (this.enabled && this.networkDir) {
+    return this.runLifecycle(() =>
+      this.enableNow(page, browserWebSocketDebuggerUrl),
+    );
+  }
+
+  async disable(): Promise<{
+    alreadyDisabled?: boolean;
+    enabled: false;
+    path: string | null;
+  }> {
+    return this.runLifecycle(() => this.disableNow());
+  }
+
+  private async enableNow(
+    page: StagehandV4Page,
+    browserWebSocketDebuggerUrl: string,
+  ): Promise<{ alreadyEnabled?: boolean; enabled: true; path: string }> {
+    if (this.enabled && this.networkDir && this.cdpSession?.connected) {
       return { alreadyEnabled: true, enabled: true, path: this.networkDir };
     }
-
-    const cdpSession = await this.networkCdpSession(page);
+    if (this.enabled) await this.disableNow();
 
     await ensureRuntimeDir();
     this.networkDir = getNetworkDir(this.session);
     await ensurePrivateDir(this.networkDir);
-    this.counter = 0;
+    this.counter = await nextRequestCounter(this.networkDir);
     this.pendingRequests.clear();
     this.requestDirs.clear();
     this.requestStartTimes.clear();
     this.responseMetadata.clear();
 
+    const cdpSession = await this.sidecar.attach(
+      browserWebSocketDebuggerUrl,
+      page.pageId,
+    );
     this.cdpSession = cdpSession;
-    await cdpSession.send("Network.enable", {
-      maxResourceBufferSize: 5_000_000,
-      maxTotalBufferSize: 10_000_000,
-    });
+    try {
+      await cdpSession.send("Network.enable", {
+        maxResourceBufferSize: 5_000_000,
+        maxTotalBufferSize: 10_000_000,
+      });
 
-    this.addListener("Network.requestWillBeSent", (params) => {
-      void this.handleRequestWillBeSent(params);
-    });
-    this.addListener("Network.responseReceived", (params) => {
-      this.handleResponseReceived(params);
-    });
-    this.addListener("Network.loadingFinished", (params) => {
-      void this.handleLoadingFinished(params);
-    });
-    this.addListener("Network.loadingFailed", (params) => {
-      void this.handleLoadingFailed(params);
-    });
+      this.addListener("Network.requestWillBeSent", (params) => {
+        void this.handleRequestWillBeSent(params);
+      });
+      this.addListener("Network.responseReceived", (params) => {
+        this.handleResponseReceived(params);
+      });
+      this.addListener("Network.loadingFinished", (params) => {
+        void this.handleLoadingFinished(params);
+      });
+      this.addListener("Network.loadingFailed", (params) => {
+        void this.handleLoadingFailed(params);
+      });
+    } catch (error) {
+      this.cdpSession = null;
+      await cdpSession.detach().catch(() => undefined);
+      throw error;
+    }
 
     this.enabled = true;
     return { enabled: true, path: this.networkDir };
   }
 
-  async disable(): Promise<{
+  private async disableNow(): Promise<{
     alreadyDisabled?: boolean;
     enabled: false;
     path: string | null;
@@ -99,20 +133,36 @@ export class NetworkCapture {
       return { alreadyDisabled: true, enabled: false, path: this.networkDir };
     }
 
+    const cdpSession = this.cdpSession;
+    this.enabled = false;
     for (const [event, listener] of this.listeners) {
-      this.cdpSession?.off?.(event, listener);
+      cdpSession?.off(event, listener);
     }
     this.listeners.length = 0;
 
-    await this.cdpSession?.send("Network.disable").catch(() => undefined);
+    await cdpSession?.send("Network.disable").catch(() => undefined);
+    await cdpSession?.detach().catch(() => undefined);
     this.cdpSession = null;
-    this.enabled = false;
     return { enabled: false, path: this.networkDir };
+  }
+
+  private runLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.lifecycle.then(operation, operation);
+    this.lifecycle = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+
+  async close(): Promise<void> {
+    await this.disable().catch(() => undefined);
+    this.sidecar.close();
   }
 
   path(): { enabled: boolean; path: string } {
     return {
-      enabled: this.enabled,
+      enabled: this.enabled && (this.cdpSession?.connected ?? false),
       path: this.networkDir ?? getNetworkDir(this.session),
     };
   }
@@ -146,18 +196,10 @@ export class NetworkCapture {
 
   private addListener(
     event: string,
-    listener: (...args: unknown[]) => void,
+    listener: (params: unknown) => void,
   ): void {
     this.cdpSession?.on(event, listener);
     this.listeners.push([event, listener]);
-  }
-
-  private async networkCdpSession(page: unknown): Promise<CdpSession> {
-    void page;
-    throw new DriverError(
-      "Network capture is not available in this Stagehand V4 runtime. Apply the CLI CDP sidecar fast-follow to restore `browse network on`.",
-      { code: "network_capture_unavailable" },
-    );
   }
 
   private handleRequestWillBeSent(params: unknown): void {
@@ -328,6 +370,21 @@ function getRequestDirName(
   } catch {
     return `${String(counter).padStart(3, "0")}-${method}-unknown`;
   }
+}
+
+async function nextRequestCounter(networkDir: string): Promise<number> {
+  const entries = await fs.readdir(networkDir, { withFileTypes: true });
+  let next = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const match = /^(\d+)-/u.exec(entry.name);
+    if (!match) continue;
+    const rawCounter = match[1];
+    if (!rawCounter) continue;
+    const counter = Number.parseInt(rawCounter, 10);
+    if (Number.isSafeInteger(counter)) next = Math.max(next, counter + 1);
+  }
+  return next;
 }
 
 function sanitizeForFilename(value: string, maxLen: number): string {
