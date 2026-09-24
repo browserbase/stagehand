@@ -75,6 +75,12 @@ export class BrowserContext {
     return await this.rpcClient.send(StagehandMethods.contextGetDomainPolicy, {});
   }
 
+  /**
+   * Restrict which domains the agent can navigate to or fetch from.
+   *
+   * Contexts start with no domain policy, in which case navigation and fetch
+   * are unrestricted (fail-open); prefer calling this for production agents.
+   */
   async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
     await this.rpcClient.send(StagehandMethods.contextSetDomainPolicy, { policy });
   }

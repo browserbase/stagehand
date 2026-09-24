@@ -31,7 +31,7 @@ function createContext() {
     tabIdForTargetId: vi.fn(async () => undefined),
     activateTarget: vi.fn(async () => {}),
   };
-  const logger = { debug: vi.fn() };
+  const logger = { debug: vi.fn(), warn: vi.fn() };
   return {
     connection,
     connectionState,
