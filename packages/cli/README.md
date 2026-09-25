@@ -277,19 +277,25 @@ export BROWSERBASE_API_KEY=bb_live_...
 
 Local driver commands (`--local`) work without an API key.
 
-`browse` also auto-loads a `.env` file from the current directory on startup, and prints a
-one-time deprecation warning to stderr when it actually pulls a variable from `.env` this way.
-This is deprecated because a CLI used across many unrelated projects can silently pick up a
-stale key from the wrong project's `.env`; a future release will disable auto-loading by
-default so `browse` only reads `process.env`. Set `BROWSE_LOAD_DOTENV=0` (or `false`/`no`) to
-opt out of `.env` auto-loading now, ahead of that change, or `BROWSE_LOAD_DOTENV=1` to keep
-auto-loading with no warning.
+`browse` reads the caller's environment by default. Implicit loading of the current
+directory's `.env` file, previously deprecated, is now disabled.
+
+Export credentials in your shell or use your secret manager to supply them. To retain
+the previous `.env` behavior explicitly, set `BROWSE_LOAD_DOTENV=1` in your shell:
+
+```bash
+BROWSE_LOAD_DOTENV=1 browse cloud projects list
+```
+
+The opt-in must come from the caller's environment, not from `.env` itself. Existing
+shell variables take precedence over values in the file. Explicit opt-in loads without
+a deprecation warning; `0`, `false`, and `no` continue to disable loading.
 
 | Variable | Description |
 |----------|-------------|
 | `BROWSERBASE_API_KEY` | Enables `--remote` sessions and all `browse cloud` / `functions` commands |
 | `BROWSE_SESSION` | Default session name (alternative to `-s, --session`) |
-| `BROWSE_LOAD_DOTENV` | Controls `.env` auto-loading: unset = load + warn once (default, deprecated), `0`/`false`/`no` = skip loading, anything else = load silently |
+| `BROWSE_LOAD_DOTENV` | Unset (default) or `0`/`false`/`no` = skip `.env`; explicitly set `1` to load it. Other existing explicit opt-in values remain supported. |
 
 ## Links
 
