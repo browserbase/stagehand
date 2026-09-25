@@ -529,6 +529,14 @@ locator = page.locator("button[type=submit]")
 await locator.click()
 ```
 
+Timeouts cover frame readiness, element lookup, & the action, including typing delays & highlight duration. File reading in the SDK & request delivery happen before the execution budget starts. Canceling the Python task stops the client waiting; it does not cancel work already sent to the browser.
+
+```python
+await locator.click(timeout=5000)
+await locator.fill("hello", timeout=5000)
+count = await locator.count(timeout=0)  # no timeout
+```
+
 ## click()
 
 Click the element matched by this locator.
@@ -545,6 +553,10 @@ await locator.click()
   The number of clicks to dispatch.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -556,6 +568,10 @@ Move the pointer over the matched element.
 ```python
 await locator.hover()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
@@ -573,6 +589,10 @@ await locator.fill("Browserbase")
   The value to set.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -584,6 +604,10 @@ Count the elements matched by this locator.
 ```python
 count = await locator.count()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="int">
   The operation result.
@@ -597,6 +621,10 @@ Check whether the matched control is checked.
 checked = await locator.is_checked()
 ```
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="bool">
   The operation result.
 </ResponseField>
@@ -608,6 +636,10 @@ Return the current value of the matched input.
 ```python
 value = await locator.input_value()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="str">
   The operation result.
@@ -621,6 +653,10 @@ Check whether the matched element is visible.
 visible = await locator.is_visible()
 ```
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="bool">
   The operation result.
 </ResponseField>
@@ -632,6 +668,10 @@ Return the rendered text inside the matched element.
 ```python
 text = await locator.inner_text()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="str">
   The operation result.
@@ -645,6 +685,10 @@ Return the HTML inside the matched element.
 html = await locator.inner_html()
 ```
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="str">
   The operation result.
 </ResponseField>
@@ -656,6 +700,10 @@ Return the text content of the matched element.
 ```python
 text = await locator.text_content()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="str">
   The operation result.
@@ -673,6 +721,10 @@ await locator.scroll_to(50)
   A percentage from 0 to 100, optionally expressed as a percentage string.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -684,6 +736,10 @@ Return the center point of the matched element.
 ```python
 point = await locator.centroid()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="LocatorCentroidResult">
   The operation result.
@@ -749,6 +805,10 @@ await locator.highlight(duration_ms=1000)
   </ParamField>
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -777,6 +837,10 @@ await locator.send_click_event()
   Event-specific click detail.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -797,6 +861,10 @@ await locator.type("Browserbase")
   Delay between keystrokes, in milliseconds.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -811,6 +879,10 @@ values = await locator.select_option("us")
 
 <ParamField path="values" type="str | Sequence[str]">
   The value or values to select.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
 </ParamField>
 
 <ResponseField name="result" type="list[str]">
@@ -843,6 +915,10 @@ await page.locator('input[type="file"]').set_input_files("./resume.pdf")
   <ParamField path="files.last_modified" type="int" optional>
     The file's last-modified time in Unix milliseconds.
   </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
 </ParamField>
 
 <ResponseField name="result" type="None">
