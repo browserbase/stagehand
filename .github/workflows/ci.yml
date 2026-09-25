@@ -143,6 +143,25 @@ jobs:
               labels.has('skip-regression-evals') ? 'true' : 'false',
             );
 
+  docs:
+    name: Docs validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [determine-changes]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      # Run directly on every PR, including docs-only and Python/Go-only changes.
+      # The checked-out SDK and docs must describe the same API on either branch.
+      - run: pnpm --filter ./packages/protocol build
+      - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
+      - run: pnpm --filter ./packages/docs test:unit
+      - run: pnpm --filter ./packages/docs check
+
   check:
     name: Check
     runs-on: ubuntu-latest
