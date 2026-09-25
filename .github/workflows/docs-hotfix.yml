@@ -162,7 +162,8 @@ jobs:
                 `git switch -c docs-hotfix/${pr.number} origin/docs-production`,
                 `git cherry-pick -x ${sha}`,
                 '# resolve conflicts, keeping only what is true for the released SDK,',
-                '# then open a PR into docs-production',
+                `# then open a PR into docs-production. Keep "(cherry picked from commit ${sha})"`,
+                '# in the PR description so the next release promotion recognizes it.',
                 '```',
               ].join('\n');
             }
