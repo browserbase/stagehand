@@ -1,0 +1,20 @@
+{
+  "name": "simple-search-stagehand",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsc; node dist/index.js"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.6.0",
+    "@browserbasehq/stagehand": "^3.2.0",
+    "@inngest/agent-kit": "^0.8.0",
+    "dotenv": "^16.4.7",
+    "inngest": "latest",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.1",
+    "typescript": "^5.0.0"
+  }
+}
