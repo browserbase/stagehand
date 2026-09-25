@@ -93,11 +93,13 @@ it("refuses to create a missing tag on a later main commit", async () => {
   expect(git("ls-remote", "--tags", "origin")).toBe("");
 });
 
-it("pushes an existing local publisher tag at its original commit", async () => {
-  const { repositoryRoot, git, releaseCommit, registry } = await fixture();
+it("pushes the publisher's original tag while npm reads still return 404", async () => {
+  const { repositoryRoot, git, releaseCommit, registry, registryState } = await fixture();
   git("tag", "-a", "browse@0.10.0", "-m", "browse@0.10.0");
   git("commit", "--allow-empty", "-m", "Later main change");
+  registryState.status = 404;
   expect(await pushCliReleaseTag(repositoryRoot, registry)).toBe("pushed");
+  expect(registryState.requests).toBe(0);
   expect(git("ls-remote", "--tags", "origin", "refs/tags/browse@0.10.0^{}")).toBe(
     `${releaseCommit}\trefs/tags/browse@0.10.0^{}`,
   );
