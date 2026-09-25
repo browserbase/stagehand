@@ -6,7 +6,6 @@ on:
       - opened
       - reopened
       - synchronize
-      - edited
       - labeled
       - unlabeled
   workflow_dispatch:
@@ -32,7 +31,6 @@ jobs:
       !contains(fromJSON('["labeled", "unlabeled"]'), github.event.action) ||
       contains(fromJSON('["skip-evals", "skip-regression-evals"]'), github.event.label.name)
     outputs:
-      docs: ${{ steps.filter.outputs.docs }}
       docs-only: ${{ steps.docs-filter.outputs.docs-only }}
       evals: ${{ steps.filter.outputs.evals }}
       extension: ${{ steps.filter.outputs.extension }}
@@ -48,10 +46,6 @@ jobs:
         id: filter
         with:
           filters: |
-            docs:
-              - 'packages/docs/**'
-              - '.github/workflows/docs-preview.yml'
-              - '.github/workflows/ci.yml'
             evals:
               - 'packages/evals/**'
               - 'packages/sdk-ts/**'
@@ -109,8 +103,6 @@ jobs:
       contains(fromJSON('["skip-evals", "skip-regression-evals"]'), github.event.label.name)
     outputs:
       is-internal-head: ${{ steps.load.outputs.is-internal-head }}
-      head-ref: ${{ steps.load.outputs.head-ref }}
-      base-ref: ${{ steps.load.outputs.base-ref }}
       skip-evals: ${{ steps.load.outputs.skip-evals }}
       skip-regression-evals: ${{ steps.load.outputs.skip-regression-evals }}
     steps:
@@ -144,8 +136,6 @@ jobs:
                 .filter(Boolean),
             );
 
-            core.setOutput('head-ref', pr.head.ref);
-            core.setOutput('base-ref', pr.base.ref);
             core.setOutput('is-internal-head', pr.head.repo?.full_name === repoFullName ? 'true' : 'false');
             core.setOutput('skip-evals', labels.has('skip-evals') ? 'true' : 'false');
             core.setOutput(
@@ -171,20 +161,6 @@ jobs:
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm --filter ./packages/docs test:unit
       - run: pnpm --filter ./packages/docs check
-
-  docs-preview:
-    name: Docs preview
-    needs: [determine-changes, load-pr-context]
-    if: >-
-      needs.determine-changes.outputs.docs == 'true' &&
-      needs.load-pr-context.outputs.is-internal-head == 'true' &&
-      needs.load-pr-context.outputs.base-ref == 'main'
-    uses: ./.github/workflows/docs-preview.yml
-    with:
-      branch: ${{ needs.load-pr-context.outputs.head-ref }}
-    secrets:
-      MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
-      MINTLIFY_PROJECT_ID: ${{ secrets.MINTLIFY_PROJECT_ID }}
 
   check:
     name: Check

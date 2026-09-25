@@ -8,50 +8,38 @@ on:
       - "packages/docs/**"
       - ".github/workflows/docs-preview.yml"
   workflow_dispatch:
-  # Called by CI, including its explicit dispatch for approved mirrored PRs.
-  workflow_call:
-    inputs:
-      branch:
-        description: Internal repository branch to preview
-        required: true
-        type: string
-    secrets:
-      MINTLIFY_API_KEY:
-        required: true
-      MINTLIFY_PROJECT_ID:
-        required: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: mintlify-preview-${{ inputs.branch || 'main' }}
-  cancel-in-progress: true
+  group: mintlify-preview-main
+  cancel-in-progress: false
 
 jobs:
   preview:
     name: Deploy preview
     # Manual runs refresh main; production continues to use the Git integration.
-    if: inputs.branch != '' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      # No checkout or PR-controlled scripts run in this credentialed job.
-      - name: Deploy Mintlify branch preview
+      # No checkout is needed to deploy the main branch through the API.
+      - name: Deploy Mintlify main preview
         id: deploy
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
           MINTLIFY_PROJECT_ID: ${{ vars.MINTLIFY_PROJECT_ID || secrets.MINTLIFY_PROJECT_ID }}
-          PREVIEW_BRANCH: ${{ inputs.branch || 'main' }}
+          PREVIEW_BRANCH: main
         with:
           script: |
             const { MINTLIFY_API_KEY: apiKey, MINTLIFY_PROJECT_ID: projectId, PREVIEW_BRANCH: branch } = process.env;
             if (!apiKey || !projectId) {
               throw new Error('Configure MINTLIFY_API_KEY as a repository secret and MINTLIFY_PROJECT_ID as a repository variable or secret.');
             }
-            if (!branch || branch === 'docs-production') {
-              throw new Error('A development branch is required; production uses the Mintlify Git integration.');
+            if (branch !== 'main') {
+              throw new Error('Only main can be deployed by this workflow; production uses the Mintlify Git integration.');
             }
 
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
