@@ -1,0 +1,104 @@
+name: Docs preview
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/docs/**"
+      - ".github/workflows/docs-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mintlify-preview-main
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    name: Deploy preview
+    # Manual runs refresh main; production continues to use the Git integration.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # No checkout is needed to deploy the main branch through the API.
+      - name: Deploy Mintlify main preview
+        id: deploy
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          MINTLIFY_API_KEY: ${{ secrets.MINTLIFY_API_KEY }}
+          MINTLIFY_PROJECT_ID: ${{ vars.MINTLIFY_PROJECT_ID || secrets.MINTLIFY_PROJECT_ID }}
+          PREVIEW_BRANCH: main
+        with:
+          script: |
+            const { MINTLIFY_API_KEY: apiKey, MINTLIFY_PROJECT_ID: projectId, PREVIEW_BRANCH: branch } = process.env;
+            if (!apiKey || !projectId) {
+              throw new Error('Configure MINTLIFY_API_KEY as a repository secret and MINTLIFY_PROJECT_ID as a repository variable or secret.');
+            }
+            if (branch !== 'main') {
+              throw new Error('Only main can be deployed by this workflow; production uses the Mintlify Git integration.');
+            }
+
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            async function request(path, options = {}) {
+              for (let attempt = 0; attempt < 5; attempt++) {
+                const response = await fetch(`https://api.mintlify.com/v1/project/${path}`, {
+                  ...options,
+                  headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  redirect: 'error',
+                  signal: AbortSignal.timeout(30_000),
+                });
+                if (response.status === 429 && attempt < 4) {
+                  await response.body?.cancel();
+                  const retryAfter = Number(response.headers.get('retry-after'));
+                  await sleep(Math.min(60, Math.max(15, retryAfter || 15)) * 1000);
+                  continue;
+                }
+                if (!response.ok) {
+                  throw new Error(`Mintlify request failed (HTTP ${response.status}). Check the project, API key, and Mintlify dashboard.`);
+                }
+                return response.json();
+              }
+            }
+
+            const deployment = await request(`preview/${encodeURIComponent(projectId)}`, {
+              method: 'POST',
+              body: JSON.stringify({ branch }),
+            });
+            if (typeof deployment.statusId !== 'string' || !deployment.statusId ||
+                typeof deployment.previewUrl !== 'string' || !deployment.previewUrl) {
+              throw new Error('Mintlify did not return a deployment status ID and preview URL.');
+            }
+            const previewUrl = new URL(deployment.previewUrl);
+            if (previewUrl.protocol !== 'https:') {
+              throw new Error('Mintlify returned a non-HTTPS preview URL.');
+            }
+            core.setOutput('preview-url', previewUrl.href);
+            await core.summary
+              .addHeading('Documentation preview')
+              .addLink('Open preview', previewUrl.href)
+              .addRaw('\n\nDeployment queued. The URL may show the previous build until this deployment succeeds.\n')
+              .write();
+
+            const deadline = Date.now() + 10 * 60 * 1000;
+            while (Date.now() < deadline) {
+              const update = await request(`update-status/${encodeURIComponent(deployment.statusId)}`);
+              if (update.status === 'success') {
+                await core.summary.addRaw('\nDeployment succeeded.\n').write();
+                return;
+              }
+              if (update.status === 'failure') {
+                throw new Error('Mintlify preview build failed. See the build logs in Mintlify.');
+              }
+              if (!['queued', 'in_progress'].includes(update.status)) {
+                throw new Error('Mintlify returned an unrecognized deployment status.');
+              }
+              await sleep(20_000);
+            }
+            throw new Error('Mintlify preview did not finish within 10 minutes. Check its status in Mintlify before retrying.');

@@ -369,6 +369,7 @@
         "tests/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/packages/protocol/**",
+        "$TURBO_ROOT$/packages/sdk-go/*.go",
         "$TURBO_ROOT$/packages/sdk-python/src/**",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/vitest.config.ts",
