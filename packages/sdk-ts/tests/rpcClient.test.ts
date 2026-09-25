@@ -419,6 +419,72 @@ describe("RPCClient", () => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
+  it.each(Object.values(StagehandMethods).filter(({ name }) => name.startsWith("locator.")))(
+    "uses the effective locator timeout plus delivery grace for $name",
+    ({ name }) => {
+      expect(rpcResponseTimeoutMs(name, {})).toBe(30_000);
+      expect(rpcResponseTimeoutMs(name, { options: {} })).toBe(30_000);
+      expect(rpcResponseTimeoutMs(name, { options: { timeout: 50 } })).toBe(10_050);
+      expect(rpcResponseTimeoutMs(name, { options: { timeout: 0 } })).toBeUndefined();
+    },
+  );
+
+  it("preserves a locator timeout's name, message, and error envelope", async () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+    const pending = client.send(StagehandMethods.locatorCount, {
+      pageId: "page-1",
+      selector: "button",
+    });
+    const error = {
+      code: JSONRPCErrorCodes.internalError,
+      message: "locator.count timed out after 20000ms while resolving frame",
+      data: { name: "TimeoutError" },
+    };
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: "TimeoutError",
+      message: error.message,
+      cause: error,
+    });
+    await cdp.receive({ jsonrpc: "2.0", id: 1, error });
+    await rejected;
+    expect(client.pending.size).toBe(0);
+    client.close();
+  });
+
+  it.each([undefined, 50, 0, 2_147_483_648])(
+    "waits for a locator response with timeout %s",
+    async (timeout) => {
+      vi.useFakeTimers();
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      try {
+        const pending = client.send(StagehandMethods.locatorCount, {
+          pageId: "page-1",
+          selector: "button",
+          ...(timeout === undefined ? {} : { options: { timeout } }),
+        });
+        if (timeout === 0) {
+          await vi.advanceTimersByTimeAsync(60_000);
+          expect(client.pending.size).toBe(1);
+          await cdp.receive({ jsonrpc: "2.0", id: 1, result: 2 });
+          await expect(pending).resolves.toBe(2);
+        } else {
+          const rejected = expect(pending).rejects.toThrow("RPC response timed out: locator.count");
+          await vi.advanceTimersByTimeAsync((timeout ?? 20_000) + 10_000 - 1);
+          expect(client.pending.size).toBe(1);
+          await vi.advanceTimersByTimeAsync(1);
+          await rejected;
+        }
+        expect(client.pending.size).toBe(0);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        client.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("does not impose response deadlines on operations that were unbounded in v3", () => {
     const methods = [
       StagehandMethods.stagehandInit.name,
@@ -445,9 +511,6 @@ describe("RPCClient", () => {
       StagehandMethods.pageScreenshot.name,
       StagehandMethods.pageSnapshot.name,
       StagehandMethods.pageWebMCPInvocationResult.name,
-      ...Object.values(StagehandMethods)
-        .map(({ name }) => name)
-        .filter((name) => name.startsWith("locator.")),
     ];
 
     for (const method of methods) {

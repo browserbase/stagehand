@@ -1,6 +1,6 @@
 import type {
   LocatorClickParams,
-  LocatorDescriptor,
+  LocatorParams,
   LocatorFillParams,
   LocatorHighlightParams,
   LocatorScrollToParams,
@@ -23,42 +23,42 @@ export function createLocatorController(runtime: StagehandRuntime) {
     return runtime.locatorFill(params);
   }
 
-  async function hover(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function hover(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.hover", {});
     return runtime.locatorHover(params);
   }
 
-  async function count(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function count(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.count", {});
     return runtime.locatorCount(params);
   }
 
-  async function isChecked(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function isChecked(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.is_checked", {});
     return runtime.locatorIsChecked(params);
   }
 
-  async function inputValue(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function inputValue(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.input_value", {});
     return runtime.locatorInputValue(params);
   }
 
-  async function isVisible(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function isVisible(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.is_visible", {});
     return runtime.locatorIsVisible(params);
   }
 
-  async function innerText(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function innerText(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.inner_text", {});
     return runtime.locatorInnerText(params);
   }
 
-  async function innerHtml(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function innerHtml(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.inner_html", {});
     return runtime.locatorInnerHtml(params);
   }
 
-  async function textContent(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function textContent(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.text_content", {});
     return runtime.locatorTextContent(params);
   }
@@ -68,7 +68,7 @@ export function createLocatorController(runtime: StagehandRuntime) {
     return runtime.locatorScrollTo(params);
   }
 
-  async function centroid(params: LocatorDescriptor, { logger }: HandlerContext) {
+  async function centroid(params: LocatorParams, { logger }: HandlerContext) {
     logger.debug("locator.centroid", {});
     return runtime.locatorCentroid(params);
   }

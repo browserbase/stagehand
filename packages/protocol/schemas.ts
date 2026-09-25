@@ -1979,21 +1979,37 @@ export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
     .optional(),
 }).meta({ id: "PageWaitForSelectorParams" });
 
-export const LocatorClickParamsSchema = LocatorDescriptorSchema.extend({
-  options: z
-    .strictObject({
-      button: MouseButtonSchema.optional(),
-      clickCount: z.number().int().positive().optional(),
-    })
+/** Default execution budget for a public locator call, in milliseconds. */
+export const DEFAULT_LOCATOR_TIMEOUT_MS = 20_000;
+
+export const LocatorOptionsSchema = z
+  .strictObject({
+    timeout: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe("Milliseconds for the whole locator call. Zero disables the timeout."),
+  })
+  .meta({ id: "LocatorOptions" });
+
+export const LocatorParamsSchema = LocatorDescriptorSchema.extend({
+  options: LocatorOptionsSchema.optional(),
+}).meta({ id: "LocatorParams" });
+
+export const LocatorClickParamsSchema = LocatorParamsSchema.extend({
+  options: LocatorOptionsSchema.extend({
+    button: MouseButtonSchema.optional(),
+    clickCount: z.number().int().positive().optional(),
+  })
     .meta({ id: "LocatorClickOptions" })
     .optional(),
 }).meta({ id: "LocatorClickParams" });
 
-export const LocatorFillParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorFillParamsSchema = LocatorParamsSchema.extend({
   value: z.string(),
 }).meta({ id: "LocatorFillParams" });
 
-export const LocatorScrollToParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorScrollToParamsSchema = LocatorParamsSchema.extend({
   percent: z.union([z.number(), z.string()]),
 }).meta({ id: "LocatorScrollToParams" });
 
@@ -2006,40 +2022,37 @@ export const RgbaColorSchema = z
   })
   .meta({ id: "RgbaColor" });
 
-export const LocatorHighlightParamsSchema = LocatorDescriptorSchema.extend({
-  options: z
-    .strictObject({
-      durationMs: z.number().int().nonnegative().optional(),
-      borderColor: RgbaColorSchema.optional(),
-      contentColor: RgbaColorSchema.optional(),
-    })
+export const LocatorHighlightParamsSchema = LocatorParamsSchema.extend({
+  options: LocatorOptionsSchema.extend({
+    durationMs: z.number().int().nonnegative().optional(),
+    borderColor: RgbaColorSchema.optional(),
+    contentColor: RgbaColorSchema.optional(),
+  })
     .meta({ id: "LocatorHighlightOptions" })
     .optional(),
 }).meta({ id: "LocatorHighlightParams" });
 
-export const LocatorSendClickEventParamsSchema = LocatorDescriptorSchema.extend({
-  options: z
-    .strictObject({
-      bubbles: z.boolean().optional(),
-      cancelable: z.boolean().optional(),
-      composed: z.boolean().optional(),
-      detail: z.number().optional(),
-    })
+export const LocatorSendClickEventParamsSchema = LocatorParamsSchema.extend({
+  options: LocatorOptionsSchema.extend({
+    bubbles: z.boolean().optional(),
+    cancelable: z.boolean().optional(),
+    composed: z.boolean().optional(),
+    detail: z.number().optional(),
+  })
     .meta({ id: "LocatorSendClickEventOptions" })
     .optional(),
 }).meta({ id: "LocatorSendClickEventParams" });
 
-export const LocatorTypeParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorTypeParamsSchema = LocatorParamsSchema.extend({
   text: z.string(),
-  options: z
-    .strictObject({
-      delay: z.number().nonnegative().optional(),
-    })
+  options: LocatorOptionsSchema.extend({
+    delay: z.number().nonnegative().optional(),
+  })
     .meta({ id: "LocatorTypeOptions" })
     .optional(),
 }).meta({ id: "LocatorTypeParams" });
 
-export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorSelectOptionParamsSchema = LocatorParamsSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
@@ -2066,7 +2079,7 @@ export const InputFilePayloadSchema = z
   })
   .meta({ id: "InputFilePayload" });
 
-export const LocatorSetInputFilesParamsSchema = LocatorDescriptorSchema.extend({
+export const LocatorSetInputFilesParamsSchema = LocatorParamsSchema.extend({
   files: z.array(InputFilePayloadSchema),
 }).meta({ id: "LocatorSetInputFilesParams" });
 
