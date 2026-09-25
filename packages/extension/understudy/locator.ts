@@ -1,5 +1,6 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
+import { isCdpClosedError } from "./cdp.js";
 import {
   assignFilePayloadsToInputElement,
   dispatchDomClick,
@@ -153,45 +154,67 @@ export class Locator {
    * Return the DOM backendNodeId for this locator's target element.
    * Useful for identity comparisons without needing element handles.
    */
-  async backendNodeId(): Promise<Protocol.DOM.BackendNodeId> {
+  async backendNodeId(progress?: Progress): Promise<Protocol.DOM.BackendNodeId> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      await session.send("DOM.enable").catch(() => {});
-      const { node } = await session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
-        objectId,
-      });
+      await runLocatorStep(progress, "enabling DOM", () =>
+        session.send("DOM.enable").catch((error) => {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
+      );
+      const { node } = await runLocatorStep(progress, "describing element", () =>
+        session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
+          objectId,
+        }),
+      );
       return node.backendNodeId as Protocol.DOM.BackendNodeId;
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
   /** Return how many nodes the current selector resolves to. */
-  public async count(): Promise<number> {
+  public async count(progress?: Progress): Promise<number> {
     const session = this.frame.session;
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
-    return this.selectorResolver.count(this.selectorQuery);
+    await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
+    await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
+    return this.selectorResolver.count(this.selectorQuery, progress);
   }
 
   /**
    * Return the center of the element's bounding box in the owning frame's viewport
    * (CSS pixels), rounded to integers. Scrolls into view best-effort.
    */
-  public async centroid(): Promise<{ x: number; y: number }> {
+  public async centroid(progress?: Progress): Promise<{ x: number; y: number }> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-        objectId,
-      });
+      await runLocatorStep(progress, "scrolling into view", () =>
+        session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch((error) => {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
+      );
+      const box = await runLocatorStep(progress, "reading element geometry", () =>
+        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
+          objectId,
+        }),
+      );
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -271,26 +294,39 @@ export class Locator {
    * Move the mouse cursor to the element's visual center without clicking.
    * - Scrolls into view best-effort, resolves geometry, then dispatches a mouse move.
    */
-  async hover(): Promise<void> {
+  async hover(progress?: Progress): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
+      await runLocatorStep(progress, "scrolling into view", () =>
+        session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch((error) => {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
+      );
 
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-        objectId,
-      });
+      const box = await runLocatorStep(progress, "reading element geometry", () =>
+        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
+          objectId,
+        }),
+      );
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      await session.send<never>("Input.dispatchMouseEvent", {
-        type: "mouseMoved",
-        x: cx,
-        y: cy,
-        button: "none",
-      } as Protocol.Input.DispatchMouseEventRequest);
+      await runLocatorStep(progress, "dispatching mouse events", () =>
+        session.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          x: cx,
+          y: cy,
+          button: "none",
+        } as Protocol.Input.DispatchMouseEventRequest),
+      );
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -302,21 +338,28 @@ export class Locator {
    *  3) Read geometry via `DOM.getBoxModel({ objectId })` → compute a center point.
    *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
-  async click(options?: { button?: MouseButton; clickCount?: number }): Promise<void> {
+  async click(
+    options?: { button?: MouseButton; clickCount?: number },
+    progress?: Progress,
+  ): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
 
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
 
     try {
       // Scroll into view using objectId (avoids frontend nodeId dependence)
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId });
+      await runLocatorStep(progress, "scrolling into view", () =>
+        session.send("DOM.scrollIntoViewIfNeeded", { objectId }),
+      );
 
       // Get geometry using objectId
-      const box = await session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
-        objectId,
-      });
+      const box = await runLocatorStep(progress, "reading element geometry", () =>
+        session.send<Protocol.DOM.GetBoxModelResponse>("DOM.getBoxModel", {
+          objectId,
+        }),
+      );
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
@@ -324,43 +367,47 @@ export class Locator {
       // from network/CPU jitter between round trips.
       const dispatches: Array<Promise<unknown>> = [];
       dispatches.push(
-        session.send<never>("Input.dispatchMouseEvent", {
-          type: "mouseMoved",
-          x: cx,
-          y: cy,
-          button: "none",
-        } as Protocol.Input.DispatchMouseEventRequest),
+        runLocatorStep(progress, "dispatching mouse events", () =>
+          session.send<never>("Input.dispatchMouseEvent", {
+            type: "mouseMoved",
+            x: cx,
+            y: cy,
+            button: "none",
+          } as Protocol.Input.DispatchMouseEventRequest),
+        ),
       );
 
       for (let i = 1; i <= clickCount; i++) {
         dispatches.push(
-          session.send<never>("Input.dispatchMouseEvent", {
-            type: "mousePressed",
-            x: cx,
-            y: cy,
-            button,
-            clickCount: i,
-          } as Protocol.Input.DispatchMouseEventRequest),
+          runLocatorStep(progress, "dispatching mouse events", () =>
+            session.send<never>("Input.dispatchMouseEvent", {
+              type: "mousePressed",
+              x: cx,
+              y: cy,
+              button,
+              clickCount: i,
+            } as Protocol.Input.DispatchMouseEventRequest),
+          ),
         );
         dispatches.push(
-          session.send<never>("Input.dispatchMouseEvent", {
-            type: "mouseReleased",
-            x: cx,
-            y: cy,
-            button,
-            clickCount: i,
-          } as Protocol.Input.DispatchMouseEventRequest),
+          runLocatorStep(progress, "dispatching mouse events", () =>
+            session.send<never>("Input.dispatchMouseEvent", {
+              type: "mouseReleased",
+              x: cx,
+              y: cy,
+              button,
+              clickCount: i,
+            } as Protocol.Input.DispatchMouseEventRequest),
+          ),
         );
       }
       await Promise.all(dispatches);
     } finally {
-      // release the element handle
-      try {
-        await session.send<never>("Runtime.releaseObject", { objectId });
-      } catch {
-        // If the context navigated or was destroyed (e.g., link opens new tab),
-        // releaseObject may fail with -32000. Ignore as best-effort cleanup.
-      }
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -369,32 +416,46 @@ export class Locator {
    * - Does not synthesize real pointer input; directly dispatches an event.
    * - Useful for elements that rely on click handlers without needing hit-testing.
    */
-  async sendClickEvent(options?: {
-    bubbles?: boolean;
-    cancelable?: boolean;
-    composed?: boolean;
-    detail?: number;
-  }): Promise<void> {
+  async sendClickEvent(
+    options?: {
+      bubbles?: boolean;
+      cancelable?: boolean;
+      composed?: boolean;
+      detail?: number;
+    },
+    progress?: Progress,
+  ): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     const bubbles = options?.bubbles ?? true;
     const cancelable = options?.cancelable ?? true;
     const composed = options?.composed ?? true;
     const detail = options?.detail ?? 1;
     try {
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: dispatchDomClick.toString(),
-        arguments: [
-          {
-            value: { bubbles, cancelable, composed, detail },
-          },
-        ],
-        returnByValue: true,
-      });
+      await runLocatorStep(progress, "scrolling into view", () =>
+        session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch((error) => {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
+      );
+      await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: dispatchDomClick.toString(),
+          arguments: [
+            {
+              value: { bubbles, cancelable, composed, detail },
+            },
+          ],
+          returnByValue: true,
+        }),
+      );
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -403,18 +464,24 @@ export class Locator {
    * - If the element is <html> or <body>, scrolls the window/document.
    * - Otherwise, scrolls the element itself via element.scrollTo.
    */
-  async scrollTo(percent: number | string): Promise<void> {
+  async scrollTo(percent: number | string, progress?: Progress): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: scrollElementToPercent.toString(),
-        arguments: [{ value: percent as unknown as number }],
-        returnByValue: true,
-      });
+      await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: scrollElementToPercent.toString(),
+          arguments: [{ value: percent as unknown as number }],
+          returnByValue: true,
+        }),
+      );
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -582,46 +649,50 @@ export class Locator {
    * Select one or more options on a `<select>` element.
    * Returns the values actually selected after the operation.
    */
-  async selectOption(values: string | string[]): Promise<string[]> {
+  async selectOption(values: string | string[], progress?: Progress): Promise<string[]> {
     const session = this.frame.session;
     const desired = Array.isArray(values) ? values : [values];
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
 
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: selectElementOptions.toString(),
           arguments: [{ value: desired }],
           returnByValue: true,
-        },
+        }),
       );
 
       return (res.result.value as string[]) ?? [];
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
   /**
    * Return true if the element is attached and visible (rough heuristic).
    */
-  async isVisible(): Promise<boolean> {
+  async isVisible(progress?: Progress): Promise<boolean> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: isElementVisible.toString(),
           returnByValue: true,
-        },
+        }),
       );
       return Boolean(res.result.value);
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -629,105 +700,115 @@ export class Locator {
    * Return true if the element is an input[type=checkbox|radio] and is checked.
    * Also considers aria-checked for ARIA widgets.
    */
-  async isChecked(): Promise<boolean> {
+  async isChecked(progress?: Progress): Promise<boolean> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: isElementChecked.toString(),
           returnByValue: true,
-        },
+        }),
       );
       return Boolean(res.result.value);
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
   /**
    * Return the element's input value (for input/textarea/select/contenteditable).
    */
-  async inputValue(): Promise<string> {
+  async inputValue(progress?: Progress): Promise<string> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: readElementInputValue.toString(),
           returnByValue: true,
-        },
+        }),
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
   /**
    * Return the element's textContent (raw, not innerText).
    */
-  async textContent(): Promise<string> {
+  async textContent(progress?: Progress): Promise<string> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: readElementTextContent.toString(),
           returnByValue: true,
-        },
+        }),
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
   /**
    * Return the element's innerHTML string.
    */
-  async innerHtml(): Promise<string> {
+  async innerHtml(progress?: Progress): Promise<string> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: readElementInnerHTML.toString(),
           returnByValue: true,
-        },
+        }),
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
   /**
    * Return the element's innerText (layout-aware, visible text).
    */
-  async innerText(): Promise<string> {
+  async innerText(progress?: Progress): Promise<string> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "evaluating element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: readElementInnerText.toString(),
           returnByValue: true,
-        },
+        }),
       );
       return String(res.result.value ?? "");
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 

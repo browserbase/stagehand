@@ -84,14 +84,15 @@ export class FrameSelectorResolver {
     }
   }
 
-  public async count(query: SelectorQuery): Promise<number> {
+  public async count(query: SelectorQuery, progress?: Progress): Promise<number> {
+    progress?.throwIfStopped();
     switch (query.kind) {
       case "css":
-        return this.countCss(query.value);
+        return this.countCss(query.value, progress);
       case "text":
-        return this.countText(query.value);
+        return this.countText(query.value, progress);
       case "xpath":
-        return this.countXPath(query.value);
+        return this.countXPath(query.value, progress);
       default:
         return 0;
     }
@@ -114,7 +115,7 @@ export class FrameSelectorResolver {
       try {
         progress.throwIfStopped();
       } catch (error) {
-        if (selected) await this.releaseNodes([selected], progress);
+        if (selected) void this.releaseNodes([selected], progress);
         throw error;
       }
     }
@@ -175,37 +176,41 @@ export class FrameSelectorResolver {
       );
   }
 
-  async countCss(selector: string): Promise<number> {
+  async countCss(selector: string, progress?: Progress): Promise<number> {
     const session = this.frame.session;
     const { contextId } = await executionContexts.waitForLocatorWorld(
       session,
       this.frame.frameId,
       1000,
+      progress,
     );
 
     const primaryExpr = buildLocatorInvocation("countCssMatchesPrimary", [
       JSON.stringify(selector),
     ]);
-    return this.evaluateCount(primaryExpr, contextId);
+    return this.evaluateCount(primaryExpr, contextId, progress);
   }
 
-  async countText(value: string): Promise<number> {
+  async countText(value: string, progress?: Progress): Promise<number> {
     const session = this.frame.session;
     const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
       session,
       this.frame.frameId,
       1000,
+      progress,
     );
 
     const expr = buildLocatorInvocation("countTextMatches", [JSON.stringify(value)]);
 
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: expr,
-        contextId: ctxId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const evalRes = await runLocatorStep(progress, "counting elements", () =>
+        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression: expr,
+          contextId: ctxId,
+          returnByValue: true,
+          awaitPromise: true,
+        }),
+      );
 
       if (evalRes.exceptionDetails) {
         const details = evalRes.exceptionDetails;
@@ -227,29 +232,34 @@ export class FrameSelectorResolver {
       const num = typeof data.count === "number" ? data.count : Number(data.count);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       return 0;
     }
   }
 
-  async countXPath(value: string): Promise<number> {
+  async countXPath(value: string, progress?: Progress): Promise<number> {
     const session = this.frame.session;
 
     const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
       session,
       this.frame.frameId,
       1000,
+      progress,
     );
 
     const expr = buildLocatorInvocation("countXPathMatchesMainWorld", [JSON.stringify(value)]);
 
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression: expr,
-        contextId: ctxId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const evalRes = await runLocatorStep(progress, "counting elements", () =>
+        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression: expr,
+          contextId: ctxId,
+          returnByValue: true,
+          awaitPromise: true,
+        }),
+      );
 
       if (evalRes.exceptionDetails) {
         return 0;
@@ -261,7 +271,9 @@ export class FrameSelectorResolver {
           : Number(evalRes.result.value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       return 0;
     }
   }
@@ -289,16 +301,19 @@ export class FrameSelectorResolver {
   async evaluateCount(
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
+    progress?: Progress,
   ): Promise<number> {
     const session = this.frame.session;
 
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId,
-        returnByValue: true,
-        awaitPromise: true,
-      });
+      const evalRes = await runLocatorStep(progress, "counting elements", () =>
+        session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression,
+          contextId,
+          returnByValue: true,
+          awaitPromise: true,
+        }),
+      );
 
       if (evalRes.exceptionDetails) {
         return 0;
@@ -308,7 +323,9 @@ export class FrameSelectorResolver {
       const num = typeof value === "number" ? value : Number(value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       return 0;
     }
   }

@@ -245,6 +245,34 @@ describe("locator resolution deadlines", () => {
     expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "second" });
   });
 
+  it("reports expiry without waiting for a second stalled cleanup", async () => {
+    const { frame, send, respond } = createFrame("root");
+    const resolver = frame.locator("button").selectorResolver;
+    vi.spyOn(resolver, "resolveAll").mockResolvedValue([
+      { objectId: "unselected", nodeId: 1 },
+      { objectId: "selected", nodeId: 2 },
+    ]);
+    const gate = deferred();
+    send.mockImplementation((method, params) =>
+      method === "Runtime.releaseObject" ? gate.promise : respond(method, params),
+    );
+    const settled = vi.fn();
+    const pending = resolver.resolveAtIndex({ kind: "css", value: "button" }, 1, createProgress());
+    void pending.then(settled, settled);
+
+    try {
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(TimeoutError));
+      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
+        ["Runtime.releaseObject", { objectId: "unselected" }],
+        ["Runtime.releaseObject", { objectId: "selected" }],
+      ]);
+    } finally {
+      gate.resolve({});
+      await vi.advanceTimersByTimeAsync(0);
+    }
+  });
+
   it("removes the main-world listener & timer when its caller expires", async () => {
     const { session, events } = createFrame("root", false);
     executionContexts.byFrame.delete(session);
