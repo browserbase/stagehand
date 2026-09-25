@@ -38,6 +38,26 @@ attachment has not returned a handle when the process exits, the host cannot
 explicitly release that session. A cancellable launch/early lease API is a separate
 follow-up; the configured remote session expiry remains the fallback.
 
+## Deadlines and disconnect diagnostics
+
+Facade `run` has a 60-second executor deadline and a 75-second client deadline.
+The SDK's `experimentalBatch` option `clientTimeoutMs` controls the entire round
+trip: by default it is the executor `timeout` plus 15000 ms, capped at 2147483647 ms.
+An explicit value must be an integer from `1` through `2147483647`. A client
+deadline raises `StagehandBatchTimeoutError`; it does not cancel or replay the
+callback. Executor-reported timeouts are ordinary tool errors.
+
+Snapshot and screenshot captures have a 120-second local deadline. The first two
+consecutive capture deadlines return tool errors; the third latches terminal loss.
+A successful tool resets the counter. A failed snapshot invalidates its previous
+IDs, and late completion cannot overwrite a newer snapshot. Terminal loss rejects
+queued calls before dispatch. There is no CDP reconnect or action replay.
+
+The optional stdio `--max-screenshot-base64-bytes=N` flag requires an integer of
+at least 1024. When enabled, compressed viewport fallbacks enforce both the byte
+budget and a 2000-pixel maximum side; without the flag this transport adjustment
+is not enabled.
+
 ## Local regression checks
 
 From the repository root, with workspace dependencies and the extension, SDK, and
