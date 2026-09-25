@@ -25,8 +25,8 @@ Stagehand ships this experimental integration from the repository rather than pu
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install --frozen-lockfile
-corepack pnpm@11.10.0 exec turbo run build \
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
 ```
   </Step>

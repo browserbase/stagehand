@@ -1,5 +1,5 @@
-import { StagehandResultUsageSchema } from "../../protocol/schemas.js";
-import type { CacheMetadata, StagehandResultUsage } from "../../protocol/types.js";
+import { StagehandResultUsageSchema } from "@browserbasehq/stagehand-protocol/schemas";
+import type { CacheMetadata, StagehandResultUsage } from "@browserbasehq/stagehand-protocol/types";
 
 export function zeroStagehandResultUsage(): StagehandResultUsage {
   return StagehandResultUsageSchema.parse({});

@@ -10,6 +10,13 @@ export default defineConfig({
   },
   overrides: [
     {
+      files: ["packages/cli/**/*.{js,ts}"],
+      rules: {
+        "no-console": "off",
+        "stagehand/no-renamed-imports": "off",
+      },
+    },
+    {
       files: ["packages/evals/**/*.ts"],
       rules: {
         "no-console": "off",

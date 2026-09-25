@@ -5,8 +5,11 @@ import {
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
-import { DEFAULT_EXTRACT_JSON_SCHEMA, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { StagehandRpcRequestSchema } from "@browserbasehq/stagehand-protocol/schema-registry";
+import {
+  DEFAULT_EXTRACT_JSON_SCHEMA,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "@browserbasehq/stagehand-protocol/schemas";
 import { StagehandMetricsAccumulator } from "../metrics.ts";
 import { StagehandProtocolCompatibilityError } from "../errors.ts";
 import { createStagehandRuntime, type StagehandBrowserSession } from "../runtime.ts";
@@ -18,6 +21,7 @@ import type { CdpWebSocketCloseEvent, CdpWebSocketTransport } from "../understud
 import type { Page } from "../understudy/page.ts";
 
 const EMPTY_METRICS = new StagehandMetricsAccumulator().snapshot();
+const [protocolMajor, protocolMinor] = STAGEHAND_PROTOCOL_VERSION.split(".").map(Number);
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -109,10 +113,12 @@ describe("Stagehand RPC router", () => {
     await tracing.shutdown();
   });
 
-  it("ends the final Stagehand span before tracing shuts down", async () => {
+  it("ends the Stagehand close span before flushing reusable tracing", async () => {
     const lifecycle: string[] = [];
     const processor: SpanProcessor = {
-      forceFlush: async () => {},
+      forceFlush: async () => {
+        lifecycle.push("flush");
+      },
       onEnd: (span) => lifecycle.push(`ended:${span.name}`),
       onStart: () => {},
       shutdown: async () => {
@@ -124,11 +130,14 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await expect(
-      router.handle(request({ id: 13, method: "stagehand.close", params: {} })),
-    ).resolves.toStrictEqual({ closed: true });
+    const closeRequest = request({ id: 13, method: "stagehand.close", params: {} });
+    await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
 
-    expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "shutdown"]);
+    expect(lifecycle.at(-1)).toBe("ended:stagehand.close");
+    await router.beforeResponse(closeRequest);
+
+    expect(lifecycle.slice(-2)).toStrictEqual(["ended:stagehand.close", "flush"]);
+    await tracing.shutdown();
   });
 
   it("keeps filtered log spans under the JSON-RPC request span", async () => {
@@ -311,16 +320,18 @@ describe("Stagehand RPC router", () => {
     expect(initializeStagehand).toHaveBeenCalledOnce();
     expect(initializeStagehand).toHaveBeenCalledWith(initRequest.params);
 
-    await expect(
-      router.handle(request({ id: 16, method: "stagehand.close", params: {} })),
-    ).resolves.toStrictEqual({ closed: true });
+    const closeRequest = request({ id: 16, method: "stagehand.close", params: {} });
+    await expect(router.handle(closeRequest)).resolves.toStrictEqual({ closed: true });
+    expect(closeStagehand).toHaveBeenCalledOnce();
+
+    await router.beforeResponse(closeRequest);
     expect(closeStagehand).toHaveBeenCalledOnce();
   });
 
   it.each([
-    ["1.1.0", "protocol-server-too-old"],
-    ["2.0.0", "protocol-major-mismatch"],
-    ["1.0.0-beta.1", "protocol-prerelease-mismatch"],
+    [`${protocolMajor}.${protocolMinor + 1}.0`, "protocol-server-too-old"],
+    [`${protocolMajor + 1}.0.0`, "protocol-major-mismatch"],
+    [`${STAGEHAND_PROTOCOL_VERSION}-beta.1`, "protocol-prerelease-mismatch"],
   ] as const)("rejects incompatible client protocol %s", async (protocolVersion, reason) => {
     const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
     const router = new RPCRouter(createStagehandRuntime(), { initializeStagehand });
@@ -443,7 +454,7 @@ function request(input: {
 function configuredTracing(
   runtime: ReturnType<typeof createStagehandTracingRuntime>,
 ): StagehandTracing {
-  return { ...runtime, configure: vi.fn() };
+  return { ...runtime, configure: vi.fn(async () => {}) };
 }
 
 function browserSessionFor(connection: CdpConnection): StagehandBrowserSession {

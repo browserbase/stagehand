@@ -378,7 +378,13 @@ export function buildCommandTree(): CommandNode {
 
       const flags = parseRunArgs(args);
       const configFile = readConfig(ctx.entryDir);
-      const resolved = resolveRunOptions(flags, configFile.defaults, process.env, configFile.core);
+      const resolved = resolveRunOptions(
+        flags,
+        configFile.defaults,
+        process.env,
+        configFile.core,
+        configFile.tracing,
+      );
 
       if (ctx.abortRef === null) {
         await runCommand(resolved);
@@ -482,6 +488,45 @@ export function buildCommandTree(): CommandNode {
     children: [configCorePath, configCoreSet, configCoreReset, configCoreSetup],
   };
 
+  const printConfigTracingHelpThunk = async () => (await help()).printConfigTracingHelp();
+  const configTracingPath: CommandNode = {
+    name: "path",
+    summary: "Print the config file path",
+    printHelp: printConfigTracingHelpThunk,
+    handler: async (_args, ctx) => {
+      const { handleTracing } = await import("./commands/tracing.js");
+      await handleTracing(["path"], ctx.entryDir);
+    },
+  };
+  const configTracingSet: CommandNode = {
+    name: "set",
+    summary: "Set transport / braintrustProject / langsmithProject",
+    printHelp: printConfigTracingHelpThunk,
+    handler: async (args, ctx) => {
+      const { handleTracing } = await import("./commands/tracing.js");
+      await handleTracing(["set", ...args], ctx.entryDir);
+    },
+  };
+  const configTracingReset: CommandNode = {
+    name: "reset",
+    summary: "Reset tracing configuration",
+    printHelp: printConfigTracingHelpThunk,
+    handler: async (args, ctx) => {
+      const { handleTracing } = await import("./commands/tracing.js");
+      await handleTracing(["reset", ...args], ctx.entryDir);
+    },
+  };
+  const configTracing: CommandNode = {
+    name: "tracing",
+    summary: "Configure trace transport + sink projects",
+    printHelp: printConfigTracingHelpThunk,
+    handler: async (args, ctx) => {
+      const { handleTracing } = await import("./commands/tracing.js");
+      await handleTracing(args, ctx.entryDir);
+    },
+    children: [configTracingPath, configTracingSet, configTracingReset],
+  };
+
   const configPath: CommandNode = {
     name: "path",
     summary: "Print the evals.config.json file path",
@@ -515,7 +560,7 @@ export function buildCommandTree(): CommandNode {
     summary: "Get/set default run configuration",
     printHelp: async () => (await help()).printConfigHelp(),
     handler: async (args, ctx) => {
-      // matchPath strips known children (path/set/reset/core) before
+      // matchPath strips known children (path/set/reset/core/tracing) before
       // we get here, so any args remaining are unknown subcommands —
       // delegate to handleConfig which prints the right error.
       const { handleConfig, printConfig } = await import("./commands/config.js");
@@ -525,7 +570,7 @@ export function buildCommandTree(): CommandNode {
       }
       await handleConfig(args, ctx.entryDir);
     },
-    children: [configPath, configSet, configReset, configCore],
+    children: [configPath, configSet, configReset, configCore, configTracing],
   };
 
   // ---- experiments (pure namespace) ----

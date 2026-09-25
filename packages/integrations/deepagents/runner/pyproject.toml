@@ -1,0 +1,22 @@
+[project]
+name = "stagehand-deepagents-eval-runner"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+# deepagents already pins langchain-anthropic and langchain-google-genai;
+# langchain-openai is the only provider package it does not carry.
+dependencies = [
+  "deepagents>=0.7,<1",
+  "langchain-mcp-adapters>=0.3,<1",
+  "langchain-openai>=1,<2",
+  "pydantic>=2,<3",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = ["pytest>=9,<10", "pytest-asyncio>=1,<2"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

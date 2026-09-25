@@ -155,6 +155,9 @@ const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Lan
 // (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
+// Docs publish separately after release. Remove these entries in the WebMCP hooks docs PR.
+// These exceptions apply only to docs coverage, never SDK-to-SDK parity.
+const UNRELEASED_REFERENCE_METHODS = new Set(["page/on-tools-added", "page/on-tools-removed"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 
@@ -243,9 +246,14 @@ describe("SDK reference surface", () => {
           .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}`)
           .sort(),
         `${language} method headings must match the public SDK surface`,
-      ).toStrictEqual(expected);
+      ).toStrictEqual(expected.filter((key) => !UNRELEASED_REFERENCE_METHODS.has(key)));
     }
   }, 30_000);
+
+  it("keeps unreleased reference exceptions limited to existing SDK methods", async () => {
+    const methods = new Set(methodKeys(await readTypescriptMethods()));
+    expect([...UNRELEASED_REFERENCE_METHODS].filter((key) => !methods.has(key))).toEqual([]);
+  });
 
   it("has exactly one reference page for every documented SDK object", async () => {
     const pageSlugs = (await readReferencePages()).map(({ classSlug }) => classSlug).sort();
@@ -593,7 +601,10 @@ describe("SDK reference surface", () => {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
         .sort();
-      const expected = methods.map((method) => `${methodKey(method)}:${method.methodName}`).sort();
+      const expected = methods
+        .filter((method) => !UNRELEASED_REFERENCE_METHODS.has(methodKey(method)))
+        .map((method) => `${methodKey(method)}:${method.methodName}`)
+        .sort();
       if (!arraysEqual(documented, expected)) {
         differences.push(
           `${language}: expected [${expected.join(", ")}], received [${documented.join(", ")}]`,
@@ -1285,26 +1296,35 @@ describe("Mintlify customization boundary", () => {
     ).toEqual([]);
   });
 
-  it("includes every MDX content page in docs.json navigation", async () => {
+  it("includes every indexed MDX content page in docs.json navigation", async () => {
     const docsConfig = JSON.parse(
       await readFile(resolve(DOCS_ROOT, "docs.json"), "utf8"),
     ) as unknown;
     const navigatedPages = [...collectNavigationPages(docsConfig)]
       .filter((page) => page.startsWith("v4/"))
       .sort();
-    const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory))
-      .filter((filePath) => extname(filePath) === ".mdx")
-      .map((filePath) =>
-        relative(DOCS_ROOT, filePath)
-          .split(sep)
-          .join("/")
-          .replace(/\.mdx$/u, ""),
+    const contentFiles = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
+      (filePath) => extname(filePath) === ".mdx",
+    );
+    const indexedContentPages = (
+      await Promise.all(
+        contentFiles.map(async (filePath) => ({
+          indexed: !hasNoIndexFrontmatter(await readFile(filePath, "utf8")),
+          page: relative(DOCS_ROOT, filePath)
+            .split(sep)
+            .join("/")
+            .replace(/\.mdx$/u, ""),
+        })),
       )
+    )
+      .filter(({ indexed }) => indexed)
+      .map(({ page }) => page)
       .sort();
 
-    expect(navigatedPages, "Every MDX content page must be reachable from docs.json").toStrictEqual(
-      contentPages,
-    );
+    expect(
+      navigatedPages,
+      "Every indexed MDX content page must be reachable from docs.json",
+    ).toStrictEqual(indexedContentPages);
   });
 
   it("gives every language tab group the same complete language set", async () => {
@@ -3240,6 +3260,11 @@ function collectNavigationPages(value: unknown, pages = new Set<string>()): Set<
     collectNavigationPages(child, pages);
   }
   return pages;
+}
+
+function hasNoIndexFrontmatter(source: string): boolean {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(source)?.[1];
+  return frontmatter !== undefined && /^noindex:\s*true\s*$/mu.test(frontmatter);
 }
 
 function snakeCase(name: string): string {

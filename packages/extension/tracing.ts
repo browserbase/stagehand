@@ -14,7 +14,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import { z } from "zod/v4";
-import type { ImplementationInfo, TelemetryConfig } from "../protocol/types.js";
+import type { ImplementationInfo, TelemetryConfig } from "@browserbasehq/stagehand-protocol/types";
 import extensionPackageJson from "./package.json" with { type: "json" };
 
 const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
@@ -36,7 +36,7 @@ type StagehandTracingRuntime = {
 };
 
 export type StagehandTracing = StagehandTracingRuntime & {
-  configure(telemetry: TelemetryConfig | undefined, clientInfo: ImplementationInfo): void;
+  configure(telemetry: TelemetryConfig | undefined, clientInfo: ImplementationInfo): Promise<void>;
 };
 
 type StagehandTracingRuntimeDependencies = {
@@ -92,31 +92,66 @@ export function createStagehandTracing(
   const pendingTracer = trace.getTracer(STAGEHAND_TRACER_NAME);
   let runtime: StagehandTracingRuntime | undefined;
   let shutDown = false;
+  let globalsRegistered = false;
+  let lifecycleTail = Promise.resolve();
+  let activeTelemetry: TelemetryConfig | undefined;
+  let activeClientInfo: ImplementationInfo | undefined;
+
+  function enqueueLifecycle(run: () => Promise<void>): Promise<void> {
+    const result = lifecycleTail.then(run, run);
+    lifecycleTail = result.catch(() => undefined);
+    return result;
+  }
 
   return {
     get tracer() {
       return runtime?.tracer ?? pendingTracer;
     },
     configure(telemetry, clientInfo) {
-      if (!telemetry || runtime || shutDown) return;
-      runtime = createStagehandTracingRuntime(
-        {
-          ...options,
-          clientName: clientInfo.name,
-          clientVersion: clientInfo.version,
-        },
-        {
-          spanProcessors: [
-            ...dependencies.spanProcessors,
-            createOtlpSpanProcessor(telemetry.traces),
-          ],
-        },
-      );
+      return enqueueLifecycle(async () => {
+        if (shutDown) return;
+        if (runtime && telemetry === activeTelemetry && clientInfo === activeClientInfo) {
+          return;
+        }
+
+        const previousRuntime = runtime;
+        runtime = undefined;
+        await previousRuntime?.shutdown();
+        activeTelemetry = undefined;
+        activeClientInfo = undefined;
+        // Without an explicit telemetry sink, tracing stays inert: no OTLP export.
+        if (!telemetry) return;
+
+        const registerGlobals = options.registerGlobals !== false && !globalsRegistered;
+        runtime = createStagehandTracingRuntime(
+          {
+            ...options,
+            clientName: clientInfo.name,
+            clientVersion: clientInfo.version,
+            registerGlobals,
+          },
+          {
+            spanProcessors: [
+              ...dependencies.spanProcessors,
+              createOtlpSpanProcessor(telemetry.traces),
+            ],
+          },
+        );
+        activeTelemetry = telemetry;
+        activeClientInfo = clientInfo;
+        globalsRegistered ||= registerGlobals;
+      });
     },
-    forceFlush: () => runtime?.forceFlush() ?? Promise.resolve(),
+    forceFlush: () => enqueueLifecycle(() => runtime?.forceFlush() ?? Promise.resolve()),
     shutdown: () => {
       shutDown = true;
-      return runtime?.shutdown() ?? Promise.resolve();
+      return enqueueLifecycle(async () => {
+        const activeRuntime = runtime;
+        runtime = undefined;
+        activeTelemetry = undefined;
+        activeClientInfo = undefined;
+        await activeRuntime?.shutdown();
+      });
     },
   };
 }

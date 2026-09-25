@@ -15,6 +15,7 @@
  */
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { AgentMount } from "../core/contracts/tool.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { EvalLogger } from "../logger.js";
@@ -53,18 +54,6 @@ function stringifyResult(value: unknown): string {
   } catch {
     return String(value);
   }
-}
-
-/**
- * Snippet errors can embed connection URLs whose query strings carry
- * credentials (Browserbase connect URLs include signing keys). Redact
- * credential-bearing fragments before the message crosses the HTTP boundary
- * or reaches the logs; the rest stays intact so the agent can self-correct.
- */
-export function sanitizeErrorMessage(message: string): string {
-  return message
-    .replace(/([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"']+/gi, "$1[redacted]")
-    .replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1[redacted]");
 }
 
 export interface CodeBridge {

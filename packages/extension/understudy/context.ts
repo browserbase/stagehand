@@ -10,7 +10,7 @@ import type {
   CookieParam,
   DomainPolicy,
   LocalBrowserLaunchOptions,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { InitScriptSource } from "../types/private/index.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { ContextClipboard } from "./clipboard.js";

@@ -1,4 +1,9 @@
-import type { Action, ActResult, ObserveResult, StagehandMetrics } from "../../protocol/types.js";
+import type {
+  Action,
+  ActResult,
+  ObserveResult,
+  StagehandMetrics,
+} from "@browserbasehq/stagehand-protocol/types";
 import type { BrowserContext } from "./browserContext.js";
 import type {
   StagehandClientActOptions,

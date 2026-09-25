@@ -1,18 +1,18 @@
-import { Codex, type CodexOptions } from "@openai/codex-sdk";
+import { loadCodexSdk, runCodexSession } from "@browserbasehq/stagehand-integrations-codex-sdk";
+import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import { fileURLToPath } from "node:url";
-
-import { buildAllowlistedEnv } from "./env.ts";
-
-const serverPath = fileURLToPath(
-  import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
-);
 
 /**
  * codex-sdk has no in-process MCP mounting; MCP servers are supplied through
  * the config override (config.toml shape), the same mechanism the evals codex
  * harness uses.
  */
-export function buildCodexConfig(): NonNullable<CodexOptions["config"]> {
+export function buildCodexConfig(): Record<string, unknown> {
+  // Resolved here (not at module load) so a missing build surfaces through
+  // handleFailure instead of an uncaught module error.
+  const serverPath = fileURLToPath(
+    import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
+  );
   return {
     // Required for headless MCP calls on machines without a global
     // approvals_reviewer: without it, tool calls die with "user cancelled
@@ -31,12 +31,18 @@ export function buildCodexConfig(): NonNullable<CodexOptions["config"]> {
   };
 }
 
+const logger = {
+  log: () => {},
+  warn: () => {},
+  error: () => {},
+};
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const instruction = (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
   if (!instruction) throw new Error('Usage: pnpm start "your instruction"');
 
-  const codex = new Codex({
+  const sdk = await loadCodexSdk({
     ...(process.env.OPENAI_API_KEY ? { apiKey: process.env.OPENAI_API_KEY } : {}),
     // pnpm can skip the SDK's vendored-binary postinstall; point at a locally
     // installed codex when that happens (same escape hatch the evals harness
@@ -44,38 +50,38 @@ async function main(): Promise<void> {
     ...(process.env.CODEX_PATH_OVERRIDE
       ? { codexPathOverride: process.env.CODEX_PATH_OVERRIDE }
       : {}),
-    config: buildCodexConfig(),
+    extraConfig: buildCodexConfig(),
   });
-  const thread = codex.startThread({
+  const result = await runCodexSession({
+    prompt: instruction,
     // Codex picks its own harness-tuned default model; override only via env.
-    ...(process.env.CODEX_STAGEHAND_MODEL ? { model: process.env.CODEX_STAGEHAND_MODEL } : {}),
-    // The browser work happens in the MCP server; the local sandbox can stay
-    // read-only.
-    sandboxMode: "read-only",
-    // Headless policy chosen empirically: "on-failure" lets MCP tool calls
-    // complete; "never" and "untrusted" auto-cancel them ("user cancelled
-    // MCP tool call").
-    approvalPolicy: "on-failure",
-    skipGitRepoCheck: true,
+    model: process.env.CODEX_STAGEHAND_MODEL ?? "",
+    sdk,
+    logger,
+    thread: {
+      // The browser work happens in the MCP server; the local sandbox can stay
+      // read-only.
+      sandboxMode: "read-only",
+      // Headless policy chosen empirically: "on-failure" lets MCP tool calls
+      // complete; "never" and "untrusted" auto-cancel them ("user cancelled
+      // MCP tool call").
+      approvalPolicy: "on-failure",
+      skipGitRepoCheck: true,
+    },
   });
-
-  const streamed = await thread.runStreamed(instruction);
-  let finalResponse = "";
-  for await (const event of streamed.events) {
-    if (
-      event.type === "item.completed" &&
-      typeof event.item === "object" &&
-      event.item !== null &&
-      "type" in event.item &&
-      event.item.type === "agent_message" &&
-      "text" in event.item &&
-      typeof event.item.text === "string"
-    ) {
-      finalResponse = event.item.text;
-    }
+  if (result.status !== "completed") {
+    // Surface any answer the agent produced before the abnormal stop; a
+    // budget/max-turns stop usually still carries a useful final message.
+    throw (
+      result.iterationError ??
+      new Error(
+        `Agent did not finish: ${result.stopReason ?? result.status}` +
+          (result.finalMessage ? `\nLast agent message: ${result.finalMessage}` : ""),
+      )
+    );
   }
   // oxlint-disable-next-line no-console -- CLI example prints the agent result.
-  console.log(finalResponse);
+  console.log(result.finalMessage);
 }
 
 if (import.meta.main) {

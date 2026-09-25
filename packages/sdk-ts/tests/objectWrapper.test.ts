@@ -3,10 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
-import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "../../protocol/schemas.js";
-import type { StagehandRpcNotification } from "../../protocol/types.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
+import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserClipboard,
   BrowserContext,
@@ -18,6 +18,9 @@ import {
   type StagehandMetrics,
   WebMCPInvocation,
   WebMCPTool,
+  type WebMCPToolIdentity,
+  type ToolsAddedListener,
+  type ToolsRemovedListener,
 } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
 import {
@@ -118,7 +121,7 @@ function createStagehandWithClientForTest(client: RPCClient): Stagehand {
     close: () => {},
   });
   claimStagehandBrowserHandle(browser);
-  attachStagehandBrowserContext(browser, new BrowserContext(client));
+  attachStagehandBrowserContext(browser, new BrowserContext(client, () => browser.close()));
   const stagehand = Object.create(Stagehand.prototype) as Stagehand;
   Object.assign(stagehand, { browserHandle: browser });
   stagehand.rpcClient = client;
@@ -323,19 +326,18 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes context.setActivePage and context.close", async () => {
+  it("routes context.setActivePage and closes the browser without context.close", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextSetActivePage, { ok: true });
-    client.queueResponse(StagehandMethods.contextClose, { closed: true });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
 
     await stagehand.browser.context.setActivePage(page);
     await stagehand.browser.context.close();
 
+    expect(stagehand.browser.closed).toBe(true);
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextSetActivePage, { pageId: "page-1" }),
-      requestCall(StagehandMethods.contextClose, {}),
     ]);
   });
 
@@ -580,9 +582,23 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.listeners).toHaveLength(0);
   });
 
+  it.each(["toolsadded", "toolsremoved", "unknown", ""])(
+    "rejects unsupported generic page.on event %j before subscribing",
+    async (event) => {
+      const client = new FakeProtocolClient();
+      const page = new Page(client, { pageId: "page-1" });
+      await expect(page.on(event as "console", () => {})).rejects.toThrow(
+        'page.on only supports "console" events',
+      );
+      expect(client.calls).toHaveLength(0);
+      expect(client.listeners).toHaveLength(0);
+    },
+  );
+
   it("cleans up page.on state when remote registration fails", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
     client.queueResponse(StagehandMethods.pageClose, { closed: true });
     const page = new Page(client, { pageId: "page-1" });
 
@@ -590,8 +606,164 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.listeners).toHaveLength(0);
 
     await page.close();
-    expect(client.calls.map((call) => call.method)).toStrictEqual(["page.on", "page.close"]);
+    expect(client.calls.map((call) => call.method)).toStrictEqual([
+      "page.on",
+      "page.off",
+      "page.close",
+    ]);
   });
+
+  it("delivers added tools as callable wrappers and filters unrelated events", async () => {
+    expectTypeOf<Page["onToolsAdded"]>().parameter(0).toEqualTypeOf<ToolsAddedListener>();
+    expectTypeOf<ToolsAddedListener>().parameter(0).toEqualTypeOf<WebMCPTool[]>();
+    expectTypeOf<Page["onToolsRemoved"]>().parameter(0).toEqualTypeOf<ToolsRemovedListener>();
+    expectTypeOf<ToolsRemovedListener>().parameter(0).toEqualTypeOf<WebMCPToolIdentity[]>();
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    client.queueResponse(StagehandMethods.pageWebMCPInvokeTool, {
+      invocationId: "invocation-1",
+      frameId: "child",
+      toolName: "search",
+      input: { searchQuery: "hello" },
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    const calls: unknown[] = [];
+    let invocation: Promise<unknown> | undefined;
+    const subscription = await page.onToolsAdded(async (tools) => {
+      calls.push(tools);
+      expect(tools[0]).toBeInstanceOf(WebMCPTool);
+      invocation = tools[0]!.invoke({ input: { searchQuery: "hello" } });
+      await invocation;
+    });
+    const { subscriptionId } = client.calls[0]!.params as { subscriptionId: string };
+    const params = {
+      subscriptionId,
+      pageId: "page-1",
+      sessionId: "session-child",
+      targetId: "target-child",
+      event: "toolsadded" as const,
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          frameId: "child",
+          inputSchema: { properties: { searchQuery: { type: "string" } } },
+        },
+      ],
+    };
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.event",
+      params: { ...params, subscriptionId: "unrelated" },
+    });
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.event",
+      params: { ...params, event: "toolsremoved", tools: [{ name: "search", frameId: "child" }] },
+    });
+    expect(calls).toHaveLength(0);
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    await invocation;
+    expect(calls).toHaveLength(1);
+    expect(client.calls[1]).toEqual(
+      requestCall(StagehandMethods.pageWebMCPInvokeTool, {
+        pageId: "page-1",
+        frameId: "child",
+        toolName: "search",
+        input: { searchQuery: "hello" },
+      }),
+    );
+    await subscription.unsubscribe();
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("delivers removed identities without callable wrappers", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const listener = vi.fn();
+    const subscription = await page.onToolsRemoved(listener);
+    const { subscriptionId } = client.calls[0]!.params as { subscriptionId: string };
+    const params = {
+      subscriptionId,
+      pageId: "page-1",
+      sessionId: "child",
+      targetId: "child",
+      event: "toolsremoved" as const,
+      tools: [{ name: "search", frameId: "child" }],
+    };
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.event",
+      params: {
+        ...params,
+        event: "toolsadded",
+        tools: [{ ...params.tools[0]!, description: "Search" }],
+      },
+    });
+    expect(listener).not.toHaveBeenCalled();
+    client.emitNotification({ jsonrpc: "2.0", method: "page.event", params });
+    expect(listener).toHaveBeenCalledWith(params.tools);
+    expect(listener.mock.calls[0]![0][0]).not.toBeInstanceOf(WebMCPTool);
+    await subscription.unsubscribe();
+  });
+
+  it.each(["onToolsAdded", "onToolsRemoved"] as const)(
+    "rolls back failed %s registration",
+    async (method) => {
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
+      client.queueResponse(StagehandMethods.pageOff, { ok: true });
+      const page = new Page(client, { pageId: "page-1" });
+      await expect(page[method](() => {})).rejects.toThrow("registration failed");
+      expect(client.listeners).toHaveLength(0);
+    },
+  );
+
+  it.each(["on", "onToolsAdded", "onToolsRemoved"] as const)(
+    "cleans up timed-out %s registration and retains failed cleanup for page close",
+    async (method) => {
+      for (const cleanupFails of [false, true]) {
+        const client = new FakeProtocolClient();
+        const timeout = new Error("RPC response timed out: page.on");
+        client.queueResponse(StagehandMethods.pageOn, timeout);
+        client.queueResponse(
+          StagehandMethods.pageOff,
+          cleanupFails ? new Error("cleanup failed") : { ok: true },
+        );
+        const page = new Page(client, { pageId: "page-1" });
+        const warning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+        try {
+          const registration =
+            method === "on" ? page.on("console", () => {}) : page[method](() => {});
+          await expect(registration).rejects.toBe(timeout);
+          expect(client.listeners).toHaveLength(0);
+          expect(client.calls.map((call) => call.method)).toEqual(["page.on", "page.off"]);
+          expect(client.calls[1]!.params).toEqual({
+            subscriptionId: (client.calls[0]!.params as { subscriptionId: string }).subscriptionId,
+          });
+          if (cleanupFails) {
+            expect(warning).toHaveBeenCalledWith("cleanup failed", {
+              code: "STAGEHAND_PAGE_SUBSCRIPTION_CLEANUP_ERROR",
+            });
+            client.queueResponse(StagehandMethods.pageOff, { ok: true });
+          } else {
+            expect(warning).not.toHaveBeenCalled();
+          }
+          client.queueResponse(StagehandMethods.pageClose, { closed: true });
+          await page.close();
+          expect(client.calls.filter((call) => call.method === "page.off")).toHaveLength(
+            cleanupFails ? 2 : 1,
+          );
+        } finally {
+          warning.mockRestore();
+        }
+      }
+    },
+  );
 
   it("retries the remote unsubscribe after a transient failure", async () => {
     const client = new FakeProtocolClient();
@@ -926,7 +1098,6 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "iVBORw0KGgo=",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
     const mask = page.locator("[data-secret]");
@@ -961,7 +1132,6 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "iVBORw0KGgo=",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
     vi.stubGlobal("Buffer", undefined);
@@ -980,11 +1150,9 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "Zh==",
-      type: "png",
     });
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "Zh==",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
 
@@ -1006,7 +1174,6 @@ describe("Stagehand TS object wrapper", () => {
       const client = new FakeProtocolClient();
       client.queueResponse(StagehandMethods.pageScreenshot, {
         data: "iVBORw0KGgo=",
-        type: "png",
       });
       const page = new Page(client, { pageId: "page-1" });
 

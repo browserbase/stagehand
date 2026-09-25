@@ -21,7 +21,6 @@ import {
   ContextClipboardReadTextParamsSchema,
   ContextClipboardReadTextResultSchema,
   ContextClipboardWriteTextParamsSchema,
-  ContextCloseResultSchema,
   ContextCookiesParamsSchema,
   ContextCookiesResultSchema,
   ContextGetDomainPolicyResultSchema,
@@ -64,6 +63,7 @@ import {
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageCDPEventNotificationSchema,
+  PageEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
@@ -194,11 +194,6 @@ export const StagehandMethods = {
     name: "context.set_active_page",
     params: ContextSetActivePageParamsSchema,
     result: ContextVoidResultSchema,
-  },
-  contextClose: {
-    name: "context.close",
-    params: EmptyParamsSchema,
-    result: ContextCloseResultSchema,
   },
   contextAddInitScript: {
     name: "context.add_init_script",
@@ -545,6 +540,11 @@ export const StagehandNotifications = {
     name: "page.cdp_event",
     params: PageCDPEventNotificationSchema,
     paramsWire: { opaqueKeys: ["params"] },
+  },
+  pageEvent: {
+    name: "page.event",
+    params: PageEventNotificationSchema,
+    paramsWire: { opaqueKeys: ["inputSchema"] },
   },
 } as const satisfies Record<string, RPCNotification>;
 

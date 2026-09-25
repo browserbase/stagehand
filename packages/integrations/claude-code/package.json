@@ -1,17 +1,17 @@
 {
   "name": "@browserbasehq/stagehand-integrations-example-claude-code-facade",
-  "version": "4.0.1",
+  "version": "4.0.3",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node src/agent.ts",
-    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations && vitest run",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations-claude-agent-sdk && vitest run",
     "test:unit": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "catalog:",
-    "@browserbasehq/stagehand-integrations": "workspace:*"
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

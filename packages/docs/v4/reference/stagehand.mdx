@@ -4,7 +4,7 @@ description: "Initialize a browser session and run AI-powered actions, observati
 icon: "hand-horns"
 ---
 
-`Stagehand` owns the browser connection and exposes top-level lifecycle, metrics, and AI methods.
+`Stagehand` attaches to a browser connection and exposes top-level lifecycle, metrics, and AI methods. The browser handle remains caller-owned.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -14,7 +14,18 @@ icon: "hand-horns"
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
+const browser = await localBrowser.launch();
+try {
+  const stagehand = await Stagehand.create({ browser });
+  try {
+    const page = await browser.context.activePage();
+    await page.goto("https://example.com");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
 ```
 
 ## create()
@@ -22,11 +33,48 @@ const stagehand = await Stagehand.create({ browser: await localBrowser.launch() 
 Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
 
 ```typescript
-const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({ browser });
 ```
 
 <ParamField path="browser" type="StagehandBrowser" required>
   A browser handle from `browserbase.launch()`, `browserbase.connect()`, `localBrowser.launch()`, or `localBrowser.connect()`. Each handle can back only one Stagehand instance.
+</ParamField>
+
+<ParamField path="apiKey" type="string" optional>
+  Browserbase API key used by managed services such as Model Gateway and server-side caching.
+</ParamField>
+
+<ParamField path="apiUrl" type="string" optional>
+  Stagehand API origin override for managed services. Use the service origin without `/v1`.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig | ClientLLM" optional>
+  Default model configuration or client-provided generation callback. Browserbase selects a model automatically for Gateway sessions when omitted.
+</ParamField>
+
+<ParamField path="telemetry" type="StagehandCreateOptions['telemetry']" optional>
+  OpenTelemetry trace export configuration.
+</ParamField>
+
+<ParamField path="systemPrompt" type="string" optional>
+  Additional system instructions included in model calls.
+</ParamField>
+
+<ParamField path="selfHeal" type="boolean" optional>
+  Whether Stagehand re-infers and retries a cached action when its recorded selector no longer resolves.
+</ParamField>
+
+<ParamField path="domSettleTimeoutMs" type="number" optional>
+  Maximum time in milliseconds to wait for the DOM to settle before an operation.
+</ParamField>
+
+<ParamField path="cache" type="Caching" optional>
+  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`.
+</ParamField>
+
+<ParamField path="logging" type="StagehandClientLoggingConfig" optional>
+  Client-side log level, output format, and optional log callback.
 </ParamField>
 
 <ResponseField name="result" type="Promise<Stagehand>">
@@ -51,10 +99,11 @@ const page = await stagehand.browser.context.activePage();
 
 ## close()
 
-Close the Stagehand session and release browser resources.
+Close the Stagehand runtime and release its resources. The browser handle stays open; close it separately with `browser.close()`.
 
 ```typescript
 await stagehand.close();
+await browser.close();
 ```
 
 <ResponseField name="result" type="Promise<void>">
@@ -816,7 +865,16 @@ console.log(product.data, product.metadata.cache.status);
 ```python
 from stagehand import Stagehand, local_browser
 
-stagehand = await Stagehand.create(browser=await local_browser.launch())
+browser = await local_browser.launch()
+try:
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        page = await browser.context.active_page()
+        await page.goto("https://example.com")
+    finally:
+        await stagehand.close()
+finally:
+    await browser.close()
 ```
 
 ## create()
@@ -824,11 +882,56 @@ stagehand = await Stagehand.create(browser=await local_browser.launch())
 Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
 
 ```python
-stagehand = await Stagehand.create(browser=await local_browser.launch())
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(browser=browser)
 ```
 
 <ParamField path="browser" type="StagehandBrowser" required>
   A browser handle from `browserbase.launch()`, `browserbase.connect()`, `local_browser.launch()`, or `local_browser.connect()`. Each handle can back only one Stagehand instance.
+</ParamField>
+
+<ParamField path="api_key" type="str" optional>
+  Browserbase API key used by managed services such as Model Gateway and server-side caching.
+</ParamField>
+
+<ParamField path="api_url" type="str" optional>
+  Stagehand API origin override for managed services. Use the service origin without `/v1`.
+</ParamField>
+
+<ParamField path="model" type="str | LLMGenerateCallback" optional>
+  Default provider-prefixed model name or client-provided generation callback. Browserbase selects a model automatically for Gateway sessions when omitted.
+</ParamField>
+
+<ParamField path="model_api_key" type="str" optional>
+  Provider API key for the model named by `model`. It cannot be used with a generation callback.
+</ParamField>
+
+<ParamField path="model_headers" type="Mapping[str, str]" optional>
+  Custom provider headers for the model named by `model`. They cannot be used with a generation callback.
+</ParamField>
+
+<ParamField path="telemetry" type="TelemetryConfig" optional>
+  OpenTelemetry trace export configuration.
+</ParamField>
+
+<ParamField path="system_prompt" type="str" optional>
+  Additional system instructions included in model calls.
+</ParamField>
+
+<ParamField path="self_heal" type="bool" optional>
+  Whether Stagehand re-infers and retries a cached action when its recorded selector no longer resolves.
+</ParamField>
+
+<ParamField path="dom_settle_timeout_ms" type="int" optional>
+  Maximum time in milliseconds to wait for the DOM to settle before an operation.
+</ParamField>
+
+<ParamField path="cache" type="Cache" optional>
+  Instance-level server-side cache setting for `act()`, `observe()`, and `extract()`.
+</ParamField>
+
+<ParamField path="logging" type="StagehandClientLoggingConfig" optional>
+  Client-side log level, output format, and optional log callback.
 </ParamField>
 
 <ResponseField name="result" type="Stagehand">
@@ -853,10 +956,11 @@ page = await stagehand.browser.context.active_page()
 
 ## close()
 
-Close the Stagehand session and release browser resources.
+Close the Stagehand runtime and release its resources. The browser handle stays open; close it separately with `browser.close()`.
 
 ```python
 await stagehand.close()
+await browser.close()
 ```
 
 <ResponseField name="result" type="None">
@@ -1607,7 +1711,45 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
   A browser handle from `LaunchBrowserbase()`, `ConnectBrowserbase()`, `LaunchLocalBrowser()`, or `ConnectLocalBrowser()`. Each handle can back only one Stagehand instance.
 </ParamField>
 
-The remaining `CreateOptions` fields (`APIKey`, `APIURL`, `Cache`, `DOMSettleTimeoutMs`, `Model`, `Generate`, `Logging`, `SelfHeal`, `SystemPrompt`, and `Telemetry`) are optional and covered in the configuration guides.
+<ParamField path="options.APIKey" type="*string" optional>
+  Browserbase API key used by managed services such as Model Gateway and server-side caching.
+</ParamField>
+
+<ParamField path="options.APIURL" type="*string" optional>
+  Stagehand API origin override for managed services. Use the service origin without `/v1`.
+</ParamField>
+
+<ParamField path="options.Model" type="*ModelConfig" optional>
+  Default model configuration. Browserbase selects a model automatically for Gateway sessions when omitted.
+</ParamField>
+
+<ParamField path="options.Generate" type="LLMGenerateFunc" optional>
+  Client-provided generation callback used instead of `options.Model`.
+</ParamField>
+
+<ParamField path="options.Telemetry" type="TelemetryConfig" optional>
+  OpenTelemetry trace export configuration.
+</ParamField>
+
+<ParamField path="options.SystemPrompt" type="*string" optional>
+  Additional system instructions included in model calls.
+</ParamField>
+
+<ParamField path="options.SelfHeal" type="*bool" optional>
+  Whether Stagehand re-infers and retries a cached action when its recorded selector no longer resolves.
+</ParamField>
+
+<ParamField path="options.DOMSettleTimeoutMs" type="*int" optional>
+  Maximum time in milliseconds to wait for the DOM to settle before an operation.
+</ParamField>
+
+<ParamField path="options.Cache" type="*Caching" optional>
+  Instance-level server-side cache setting for `Act()`, `Observe()`, and `Extract()`.
+</ParamField>
+
+<ParamField path="options.Logging" type="*StagehandClientLoggingConfig" optional>
+  Client-side log level, output format, and optional log callback.
+</ParamField>
 
 <ResponseField name="result" type="(*Stagehand, error)">
   An initialized Stagehand instance.
