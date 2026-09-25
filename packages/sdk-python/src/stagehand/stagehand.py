@@ -514,7 +514,8 @@ class Stagehand:
         if not _is_log_level_enabled(notification.level.value, logging.level):
             return
 
-        sys.stderr.write(_render_stagehand_log(notification, logging.format) + "\n")
+        if logging.console:
+            sys.stderr.write(_render_stagehand_log(notification, logging.format) + "\n")
         if logging.on_log is None:
             return
 

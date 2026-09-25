@@ -194,6 +194,7 @@ class StagehandClientLoggingConfig(WireModel):
 
     level: Literal["off", "error", "warn", "info", "debug"] = "info"
     format: Literal["pretty", "json"] = "pretty"
+    console: bool = True
     on_log: StagehandOnLog | None = None
 
 

@@ -552,12 +552,14 @@ func handleStagehandLog(log StagehandLog, logging resolvedStagehandClientLogging
 	if !isClientLogLevelEnabled(log.Level, logging.level) {
 		return
 	}
-	rendered, err := renderStagehandLog(log, logging.format)
-	if err != nil {
-		fmt.Fprintf(logging.writer, "[stagehand] ERROR render log failed: %v\n", err)
-		return
+	if logging.console {
+		rendered, err := renderStagehandLog(log, logging.format)
+		if err != nil {
+			fmt.Fprintf(logging.writer, "[stagehand] ERROR render log failed: %v\n", err)
+			return
+		}
+		fmt.Fprintln(logging.writer, rendered)
 	}
-	fmt.Fprintln(logging.writer, rendered)
 	if logging.onLog == nil {
 		return
 	}

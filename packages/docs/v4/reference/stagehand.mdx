@@ -74,7 +74,7 @@ const stagehand = await Stagehand.create({ browser });
 </ParamField>
 
 <ParamField path="logging" type="StagehandClientLoggingConfig" optional>
-  Client-side log level, output format, and optional log callback.
+  Client-side log level, output format, optional console output (enabled by default), and log callback. Disabling routine console output preserves eligible callbacks and existing callback-failure diagnostics. See [Logging](/v4/configuration/logging#log-destinations).
 </ParamField>
 
 <ResponseField name="result" type="Promise<Stagehand>">
@@ -931,7 +931,7 @@ stagehand = await Stagehand.create(browser=browser)
 </ParamField>
 
 <ParamField path="logging" type="StagehandClientLoggingConfig" optional>
-  Client-side log level, output format, and optional log callback.
+  Client-side log level, output format, optional console output (enabled by default), and log callback. Disabling routine console output preserves eligible callbacks and existing callback-failure diagnostics. See [Logging](/v4/configuration/logging#log-destinations).
 </ParamField>
 
 <ResponseField name="result" type="Stagehand">
@@ -1748,7 +1748,7 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
 </ParamField>
 
 <ParamField path="options.Logging" type="*StagehandClientLoggingConfig" optional>
-  Client-side log level, output format, and optional log callback.
+  Client-side log level, output format, optional console output (enabled by default), and log callback. Disabling routine console output preserves eligible callbacks and existing callback-failure diagnostics. See [Logging](/v4/configuration/logging#log-destinations).
 </ParamField>
 
 <ResponseField name="result" type="(*Stagehand, error)">

@@ -32,7 +32,9 @@ type LLMGenerateFunc func(context.Context, LLMGenerateParams) (LLMGenerateResult
 type StagehandClientLoggingConfig struct {
 	Level  StagehandClientLogLevel
 	Format StagehandClientLogFormat
-	OnLog  func(StagehandLog)
+	// Console defaults to true when nil. False suppresses routine output, not callback-failure diagnostics.
+	Console *bool
+	OnLog   func(StagehandLog)
 }
 
 // StagehandClientLogLevel controls which runtime log notifications the SDK emits.

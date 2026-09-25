@@ -221,6 +221,7 @@ export const StagehandClientLoggingConfigSchema = z
   .strictObject({
     level: StagehandClientLogLevelSchema.default("info"),
     format: StagehandClientLogFormatSchema.default("pretty"),
+    console: z.boolean().default(true),
     onLog: StagehandClientOnLogSchema.optional(),
   })
   .meta({ id: "StagehandClientLoggingConfig" });
@@ -255,6 +256,7 @@ export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit(
     logging: StagehandClientLoggingConfigSchema.default({
       level: "info",
       format: "pretty",
+      console: true,
     }),
   })
   .strict()

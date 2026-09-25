@@ -24,8 +24,8 @@ const production = {
   onLog: yourProductionLogger, // Send to Sentry, DataDog, or similar
 } as const;
 
-// Testing: warnings and errors only, no console noise
-const testing = { level: "warn", onLog: yourTestLogger } as const;
+// Testing: forward warnings and errors without routine console output
+const testing = { level: "warn", console: false, onLog: yourTestLogger } as const;
 
 // Create one instance with the configuration for this environment
 const stagehand = await Stagehand.create({
@@ -50,8 +50,8 @@ production = {
     "on_log": your_production_logger,  # Send to Sentry, DataDog, or similar
 }
 
-# Testing: warnings and errors only, no console noise
-testing = {"level": "warn", "on_log": your_test_logger}
+# Testing: forward warnings and errors without routine console output
+testing = {"level": "warn", "console": False, "on_log": your_test_logger}
 
 # Create one instance with the configuration for this environment
 browser = await local_browser.launch()
@@ -79,9 +79,11 @@ production := &stagehand.StagehandClientLoggingConfig{
 	OnLog:  yourProductionLogger, // Send to Sentry, DataDog, or similar
 }
 
-// Testing: warnings and errors only, no console noise
+// Testing: forward warnings and errors without routine console output
+consoleOutput := false
 testing := &stagehand.StagehandClientLoggingConfig{
 	Level: stagehand.StagehandClientLogLevelWarn,
+	Console: &consoleOutput,
 	OnLog: yourTestLogger,
 }
 
@@ -314,7 +316,53 @@ Turning logging off suppresses the record callback as well as console output. Do
 
 ### Log destinations
 
-Send logs to your console or through your own callback. The record callback drives every destination, so anything your own code can write to is a valid sink. To forward records to an observability platform, see [External logging platforms](#external-logging-platforms).
+By default, eligible logs are written to stderr and also delivered to your configured callback. Anything your own code can write to is a valid callback destination. To forward records to an observability platform, see [External logging platforms](#external-logging-platforms).
+
+`logging.console` (`Logging.Console` in Go) defaults to `true`. Set it to `false` to suppress routine log output to stderr while continuing to receive structured events through your callback:
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+const stagehand = await Stagehand.create({
+  browser,
+  logging: { level: "info", console: false, onLog: yourProductionLogger },
+});
+```
+</Tab>
+<Tab title="Python">
+```python
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "info", "console": False, "on_log": your_production_logger},
+)
+```
+</Tab>
+<Tab title="Go">
+```go
+consoleOutput := false
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+    Browser: browser,
+    Logging: &stagehand.StagehandClientLoggingConfig{
+        Level: stagehand.StagehandClientLogLevelInfo,
+        Console: &consoleOutput,
+        OnLog: yourProductionLogger,
+    },
+})
+if err != nil {
+    return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+Go uses `*bool`: nil preserves output, and a pointer to false disables it. The value is copied when the client is created.
+</Tab>
+</Tabs>
+
+The level filters both console output and callbacks; `level: "off"` disables both. `format` controls only console rendering and does not change the callback's structured event. Without a log callback, disabling console output discards routine log events. This option is SDK-local in all three languages and does not change the runtime's log level.
+
+<Note>
+Callback-failure diagnostics retain their existing behavior even when routine console output is disabled: TypeScript reports thrown errors and rejected promises, Python reports exceptions from synchronous or awaited callbacks, and Go reports recovered callback panics. These diagnostics still go to stderr, and later notifications can continue. The option does not guarantee complete stderr silence.
+</Note>
 
 <Tabs>
 <Tab title="Pretty (default)">
@@ -421,7 +469,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 </Tab>
 <Tab title="Custom logger">
-Your own callback receives every log record that passes the level filter, alongside the console output.
+Your own callback receives every log record that passes the level filter. By default, those records also appear in the console output.
 
 **When to use:** Development, debugging, or when you don't need querying
 capabilities.
@@ -537,7 +585,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-The callback receives every record that passes the level gate, so do any finer filtering inside it. It runs in addition to the console output rather than instead of it: the level gates both and `off` silences both. Keep the level at the lowest severity you want to receive, and redirect standard error if the console itself needs to stay quiet.
+The callback receives every record that passes the level gate, so do any finer filtering inside it. The level gates both destinations and `off` silences both. Keep the level at the lowest severity you want to receive. Set `console: false` (`Console: &consoleOutput` with `consoleOutput := false` in Go) to suppress routine console output while preserving callbacks; callback-failure diagnostics still go to stderr.
 </Note>
 </Tab>
 </Tabs>
@@ -1154,6 +1202,7 @@ Pass all logging options as a single object to `Stagehand.create()`:
 type StagehandClientLoggingConfig = {
   level?: "off" | "error" | "warn" | "info" | "debug"; // default: "info"
   format?: "pretty" | "json"; // default: "pretty"
+  console?: boolean; // default: true
   onLog?: (log: StagehandLog) => void | Promise<void>; // default: undefined
 };
 ```
@@ -1167,6 +1216,7 @@ stagehand = await Stagehand.create(
     logging={
         "level": "info",  # "off" | "error" | "warn" | "info" | "debug"
         "format": "pretty",  # "pretty" | "json"
+        "console": True,  # default: True
         "on_log": None,  # Callable[[StagehandLog], None | Awaitable[None]]
     },
 )
@@ -1180,6 +1230,7 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		Level:  stagehand.StagehandClientLogLevelInfo,
 		Format: stagehand.StagehandClientLogFormatPretty,
+		Console: nil, // default: true; use a pointer to false to suppress routine output
 		OnLog:  func(entry stagehand.StagehandLog) {},
 	},
 	// ... your other configurations (Browser, Model, etc.)
@@ -1198,7 +1249,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 |--------|---------|-------------|
 | level | `info` | Minimum level to emit: `off`, `error`, `warn`, `info`, or `debug` |
 | format | `pretty` | Console rendering: human-readable lines or one JSON object per line |
-| log callback | none | Receives every record that passes the level filter, alongside the console output |
+| console (`Console` in Go) | `true` | Whether to render routine logs to stderr; callback-failure diagnostics are still printed |
+| log callback | none | Receives every record that passes the level filter; console output is also enabled by default |
 
 <Note>
 The level is also forwarded to the Stagehand runtime, so suppressed records are never generated or sent over the wire. Raising it to `debug` increases both log volume and message traffic.
