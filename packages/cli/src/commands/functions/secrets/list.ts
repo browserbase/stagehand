@@ -3,10 +3,18 @@ import { BrowseCommand } from "../../../base.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { listFunctionSecrets } from "../../../lib/secrets/api.js";
 import {
-  listSecretsFlags,
+  collectionSecretsFlags,
   toListSecretsOptions,
 } from "../../../lib/secrets/flags.js";
 import { outputJson } from "../../../lib/output.js";
+import {
+  usesCollectionContract,
+  outputCollection,
+} from "../../../lib/collections.js";
+import {
+  outputSecretsTable,
+  validateSecretsCollectionFlags,
+} from "../../../lib/secrets/output.js";
 
 export default class FunctionSecretsList extends BrowseCommand {
   static override description =
@@ -24,10 +32,28 @@ export default class FunctionSecretsList extends BrowseCommand {
       required: true,
     }),
   };
-  static override flags = { ...apiCommonFlags, ...listSecretsFlags };
+  static override flags = { ...apiCommonFlags, ...collectionSecretsFlags };
   async run(): Promise<void> {
     const { args, flags } = await this.parse(FunctionSecretsList);
+    validateSecretsCollectionFlags(flags);
     const options = toApiOptions(flags);
+    if (usesCollectionContract(flags)) {
+      const query = toListSecretsOptions(flags);
+      await outputCollection({
+        flags,
+        source: {
+          kind: "cursor",
+          pageSize: 1000,
+          loadPage: (page) =>
+            listFunctionSecrets(options, args.functionId, {
+              ...query,
+              ...page,
+            }),
+        },
+        table: (items) => outputSecretsTable(items, flags),
+      });
+      return;
+    }
     outputJson(
       await listFunctionSecrets(
         options,

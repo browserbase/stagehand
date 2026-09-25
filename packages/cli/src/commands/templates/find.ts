@@ -1,5 +1,13 @@
 import { Args } from "@oclif/core";
 
+import {
+  collectionVersionFlag,
+  collectionLimitFlags,
+  usesCollectionContract,
+  outputCollection,
+  validateCollectionFlags,
+  requireCollectionVersion,
+} from "../../lib/collections.js";
 import { BrowseCommand } from "../../base.js";
 import {
   outputFormatFlags,
@@ -33,12 +41,35 @@ export default class TemplatesFind extends BrowseCommand {
 
   static override flags = {
     ...outputFormatFlags,
+    ...collectionVersionFlag,
+    ...collectionLimitFlags,
   };
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(TemplatesFind);
+    if (usesCollectionContract(flags)) validateCollectionFlags(flags);
+    else requireCollectionVersion(flags, ["limit", "all"]);
     const exactTemplate = await getTemplateIfExists(args.query);
     const outputFormat = resolveOutputFormat(flags);
+
+    if (usesCollectionContract(flags)) {
+      await outputCollection({
+        flags,
+        source: {
+          kind: "array",
+          complete: true,
+          load: async () =>
+            exactTemplate
+              ? [exactTemplate]
+              : (await listTemplates()).filter((template) =>
+                  templateMatchesQuery(template, args.query),
+                ),
+        },
+        table: (items) =>
+          outputTemplateTable(items, { wide: flags.wide, footer: false }),
+      });
+      return;
+    }
 
     if (exactTemplate) {
       if (outputFormat === "json") {
