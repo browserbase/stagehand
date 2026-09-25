@@ -1,7 +1,8 @@
 // lib/v3/understudy/frame.ts
 import { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "./cdp.js";
+import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
+import { type Progress, runLocatorStep } from "./progress.js";
 import { waitForScreenshot } from "./screenshotUtils.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandLogger } from "../logger.js";
@@ -182,33 +183,48 @@ export class Frame implements FrameManager {
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
-  async evaluateInLocatorWorld<R = unknown>(expression: string): Promise<R> {
-    await this.session.send("Runtime.enable").catch(() => {});
+  async evaluateInLocatorWorld<R = unknown>(expression: string, progress?: Progress): Promise<R> {
+    await runLocatorStep(progress, "enabling runtime", () =>
+      this.session.send("Runtime.enable").catch((error) => {
+        if (progress && isCdpClosedError(error)) throw error;
+      }),
+    );
     let locatorWorld = await executionContexts.waitForLocatorWorld(
       this.session,
       this.frameId,
       1000,
+      progress,
     );
 
     let response: Protocol.Runtime.EvaluateResponse;
     try {
-      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId: locatorWorld.contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      });
+      response = await runLocatorStep(progress, "evaluating locator helper", () =>
+        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression,
+          contextId: locatorWorld.contextId,
+          awaitPromise: true,
+          returnByValue: true,
+        }),
+      );
     } catch (error) {
+      progress?.throwIfStopped();
       const message = error instanceof Error ? error.message : String(error);
       if (!message.includes("Cannot find context with specified id")) throw error;
       executionContexts.unregisterLocatorContext(this.session, locatorWorld.contextId);
-      locatorWorld = await executionContexts.waitForLocatorWorld(this.session, this.frameId, 1000);
-      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId: locatorWorld.contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      });
+      locatorWorld = await executionContexts.waitForLocatorWorld(
+        this.session,
+        this.frameId,
+        1000,
+        progress,
+      );
+      response = await runLocatorStep(progress, "evaluating locator helper", () =>
+        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression,
+          contextId: locatorWorld.contextId,
+          awaitPromise: true,
+          returnByValue: true,
+        }),
+      );
     }
 
     if (response.exceptionDetails) {

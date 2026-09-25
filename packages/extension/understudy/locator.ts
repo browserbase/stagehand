@@ -17,6 +17,7 @@ import {
   selectElementOptions,
 } from "../dom/locatorScripts/scripts.js";
 import type { Frame } from "./frame.js";
+import { type Progress, runLocatorStep } from "./progress.js";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
@@ -758,17 +759,22 @@ export class Locator {
    * Resolve `this.selector` within the frame to `{ objectId, nodeId? }`:
    * Delegates to a shared selector resolver so all selector logic stays in sync.
    */
-  public async resolveNode(): Promise<{
+  public async resolveNode(progress?: Progress): Promise<{
     nodeId: Protocol.DOM.NodeId | null;
     objectId: Protocol.Runtime.RemoteObjectId;
   }> {
+    progress?.throwIfStopped();
     const session = this.frame.session;
 
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
+    await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
+    await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
 
     const index = this.nthIndex < 0 ? 0 : this.nthIndex;
-    const resolved = await this.selectorResolver.resolveAtIndex(this.selectorQuery, index);
+    const resolved = await this.selectorResolver.resolveAtIndex(
+      this.selectorQuery,
+      index,
+      progress,
+    );
     if (!resolved) {
       throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
