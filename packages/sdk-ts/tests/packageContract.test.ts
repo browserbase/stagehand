@@ -29,6 +29,7 @@ describe("published TypeScript SDK", () => {
             type: "module",
             packageManager: "pnpm@11.10.0",
             dependencies: {
+              "@browserbasehq/sdk": "^2.16.0",
               "@browserbasehq/stagehand": "file:../stagehand-sdk.tgz",
             },
             devDependencies: {
@@ -92,6 +93,8 @@ describe("published TypeScript SDK", () => {
         path.join(consumerDirectory, "verify.ts"),
         `
           import type {
+            BrowserbaseConnectOptions,
+            BrowserbaseLaunchOptions,
             Caching,
             LoadState,
             LocatorCentroidResult,
@@ -121,7 +124,18 @@ describe("published TypeScript SDK", () => {
             StagehandResultUsage,
             Variables,
           } from "@browserbasehq/stagehand";
+          import Browserbase from "@browserbasehq/sdk";
 
+          const browserbaseClient = new Browserbase({ apiKey: "bb_key" });
+          const browserbaseLaunch: BrowserbaseLaunchOptions = {
+            apiKey: "bb_key",
+            client: browserbaseClient,
+          };
+          const browserbaseConnect: BrowserbaseConnectOptions = {
+            apiKey: "bb_key",
+            sessionId: "session_123",
+            client: browserbaseClient,
+          };
           const loadState: LoadState = "domcontentloaded";
           const mouseButton: MouseButton = "left";
           const modelName: ModelName = "openai/gpt-5";
@@ -155,6 +169,8 @@ describe("published TypeScript SDK", () => {
           declare const usage: StagehandResultUsage;
 
           void [
+            browserbaseLaunch,
+            browserbaseConnect,
             clip,
             navigation,
             pageClick,

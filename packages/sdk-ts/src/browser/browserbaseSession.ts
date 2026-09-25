@@ -38,6 +38,7 @@ export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
 
 type BrowserbaseSessionClientDependencies = {
   browserbase?: BrowserbaseApiClient;
+  client?: Browserbase;
   provisionExtension?: (
     client: BrowserbaseExtensionClient,
   ) => Promise<ProvisionedBrowserbaseExtension>;
@@ -65,7 +66,10 @@ export function createBrowserbaseSessionClient(
   baseUrl: string,
   dependencies: BrowserbaseSessionClientDependencies = {},
 ): BrowserbaseSessionClient {
-  const browserbase = dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl);
+  const client = dependencies.client;
+  const createSdk = client === undefined ? undefined : () => client;
+  const browserbase =
+    dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl, createSdk);
   const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
 
   return {
