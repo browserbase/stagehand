@@ -1,17 +1,17 @@
 import { Args } from "@oclif/core";
 
-import { outputJson, requestBrowserbaseJson } from "../../../lib/cloud/api.js";
-import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
-import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
+import { apiCommonFlags } from "../../../lib/cloud/flags.js";
+import { fail } from "../../../lib/errors.js";
 import { BrowseCommand } from "../../../base.js";
 
+const migrationGuidance =
+  "Browserbase no longer supports context uploads. To save browser state, use " +
+  '"browse cloud sessions create --context-id <context-id|name> --persist". ' +
+  'When finished, close the session with "browse cloud sessions update <session-id> --status REQUEST_RELEASE".';
+
 export default class ContextsUpdate extends BrowseCommand {
-  static override description =
-    "Refresh the upload URL for a Browserbase context.";
-  static override examples = [
-    "browse cloud contexts update <context-id>",
-    "browse cloud contexts update github",
-  ];
+  static override state = "deprecated";
+  static override description = `Deprecated: ${migrationGuidance}`;
 
   static override args = {
     id: Args.string({
@@ -23,16 +23,7 @@ export default class ContextsUpdate extends BrowseCommand {
   static override flags = { ...apiCommonFlags };
 
   async run(): Promise<void> {
-    const { args, flags } = await this.parse(ContextsUpdate);
-    const id = await resolveContextRefOrFail(args.id);
-    outputJson(
-      await requestBrowserbaseJson(
-        toApiOptions(flags),
-        `/v1/contexts/${encodeURIComponent(id)}`,
-        {
-          method: "PUT",
-        },
-      ),
-    );
+    await this.parse(ContextsUpdate);
+    fail(migrationGuidance);
   }
 }
