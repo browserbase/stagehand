@@ -21,6 +21,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      published: ${{ steps.changesets.outputs.published }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -276,6 +278,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+    outputs:
+      should-tag: ${{ steps.status.outputs.should-tag }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -305,3 +309,30 @@ jobs:
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
             -f ref="refs/tags/$TAG" \
             -f sha="$GITHUB_SHA"
+
+  # Production docs deploy from docs-production. Promote only once every SDK
+  # released from this commit has published, so reference pages never describe
+  # APIs that are not installable yet.
+  promote-docs:
+    name: Promote docs to production
+    needs:
+      - release-typescript
+      - python-release-status
+      - publish-python
+      - publish-go
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      always() && !cancelled() &&
+      !contains(needs.*.result, 'failure') &&
+      (
+        needs.release-typescript.outputs.published == 'true' ||
+        needs.python-release-status.outputs.should-publish == 'true' ||
+        needs.publish-go.outputs.should-tag == 'true'
+      )
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/docs-promote.yml
+    with:
+      sha: ${{ github.sha }}
+    secrets: inherit
