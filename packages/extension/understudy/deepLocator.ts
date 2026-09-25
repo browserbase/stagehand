@@ -138,11 +138,11 @@ export class DeepLocatorDelegate {
   async hover(progress?: Progress) {
     return (await this.real(progress)).hover(progress);
   }
-  async fill(value: string) {
-    return (await this.real()).fill(value);
+  async fill(value: string, progress?: Progress) {
+    return (await this.real(progress)).fill(value, progress);
   }
-  async type(text: string, options?: { delay?: number }) {
-    return (await this.real()).type(text, options);
+  async type(text: string, options?: { delay?: number }, progress?: Progress) {
+    return (await this.real(progress)).type(text, options, progress);
   }
   async selectOption(values: string | string[], progress?: Progress) {
     return (await this.real(progress)).selectOption(values, progress);
@@ -174,12 +174,15 @@ export class DeepLocatorDelegate {
   async backendNodeId(progress?: Progress) {
     return (await this.real(progress)).backendNodeId(progress);
   }
-  async highlight(options?: {
-    durationMs?: number;
-    borderColor?: { r: number; g: number; b: number; a?: number };
-    contentColor?: { r: number; g: number; b: number; a?: number };
-  }) {
-    return (await this.real()).highlight(options);
+  async highlight(
+    options?: {
+      durationMs?: number;
+      borderColor?: { r: number; g: number; b: number; a?: number };
+      contentColor?: { r: number; g: number; b: number; a?: number };
+    },
+    progress?: Progress,
+  ) {
+    return (await this.real(progress)).highlight(options, progress);
   }
   async sendClickEvent(
     options?: {
@@ -192,8 +195,8 @@ export class DeepLocatorDelegate {
   ) {
     return (await this.real(progress)).sendClickEvent(options, progress);
   }
-  async setInputFiles(files: SetInputFilesArgument) {
-    return (await this.real()).setInputFiles(files);
+  async setInputFiles(files: SetInputFilesArgument, progress?: Progress) {
+    return (await this.real(progress)).setInputFiles(files, progress);
   }
   first() {
     return this.nth(0);

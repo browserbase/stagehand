@@ -78,33 +78,36 @@ export class Locator {
    * File objects in the page. Filesystem paths are not available in workers.
    * - Passing an empty array clears the selection.
    */
-  public async setInputFiles(files: SetInputFilesArgument): Promise<void> {
+  public async setInputFiles(files: SetInputFilesArgument, progress?: Progress): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
+    let completed = false;
 
     try {
       // Validate element is an <input type="file">
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "validating file input", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: ensureFileInputElement.toString(),
           returnByValue: true,
-        },
+        }),
       );
       const ok = Boolean(res.result.value);
       if (!ok) throw new TypeError('Target is not an <input type="file"> element');
 
-      const normalized = await normalizeInputFiles(files);
-
-      if (!normalized.length) {
-        await this.assignFilesViaPayloadInjection(objectId, []);
-        return;
-      }
-
-      await this.assignFilesViaPayloadInjection(objectId, normalized);
+      const normalized = await runLocatorStep(progress, "preparing file uploads", () =>
+        normalizeInputFiles(files),
+      );
+      await this.assignFilesViaPayloadInjection(objectId, normalized, progress);
+      completed = true;
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      // A failed action must reach the caller before cleanup can consume its deadline.
+      if (progress && !completed) void progress.cleanup(release);
+      else if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -112,27 +115,31 @@ export class Locator {
   async assignFilesViaPayloadInjection(
     objectId: Protocol.Runtime.RemoteObjectId,
     files: NormalizedFilePayload[],
+    progress?: Progress,
   ): Promise<void> {
     const session = this.frame.session;
 
-    for (const payload of files) {
-      if (payload.bytes.length > MAX_REMOTE_UPLOAD_BYTES) {
-        throw new RangeError(
-          `setInputFiles(): file "${payload.name}" is larger than the 50MB limit for remote uploads`,
-        );
+    const serialized = await runLocatorStep(progress, "encoding file uploads", async () => {
+      for (const payload of files) {
+        if (payload.bytes.length > MAX_REMOTE_UPLOAD_BYTES) {
+          throw new RangeError(
+            `setInputFiles(): file "${payload.name}" is larger than the 50MB limit for remote uploads`,
+          );
+        }
       }
-    }
+      return files.map((payload) => {
+        progress?.throwIfStopped();
+        return {
+          name: payload.name,
+          mimeType: payload.mimeType,
+          lastModified: payload.lastModified,
+          base64: bytesToBase64(payload.bytes),
+        };
+      });
+    });
 
-    const serialized = files.map((payload) => ({
-      name: payload.name,
-      mimeType: payload.mimeType,
-      lastModified: payload.lastModified,
-      base64: bytesToBase64(payload.bytes),
-    }));
-
-    const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-      "Runtime.callFunctionOn",
-      {
+    const res = await runLocatorStep(progress, "assigning files", () =>
+      session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
         objectId,
         functionDeclaration: assignFilePayloadsToInputElement.toString(),
         arguments: [
@@ -141,7 +148,7 @@ export class Locator {
           },
         ],
         returnByValue: true,
-      },
+      }),
     );
 
     const ok = Boolean(res.result?.value);
@@ -223,32 +230,71 @@ export class Locator {
    * - Scrolls element into view best-effort.
    * - Shows a semi-transparent overlay briefly, then hides it.
    */
-  public async highlight(options?: {
-    durationMs?: number;
-    borderColor?: { r: number; g: number; b: number; a?: number };
-    contentColor?: { r: number; g: number; b: number; a?: number };
-  }): Promise<void> {
+  public async highlight(
+    options?: {
+      durationMs?: number;
+      borderColor?: { r: number; g: number; b: number; a?: number };
+      contentColor?: { r: number; g: number; b: number; a?: number };
+    },
+    progress?: Progress,
+  ): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
     const duration = Math.max(0, options?.durationMs ?? 800);
-
     const borderColor = options?.borderColor ?? { r: 255, g: 0, b: 0, a: 0.9 };
     const contentColor = options?.contentColor ?? ({ r: 255, g: 200, b: 0, a: 0.2 } as const);
+    const hide = () => session.send<never>("Overlay.hideHighlight").catch(() => {});
+    let completed = false;
+    const cleanup = async () => {
+      const removeHighlight = duration > 0 || !completed || progress?.remainingMs() === 0;
+      const work = () =>
+        Promise.all([
+          ...(removeHighlight ? [hide()] : []),
+          session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {}),
+        ]);
+      // A failed action must reach the caller before cleanup can consume its deadline.
+      if (progress && !completed) void progress.cleanup(work);
+      else if (progress) await progress.cleanup(work);
+      else await work();
+      try {
+        progress?.throwIfStopped();
+      } catch (error) {
+        // Expiry during cleanup must also remove a zero-duration highlight.
+        if (progress && !removeHighlight) void progress.cleanup(hide);
+        throw error;
+      }
+    };
 
     try {
-      await session.send("Overlay.enable").catch(() => {});
-      await session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch(() => {});
+      await runLocatorStep(progress, "enabling overlay", () =>
+        session.send("Overlay.enable").catch((error) => {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
+      );
+      await runLocatorStep(progress, "scrolling into view", () =>
+        session.send("DOM.scrollIntoViewIfNeeded", { objectId }).catch((error) => {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
+      );
 
-      // Prefer backendNodeId to keep highlight stable even if objectId is released.
-      await session.send("DOM.enable").catch(() => {});
+      // Prefer backendNodeId to keep a persistent highlight after releasing objectId.
+      await runLocatorStep(progress, "enabling DOM", () =>
+        session.send("DOM.enable").catch((error) => {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+        }),
+      );
       let backendNodeId: Protocol.DOM.BackendNodeId | undefined;
       try {
-        const { node } = await session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
-          objectId,
-        });
+        const { node } = await runLocatorStep(progress, "describing element", () =>
+          session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", { objectId }),
+        );
         backendNodeId = node.backendNodeId as Protocol.DOM.BackendNodeId;
-      } catch {
-        backendNodeId = undefined;
+      } catch (error) {
+        progress?.throwIfStopped();
+        if (progress && isCdpClosedError(error)) throw error;
       }
 
       const highlightConfig: Protocol.Overlay.HighlightConfig = {
@@ -259,34 +305,40 @@ export class Locator {
         borderColor,
         contentColor,
       } as Protocol.Overlay.HighlightConfig;
+      const highlightOnce = () =>
+        runLocatorStep(
+          progress,
+          "highlighting element",
+          () =>
+            session.send<never>("Overlay.highlightNode", {
+              ...(backendNodeId ? { backendNodeId } : { objectId }),
+              highlightConfig,
+            }),
+          hide,
+        );
 
-      const highlightOnce = async () => {
-        await session.send<never>("Overlay.highlightNode", {
-          ...(backendNodeId ? { backendNodeId } : { objectId }),
-          highlightConfig,
-        });
-      };
-
-      // Initial draw
       await highlightOnce();
-
-      // Keep alive until duration elapses to resist overlay clears on mouse move/repaints
       if (duration > 0) {
-        const start = Date.now();
+        const now = () => (progress ? performance.now() : Date.now());
+        const end = now() + duration;
         const tick = Math.min(300, Math.max(100, Math.floor(duration / 50)));
-        while (Date.now() - start < duration) {
-          await new Promise((r) => setTimeout(r, tick));
+        while (now() < end) {
+          const delay = Math.max(0, Math.min(tick, end - now()));
+          if (progress) await progress.delay(delay);
+          else await new Promise((resolve) => setTimeout(resolve, delay));
+          if (now() >= end) break;
           try {
             await highlightOnce();
-          } catch {
-            // ignore transient errors
+          } catch (error) {
+            progress?.throwIfStopped();
+            if (progress && isCdpClosedError(error)) throw error;
+            // Ordinary refresh failures can retry while time remains.
           }
         }
-        await session.send<never>("Overlay.hideHighlight").catch(() => {});
       }
+      completed = true;
     } finally {
-      // Releasing objectId should not affect highlight when using backendNodeId.
-      await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      await cleanup();
     }
   }
 
@@ -491,21 +543,28 @@ export class Locator {
    * value setter (for special input types) or asks us to type text via the CDP
    * Input domain after focusing/selecting.
    */
-  async fill(value: string): Promise<void> {
+  async fill(value: string, progress?: Progress): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
 
     let releaseNeeded = true;
+    const release = async () => {
+      if (!releaseNeeded) return;
+      releaseNeeded = false;
+      const work = () => session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      if (progress) await progress.cleanup(work);
+      else await work();
+      progress?.throwIfStopped();
+    };
 
     try {
-      const res = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-        "Runtime.callFunctionOn",
-        {
+      const res = await runLocatorStep(progress, "filling element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
           objectId,
           functionDeclaration: fillElementValue.toString(),
           arguments: [{ value }],
           returnByValue: true,
-        },
+        }),
       );
       if (res.exceptionDetails) {
         // prefer exception.description over text (eg "Uncaught")
@@ -528,56 +587,66 @@ export class Locator {
 
       if (status === "needsinput") {
         // Release the current handle before synthesizing keyboard input to avoid leaking it.
-        await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
-        releaseNeeded = false;
+        await release();
 
         const valueToType = typeof result?.value === "string" ? result.value : value;
 
         let prepared = false;
         try {
-          const { objectId: prepObjectId } = await this.resolveNode();
+          const { objectId: prepObjectId } = await this.resolveNode(progress);
           try {
-            const prepRes = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
-              "Runtime.callFunctionOn",
-              {
+            const prepRes = await runLocatorStep(progress, "preparing text input", () =>
+              session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
                 objectId: prepObjectId,
                 functionDeclaration: prepareElementForTyping.toString(),
                 returnByValue: true,
-              },
+              }),
             );
             prepared = Boolean(prepRes.result.value);
           } finally {
-            await session
-              .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
-              .catch(() => {});
+            const releasePrep = () =>
+              session
+                .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
+                .catch(() => {});
+            if (progress) await progress.cleanup(releasePrep);
+            else await releasePrep();
+            progress?.throwIfStopped();
           }
-        } catch {
-          // Ignore preparation failures; we'll fall back to typing best-effort.
+        } catch (error) {
+          progress?.throwIfStopped();
+          if (progress && isCdpClosedError(error)) throw error;
+          // Ordinary preparation failures can still fall back to typing.
         }
 
         if (!prepared && valueToType.length > 0) {
-          await this.type(valueToType);
+          await this.type(valueToType, undefined, progress);
           return;
         }
 
         if (valueToType.length === 0) {
           // Simulate deleting the currently selected text to clear the field.
-          await session.send<never>("Input.dispatchKeyEvent", {
-            type: "keyDown",
-            key: "Backspace",
-            code: "Backspace",
-            windowsVirtualKeyCode: 8,
-            nativeVirtualKeyCode: 8,
-          } as Protocol.Input.DispatchKeyEventRequest);
-          await session.send<never>("Input.dispatchKeyEvent", {
-            type: "keyUp",
-            key: "Backspace",
-            code: "Backspace",
-            windowsVirtualKeyCode: 8,
-            nativeVirtualKeyCode: 8,
-          } as Protocol.Input.DispatchKeyEventRequest);
+          await runLocatorStep(progress, "dispatching keyboard events", () =>
+            session.send<never>("Input.dispatchKeyEvent", {
+              type: "keyDown",
+              key: "Backspace",
+              code: "Backspace",
+              windowsVirtualKeyCode: 8,
+              nativeVirtualKeyCode: 8,
+            } as Protocol.Input.DispatchKeyEventRequest),
+          );
+          await runLocatorStep(progress, "dispatching keyboard events", () =>
+            session.send<never>("Input.dispatchKeyEvent", {
+              type: "keyUp",
+              key: "Backspace",
+              code: "Backspace",
+              windowsVirtualKeyCode: 8,
+              nativeVirtualKeyCode: 8,
+            } as Protocol.Input.DispatchKeyEventRequest),
+          );
         } else {
-          await session.send<never>("Input.insertText", { text: valueToType });
+          await runLocatorStep(progress, "inserting text", () =>
+            session.send<never>("Input.insertText", { text: valueToType }),
+          );
         }
 
         return;
@@ -593,12 +662,12 @@ export class Locator {
 
       // Backward compatibility: if no status is returned (older bundle), fall back to setter logic.
       if (!status) {
-        await this.type(value);
+        await release();
+        await this.type(value, undefined, progress);
       }
     } finally {
-      if (releaseNeeded) {
-        await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
-      }
+      await release();
+      progress?.throwIfStopped();
     }
   }
 
@@ -608,40 +677,52 @@ export class Locator {
    * - If no delay, uses `Input.insertText` for efficiency.
    * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
-  async type(text: string, options?: { delay?: number }): Promise<void> {
+  async type(text: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
     const session = this.frame.session;
-    const { objectId } = await this.resolveNode();
+    const { objectId } = await this.resolveNode(progress);
 
     try {
       // Focus using JS (avoids DOM.focus(nodeId))
-      await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-        objectId,
-        functionDeclaration: focusElement.toString(),
-        returnByValue: true,
-      });
+      await runLocatorStep(progress, "focusing element", () =>
+        session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: focusElement.toString(),
+          returnByValue: true,
+        }),
+      );
 
       if (!options?.delay) {
-        await session.send<never>("Input.insertText", { text });
+        await runLocatorStep(progress, "inserting text", () =>
+          session.send<never>("Input.insertText", { text }),
+        );
         return;
       }
 
       for (const ch of text) {
-        await session.send<never>("Input.dispatchKeyEvent", {
-          type: "keyDown",
-          text: ch,
-          key: ch,
-        } as Protocol.Input.DispatchKeyEventRequest);
+        await runLocatorStep(progress, "dispatching keyboard events", () =>
+          session.send<never>("Input.dispatchKeyEvent", {
+            type: "keyDown",
+            text: ch,
+            key: ch,
+          } as Protocol.Input.DispatchKeyEventRequest),
+        );
 
-        await session.send<never>("Input.dispatchKeyEvent", {
-          type: "keyUp",
-          text: ch,
-          key: ch,
-        } as Protocol.Input.DispatchKeyEventRequest);
+        await runLocatorStep(progress, "dispatching keyboard events", () =>
+          session.send<never>("Input.dispatchKeyEvent", {
+            type: "keyUp",
+            text: ch,
+            key: ch,
+          } as Protocol.Input.DispatchKeyEventRequest),
+        );
 
-        await new Promise((r) => setTimeout(r, options.delay));
+        if (progress) await progress.delay(options.delay);
+        else await new Promise((r) => setTimeout(r, options.delay));
       }
     } finally {
-      await session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      if (progress) await progress.cleanup(release);
+      else await release();
+      progress?.throwIfStopped();
     }
   }
 
