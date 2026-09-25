@@ -1,0 +1,98 @@
+---
+title: "CLI Agents"
+sidebarTitle: "Overview"
+description: "Connect coding agents to a persistent Stagehand browser with the MCP adapter."
+---
+
+Give your coding agent a browser it can use alongside its coding tools. Stagehand's MCP adapter lets the agent navigate a running application, interact with its UI, and read page content without adding a browser tool loop to your project.
+
+CLI agents that support stdio MCP can connect to the Stagehand MCP adapter. One server process owns the browser session, so navigation, authentication, and page state remain available across tool calls.
+
+## Choose a CLI agent
+
+| Agent | Connection | Setup |
+| --- | --- | --- |
+| Claude Code | MCP server configured in a project `.mcp.json`. | [Claude Code](/v4/integrations/cli-agents/claude-code#connect-a-running-claude-code-cli) |
+| Codex | MCP server configured in `~/.codex/config.toml`. | [Codex](/v4/integrations/cli-agents/codex#connect-a-running-codex-cli) |
+| fx | MCP server configured in `~/.fx/mcp.json`. | [fx](/v4/integrations/cli-agents/fx) |
+| Pi | Native extension that registers Stagehand tools directly. | [Pi](/v4/integrations/cli-agents/pi) |
+
+Agents with a native extension integration can register the browser tools directly. Follow the individual agent guide for that setup; the steps below cover the MCP adapter.
+
+<Note>
+These integrations are experimental and run from the Stagehand repository. The shared adapter is not published as a standalone package.
+</Note>
+
+## Set up the MCP adapter
+
+You need Node.js 24 or newer, pnpm 11.10.0, and an installed, authenticated CLI agent. Local browser mode also requires Google Chrome.
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Register the server with your agent">
+Configure a stdio MCP server with these values, replacing the path with your checkout:
+
+| Setting | Value |
+| --- | --- |
+| Command | `node` |
+| Arguments | `["/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs"]` |
+
+Use the linked agent guide for the exact configuration format and permissions. Let the CLI agent start the server and keep the connection open for the session.
+  </Step>
+  <Step title="Choose a browser">
+Set `STAGEHAND_BROWSER=local` in the MCP server's environment to use local Chrome. To use Browserbase, set `STAGEHAND_BROWSER=browserbase` and `BROWSERBASE_API_KEY`; `BROWSERBASE_PROJECT_ID` is optional.
+
+When `STAGEHAND_BROWSER` is unset, the adapter selects Browserbase if `BROWSERBASE_API_KEY` is present, otherwise local Chrome. Follow the agent guide to pass environment variables to its MCP child process.
+  </Step>
+  <Step title="Try a browser task">
+Start or reload your agent's MCP connection, then ask:
+
+```text
+Use Stagehand to open https://example.com and report the page title.
+```
+
+The agent should use `run` to navigate and report `Example Domain`. Your CLI agent manages its own model and authentication.
+  </Step>
+</Steps>
+
+## Configure models
+
+Your CLI agent selects its own model and manages its authentication. The MCP adapter provides browser tools to that agent; it does not choose or replace the agent's model.
+
+Deterministic browser operations do not require a separate Stagehand model. If you use Stagehand AI methods through an integration that supports them, configure the Stagehand model separately and pass its required credentials to the browser runtime. See your agent's guide for supported settings and environment forwarding.
+
+## Browser tools
+
+| Tool | What the agent can do |
+| --- | --- |
+| `run` | Execute JavaScript against the browser's `page`, `context`, and `browser` objects, or perform supported snapshot actions. |
+| `snapshot` | Read a compact accessibility tree of the active page. |
+| `screenshot` | Capture the page for visual inspection. |
+
+For example, the agent can navigate with this `run` input:
+
+```json
+{
+  "code": "await page.goto('https://example.com'); return await page.title();"
+}
+```
+
+Keep one MCP connection open throughout the task. Starting a new server for each call creates a new browser and loses the previous session's page state. Snapshot element IDs belong to the latest snapshot; take another snapshot after navigation or when an ID becomes stale.
+
+## Security boundary
+
+`run` executes agent-authored JavaScript in the Stagehand browser extension's service worker. It can control the browser and access data available in that session.
+
+Use Browserbase for untrusted browser tasks, and configure tool permissions in your CLI agent. Treat authenticated browser sessions as privileged. The adapter does not change the permissions of the agent's other tools.
+
+<Card title="MCP adapter source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/core">
+  Read the shared browser tools and stdio server implementation.
+</Card>
