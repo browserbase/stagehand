@@ -197,6 +197,27 @@ const browser = await browserbase.connect({
 
 When `client` is provided, it determines the Browserbase management endpoint; `baseUrl` is not used for those calls. `apiKey` still configures Stagehand runtime authentication.
 
+Python accepts an existing `AsyncBrowserbase` client in both `browserbase.launch()` and `browserbase.connect()`:
+
+```python
+import os
+from browserbase import AsyncBrowserbase
+from stagehand import browserbase
+
+async with AsyncBrowserbase(api_key=os.environ["BROWSERBASE_API_KEY"]) as client:
+    browser = await browserbase.connect(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        client=client,
+        session_id="session_123",
+    )
+    try:
+        ...
+    finally:
+        await browser.close()
+```
+
+The supplied client's configuration controls management requests, ignoring `base_url` for those calls. `api_key` still authenticates the Stagehand runtime. Stagehand borrows the client and never closes it; keep it open until browser cleanup finishes, then close it yourself.
+
 ### Environment variables
 
 Before getting started, set up the required environment variables:

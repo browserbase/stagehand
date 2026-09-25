@@ -26,8 +26,7 @@ const intentionallyUndocumentedBrowserFields = new Set([
   "LocalBrowserConnectOptions.extension_id",
   "BrowserbaseConnectOptions.extension_id",
 ]);
-// SDK client instances are native language objects and cannot share one cross-language type.
-const typescriptOnlyBrowserFields = new Set(["BrowserbaseConnectOptions.client"]);
+const pendingGoBrowserFields = new Set(["BrowserbaseConnectOptions.client"]);
 
 const concepts: readonly Concept[] = [
   {
@@ -104,8 +103,9 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
     const differences: string[] = [];
 
     for (const concept of concepts) {
-      const expected = schemaFields(concept.typescript).filter(
-        (field) => !typescriptOnlyBrowserFields.has(`${concept.name}.${field}`),
+      const expected = schemaFields(concept.typescript);
+      const goExpected = expected.filter(
+        (field) => !pendingGoBrowserFields.has(`${concept.name}.${field}`),
       );
       const [pythonFields, goFields] = await Promise.all([concept.python(), concept.go()]);
       if (!arraysEqual(pythonFields, expected)) {
@@ -113,9 +113,9 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
           `${concept.name} Python: expected [${expected.join(", ")}], received [${pythonFields.join(", ")}]`,
         );
       }
-      if (!arraysEqual(goFields, expected)) {
+      if (!arraysEqual(goFields, goExpected)) {
         differences.push(
-          `${concept.name} Go: expected [${expected.join(", ")}], received [${goFields.join(", ")}]`,
+          `${concept.name} Go: expected [${goExpected.join(", ")}], received [${goFields.join(", ")}]`,
         );
       }
     }

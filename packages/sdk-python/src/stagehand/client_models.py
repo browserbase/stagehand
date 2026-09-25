@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
+from browserbase import AsyncBrowserbase
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
@@ -108,10 +109,11 @@ class LocalBrowserConnectOptions(WireModel):
 
 
 class BrowserbaseConnectOptions(WireModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True, arbitrary_types_allowed=True)
 
     api_key: Annotated[str, Field(min_length=1)]
     base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
+    client: AsyncBrowserbase | None = Field(default=None, exclude=True, repr=False)
     session_id: Annotated[str, Field(min_length=1)]
     extension_id: Annotated[str | None, Field(min_length=1)] = None
 
