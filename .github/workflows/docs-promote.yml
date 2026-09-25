@@ -1,0 +1,111 @@
+name: Promote Docs
+
+# Merges a released commit from main into docs-production, which Mintlify
+# deploys to docs.stagehand.dev. Called by release.yml after the SDKs publish;
+# run it manually to retry a failed promotion or to dry-run a merge.
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Released commit on main to promote.
+        required: true
+        type: string
+    secrets:
+      DOCS_BOT_PRIVATE_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Released commit on main to promote.
+        required: true
+        type: string
+      dry-run:
+        description: Merge without pushing.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: docs-production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Merge release into docs-production
+    if: vars.DOCS_PRODUCTION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROMOTE_SHA: ${{ inputs.sha }}
+      DRY_RUN: ${{ inputs.dry-run == true }}
+    steps:
+      - name: Create docs bot token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.DOCS_BOT_APP_ID }}
+          private-key: ${{ secrets.DOCS_BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: docs-production
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure bot identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+
+      - name: Merge release commit
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$PROMOTE_SHA" origin/main; then
+            echo "::error::$PROMOTE_SHA is not on main."
+            exit 1
+          fi
+          if git merge-base --is-ancestor "$PROMOTE_SHA" HEAD; then
+            echo "$PROMOTE_SHA is already in docs-production."
+            exit 0
+          fi
+          git merge --no-edit -m "docs: promote release ${PROMOTE_SHA::9} to production" "$PROMOTE_SHA"
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: merge succeeded, not pushing."
+            git log --oneline -1
+          else
+            git push origin HEAD:docs-production
+          fi
+
+      - name: Report merge conflict
+        if: failure() && env.DRY_RUN != 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const sha = process.env.PROMOTE_SHA;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Docs promotion failed for release ${sha.slice(0, 9)}`,
+              body: [
+                `Merging released commit \`${sha}\` into \`docs-production\` failed: ${runUrl}`,
+                '',
+                'Production docs are still on the previous release. To resolve:',
+                '',
+                '```sh',
+                'git fetch origin docs-production main',
+                `git switch -c docs-promote/${sha.slice(0, 9)} origin/docs-production`,
+                `git merge ${sha}`,
+                '# resolve conflicts, commit, then open a PR into docs-production',
+                '```',
+              ].join('\n'),
+            });

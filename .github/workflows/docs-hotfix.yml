@@ -1,0 +1,174 @@
+name: Docs Hotfix
+
+# Cherry-picks a merged docs-only PR onto docs-production so editorial fixes
+# reach docs.stagehand.dev without waiting for an SDK release. Only runs when a
+# stagehand team member with write access applied the docs-hotfix label.
+
+on:
+  pull_request_target:
+    types:
+      - closed
+      - labeled
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: docs-production
+  cancel-in-progress: false
+
+jobs:
+  hotfix:
+    name: Promote docs hotfix
+    if: >-
+      vars.DOCS_PRODUCTION_ENABLED == 'true' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      (
+        (github.event.action == 'closed' && contains(github.event.pull_request.labels.*.name, 'docs-hotfix')) ||
+        (github.event.action == 'labeled' && github.event.label.name == 'docs-hotfix')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HOTFIX_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      # This workflow never checks out PR code; it only cherry-picks the merge
+      # commit that already landed on main.
+      - name: Check labeler and changed files
+        id: gate
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+            const comment = (body) =>
+              github.rest.issues.createComment({ ...repo, issue_number: pr.number, body });
+
+            const events = await github.paginate(github.rest.issues.listEvents, {
+              ...repo,
+              issue_number: pr.number,
+              per_page: 100,
+            });
+            const labeler = events
+              .filter((event) => event.event === 'labeled' && event.label?.name === 'docs-hotfix')
+              .at(-1)?.actor?.login;
+            if (!labeler) {
+              core.setFailed('Could not determine who applied docs-hotfix.');
+              return;
+            }
+
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              ...repo,
+              username: labeler,
+            });
+            if (!new Set(['admin', 'maintain', 'write']).has(permission.permission)) {
+              await github.rest.issues.removeLabel({ ...repo, issue_number: pr.number, name: 'docs-hotfix' });
+              await comment(`@${labeler} applied \`docs-hotfix\`, but only stagehand team members with write access can promote docs to production. This change will ship with the next SDK release.`);
+              core.setOutput('promote', 'false');
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            const outside = files
+              .flatMap((file) => [file.filename, file.previous_filename].filter(Boolean))
+              .filter((path) => !path.startsWith('packages/docs/'));
+            if (outside.length > 0) {
+              await comment([
+                '`docs-hotfix` only promotes PRs that change nothing outside `packages/docs/`. This PR also changes:',
+                '',
+                ...outside.slice(0, 20).map((path) => `- \`${path}\``),
+                '',
+                'It will ship to production docs with the next SDK release.',
+              ].join('\n'));
+              core.setOutput('promote', 'false');
+              return;
+            }
+
+            core.setOutput('promote', 'true');
+            core.setOutput('labeler', labeler);
+
+      - name: Create docs bot token
+        id: app-token
+        if: steps.gate.outputs.promote == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.DOCS_BOT_APP_ID }}
+          private-key: ${{ secrets.DOCS_BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        if: steps.gate.outputs.promote == 'true'
+        with:
+          ref: docs-production
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Cherry-pick onto docs-production
+        id: pick
+        if: steps.gate.outputs.promote == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          if git merge-base --is-ancestor "$HOTFIX_SHA" HEAD ||
+            git log --format=%B | grep -qF "(cherry picked from commit $HOTFIX_SHA)"; then
+            echo "result=already" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git cherry-pick -x "$HOTFIX_SHA"
+          git push origin HEAD:docs-production
+          echo "result=promoted" >> "$GITHUB_OUTPUT"
+          echo "production-sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Report result
+        if: always() && steps.gate.outputs.promote == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          PICK_OUTCOME: ${{ steps.pick.outcome }}
+          PICK_RESULT: ${{ steps.pick.outputs.result }}
+          PRODUCTION_SHA: ${{ steps.pick.outputs.production-sha }}
+          LABELER: ${{ steps.gate.outputs.labeler }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const sha = process.env.HOTFIX_SHA;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            let body;
+            if (process.env.PICK_RESULT === 'promoted') {
+              body = `Promoted to production docs as ${process.env.PRODUCTION_SHA} (approved by @${process.env.LABELER}).`;
+            } else if (process.env.PICK_RESULT === 'already') {
+              body = `\`${sha.slice(0, 9)}\` is already in \`docs-production\`; nothing to promote.`;
+            } else if (process.env.PICK_OUTCOME !== 'failure') {
+              body = `The docs hotfix workflow failed before it could cherry-pick \`${sha.slice(0, 9)}\` (${runUrl}). Nothing was promoted.`;
+            } else {
+              body = [
+                `Could not cherry-pick \`${sha.slice(0, 9)}\` onto \`docs-production\` (${runUrl}). This usually means the fix touches a section that also has unreleased changes on main.`,
+                '',
+                'To promote it by hand:',
+                '',
+                '```sh',
+                'git fetch origin docs-production main',
+                `git switch -c docs-hotfix/${pr.number} origin/docs-production`,
+                `git cherry-pick -x ${sha}`,
+                '# resolve conflicts, keeping only what is true for the released SDK,',
+                '# then open a PR into docs-production',
+                '```',
+              ].join('\n');
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body,
+            });
