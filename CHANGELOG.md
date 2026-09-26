@@ -3,6 +3,78 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.2.0
+
+### Minor Changes
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2892](https://github.com/browserbase/stagehand/pull/2892) [`0210688`](https://github.com/browserbase/stagehand/commit/02106888668925aedbbf354f22b3ddaceb9c1027) Thanks [@miguelg719](https://github.com/miguelg719)! - Release a newly created Browserbase session when initial attachment fails, and support upload retries
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Python SDK 4.2.0
+
+### Minor Changes
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Extension Runtime 1.1.0
+
+### Minor Changes
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2896](https://github.com/browserbase/stagehand/pull/2896) [`7919934`](https://github.com/browserbase/stagehand/commit/7919934c24170482dcfab19b882b557c65d8eb61) Thanks [@miguelg719](https://github.com/miguelg719)! - Snapshot references remain valid across same-origin and out-of-process frame captures
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Go SDK 4.2.0
+
+### Minor Changes
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
+- [#2896](https://github.com/browserbase/stagehand/pull/2896) [`7919934`](https://github.com/browserbase/stagehand/commit/7919934c24170482dcfab19b882b557c65d8eb61) Thanks [@miguelg719](https://github.com/miguelg719)! - Snapshot references remain valid across same-origin and out-of-process frame captures
+
+- [#2978](https://github.com/browserbase/stagehand/pull/2978) [`f3543d3`](https://github.com/browserbase/stagehand/commit/f3543d321e6c0edc800d9e73c79dd9d47f622189) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Fix locator failures when entering loading iframes, and correctly target iframe elements when an XPath ends at the iframe.
+
+- [#3052](https://github.com/browserbase/stagehand/pull/3052) [`70f4e91`](https://github.com/browserbase/stagehand/commit/70f4e91f1983677c1e8ca9a86f0b738f828d059a) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - Match native XPath semantics for `text()` predicates when a shadow root routes locators through the composed-tree parser
+
+## Protocol 2.1.0
+
+### Minor Changes
+
+- [#2916](https://github.com/browserbase/stagehand/pull/2916) [`476658b`](https://github.com/browserbase/stagehand/commit/476658b595b51f8bfbf5d31dc91f4a65c10ddad6) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - add page level hooks for webmcp tools added and webmcp tools removed events.
+
+### Patch Changes
+
+- [#3045](https://github.com/browserbase/stagehand/pull/3045) [`4da1a21`](https://github.com/browserbase/stagehand/commit/4da1a213988c7d640a553ea8449715815a5a3c12) Thanks [@github-actions](https://github.com/apps/github-actions)! - Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
+
 ## TypeScript SDK 4.1.0
 
 ### Minor Changes
