@@ -35,18 +35,6 @@ describe("AI SDK language models", () => {
       modelId: "gemini-3-flash-preview",
       provider: "google.generative-ai",
     },
-    {
-      name: "Groq",
-      modelName: "groq/openai/gpt-oss-120b" as const,
-      modelId: "openai/gpt-oss-120b",
-      provider: "groq.chat",
-    },
-    {
-      name: "Cerebras",
-      modelName: "cerebras/gpt-oss-120b" as const,
-      modelId: "gpt-oss-120b",
-      provider: "cerebras.chat",
-    },
   ])("creates a direct $name model from its validated configuration", (testCase) => {
     const model = createAiSdkLanguageModel({
       modelName: testCase.modelName,

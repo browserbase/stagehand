@@ -112,9 +112,6 @@ class CallbackBatchOptions(TypedDict):
     timeout: NotRequired[int]
 
 
-CerebrasModelName: TypeAlias = str
-
-
 class ClientModelReference(TypedDict):
     source: Literal["client"]
 
@@ -288,9 +285,6 @@ FieldSchema9: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema9"],
 
 
 GoogleModelName: TypeAlias = str
-
-
-GroqModelName: TypeAlias = str
 
 
 class ImplementationInfo(TypedDict):
@@ -648,7 +642,7 @@ class NavigationServerAddr(TypedDict):
 OpenAIModelName: TypeAlias = str
 
 
-ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName | GroqModelName | CerebrasModelName
+ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName
 
 
 class ModelConfig(TypedDict):
