@@ -7,5 +7,3 @@
 ---
 
 Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
-
-Generated initialization models now represent telemetry as optional. Go callers constructing `StagehandInitParams` directly must pass a `*TelemetryConfig` instead of a `TelemetryConfig`; `CreateOptions.Telemetry` remains value-style.
