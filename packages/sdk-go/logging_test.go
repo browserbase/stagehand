@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 type loggingCall struct {
@@ -232,24 +234,41 @@ func TestGoLoggingWritesJSONAndCallsCallback(t *testing.T) {
 
 func TestGoLoggingRecoversCallbackPanic(t *testing.T) {
 	t.Parallel()
-
-	rpc := &loggingProtocolClient{}
-	var output bytes.Buffer
-	client, err := newStagehandWithClient(CreateOptions{
-		Logging: &StagehandClientLoggingConfig{
-			OnLog: func(StagehandLog) { panic("callback exploded") },
-		},
-	}, rpc, &output)
-	if err != nil {
-		t.Fatalf("Create() error = %v", err)
-	}
-	defer client.Close(context.Background())
-	rpc.emit(testStagehandLogs()[1])
-	if !strings.Contains(
-		output.String(),
-		"[stagehand] ERROR onLog callback failed: callback exploded\n",
-	) {
-		t.Fatalf("callback panic output = %q", output.String())
+	for _, consoleOutput := range []bool{true, false} {
+		t.Run(fmt.Sprint(consoleOutput), func(t *testing.T) {
+			rpc := &loggingProtocolClient{}
+			var output bytes.Buffer
+			var received []StagehandLog
+			client, err := newStagehandWithClient(CreateOptions{
+				Logging: &StagehandClientLoggingConfig{
+					Console: &consoleOutput,
+					OnLog: func(log StagehandLog) {
+						received = append(received, log)
+						if len(received) == 1 {
+							panic("callback exploded")
+						}
+					},
+				},
+			}, rpc, &output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close(context.Background())
+			logs := testStagehandLogs()[1:3]
+			for _, log := range logs {
+				rpc.emit(log)
+			}
+			if !reflect.DeepEqual(received, logs) {
+				t.Fatalf("callback logs = %#v, want %#v", received, logs)
+			}
+			want := "[stagehand] ERROR onLog callback failed: callback exploded\n"
+			if consoleOutput {
+				want = "[stagehand] INFO Page opened {\"pageId\":\"page-1\"}\n" + want + "[stagehand] WARN Selector fallback\n"
+			}
+			if output.String() != want {
+				t.Fatalf("callback panic output = %q, want %q", output.String(), want)
+			}
+		})
 	}
 }
 
@@ -359,4 +378,211 @@ func containsString(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func TestGoLoggingCallbackOnlyReproduction(t *testing.T) {
+	consoleOutput := false
+	rpc := &loggingProtocolClient{}
+	var output bytes.Buffer
+	var received []StagehandLog
+	client, err := newStagehandWithClient(CreateOptions{Logging: &StagehandClientLoggingConfig{
+		Console: &consoleOutput,
+		OnLog:   func(log StagehandLog) { received = append(received, log) },
+	}}, rpc, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close(context.Background())
+	log := testStagehandLogs()[1]
+	rpc.emit(log)
+	if !reflect.DeepEqual(received, []StagehandLog{log}) {
+		t.Fatalf("callback = %#v", received)
+	}
+	if output.Len() != 0 {
+		t.Fatalf("unwanted routine output = %q", output.String())
+	}
+}
+
+func TestGoLoggingConsoleDefaultsAndCopiedValue(t *testing.T) {
+	t.Parallel()
+	enabled, disabled := true, false
+	for _, test := range []struct {
+		name   string
+		config *StagehandClientLoggingConfig
+		prints bool
+	}{
+		{"nil", nil, true},
+		{"zero", &StagehandClientLoggingConfig{}, true},
+		{"nil_console", &StagehandClientLoggingConfig{Console: nil}, true},
+		{"true", &StagehandClientLoggingConfig{Console: &enabled}, true},
+		{"false", &StagehandClientLoggingConfig{Console: &disabled}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rpc := &loggingProtocolClient{}
+			var output bytes.Buffer
+			client, err := newStagehandWithClient(CreateOptions{Logging: test.config}, rpc, &output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close(context.Background())
+			if test.config != nil && test.config.Console != nil {
+				*test.config.Console = !*test.config.Console
+			}
+			rpc.emit(testStagehandLogs()[1])
+			want := ""
+			if test.prints {
+				want = "[stagehand] INFO Page opened {\"pageId\":\"page-1\"}\n"
+			}
+			if output.String() != want {
+				t.Fatalf("output = %q, want %q", output.String(), want)
+			}
+		})
+	}
+}
+
+func TestGoLoggingConsoleDestinations(t *testing.T) {
+	t.Parallel()
+	enabled, disabled := true, false
+	pretty := []string{
+		`[stagehand] DEBUG CDP call {"method":"Page.navigate"}`,
+		`[stagehand] INFO Page opened {"pageId":"page-1"}`,
+		`[stagehand] WARN Selector fallback`,
+		`[stagehand] ERROR Action failed {"retryable":false}`,
+	}
+	jsonLines := []string{
+		`{"level":"debug","message":"CDP call","data":{"method":"Page.navigate"}}`,
+		`{"level":"info","message":"Page opened","data":{"pageId":"page-1"}}`,
+		`{"level":"warn","message":"Selector fallback","data":{}}`,
+		`{"level":"error","message":"Action failed","data":{"retryable":false}}`,
+	}
+	for _, consoleCase := range []struct {
+		name  string
+		value *bool
+	}{
+		{"omitted", nil}, {"true", &enabled}, {"false", &disabled},
+	} {
+		for _, format := range []StagehandClientLogFormat{StagehandClientLogFormatPretty, StagehandClientLogFormatJSON} {
+			for first, level := range []StagehandClientLogLevel{
+				StagehandClientLogLevelDebug, StagehandClientLogLevelInfo, StagehandClientLogLevelWarn,
+				StagehandClientLogLevelError, StagehandClientLogLevelOff,
+			} {
+				for _, callback := range []bool{true, false} {
+					t.Run(fmt.Sprintf("%s/%s/%s/callback=%t", consoleCase.name, format, level, callback), func(t *testing.T) {
+						rpc := &loggingProtocolClient{}
+						var output bytes.Buffer
+						var received []StagehandLog
+						config := &StagehandClientLoggingConfig{Console: consoleCase.value, Format: format, Level: level}
+						if callback {
+							config.OnLog = func(log StagehandLog) { received = append(received, log) }
+						}
+						client, err := newStagehandWithClient(CreateOptions{Logging: config}, rpc, &output)
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer client.Close(context.Background())
+						logs := testStagehandLogs()
+						before, err := json.Marshal(logs)
+						if err != nil {
+							t.Fatal(err)
+						}
+						for _, log := range logs {
+							rpc.emit(log)
+						}
+						var wantReceived []StagehandLog
+						if callback {
+							wantReceived = append(wantReceived, testStagehandLogs()[first:]...)
+						}
+						if !reflect.DeepEqual(received, wantReceived) {
+							t.Fatalf("callback = %#v, want %#v", received, wantReceived)
+						}
+						after, err := json.Marshal(logs)
+						if err != nil {
+							t.Fatal(err)
+						}
+						if !bytes.Equal(before, after) {
+							t.Fatal("notification data mutated")
+						}
+						lines := pretty[first:]
+						if format == StagehandClientLogFormatJSON {
+							lines = jsonLines[first:]
+						}
+						want := ""
+						if consoleCase.name != "false" && len(lines) > 0 {
+							want = strings.Join(lines, "\n") + "\n"
+						}
+						if output.String() != want {
+							t.Fatalf("output = %q, want %q", output.String(), want)
+						}
+					})
+				}
+			}
+		}
+	}
+}
+
+func TestGoLoggingConsoleStaysLocalOnSerializedTransport(t *testing.T) {
+	t.Parallel()
+	enabled, disabled := true, false
+	for _, consoleOutput := range []*bool{nil, &enabled, &disabled} {
+		t.Run(fmt.Sprint(consoleOutput), func(t *testing.T) {
+			transport := newQueueRPCTransport()
+			transport.sendHook = func(message json.RawMessage) {
+				var request struct {
+					ID     uint64
+					Method string
+				}
+				if err := json.Unmarshal(message, &request); err != nil {
+					t.Fatal(err)
+				}
+				result := `{"closed":true}`
+				if request.Method == "stagehand.init" {
+					result = `{"initialized":true,"pages":[]}`
+				}
+				transport.receiveJSON(fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"result":%s}`, request.ID, result))
+			}
+			rpc := newTestRPCClient(t, transport)
+			rpc.browserWebSocketURL = "ws://127.0.0.1:9222/devtools/browser/test"
+			var output bytes.Buffer
+			received := make(chan StagehandLog, 1)
+			client, err := newStagehandWithClient(CreateOptions{Logging: &StagehandClientLoggingConfig{
+				Console: consoleOutput, Level: StagehandClientLogLevelWarn, Format: StagehandClientLogFormatJSON,
+				OnLog: func(log StagehandLog) { received <- log },
+			}}, rpc, &output)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close(context.Background())
+			var init struct {
+				Method string
+				Params map[string]json.RawMessage
+			}
+			if err := json.Unmarshal(receiveSentRPC(t, transport), &init); err != nil {
+				t.Fatal(err)
+			}
+			if init.Method != "stagehand.init" || string(init.Params["log_level"]) != `"warn"` {
+				t.Fatalf("init = %#v", init)
+			}
+			for _, key := range []string{"logging", "console", "format", "onLog", "on_log"} {
+				if _, ok := init.Params[key]; ok {
+					t.Fatalf("SDK-only %s leaked into init", key)
+				}
+			}
+			transport.receiveJSON(`{"jsonrpc":"2.0","method":"stagehand.log","params":{"level":"warn","message":"Selector fallback","data":{}}}`)
+			select {
+			case log := <-received:
+				if !reflect.DeepEqual(log, testStagehandLogs()[2]) {
+					t.Fatalf("callback = %#v", log)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for logging notification")
+			}
+			want := ""
+			if consoleOutput == nil || *consoleOutput {
+				want = "{\"level\":\"warn\",\"message\":\"Selector fallback\",\"data\":{}}\n"
+			}
+			if output.String() != want {
+				t.Fatalf("output = %q, want %q", output.String(), want)
+			}
+		})
+	}
 }

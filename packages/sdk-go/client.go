@@ -58,10 +58,11 @@ func defaultClientAdapters() clientAdapters {
 }
 
 type resolvedStagehandClientLoggingConfig struct {
-	level  StagehandClientLogLevel
-	format StagehandClientLogFormat
-	onLog  func(StagehandLog)
-	writer io.Writer
+	level   StagehandClientLogLevel
+	format  StagehandClientLogFormat
+	console bool
+	onLog   func(StagehandLog)
+	writer  io.Writer
 }
 
 func resolveLoggingConfig(
@@ -69,9 +70,10 @@ func resolveLoggingConfig(
 	writer io.Writer,
 ) (resolvedStagehandClientLoggingConfig, error) {
 	resolved := resolvedStagehandClientLoggingConfig{
-		level:  StagehandClientLogLevelInfo,
-		format: StagehandClientLogFormatPretty,
-		writer: writer,
+		level:   StagehandClientLogLevelInfo,
+		format:  StagehandClientLogFormatPretty,
+		writer:  writer,
+		console: true,
 	}
 	if config != nil {
 		if config.Level != "" {
@@ -79,6 +81,9 @@ func resolveLoggingConfig(
 		}
 		if config.Format != "" {
 			resolved.format = config.Format
+		}
+		if config.Console != nil {
+			resolved.console = *config.Console
 		}
 		resolved.onLog = config.OnLog
 	}

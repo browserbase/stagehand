@@ -80,6 +80,7 @@ class ClientLLM(TypedDict):
 class StagehandClientLoggingConfig(TypedDict, total=False):
     level: Literal["off", "error", "warn", "info", "debug"]
     format: Literal["pretty", "json"]
+    console: bool
     on_log: StagehandOnLog
 
 

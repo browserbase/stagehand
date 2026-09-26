@@ -363,7 +363,9 @@ function handleStagehandNotification(
   const log = notification.params;
   if (LOG_LEVEL_PRIORITY[log.level] < LOG_LEVEL_PRIORITY[logging.level]) return;
 
-  process.stderr.write(renderStagehandLog(log, logging.format) + "\n");
+  if (logging.console) {
+    process.stderr.write(renderStagehandLog(log, logging.format) + "\n");
+  }
   if (!logging.onLog) return;
 
   try {

@@ -90,3 +90,10 @@ def test_typed_dictionary_inputs_do_not_replace_explicit_parameters_with_kwargs(
         parameter.kind is not inspect.Parameter.VAR_KEYWORD
         for parameter in inspect.signature(method).parameters.values()
     )
+
+
+def test_logging_console_is_an_optional_public_boolean() -> None:
+    logging: StagehandClientLoggingConfig = {"console": False}
+    assert logging["console"] is False
+    assert get_type_hints(StagehandClientLoggingConfig)["console"] is bool
+    assert "console" not in StagehandClientLoggingConfig.__required_keys__

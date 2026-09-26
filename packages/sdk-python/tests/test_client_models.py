@@ -134,6 +134,7 @@ def test_create_configuration_uses_default_logging() -> None:
     config = StagehandClientCreateConfig.model_validate({})
 
     assert config.logging == StagehandClientLoggingConfig(level="info", format="pretty")
+    assert config.logging.console is True
 
 
 def test_browserbase_connect_configuration_uses_default_base_url() -> None:
@@ -160,3 +161,11 @@ def test_create_logging_accepts_json_output_and_a_structured_callback() -> None:
     assert config.logging.level == "debug"
     assert config.logging.format == "json"
     assert config.logging.on_log is on_log
+
+
+def test_logging_console_assignment_uses_existing_boolean_validation() -> None:
+    config = StagehandClientLoggingConfig()
+    config.console = False
+    assert config.console is False
+    with pytest.raises(ValidationError, match="console"):
+        config.console = cast(bool, "invalid")

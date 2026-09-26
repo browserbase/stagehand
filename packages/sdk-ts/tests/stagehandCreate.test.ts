@@ -10,6 +10,7 @@ import {
   Stagehand,
   StagehandCreateOptionsSchema,
   type StagehandBrowser,
+  type StagehandCreateOptions,
 } from "../src/index.js";
 import { createBrowserFactoriesForTest } from "../src/browser/factories.js";
 import { CDPConnectionClosedError, type CDPClient } from "../src/cdpClient.js";
@@ -439,50 +440,164 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
-  it.each([
-    [
-      "synchronous",
-      () => {
-        throw new Error("sync failure");
-      },
-    ],
-    [
-      "asynchronous",
-      async () => {
-        throw new Error("async failure");
-      },
-    ],
-  ])("reports %s onLog errors without breaking notification handling", async (_, onLog) => {
-    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+  it.each([undefined, {}, { console: true }, { console: false }])(
+    "normalizes public logging options %j",
+    async (logging) => {
+      expectTypeOf<NonNullable<StagehandCreateOptions["logging"]>["console"]>().toEqualTypeOf<
+        boolean | undefined
+      >();
+      const cdp = new FakeCDPClient();
+      const { localBrowser } = createBrowserFactoriesForTest({
+        connectCdp: async () => cdp as unknown as CDPClient,
+      });
+      const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+      try {
+        expect(StagehandCreateOptionsSchema.parse({ browser, logging }).logging).toEqual({
+          level: "info",
+          format: "pretty",
+          console: logging?.console ?? true,
+        });
+      } finally {
+        await browser.close();
+      }
+    },
+  );
+
+  it.each([null, "false", 0, 1, {}, []])("rejects logging.console=%j", async (value) => {
     const cdp = new FakeCDPClient();
     const { localBrowser } = createBrowserFactoriesForTest({
       connectCdp: async () => cdp as unknown as CDPClient,
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
-    const stagehand = await Stagehand.create({
-      browser,
-      logging: { level: "info", format: "pretty", onLog },
+    try {
+      const result = StagehandCreateOptionsSchema.safeParse({
+        browser,
+        logging: { console: value },
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues).toContainEqual(
+          expect.objectContaining({ path: ["logging", "console"], code: "invalid_type" }),
+        );
+      }
+    } finally {
+      await browser.close();
+    }
+  });
+
+  describe.each([undefined, true, false])("logging.console=%s", (consoleOutput) => {
+    describe.each(["pretty", "json"] as const)("format=%s", (format) => {
+      it.each([
+        ["info", true],
+        ["info", false],
+        ["off", true],
+        ["off", false],
+      ] as const)(
+        "filters both destinations at level=%s with callback=%s",
+        async (level, callback) => {
+          const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+          const onLog = vi.fn();
+          const cdp = new FakeCDPClient();
+          const { localBrowser } = createBrowserFactoriesForTest({
+            connectCdp: async () => cdp as unknown as CDPClient,
+          });
+          const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+          const stagehand = await Stagehand.create({
+            browser,
+            logging: {
+              level,
+              format,
+              ...(consoleOutput === undefined ? {} : { console: consoleOutput }),
+              ...(callback ? { onLog } : {}),
+            },
+          });
+          try {
+            const logs = ["debug", "info", "warn", "error"].map((eventLevel) => ({
+              level: eventLevel,
+              message: "Page opened",
+              data: { nested: { count: 1 }, tags: ["test"] },
+            }));
+            const originalLogs = structuredClone(logs);
+            for (const params of logs) {
+              await cdp.emit({ jsonrpc: "2.0", method: "stagehand.log", params });
+            }
+            const eligible = level === "off" ? [] : originalLogs.slice(1);
+            expect(onLog.mock.calls).toStrictEqual(callback ? eligible.map((log) => [log]) : []);
+            expect(logs).toStrictEqual(originalLogs);
+            expect(stderr.mock.calls.map(([line]) => line)).toStrictEqual(
+              consoleOutput === false
+                ? []
+                : eligible.map((log) =>
+                    format === "json"
+                      ? `${JSON.stringify(log)}\n`
+                      : `[stagehand] ${log.level.toUpperCase()} Page opened {"nested":{"count":1},"tags":["test"]}\n`,
+                  ),
+            );
+            const init = JSON.parse(JSON.stringify(cdp.requestsFor("stagehand.init")[0]));
+            expect(init.params.log_level).toBe(level);
+            for (const sdkOnlyKey of ["logging", "console", "format", "on_log", "onLog"]) {
+              expect(init.params).not.toHaveProperty(sdkOnlyKey);
+            }
+          } finally {
+            await stagehand.close();
+            await browser.close();
+          }
+        },
+      );
     });
+  });
 
-    await expect(
-      cdp.emit({
-        jsonrpc: "2.0",
-        method: "stagehand.log",
-        params: { level: "info", message: "Page opened", data: {} },
-      }),
-    ).resolves.toBeUndefined();
-    await Promise.resolve();
-
-    expect(stderr.mock.calls.map(([line]) => line)).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(
-          /^\[stagehand\] ERROR onLog callback failed: (sync|async) failure\n$/,
-        ),
-      ]),
+  describe.each([true, false])("callback failures with console=%s", (consoleOutput) => {
+    it.each(["synchronous", "asynchronous"] as const)(
+      "reports %s onLog errors without breaking notification handling",
+      async (failure) => {
+        const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+        const unhandledRejection = vi.fn();
+        process.on("unhandledRejection", unhandledRejection);
+        const onLog = vi.fn().mockImplementationOnce(() => {
+          const error = new Error(`${failure} failure`);
+          if (failure === "synchronous") throw error;
+          return Promise.reject(error);
+        });
+        const cdp = new FakeCDPClient();
+        const { localBrowser } = createBrowserFactoriesForTest({
+          connectCdp: async () => cdp as unknown as CDPClient,
+        });
+        const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+        let stagehand: Stagehand | undefined;
+        try {
+          stagehand = await Stagehand.create({
+            browser,
+            logging: { console: consoleOutput, onLog },
+          });
+          for (const message of ["Page opened", "Next event"]) {
+            await expect(
+              cdp.emit({
+                jsonrpc: "2.0",
+                method: "stagehand.log",
+                params: { level: "info", message, data: {} },
+              }),
+            ).resolves.toBeUndefined();
+          }
+          // Cross an event-loop turn so an unhandled rejection would be observable.
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          expect(unhandledRejection).not.toHaveBeenCalled();
+          expect(onLog.mock.calls).toStrictEqual([
+            [{ level: "info", message: "Page opened", data: {} }],
+            [{ level: "info", message: "Next event", data: {} }],
+          ]);
+          expect(stderr.mock.calls.map(([line]) => line)).toStrictEqual([
+            ...(consoleOutput ? ["[stagehand] INFO Page opened\n"] : []),
+            `[stagehand] ERROR onLog callback failed: ${failure} failure\n`,
+            ...(consoleOutput ? ["[stagehand] INFO Next event\n"] : []),
+          ]);
+        } finally {
+          process.off("unhandledRejection", unhandledRejection);
+          await stagehand?.close();
+          await browser.close();
+        }
+      },
     );
-
-    await stagehand.close();
-    await browser.close();
   });
 
   it("makes close idempotent, tolerates CDP disconnect, and improves post-close errors", async () => {

@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar, assert_type, cast, overload
 
 import pytest
-from pydantic import BaseModel, RootModel, StrictInt
+from pydantic import BaseModel, RootModel, StrictInt, ValidationError
 from typing_extensions import override
 
 from stagehand import (
@@ -20,6 +20,7 @@ from stagehand import (
     ModelConfig,
     Page,
     Stagehand,
+    StagehandClientLoggingConfig,
     TelemetryConfig,
 )
 from stagehand import timeouts as timeout_settings
@@ -89,8 +90,9 @@ def _browser_handle(
     api_key: str | None = None,
     browser_metadata: BrowserSessionMetadata | None = None,
     web_socket_debugger_url: str | None = "ws://browser",
+    transport: _Transport | None = None,
 ) -> tuple[StagehandBrowser, _Transport]:
-    transport = _Transport(web_socket_debugger_url)
+    transport = transport or _Transport(web_socket_debugger_url)
     return (
         StagehandBrowser(
             "local",
@@ -1145,3 +1147,319 @@ def test_semantic_arguments_stay_positional(method: str, positional: list[str]) 
         parameter.kind is inspect.Parameter.KEYWORD_ONLY
         for parameter in parameters[1 + len(positional) :]
     )
+
+
+@pytest.mark.asyncio
+async def test_logging_callback_only_reproduction(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    received: list[StagehandLog] = []
+    stagehand = await Stagehand.create(
+        browser=browser, logging={"console": False, "on_log": received.append}
+    )
+    try:
+        _, listener = recording.notifications["stagehand.log"]
+        notification = StagehandLog.model_validate({
+            "level": "info",
+            "message": "Page opened",
+            "data": {},
+        })
+        await cast(Callable[[StagehandLog], Awaitable[None]], listener)(notification)
+        assert received == [notification]
+        assert capsys.readouterr().err == ""
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("console_output", [None, True, False], ids=["omitted", "true", "false"])
+@pytest.mark.parametrize("format", ["pretty", "json"])
+@pytest.mark.parametrize(
+    ("level", "first"), [("debug", 0), ("info", 1), ("warn", 2), ("error", 3), ("off", 4)]
+)
+@pytest.mark.parametrize("callback", [True, False], ids=["with_callback", "without_callback"])
+async def test_logging_destinations(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    console_output: bool | None,
+    format: str,
+    level: str,
+    first: int,
+    callback: bool,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    received: list[StagehandLog] = []
+    config: dict[str, object] = {"level": level, "format": format}
+    if console_output is not None:
+        config["console"] = console_output
+    if callback:
+        config["on_log"] = received.append
+    stagehand = await Stagehand.create(
+        browser=browser, logging=cast(StagehandClientLoggingConfig, config)
+    )
+    try:
+        _, listener = recording.notifications["stagehand.log"]
+        notify = cast(Callable[[StagehandLog], Awaitable[None]], listener)
+        records = [
+            {"level": severity, "message": "Page opened", "data": {"nested": {"count": 1}}}
+            for severity in ["debug", "info", "warn", "error"]
+        ]
+        logs = [StagehandLog.model_validate(record) for record in records]
+        for log in logs:
+            await notify(log)
+        eligible = records[first:]
+        assert [log.model_dump(mode="json") for log in received] == (eligible if callback else [])
+        assert [log.model_dump(mode="json") for log in logs] == records
+        expected = ""
+        if console_output is not False:
+            expected = "".join(
+                (
+                    json.dumps(record, separators=(",", ":"))
+                    if format == "json"
+                    else f"[stagehand] {str(record['level']).upper()} Page opened "
+                    '{"nested":{"count":1}}'
+                )
+                + "\n"
+                for record in eligible
+            )
+        assert capsys.readouterr().err == expected
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("logging", "prints"),
+    [
+        (None, True),
+        ({}, True),
+        ({"console": True}, True),
+        ({"console": False}, False),
+        ({"console": "true"}, True),
+        ({"console": "false"}, False),
+        ({"console": 1}, True),
+        ({"console": 0}, False),
+    ],
+    ids=["omitted", "empty", "true", "false", "string_true", "string_false", "one", "zero"],
+)
+async def test_logging_defaults_and_nested_boolean_coercion(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    logging: object,
+    prints: bool,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(
+        browser=browser, logging=cast(StagehandClientLoggingConfig | None, logging)
+    )
+    try:
+        _, listener = recording.notifications["stagehand.log"]
+        await cast(Callable[[StagehandLog], Awaitable[None]], listener)(
+            StagehandLog.model_validate({
+                "level": "info",
+                "message": "Page opened",
+                "data": {},
+            })
+        )
+        assert capsys.readouterr().err == ("[stagehand] INFO Page opened\n" if prints else "")
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [None, "invalid", 2, {}, []])
+async def test_logging_rejects_invalid_console_values(value: object) -> None:
+    browser, _ = _browser_handle()
+    try:
+        with pytest.raises(ValidationError, match="console"):
+            await Stagehand.create(
+                browser=browser, logging=cast(StagehandClientLoggingConfig, {"console": value})
+            )
+    finally:
+        await browser.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("console_output", [True, False])
+@pytest.mark.parametrize("asynchronous", [True, False])
+async def test_logging_callback_failures_preserve_later_events(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    console_output: bool,
+    asynchronous: bool,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    received: list[StagehandLog] = []
+
+    def on_log(log: StagehandLog) -> None:
+        received.append(log)
+        if len(received) == 1:
+            raise ValueError("callback exploded")
+
+    async def on_log_async(log: StagehandLog) -> None:
+        on_log(log)
+
+    stagehand = await Stagehand.create(
+        browser=browser,
+        logging={
+            "console": console_output,
+            "on_log": on_log_async if asynchronous else on_log,
+        },
+    )
+    try:
+        _, listener = recording.notifications["stagehand.log"]
+        for message in ["First event", "Next event"]:
+            await cast(Callable[[StagehandLog], Awaitable[None]], listener)(
+                StagehandLog.model_validate({
+                    "level": "info",
+                    "message": message,
+                    "data": {},
+                })
+            )
+        assert [log.message for log in received] == ["First event", "Next event"]
+        assert capsys.readouterr().err == (
+            ("[stagehand] INFO First event\n" if console_output else "")
+            + "[stagehand] ERROR on_log callback failed: callback exploded\n"
+            + ("[stagehand] INFO Next event\n" if console_output else "")
+        )
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
+
+
+class _LoggingTransport(_Transport):
+    """Queue transport exercising the real RPC serializer and notification reader."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.sent: list[str] = []
+        self.incoming: asyncio.Queue[object] = asyncio.Queue()
+
+    async def send(self, message: dict[str, object]) -> None:
+        self.sent.append(json.dumps(message))
+        result = (
+            {"initialized": True, "pages": []}
+            if message["method"] == "stagehand.init"
+            else {"closed": True}
+        )
+        await self.incoming.put({"jsonrpc": "2.0", "id": message["id"], "result": result})
+
+    async def receive(self) -> object:
+        return await self.incoming.get()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("console_output", [None, True, False])
+async def test_logging_stays_local_on_serialized_transport(
+    capsys: pytest.CaptureFixture[str],
+    console_output: bool | None,
+) -> None:
+    transport = _LoggingTransport()
+    browser, _ = _browser_handle(transport=transport)
+    received: asyncio.Queue[StagehandLog] = asyncio.Queue()
+    logging: StagehandClientLoggingConfig = {
+        "level": "warn",
+        "format": "json",
+        "on_log": received.put_nowait,
+    }
+    if console_output is not None:
+        logging["console"] = console_output
+    stagehand = await Stagehand.create(browser=browser, logging=logging)
+    try:
+        init = json.loads(transport.sent[0])
+        assert init["method"] == "stagehand.init"
+        assert init["params"]["log_level"] == "warn"
+        for key in ["logging", "console", "format", "onLog", "on_log"]:
+            assert key not in init["params"]
+        record = {"level": "warn", "message": "Page opened", "data": {}}
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "method": "stagehand.log",
+            "params": record,
+        })
+        assert (await asyncio.wait_for(received.get(), timeout=1)).model_dump(mode="json") == record
+        assert capsys.readouterr().err == (
+            ""
+            if console_output is False
+            else '{"level":"warn","message":"Page opened","data":{}}\n'
+        )
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
+    assert transport.close_calls == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("console_output", [True, False])
+async def test_logging_awaits_callback_and_preserves_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    console_output: bool,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    entered = asyncio.Event()
+    received: list[str] = []
+
+    async def on_log(log: StagehandLog) -> None:
+        received.append(log.message)
+        if log.message == "First event":
+            entered.set()
+            await asyncio.Event().wait()
+
+    stagehand = await Stagehand.create(
+        browser=browser, logging={"console": console_output, "on_log": on_log}
+    )
+    _, listener = recording.notifications["stagehand.log"]
+    notify = cast(Callable[[StagehandLog], Awaitable[None]], listener)
+    first = asyncio.ensure_future(
+        notify(StagehandLog.model_validate({"level": "info", "message": "First event", "data": {}}))
+    )
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        assert not first.done()
+        first.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first
+        await notify(
+            StagehandLog.model_validate({"level": "info", "message": "Next event", "data": {}})
+        )
+        assert received == ["First event", "Next event"]
+        assert capsys.readouterr().err == (
+            "[stagehand] INFO First event\n[stagehand] INFO Next event\n" if console_output else ""
+        )
+    finally:
+        if not first.done():
+            first.cancel()
+            try:
+                await first
+            except asyncio.CancelledError:
+                pass
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
