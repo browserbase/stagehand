@@ -11,6 +11,7 @@ import type {
   Step,
 } from "../../../types/private/snapshot.js";
 import { prefixXPath } from "./xpathUtils.js";
+import { splitSelectorHops } from "../../selectorHops.js";
 
 /**
  * Parse a cross-frame XPath into discrete steps. Each step tracks whether it
@@ -130,10 +131,7 @@ export async function resolveCssFocusFrameAndTail(
   parentByFrame: FrameParentIndex,
   rootId: string,
 ): Promise<ResolvedCssFocus> {
-  const parts = rawSelector
-    .split(">>")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const parts = splitSelectorHops(rawSelector);
   let ctxFrameId = rootId;
   const absPrefix = "";
 

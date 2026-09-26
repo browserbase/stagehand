@@ -3,6 +3,7 @@ import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
 import { IFRAME_STEP_RE } from "./a11y/snapshot/focusSelectors.js";
+import { splitSelectorHops } from "./selectorHops.js";
 import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 
@@ -69,10 +70,7 @@ export async function resolveLocatorTarget(
   selectorRaw: string,
 ): Promise<ResolvedLocatorTarget> {
   const sel = selectorRaw.trim();
-  const parts = sel
-    .split(">>")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const parts = splitSelectorHops(sel);
 
   if (parts.length > 1) {
     // Build a FrameLocator chain for all but the last segment
