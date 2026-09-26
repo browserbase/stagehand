@@ -54,7 +54,7 @@ describe("Stagehand object-model protocol", () => {
         sessionId: "session_123",
         region: "eu-central-1",
       },
-      model: { modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5.6-luna" },
     });
 
     expect(params).toStrictEqual({
@@ -66,7 +66,7 @@ describe("Stagehand object-model protocol", () => {
         sessionId: "session_123",
         region: "eu-central-1",
       },
-      model: { modelName: "openai/gpt-5-mini" },
+      model: { modelName: "openai/gpt-5.6-luna" },
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
