@@ -1677,6 +1677,17 @@ class PageOnParams(WireModel):
     event: PageSubscriptionEventName
 
 
+class PagePDFMargin(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    top: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    bottom: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    left: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    right: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+
+
 class PagePDFOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1686,18 +1697,15 @@ class PagePDFOptions(WireModel):
     display_header_footer: Optional[StrictBool] = None
     print_background: Optional[StrictBool] = None
     scale: Annotated[Optional[StrictFloat], Field(ge=0.1, le=2.0)] = None
-    paper_width: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
-    paper_height: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
-    margin_top: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    margin_bottom: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    margin_left: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    margin_right: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    width: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    height: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    margin: Optional[PagePDFMargin] = None
     page_ranges: Optional[StrictStr] = None
     header_template: Optional[StrictStr] = None
     footer_template: Optional[StrictStr] = None
     prefer_css_page_size: Optional[StrictBool] = None
-    generate_tagged_pdf: Optional[StrictBool] = None
-    generate_document_outline: Optional[StrictBool] = None
+    tagged: Optional[StrictBool] = None
+    outline: Optional[StrictBool] = None
     timeout: Annotated[Optional[StrictFloat], Field(ge=0.0, le=2147473647.0)] = None
 
 

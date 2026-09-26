@@ -44,7 +44,6 @@ export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
-export { RPCResponseTimeoutError } from "./timeouts.js";
 export type {
   ReportedRuntimeDescriptor,
   RuntimeCompatibility,
@@ -92,6 +91,7 @@ export type {
   PageDragAndDropRoutePoint,
   PageEventName,
   PageNavigationOptions,
+  PagePDFMargin,
   PagePDFOptions,
   PageScreenshotClip,
   PageSnapshotOptions,

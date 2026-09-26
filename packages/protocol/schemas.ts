@@ -1943,24 +1943,30 @@ export const PageScreenshotParamsSchema = PageIdParamsSchema.extend({
   options: PageScreenshotOptionsSchema.optional(),
 }).meta({ id: "PageScreenshotParams" });
 
+export const PagePDFMarginSchema = z
+  .strictObject({
+    top: z.number().nonnegative().optional(),
+    bottom: z.number().nonnegative().optional(),
+    left: z.number().nonnegative().optional(),
+    right: z.number().nonnegative().optional(),
+  })
+  .meta({ id: "PagePDFMargin" });
+
 export const PagePDFOptionsSchema = z
   .strictObject({
     landscape: z.boolean().optional(),
     displayHeaderFooter: z.boolean().optional(),
     printBackground: z.boolean().optional(),
     scale: z.number().min(0.1).max(2).optional(),
-    paperWidth: z.number().positive().optional(),
-    paperHeight: z.number().positive().optional(),
-    marginTop: z.number().nonnegative().optional(),
-    marginBottom: z.number().nonnegative().optional(),
-    marginLeft: z.number().nonnegative().optional(),
-    marginRight: z.number().nonnegative().optional(),
+    width: z.number().positive().optional(),
+    height: z.number().positive().optional(),
+    margin: PagePDFMarginSchema.optional(),
     pageRanges: z.string().optional(),
     headerTemplate: z.string().optional(),
     footerTemplate: z.string().optional(),
     preferCSSPageSize: z.boolean().optional(),
-    generateTaggedPDF: z.boolean().optional(),
-    generateDocumentOutline: z.boolean().optional(),
+    tagged: z.boolean().optional(),
+    outline: z.boolean().optional(),
     // Leave room for the SDK's 10-second response grace within the JS timer limit.
     timeout: z.number().nonnegative().max(2_147_473_647).optional(),
   })

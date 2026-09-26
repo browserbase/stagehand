@@ -1407,6 +1407,20 @@ type PageOnParams struct {
 	SubscriptionID string `json:"subscription_id"`
 }
 
+type PagePDFMargin struct {
+	// Bottom corresponds to the JSON schema field "bottom".
+	Bottom *float64 `json:"bottom,omitempty,omitzero"`
+
+	// Left corresponds to the JSON schema field "left".
+	Left *float64 `json:"left,omitempty,omitzero"`
+
+	// Right corresponds to the JSON schema field "right".
+	Right *float64 `json:"right,omitempty,omitzero"`
+
+	// Top corresponds to the JSON schema field "top".
+	Top *float64 `json:"top,omitempty,omitzero"`
+}
+
 type PagePDFOptions struct {
 	// DisplayHeaderFooter corresponds to the JSON schema field
 	// "display_header_footer".
@@ -1415,39 +1429,23 @@ type PagePDFOptions struct {
 	// FooterTemplate corresponds to the JSON schema field "footer_template".
 	FooterTemplate *string `json:"footer_template,omitempty,omitzero"`
 
-	// GenerateDocumentOutline corresponds to the JSON schema field
-	// "generate_document_outline".
-	GenerateDocumentOutline *bool `json:"generate_document_outline,omitempty,omitzero"`
-
-	// GenerateTaggedPDF corresponds to the JSON schema field "generate_tagged_pdf".
-	GenerateTaggedPDF *bool `json:"generate_tagged_pdf,omitempty,omitzero"`
-
 	// HeaderTemplate corresponds to the JSON schema field "header_template".
 	HeaderTemplate *string `json:"header_template,omitempty,omitzero"`
+
+	// Height corresponds to the JSON schema field "height".
+	Height *float64 `json:"height,omitempty,omitzero"`
 
 	// Landscape corresponds to the JSON schema field "landscape".
 	Landscape *bool `json:"landscape,omitempty,omitzero"`
 
-	// MarginBottom corresponds to the JSON schema field "margin_bottom".
-	MarginBottom *float64 `json:"margin_bottom,omitempty,omitzero"`
+	// Margin corresponds to the JSON schema field "margin".
+	Margin *PagePDFMargin `json:"margin,omitempty,omitzero"`
 
-	// MarginLeft corresponds to the JSON schema field "margin_left".
-	MarginLeft *float64 `json:"margin_left,omitempty,omitzero"`
-
-	// MarginRight corresponds to the JSON schema field "margin_right".
-	MarginRight *float64 `json:"margin_right,omitempty,omitzero"`
-
-	// MarginTop corresponds to the JSON schema field "margin_top".
-	MarginTop *float64 `json:"margin_top,omitempty,omitzero"`
+	// Outline corresponds to the JSON schema field "outline".
+	Outline *bool `json:"outline,omitempty,omitzero"`
 
 	// PageRanges corresponds to the JSON schema field "page_ranges".
 	PageRanges *string `json:"page_ranges,omitempty,omitzero"`
-
-	// PaperHeight corresponds to the JSON schema field "paper_height".
-	PaperHeight *float64 `json:"paper_height,omitempty,omitzero"`
-
-	// PaperWidth corresponds to the JSON schema field "paper_width".
-	PaperWidth *float64 `json:"paper_width,omitempty,omitzero"`
 
 	// PreferCSSPageSize corresponds to the JSON schema field "prefer_css_page_size".
 	PreferCSSPageSize *bool `json:"prefer_css_page_size,omitempty,omitzero"`
@@ -1458,8 +1456,14 @@ type PagePDFOptions struct {
 	// Scale corresponds to the JSON schema field "scale".
 	Scale *float64 `json:"scale,omitempty,omitzero"`
 
+	// Tagged corresponds to the JSON schema field "tagged".
+	Tagged *bool `json:"tagged,omitempty,omitzero"`
+
 	// Timeout corresponds to the JSON schema field "timeout".
 	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// Width corresponds to the JSON schema field "width".
+	Width *float64 `json:"width,omitempty,omitzero"`
 }
 
 type PagePDFParams struct {
@@ -2741,6 +2745,9 @@ type generatedModelCatalog struct {
 
 	// PageOnParams corresponds to the JSON schema field "PageOnParams".
 	PageOnParams *PageOnParams `json:"PageOnParams,omitempty,omitzero"`
+
+	// PagePDFMargin corresponds to the JSON schema field "PagePDFMargin".
+	PagePDFMargin *PagePDFMargin `json:"PagePDFMargin,omitempty,omitzero"`
 
 	// PagePDFOptions corresponds to the JSON schema field "PagePDFOptions".
 	PagePDFOptions *PagePDFOptions `json:"PagePDFOptions,omitempty,omitzero"`

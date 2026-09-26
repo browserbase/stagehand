@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel, RootModel
 from typing_extensions import override
 
-from stagehand import Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
+from stagehand import PagePDFMargin, Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
     NavigationResponseDescriptor,
     PageCDPEventNotification,
@@ -192,9 +192,11 @@ async def test_page_pdf_returns_bytes_writes_path_and_serializes_options(tmp_pat
     data = await page.pdf(
         landscape=True,
         print_background=True,
-        paper_width=8.5,
-        paper_height=11,
-        margin_top=0.25,
+        width=8.5,
+        height=11,
+        margin={"top": 0.25, "bottom": 0},
+        tagged=False,
+        outline=False,
         timeout=0,
         path=output_path,
     )
@@ -203,18 +205,44 @@ async def test_page_pdf_returns_bytes_writes_path_and_serializes_options(tmp_pat
     assert output_path.read_bytes() == data
     method, params, result_model = recording.calls[0]
     assert method == "page.pdf"
-    assert params == PagePDFParams.model_validate({
+    assert isinstance(params, PagePDFParams)
+    assert params.model_dump(mode="json", exclude_unset=True) == {
         "page_id": "page-1",
         "options": {
             "landscape": True,
             "print_background": True,
-            "paper_width": 8.5,
-            "paper_height": 11,
-            "margin_top": 0.25,
+            "width": 8.5,
+            "height": 11,
+            "margin": {"top": 0.25, "bottom": 0},
+            "tagged": False,
+            "outline": False,
             "timeout": 0,
         },
-    })
+    }
     assert result_model is PagePDFResult
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("margin", "expected_options"),
+    [
+        (None, None),
+        ({}, {"margin": {}}),
+        ({"left": 0}, {"margin": {"left": 0}}),
+    ],
+)
+async def test_page_pdf_preserves_omitted_and_empty_options(
+    margin: PagePDFMargin | None, expected_options: dict[str, object] | None
+) -> None:
+    recording = RecordingRPCClient({"page.pdf": PagePDFResult(data="JVBERi0xLjcK")})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.pdf(margin=margin)
+
+    expected: dict[str, object] = {"page_id": "page-1"}
+    if expected_options is not None:
+        expected["options"] = expected_options
+    assert recording.calls[0][1].model_dump(mode="json", exclude_unset=True) == expected
 
 
 @pytest.mark.asyncio

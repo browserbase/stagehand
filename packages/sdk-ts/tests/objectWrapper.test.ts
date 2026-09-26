@@ -1222,9 +1222,11 @@ describe("Stagehand TS object wrapper", () => {
       const bytes = await page.pdf({
         landscape: true,
         printBackground: true,
-        paperWidth: 8.5,
-        paperHeight: 11,
-        marginTop: 0.25,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25, bottom: 0, left: 0.5, right: 0.75 },
+        tagged: true,
+        outline: true,
         path: pdfPath,
       });
 
@@ -1236,9 +1238,11 @@ describe("Stagehand TS object wrapper", () => {
           options: {
             landscape: true,
             printBackground: true,
-            paperWidth: 8.5,
-            paperHeight: 11,
-            marginTop: 0.25,
+            width: 8.5,
+            height: 11,
+            margin: { top: 0.25, bottom: 0, left: 0.5, right: 0.75 },
+            tagged: true,
+            outline: true,
           },
         }),
       ]);

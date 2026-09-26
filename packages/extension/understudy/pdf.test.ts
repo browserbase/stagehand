@@ -45,9 +45,11 @@ describe("Page.pdf", () => {
       page.pdf({
         landscape: true,
         printBackground: true,
-        paperWidth: 8.5,
-        paperHeight: 11,
-        marginTop: 0.25,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25, bottom: 0.5, left: 0.75, right: 1 },
+        tagged: true,
+        outline: true,
         timeout: 1_000,
       }),
     ).resolves.toStrictEqual({ data: "JVBERi0xLjcK" });
@@ -57,8 +59,49 @@ describe("Page.pdf", () => {
       paperWidth: 8.5,
       paperHeight: 11,
       marginTop: 0.25,
+      marginBottom: 0.5,
+      marginLeft: 0.75,
+      marginRight: 1,
+      generateTaggedPDF: true,
+      generateDocumentOutline: true,
       transferMode: "ReturnAsBase64",
     });
+  });
+
+  it.each([undefined, {}, { margin: {} }, { margin: { top: 0 }, tagged: false, outline: false }])(
+    "uses zero margins and disables tags and outlines by default (%j)",
+    async (options) => {
+      await page.pdf(options);
+      expect(send.mock.calls).toStrictEqual([
+        [
+          "Page.printToPDF",
+          {
+            paperWidth: undefined,
+            paperHeight: undefined,
+            marginTop: 0,
+            marginBottom: 0,
+            marginLeft: 0,
+            marginRight: 0,
+            generateTaggedPDF: false,
+            generateDocumentOutline: false,
+            transferMode: "ReturnAsBase64",
+          },
+        ],
+      ]);
+    },
+  );
+
+  it("defaults only unspecified margin sides to zero", async () => {
+    await page.pdf({ margin: { top: 0.5, right: 0.25 } });
+    expect(send).toHaveBeenCalledWith(
+      "Page.printToPDF",
+      expect.objectContaining({
+        marginTop: 0.5,
+        marginBottom: 0,
+        marginLeft: 0,
+        marginRight: 0.25,
+      }),
+    );
   });
 
   it("waits for screenshot style cleanup before printing", async () => {
@@ -109,7 +152,10 @@ describe("Page.pdf", () => {
     const screenshot = page.screenshot({ caret: "initial", style: "body { color: red; }" });
     try {
       await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(send).toHaveBeenCalledWith("Page.printToPDF", { transferMode: "ReturnAsBase64" });
+      expect(send).toHaveBeenCalledWith(
+        "Page.printToPDF",
+        expect.objectContaining({ transferMode: "ReturnAsBase64" }),
+      );
       expect(evaluate).not.toHaveBeenCalled();
     } finally {
       rejectPrint(printError);
@@ -215,7 +261,10 @@ describe("Page.pdf", () => {
     try {
       await vi.advanceTimersByTimeAsync(60_000);
       expect(settled).toBe(false);
-      expect(send).toHaveBeenCalledWith("Page.printToPDF", { transferMode: "ReturnAsBase64" });
+      expect(send).toHaveBeenCalledWith(
+        "Page.printToPDF",
+        expect.objectContaining({ transferMode: "ReturnAsBase64" }),
+      );
     } finally {
       finishPrinting({ data: "JVBERi0xLjcK" });
     }

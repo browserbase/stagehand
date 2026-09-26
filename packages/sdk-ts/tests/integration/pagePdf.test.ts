@@ -39,8 +39,8 @@ describe("Page.pdf", () => {
         displayHeaderFooter: true,
         footerTemplate:
           '<div style="font-size:8px;width:100%;text-align:center"><span class="pageNumber"></span>/<span class="totalPages"></span></div>',
-        generateDocumentOutline: true,
-        generateTaggedPDF: true,
+        outline: true,
+        tagged: true,
         path: outputPath,
         preferCSSPageSize: true,
         printBackground: true,
@@ -56,6 +56,7 @@ describe("Page.pdf", () => {
       expect(pdf.match(/\/Type\s*\/Page\b/g)).toHaveLength(2);
       expect(pdf).toMatch(/\/MediaBox\s*\[0\s+0\s+288\s+432\]/);
       expect(pdf).toMatch(/\/Marked\s+true\b/);
+      expect(pdf).toMatch(/\/Outlines\s+\d+\s+\d+\s+R\b/);
       const secondPage = await page.pdf({ pageRanges: "2", preferCSSPageSize: true, timeout: 0 });
       expect(
         Buffer.from(secondPage)
@@ -65,6 +66,32 @@ describe("Page.pdf", () => {
     } finally {
       await fs.rm(outputPath, { force: true });
     }
+  });
+
+  it("uses inch dimensions, zero default margins, and opt-in tags and outlines", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(
+      `data:text/html,${encodeURIComponent(`
+        <!doctype html>
+        <style>
+          html, body { margin: 0; padding: 0; }
+          section { height: 5.75in; background: #e8f1ff; }
+          h1 { margin: 0; }
+        </style>
+        <section><h1>PDF defaults</h1><p>A nearly page-height block.</p></section>
+      `)}`,
+    );
+
+    const pdf = Buffer.from(await page.pdf({ width: 4, height: 6 })).toString("latin1");
+    expect(pdf).toMatch(/\/MediaBox\s*\[0\s+0\s+288\s+432\]/);
+    expect(pdf.match(/\/Type\s*\/Page\b/g)).toHaveLength(1);
+    expect(pdf).not.toMatch(/\/Marked\s+true\b/);
+    expect(pdf).not.toMatch(/\/Outlines\s+\d+\s+\d+\s+R\b/);
+
+    const withMargins = Buffer.from(
+      await page.pdf({ width: 4, height: 6, margin: { top: 0.5, bottom: 0.5 } }),
+    ).toString("latin1");
+    expect(withMargins.match(/\/Type\s*\/Page\b/g)).toHaveLength(2);
   });
 
   it("preserves print errors and allows subsequent captures", async () => {

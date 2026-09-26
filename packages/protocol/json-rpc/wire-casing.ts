@@ -16,7 +16,6 @@ const defaultOpaqueKeys = new Set([
 // camelcase-keys cannot recover consecutive API acronyms from snake_case on its own.
 const apiAcronymWireKeys: Readonly<Record<string, string>> = {
   base_url: "base_URL",
-  generate_tagged_pdf: "generate_tagged_PDF",
   prefer_css_page_size: "prefer_CSS_page_size",
 };
 

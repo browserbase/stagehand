@@ -16,7 +16,6 @@ import {
   rpcResponseTimeoutMs,
   type CDPTransport,
 } from "../src/rpcClient.js";
-import { RPCResponseTimeoutError } from "../src/timeouts.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -414,17 +413,16 @@ describe("RPCClient", () => {
 
       try {
         const request = send(client);
-        const rejection = expect(request).rejects.toBeInstanceOf(RPCResponseTimeoutError);
+        const rejection = expect(request).rejects.toBeInstanceOf(Error);
         await vi.advanceTimersByTimeAsync(timeoutMs - 1);
 
         expect(client.pending.size).toBe(1);
         await vi.advanceTimersByTimeAsync(1);
         await rejection;
         await expect(request).rejects.toMatchObject({
-          name: "RPCResponseTimeoutError",
+          constructor: Error,
+          name: "Error",
           message: `RPC response timed out after ${timeoutMs}ms: ${method}`,
-          method,
-          timeoutMs,
           cause: { method, timeoutMs },
         });
         expect(client.pending.size).toBe(0);

@@ -24,11 +24,7 @@ import type {
   UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
-import {
-  CaptureRecoveryError,
-  DuplicatePageEventSubscriptionError,
-  TimeoutError,
-} from "../errors.ts";
+import { DuplicatePageEventSubscriptionError, TimeoutError } from "../errors.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
   ContextSetExtraHTTPHeadersParams,
@@ -2103,8 +2099,11 @@ describe("Stagehand worker clients", () => {
           options: {
             landscape: true,
             print_background: true,
-            paper_width: 8.5,
-            paper_height: 11,
+            width: 8.5,
+            height: 11,
+            margin: { top: 0.25, bottom: 0 },
+            tagged: true,
+            outline: false,
           },
         },
       }),
@@ -2142,17 +2141,21 @@ describe("Stagehand worker clients", () => {
       {
         landscape: true,
         printBackground: true,
-        paperWidth: 8.5,
-        paperHeight: 11,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25, bottom: 0 },
+        tagged: true,
+        outline: false,
       },
     ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
   });
 
-  it("preserves the recovery error type and original PDF deadline over RPC", async () => {
+  it("preserves the recovery message and original PDF deadline over RPC", async () => {
     const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const cause = new TimeoutError("pdf", 30_000);
     vi.spyOn(page, "pdf").mockRejectedValue(
-      new CaptureRecoveryError(new TimeoutError("pdf", 30_000)),
+      new Error(`A previous capture is still recovering: ${cause.message}`, { cause }),
     );
     const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
 
@@ -2169,7 +2172,7 @@ describe("Stagehand worker clients", () => {
       error: {
         code: -32603,
         message: "A previous capture is still recovering: pdf timed out after 30000ms",
-        data: { name: "CaptureRecoveryError" },
+        data: { name: "Error" },
       },
     });
   });

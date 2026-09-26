@@ -3841,29 +3841,16 @@
           "minimum": 0.1,
           "maximum": 2
         },
-        "paper_width": {
+        "width": {
           "type": "number",
           "exclusiveMinimum": 0
         },
-        "paper_height": {
+        "height": {
           "type": "number",
           "exclusiveMinimum": 0
         },
-        "margin_top": {
-          "type": "number",
-          "minimum": 0
-        },
-        "margin_bottom": {
-          "type": "number",
-          "minimum": 0
-        },
-        "margin_left": {
-          "type": "number",
-          "minimum": 0
-        },
-        "margin_right": {
-          "type": "number",
-          "minimum": 0
+        "margin": {
+          "$ref": "#/$defs/PagePDFMargin"
         },
         "page_ranges": {
           "type": "string"
@@ -3877,16 +3864,38 @@
         "prefer_css_page_size": {
           "type": "boolean"
         },
-        "generate_tagged_pdf": {
+        "tagged": {
           "type": "boolean"
         },
-        "generate_document_outline": {
+        "outline": {
           "type": "boolean"
         },
         "timeout": {
           "type": "number",
           "minimum": 0,
           "maximum": 2147473647
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePDFMargin": {
+      "type": "object",
+      "properties": {
+        "top": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bottom": {
+          "type": "number",
+          "minimum": 0
+        },
+        "left": {
+          "type": "number",
+          "minimum": 0
+        },
+        "right": {
+          "type": "number",
+          "minimum": 0
         }
       },
       "additionalProperties": false

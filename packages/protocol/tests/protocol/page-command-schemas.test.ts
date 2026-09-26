@@ -289,11 +289,12 @@ describe("page command schemas", () => {
           landscape: true,
           printBackground: true,
           scale: 0.75,
-          paperWidth: 8.5,
-          paperHeight: 11,
-          marginTop: 0.25,
+          width: 8.5,
+          height: 11,
+          margin: { top: 0.25 },
           pageRanges: "1-3",
-          generateTaggedPDF: true,
+          tagged: true,
+          outline: false,
         },
       }),
     ).toStrictEqual({
@@ -302,17 +303,53 @@ describe("page command schemas", () => {
         landscape: true,
         printBackground: true,
         scale: 0.75,
-        paperWidth: 8.5,
-        paperHeight: 11,
-        marginTop: 0.25,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25 },
         pageRanges: "1-3",
-        generateTaggedPDF: true,
+        tagged: true,
+        outline: false,
       },
     });
     expect(PagePDFResultSchema.parse({ data: "JVBERi0=" })).toStrictEqual({ data: "JVBERi0=" });
     expect(() => PagePDFParamsSchema.parse({ pageId, options: { scale: 2.1 } })).toThrow();
-    expect(() => PagePDFParamsSchema.parse({ pageId, options: { paperWidth: 0 } })).toThrow();
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { width: 0 } })).toThrow();
+    expect(() => PagePDFParamsSchema.parse({ pageId, options: { height: 0 } })).toThrow();
     expect(() => PagePDFParamsSchema.parse({ pageId, options: { path: "page.pdf" } })).toThrow();
+  });
+
+  it("preserves omitted PDF settings and accepts partial margins", () => {
+    for (const options of [
+      {},
+      { margin: {} },
+      { margin: { top: 0, right: 0.5 } },
+      { tagged: false, outline: false },
+    ]) {
+      expect(PagePDFParamsSchema.parse({ pageId, options })).toStrictEqual({ pageId, options });
+    }
+  });
+
+  it("rejects invalid PDF margins and raw CDP option names", () => {
+    for (const side of ["top", "bottom", "left", "right"]) {
+      for (const value of [-0.1, NaN, Infinity]) {
+        expect(() =>
+          PagePDFParamsSchema.parse({ pageId, options: { margin: { [side]: value } } }),
+        ).toThrow();
+      }
+    }
+    for (const options of [
+      { margin: { other: 1 } },
+      { paperWidth: 8.5 },
+      { paperHeight: 11 },
+      { marginTop: 0 },
+      { marginBottom: 0 },
+      { marginLeft: 0 },
+      { marginRight: 0 },
+      { generateTaggedPDF: true },
+      { generateDocumentOutline: true },
+    ]) {
+      expect(() => PagePDFParamsSchema.parse({ pageId, options })).toThrow();
+    }
   });
 
   it("validates PDF capture deadlines before dispatch", () => {

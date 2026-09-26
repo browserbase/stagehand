@@ -39,7 +39,6 @@ import type { StagehandRpcNotification } from "@browserbasehq/stagehand-protocol
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 import { abortReason } from "./abort.js";
-import { RPCResponseTimeoutError } from "./timeouts.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -203,7 +202,9 @@ export class RPCClient {
           timeoutController && responseTimeoutMs !== undefined
             ? setTimeout(() => {
                 timeoutController.abort(
-                  new RPCResponseTimeoutError(method.name, responseTimeoutMs),
+                  new Error(`RPC response timed out after ${responseTimeoutMs}ms: ${method.name}`, {
+                    cause: { method: method.name, timeoutMs: responseTimeoutMs },
+                  }),
                 );
               }, responseTimeoutMs)
             : undefined;

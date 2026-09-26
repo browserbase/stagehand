@@ -173,6 +173,7 @@ import type {
   PageOnParamsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
+  PagePDFMarginSchema,
   PagePDFOptionsSchema,
   PagePDFParamsSchema,
   PagePDFResultSchema,
@@ -387,6 +388,7 @@ export type PageAddInitScriptParams = z.infer<typeof PageAddInitScriptParamsSche
 export type PageSetExtraHTTPHeadersParams = z.infer<typeof PageSetExtraHTTPHeadersParamsSchema>;
 export type PageScreenshotOptions = z.infer<typeof PageScreenshotOptionsSchema>;
 export type PageScreenshotParams = z.infer<typeof PageScreenshotParamsSchema>;
+export type PagePDFMargin = z.infer<typeof PagePDFMarginSchema>;
 export type PagePDFOptions = z.infer<typeof PagePDFOptionsSchema>;
 export type PagePDFParams = z.infer<typeof PagePDFParamsSchema>;
 export type PageSnapshotParams = z.infer<typeof PageSnapshotParamsSchema>;
