@@ -613,6 +613,9 @@ importers:
       '@browserbasehq/stagehand-integrations-pi-sdk':
         specifier: workspace:*
         version: link:../integrations/pi-sdk
+      '@browserbasehq/stagehand-integrations-unreal-agent-sdk':
+        specifier: workspace:*
+        version: link:../integrations/unreal-agent-sdk
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)
@@ -1102,6 +1105,25 @@ importers:
       typebox:
         specifier: 'catalog:'
         version: 1.3.7
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.3(publint@0.3.21)(tsx@4.23.1)(typescript@5.9.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(vite@8.1.3(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+
+  packages/integrations/unreal-agent-sdk:
+    dependencies:
+      '@browserbasehq/stagehand-integrations':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
