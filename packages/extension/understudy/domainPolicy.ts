@@ -1,7 +1,10 @@
 import type { Protocol } from "devtools-protocol";
 import type { DomainPolicy } from "@browserbasehq/stagehand-protocol/types";
 
-type DomainRule = { type: "exact"; hostname: string } | { type: "wildcard"; hostname: string };
+type DomainRule =
+  | { type: "exact"; hostname: string }
+  | { type: "wildcard"; hostname: string }
+  | { type: "glob"; hostPattern: string; hostnamePrefix: string };
 
 export type NormalizedDomainPolicy = {
   allowedDomains: string[];
@@ -43,7 +46,7 @@ function validateHostname(
 function normalizeDomainPattern(
   pattern: unknown,
   kind: "allowedDomains" | "blockedDomains",
-): DomainRule {
+): Exclude<DomainRule, { type: "glob" }> {
   const label = kind === "allowedDomains" ? "allowed" : "blocked";
   const capitalizedLabel = kind === "allowedDomains" ? "Allowed" : "Blocked";
 
@@ -124,12 +127,14 @@ function getDomainPatterns(
 }
 
 function patternHost(rule: DomainRule): string {
+  if (rule.type === "glob") return rule.hostPattern;
   return rule.type === "wildcard" ? `*.${rule.hostname}` : rule.hostname;
 }
 
 function fetchPatternHosts(rule: DomainRule): string[] {
   const host = patternHost(rule);
-  return [host, `${host}.`];
+  // IP and bracket hosts have no trailing-dot spelling.
+  return rule.type === "glob" ? [host] : [host, `${host}.`];
 }
 
 function toBlocklistFetchPatterns(rules: DomainRule[]): Protocol.Fetch.RequestPattern[] {
@@ -182,6 +187,32 @@ export function normalizeDomainPolicy(
   };
 }
 
+// Metadata endpoints and link-local spellings that stay blocked until the caller
+// replaces the default posture with an explicit policy.
+const BASELINE_BLOCKED_RULES: DomainRule[] = [
+  { type: "glob", hostPattern: "169.254.*", hostnamePrefix: "169.254." },
+  { type: "glob", hostPattern: "[fe80:*]", hostnamePrefix: "[fe80:" },
+  { type: "glob", hostPattern: "[::ffff:*]", hostnamePrefix: "[::ffff:" },
+  { type: "exact", hostname: "[fd00:ec2::254]" },
+  { type: "exact", hostname: "100.100.100.200" },
+  { type: "exact", hostname: "metadata.google.internal" },
+  { type: "exact", hostname: "metadata.goog" },
+];
+
+export const BASELINE_DOMAIN_POLICY: NormalizedDomainPolicy = {
+  allowedDomains: [],
+  blockedDomains: BASELINE_BLOCKED_RULES.map(patternHost),
+  allowedDomainRules: [],
+  blockedDomainRules: BASELINE_BLOCKED_RULES,
+  fetchPatterns: toBlocklistFetchPatterns(BASELINE_BLOCKED_RULES),
+};
+
+export function getEffectiveDomainPolicy(
+  configured: NormalizedDomainPolicy | null,
+): NormalizedDomainPolicy {
+  return configured ?? BASELINE_DOMAIN_POLICY;
+}
+
 function hostnameFromHttpUrl(url: string): string | null {
   try {
     const parsed = new URL(url);
@@ -198,6 +229,9 @@ function matchesDomainRules(hostname: string, rules: DomainRule[]): boolean {
   return rules.some((rule) => {
     if (rule.type === "exact") {
       return hostname === rule.hostname;
+    }
+    if (rule.type === "glob") {
+      return hostname.startsWith(rule.hostnamePrefix);
     }
     return hostname.endsWith(`.${rule.hostname}`);
   });

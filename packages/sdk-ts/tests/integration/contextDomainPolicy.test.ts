@@ -25,6 +25,7 @@ describe("context.setDomainPolicy", () => {
   let stagehand: Stagehand;
   let allowedUrl: string;
   let alternateHostUrl: string;
+  let metadataHostUrl: string;
 
   beforeEach(async () => {
     fixture = await startFixtureServer({
@@ -36,9 +37,12 @@ describe("context.setDomainPolicy", () => {
     });
     allowedUrl = new URL("/pixel.svg", fixture.url).href;
     alternateHostUrl = allowedUrl.replace("127.0.0.1", "alternate.test");
+    metadataHostUrl = allowedUrl.replace("127.0.0.1", "metadata.google.internal");
     stagehand = await createStagehand({
       browser: {
-        args: ["--host-resolver-rules=MAP alternate.test 127.0.0.1"],
+        args: [
+          "--host-resolver-rules=MAP alternate.test 127.0.0.1,MAP metadata.google.internal 127.0.0.1",
+        ],
       },
     });
   });
@@ -114,6 +118,84 @@ describe("context.setDomainPolicy", () => {
             () =>
               (window as typeof window & { __blockedPopup?: Window }).__blockedPopup?.closed ??
               false,
+          ),
+        { timeout: 5_000, interval: 50 },
+      )
+      .toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (await stagehand.browser.context.pages()).every((candidate) =>
+            knownPageIds.has(candidate.pageId),
+          ),
+        { timeout: 5_000, interval: 50 },
+      )
+      .toBe(true);
+  });
+
+  it("blocks a metadata hostname by default while the loopback fixture still loads", async () => {
+    const page = await firstPage(stagehand);
+    const loopbackResponse = await page.goto(allowedUrl);
+    expect(loopbackResponse?.ok()).toBe(true);
+
+    await page.goto(metadataHostUrl);
+
+    await expect(page.url()).resolves.toMatch(/^chrome-error:/);
+  });
+
+  it("allows a metadata hostname named in allowedDomains", async () => {
+    const page = await firstPage(stagehand);
+    await stagehand.browser.context.setDomainPolicy({
+      allowedDomains: ["127.0.0.1", "metadata.google.internal"],
+    });
+
+    const response = await page.goto(metadataHostUrl);
+    expect(response?.ok()).toBe(true);
+  });
+
+  it("returns to the default posture when the policy is cleared", async () => {
+    const page = await firstPage(stagehand);
+    await stagehand.browser.context.setDomainPolicy({
+      allowedDomains: ["127.0.0.1", "metadata.google.internal"],
+    });
+    const allowedResponse = await page.goto(metadataHostUrl);
+    expect(allowedResponse?.ok()).toBe(true);
+
+    await stagehand.browser.context.setDomainPolicy(null);
+    await page.goto(metadataHostUrl);
+
+    await expect(page.url()).resolves.toMatch(/^chrome-error:/);
+  });
+
+  it("replaces the default posture with an explicit blocklist", async () => {
+    const page = await firstPage(stagehand);
+    await stagehand.browser.context.setDomainPolicy({ blockedDomains: ["example.com"] });
+
+    const response = await page.goto(metadataHostUrl);
+    expect(response?.ok()).toBe(true);
+  });
+
+  it("does not retain a popup targeting a default-blocked host", async () => {
+    const page = await firstPage(stagehand);
+    const popupUrl = new URL("/popup", fixture.url).href.replace(
+      "127.0.0.1",
+      "metadata.google.internal",
+    );
+    await page.goto(
+      `data:text/html,${encodeURIComponent(`<button id="open" onclick="window.__defaultBlockedPopup = window.open('${popupUrl}')">open</button>`)}`,
+    );
+    const knownPageIds = new Set(
+      (await stagehand.browser.context.pages()).map((candidate) => candidate.pageId),
+    );
+    await page.locator("#open").click();
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () =>
+              (window as typeof window & { __defaultBlockedPopup?: Window }).__defaultBlockedPopup
+                ?.closed ?? false,
           ),
         { timeout: 5_000, interval: 50 },
       )

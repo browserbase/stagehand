@@ -22,7 +22,11 @@ import {
   toCdpCookieParam,
 } from "./cookies.js";
 import type { UnderstudyClearCookieOptions } from "./cookies.js";
-import { getDomainPolicyDecision, normalizeDomainPolicy } from "./domainPolicy.js";
+import {
+  getDomainPolicyDecision,
+  getEffectiveDomainPolicy,
+  normalizeDomainPolicy,
+} from "./domainPolicy.js";
 import type { NormalizedDomainPolicy } from "./domainPolicy.js";
 import type { ChromeTabTargetController } from "./chromeTabs.js";
 
@@ -122,6 +126,7 @@ export class BrowserContext {
   readonly initScripts: string[] = [];
   extraHttpHeaders: Record<string, string> | null = null;
   domainPolicy: NormalizedDomainPolicy | null = null;
+  baselineBlockWarned = false;
   _clipboard?: ContextClipboard;
 
   get connected(): boolean {
@@ -341,9 +346,26 @@ export class BrowserContext {
     };
   }
 
+  warnOnBaselineBlock(hostname: string, ruleType: string): void {
+    if (this.baselineBlockWarned) return;
+    this.baselineBlockWarned = true;
+    this.logger.warn(
+      "Blocked a request to a metadata or link-local host by the default domain policy. " +
+        "Call context.setDomainPolicy({ allowedDomains: [...] }) to allow a host, or set a policy to replace the default.",
+      { category: "network", hostname, ruleType },
+    );
+  }
+
   public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
     const nextPolicy = normalizeDomainPolicy(policy);
     this.domainPolicy = nextPolicy;
+
+    if (nextPolicy !== null) {
+      this.logger.info(
+        "Explicit domain policy replaces the default metadata and link-local blocklist",
+        { category: "network" },
+      );
+    }
 
     const sessions: CDPSessionLike[] = [];
     for (const sessionId of this._sessionInit) {
@@ -353,23 +375,13 @@ export class BrowserContext {
 
     if (!sessions.length) return;
 
+    const patterns = getEffectiveDomainPolicy(nextPolicy).fetchPatterns;
+
     const results = await Promise.allSettled(
       sessions.map(async (session) => {
-        if (!nextPolicy) {
-          try {
-            await session.send("Fetch.disable");
-            this.uninstallDomainPolicyHandler(session);
-          } catch (error) {
-            throw { action: "disable", error };
-          }
-          return;
-        }
-
         this.installDomainPolicyHandler(session);
         try {
-          await session.send("Fetch.enable", {
-            patterns: nextPolicy.fetchPatterns,
-          });
+          await session.send("Fetch.enable", { patterns });
         } catch (error) {
           throw { action: "enable", error };
         }
@@ -388,7 +400,7 @@ export class BrowserContext {
       )
       .map((entry) => {
         const failure = entry.result.reason as {
-          action?: "enable" | "disable";
+          action?: "enable";
           error?: unknown;
         };
         if (failure?.action === "enable") {
@@ -436,7 +448,10 @@ export class BrowserContext {
     session: CDPSessionLike,
     evt: Protocol.Fetch.RequestPausedEvent,
   ): Promise<void> {
-    const decision = getDomainPolicyDecision(evt.request.url, this.domainPolicy);
+    const decision = getDomainPolicyDecision(
+      evt.request.url,
+      getEffectiveDomainPolicy(this.domainPolicy),
+    );
 
     if (decision.action === "continue") {
       await session.send("Fetch.continueRequest", { requestId: evt.requestId }).catch(() => {});
@@ -455,6 +470,10 @@ export class BrowserContext {
       hostname,
       ruleType: decision.reason,
     });
+
+    if (this.domainPolicy === null) {
+      this.warnOnBaselineBlock(hostname, decision.reason);
+    }
 
     await session
       .send("Fetch.failRequest", {
@@ -774,14 +793,12 @@ export class BrowserContext {
       response: Promise<boolean>;
       getError: () => unknown;
     }> = [];
-    if (this.domainPolicy) {
-      this.installDomainPolicyHandler(session);
-      fetchPreResumeOps.push(
-        queueFetchEnablePreResume({
-          patterns: this.domainPolicy.fetchPatterns,
-        }),
-      );
-    }
+    this.installDomainPolicyHandler(session);
+    fetchPreResumeOps.push(
+      queueFetchEnablePreResume({
+        patterns: getEffectiveDomainPolicy(this.domainPolicy).fetchPatterns,
+      }),
+    );
     // Send init scripts only after auto-attach has been queued.
     if (this.initScripts.length) {
       for (const source of this.initScripts) {
@@ -852,26 +869,43 @@ export class BrowserContext {
           ? fetchError.message
           : String(fetchError)
         : "Fetch.enable failed during target attach";
-      const policyFailureMessage =
-        "Fetch.enable failed during target attach; closing target because " +
-        "Stagehand cannot guarantee domain policy enforcement";
-      this.recordPageCreationFailure(
-        info.targetId,
-        fetchError instanceof Error
-          ? fetchError
-          : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
-        policyFailureMessage,
+
+      if (this.domainPolicy !== null) {
+        const policyFailureMessage =
+          "Fetch.enable failed during target attach; closing target because " +
+          "Stagehand cannot guarantee domain policy enforcement";
+        this.recordPageCreationFailure(
+          info.targetId,
+          fetchError instanceof Error
+            ? fetchError
+            : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
+          policyFailureMessage,
+        );
+        this.logger.error("Closing target because domain policy could not be guaranteed", {
+          category: "ctx",
+          targetId: String(info.targetId),
+          targetType: String(info.type),
+          targetUrl: String(info.url ?? ""),
+          sessionId,
+          cdpError: fetchErrorMessage,
+        });
+        await this.conn.send("Target.closeTarget", { targetId: info.targetId }).catch(() => {});
+        return;
+      }
+
+      // The caller never asked for enforcement, so a rejected pattern or a flaky
+      // enable must not cost them the page.
+      this.logger.error(
+        "Fetch.enable failed during target attach; continuing without domain policy enforcement",
+        {
+          category: "ctx",
+          targetId: String(info.targetId),
+          targetType: String(info.type),
+          targetUrl: String(info.url ?? ""),
+          sessionId,
+          cdpError: fetchErrorMessage,
+        },
       );
-      this.logger.error("Closing target because domain policy could not be guaranteed", {
-        category: "ctx",
-        targetId: String(info.targetId),
-        targetType: String(info.type),
-        targetUrl: String(info.url ?? ""),
-        sessionId,
-        cdpError: fetchErrorMessage,
-      });
-      await this.conn.send("Target.closeTarget", { targetId: info.targetId }).catch(() => {});
-      return;
     }
 
     const scriptsInstalled = coreResults.every(Boolean) && initScriptResults.every(Boolean);
@@ -982,7 +1016,7 @@ export class BrowserContext {
     info: Protocol.Target.TargetInfo,
     source: "targetCreated" | "targetInfoChanged" | "attached",
   ): Promise<boolean> {
-    if (!this.domainPolicy || !isTopLevelPage(info)) return false;
+    if (!isTopLevelPage(info)) return false;
     if (!info.openerId && !info.openerFrameId) return false;
     if (this.domainPolicyClosingTargets.has(info.targetId)) return true;
 
@@ -991,7 +1025,10 @@ export class BrowserContext {
       return source === "attached" ? await existingClose : true;
     }
 
-    const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
+    const decision = getDomainPolicyDecision(
+      info.url ?? "",
+      getEffectiveDomainPolicy(this.domainPolicy),
+    );
     if (decision.action === "continue") return false;
 
     this.logger.debug(
@@ -1006,6 +1043,16 @@ export class BrowserContext {
         source,
       },
     );
+
+    if (this.domainPolicy === null) {
+      let hostname = "";
+      try {
+        hostname = new URL(info.url ?? "").hostname.toLowerCase();
+      } catch {
+        // ignore malformed URLs for logging
+      }
+      this.warnOnBaselineBlock(hostname, decision.reason);
+    }
 
     const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
       failureMessage: "Failed to close popup after it reached a disallowed domain",

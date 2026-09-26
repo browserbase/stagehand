@@ -130,6 +130,8 @@ Return the context's current domain policy.
 const policy = await browser.context.getDomainPolicy();
 ```
 
+While no policy is set, this returns `null` and the context enforces the default posture described in `setDomainPolicy()`.
+
 <ResponseField name="result" type="Promise<DomainPolicy | null>">
   The operation result.
 
@@ -149,6 +151,18 @@ Set or clear the context's domain policy.
 ```typescript
 await browser.context.setDomainPolicy(null);
 ```
+
+A context starts with a default posture that blocks cloud metadata and link-local endpoints, so agent-driven navigation cannot reach them by accident. The default blocks `169.254.0.0/16`, IPv6 link-local addresses that begin with `fe80:`, IPv4-mapped IPv6 spellings, and the metadata endpoints `fd00:ec2::254`, `100.100.100.200`, `metadata.google.internal`, and `metadata.goog`. Blocked requests fail with Chrome's `BlockedByClient` error.
+
+Setting a policy replaces the default posture. To reach a host the default blocks, name it in `allowedDomains`:
+
+```typescript
+await browser.context.setDomainPolicy({ allowedDomains: ["169.254.1.5", "example.com"] });
+```
+
+An allowlist blocks every host you do not name, and a policy with only `blockedDomains` replaces the default list. Domain patterns match one host, and only a leading `*.` matches subdomains, so a link-local range or an IPv6 endpoint is not expressible as a pattern.
+
+Passing `null` clears your policy and returns the context to the default posture.
 
 <ParamField path="policy" type="DomainPolicy | null">
   The policy to apply, or null/None to clear it.
@@ -414,6 +428,8 @@ Return the context's current domain policy.
 policy = await browser.context.get_domain_policy()
 ```
 
+While no policy is set, this returns `None` and the context enforces the default posture described in `set_domain_policy()`.
+
 <ResponseField name="result" type="DomainPolicy | None">
   The operation result.
 
@@ -433,6 +449,18 @@ Set or clear the context's domain policy.
 ```python
 await browser.context.set_domain_policy(None)
 ```
+
+A context starts with a default posture that blocks cloud metadata and link-local endpoints, so agent-driven navigation cannot reach them by accident. The default blocks `169.254.0.0/16`, IPv6 link-local addresses that begin with `fe80:`, IPv4-mapped IPv6 spellings, and the metadata endpoints `fd00:ec2::254`, `100.100.100.200`, `metadata.google.internal`, and `metadata.goog`. Blocked requests fail with Chrome's `BlockedByClient` error.
+
+Setting a policy replaces the default posture. To reach a host the default blocks, name it in `allowed_domains`:
+
+```python
+await browser.context.set_domain_policy({"allowed_domains": ["169.254.1.5", "example.com"]})
+```
+
+An allowlist blocks every host you do not name, and a policy with only `blocked_domains` replaces the default list. Domain patterns match one host, and only a leading `*.` matches subdomains, so a link-local range or an IPv6 endpoint is not expressible as a pattern.
+
+Passing `None` clears your policy and returns the context to the default posture.
 
 <ParamField path="policy" type="DomainPolicy | DomainPolicyInput | None">
   The policy to apply, or null/None to clear it.
@@ -757,6 +785,8 @@ if err != nil {
 fmt.Println(policy)
 ```
 
+While no policy is set, this returns `nil` and the context enforces the default posture described in `SetDomainPolicy()`.
+
 <ResponseField name="result" type="*DomainPolicy">
   The operation result. Returns `nil` when no policy is set.
 
@@ -782,6 +812,22 @@ if err := browserContext.SetDomainPolicy(ctx, nil); err != nil {
     return err
 }
 ```
+
+A context starts with a default posture that blocks cloud metadata and link-local endpoints, so agent-driven navigation cannot reach them by accident. The default blocks `169.254.0.0/16`, IPv6 link-local addresses that begin with `fe80:`, IPv4-mapped IPv6 spellings, and the metadata endpoints `fd00:ec2::254`, `100.100.100.200`, `metadata.google.internal`, and `metadata.goog`. Blocked requests fail with Chrome's `BlockedByClient` error.
+
+Setting a policy replaces the default posture. To reach a host the default blocks, name it in `AllowedDomains`:
+
+```go
+if err := browserContext.SetDomainPolicy(ctx, &stagehand.DomainPolicy{
+    AllowedDomains: []string{"169.254.1.5", "example.com"},
+}); err != nil {
+    return err
+}
+```
+
+An allowlist blocks every host you do not name, and a policy with only `BlockedDomains` replaces the default list. Domain patterns match one host, and only a leading `*.` matches subdomains, so a link-local range or an IPv6 endpoint is not expressible as a pattern.
+
+Passing `nil` clears your policy and returns the context to the default posture.
 
 <ParamField path="policy" type="*DomainPolicy">
   The policy to apply, or `nil` to clear it.
