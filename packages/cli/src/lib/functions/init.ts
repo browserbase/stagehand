@@ -90,40 +90,34 @@ export async function withStagehand<T>(
   run: (tools: { stagehand: Stagehand; page: Page }) => Promise<T>,
 ): Promise<T> {
   // Attach to the session that Browserbase created for this invocation.
+  // Don't call browser.close(): it releases the session, and Browserbase releases it when the invocation ends.
   const browser = await browserbase.connect({
     apiKey: readSecret(context, "BROWSERBASE_API_KEY"),
     sessionId: context.session.id,
   });
 
-  try {
-    const stagehand = await Stagehand.create({
-      browser,
-      model: {
-        modelName: "openai/gpt-5.6-sol",
-        apiKey: readSecret(context, "OPENAI_API_KEY"),
-      },
-    });
+  const stagehand = await Stagehand.create({
+    browser,
+    model: {
+      modelName: "openai/gpt-5.6-sol",
+      apiKey: readSecret(context, "OPENAI_API_KEY"),
+    },
+  });
 
-    try {
-      const page = await browser.context.activePage();
-      if (!page) {
-        throw new Error("Stagehand initialized without an active page");
-      }
-      return await run({ stagehand, page });
-    } finally {
-      await stagehand.close();
+  try {
+    const page = await browser.context.activePage();
+    if (!page) {
+      throw new Error("Stagehand initialized without an active page");
     }
+    return await run({ stagehand, page });
   } finally {
-    // Browserbase owns the session. This closes only the connection.
-    await browser.close();
+    await stagehand.close();
   }
 }
 `;
 
-// pnpm 11 fails installs when esbuild's build script is not approved. pnpm 9 rejects this file without packages.
-const pnpmWorkspaceTemplate = `packages:
-  - "."
-allowBuilds:
+// pnpm 11 and later fail installs when esbuild's build script is not approved. This file holds only that setting.
+const pnpmWorkspaceTemplate = `allowBuilds:
   esbuild: true
 `;
 

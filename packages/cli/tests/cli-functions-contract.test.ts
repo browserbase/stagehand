@@ -465,6 +465,7 @@ exit 0
         "add @browserbasehq/sdk-functions @browserbasehq/stagehand",
       );
       expect(calls).toContain("add zod@4.4.3");
+      expect(calls).toContain("add -D typescript @types/node");
       expect(calls.some((call) => call.includes("playwright-core"))).toBe(
         false,
       );
@@ -473,9 +474,10 @@ exit 0
       expect(await readFile(join(projectRoot, "index.ts"), "utf8")).toContain(
         'from "./stagehand.js"',
       );
-      expect(
-        await readFile(join(projectRoot, "stagehand.ts"), "utf8"),
-      ).toContain("browserbase.connect(");
+      const helper = await readFile(join(projectRoot, "stagehand.ts"), "utf8");
+      expect(helper).toContain("browserbase.connect(");
+      // browser.close() releases the Function's session, which Browserbase owns.
+      expect(helper).not.toContain("await browser.close()");
       expect(await readFile(join(projectRoot, ".env"), "utf8")).toContain(
         "OPENAI_API_KEY=",
       );
