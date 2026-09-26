@@ -103,9 +103,7 @@ function findTaskFiles(dir: string): string[] {
  * Extra categories to ADD to a task's directory-derived category.
  */
 const EXTRA_CATEGORIES: Record<string, string[]> = {
-  instructions: ["regression"],
   ionwave: ["regression"],
-  wichita: ["regression"],
   extract_memorial_healthcare: ["regression"],
   observe_github: ["regression"],
   observe_main_frame_element_ids: ["regression"],
@@ -120,7 +118,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
   login: ["regression"],
   no_js_click: ["regression"],
   heal_simple_google_search: ["regression"],
-  extract_aigrant_companies: ["regression"],
   extract_regulations_table: ["targeted_extract"],
   extract_recipe: ["targeted_extract"],
   extract_aigrant_targeted: ["targeted_extract"],
