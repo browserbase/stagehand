@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import type { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
+import { splitSelectorHops } from "./selectorHops.js";
 
 export type SelectorQuery =
   | { kind: "css"; value: string }
@@ -46,11 +47,7 @@ export class FrameSelectorResolver {
 
     let selector = isCssPrefixed ? trimmed.replace(/^css=/i, "") : trimmed;
     if (selector.includes(">>")) {
-      selector = selector
-        .split(">>")
-        .map((piece) => piece.trim())
-        .filter(Boolean)
-        .join(" ");
+      selector = splitSelectorHops(selector).join(" ");
     }
 
     return { kind: "css", value: selector };
