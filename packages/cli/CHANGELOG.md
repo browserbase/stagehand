@@ -1,5 +1,11 @@
 # browse
 
+## 0.11.1
+
+### Patch Changes
+
+- [#2542](https://github.com/browserbase/stagehand/pull/2542) [`514970e`](https://github.com/browserbase/stagehand/commit/514970e13f2ffe7528407dd2e57e41a77b61e785) Thanks [@shrey150](https://github.com/shrey150)! - Fix local browser discovery (`--auto-connect`, `browse doctor`) trusting a stale cached debugging port after a different Chrome process later reuses that same port.
+
 ## 0.11.0
 
 ### Minor Changes
