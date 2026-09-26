@@ -1,0 +1,75 @@
+---
+title: "Smoke-test WebMCP before production"
+description: "Verify that a real page registers and completes a WebMCP tool invocation."
+---
+
+## Goal and output
+
+Open a WebMCP-enabled page in local Chromium, find a named tool exposed by that page, invoke it, and require a `Completed` result. The default target is the [Stagehand WebMCP test page](https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/) and its `calculateSum` tool. Point the same job at a deployed preview to catch missing registration before release. Stagehand launches Chromium with the WebMCP testing flags.
+
+## Agent prompt
+
+<Prompt description="Add a real-page WebMCP smoke test." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/webmcp-smoke-test` to my preview page. Launch local Chromium through Stagehand so WebMCP flags are present. After navigating, call `page.tools()` on the actual app page. Fail if no tools exist or the expected tool name is missing. Invoke that tool with the configured JSON input, await its result, and require status `Completed`. Exit nonzero on any failure and close Stagehand and Chromium. Start from the runnable language folder; do not replace the real page with handwritten handlers.
+</Prompt>
+
+## Prerequisites and inputs
+
+Install Chromium or Chrome. TypeScript needs Node.js 22.18+ and pnpm; Python needs Python 3.11+ and uv; Go needs Go 1.26+. `WEBMCP_URL` defaults to the test page, `WEBMCP_TOOL` defaults to `calculateSum`, and `WEBMCP_INPUT` defaults to `{"a":19,"b":23}`. Set all three for your own app's tool. No Browserbase or model API key is needed.
+
+## Check out and run
+
+The source is [`packages/examples/webmcp-smoke-test`](https://github.com/browserbase/stagehand/tree/main/packages/examples/webmcp-smoke-test). Clone it with the [overview command](/v4/examples/overview#check-out-one-job):
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+cd packages/examples/webmcp-smoke-test/typescript
+cp .env.example .env
+pnpm install
+pnpm start
+```
+</Tab>
+<Tab title="Python">
+```bash
+cd packages/examples/webmcp-smoke-test/python
+cp .env.example .env
+uv sync
+uv run python main.py
+```
+</Tab>
+<Tab title="Go">
+```bash
+cd packages/examples/webmcp-smoke-test/go
+cp .env.example .env
+go run .
+```
+</Tab>
+</Tabs>
+
+## How the job works
+
+1. Stagehand launches local Chromium with WebMCP testing support and loads `WEBMCP_URL`.
+2. `page.tools()` returns the registered tools. An empty list or missing `WEBMCP_TOOL` fails immediately.
+3. The script parses `WEBMCP_INPUT` as a JSON object, invokes the registered tool, awaits its result, and requires `Completed`.
+4. It prints the result and closes Stagehand and the browser.
+
+This is the registration and result check:
+
+```typescript
+const tools = await page.tools({ timeout: 5_000 });
+const tool = tools.find((candidate) => candidate.name === WEBMCP_TOOL);
+if (!tool) {
+  throw new Error(`Expected tool ${WEBMCP_TOOL} was not registered`);
+}
+
+const invocation = await tool.invoke({ input: JSON.parse(WEBMCP_INPUT) });
+const result = await invocation.result();
+if (result.status !== "Completed") {
+  throw new Error(`Tool failed: ${result.status}`);
+}
+```
+
+## Expected result and failure checks
+
+The default run invokes `calculateSum` and reports `Completed`. A blank or non-WebMCP page exits nonzero because `page.tools()` is empty. A wrong tool name, invalid input JSON, or a non-Completed result also fails. Against your app, use a deployed preview URL so this checks the production tool registration path rather than a copied fixture.

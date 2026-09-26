@@ -1,0 +1,68 @@
+---
+title: "Build an AI SDK research agent"
+description: "Research approved Stagehand docs pages in one browser and return a typed report with source URLs."
+---
+
+## Goal and output
+
+Ask an AI SDK agent to compare Stagehand `act()` and `extract()` by reading their two documentation pages. Two tools share one Browserbase page: one visits an approved URL, and one extracts facts from the current page with Stagehand. The final JSON report has an answer and facts attributed to the exact source URLs. The job rejects missing or unapproved sources.
+
+## Agent prompt
+
+<Prompt description="Build a source-bound AI SDK research agent with Stagehand." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/ai-sdk-research-agent` to my research question and approved sources. Keep one Browserbase browser and Stagehand instance alive throughout the AI SDK tool loop. Give the model visit and extraction tools. Check every URL against an exact approved list before navigation or extraction. Validate extracted facts and the final report, require each requested page to be visited and read, and reject invented citations. Close the browser resources in `finally`. Start from the runnable folder.
+</Prompt>
+
+## Prerequisites and inputs
+
+Use Node.js 22.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. This folder uses OpenAI for the AI SDK agent and Stagehand; see [model configuration](/v4/configuration/models) to adapt Stagehand to another provider. `OPENAI_MODEL` optionally selects the agent model. The approved URLs are `/v4/basics/act` and `/v4/basics/extract` on `docs.stagehand.dev`.
+
+## Check out and run
+
+The source is [`packages/examples/ai-sdk-research-agent`](https://github.com/browserbase/stagehand/tree/main/packages/examples/ai-sdk-research-agent). Clone it with the [overview command](/v4/examples/overview#check-out-one-job):
+
+```bash
+cd packages/examples/ai-sdk-research-agent/typescript
+cp .env.example .env
+pnpm install
+pnpm start
+```
+
+## How the job works
+
+1. Launch one Browserbase session and create Stagehand. Both tools retain the same page object, so reading follows navigation in the same browser.
+2. `visitSource` checks the requested URL against an exact list before `page.goto()`. `readCurrentPage` checks the current URL again and calls `extract()` with a typed facts schema.
+3. AI SDK `generateText()` runs the tools and requires a structured report. Afterward, the job verifies that both URLs were visited, extracted, and cited, and that no extra URL appears.
+4. Close Stagehand and the browser even if an AI SDK tool or validation fails.
+
+The tools check each requested URL before Stagehand visits or reads it:
+
+```typescript
+const tools = {
+  visitSource: tool({
+    inputSchema: z.object({ url: z.url() }),
+    execute: async ({ url }) => {
+      if (!sourceUrls.includes(url)) {
+        throw new Error("URL is not approved");
+      }
+
+      await page.goto(url);
+      return { url: await page.url(), title: await page.title() };
+    },
+  }),
+  readCurrentPage: tool({
+    inputSchema: z.object({ question: z.string().min(1) }),
+    execute: async ({ question }) => {
+      const result = await stagehand.extract(question, factsSchema, { page });
+
+      return { url: await page.url(), ...factsSchema.parse(result.data) };
+    },
+  }),
+};
+```
+
+The runnable code also checks the current URL before reading and validates the final report's source list.
+
+## Expected result and failure checks
+
+The CLI prints JSON with a comparison answer and source entries for both approved pages. A visit request for another URL fails before navigation. Missing facts, a missing page, an incomplete report, or an extra citation fails rather than returning a partial answer. The agent's model may vary its wording; the source and schema checks are deterministic.

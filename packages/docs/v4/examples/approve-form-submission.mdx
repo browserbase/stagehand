@@ -1,0 +1,83 @@
+---
+title: "Approve a form submission"
+description: "Fill a test form with Stagehand, then require a human decision before the submit click."
+---
+
+## Goal and output
+
+Fill the [httpbin test form](https://httpbin.org/forms/post) in a Browserbase cloud browser. Pause before the final `act()` that submits it. Answering `n` exits without submitting; answering `y` submits once and prints the destination URL. This is a local CLI approval example, not a persistent review service.
+
+## Agent prompt
+
+<Prompt description="Add an approval gate before Stagehand submits a form." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/approve-form-submission` to the form in my project. Keep a Browserbase cloud browser open while the form waits for approval. Fill user values through Stagehand variables. Show the pending action before asking for approval. A rejection must never call submit; an approval must call it once. In TypeScript, use the AI SDK `needsApproval` tool gate. In Python or Go, use the CLI gate shown in the folder. Check every `act()` result and close Stagehand and the browser even when the action fails. Start with the runnable folder; do not recreate it from this prompt.
+</Prompt>
+
+## Prerequisites and inputs
+
+Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. These folders use OpenAI as the example model provider; see [model configuration](/v4/configuration/models) to use another provider with Stagehand. TypeScript needs Node.js 22.18+ and pnpm, Python needs Python 3.11+ and uv, and Go needs Go 1.26+. Change the test name, email, size, and comments at the call site when adapting the job.
+
+## Check out and run
+
+The source is [`packages/examples/approve-form-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/approve-form-submission). Clone this folder with the [overview command](/v4/examples/overview#check-out-one-job), then use one language:
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+cd packages/examples/approve-form-submission/typescript
+cp .env.example .env
+pnpm install
+pnpm start
+```
+</Tab>
+<Tab title="Python">
+```bash
+cd packages/examples/approve-form-submission/python
+cp .env.example .env
+uv sync
+uv run python main.py
+```
+</Tab>
+<Tab title="Go">
+```bash
+cd packages/examples/approve-form-submission/go
+cp .env.example .env
+set -a; . ./.env; set +a
+go run .
+```
+</Tab>
+</Tabs>
+
+## How the job works
+
+1. Launch Browserbase and create Stagehand. Keep both alive until the answer is received.
+2. Fill the form with `act()` and `%variable%` placeholders. Check each result's `success` field so a failed fill cannot proceed to approval.
+3. Present a single submit action. TypeScript separates `fillForm` and `submitForm` tools; only `submitForm` has `needsApproval: true`. Python and Go read `y` or `n` from stdin before the submit call.
+4. Submit at most once, print the result URL, and close both resources in `finally` or deferred cleanup.
+
+The TypeScript submit tool asks for approval before its `execute` function runs:
+
+```typescript
+submitForm: tool({
+  description: "Submit the filled test order form.",
+  inputSchema: z.object({ summary: z.string() }),
+  needsApproval: true,
+  execute: async () => {
+    const result = await stagehand.act(
+      "Click the Submit order button",
+      { page },
+    );
+    if (!result.data.success) {
+      throw new Error(result.data.message);
+    }
+
+    return { submitted: true, url: await page.url() };
+  },
+}),
+```
+
+The CLI keeps the browser open while waiting for an answer. If you move approval to an asynchronous service, persist the pending approval ID, model messages, and Browserbase session ID so you can resume the same action.
+
+## Expected result and failure checks
+
+The filled page appears before `Submit this form? [y/N]`. `n` prints a rejection and never clicks Submit. `y` produces one submission and a URL. Missing keys fail before browser launch. A failed form action or submission exits with an error.
