@@ -87,6 +87,24 @@ describe the TypeScript SDK.
 
 - [#2754](https://github.com/browserbase/stagehand/pull/2754) [`a21633d`](https://github.com/browserbase/stagehand/commit/a21633d53930abc5d62b8dbd6b608995f2ccb4b1) Thanks [@monadoid](https://github.com/monadoid)! - remove the redundant image type from page screenshot protocol responses.
 
+## TypeScript SDK 4.0.3
+
+### Patch Changes
+
+- [#2913](https://github.com/browserbase/stagehand/pull/2913) [`ba73d4e`](https://github.com/browserbase/stagehand/commit/ba73d4ebef1021d9ffdf857350b4a8dd9846549f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fail fast on protocol compatibility errors
+
+## Python SDK 4.0.3
+
+### Patch Changes
+
+- [#2913](https://github.com/browserbase/stagehand/pull/2913) [`ba73d4e`](https://github.com/browserbase/stagehand/commit/ba73d4ebef1021d9ffdf857350b4a8dd9846549f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fail fast on protocol compatibility errors
+
+## Go SDK 4.0.3
+
+### Patch Changes
+
+- [#2913](https://github.com/browserbase/stagehand/pull/2913) [`ba73d4e`](https://github.com/browserbase/stagehand/commit/ba73d4ebef1021d9ffdf857350b4a8dd9846549f) Thanks [@miguelg719](https://github.com/miguelg719)! - Fail fast on protocol compatibility errors
+
 ## TypeScript SDK 4.0.2
 
 ### Patch Changes
