@@ -1197,6 +1197,102 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Step>
 </Steps>
 </Accordion>
+
+<Accordion title="OpenAI-compatible URLs">
+
+The TypeScript, Python, and Go SDKs include a helper for any Chat Completions endpoint. No provider SDK is required. Pass the gateway's model id, base URL, and API key.
+
+<Steps>
+<Step title="Configure the model">
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { openAICompatible } from "@browserbasehq/stagehand";
+
+const model = openAICompatible({
+  model: "xiaomi/mimo-v2.6-pro",
+  baseURL: "https://ai-gateway.vercel.sh/v1",
+  apiKey: process.env.AI_GATEWAY_API_KEY!,
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+
+from stagehand import open_ai_compatible
+
+model = open_ai_compatible(
+    model="xiaomi/mimo-v2.6-pro",
+    base_url="https://ai-gateway.vercel.sh/v1",
+    api_key=os.environ["AI_GATEWAY_API_KEY"],
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+model := stagehand.OpenAICompatible(stagehand.OpenAICompatibleOptions{
+	Model:   "xiaomi/mimo-v2.6-pro",
+	BaseURL: "https://ai-gateway.vercel.sh/v1",
+	APIKey:  os.Getenv("AI_GATEWAY_API_KEY"),
+})
+```
+</Tab>
+</Tabs>
+</Step>
+
+<Step title="Pass the helper to Stagehand">
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  model,
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    model=model,
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:  browser,
+	Generate: model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+</Tabs>
+
+</Step>
+</Steps>
+</Accordion>
 <Accordion title="All providers">
 
 The pattern is the same for every provider: implement one function, wire it in, done. Your callback never crosses the wire; Stagehand records only that the model lives on the client and calls back to you over the same connection.
