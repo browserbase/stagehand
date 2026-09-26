@@ -441,7 +441,7 @@ describe("JSON-RPC wire casing", () => {
       },
       telemetry: {
         traces: {
-          endpoint: "https://example.com/v1/traces",
+          endpoint: "https://collector.example.com/v1/traces",
           headers: { doNotRenameMe: "value" },
         },
       },
@@ -462,7 +462,7 @@ describe("JSON-RPC wire casing", () => {
       },
       telemetry: {
         traces: {
-          endpoint: "https://example.com/v1/traces",
+          endpoint: "https://collector.example.com/v1/traces",
           headers: { doNotRenameMe: "value" },
         },
       },

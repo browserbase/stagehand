@@ -6,7 +6,7 @@ import {
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
 import { ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import extensionPackageJson from "../package.json" with { type: "json" };
 import { createStagehandTracing, createStagehandTracingRuntime } from "../tracing.ts";
 
@@ -17,6 +17,28 @@ afterEach(async () => {
 });
 
 describe("Stagehand tracing", () => {
+  it("does not create a tracing runtime when telemetry is omitted", async () => {
+    const forceFlush = vi.fn(async () => {});
+    const shutdown = vi.fn(async () => {});
+    const processor: SpanProcessor = {
+      forceFlush,
+      onEnd: vi.fn(),
+      onStart: vi.fn(),
+      shutdown,
+    };
+    const tracing = createStagehandTracing(
+      { registerGlobals: false },
+      { spanProcessors: [processor] },
+    );
+
+    tracing.configure(undefined, { name: "stagehand-sdk-test", version: "4.0.0" });
+    await tracing.forceFlush();
+    await tracing.shutdown();
+
+    expect(forceFlush).not.toHaveBeenCalled();
+    expect(shutdown).not.toHaveBeenCalled();
+  });
+
   it("fans out every finished span to every installed span processor", async () => {
     const firstExporter = new InMemorySpanExporter();
     const secondExporter = new InMemorySpanExporter();

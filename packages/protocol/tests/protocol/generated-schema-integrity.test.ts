@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { StagehandMethods, StagehandNotifications } from "../../schema-registry.js";
-import { DEFAULT_TELEMETRY_CONFIG } from "../../schemas.js";
+import { STAGEHAND_PROTOCOL_VERSION, StagehandInitParamsSchema } from "../../schemas.js";
 
 const schemaUrl = new URL("../../stagehand.v4.json", import.meta.url);
 
@@ -92,24 +92,41 @@ describe("generated Stagehand schema integrity", () => {
     );
   });
 
-  it("keeps referenced Zod defaults on every generated field that uses them", async () => {
+  it("keeps telemetry optional when it is omitted from stagehand.init", async () => {
     const protocol = await readProtocol();
     const methods = asRecord(asRecord(asRecord(protocol.properties).methods).properties);
-    const telemetryDefault = DEFAULT_TELEMETRY_CONFIG;
+    const method = asRecord(methods["stagehand.init"]);
+    const params = resolveLocalReference(
+      protocol,
+      asRecord(asRecord(method.properties).params).$ref as string,
+    );
+    const telemetrySchema = asRecord(asRecord(asRecord(params).properties).telemetry);
 
-    for (const methodName of ["stagehand.init"]) {
-      const method = asRecord(methods[methodName]);
-      const params = resolveLocalReference(
-        protocol,
-        asRecord(asRecord(method.properties).params).$ref as string,
-      );
-      const telemetry = asRecord(asRecord(asRecord(params).properties).telemetry);
-
-      expect(
-        telemetry.default,
-        `${methodName}.telemetry must preserve its Zod default`,
-      ).toStrictEqual(telemetryDefault);
-    }
+    expect(asRecord(params).required).not.toContain("telemetry");
+    expect(telemetrySchema).toStrictEqual({ $ref: "#/$defs/TelemetryConfig" });
+    expect(
+      StagehandInitParamsSchema.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+      }),
+    ).not.toHaveProperty("telemetry");
+    expect(
+      StagehandInitParamsSchema.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+        telemetry: {
+          traces: {
+            endpoint: "https://collector.example.com/v1/traces",
+            headers: { Authorization: "Bearer test" },
+          },
+        },
+      }).telemetry,
+    ).toStrictEqual({
+      traces: {
+        endpoint: "https://collector.example.com/v1/traces",
+        headers: { Authorization: "Bearer test" },
+      },
+    });
   });
 });
 

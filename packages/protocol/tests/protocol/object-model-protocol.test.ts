@@ -67,12 +67,6 @@ describe("Stagehand object-model protocol", () => {
         region: "eu-central-1",
       },
       model: { modelName: "openai/gpt-5-mini" },
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
     });
   });
 

@@ -36,7 +36,7 @@ type StagehandTracingRuntime = {
 };
 
 export type StagehandTracing = StagehandTracingRuntime & {
-  configure(telemetry: TelemetryConfig, clientInfo: ImplementationInfo): Promise<void>;
+  configure(telemetry: TelemetryConfig | undefined, clientInfo: ImplementationInfo): Promise<void>;
 };
 
 type StagehandTracingRuntimeDependencies = {
@@ -117,6 +117,10 @@ export function createStagehandTracing(
         const previousRuntime = runtime;
         runtime = undefined;
         await previousRuntime?.shutdown();
+        activeTelemetry = undefined;
+        activeClientInfo = undefined;
+        // Without an explicit telemetry sink, tracing stays inert: no OTLP export.
+        if (!telemetry) return;
 
         const registerGlobals = options.registerGlobals !== false && !globalsRegistered;
         runtime = createStagehandTracingRuntime(
