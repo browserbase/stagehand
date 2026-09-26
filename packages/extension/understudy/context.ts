@@ -65,6 +65,29 @@ function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
   return info.type !== "iframe" || !hasInjectableDOM(info.url);
 }
 
+/**
+ * Worker targets that own their own network stack. A service worker is a
+ * separate CDP target, so its requests are never attributed to the page session
+ * that carries the domain policy interception. Dedicated workers are
+ * deliberately absent: Chrome attributes their requests to the owning page
+ * target, which the page session already gates. Shared workers are absent too:
+ * a shared worker that is already running when the policy is set never reports
+ * its requests to its own session, so covering only freshly started ones would
+ * leave an inconsistent hole.
+ */
+const WORKER_TARGET_TYPES = new Set(["service_worker"]);
+
+/**
+ * A policy written for page content must not cut off the runtime's own traffic,
+ * so only workers that serve http(s) code are in scope. The extension's own
+ * service worker lives on chrome-extension://.
+ */
+function isPolicyScopedWorkerTarget(info: Protocol.Target.TargetInfo): boolean {
+  if (!WORKER_TARGET_TYPES.has(String(info.type))) return false;
+  const url = String(info.url ?? "");
+  return url.startsWith("http://") || url.startsWith("https://");
+}
+
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   const ti = info as unknown as { subtype?: string };
   return info.type === "page" && ti.subtype !== "iframe";
@@ -101,6 +124,7 @@ export class BrowserContext {
   >();
 
   readonly _sessionInit = new Set<SessionId>();
+  readonly _workerSessions = new Set<SessionId>();
   pagesByTarget = new Map<TargetId, Page>();
   mainFrameToTarget = new Map<string, TargetId>();
   sessionOwnerPage = new Map<SessionId, Page>();
@@ -346,7 +370,7 @@ export class BrowserContext {
     this.domainPolicy = nextPolicy;
 
     const sessions: CDPSessionLike[] = [];
-    for (const sessionId of this._sessionInit) {
+    for (const sessionId of new Set([...this._sessionInit, ...this._workerSessions])) {
       const session = this.conn.getSession(sessionId);
       if (session) sessions.push(session);
     }
@@ -407,6 +431,45 @@ export class BrowserContext {
       });
       throw failures[0]!.reason;
     }
+  }
+
+  /**
+   * Worker targets skip page initialization, but their requests still leave the
+   * browser. When a policy is active, gate the worker's own session with the
+   * same Fetch interception the page sessions use.
+   *
+   * The enable is deliberately not awaited: the target is paused by
+   * waitForDebuggerOnStart, and a backend that defers the response until after
+   * resume would stall the attach path.
+   */
+  enableDomainPolicyOnWorkerTarget(
+    session: CDPSessionLike,
+    info: Protocol.Target.TargetInfo,
+  ): void {
+    if (!isPolicyScopedWorkerTarget(info)) return;
+
+    const sessionId = session.id;
+    // Track the session even when no policy is active yet: setDomainPolicy has
+    // to reach workers that attached before the policy was set.
+    if (sessionId) this._workerSessions.add(sessionId);
+
+    const policy = this.domainPolicy;
+    if (!policy) return;
+
+    this.installDomainPolicyHandler(session);
+    void session
+      .send("Fetch.enable", { patterns: policy.fetchPatterns })
+      .catch((error: unknown) => {
+        this.uninstallDomainPolicyHandler(session);
+        this.logger.error("Fetch.enable failed on worker target; domain policy is not enforced", {
+          category: "ctx",
+          targetId: String(info.targetId),
+          targetType: String(info.type),
+          targetUrl: String(info.url ?? ""),
+          sessionId: session.id ?? "unknown",
+          cdpError: error instanceof Error ? error.message : String(error),
+        });
+      });
   }
 
   installDomainPolicyHandler(session: CDPSessionLike): void {
@@ -670,6 +733,7 @@ export class BrowserContext {
     if (isNonWebTarget(info)) {
       const session = this.conn.getSession(sessionId);
       if (session) {
+        this.enableDomainPolicyOnWorkerTarget(session, info);
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
       }
       return;
@@ -1072,6 +1136,7 @@ export class BrowserContext {
       this._domainPolicySessionListeners.delete(sessionId);
     }
     this._sessionInit.delete(sessionId);
+    this._workerSessions.delete(sessionId);
   }
 
   /**

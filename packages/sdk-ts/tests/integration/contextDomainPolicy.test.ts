@@ -20,6 +20,38 @@ async function imageLoads(page: Page, url: string): Promise<boolean> {
   });
 }
 
+const serviceWorkerPage = `<!doctype html><html><body>
+<script>navigator.serviceWorker.register("/service-worker.js", { scope: "/" });</script>
+</body></html>`;
+
+// A service worker is its own CDP target, so its requests never reach the page
+// session that carries the policy interception. It reports what the fetch did
+// back to the page instead of asserting inside the worker.
+const serviceWorkerScript = `self.addEventListener("install", (event) => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("message", (event) => {
+  event.waitUntil(
+    fetch(event.data, { mode: "no-cors" }).then(
+      () => event.source.postMessage("ok"),
+      (error) => event.source.postMessage("error:" + error.message),
+    ),
+  );
+});`;
+
+async function serviceWorkerFetch(page: Page, url: string): Promise<string> {
+  return page.evaluate(async (target: string) => {
+    const registration = await navigator.serviceWorker.ready;
+    return await new Promise<string>((resolve) => {
+      const timer = setTimeout(() => resolve("timeout"), 8_000);
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        clearTimeout(timer);
+        resolve(String(event.data));
+      });
+      registration.active?.postMessage(target);
+    });
+  }, url);
+}
+
 describe("context.setDomainPolicy", () => {
   let fixture: FixtureServer;
   let stagehand: Stagehand;
@@ -33,6 +65,11 @@ describe("context.setDomainPolicy", () => {
         body: `<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>`,
       },
       "/popup": `<h1>popup</h1>`,
+      "/service-worker.html": serviceWorkerPage,
+      "/service-worker.js": {
+        headers: { "content-type": "text/javascript; charset=utf-8" },
+        body: serviceWorkerScript,
+      },
     });
     allowedUrl = new URL("/pixel.svg", fixture.url).href;
     alternateHostUrl = allowedUrl.replace("127.0.0.1", "alternate.test");
@@ -93,6 +130,26 @@ describe("context.setDomainPolicy", () => {
 
     const response = await page.goto(allowedUrl);
     expect(response?.ok()).toBe(true);
+  });
+
+  it("blocks service-worker requests to blocked domains", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(new URL("/service-worker.html", fixture.url).href);
+    // Prove the worker reaches the alternate host before the policy exists, so
+    // the later failure can only be attributed to the policy.
+    await expect(serviceWorkerFetch(page, alternateHostUrl)).resolves.toBe("ok");
+
+    await stagehand.browser.context.setDomainPolicy({ blockedDomains: ["alternate.test"] });
+
+    await expect(serviceWorkerFetch(page, alternateHostUrl)).resolves.toMatch(/^error:/);
+  });
+
+  it("blocks service-worker requests when the policy is set before the worker starts", async () => {
+    await stagehand.browser.context.setDomainPolicy({ blockedDomains: ["alternate.test"] });
+    const page = await firstPage(stagehand);
+    await page.goto(new URL("/service-worker.html", fixture.url).href);
+
+    await expect(serviceWorkerFetch(page, alternateHostUrl)).resolves.toMatch(/^error:/);
   });
 
   it("does not retain a popup targeting a blocked domain", async () => {
