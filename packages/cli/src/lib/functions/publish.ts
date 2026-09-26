@@ -217,15 +217,23 @@ function ensureArchiveLockfile(
   mkdirSync(tempDir, { recursive: true });
   copyFileSync(join(root, "package.json"), join(tempDir, "package.json"));
 
-  const result = spawnSync("npm", ["install", "--package-lock-only"], {
-    cwd: tempDir,
-    stdio: "pipe",
-  });
+  // Omit resolved URLs so the lockfile does not point at a local registry the builder cannot reach.
+  const result = spawnSync(
+    "npm",
+    ["install", "--package-lock-only", "--omit-lockfile-registry-resolved"],
+    {
+      cwd: tempDir,
+      stdio: "pipe",
+    },
+  );
 
   if (result.status !== 0) {
     rmSync(tempDir, { recursive: true, force: true });
+    const npmOutput = result.error
+      ? result.error.message
+      : result.stderr.toString().trim();
     fail(
-      "Failed to generate package-lock.json for the Functions build archive.",
+      `Failed to generate package-lock.json for the Functions build archive.${npmOutput ? `\n${npmOutput}` : ""}`,
     );
   }
 
