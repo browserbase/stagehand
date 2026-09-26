@@ -3,13 +3,203 @@ title: 'Deploying Stagehand'
 description: 'Deploy your AI agents and automations to the cloud'
 ---
 
-<Tip>
-**🌟 Preview: Browserbase Functions with Secrets** - Deploy your automation code directly on Browserbase using Functions with Secrets. See the [Functions docs](https://docs.browserbase.com/platform/runtime) and reach out to support@browserbase.com to get beta access to Secrets support.
+We recommend that you deploy Stagehand as a [Browserbase Function](https://docs.browserbase.com/platform/functions/quickstart). The Function runs next to its browser session on Browserbase, and it reads your API keys from encrypted project secrets. You do not need a separate server, a Chrome binary, or a secrets store.
 
-To deploy Stagehand today, you may also use the Vercel guide below.
-</Tip>
+Stagehand also runs on other platforms. If Functions is not a good fit for you, see [Other deployment options](#other-deployment-options).
 
-## Deploy on Vercel
+## Prerequisites
+
+- A Browserbase API key from [Settings](https://www.browserbase.com/settings)
+- A model provider API key. This guide uses OpenAI.
+- Node.js and pnpm
+- The `browse` CLI:
+
+```bash
+npm install -g browse
+```
+
+## Deploy a Stagehand Function
+
+<Steps>
+
+<Step title="Create the project">
+
+```bash
+browse functions init my-stagehand-function
+cd my-stagehand-function
+```
+</Step>
+
+<Step title="Upload the Stagehand extension">
+
+Stagehand needs its extension in the browser session, and a session cannot get an extension after it starts. Upload the extension one time for your project:
+
+```bash
+browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+```
+
+Copy the `id` from the output. The Function uses it in the next step.
+
+</Step>
+
+<Step title="Write the Function">
+
+Replace `index.ts` with:
+
+```typescript
+import { defineFn } from "@browserbasehq/sdk-functions";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+// The ID from `browse cloud extensions upload`. The build reads it into the Function manifest, so use a literal value.
+const STAGEHAND_EXTENSION_ID = "your-extension-id";
+
+type Secrets = Record<string, string | undefined>;
+
+// Deployed Functions get secrets on context.secrets. The local dev server does not, so fall back to the environment.
+function readSecret(secrets: Secrets | undefined, name: string): string {
+  const value = secrets?.[name] ?? process.env[name];
+  if (!value) {
+    throw new Error(`Secret "${name}" is not set`);
+  }
+  return value;
+}
+
+defineFn(
+  "stagehand-task",
+  async (context) => {
+    const secrets = context.secrets as Secrets | undefined;
+
+    // Attach to the session that Browserbase created for this invocation.
+    const browser = await browserbase.connect({
+      apiKey: readSecret(secrets, "BROWSERBASE_API_KEY"),
+      sessionId: context.session.id,
+    });
+
+    try {
+      const stagehand = await Stagehand.create({
+        browser,
+        model: {
+          modelName: "openai/gpt-5.6-sol",
+          apiKey: readSecret(secrets, "OPENAI_API_KEY"),
+        },
+      });
+
+      try {
+        const page = await browser.context.activePage();
+        if (!page) throw new Error("Stagehand initialized without an active page");
+
+        await page.goto("https://www.stagehand.dev/");
+        await stagehand.act("click the evals button");
+
+        const { data } = await stagehand.extract(
+          "extract the fastest model",
+          z.object({ fastestModel: z.string() }),
+        );
+        return { fastestModel: data.fastestModel };
+      } finally {
+        await stagehand.close();
+      }
+    } finally {
+      // Browserbase owns the session. This closes only the connection.
+      await browser.close();
+    }
+  },
+  {
+    sessionConfig: {
+      extensionId: STAGEHAND_EXTENSION_ID,
+    },
+  },
+);
+```
+
+Replace `your-extension-id` with the ID from the previous step.
+
+</Step>
+
+<Step title="Test locally">
+
+Export your keys, then start the development server:
+
+```bash
+export BROWSERBASE_API_KEY=your_browserbase_api_key
+export OPENAI_API_KEY=your_openai_api_key
+browse functions dev index.ts
+```
+
+In another terminal, invoke the Function by the name that you gave to `defineFn`:
+
+```bash
+curl --request POST \
+  --url http://127.0.0.1:14113/v1/functions/stagehand-task/invoke \
+  --header 'Content-Type: application/json' \
+  --data '{}'
+```
+
+</Step>
+
+<Step title="Publish">
+
+```bash
+browse functions publish index.ts
+```
+
+The output contains `builtFunctions`. Copy the `id` of `stagehand-task`. This is the Function ID.
+
+<Warning>
+You're looking for `builtFunctions[].id` for this step.
+</Warning>
+
+If the build fails, open the build in the Browserbase dashboard to see the build logs.
+
+</Step>
+
+<Step title="Create and attach the secrets">
+
+Create one project secret for each key. The name of the secret is the key in `context.secrets`:
+
+```bash
+browse cloud secrets create BROWSERBASE_API_KEY --env BROWSERBASE_API_KEY
+browse cloud secrets create OPENAI_API_KEY --env OPENAI_API_KEY
+```
+
+The CLI encrypts each value on your machine before it sends it. Copy the `id` of each secret, then attach both secrets to the Function:
+
+```bash
+browse functions secrets attach <functionId> <browserbaseApiKeySecretId>
+browse functions secrets attach <functionId> <openaiApiKeySecretId>
+browse functions secrets list <functionId>
+```
+
+The `list` output must show both secrets. Attached secrets take effect on the next invocation.
+
+</Step>
+
+<Step title="Invoke the Function">
+
+```bash
+browse functions invoke <functionId>
+```
+
+The command waits for the invocation and prints its result. You can also invoke the Function from the Browserbase dashboard.
+
+</Step>
+
+</Steps>
+
+## Troubleshooting
+
+- **`function or secret not found` when you attach a secret**: an ID is incorrect. Use `browse cloud secrets list` to verify your secret IDs and the Functions dashboard to verify your Function ID.
+- **`Secret "BROWSERBASE_API_KEY" is not set`**: the secret is not attached to this Function. Run `browse functions secrets list <functionId>` to view attached secrets and `browse functions secrets attach <functionId> <secretId>` to attach the missing secret.
+
+## Features
+
+- **No local browsers needed**: Browserbase provides the browser, so your Function ships without a Chrome binary.
+- **Encrypted secrets**: your API keys stay in Browserbase project secrets, and the Function reads them from `context.secrets`.
+
+## Other deployment options
+
+<Accordion title="Deploy on Vercel">
 
 Run Stagehand on Browserbase inside a Vercel Function. This guide shows a minimal HTTP endpoint you can call directly or on a schedule.
 
@@ -645,8 +835,10 @@ Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations
 </Step>
 </Steps>
 
-### Features
+**Features**
 - **No local browsers needed** with a Browserbase browser. [Browserbase](https://www.browserbase.com/) provides the browsers, so your function ships without a Chrome binary.
 - **Fast functionality**: Offload browser work to Browserbase and return JSON promptly.
 - **Long-running tasks**: Raise `maxDuration` and/or consider Edge runtime limits depending on plan.
 - **Cheap repeat runs**: Turn on [server-side caching](/v4/best-practices/caching) so scheduled invocations replay recorded actions instead of paying for inference every hour.
+
+</Accordion>
