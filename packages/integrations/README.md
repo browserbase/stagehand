@@ -15,6 +15,7 @@ else, never restated.
 | `codex/`       | Codex SDK example (config-override MCP mount) plus a `config.toml` template for the codex CLI.                                                                               |
 | `cursor/`      | Cursor agent CLI configuration template (`.cursor/mcp.json`) and AGENTS.md guidance — the CLI consumes the facade as a project MCP server.                                   |
 | `crewai/`      | Python CrewAI example over MCP/stdio (uv project).                                                                                                                           |
+| `pydantic-ai/` | Python Pydantic AI example over MCP/stdio (uv project), plus the eval runner used by `--harness pydantic_ai`.                                                                |
 | `deepagents/`  | Python LangChain Deep Agents integrations: a local stdio MCP server and a Managed Deep Agents project with native tools.                                                     |
 | `eve/`         | Eve example with the tools bound natively via `defineTool` (Eve has no external-process tool mounting).                                                                      |
 | `fx/`          | fx configuration templates and skill — fx consumes the facade via its user-global MCP config.                                                                                |

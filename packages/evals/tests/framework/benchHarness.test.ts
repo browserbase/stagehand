@@ -16,9 +16,11 @@ import {
   fxHarness,
   deepagentsHarness,
   eveHarness,
+  pydanticAiHarness,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
 import { MASTRA_TOOL_SURFACES } from "../../framework/mastraToolAdapter.js";
+import { PYDANTIC_AI_TOOL_SURFACES } from "../../framework/pydanticAiToolAdapter.js";
 import { PI_TOOL_SURFACES } from "../../framework/piToolAdapter.js";
 import { CURSOR_TOOL_SURFACES } from "../../framework/cursorToolAdapter.js";
 import { defaultModelsEnvKey } from "../../framework/benchPlanner.js";
@@ -39,6 +41,7 @@ describe("bench harness registry", () => {
       "deepagents",
       "fx",
       "cursor",
+      "pydantic_ai",
     ]);
   });
 
@@ -46,7 +49,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, pydantic_ai\./,
     );
   });
 
@@ -161,6 +164,27 @@ describe("bench harness registry", () => {
     ]);
     expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
     expect(isExecutableBenchHarness("fx")).toBe(true);
+  });
+
+  it("registers pydantic_ai as a concrete executable harness", () => {
+    const harness = getBenchHarness("pydantic_ai");
+
+    expect(parseBenchHarness("pydantic_ai")).toBe("pydantic_ai");
+    expect(harness).toBe(pydanticAiHarness);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    expect(harness.start).toBeUndefined();
+    expect(harness.supportedToolSurfaces).toEqual(PYDANTIC_AI_TOOL_SURFACES);
+    expect(harness.supportedToolSurfaces).toEqual([
+      "stagehand_facade",
+      "playwright_mcp",
+      "chrome_devtools_mcp",
+    ]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(isExecutableBenchHarness("pydantic_ai")).toBe(true);
+    expect(listBenchHarnessesForToolSurface("stagehand_facade")).toContain("pydantic_ai");
+    expect(defaultModelsEnvKey("pydantic_ai")).toBe("EVAL_PYDANTIC_AI_MODELS");
   });
 
   it("registers cursor as a concrete executable harness", () => {
