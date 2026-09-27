@@ -1587,6 +1587,25 @@ export class Page {
     return await withScreenshotLock(this, exec, opts.timeout);
   }
 
+  /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
+  async pdf(
+    options?: Omit<Protocol.Page.PrintToPDFRequest, "transferMode"> & { timeout?: number },
+  ): Promise<Pick<Protocol.Page.PrintToPDFResponse, "data">> {
+    const { timeout = 30_000, ...printOptions } = options ?? {};
+    return await withScreenshotLock(
+      this,
+      async () => {
+        const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
+          "Page.printToPDF",
+          { ...printOptions, transferMode: "ReturnAsBase64" },
+        );
+        return { data };
+      },
+      timeout,
+      "pdf",
+    );
+  }
+
   /**
    * specifies additional HTTP headers to be included in every request sent by
    * the root CDP session of the page, and all of its child CDP sessions.
