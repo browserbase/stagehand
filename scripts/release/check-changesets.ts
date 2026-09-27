@@ -20,6 +20,13 @@ export function validateChangeset(contents: string, file: string): void {
     throw new Error(`${file} does not contain valid changeset frontmatter`, { cause: error });
   }
 
+  if (
+    releases.some(({ name }) => name === "browse") &&
+    releases.some(({ name }) => name !== "browse")
+  ) {
+    throw new Error(`${file} must separate Browse and SDK releases into different changeset files`);
+  }
+
   const invalidPackages = releases
     .map(({ name }) => name)
     .filter((packageName) => !allowedPackages.has(packageName));
