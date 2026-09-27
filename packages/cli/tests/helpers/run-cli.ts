@@ -12,6 +12,7 @@ export interface CliResult {
 
 export interface RunCliOptions {
   cwd?: string;
+  stdin?: string;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -31,16 +32,25 @@ export function runCli(
           NODE_ENV: "test",
           ...options.env,
         },
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [
+          options.stdin === undefined ? "ignore" : "pipe",
+          "pipe",
+          "pipe",
+        ],
       },
     );
 
+    if (options.stdin !== undefined) {
+      child.stdin?.on("error", () => {});
+      child.stdin?.end(options.stdin);
+    }
+
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => {
+    child.stdout!.on("data", (chunk) => {
       stdout += chunk.toString();
     });
-    child.stderr.on("data", (chunk) => {
+    child.stderr!.on("data", (chunk) => {
       stderr += chunk.toString();
     });
     child.on("error", reject);
