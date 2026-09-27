@@ -212,34 +212,49 @@ export function deepLocatorFromPage(
   return new DeepLocatorDelegate(page, root, selector);
 }
 
-async function resolveDeepXPathTarget(
-  page: Page,
-  root: Frame,
-  xpathOrSelector: string,
-): Promise<ResolvedLocatorTarget> {
+/**
+ * Plan deep-XPath frame hops without resolving frames.
+ * An iframe/frame step becomes a hop only when further selector steps follow it,
+ * so a trailing iframe remains a parent-frame element target.
+ */
+export function planDeepXPathTarget(xpathOrSelector: string): {
+  frameHopSelectors: string[];
+  finalSelector: string;
+} {
   let path = xpathOrSelector.trim();
   if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
   if (!path.startsWith("/")) path = "/" + path;
 
   const steps = parseXPath(path);
-  let fl: FrameLocator | undefined;
+  const frameHopSelectors: string[] = [];
   let buf: Step[] = [];
 
-  const flushIntoFrameLocator = () => {
-    if (!buf.length) return;
-    const selectorForIframe = "xpath=" + buildXPathFromSteps(buf);
-    fl = fl
-      ? fl.frameLocator(selectorForIframe)
-      : frameLocatorFromFrame(page, root, selectorForIframe);
-    buf = [];
-  };
-
-  for (const st of steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const st = steps[i]!;
     buf.push(st);
-    if (IFRAME_STEP_RE.test(st.name)) flushIntoFrameLocator();
+    const hasStepsAfter = i < steps.length - 1;
+    if (IFRAME_STEP_RE.test(st.name) && hasStepsAfter) {
+      frameHopSelectors.push("xpath=" + buildXPathFromSteps(buf));
+      buf = [];
+    }
   }
 
-  const finalSelector = "xpath=" + buildXPathFromSteps(buf);
+  return {
+    frameHopSelectors,
+    finalSelector: "xpath=" + buildXPathFromSteps(buf),
+  };
+}
+
+async function resolveDeepXPathTarget(
+  page: Page,
+  root: Frame,
+  xpathOrSelector: string,
+): Promise<ResolvedLocatorTarget> {
+  const plan = planDeepXPathTarget(xpathOrSelector);
+  let fl: FrameLocator | undefined;
+  for (const hop of plan.frameHopSelectors) {
+    fl = fl ? fl.frameLocator(hop) : frameLocatorFromFrame(page, root, hop);
+  }
   const targetFrame = fl ? await fl.resolveFrame() : root;
-  return { frame: targetFrame, selector: finalSelector };
+  return { frame: targetFrame, selector: plan.finalSelector };
 }
