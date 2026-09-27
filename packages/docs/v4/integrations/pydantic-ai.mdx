@@ -77,6 +77,18 @@ uv run python agent.py \
 
 Pass `--structured` to return a `PageReport` model with `title`, `url`, and `notes` instead of plain text. The eval harness (`evals --harness pydantic_ai`) uses a similar Pydantic model for the benchmark self-report (`success`, `summary`, `finalAnswer`).
 
+## Optional Monty code mode
+
+Install the optional [Pydantic AI Harness CodeMode](https://pydantic.dev/docs/ai/harness/code-mode/) dependency to let the agent call the same facade tools from Python code running in Monty:
+
+```bash
+uv sync --extra codemode
+uv run --extra codemode python agent.py --code-mode --structured \
+  "Open https://example.com and report the title and URL."
+```
+
+The agent still uses one MCP/stdio session. `snapshot` returns accessibility-tree text, and `run(code=...)` executes JavaScript in the browser. Code mode can process intermediate tool results in Python, but browser actions and MCP calls still take time. Measure your own tasks before assuming fewer model turns or lower cost.
+
 ## Keep the browser session alive
 
 The example opens one MCP session around the complete Pydantic AI run. Keep that lifetime when adapting the example: creating a new MCP process for each tool call loses the browser and invalidates prior snapshot IDs.

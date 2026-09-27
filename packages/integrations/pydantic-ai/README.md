@@ -40,6 +40,23 @@ uv run python agent.py "your instruction"
 
 Pass `--structured` to return a `PageReport` model (`title`, `url`, `notes`) instead of plain text.
 
+## Optional Monty code mode
+
+Install the optional Pydantic AI Harness extra and run the same agent with `--code-mode`:
+
+```sh
+uv sync --extra codemode
+uv run --extra codemode python agent.py --code-mode --structured \
+  "Open https://example.com and report the title and URL."
+```
+
+Code mode exposes the same facade MCP tools to agent-written Python in Monty. The Python
+script can call `run`, `snapshot`, and `screenshot` across several browser steps, while the
+stdio MCP session keeps the browser alive. `snapshot` returns accessibility-tree text; it
+does not return a parsed dictionary. `run(code=...)` still executes JavaScript in the
+browser, so Monty does not constrain what that host tool can do. Compare task results,
+latency, and token use before claiming a speedup over ordinary tool calls.
+
 ## Security model
 
 `run(code)` executes model-authored JavaScript in the extension service worker:
