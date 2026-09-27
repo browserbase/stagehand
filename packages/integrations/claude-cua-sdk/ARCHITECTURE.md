@@ -91,31 +91,31 @@ through the facade's per-page id map, so a stale id fails with the facade's own
 Every mutating `run` snippet ends with a tab-inventory tail, so the
 `browser_state` block costs no extra trip. "RT" = facade round trips per call.
 
-| member                                               | facade call(s)                                                                                                          | RT  |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --- |
-| `navigate` (url / back / forward / reload)           | `run`: `page.goto` / `goBack` / `goForward` / `reload` (domcontentloaded) + tabs                                        | 1   |
-| `screenshot`                                         | `screenshot({type:"png"})` → image block                                                                                | 1   |
-| `zoom`                                               | `run`: `page.screenshot({clip})`, base64 built in-batch → image block                                                   | 1   |
-| `left_click` (ref)                                   | `runActions [{op:"click"}]`; reported url refreshes cached tab state                                                    | 1   |
-| `left/right/middle/double/triple_click` (xy)         | `run`: `batchStagehand.page.click(x,y,{button,clickCount})` + tabs                                                      | 1   |
-| `hover` (ref / xy)                                   | `runActions [{op:"hover"}]` / `run`: `page.hover(x,y)` + tabs                                                           | 1   |
-| `mouse_move`                                         | `run`: `page.hover(x,y)` + tabs                                                                                         | 1   |
-| `left_click_drag`                                    | `run`: native `page.dragAndDrop` (press, midpoint, endpoint, release) + tabs                                            | 1   |
-| `scroll` (xy)                                        | `run`: `page.scroll(x,y,dx,dy)` (wheel) + tabs                                                                          | 1   |
-| `scroll` (ref)                                       | `runActions [{op:"hover"}]` (into view) then `run`: wheel at viewport centre                                            | 2   |
-| `scroll_to` (ref)                                    | `runActions [{op:"hover"}]` (Playwright hover scrolls into view)                                                        | 1   |
-| `type`                                               | `run`: `page.type(text)` + tabs                                                                                         | 1   |
-| `key`                                                | `run`: `page.keyPress(chord)` per chord × repeat (CUA names → Playwright) + tabs                                        | 1   |
-| `wait`                                               | `run`: `page.waitForTimeout` (≤30 s) + tabs                                                                             | 1   |
-| `read_page` (`filter`, `depth`)                      | `snapshot()`; filtered/indent-limited on this side; header from the root node                                           | 1   |
-| `find`                                               | `snapshot()`; lexical token match, top 20 (no model-backed locator on the facade)                                       | 1   |
-| `get_page_text`                                      | `run`: `page.evaluate(innerText of article/main/body)`                                                                  | 1   |
-| `form_input` (string)                                | `runActions [{op:"fill"}]`; on `unsupported-element` (a `<select>`) → `[{op:"select"}]`                                 | 1–2 |
-| `form_input` (boolean)                               | `runActions [{op:"click"}]` — toggles; result says to verify with `read_page`                                           | 1   |
-| `javascript_exec`                                    | `run`: `page.evaluate(script)`; result stringified                                                                      | 1   |
-| `new_tab` / `list_tabs` / `switch_tab` / `close_tab` | `run` on visible `context` (`newPage` / `pages`) and compat pages (`bringToFront` / `close`); one `browser_state` block | 1   |
+| member                                               | facade call(s)                                                                                                          | RT    |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----- |
+| `navigate` (url / back / forward / reload)           | `run`: `page.goto` / `goBack` / `goForward` / `reload` (domcontentloaded) + tabs                                        | 1     |
+| `screenshot`                                         | `screenshot({type:"png"})` → image block                                                                                | 1     |
+| `zoom`                                               | `run`: `page.screenshot({clip})`, base64 built in-batch → image block                                                   | 1     |
+| `left_click` (ref)                                   | `runActions [{op:"click"}]`; followed by `run` to rediscover visible tabs                                               | 2     |
+| `left/right/middle/double/triple_click` (xy)         | `run`: `batchStagehand.page.click(x,y,{button,clickCount})` + tabs                                                      | 1     |
+| `hover` (ref / xy)                                   | `runActions [{op:"hover"}]` / `run`: `page.hover(x,y)` + tabs                                                           | 2 / 1 |
+| `mouse_move`                                         | `run`: `page.hover(x,y)` + tabs                                                                                         | 1     |
+| `left_click_drag`                                    | `run`: native `page.dragAndDrop` (press, midpoint, endpoint, release) + tabs                                            | 1     |
+| `scroll` (xy)                                        | `run`: `page.scroll(x,y,dx,dy)` (wheel) + tabs                                                                          | 1     |
+| `scroll` (ref)                                       | `runActions [{op:"hover"}]` (into view) then `run`: wheel at viewport centre                                            | 2     |
+| `scroll_to` (ref)                                    | `runActions [{op:"hover"}]` (Playwright hover scrolls into view)                                                        | 2     |
+| `type`                                               | `run`: `page.type(text)` + tabs                                                                                         | 1     |
+| `key`                                                | `run`: `page.keyPress(chord)` per chord × repeat (CUA names → Playwright) + tabs                                        | 1     |
+| `wait`                                               | `run`: `page.waitForTimeout` (≤30 s) + tabs                                                                             | 1     |
+| `read_page` (`filter`, `depth`)                      | `snapshot()`; filtered/indent-limited on this side; header from the root node                                           | 1     |
+| `find`                                               | `snapshot()`; lexical token match, top 20 (no model-backed locator on the facade)                                       | 1     |
+| `get_page_text`                                      | `run`: `page.evaluate(innerText of article/main/body)`                                                                  | 1     |
+| `form_input` (string)                                | `runActions [{op:"fill"}]`; on `unsupported-element` (a `<select>`) → `[{op:"select"}]`                                 | 2–3   |
+| `form_input` (boolean)                               | `runActions [{op:"click"}]` — toggles; result says to verify with `read_page`                                           | 2     |
+| `javascript_exec`                                    | `run`: `page.evaluate(script)`; result stringified                                                                      | 1     |
+| `new_tab` / `list_tabs` / `switch_tab` / `close_tab` | `run` on visible `context` (`newPage` / `pages`) and compat pages (`bringToFront` / `close`); one `browser_state` block | 1     |
 
-An ordinary member with `tab_id` first selects that tab through the canonical visible facade context and refreshes cached active identity (one extra round trip). Unknown tabs fail before the action runs. Tab IDs come from the readonly `page.pageId` getter; keeper pages stay hidden and missing IDs fail descriptively. The last visible page cannot be closed through the toolset. A first ref action after `read_page` or `find`, before any tab inventory is cached, adds one inventory round trip to obtain actual tab IDs. Subsequent ref actions refresh the cached active URL without that extra call.
+An ordinary member with `tab_id` first selects that tab through the canonical visible facade context and refreshes cached active identity (one extra round trip). Unknown tabs fail before the action runs. Tab IDs come from the readonly `page.pageId` getter; keeper pages stay hidden and missing IDs fail descriptively. The last visible page cannot be closed through the toolset. Every ref action adds one inventory round trip to discover tabs opened or closed by the action. Coordinate-action inventory tails rediscover visible pages through the facade timeout boundary before reading `context.pages()`.
 
 No facade equivalent — returned as a recoverable `is_error` naming an
 alternative, never stubbed:

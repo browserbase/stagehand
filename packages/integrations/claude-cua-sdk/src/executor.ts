@@ -152,13 +152,21 @@ type BrowserTab = { tab_id: string; title: string; url: string; active: boolean 
  * `browser_state` wants it. The canonical visible context excludes keeper pages;
  * its readonly pageId is the underlying Stagehand page identity.
  */
-const TABS_SNIPPET = `const __tabs = [];
+const TABS_SNIPPET = `class StagehandFacadePageIdentityError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "StagehandFacadePageIdentityError";
+  }
+}
+// The facade's timeout boundary rediscovers visible pages, excluding its keeper.
+await page.waitForTimeout(0);
+const __tabs = [];
 const __pages = context.pages();
 const __activeId = __reportedPage.pageId;
-if (typeof __activeId !== "string" || !__activeId) throw new Error("Active facade page is missing a stable pageId.");
+if (typeof __activeId !== "string" || !__activeId) throw new StagehandFacadePageIdentityError("Active facade page is missing a stable pageId.");
 for (let __i = 0; __i < __pages.length && __i < 100; __i += 1) {
   const __p = __pages[__i];
-  if (typeof __p.pageId !== "string" || !__p.pageId) throw new Error("Visible facade page is missing a stable pageId.");
+  if (typeof __p.pageId !== "string" || !__p.pageId) throw new StagehandFacadePageIdentityError("Visible facade page is missing a stable pageId.");
   let __title = "";
   try { __title = await __p.title(); } catch {}
   __tabs.push({ tab_id: __p.pageId, title: __title, url: __p.url(), active: __p.pageId === __activeId });
@@ -309,21 +317,11 @@ export class StagehandCuaExecutor implements CuaToolExecutor {
     return { tabs: value.tabs, extra: value.extra ?? {} };
   }
 
-  /**
-   * One batch: hydrated snapshot actions. The facade reports the active url;
-   * the cached tab inventory is updated with it rather than spending a second
-   * round trip on a full tab listing once a real inventory is cached.
-   */
+  /** Refresh the visible inventory after hydrated actions, which can open popups. */
   private async runRefActions(actions: RefAction[]): Promise<BrowserTab[]> {
-    const { url } = await this.options.tools.runActions(actions);
-    if (this.lastTabs.some((tab) => tab.active)) {
-      this.lastTabs = this.lastTabs.map((tab) => (tab.active ? { ...tab, url } : tab));
-    } else {
-      // read_page/find do not list tabs. Resolve real IDs on the first ref
-      // action instead of inventing a tab the model cannot later select.
-      await this.runWithTabs("");
-    }
-    return this.lastTabs;
+    await this.options.tools.runActions(actions);
+    const { tabs } = await this.runWithTabs("");
+    return tabs;
   }
 
   private browserState(tabs: BrowserTab[], force: boolean): CuaToolResultBlock | undefined {
@@ -521,7 +519,7 @@ if (__wasActive) {
     if (target.type === "ref") {
       // No element geometry on this side of the facade: bring the element into
       // view (hover), then wheel at the viewport centre. Two round trips.
-      await this.runRefActions([{ op: "hover", id: target.ref }]);
+      await this.options.tools.runActions([{ op: "hover", id: target.ref }]);
       const { tabs } = await this.runWithTabs(
         `const __vp = await page.evaluate("({ w: innerWidth, h: innerHeight })");
 await batchStagehand.page.scroll(Math.round(__vp.w / 2), Math.round(__vp.h / 2), ${deltaX}, ${deltaY});`,

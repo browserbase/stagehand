@@ -14,6 +14,20 @@ async function repositoryFixture(pyproject: string): Promise<string> {
 }
 
 describe("shouldPublishPython", () => {
+  it("does not let pending Browse changes block the SDK release", async () => {
+    const repositoryRoot = await repositoryFixture('[project]\nversion = "4.1.0"\n');
+    await writeFile(
+      path.join(repositoryRoot, ".changeset/browse.md"),
+      '---\n"browse": minor\n---\nCLI release\n',
+    );
+    await expect(
+      shouldPublishPython({
+        repositoryRoot,
+        fetchStatus: async () => ({ ok: false, status: 404 }),
+      }),
+    ).resolves.toBe(true);
+  });
+
   it("does not publish while a changeset is pending", async () => {
     const repositoryRoot = await repositoryFixture(`[project]
   version = "4.1.0"

@@ -398,6 +398,11 @@ describe("runClaudeCuaSession", () => {
       ]),
     });
     expect(result.status).toBe("completed");
+    for (const pattern of [/type → ok \(\d+ms\)/, /navigate → ok \(\d+ms\)/]) {
+      expect(log).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringMatching(pattern) }),
+      );
+    }
     expect(JSON.stringify(log.mock.calls)).not.toContain("password-fixture-123");
     expect(JSON.stringify(log.mock.calls)).not.toContain("token-fixture");
     expect(

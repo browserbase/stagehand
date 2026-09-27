@@ -1,5 +1,33 @@
 # browse
 
+## 0.11.0
+
+### Minor Changes
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse functions secrets attach` to attach an existing project secret to a function by ID.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse cloud secrets create` with public-key lookup, local encryption, and secret input from stdin, a named environment variable, or a hidden prompt.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse functions secrets detach` to remove a function-secret attachment without deleting the project secret.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add commands to retrieve project secret metadata and delete a project secret by ID.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse functions secrets list` to list attached secret metadata with cursor pagination and creation-time filters.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse cloud secrets list` to list project secret metadata with pagination and date filters.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse cloud secrets update` to replace a secret value by ID with local encryption and stdin, environment variable, or hidden prompt input.
+
+### Patch Changes
+
+- [#2799](https://github.com/browserbase/stagehand/pull/2799) [`21f4443`](https://github.com/browserbase/stagehand/commit/21f444358cef39dd0c2d928720d9311c11276cdb) Thanks [@shrey150](https://github.com/shrey150)! - Use catalog source paths when cloning templates and print setup commands that match the generated project's package manager and Python environment.
+
+## 0.10.0
+
+### Minor Changes
+
+- [#2835](https://github.com/browserbase/stagehand/pull/2835) [`38e3a20`](https://github.com/browserbase/stagehand/commit/38e3a2045f1f92951e2e01b636f120eac90cdf81) Thanks [@shrey150](https://github.com/shrey150)! - migrate the Browse CLI runtime to Stagehand V4 and remove the `--return-xpath` option from coordinate actions
+
 ## 0.9.6
 
 ### Patch Changes

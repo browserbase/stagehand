@@ -132,18 +132,18 @@ describe("StagehandCuaExecutor", () => {
     ]);
   });
 
-  it("left_click on a ref → one hydrated action batch; coordinates → raw page.click", async () => {
+  it("left_click on a ref refreshes the tab inventory; coordinates → raw page.click", async () => {
     const { exec, calls } = executor();
     await exec.execute("navigate", { url: "https://example.com" }, ctx);
     calls.length = 0;
     const byRef = await exec.execute("left_click", { target: { type: "ref", ref: "0-9" } }, ctx);
-    expect(calls).toEqual([{ kind: "actions", actions: [{ op: "click", id: "0-9" }] }]);
+    expect(calls).toEqual([
+      { kind: "actions", actions: [{ op: "click", id: "0-9" }] },
+      { kind: "run", code: expect.any(String) },
+    ]);
     expect(byRef.content[0]).toEqual({ type: "text", text: "Clicked element 0-9." });
-    // The url the facade reports refreshes the cached tab state — no second round trip.
-    expect(byRef.content[1]).toMatchObject({
-      type: "browser_state",
-      tabs: [{ tab_id: "p1", url: "https://example.com/after", active: true }],
-    });
+    // An unchanged inventory is omitted from browser_state.
+    expect(byRef.content).toHaveLength(1);
 
     calls.length = 0;
     const byCoord = await exec.execute(
@@ -157,6 +157,34 @@ describe("StagehandCuaExecutor", () => {
     );
     expect(byCoord.content[0]).toEqual({ type: "text", text: "Double-clicked at (10, 20)." });
   });
+
+  it.each(["active", "visible"])(
+    "uses a typed error for a missing %s page identity",
+    async (missing) => {
+      let failure: unknown;
+      const facade = fakeFacade({
+        run: async (code) => {
+          const active = {
+            pageId: missing === "active" ? undefined : "p1",
+            waitForTimeout: async () => {},
+          };
+          const visible = { pageId: undefined };
+          const run = new Function("page", "context", `return (async () => {${code}})()`);
+          try {
+            return await run(active, {
+              pages: () => (missing === "visible" ? [visible] : [active]),
+            });
+          } catch (error) {
+            failure = error;
+            throw error;
+          }
+        },
+      });
+      const result = await executor(facade).exec.execute("list_tabs", {}, ctx);
+      expect(result.isError).toBe(true);
+      expect(failure).toMatchObject({ name: "StagehandFacadePageIdentityError" });
+    },
+  );
 
   it("right/double click and modifiers on a ref have no facade equivalent and answer with a recoverable error", async () => {
     const { exec, calls } = executor();
@@ -172,7 +200,7 @@ describe("StagehandCuaExecutor", () => {
     expect(calls).toEqual([]);
   });
 
-  it("hover / scroll_to on a ref refreshes missing tab identity once, then uses one action", async () => {
+  it("hover / scroll_to on a ref refreshes tab identity after each action", async () => {
     const { exec, calls } = executor();
     await exec.execute("hover", { target: { type: "ref", ref: "0-12" } }, ctx);
     expect(calls).toEqual([
@@ -181,7 +209,10 @@ describe("StagehandCuaExecutor", () => {
     ]);
     calls.length = 0;
     const scrolled = await exec.execute("scroll_to", { target: { type: "ref", ref: "1-4" } }, ctx);
-    expect(calls).toEqual([{ kind: "actions", actions: [{ op: "hover", id: "1-4" }] }]);
+    expect(calls).toEqual([
+      { kind: "actions", actions: [{ op: "hover", id: "1-4" }] },
+      expect.objectContaining({ kind: "run" }),
+    ]);
     expect(scrolled.content[0]).toEqual({ type: "text", text: "Scrolled element 1-4 into view." });
   });
 
@@ -339,7 +370,10 @@ describe("StagehandCuaExecutor", () => {
       { target: { type: "ref", ref: "0-9" }, value: true },
       ctx,
     );
-    expect(calls).toEqual([{ kind: "actions", actions: [{ op: "click", id: "0-9" }] }]);
+    expect(calls).toEqual([
+      { kind: "actions", actions: [{ op: "click", id: "0-9" }] },
+      { kind: "run", code: expect.any(String) },
+    ]);
     expect((toggled.content as Array<{ text?: string }>)[0]!.text).toMatch(/verify its state/);
   });
 
