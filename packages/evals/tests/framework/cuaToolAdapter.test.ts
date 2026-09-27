@@ -155,7 +155,7 @@ describe("shared CUA facade boundary", () => {
 import { StagehandFacadeTools } from ${JSON.stringify(compiledFacade)};
 let url = 'https://fixture.test', clicks = 0;
 const page = {
-  pageId:'fixture', url:async()=>url, title:async()=>'Fixture',
+  pageId:'fixture', url:async()=>url, title:async()=>'Fixture', waitForTimeout:async()=>{},
   goto:async(value)=>{url=value;}, click:async(x,y)=>{url='https://fixture.test/click/'+x+'/'+y;}, setViewportSize:async()=>{}, screenshot:async()=>Buffer.from('png'),
   evaluate:async(expression)=>{if(expression==='({ width: innerWidth, height: innerHeight })')return {width:1288,height:711};throw new Error('Unexpected fixture evaluate: '+String(expression));},
   snapshot:async()=>({formattedTree:'[0-1] button "Submit"',xpathMap:{'0-1':'/button'}}),
