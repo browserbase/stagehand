@@ -154,7 +154,7 @@ function preserveApiAcronyms(
     if (!isRecord(entry)) return entry;
     return Object.fromEntries(
       Object.entries(entry).map(([key, child]) => [
-        apiAcronymWireKeys[key] ?? key,
+        Object.hasOwn(apiAcronymWireKeys, key) ? apiAcronymWireKeys[key] : key,
         opaqueKeys.has(key) ? child : visit(child),
       ]),
     );

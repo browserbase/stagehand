@@ -105,6 +105,15 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(StagehandMethods.pagePDF.params).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it.each(["toString", "constructor", "hasOwnProperty"])(
+    "does not treat inherited %s as an API acronym mapping",
+    (key) => {
+      const value = { [key]: "root", entries: [{ [key]: "nested" }] };
+
+      expect(wireSchema(z.record(z.string(), z.json())).parse(value)).toStrictEqual(value);
+    },
+  );
+
   it("round-trips every declared API property name through its wire name", () => {
     const propertyNames = new Set<string>();
     for (const definition of Object.values(StagehandMethods)) {
