@@ -83,12 +83,12 @@ func TestGeneratedModelsContainNoEmptyInterfaceFallbacks(t *testing.T) {
 	}
 }
 
-func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
+func TestTelemetryOmittedAndExplicit(t *testing.T) {
 	t.Parallel()
 
-	defaultTelemetry := TelemetryConfig{
+	explicitTelemetry := TelemetryConfig{
 		Traces: TelemetryTraces{
-			Endpoint: "https://example.com/v1/traces",
+			Endpoint: "https://collector.example.com/v1/traces",
 			Headers:  TelemetryTracesHeaders{},
 		},
 	}
@@ -112,18 +112,18 @@ func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
 			}`,
 		},
 		{
-			name: "stagehand init explicit default",
+			name: "stagehand init explicit telemetry",
 			value: StagehandInitParams{
 				BrowserCDPURL:   &browserCDPURL,
 				ClientInfo:      ImplementationInfo{Name: "stagehand-sdk-go", Version: "4.0.0"},
 				ProtocolVersion: "1.0.0",
-				Telemetry:       defaultTelemetry,
+				Telemetry:       &explicitTelemetry,
 			},
 			want: `{
 				"browser_cdp_url":"ws://runtime.test",
 				"client_info":{"name":"stagehand-sdk-go","version":"4.0.0"},
 				"protocol_version":"1.0.0",
-				"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}
+				"telemetry":{"traces":{"endpoint":"https://collector.example.com/v1/traces"}}
 			}`,
 		},
 	} {
@@ -136,6 +136,22 @@ func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
 				t.Fatalf("telemetry JSON mismatch:\nwant %s\n got %s", test.want, data)
 			}
 		})
+	}
+}
+
+func TestOptionalTelemetryOnlyOmitsTheZeroValue(t *testing.T) {
+	t.Parallel()
+
+	if telemetry := optionalTelemetry(TelemetryConfig{}); telemetry != nil {
+		t.Fatalf("zero telemetry = %#v, want nil", telemetry)
+	}
+	configuredHeaders := TelemetryConfig{
+		Traces: TelemetryTraces{
+			Headers: TelemetryTracesHeaders{"authorization": "Bearer test"},
+		},
+	}
+	if telemetry := optionalTelemetry(configuredHeaders); telemetry == nil {
+		t.Fatal("telemetry with configured headers was omitted")
 	}
 }
 

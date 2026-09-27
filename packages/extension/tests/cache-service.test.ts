@@ -137,6 +137,45 @@ describe("cache service", () => {
     expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
 
+  // v3 cached every eligible call unless the caller opted out; v4 shipped with
+  // the inverted default, silently disabling caching for anyone who upgraded
+  // without passing `cache`. These pin the default so it can't drift back.
+  it("enables caching by default when init params omit `cache`", () => {
+    const context = cacheService.buildCacheContext({
+      apiKey: "bb-key",
+      browser: { sessionId: "session-id" },
+    } as StagehandInitParams);
+
+    expect(context?.defaultCaching).toBe(true);
+  });
+
+  it("honours an explicit opt-out in init params", () => {
+    const context = cacheService.buildCacheContext({
+      apiKey: "bb-key",
+      browser: { sessionId: "session-id" },
+      cache: false,
+    } as StagehandInitParams);
+
+    expect(context?.defaultCaching).toBe(false);
+  });
+
+  it("looks the cache up when neither the request nor the instance sets `cache`", async () => {
+    const get = vi.fn().mockResolvedValue({ hit: true, value: { answer: 42 }, cacheKey: "key" });
+    const execute = executesTo({ answer: 0 });
+    const { caching: _omitted, ...argsWithoutCaching } = baseArgs();
+
+    const result = await cacheService.withCache({
+      ...argsWithoutCaching,
+      context: { ...cacheContext(get, vi.fn()), defaultCaching: true },
+      onHit: (value): TestResult => ({ data: value, metadata: { cache: { status: "HIT" } } }),
+      execute,
+    });
+
+    expect(get).toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.metadata).toStrictEqual({ cache: { status: "HIT" } });
+  });
+
   it("omits locator descriptors from act, observe, and extract cache data", () => {
     expect(
       cacheService.buildActCacheData({
