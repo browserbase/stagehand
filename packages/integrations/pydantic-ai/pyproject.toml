@@ -4,11 +4,6 @@ version = "0.1.0"
 requires-python = ">=3.11,<3.14"
 dependencies = ["pydantic-ai>=1.41,<3"]
 
-[project.optional-dependencies]
-codemode = [
-    "pydantic-ai-harness[codemode]>=0.1,<1",
-]
-
 [tool.uv]
 package = false
 

@@ -27,15 +27,6 @@ FACADE_AGENT_INSTRUCTIONS = (
     "create a separate browser process."
 )
 
-CODE_MODE_INSTRUCTIONS = (
-    "In this mode, run, snapshot, and screenshot are callable only inside run_code. "
-    "Use run_code to call the Stagehand facade tools from Python. snapshot() returns "
-    "accessibility-tree text, not a parsed element list. Read its bracketed IDs before "
-    "calling run(actions=[...]); a new snapshot replaces the active ID map. Use "
-    "run(code=...) for page navigation or Playwright-shaped JavaScript. Return only the "
-    "tool results needed for your answer from each script."
-)
-
 
 class PageReport(BaseModel):
     title: str = Field(description="The document title of the active page")
@@ -84,41 +75,26 @@ def default_model() -> str:
 def build_agent(
     *,
     structured: bool,
-    code_mode: bool = False,
     model: str | None = None,
 ) -> Agent[None, str] | Agent[None, PageReport]:
     resolved_model = model if model is not None else default_model()
-    capabilities = []
-    if code_mode:
-        try:
-            from pydantic_ai_harness import CodeMode
-        except ImportError as exc:
-            raise RuntimeError("Code mode requires: uv sync --extra codemode") from exc
-        capabilities.append(CodeMode(tools=["run", "snapshot", "screenshot"]))
-    instructions = FACADE_AGENT_INSTRUCTIONS
-    if code_mode:
-        instructions += "\n\n" + CODE_MODE_INSTRUCTIONS
     if structured:
         return Agent(
             resolved_model,
             name="stagehand_browser_agent",
-            instructions=instructions,
+            instructions=FACADE_AGENT_INSTRUCTIONS,
             output_type=PageReport,
-            capabilities=capabilities,
         )
     return Agent(
         resolved_model,
         name="stagehand_browser_agent",
-        instructions=instructions,
-        capabilities=capabilities,
+        instructions=FACADE_AGENT_INSTRUCTIONS,
     )
 
 
-async def run_instruction(
-    instruction: str, *, structured: bool, code_mode: bool = False
-) -> str | PageReport:
+async def run_instruction(instruction: str, *, structured: bool) -> str | PageReport:
     toolset = facade_toolset()
-    agent = build_agent(structured=structured, code_mode=code_mode)
+    agent = build_agent(structured=structured)
     async with toolset:
         result = await agent.run(instruction, toolsets=[toolset])
     return result.output
@@ -134,20 +110,13 @@ def main() -> None:
         action="store_true",
         help="Return a PageReport model instead of plain text",
     )
-    parser.add_argument(
-        "--code-mode",
-        action="store_true",
-        help="Let the agent call facade tools from Monty code mode (requires the codemode extra)",
-    )
     args = parser.parse_args()
     instruction = " ".join(args.instruction).strip()
     if not instruction:
         print(f'Usage: {Path(sys.argv[0]).name} "your instruction"', file=sys.stderr)
         raise SystemExit(2)
 
-    output = asyncio.run(
-        run_instruction(instruction, structured=args.structured, code_mode=args.code_mode)
-    )
+    output = asyncio.run(run_instruction(instruction, structured=args.structured))
     print(output)
 
 
