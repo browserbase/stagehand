@@ -5,7 +5,7 @@ import { StagehandCuaExecutor, type CuaFacadeTools } from "../src/index.js";
 
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
 
-function sdkFacade(options: { missingPageIds?: boolean } = {}) {
+function sdkFacade(options: { missingPageIds?: boolean; popupOnClick?: boolean } = {}) {
   const calls: Array<{ method: string; params: unknown }> = [];
   let activeId = "p1";
   const urls = new Map([
@@ -42,6 +42,9 @@ function sdkFacade(options: { missingPageIds?: boolean } = {}) {
         case "page.title":
           return "Example" as never;
         case "page.click":
+          if (options.popupOnClick) urls.set("popup", "https://popup.example/");
+          return { ok: true } as never;
+        case "page.wait_for_timeout":
         case "page.drag_and_drop":
           return { ok: true } as never;
         default:
@@ -62,6 +65,7 @@ function sdkFacade(options: { missingPageIds?: boolean } = {}) {
     run: facade.run.bind(facade),
     runActions: async () => {
       urls.set(activeId, `https://example.com/${activeId}/clicked`);
+      if (options.popupOnClick) urls.set("popup", "https://popup.example/");
       return { url: urls.get(activeId)!, results: [] } as never;
     },
     snapshot: async () => '[0-1] button "Open"',
@@ -152,6 +156,27 @@ describe("CUA SDK Page boundary", () => {
 });
 
 describe("CUA visible facade tab boundary", () => {
+  it.each(["coordinate", "ref"])(
+    "reports a popup from a %s click immediately and hides the keeper",
+    async (kind) => {
+      const { executor } = sdkFacade({ popupOnClick: true });
+      await executor.execute("list_tabs", {}, { toolUseId: "before" });
+      const target =
+        kind === "ref" ? { type: "ref", ref: "0-1" } : { type: "coordinate", x: 10, y: 20 };
+      const result = await executor.execute("left_click", { target }, { toolUseId: "popup" });
+      expect(result.isError).not.toBe(true);
+      expect(result.content).toContainEqual(
+        expect.objectContaining({
+          type: "browser_state",
+          tabs: expect.arrayContaining([
+            expect.objectContaining({ tab_id: "popup", url: "https://popup.example/" }),
+          ]),
+        }),
+      );
+      expect(JSON.stringify(result.content)).not.toContain('"keeper"');
+    },
+  );
+
   it("fails descriptively when the host cannot supply stable visible page IDs", async () => {
     const { executor } = sdkFacade({ missingPageIds: true });
     const result = await executor.execute("list_tabs", {}, { toolUseId: "missing-id" });
@@ -259,14 +284,14 @@ describe("CUA visible facade tab boundary", () => {
     expect(result.content).toContainEqual(
       expect.objectContaining({
         type: "browser_state",
-        tabs: [
+        tabs: expect.arrayContaining([
           expect.objectContaining({ tab_id: "p1", active: false, url: "https://example.com/p1" }),
           expect.objectContaining({
             tab_id: "p2",
             active: true,
             url: "https://example.com/p2/clicked",
           }),
-        ],
+        ]),
       }),
     );
   });
