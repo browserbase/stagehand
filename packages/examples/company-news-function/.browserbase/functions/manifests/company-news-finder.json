@@ -1,0 +1,11 @@
+{
+  "name": "company-news-finder",
+  "config": {
+    "sessionConfig": {
+      "browserSettings": {
+        "advancedStealth": true
+      }
+    },
+    "parametersSchema": {}
+  }
+}

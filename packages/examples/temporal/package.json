@@ -1,0 +1,49 @@
+{
+  "name": "temporal-money-transfer",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc --build",
+    "build.watch": "tsc --build --watch",
+    "format": "prettier --write .",
+    "lint": "eslint src",
+    "test": "echo \"No tests configured\"",
+    "worker": "ts-node src/research-worker.ts",
+    "worker.watch": "nodemon src/research-worker.ts",
+    "demo": "ts-node src/demo.ts",
+    "demo:custom": "ts-node src/demo.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@browserbasehq/stagehand": "^2.4.4",
+    "@temporalio/activity": "^1.11.8",
+    "@temporalio/client": "^1.11.8",
+    "@temporalio/common": "^1.11.8",
+    "@temporalio/worker": "^1.11.8",
+    "@temporalio/workflow": "^1.11.8",
+    "nanoid": "3.x",
+    "playwright": "^1.52.0",
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "@tsconfig/node18": "^1.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.7.3",
+    "@typescript-eslint/parser": "^6.7.3",
+    "eslint": "^7.32.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-deprecation": "^1.2.1",
+    "nodemon": "^2.0.12",
+    "prettier": "2.8.8",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.9.5"
+  },
+  "nodemonConfig": {
+    "execMap": {
+      "ts": "ts-node"
+    },
+    "ext": "ts",
+    "watch": [
+      "src"
+    ]
+  }
+}

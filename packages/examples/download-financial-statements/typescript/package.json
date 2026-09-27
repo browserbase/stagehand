@@ -1,0 +1,26 @@
+{
+  "name": "download-financial-statements",
+  "version": "1.0.0",
+  "description": "Stagehand + Browserbase: download quarterly financial statements and retrieve the session downloads",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.18.0",
+    "@browserbasehq/stagehand": "4.0.0",
+    "dotenv": "^16.4.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@10.24.0"
+}

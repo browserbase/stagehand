@@ -1,0 +1,24 @@
+{
+  "name": "stagehand-caching-demo",
+  "version": "1.0.0",
+  "description": "Demo showcasing Stagehand caching with variables for privacy-preserving performance optimization",
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/act-cache-demo.ts",
+    "demo:act-cache": "tsx src/01-act-cache-with-variables.ts",
+    "demo:agent-cache": "tsx src/02-agent-cache-test.ts",
+    "demo:all": "npm run demo:act-cache && npm run demo:agent-cache",
+    "clear-cache": "rm -rf .cache && echo 'Cache cleared!'"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "latest",
+    "@browserbasehq/stagehand": "3.0.7",
+    "dotenv": "^16.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

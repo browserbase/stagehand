@@ -1,0 +1,22 @@
+{
+  "name": "amazon-global-price-comparison-template",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext index.ts",
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "4.0.0",
+    "dotenv": "^16.4.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@10.24.0"
+}

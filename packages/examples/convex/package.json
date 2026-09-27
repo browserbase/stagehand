@@ -1,0 +1,19 @@
+{
+  "name": "stagehand-example",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx convex dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/convex-stagehand": "0.1.1",
+    "convex": "^1.31.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.9.0"
+  }
+}

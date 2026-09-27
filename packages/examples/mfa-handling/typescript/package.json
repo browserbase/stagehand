@@ -1,0 +1,35 @@
+{
+  "name": "mfa-handling-template",
+  "version": "1.0.0",
+  "description": "Stagehand + Browserbase: MFA Handling - TOTP Automation",
+  "keywords": [
+    "2fa",
+    "automation",
+    "browserbase",
+    "mfa",
+    "stagehand",
+    "totp"
+  ],
+  "license": "MIT",
+  "author": "",
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "4.0.0",
+    "dotenv": "^16.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@10.24.0"
+}
