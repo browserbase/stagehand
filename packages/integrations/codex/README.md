@@ -102,7 +102,7 @@ owner-only permissions. Known credentials are redacted and image base64 omitted,
 but code, page text and typed values may remain sensitive. Review before sharing
 and rotate files yourself; preview limits do not bound total file size.
 
-Raw `codex exec --json | tee /tmp/codex-events.jsonl` only saves Codex events.
+Raw `codex exec --json "Go to Paint and draw the NFL logo" | tee /tmp/codex-events.jsonl` only saves Codex events.
 It does not enable facade logging or the SDK example's isolated profile. Pass
 the `STAGEHAND_FACADE_LOG_*` variables in `mcp_servers.stagehand.env` when using
 the raw CLI. Tool logging is diagnostic, not an eval scoring input.

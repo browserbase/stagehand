@@ -5,6 +5,30 @@ import { describe, expect, it } from "vitest";
 import { isolatedCodexEnv } from "../src/isolation.js";
 
 describe("Codex eval isolation", () => {
+  it("uses a private home, retains API credentials, and removes inherited Codex settings", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-env-test-"));
+    try {
+      const env = await isolatedCodexEnv(directory, {
+        PATH: "/usr/bin",
+        HOME: "/operator",
+        CODEX_HOME: "/operator/.codex",
+        CODEX_THREAD_ID: "host",
+        CODEX_CONFIG: "inherited",
+        CODEX_API_KEY: "fixture-key",
+        UNSET: undefined,
+      });
+      expect(env).toEqual({
+        PATH: "/usr/bin",
+        HOME: path.join(directory, "home"),
+        CODEX_HOME: path.join(directory, "home", ".codex"),
+        CODEX_API_KEY: "fixture-key",
+      });
+      expect(await fs.readdir(env.CODEX_HOME)).toEqual([]);
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("copies only file auth, not plugins, config or inherited thread context", async () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "codex-isolation-test-"));
     try {

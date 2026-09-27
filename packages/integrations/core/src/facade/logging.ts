@@ -1,5 +1,6 @@
 import { closeSync, constants, openSync, writeSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { StagehandFacadeConfigError } from "./config.js";
 import { sanitizeErrorMessage } from "../harness/redact.js";
 
 export function redactToolLog(value: unknown, maxChars = 16_000): unknown {
@@ -8,7 +9,7 @@ export function redactToolLog(value: unknown, maxChars = 16_000): unknown {
     JSON.stringify(value, (key, item: unknown) => {
       if (/^(?:authorization|cookie|password|secret|token|api[_-]?key|signingKey)$/i.test(key))
         return "[redacted]";
-      if (key === "data" && typeof item === "string" && item.length > 256)
+      if (key === "data" && typeof item === "string")
         return `[binary omitted: ${item.length} characters]`;
       if (typeof item === "string")
         return sanitizeErrorMessage(item).replace(
@@ -31,10 +32,14 @@ export function createFacadeLogger(env: NodeJS.ProcessEnv = process.env) {
   const file = env.STAGEHAND_FACADE_LOG_FILE;
   const level = env.STAGEHAND_FACADE_LOG_LEVEL ?? (file ? "calls" : "off");
   if (!["off", "calls", "debug"].includes(level))
-    throw new Error("STAGEHAND_FACADE_LOG_LEVEL must be off, calls, or debug.");
+    throw new StagehandFacadeConfigError(
+      "STAGEHAND_FACADE_LOG_LEVEL must be off, calls, or debug.",
+    );
   const parsedLimit = Number(env.STAGEHAND_FACADE_LOG_MAX_CHARS ?? 16_000);
   if (!Number.isSafeInteger(parsedLimit) || parsedLimit < 256 || parsedLimit > 1_000_000)
-    throw new Error("STAGEHAND_FACADE_LOG_MAX_CHARS must be between 256 and 1000000.");
+    throw new StagehandFacadeConfigError(
+      "STAGEHAND_FACADE_LOG_MAX_CHARS must be between 256 and 1000000.",
+    );
   const session = randomUUID();
   let descriptor: number | undefined;
   if (file && level !== "off")
