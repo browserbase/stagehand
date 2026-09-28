@@ -144,6 +144,7 @@ jobs:
   publish-typescript-alpha:
     name: Publish TypeScript SDK alpha
     needs: release-typescript
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -187,6 +188,7 @@ jobs:
   python-release-status:
     name: Check Python release status
     needs: release-typescript
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -215,13 +217,14 @@ jobs:
   publish-python:
     name: Release Python SDK
     needs: python-release-status
-    if: needs.python-release-status.outputs.should-publish == 'true'
+    if: github.ref == 'refs/heads/main' && needs.python-release-status.outputs.should-publish == 'true'
     uses: ./.github/workflows/publish-python.yml
     secrets: inherit
 
   python-alpha-status:
     name: Check Python alpha status
     needs: release-typescript
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -259,7 +262,7 @@ jobs:
   publish-python-alpha:
     name: Release Python SDK alpha
     needs: python-alpha-status
-    if: needs.python-alpha-status.outputs.should-publish == 'true'
+    if: github.ref == 'refs/heads/main' && needs.python-alpha-status.outputs.should-publish == 'true'
     uses: ./.github/workflows/publish-python.yml
     with:
       alpha: true
@@ -268,6 +271,7 @@ jobs:
   publish-go:
     name: Release Go SDK
     needs: release-typescript
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
