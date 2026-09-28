@@ -775,6 +775,39 @@ class PageOffParams(TypedDict):
     subscription_id: str
 
 
+class PagePDFMargin(TypedDict):
+    top: NotRequired[float]
+    bottom: NotRequired[float]
+    left: NotRequired[float]
+    right: NotRequired[float]
+
+
+class PagePDFOptions(TypedDict):
+    landscape: NotRequired[bool]
+    display_header_footer: NotRequired[bool]
+    print_background: NotRequired[bool]
+    scale: NotRequired[float]
+    width: NotRequired[float]
+    height: NotRequired[float]
+    margin: NotRequired[PagePDFMargin]
+    page_ranges: NotRequired[str]
+    header_template: NotRequired[str]
+    footer_template: NotRequired[str]
+    prefer_css_page_size: NotRequired[bool]
+    tagged: NotRequired[bool]
+    outline: NotRequired[bool]
+    timeout: NotRequired[float]
+
+
+class PagePDFParams(TypedDict):
+    page_id: str
+    options: NotRequired[PagePDFOptions]
+
+
+class PagePDFResult(TypedDict):
+    data: str
+
+
 class PageRef(TypedDict):
     page_id: str
     url: NotRequired[str]
