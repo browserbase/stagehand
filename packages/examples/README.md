@@ -24,14 +24,14 @@ just cookbook laptop-spec-comparison
 
 ## Benchmark a cookbook
 
-`just showcase <slug>` benchmarks four lanes, three runs each, all on the same model (Claude Sonnet 5 by default, `SHOWCASE_MODEL` to change it):
+`just showcase <slug>` benchmarks four lanes, three runs each, all on the same model (Claude Sonnet 5 by default; set `SHOWCASE_MODEL` and its corresponding provider API key, such as `OPENAI_API_KEY`, to change it):
 
 - **Stagehand code mode agent**: an agent given the task's goal, driving Stagehand's code-mode MCP server (`@browserbasehq/stagehand-integrations`), where it writes Playwright-shaped code.
 - **Playwright MCP agent**: the same agent loop and goal, driving the stock [Playwright MCP](https://github.com/microsoft/playwright-mcp) server.
 - **Cookbook script**: this folder's `workflow.ts`, the flow written once as plain Stagehand calls.
 - **Cookbook script, cached**: the same script after one warm-up run, with Stagehand's server-side cache on.
 
-Both agents use Anthropic prompt caching (`cache_control`), configured the way a real Claude agent would be. The harness downloads the Browserbase recording of the most typical code-mode run and writes everything to `<slug>/.out/`:
+With the default Anthropic model, both agents use Anthropic prompt caching (`cache_control`); OpenAI overrides use that provider's automatic prefix caching. The harness downloads the Browserbase recording of the most typical code-mode run and writes everything to `<slug>/.out/`:
 
 - `results.json`: token usage (including cache reads and writes), cost, duration and success for every run, medians, the timeline of agent tool calls and the extracted output
 - `recording.mp4` and `poster.jpg`, compressed with ffmpeg

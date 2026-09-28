@@ -17,11 +17,11 @@ A directory built for browsing, not exporting: hundreds of cards rendered client
 This is what the recording and the headline numbers show: Claude Code with Stagehand's code-mode MCP server, which exposes `run`, `snapshot` and `screenshot`. From the repository root:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
 export ANTHROPIC_API_KEY=... BROWSERBASE_API_KEY=...
 cd packages/integrations/claude-code
-claude -p 'From the Y Combinator directory'\''s Developer Tools industry page, report the first 30 companies listed, each with its name, one-line description, location (null if not shown) and YC batch.' \
+claude -p 'From the Y Combinator directory'\''s Developer Tools industry page, report the first 30 companies listed, each with its name, one-line description, location (null if not shown) and YC batch (null if not shown).' \
   --mcp-config .mcp.json --allowedTools "mcp__stagehand__run,mcp__stagehand__snapshot,mcp__stagehand__screenshot"
 ```
 

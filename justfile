@@ -52,6 +52,7 @@ example name="act":
 showcase slug *args:
     pnpm --filter ./packages/extension build
     pnpm --filter ./packages/sdk-ts build
+    pnpm --filter ./packages/integrations/core build
     pnpm exec tsx packages/examples/_harness/run.ts {{slug}} {{args}}
 
 cookbook slug:

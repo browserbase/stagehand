@@ -14,10 +14,10 @@ The data lives in an interactive client-side view, not a file you can download.
 
 ## Run it with the code-mode agent
 
-This is what the recording and the headline numbers show: Claude Code with Stagehand's code-mode MCP server, which exposes `run`, `snapshot` and `screenshot`. From the repository root:
+This is what the recording and the headline numbers show: Claude Code with the Stagehand facade MCP server, which exposes `run`, `snapshot` and `screenshot`. From the repository root:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
 export ANTHROPIC_API_KEY=... BROWSERBASE_API_KEY=...
 cd packages/integrations/claude-code
