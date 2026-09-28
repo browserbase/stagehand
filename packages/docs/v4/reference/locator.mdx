@@ -966,7 +966,26 @@ if err := locator.Click(ctx, nil); err != nil {
 }
 ```
 
-In Go the locator type is `*stagehand.PageLocator` (the wrapper named `Locator` in the TypeScript and Python SDKs). Every method takes a `context.Context` first, and methods with options accept a pointer options struct; pass `nil` for defaults.
+Go locators use `*stagehand.PageLocator`. Actions & reads take a `context.Context` first. Methods like `Fill` & `Count` accept one optional `*stagehand.LocatorOptions`; omit it or pass `nil` for defaults. For methods like `Click` & `Type`, set `Timeout` in their existing options.
+
+The default timeout is 20 seconds. Set `Timeout` to a pointer to a number of milliseconds, or a pointer to `0` for no timeout.
+
+The same timeout covers waiting for frames, finding the element, & performing the action. Typing delays & highlight duration count toward it. Reading upload files & sending the request do not.
+
+Your context can stop the client waiting sooner, but it does not cancel work already sent to the browser.
+
+```go
+timeout := 5000.0
+if err := locator.Fill(ctx, "hello", &stagehand.LocatorOptions{Timeout: &timeout}); err != nil {
+    return err
+}
+unlimited := 0.0
+count, err := locator.Count(ctx, &stagehand.LocatorOptions{Timeout: &unlimited})
+if err != nil {
+    return err
+}
+fmt.Println(count)
+```
 
 ## Click()
 
@@ -1008,6 +1027,14 @@ if err := locator.Hover(ctx); err != nil {
 }
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
 </ResponseField>
@@ -1026,6 +1053,14 @@ if err := locator.Fill(ctx, "Browserbase"); err != nil {
   The value to set.
 </ParamField>
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
 </ResponseField>
@@ -1041,6 +1076,14 @@ if err != nil {
 }
 fmt.Println(count)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(int, error)">
   The operation result.
@@ -1058,6 +1101,14 @@ if err != nil {
 fmt.Println(checked)
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="(bool, error)">
   The operation result.
 </ResponseField>
@@ -1073,6 +1124,14 @@ if err != nil {
 }
 fmt.Println(value)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(string, error)">
   The operation result.
@@ -1090,6 +1149,14 @@ if err != nil {
 fmt.Println(visible)
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="(bool, error)">
   The operation result.
 </ResponseField>
@@ -1105,6 +1172,14 @@ if err != nil {
 }
 fmt.Println(text)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(string, error)">
   The operation result.
@@ -1122,6 +1197,14 @@ if err != nil {
 fmt.Println(html)
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="(string, error)">
   The operation result.
 </ResponseField>
@@ -1137,6 +1220,14 @@ if err != nil {
 }
 fmt.Println(text)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(string, error)">
   The operation result.
@@ -1156,6 +1247,14 @@ if err := locator.ScrollTo(ctx, stagehand.NumericScrollPercent(50)); err != nil 
   A percentage from 0 to 100. Construct it with `stagehand.NumericScrollPercent(50)`, or with `stagehand.NamedScrollPercent("50%")` for a percentage string.
 </ParamField>
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
 </ResponseField>
@@ -1171,6 +1270,14 @@ if err != nil {
 }
 fmt.Println(point.X, point.Y)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(LocatorCentroidResult, error)">
   The operation result.
@@ -1338,22 +1445,43 @@ fmt.Println(values)
   The value or values to select. `StringList` is a `[]string`.
 </ParamField>
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="([]string, error)">
   The operation result.
 </ResponseField>
 
 ## SetInputFiles()
 
-Set one or more local files or in-memory payloads on the matched `<input type="file">`. The SDK resolves relative paths on the caller's machine. Call it without files to clear the selection.
+Set local files or in-memory payloads on the matched `<input type="file">`. Pass files as a slice; `nil` or an empty slice clears the selection. The SDK resolves relative paths on the caller's machine. Omit options to use the default timeout.
 
 ```go
-err := page.Locator(`input[type="file"]`).SetInputFiles(ctx, stagehand.FilePath("./resume.pdf"))
+timeout := 5000.0
+err := page.Locator(`input[type="file"]`).SetInputFiles(
+    ctx,
+    []stagehand.FileInput{stagehand.FilePath("./resume.pdf")},
+    &stagehand.LocatorOptions{Timeout: &timeout},
+)
 if err != nil {
     return err
 }
 ```
 
-<ParamField path="files" type="...FileInput">
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
+<ParamField path="files" type="[]FileInput">
   Local file path(s) or in-memory payload(s) to upload. Construct each with `stagehand.FilePath(path)` or `stagehand.FileData(name, mimeType, buffer)`. The SDK serializes each file in memory and limits it to 50 MiB.
 
   <ParamField path="files.Path" type="string">

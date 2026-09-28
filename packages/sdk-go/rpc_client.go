@@ -27,6 +27,7 @@ const (
 	maxJSONRPCRequestID     uint64 = 9_007_199_254_740_991
 	maxPendingNotifications        = 100
 	rpcResponseGrace               = 10 * time.Second
+	defaultLocatorTimeout          = 20 * time.Second
 	maxRPCResponseTimeout          = time.Duration(math.MaxInt64)
 )
 
@@ -279,6 +280,15 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 }
 
 func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, bool) {
+	if strings.HasPrefix(method, "locator.") {
+		if milliseconds, found := jsonNumberAtPath(params, "options", "timeout"); found {
+			if milliseconds == 0 {
+				return 0, false
+			}
+			return rpcResponseTimeoutForDuration(milliseconds), true
+		}
+		return rpcResponseGrace + defaultLocatorTimeout, true
+	}
 	var path []string
 	switch method {
 	case "stagehand.act",
@@ -312,7 +322,7 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	}
 	// These operations had no v3 deadline. Keep the server as the owner of their
 	// lifetime instead of turning the transport grace period into a 10s ceiling.
-	if _, found := unboundedByDefaultMethods[method]; found || strings.HasPrefix(method, "locator.") {
+	if _, found := unboundedByDefaultMethods[method]; found {
 		return 0, false
 	}
 	return rpcResponseGrace, true
