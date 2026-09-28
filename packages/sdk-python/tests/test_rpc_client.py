@@ -849,7 +849,9 @@ async def test_locator_response_wait_uses_default_override_and_zero(
             await transport.incoming.put({"jsonrpc": "2.0", "id": request["id"], "result": 2})
             assert await asyncio.wait_for(call, timeout=1) == 2
         else:
-            with pytest.raises(TimeoutError, match=r"RPC response timed out: locator\.count"):
+            with pytest.raises(
+                TimeoutError, match=r"RPC response timed out after 0\.03s: locator\.count"
+            ):
                 await asyncio.wait_for(call, timeout=1)
         assert client._pending == {}
     finally:
