@@ -27,6 +27,8 @@ import type {
   PageToolsRemovedNotification,
   WebMCPToolIdentity,
   PageSnapshotOptions,
+  PagePDFOptions,
+  PagePDFResult,
   SnapshotResult,
   WebMCPAnnotation,
   WebMCPInvocationDescriptor,
@@ -1586,6 +1588,42 @@ export class Page {
     };
 
     return await withScreenshotLock(this, exec, opts.timeout);
+  }
+
+  /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
+  async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
+    const {
+      timeout = 30_000,
+      width,
+      height,
+      margin,
+      tagged = false,
+      outline = false,
+      ...printOptions
+    } = options ?? {};
+    return await withScreenshotLock(
+      this,
+      async () => {
+        const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
+          "Page.printToPDF",
+          {
+            ...printOptions,
+            paperWidth: width,
+            paperHeight: height,
+            marginTop: margin?.top ?? 0,
+            marginBottom: margin?.bottom ?? 0,
+            marginLeft: margin?.left ?? 0,
+            marginRight: margin?.right ?? 0,
+            generateTaggedPDF: tagged,
+            generateDocumentOutline: outline,
+            transferMode: "ReturnAsBase64",
+          },
+        );
+        return { data };
+      },
+      timeout,
+      "pdf",
+    );
   }
 
   /**

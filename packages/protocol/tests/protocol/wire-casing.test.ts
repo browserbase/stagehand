@@ -77,6 +77,43 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(schema).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it("round-trips PDF dimensions, nested margins, and print flags", () => {
+    const apiValue = {
+      pageId: "page_1",
+      options: {
+        width: 4,
+        height: 6,
+        margin: { top: 0, bottom: 0.5 },
+        preferCSSPageSize: true,
+        tagged: false,
+        outline: true,
+      },
+    };
+    const wireValue = {
+      page_id: "page_1",
+      options: {
+        width: 4,
+        height: 6,
+        margin: { top: 0, bottom: 0.5 },
+        prefer_css_page_size: true,
+        tagged: false,
+        outline: true,
+      },
+    };
+
+    expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
+    expect(wireSchema(StagehandMethods.pagePDF.params).parse(wireValue)).toStrictEqual(apiValue);
+  });
+
+  it.each(["toString", "constructor", "hasOwnProperty"])(
+    "does not treat inherited %s as an API acronym mapping",
+    (key) => {
+      const value = { [key]: "root", entries: [{ [key]: "nested" }] };
+
+      expect(wireSchema(z.record(z.string(), z.json())).parse(value)).toStrictEqual(value);
+    },
+  );
+
   it("round-trips every declared API property name through its wire name", () => {
     const propertyNames = new Set<string>();
     for (const definition of Object.values(StagehandMethods)) {
@@ -443,7 +480,7 @@ describe("JSON-RPC wire casing", () => {
       },
       telemetry: {
         traces: {
-          endpoint: "https://example.com/v1/traces",
+          endpoint: "https://collector.example.com/v1/traces",
           headers: { doNotRenameMe: "value" },
         },
       },
@@ -464,7 +501,7 @@ describe("JSON-RPC wire casing", () => {
       },
       telemetry: {
         traces: {
-          endpoint: "https://example.com/v1/traces",
+          endpoint: "https://collector.example.com/v1/traces",
           headers: { doNotRenameMe: "value" },
         },
       },
