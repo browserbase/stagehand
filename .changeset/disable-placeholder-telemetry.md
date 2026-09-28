@@ -1,0 +1,9 @@
+---
+"@browserbasehq/stagehand": patch
+"@browserbasehq/stagehand-go": patch
+"@browserbasehq/stagehand-python": patch
+"@browserbasehq/stagehand-extension": patch
+"@browserbasehq/stagehand-protocol": patch
+---
+
+Keep telemetry disabled unless an OTLP traces endpoint is explicitly configured.
