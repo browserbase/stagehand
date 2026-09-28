@@ -6,6 +6,7 @@ import { browserbase, Stagehand, type StagehandBrowser } from "../../src/index.j
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
 const shouldRun = process.env.BROWSERBASE_SMOKE === "1" || Boolean(browserbaseApiKey);
+const exampleTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/example/";
 const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/";
 
 describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
@@ -43,9 +44,9 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
     const page =
       (await stagehand.browser.context.pages())[0] ?? (await stagehand.browser.context.newPage());
 
-    await page.goto("https://example.com", { waitUntil: "load" });
+    await page.goto(exampleTestSite, { waitUntil: "load" });
 
-    await expect(page.url()).resolves.toBe("https://example.com/");
+    await expect(page.url()).resolves.toBe(exampleTestSite);
     await expect(page.title()).resolves.toBe("Example Domain");
     await expect(page.locator("h1").innerText()).resolves.toBe("Example Domain");
   });
@@ -116,7 +117,7 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
     }
     const firstStagehand = stagehand;
     const page = (await browser.context.pages())[0] ?? (await browser.context.newPage());
-    await page.goto("https://example.com", { waitUntil: "load" });
+    await page.goto(exampleTestSite, { waitUntil: "load" });
     const pageId = page.pageId;
 
     await expect(firstStagehand.close()).resolves.toBeUndefined();
