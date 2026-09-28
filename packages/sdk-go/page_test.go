@@ -538,6 +538,89 @@ func TestPageScreenshotSerializesOptionsAndMaskLocators(t *testing.T) {
 	}
 }
 
+func TestPagePDFDecodesBytesAndSerializesOptions(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.pdf": PagePDFResult{Data: "JVBERi0xLjcK"},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	landscape := true
+	printBackground := true
+	width := 8.5
+	height := 11.0
+	marginTop := 0.25
+	marginBottom := 0.0
+	tagged := false
+	outline := false
+	options := &PagePDFOptions{
+		Landscape:       &landscape,
+		PrintBackground: &printBackground,
+		Width:           &width,
+		Height:          &height,
+		Margin:          &PagePDFMargin{Top: &marginTop, Bottom: &marginBottom},
+		Tagged:          &tagged,
+		Outline:         &outline,
+	}
+
+	data, err := page.PDF(context.Background(), options)
+	if err != nil {
+		t.Fatalf("PDF() error = %v", err)
+	}
+	if !bytes.Equal(data, []byte("%PDF-1.7\n")) {
+		t.Fatalf("PDF() = %q", data)
+	}
+	params, ok := rpc.calls[0].params.(PagePDFParams)
+	if !ok || params.PageID != "page-1" || params.Options != options {
+		t.Fatalf("PDF() params = %#v", rpc.calls[0].params)
+	}
+	encoded, err := marshalValidatedJSON(params)
+	if err != nil {
+		t.Fatalf("encode PDF() params: %v", err)
+	}
+	assertRPCJSON(t, encoded, `{
+		"page_id": "page-1",
+		"options": {
+			"landscape": true,
+			"print_background": true,
+			"width": 8.5,
+			"height": 11,
+			"margin": {"top": 0.25, "bottom": 0},
+			"tagged": false,
+			"outline": false
+		}
+	}`)
+}
+
+func TestPagePDFPreservesOmittedAndEmptyOptions(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name    string
+		options *PagePDFOptions
+		want    string
+	}{
+		{"omitted", nil, `{"page_id":"page-1"}`},
+		{"empty", &PagePDFOptions{}, `{"page_id":"page-1","options":{}}`},
+		{"empty margin", &PagePDFOptions{Margin: &PagePDFMargin{}}, `{"page_id":"page-1","options":{"margin":{}}}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rpc := &recordingProtocolClient{responses: map[string]any{
+				"page.pdf": PagePDFResult{Data: "JVBERi0xLjcK"},
+			}}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			if _, err := page.PDF(context.Background(), test.options); err != nil {
+				t.Fatalf("PDF() error = %v", err)
+			}
+			encoded, err := marshalValidatedJSON(rpc.calls[0].params)
+			if err != nil {
+				t.Fatalf("encode PDF() params: %v", err)
+			}
+			assertRPCJSON(t, encoded, test.want)
+		})
+	}
+}
+
 func TestPageScreenshotRejectsCrossPageMaskLocators(t *testing.T) {
 	t.Parallel()
 
@@ -617,6 +700,19 @@ func TestPageScreenshotRejectsMalformedBase64(t *testing.T) {
 	if _, err := page.Screenshot(context.Background(), nil); err == nil ||
 		!strings.Contains(err.Error(), "decode page.screenshot result") {
 		t.Fatalf("Screenshot() error = %v", err)
+	}
+}
+
+func TestPagePDFRejectsMalformedBase64(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.pdf": PagePDFResult{Data: "%%%"},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	if _, err := page.PDF(context.Background(), nil); err == nil ||
+		!strings.Contains(err.Error(), "decode page.pdf result") {
+		t.Fatalf("PDF() error = %v", err)
 	}
 }
 

@@ -77,7 +77,7 @@ evals run b:webvoyager \
 The harness supports `stagehand_facade`, `playwright_mcp`, and `chrome_devtools_mcp`. It restricts Grok to its MCP discovery and invocation tools, disables subagents, plan mode, and web search, and asks Grok not to edit repository files. The temporary Grok home disables compatibility MCP imports, memory, and background leader reuse so user configuration cannot add unrelated tools.
 
 <Warning>
-`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/cli-agents/overview#security-boundary).
 </Warning>
 
 <Card title="Grok Build integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/grok-build">
