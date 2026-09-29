@@ -3,23 +3,25 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { scopedChangesets } from "./release-scope.ts";
 import {
   assertPublishedCliDependencies,
   isCliVersionPublished,
+  nextAlphaNumber,
   versionScope,
   withPublishScope,
 } from "./scoped-release.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
-async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both") {
+async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both", sdkName = "sdk") {
   const root = await mkdtemp(path.join(os.tmpdir(), "scoped-release-"));
   directories.push(root);
   await mkdir(path.join(root, ".changeset"));
@@ -40,7 +42,7 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both") {
   );
   for (const [directory, manifest] of Object.entries({
     cli: { name: "browse", version: "0.9.6", dependencies: { sdk: "workspace:*" } },
-    sdk: { name: "sdk", version: "4.1.0" },
+    sdk: { name: sdkName, version: "4.1.0" },
     python: { name: "python", version: "4.1.0", private: true },
   })) {
     await mkdir(path.join(root, "packages", directory), { recursive: true });
@@ -57,7 +59,7 @@ async function fixture(changes: "both" | "cli" | "sdk" | "mixed" = "both") {
   if (changes === "both" || changes === "sdk")
     await writeFile(
       path.join(root, ".changeset/sdk.md"),
-      '---\n"sdk": minor\n"python": patch\n---\nSDK improvement\n',
+      `---\n"${sdkName}": minor\n"python": patch\n---\nSDK improvement\n`,
     );
   if (changes === "mixed")
     await writeFile(
@@ -183,13 +185,44 @@ describe("independent release scopes using the real Changesets engine", () => {
     });
   }
 
-  it("keeps Browse out of SDK alpha versions and leaves its note intact", async () => {
-    const root = await fixture();
-    await versionScope(root, "sdk", true);
-    expect((await manifest(root, "sdk")).version).toMatch(/^4\.2\.0-alpha-[a-f0-9]+$/);
+  it("increments the SDK alpha from published versions without changing Browse", async () => {
+    const root = await fixture("both", "@browserbasehq/stagehand");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          versions: {
+            "4.2.0-alpha-aabbcc": {},
+            "4.2.0-alpha.1": {},
+            "4.2.0-alpha.2": {},
+            "4.1.0-alpha.99": {},
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    await versionScope(root, "sdk", "numbered");
+    expect((await manifest(root, "sdk")).version).toBe("4.2.0-alpha.3");
+    expect((await manifest(root, "python")).version).toBe("4.1.1-alpha.3");
     expect((await manifest(root, "cli")).version).toBe("0.9.6");
     expect(await scopedChangesets(root, "cli")).toHaveLength(1);
     expect(await scopedChangesets(root, "sdk")).toHaveLength(0);
+  });
+
+  it("starts a new alpha series at one and preserves Python's commit snapshot", async () => {
+    expect(nextAlphaNumber("4.2.0", ["4.2.0-alpha-aabbcc", "4.1.0-alpha.8"])).toBe(1);
+    expect(nextAlphaNumber("4.2.0", ["4.2.0-alpha.1"])).toBe(2);
+    const root = await fixture("sdk", "@browserbasehq/stagehand");
+    await versionScope(root, "sdk", "commit");
+    expect((await manifest(root, "python")).version).toMatch(/^4\.1\.1-alpha-[a-f0-9]+$/u);
+  });
+
+  it("fails closed when npm version metadata is unavailable", async () => {
+    const root = await fixture("sdk", "@browserbasehq/stagehand");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 503 }));
+    await expect(versionScope(root, "sdk", "numbered")).rejects.toThrow(
+      "Could not read published Stagehand versions (503)",
+    );
+    expect((await manifest(root, "sdk")).version).toBe("4.1.0");
   });
 
   it("rejects mixed changesets before mutating either package", async () => {

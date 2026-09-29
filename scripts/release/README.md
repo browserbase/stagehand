@@ -38,8 +38,14 @@ moves pending CLI changesets outside the checkout for the action's publish-only
 invocation, then restores them in an `always()` step. When an SDK PR is being
 prepared, nothing is hidden: the scoped version command consumes only SDK notes.
 
-Shared Changesets prerelease mode (`.changeset/pre.json`) is rejected. Existing
-commit-addressed SDK snapshot releases remain supported.
+Shared Changesets prerelease mode (`.changeset/pre.json`) is rejected. The
+TypeScript SDK alpha publisher reads npm's published versions for the calculated
+base version and publishes the next `<base>-alpha.<N>`. The release workflow
+serializes runs on `main`, so an unsuccessful publish does not consume a number.
+Python keeps its commit-addressed snapshot and commit-counted `a0.dev<N>` version.
+The numeric npm version sorts below an earlier SHA-suffixed alpha with the same
+base version. The `alpha` dist-tag points to the new release, but prerelease
+semver ranges may require an explicit update until the base version changes.
 
 Tag recovery runs even if the publisher fails after npm accepts the version.
 It checks npm before creating a missing tag and skips existing remote tags. If
