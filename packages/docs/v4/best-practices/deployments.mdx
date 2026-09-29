@@ -3,14 +3,13 @@ title: 'Deploying Stagehand'
 description: 'Deploy your AI agents and automations to the cloud'
 ---
 
-We recommend that you deploy Stagehand as a [Browserbase Function](https://docs.browserbase.com/platform/functions/quickstart). The Function runs next to its browser session on Browserbase, and it reads your API keys from encrypted project secrets. You do not need a separate server, a Chrome binary, or a secrets store.
+We recommend that you deploy Stagehand as a [Browserbase Function](https://docs.browserbase.com/platform/functions/quickstart). The Function runs next to its browser session on Browserbase, and it reads your API key from an encrypted project secret. You do not need a separate server, a Chrome binary, or a secrets store.
 
 Stagehand also runs on other platforms. If Functions is not a good fit for you, see [Other deployment options](#other-deployment-options).
 
 ## Prerequisites
 
 - A Browserbase API key from [Settings](https://www.browserbase.com/settings)
-- A model provider API key. This guide uses OpenAI.
 - Node.js and pnpm
 - The `browse` CLI:
 
@@ -28,6 +27,9 @@ npm install -g browse
 browse functions init my-stagehand-function
 cd my-stagehand-function
 ```
+
+The initializer installs Stagehand and creates a starter Stagehand Function in `index.ts`.
+
 </Step>
 
 <Step title="Upload the Stagehand extension">
@@ -38,92 +40,67 @@ Stagehand needs its extension in the browser session, and a session cannot get a
 browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
 ```
 
-Copy the `id` from the output. The Function uses it in the next step.
+In `index.ts`, replace `your-extension-id` with the `id` from the output.
 
 </Step>
 
-<Step title="Write the Function">
+<Step title="Review the Function">
 
-Replace `index.ts` with:
+The initializer creates this Function in `index.ts`. It connects Stagehand to the session that Browserbase creates for each invocation, then extracts the top stories from Hacker News:
 
 ```typescript
 import { defineFn } from "@browserbasehq/sdk-functions";
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-// The ID from `browse cloud extensions upload`. The build reads it into the Function manifest, so use a literal value.
-const STAGEHAND_EXTENSION_ID = "your-extension-id";
-
-type Secrets = Record<string, string | undefined>;
-
-// Deployed Functions get secrets on context.secrets. The local dev server does not, so fall back to the environment.
-function readSecret(secrets: Secrets | undefined, name: string): string {
-  const value = secrets?.[name] ?? process.env[name];
-  if (!value) {
-    throw new Error(`Secret "${name}" is not set`);
-  }
-  return value;
-}
-
 defineFn(
-  "stagehand-task",
+  "my-function",
   async (context) => {
-    const secrets = context.secrets as Secrets | undefined;
-
-    // Attach to the session that Browserbase created for this invocation.
     const browser = await browserbase.connect({
-      apiKey: readSecret(secrets, "BROWSERBASE_API_KEY"),
+      // The local dev server has no secrets, so fall back to .env.
+      apiKey:
+        context.secrets.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY!,
       sessionId: context.session.id,
     });
+    // In this example, Stagehand uses the Model Gateway where Browserbase charges for the tokens
+    const stagehand = await Stagehand.create({ browser });
+    const page = (await browser.context.activePage())!;
 
-    try {
-      const stagehand = await Stagehand.create({
-        browser,
-        model: {
-          modelName: "openai/gpt-5.6-sol",
-          apiKey: readSecret(secrets, "OPENAI_API_KEY"),
-        },
-      });
+    await page.goto("https://news.ycombinator.com");
+    const { data } = await stagehand.extract(
+      "Extract the top 3 stories with their rank, title, and link URL.",
+      z.object({
+        stories: z
+          .array(z.object({ rank: z.number(), title: z.string(), url: z.string() }))
+          .max(3),
+      }),
+    );
 
-      try {
-        const page = await browser.context.activePage();
-        if (!page) throw new Error("Stagehand initialized without an active page");
-
-        await page.goto("https://www.stagehand.dev/");
-        await stagehand.act("click the evals button");
-
-        const { data } = await stagehand.extract(
-          "extract the fastest model",
-          z.object({ fastestModel: z.string() }),
-        );
-        return { fastestModel: data.fastestModel };
-      } finally {
-        await stagehand.close();
-      }
-    } finally {
-      // Browserbase owns the session. This closes only the connection.
-      await browser.close();
-    }
+    await stagehand.close();
+    return {
+      message: "Successfully fetched top Hacker News stories",
+      timestamp: new Date().toISOString(),
+      results: data.stories,
+    };
   },
   {
-    sessionConfig: {
-      extensionId: STAGEHAND_EXTENSION_ID,
-    },
+    // Upload the Stagehand extension once, then paste its ID here:
+    //   browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+    sessionConfig: { extensionId: "your-extension-id" },
   },
 );
 ```
 
-Replace `your-extension-id` with the ID from the previous step.
+Stagehand doesn't need a model API key, and when it's omitted, Stagehand uses the [Model Gateway](/v4/configuration/models#model-gateway). Browserbase charges for the tokens.
 
 </Step>
 
 <Step title="Test locally">
 
-Export your keys, then start the development server:
+Export your key, then start the development server:
 
 ```bash
 export BROWSERBASE_API_KEY=your_browserbase_api_key
-export OPENAI_API_KEY=your_openai_api_key
 browse functions dev index.ts
 ```
 
@@ -131,7 +108,7 @@ In another terminal, invoke the Function by the name that you gave to `defineFn`
 
 ```bash
 curl --request POST \
-  --url http://127.0.0.1:14113/v1/functions/stagehand-task/invoke \
+  --url http://127.0.0.1:14113/v1/functions/my-function/invoke \
   --header 'Content-Type: application/json' \
   --data '{}'
 ```
@@ -144,7 +121,7 @@ curl --request POST \
 browse functions publish index.ts
 ```
 
-The output contains `builtFunctions`. Copy the `id` of `stagehand-task`. This is the Function ID.
+The output contains `builtFunctions`. Copy the `id` of `my-function`. This is the Function ID.
 
 <Warning>
 You're looking for `builtFunctions[].id` for this step.
@@ -154,24 +131,22 @@ If the build fails, open the build in the Browserbase dashboard to see the build
 
 </Step>
 
-<Step title="Create and attach the secrets">
+<Step title="Create and attach the secret">
 
-Create one project secret for each key. The name of the secret is the key in `context.secrets`:
+Create a project secret for your Browserbase API key. The name of the secret is the key in `context.secrets`:
 
 ```bash
 browse cloud secrets create BROWSERBASE_API_KEY --env BROWSERBASE_API_KEY
-browse cloud secrets create OPENAI_API_KEY --env OPENAI_API_KEY
 ```
 
-The CLI encrypts each value on your machine before it sends it. Copy the `id` of each secret, then attach both secrets to the Function:
+The CLI encrypts the value on your machine before it sends it. Copy the `id` of the secret, then attach it to the Function:
 
 ```bash
-browse functions secrets attach <functionId> <browserbaseApiKeySecretId>
-browse functions secrets attach <functionId> <openaiApiKeySecretId>
+browse functions secrets attach <functionId> <secretId>
 browse functions secrets list <functionId>
 ```
 
-The `list` output must show both secrets. Attached secrets take effect on the next invocation.
+The `list` output must show the secret. Attached secrets take effect on the next invocation.
 
 </Step>
 
@@ -195,7 +170,8 @@ The command waits for the invocation and prints its result. You can also invoke 
 ## Features
 
 - **No local browsers needed**: Browserbase provides the browser, so your Function ships without a Chrome binary.
-- **Encrypted secrets**: your API keys stay in Browserbase project secrets, and the Function reads them from `context.secrets`.
+- **Encrypted secrets**: your API key stays in a Browserbase project secret, and the Function reads it from `context.secrets`.
+- **No model provider setup**: the Model Gateway picks a model for each call, and Browserbase charges for the tokens. You only need your Browserbase API key.
 
 ## Other deployment options
 
