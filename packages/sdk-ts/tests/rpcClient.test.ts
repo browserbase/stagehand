@@ -527,6 +527,16 @@ describe("RPCClient", () => {
     },
   );
 
+  it.each([
+    StagehandMethods.stagehandAct.name,
+    StagehandMethods.stagehandExtract.name,
+    StagehandMethods.stagehandObserve.name,
+  ])("does not cap %s when the timeout disables the operation deadline", (method) => {
+    expect(rpcResponseTimeoutMs(method, { options: { timeout: 0 } })).toBeUndefined();
+    expect(rpcResponseTimeoutMs(method, { options: { timeout: -1 } })).toBeUndefined();
+    expect(rpcResponseTimeoutMs(method, { options: { timeout: 5_000 } })).toBe(15_000);
+  });
+
   it("does not impose response deadlines on operations that were unbounded in v3", () => {
     const methods = [
       StagehandMethods.stagehandInit.name,
