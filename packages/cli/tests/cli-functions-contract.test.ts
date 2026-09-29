@@ -473,7 +473,7 @@ exit 0
       const projectRoot = join(cwd, "demo-function");
       const starter = await readFile(join(projectRoot, "index.ts"), "utf8");
       expect(starter).toContain("browserbase.connect(");
-      // browser.close() releases the Function's session, which Browserbase owns.
+      // browser.close() releases the Function's session
       expect(starter).not.toContain("await browser.close()");
       expect(starter).toContain("Stagehand.create({ browser })");
     },
