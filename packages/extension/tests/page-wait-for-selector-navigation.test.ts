@@ -104,6 +104,29 @@ describe("Page.waitForSelector across a navigation", () => {
     expect(retryTimeout).toBeLessThanOrEqual(1000);
   });
 
+  it("keeps re-issuing when the first retry lands on a context that is also torn down", async () => {
+    const session = new FakeSession();
+    const page = createPage(session);
+    documentReady(session, 1, 2);
+
+    // The commit first kills the outgoing world, then the world the retry
+    // picked up goes away too before the final document settles.
+    session.answers.set(2, async () => {
+      session.emit("Runtime.executionContextsCleared", {});
+      documentReady(session, 3, 4);
+      throw new Error("-32000 Inspected target navigated or closed");
+    });
+    session.answers.set(4, async () => {
+      session.emit("Runtime.executionContextsCleared", {});
+      documentReady(session, 5, 6);
+      throw new Error("-32000 Cannot find context with specified id");
+    });
+    session.answers.set(6, async () => ({ result: { value: true } }));
+
+    await expect(page.waitForSelector("#query", { timeout: 1000 })).resolves.toBe(true);
+    expect(session.evaluateCalls.map((call) => call.contextId)).toStrictEqual([2, 4, 6]);
+  });
+
   it("gives up once the budget is spent", async () => {
     const session = new FakeSession();
     const page = createPage(session);
