@@ -2114,8 +2114,10 @@ export async function createPlaywrightCompatRuntime(
       let lastError: unknown;
       while (Date.now() < deadline) {
         let raw: RawLocator;
+        let actionOptions: LocatorTimeoutOptions;
         try {
           raw = await this.single(method, locatorTimeoutOptions(deadline, method).timeout);
+          actionOptions = locatorTimeoutOptions(deadline, method);
         } catch (resolveError) {
           // A re-resolve that runs out of the remaining window must not mask
           // the action error that caused the retry (e.g. a layout failure).
@@ -2123,7 +2125,7 @@ export async function createPlaywrightCompatRuntime(
           throw resolveError;
         }
         try {
-          await action(raw, locatorTimeoutOptions(deadline, method));
+          await action(raw, actionOptions);
           await this.state.refreshUrl();
           return;
         } catch (error) {
