@@ -1,24 +1,19 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "share": "disabled",
-  "autoupdate": false,
   "mcp": {
-    "stagehand": {
-      "type": "local",
-      "enabled": true,
-      "command": ["node", "../core/dist/facade/stdio-server.mjs"]
+    "servers": {
+      "stagehand": {
+        "type": "local",
+        "codemode": false,
+        "command": ["node", "../core/dist/facade/stdio-server.mjs"]
+      }
     }
   },
-  "tools": {
-    "*": false,
-    "stagehand_run": true,
-    "stagehand_snapshot": true,
-    "stagehand_screenshot": true
-  },
-  "permission": {
-    "*": "deny",
-    "stagehand_run": "allow",
-    "stagehand_snapshot": "allow",
-    "stagehand_screenshot": "allow"
-  }
+  "permissions": [
+    { "action": "*", "resource": "*", "effect": "deny" },
+    { "action": "stagehand_run", "resource": "*", "effect": "allow" },
+    { "action": "stagehand_snapshot", "resource": "*", "effect": "allow" },
+    { "action": "stagehand_screenshot", "resource": "*", "effect": "allow" }
+  ]
 }

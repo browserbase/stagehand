@@ -18,15 +18,19 @@ describe("OpenCode tool adapter helpers", () => {
       }),
     ).toEqual({
       mcp: {
-        stagehand: {
-          type: "local",
-          enabled: true,
-          command: ["node", "server.mjs"],
-          environment: { TOKEN: "value" },
+        servers: {
+          stagehand: {
+            type: "local",
+            codemode: false,
+            command: ["node", "server.mjs"],
+            environment: { TOKEN: "value" },
+          },
         },
       },
-      tools: { "*": false, "stagehand_*": true },
-      permission: { "*": "deny", "stagehand_*": "allow" },
+      permissions: [
+        { action: "*", resource: "*", effect: "deny" },
+        { action: "stagehand_*", resource: "*", effect: "allow" },
+      ],
     });
   });
 
@@ -35,5 +39,19 @@ describe("OpenCode tool adapter helpers", () => {
       expect(isOpenCodeMountToolName(["stagehand"], name)).toBe(true);
     }
     expect(isOpenCodeMountToolName(["stagehand"], "bash")).toBe(false);
+  });
+
+  it("mounts all supported MCP surfaces with direct tools and ordered permissions", () => {
+    for (const server of ["stagehand", "playwright", "chrome-devtools"]) {
+      const config = buildOpenCodeMcpConfig({
+        [server]: { command: "node", args: ["server.mjs"] },
+      });
+      expect(config.mcp.servers[server]).toMatchObject({ codemode: false });
+      expect(config.permissions).toEqual([
+        { action: "*", resource: "*", effect: "deny" },
+        { action: `${server}_*`, resource: "*", effect: "allow" },
+      ]);
+      expect(isOpenCodeMountToolName([server], `${server}_browser_snapshot`)).toBe(true);
+    }
   });
 });

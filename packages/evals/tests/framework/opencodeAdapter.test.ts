@@ -10,14 +10,20 @@ describe("OpenCode trajectory adapter", () => {
       {
         messages: [
           {
-            info: {},
-            parts: [
+            type: "assistant",
+            content: [
               { type: "reasoning", text: "Inspect first" },
               {
                 type: "tool",
-                tool: "stagehand_run",
-                state: { status: "completed", input: { code: "return 1" }, output: "1" },
+                id: "call-1",
+                name: "stagehand_run",
+                state: {
+                  status: "completed",
+                  input: { code: "return 1" },
+                  content: [{ type: "text", text: "1" }],
+                },
               },
+              { type: "tool", id: "call-1", name: "stagehand_run", state: { status: "completed" } },
               { type: "text", text: "finished" },
             ],
           },
@@ -29,19 +35,31 @@ describe("OpenCode trajectory adapter", () => {
       actionName: "stagehand_run",
       actionArgs: { code: "return 1" },
       reasoning: "Inspect first",
-      toolOutput: { ok: true, result: "1" },
+      toolOutput: { ok: true, result: [{ type: "text", text: "1" }] },
     });
+    expect(trajectory.steps).toHaveLength(1);
     expect(trajectory.finalAnswer).toBe("finished");
   });
 
-  it("marks incomplete calls failed and attaches observations", () => {
+  it("skips incomplete calls and preserves screenshot evidence", () => {
     const trajectory = opencodeAdapter.fromHarnessResult(
       {
         messages: [
           {
-            info: {},
-            parts: [
-              { type: "tool", tool: "stagehand_run", state: { status: "running", input: {} } },
+            type: "assistant",
+            content: [
+              { type: "tool", name: "stagehand_run", state: { status: "running", input: {} } },
+              {
+                type: "tool",
+                name: "stagehand_screenshot",
+                state: {
+                  status: "completed",
+                  input: {},
+                  content: [
+                    { type: "file", mime: "image/png", uri: "data:image/png;base64,aW1hZ2U=" },
+                  ],
+                },
+              },
             ],
           },
         ],
@@ -50,7 +68,13 @@ describe("OpenCode trajectory adapter", () => {
       },
       taskSpec,
     );
-    expect(trajectory.steps[0].toolOutput.ok).toBe(false);
+    expect(trajectory.steps).toHaveLength(1);
+    expect(trajectory.steps[0].toolOutput.ok).toBe(true);
+    expect(trajectory.steps[0].agentEvidence.modalities).toEqual(
+      expect.arrayContaining([
+        { type: "image", bytes: Buffer.from("image"), mediaType: "image/png" },
+      ]),
+    );
     expect(trajectory.steps[0].probeEvidence.url).toBe("https://example.com");
   });
 });

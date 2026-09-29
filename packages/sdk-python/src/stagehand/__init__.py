@@ -11,6 +11,7 @@ from ._generated.input_types import (
     ModelConfig,
     PageDragAndDropRoutePoint,
     PageEventName,
+    PagePDFMargin,
     PageScreenshotClip,
     RgbaColor,
     TelemetryConfig,
@@ -58,7 +59,11 @@ from ._generated.models import (
 from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
+from .cdp_client import StagehandRuntimeIncompatibleError
 from .client_models import (
+    BrowserbaseFetchResult,
+    BrowserbaseSearchResult,
+    BrowserbaseSearchResultItem,
     DefaultExtract,
     ExtractResult,
 )
@@ -71,7 +76,14 @@ from .client_types import (
 )
 from .file_upload import FileInput, FilePayload
 from .locator import Locator
-from .page import CDPSubscription, Page, PageEventListener
+from .page import (
+    CDPSubscription,
+    Page,
+    PageEventListener,
+    ToolsAddedListener,
+    ToolsRemovedListener,
+    WebMCPToolIdentity,
+)
 from .response import Response
 from .stagehand import Stagehand
 from .webmcp import (
@@ -90,8 +102,11 @@ __all__ = [
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",
+    "BrowserbaseFetchResult",
     "BrowserbaseProxyConfig",
     "BrowserbaseRegion",
+    "BrowserbaseSearchResult",
+    "BrowserbaseSearchResultItem",
     "CacheOptions",
     "CacheMetadata",
     "CacheStatus",
@@ -129,7 +144,11 @@ __all__ = [
     "PageCDPEvent",
     "PageDragAndDropRoutePoint",
     "PageEventListener",
+    "ToolsAddedListener",
+    "ToolsRemovedListener",
+    "WebMCPToolIdentity",
     "PageEventName",
+    "PagePDFMargin",
     "PageScreenshotClip",
     "ProtocolLocator",
     "RgbaColor",
@@ -141,6 +160,7 @@ __all__ = [
     "StagehandClientLoggingConfig",
     "StagehandMetrics",
     "StagehandResultMetadata",
+    "StagehandRuntimeIncompatibleError",
     "State",
     "TelemetryConfig",
     "Variables",

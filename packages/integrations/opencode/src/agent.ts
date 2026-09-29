@@ -9,10 +9,10 @@ import {
 import {
   extractOpenCodeAssistantText,
   runOpenCodeSession,
+  type OpenCodeConfig,
   type OpenCodeRuntime,
   type StartOpenCodeRuntime,
 } from "@browserbasehq/stagehand-integrations-opencode-sdk";
-import type { Config } from "@opencode-ai/sdk/v2";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,34 +23,34 @@ export const STAGEHAND_TOOL_NAMES = FACADE_TOOLS.map((tool) => `stagehand_${tool
 export function buildOpenCodeConfig(
   facadeServerPath: string,
   source: NodeJS.ProcessEnv = process.env,
-): Config {
-  const tools: Record<string, boolean> = { "*": false };
-  const permission: Record<string, "allow" | "deny"> = { "*": "deny" };
-  for (const toolName of STAGEHAND_TOOL_NAMES) {
-    tools[toolName] = true;
-    permission[toolName] = "allow";
-  }
+): OpenCodeConfig {
   return {
     share: "disabled",
-    autoupdate: false,
+    update: "disable",
     ...(source.OPENCODE_MODEL?.trim() ? { model: source.OPENCODE_MODEL.trim() } : {}),
+    agents: { build: { system: FACADE_AGENT_INSTRUCTIONS } },
     mcp: {
-      stagehand: {
-        type: "local",
-        enabled: true,
-        command: [process.execPath, facadeServerPath],
-        environment: buildAllowlistedEnv(source),
+      servers: {
+        stagehand: {
+          type: "local",
+          codemode: false,
+          command: [process.execPath, facadeServerPath],
+          environment: buildAllowlistedEnv(source),
+        },
       },
     },
-    tools,
-    permission,
+    permissions: [
+      { action: "*", resource: "*", effect: "deny" },
+      ...STAGEHAND_TOOL_NAMES.map((action) => ({
+        action,
+        resource: "*",
+        effect: "allow" as const,
+      })),
+    ],
   };
 }
 
 export function extractAssistantText(result: unknown): string {
-  if (result && typeof result === "object" && "data" in result) {
-    return extractOpenCodeAssistantText((result as { data?: unknown }).data);
-  }
   return extractOpenCodeAssistantText(result);
 }
 
@@ -89,8 +89,6 @@ export async function runOpenCode(
         config: buildOpenCodeConfig(facadeServerPath, env),
         directory: join(runtimeDirectory, "workspace"),
         configRoot: join(runtimeDirectory, "config"),
-        systemPrompt: FACADE_AGENT_INSTRUCTIONS,
-        tools: Object.fromEntries(STAGEHAND_TOOL_NAMES.map((name) => [name, true])),
       },
     });
     if (result.status !== "completed") {

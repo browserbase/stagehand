@@ -16,7 +16,7 @@
     }
   },
   "api": {
-    "openapi": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml"
+    "openapi": "v3/openapi.json"
   },
   "navigation": {
     "versions": [
@@ -38,10 +38,14 @@
           },
           {
             "group": "Configuration",
+            "pages": ["v4/configuration/browser", "v4/configuration/logging"]
+          },
+          {
+            "group": "Add-ons",
             "pages": [
-              "v4/configuration/browser",
+              "v4/add-ons/search",
+              "v4/add-ons/fetch",
               "v4/configuration/models",
-              "v4/configuration/logging",
               "v4/configuration/observability"
             ]
           },
@@ -49,16 +53,32 @@
             "group": "Integrations",
             "pages": [
               "v4/integrations/overview",
-              "v4/integrations/claude-code",
-              "v4/integrations/codex",
-              "v4/integrations/opencode",
-              "v4/integrations/eve",
-              "v4/integrations/deep-agents",
-              "v4/integrations/crewai",
-              "v4/integrations/mastra",
-              "v4/integrations/fx",
-              "v4/integrations/pi",
-              "v4/integrations/vercel-ai-sdk"
+              {
+                "group": "Agent Frameworks",
+                "pages": [
+                  "v4/integrations/agent-frameworks/overview",
+                  "v4/integrations/agent-frameworks/eve",
+                  "v4/integrations/agent-frameworks/deep-agents",
+                  "v4/integrations/agent-frameworks/crewai",
+                  "v4/integrations/agent-frameworks/mastra",
+                  "v4/integrations/agent-frameworks/vercel-ai-sdk"
+                ]
+              },
+              {
+                "group": "CLI Agents",
+                "pages": [
+                  "v4/integrations/cli-agents/overview",
+                  "v4/integrations/cli-agents/claude-code",
+                  "v4/integrations/cli-agents/codex",
+                  "v4/integrations/cli-agents/opencode",
+                  "v4/integrations/cli-agents/fx",
+                  "v4/integrations/cli-agents/pi"
+                ]
+              },
+              {
+                "group": "Applications",
+                "pages": ["v4/integrations/applications/stripe"]
+              }
             ]
           },
           {
@@ -71,8 +91,7 @@
               "v4/best-practices/user-data",
               "v4/best-practices/speed-optimization",
               "v4/best-practices/cost-optimization",
-              "v4/best-practices/deployments",
-              "v4/best-practices/mcp-integrations"
+              "v4/best-practices/deployments"
             ]
           },
           {
@@ -225,7 +244,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/python"
                 },
                 "pages": [
@@ -253,7 +272,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/java"
                 },
                 "pages": [
@@ -281,7 +300,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/go"
                 },
                 "pages": [
@@ -309,7 +328,7 @@
               {
                 "group": "API Reference",
                 "openapi": {
-                  "source": "https://app.stainless.com/api/spec/documented/stagehand/openapi.documented.yml",
+                  "source": "v3/openapi.json",
                   "directory": "v3/api-reference/ruby"
                 },
                 "pages": [
@@ -516,7 +535,7 @@
     },
     {
       "source": "/best-practices/mcp-integrations",
-      "destination": "/v4/best-practices/mcp-integrations"
+      "destination": "/v4/integrations/cli-agents/overview"
     },
     {
       "source": "/best-practices/prompting-best-practices",
@@ -541,6 +560,58 @@
     {
       "source": "/best-practices/:slug*",
       "destination": "/v3/best-practices/:slug*"
+    },
+    {
+      "source": "/v4/integrations/agents",
+      "destination": "/v4/integrations/agent-frameworks/overview"
+    },
+    {
+      "source": "/v4/integrations/eve",
+      "destination": "/v4/integrations/agent-frameworks/eve"
+    },
+    {
+      "source": "/v4/integrations/deep-agents",
+      "destination": "/v4/integrations/agent-frameworks/deep-agents"
+    },
+    {
+      "source": "/v4/integrations/crewai",
+      "destination": "/v4/integrations/agent-frameworks/crewai"
+    },
+    {
+      "source": "/v4/integrations/mastra",
+      "destination": "/v4/integrations/agent-frameworks/mastra"
+    },
+    {
+      "source": "/v4/integrations/vercel-ai-sdk",
+      "destination": "/v4/integrations/agent-frameworks/vercel-ai-sdk"
+    },
+    {
+      "source": "/v4/integrations/cli-agents",
+      "destination": "/v4/integrations/cli-agents/overview"
+    },
+    {
+      "source": "/v4/integrations/claude-code",
+      "destination": "/v4/integrations/cli-agents/claude-code"
+    },
+    {
+      "source": "/v4/integrations/codex",
+      "destination": "/v4/integrations/cli-agents/codex"
+    },
+    {
+      "source": "/v4/integrations/opencode",
+      "destination": "/v4/integrations/cli-agents/opencode"
+    },
+    {
+      "source": "/v4/integrations/fx",
+      "destination": "/v4/integrations/cli-agents/fx"
+    },
+    {
+      "source": "/v4/integrations/pi",
+      "destination": "/v4/integrations/cli-agents/pi"
+    },
+    {
+      "source": "/v4/integrations/stripe",
+      "destination": "/v4/integrations/applications/stripe"
     },
     {
       "source": "/integrations/mcp/:slug*",

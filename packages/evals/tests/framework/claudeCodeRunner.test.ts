@@ -73,7 +73,7 @@ describe("claude code runner helpers", () => {
     });
   });
 
-  it("surfaces verifier integration failures as verifierError on the self-reported result", async () => {
+  it("fails closed on verifier integration errors while preserving the agent report", async () => {
     const sdk: ClaudeAgentSdk = {
       query: async function* () {
         yield {
@@ -114,9 +114,11 @@ describe("claude code runner helpers", () => {
       },
     });
 
-    // The agent's self-report is preserved, the failure is visible, and no
-    // verifier-graded fields are present.
-    expect(result._success).toBe(true);
+    // Verification fails closed while preserving the separate agent report.
+    expect(result._success).toBe(false);
+    expect(result.agentReportedSuccess).toBe(true);
+    expect(result.reasoning).toBe("done");
+    expect(result.finalAnswer).toBe("done");
     expect(String(result.verifierError)).toContain("items array");
     expect(result.outcomeSuccess).toBeUndefined();
     expect(result.processScore).toBeUndefined();

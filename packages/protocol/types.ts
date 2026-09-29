@@ -161,6 +161,11 @@ import type {
   PageIdParamsSchema,
   PageKeyPressParamsSchema,
   PageEventNameSchema,
+  PageSubscriptionEventNameSchema,
+  PageEventNotificationSchema,
+  PageToolsAddedNotificationSchema,
+  PageToolsRemovedNotificationSchema,
+  WebMCPToolIdentitySchema,
   PageLocatorSchema,
   PageNavigationResultSchema,
   PageNavigationOptionsSchema,
@@ -168,6 +173,10 @@ import type {
   PageOnParamsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
+  PagePDFMarginSchema,
+  PagePDFOptionsSchema,
+  PagePDFParamsSchema,
+  PagePDFResultSchema,
   PageScreenshotOptionsSchema,
   PageScreenshotParamsSchema,
   PageScreenshotClipSchema,
@@ -300,6 +309,11 @@ export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
 export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageEventName = z.infer<typeof PageEventNameSchema>;
+export type PageSubscriptionEventName = z.infer<typeof PageSubscriptionEventNameSchema>;
+export type PageEventNotification = z.infer<typeof PageEventNotificationSchema>;
+export type PageToolsAddedNotification = z.infer<typeof PageToolsAddedNotificationSchema>;
+export type PageToolsRemovedNotification = z.infer<typeof PageToolsRemovedNotificationSchema>;
+export type WebMCPToolIdentity = z.infer<typeof WebMCPToolIdentitySchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
 export type PageCDPEvent = z.infer<typeof PageCDPEventSchema>;
 export type PageCDPEventNotification = z.infer<typeof PageCDPEventNotificationSchema>;
@@ -374,6 +388,9 @@ export type PageAddInitScriptParams = z.infer<typeof PageAddInitScriptParamsSche
 export type PageSetExtraHTTPHeadersParams = z.infer<typeof PageSetExtraHTTPHeadersParamsSchema>;
 export type PageScreenshotOptions = z.infer<typeof PageScreenshotOptionsSchema>;
 export type PageScreenshotParams = z.infer<typeof PageScreenshotParamsSchema>;
+export type PagePDFMargin = z.infer<typeof PagePDFMarginSchema>;
+export type PagePDFOptions = z.infer<typeof PagePDFOptionsSchema>;
+export type PagePDFParams = z.infer<typeof PagePDFParamsSchema>;
 export type PageSnapshotParams = z.infer<typeof PageSnapshotParamsSchema>;
 export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParamsSchema>;
 export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
@@ -415,6 +432,7 @@ export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
 export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;
+export type PagePDFResult = z.infer<typeof PagePDFResultSchema>;
 export type PageWaitForSelectorResult = z.infer<typeof PageWaitForSelectorResultSchema>;
 export type LocatorClickResult = z.infer<typeof LocatorClickResultSchema>;
 export type LocatorFillResult = z.infer<typeof LocatorFillResultSchema>;

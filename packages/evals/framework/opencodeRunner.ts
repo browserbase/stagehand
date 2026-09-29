@@ -95,7 +95,6 @@ export async function runOpenCodeAgent({
           config: toolAdapter.config,
           directory: toolAdapter.cwd,
           configRoot: toolAdapter.configRoot,
-          tools: toolAdapter.enabledTools,
         },
         onToolResult: toolAdapter.onToolResult
           ? (name) => toolAdapter.onToolResult!(name)

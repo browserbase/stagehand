@@ -100,15 +100,33 @@ def test_generated_models_retain_cross_field_validation() -> None:
 
 def test_generated_models_serialize_protocol_defaults() -> None:
     telemetry = models.TelemetryConfig.model_validate({
-        "traces": {"endpoint": "https://example.com/v1/traces"}
+        "traces": {"endpoint": "https://collector.example.com/v1/traces"}
     })
 
     assert telemetry.model_dump(mode="json", exclude_unset=True) == {
         "traces": {
-            "endpoint": "https://example.com/v1/traces",
+            "endpoint": "https://collector.example.com/v1/traces",
             "headers": {},
         }
     }
+
+
+def test_generated_model_defaults_keep_their_declared_types_and_wire_values() -> None:
+    extract = models.StagehandExtractParams(page_id="page-1", instruction="extract")
+    init = models.StagehandInitParams(
+        protocol_version="4.1.0",
+        client_info=models.ImplementationInfo(name="test", version="1"),
+    )
+
+    assert isinstance(extract.schema_, models.FieldSchema0)
+    assert init.telemetry is None
+    assert "schema_" in extract.model_fields_set
+    assert "telemetry" not in init.model_fields_set
+    assert (
+        extract.model_dump(mode="json", by_alias=True, exclude_unset=True)["schema"]
+        == (PROTOCOL["$defs"]["StagehandExtractParams"]["properties"]["schema"]["default"])
+    )
+    assert "telemetry" not in init.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
 
 def test_generated_webmcp_models_apply_defaults_and_preserve_user_keys() -> None:

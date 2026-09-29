@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-eve-sdk",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "private": true,
   "description": "Eve (Vercel) harness adapter for Stagehand integrations",
   "files": [

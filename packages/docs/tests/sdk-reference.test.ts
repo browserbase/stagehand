@@ -155,6 +155,9 @@ const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Lan
 // (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
+// Docs publish separately after release. Remove these entries in the WebMCP hooks docs PR.
+// These exceptions apply only to docs coverage, never SDK-to-SDK parity.
+const UNRELEASED_REFERENCE_METHODS = new Set(["page/on-tools-added", "page/on-tools-removed"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 
@@ -243,9 +246,14 @@ describe("SDK reference surface", () => {
           .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}`)
           .sort(),
         `${language} method headings must match the public SDK surface`,
-      ).toStrictEqual(expected);
+      ).toStrictEqual(expected.filter((key) => !UNRELEASED_REFERENCE_METHODS.has(key)));
     }
   }, 30_000);
+
+  it("keeps unreleased reference exceptions limited to existing SDK methods", async () => {
+    const methods = new Set(methodKeys(await readTypescriptMethods()));
+    expect([...UNRELEASED_REFERENCE_METHODS].filter((key) => !methods.has(key))).toEqual([]);
+  });
 
   it("has exactly one reference page for every documented SDK object", async () => {
     const pageSlugs = (await readReferencePages()).map(({ classSlug }) => classSlug).sort();
@@ -593,7 +601,10 @@ describe("SDK reference surface", () => {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
         .sort();
-      const expected = methods.map((method) => `${methodKey(method)}:${method.methodName}`).sort();
+      const expected = methods
+        .filter((method) => !UNRELEASED_REFERENCE_METHODS.has(methodKey(method)))
+        .map((method) => `${methodKey(method)}:${method.methodName}`)
+        .sort();
       if (!arraysEqual(documented, expected)) {
         differences.push(
           `${language}: expected [${expected.join(", ")}], received [${documented.join(", ")}]`,

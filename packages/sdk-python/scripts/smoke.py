@@ -8,6 +8,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 
+from typing_extensions import override
+
 import stagehand as stagehand_package
 from stagehand import Stagehand, local_browser
 
@@ -23,6 +25,7 @@ class _FixtureHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(_FIXTURE_BODY)
 
+    @override
     def log_message(self, format: str, *args: object) -> None:
         pass
 

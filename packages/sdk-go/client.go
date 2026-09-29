@@ -26,6 +26,7 @@ type protocolClient interface {
 	onRequest(method string, handler requestHandler) func()
 	onNotification(method string, handler func(StagehandLog)) func()
 	onPageCDPEvent(handler func(PageCDPEventNotification)) func()
+	onPageEvent(handler func(PageEventNotification)) func()
 	browserWebSocketDebuggerURL() string
 	close() error
 }

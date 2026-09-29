@@ -4,7 +4,9 @@ description: 'Deploy your AI agents and automations to the cloud'
 ---
 
 <Tip>
-**🌟 Preview: Browser Functions** - Deploy your web automation code directly on Browserbase with browser functions. Scale your `act()` automations in the cloud with zero infrastructure setup. Reach out to hello@browserbase.com to get beta access.
+**🌟 Preview: Browserbase Functions with Secrets** - Deploy your automation code directly on Browserbase using Functions with Secrets. See the [Functions docs](https://docs.browserbase.com/platform/runtime) and reach out to support@browserbase.com to get beta access to Secrets support.
+
+To deploy Stagehand today, you may also use the Vercel guide below.
 </Tip>
 
 ## Deploy on Vercel
@@ -115,7 +117,7 @@ async function run(): Promise<string> {
   const stagehand = await Stagehand.create({
     browser,
     model: {
-      modelName: "google/gemini-2.5-flash",
+      modelName: "google/gemini-3.8-flash",
     },
     logging: { level: "warn", format: "json" },
   });
@@ -175,7 +177,7 @@ async def run() -> str:
 
     stagehand = await Stagehand.create(
         browser=browser,
-        model="google/gemini-2.5-flash",
+        model="google/gemini-3.8-flash",
         model_api_key=os.environ["GOOGLE_API_KEY"],
         logging=StagehandClientLoggingConfig(level="warn", format="json"),
     )
@@ -271,7 +273,7 @@ func run(ctx context.Context) (result string, err error) {
 	blockAds := true
 
 	model := stagehand.ModelConfig{
-		ModelName: "google/gemini-2.5-flash",
+		ModelName: "google/gemini-3.8-flash",
 		APIKey:    &modelAPIKey,
 	}
 

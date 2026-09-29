@@ -578,6 +578,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.pdf": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PagePDFParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PagePDFResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.snapshot": {
           "type": "object",
           "properties": {
@@ -1040,6 +1053,7 @@
         "page.off",
         "page.set_extra_http_headers",
         "page.screenshot",
+        "page.pdf",
         "page.snapshot",
         "page.set_viewport_size",
         "page.wait_for_load_state",
@@ -1097,9 +1111,19 @@
           },
           "required": ["params"],
           "additionalProperties": false
+        },
+        "page.event": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageEventNotification"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
         }
       },
-      "required": ["stagehand.log", "page.cdp_event"],
+      "required": ["stagehand.log", "page.cdp_event", "page.event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -1107,9 +1131,12 @@
       "properties": {
         "browserbase_session_create_params": {
           "$ref": "#/$defs/BrowserbaseSessionCreateParams"
+        },
+        "page_event_name": {
+          "$ref": "#/$defs/PageEventName"
         }
       },
-      "required": ["browserbase_session_create_params"],
+      "required": ["browserbase_session_create_params", "page_event_name"],
       "additionalProperties": false
     },
     "jsonrpc": {
@@ -1174,12 +1201,6 @@
           ]
         },
         "telemetry": {
-          "default": {
-            "traces": {
-              "endpoint": "https://example.com/v1/traces",
-              "headers": {}
-            }
-          },
           "$ref": "#/$defs/TelemetryConfig"
         },
         "log_level": {
@@ -3626,15 +3647,15 @@
           "minLength": 1
         },
         "event": {
-          "$ref": "#/$defs/PageEventName"
+          "$ref": "#/$defs/PageSubscriptionEventName"
         }
       },
       "required": ["page_id", "subscription_id", "event"],
       "additionalProperties": false
     },
-    "PageEventName": {
+    "PageSubscriptionEventName": {
       "type": "string",
-      "enum": ["console"]
+      "enum": ["console", "toolsadded", "toolsremoved"]
     },
     "PageOffParams": {
       "type": "object",
@@ -3772,6 +3793,108 @@
       "additionalProperties": false
     },
     "PageScreenshotResult": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string",
+          "format": "byte",
+          "contentEncoding": "base64",
+          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+        }
+      },
+      "required": ["data"],
+      "additionalProperties": false
+    },
+    "PagePDFParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PagePDFOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "PagePDFOptions": {
+      "type": "object",
+      "properties": {
+        "landscape": {
+          "type": "boolean"
+        },
+        "display_header_footer": {
+          "type": "boolean"
+        },
+        "print_background": {
+          "type": "boolean"
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 2
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "margin": {
+          "$ref": "#/$defs/PagePDFMargin"
+        },
+        "page_ranges": {
+          "type": "string"
+        },
+        "header_template": {
+          "type": "string"
+        },
+        "footer_template": {
+          "type": "string"
+        },
+        "prefer_css_page_size": {
+          "type": "boolean"
+        },
+        "tagged": {
+          "type": "boolean"
+        },
+        "outline": {
+          "type": "boolean"
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2147473647
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePDFMargin": {
+      "type": "object",
+      "properties": {
+        "top": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bottom": {
+          "type": "number",
+          "minimum": 0
+        },
+        "left": {
+          "type": "number",
+          "minimum": 0
+        },
+        "right": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePDFResult": {
       "type": "object",
       "properties": {
         "data": {
@@ -4882,7 +5005,7 @@
         },
         "method": {
           "type": "string",
-          "const": "Runtime.consoleAPICalled"
+          "enum": ["Runtime.consoleAPICalled"]
         },
         "params": {
           "$ref": "#/$defs/PageCDPEventParams"
@@ -4938,6 +5061,97 @@
           }
         }
       ]
+    },
+    "PageEventNotification": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/PageToolsAddedNotification"
+        },
+        {
+          "$ref": "#/$defs/PageToolsRemovedNotification"
+        }
+      ]
+    },
+    "PageToolsAddedNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "const": "toolsadded"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebMCPToolDescriptor"
+          }
+        }
+      },
+      "required": ["subscription_id", "page_id", "session_id", "target_id", "event", "tools"],
+      "additionalProperties": false
+    },
+    "PageToolsRemovedNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "type": "string",
+          "const": "toolsremoved"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebMCPToolIdentity"
+          }
+        }
+      },
+      "required": ["subscription_id", "page_id", "session_id", "target_id", "event", "tools"],
+      "additionalProperties": false
+    },
+    "WebMCPToolIdentity": {
+      "type": "object",
+      "properties": {
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["frame_id", "name"],
+      "additionalProperties": false
     },
     "BrowserbaseSessionCreateParams": {
       "type": "object",
@@ -5174,6 +5388,10 @@
       },
       "required": ["type", "server"],
       "additionalProperties": false
+    },
+    "PageEventName": {
+      "type": "string",
+      "enum": ["console"]
     },
     "StagehandRpcRequest": {
       "anyOf": [
@@ -6377,6 +6595,33 @@
             },
             "method": {
               "type": "string",
+              "const": "page.pdf"
+            },
+            "params": {
+              "$ref": "#/$defs/PagePDFParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "page.snapshot"
             },
             "params": {
@@ -7269,6 +7514,24 @@
             },
             "params": {
               "$ref": "#/$defs/PageCDPEventNotification"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.event"
+            },
+            "params": {
+              "$ref": "#/$defs/PageEventNotification"
             }
           },
           "required": ["jsonrpc", "method", "params"],

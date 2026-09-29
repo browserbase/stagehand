@@ -92,11 +92,15 @@ func main() {
     expect(publicSdkOperations(root, "go")).toStrictEqual(["stagehand.extract"]);
   });
 
-  it("uses the public Stagehand lifecycle in every example", async () => {
+  it("uses the public SDK lifecycle required by each example", async () => {
     for (const language of ["typescript", "python", "go"] as const) {
       for (const example of await examples(language)) {
         const root = parse(language, await readFile(example.url, "utf8")).root();
         const stagehand = stagehandVariable(root, language);
+        const operations = publicSdkOperations(root, language);
+        const usesOnlyBrowserbaseServices =
+          operations.length > 0 &&
+          operations.every((operation) => operation.startsWith("browserbase."));
         const publicImport =
           language === "go"
             ? root
@@ -117,11 +121,31 @@ func main() {
           publicImport,
           `${language} ${example.file} must import the public SDK`,
         ).toBeDefined();
-        if (language !== "go") {
+        if (usesOnlyBrowserbaseServices) {
+          if (language !== "go") {
+            expect(
+              publicImport
+                ?.getMultipleMatches("IMPORTS")
+                .some((node) => node.text() === "browserbase"),
+              `${language} ${example.file} must import public browserbase services`,
+            ).toBe(true);
+          }
+          expect(
+            stagehand,
+            `${language} ${example.file} must not construct Stagehand for browserless services`,
+          ).toBeUndefined();
+        } else if (language !== "go") {
           expect(
             publicImport?.getMultipleMatches("IMPORTS").some((node) => node.text() === "Stagehand"),
             `${language} ${example.file} must import public Stagehand`,
           ).toBe(true);
+        }
+        if (usesOnlyBrowserbaseServices) {
+          expect(
+            root.text(),
+            `${language} ${example.file} must not reach into SDK internals`,
+          ).not.toMatch(/\b(?:CDPClient|RPCClient|Transport|_generated|rpc_client)\b/);
+          continue;
         }
         expect(stagehand, `${language} ${example.file} must construct Stagehand`).toBeDefined();
         if (language === "typescript") {
@@ -197,7 +221,7 @@ function stagehandVariable(root: SgNode, language: ExampleLanguage): string | un
 
 function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] {
   const stagehand = stagehandVariable(root, language);
-  if (!stagehand) return [];
+  if (!stagehand) return browserbaseServiceOperations(root, language);
 
   if (language === "go") {
     const sdkPackage = goSdkPackage(root);
@@ -231,6 +255,32 @@ function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] 
       if (object === `${stagehand}.browser.context`) return [`context.${snakeCase(method)}`];
       if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];
       return [];
+    })
+    .sort();
+}
+
+function browserbaseServiceOperations(root: SgNode, language: ExampleLanguage): string[] {
+  if (language === "go") {
+    const sdkPackage = goSdkPackage(root);
+    if (!sdkPackage) return [];
+    return goCalls(root)
+      .flatMap(({ object, method }) => {
+        if (object !== sdkPackage) return [];
+        if (method === "SearchBrowserbase") return ["browserbase.search"];
+        if (method === "FetchBrowserbase") return ["browserbase.fetch"];
+        return [];
+      })
+      .sort();
+  }
+
+  return root
+    .findAll({ rule: { pattern: "$OBJECT.$METHOD($$$ARGS)" } })
+    .flatMap((call) => {
+      const object = call.getMatch("OBJECT")?.text();
+      const method = call.getMatch("METHOD")?.text();
+      return object === "browserbase" && (method === "search" || method === "fetch")
+        ? [`browserbase.${method}`]
+        : [];
     })
     .sort();
 }

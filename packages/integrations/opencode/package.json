@@ -11,9 +11,7 @@
   },
   "dependencies": {
     "@browserbasehq/stagehand-integrations": "workspace:*",
-    "@browserbasehq/stagehand-integrations-opencode-sdk": "workspace:*",
-    "@opencode-ai/sdk": "catalog:",
-    "opencode-ai": "catalog:"
+    "@browserbasehq/stagehand-integrations-opencode-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

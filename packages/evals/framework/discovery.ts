@@ -57,6 +57,7 @@ const CATEGORY_OVERRIDES: Record<string, string[]> = {
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],
+  "agent/hardbenchmark": ["external_agent_benchmarks"],
   "agent/odysseysbench": ["external_agent_benchmarks"],
 };
 
@@ -182,6 +183,7 @@ const AGENT_SUITE_NAMES = [
   "agent/webvoyager",
   "agent/onlineMind2Web",
   "agent/webtailbench",
+  "agent/hardbenchmark",
   "agent/odysseysbench",
 ] as const;
 

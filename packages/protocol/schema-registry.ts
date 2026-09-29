@@ -63,6 +63,7 @@ import {
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageCDPEventNotificationSchema,
+  PageEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
@@ -79,6 +80,8 @@ import {
   PageOnParamsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
+  PagePDFParamsSchema,
+  PagePDFResultSchema,
   PageScreenshotParamsSchema,
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
@@ -345,6 +348,11 @@ export const StagehandMethods = {
     params: PageScreenshotParamsSchema,
     result: PageScreenshotResultSchema,
   },
+  pagePDF: {
+    name: "page.pdf",
+    params: PagePDFParamsSchema,
+    result: PagePDFResultSchema,
+  },
   pageSnapshot: {
     name: "page.snapshot",
     params: PageSnapshotParamsSchema,
@@ -539,6 +547,11 @@ export const StagehandNotifications = {
     name: "page.cdp_event",
     params: PageCDPEventNotificationSchema,
     paramsWire: { opaqueKeys: ["params"] },
+  },
+  pageEvent: {
+    name: "page.event",
+    params: PageEventNotificationSchema,
+    paramsWire: { opaqueKeys: ["inputSchema"] },
   },
 } as const satisfies Record<string, RPCNotification>;
 

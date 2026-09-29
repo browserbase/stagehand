@@ -2,6 +2,7 @@ import { createReadStream } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { registerActiveRunCleanup } from "../../framework/activeRunCleanup.js";
 import { loadBrowserbaseSdk, resolveStagehandExtensionArchivePath } from "../runtime/coreDeps.js";
+import { evalBrowserbaseSessionOptions } from "./browserbaseSessionOptions.js";
 
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 const EXTENSION_SCOPE_DRAIN_TIMEOUT_MS = 5_000;
@@ -22,9 +23,10 @@ const extensionScopeStorage = new AsyncLocalStorage<ExtensionScope>();
 async function uploadStagehandExtension(
   bb: BrowserbaseClient,
 ): Promise<{ extensionId: string; deleteUpload: () => Promise<void> }> {
-  const uploaded = await bb.extensions.create({
-    file: createReadStream(resolveStagehandExtensionArchivePath()),
-  });
+  const uploaded = await bb.extensions.create(
+    { file: createReadStream(resolveStagehandExtensionArchivePath()) },
+    { maxRetries: 0 },
+  );
   const extensionId = uploaded.id.trim();
   if (!extensionId) {
     throw new Error("Browserbase extension upload returned an empty extension ID");
@@ -75,6 +77,22 @@ export async function withBrowserbaseExtensionScope<T>(fn: () => Promise<T>): Pr
   } finally {
     await cleanupExtensionScope(scope);
   }
+}
+
+/**
+ * One Stagehand extension upload shared by every Browserbase session the
+ * current run launches (the runner wraps each experiment in
+ * withBrowserbaseExtensionScope). Used by the facade tool so N concurrent
+ * facades do not each upload the archive — a burst of uploads is what
+ * Browserbase rejects. Returns undefined when credentials are absent.
+ */
+export async function acquireRunScopedStagehandExtension(): Promise<
+  { extensionId: string; release: () => Promise<void> } | undefined
+> {
+  const apiKey = process.env.BROWSERBASE_API_KEY || process.env.BB_API_KEY;
+  if (!apiKey) return undefined;
+  const Browserbase = loadBrowserbaseSdk();
+  return await acquireStagehandExtension(new Browserbase({ apiKey }));
 }
 
 async function acquireStagehandExtension(
@@ -131,14 +149,24 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
   const Browserbase = loadBrowserbaseSdk();
   const bb = new Browserbase({ apiKey });
 
+  const sessionOptions = evalBrowserbaseSessionOptions();
   const extension = await acquireStagehandExtension(bb);
   const { extensionId } = extension;
 
   const createPayload: Record<string, unknown> = {
     ...(projectId ? { projectId } : {}),
     extensionId,
+    // Several CDP clients share this session (the agent's MCP server, the
+    // harness observer, the visible-tab probe), and each connect/disconnect
+    // would otherwise end it — Browserbase closes non-keepAlive sessions on
+    // the first disconnect (observed as "410 Gone - session not running" on
+    // the agent's second tool call). Release is explicit in cleanup.
+    keepAlive: true,
+    timeout: sessionOptions.timeoutSeconds,
+    proxies: sessionOptions.proxies,
     browserSettings: {
       viewport: DEFAULT_VIEWPORT,
+      verified: sessionOptions.verified,
     },
     userMetadata: {
       stagehand: "true",
@@ -204,7 +232,7 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
   return {
     wsUrl: created.connectUrl,
     sessionId: created.id,
-    sessionUrl: `https://www.browserbase.com/sessions/${created.id}`,
+    sessionUrl: `https://www.browserbase.com/sessions/${encodeURIComponent(created.id)}`,
     debugUrl,
     extensionId,
     cleanup,

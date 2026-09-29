@@ -1443,6 +1443,10 @@ export const ResponseFinishedResultSchema = z
 
 export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
 
+export const PageSubscriptionEventNameSchema = z
+  .enum(["console", "toolsadded", "toolsremoved"])
+  .meta({ id: "PageSubscriptionEventName" });
+
 export const PageCDPEventParamsSchema = z
   .record(z.string(), z.json())
   .meta({ id: "PageCDPEventParams" });
@@ -1450,7 +1454,7 @@ export const PageCDPEventParamsSchema = z
 export const PageCDPEventSchema = z
   .strictObject({
     pageId: z.string().min(1),
-    method: z.literal("Runtime.consoleAPICalled"),
+    method: z.enum(["Runtime.consoleAPICalled"]),
     params: PageCDPEventParamsSchema,
     sessionId: z.string().min(1),
     targetId: z.string().min(1),
@@ -1484,6 +1488,43 @@ export const WebMCPToolDescriptorSchema = z
     backendNodeId: z.number().int().nonnegative().optional(),
   })
   .meta({ id: "WebMCPToolDescriptor" });
+
+export const WebMCPToolIdentitySchema = z
+  .strictObject({
+    frameId: z.string().min(1),
+    name: z.string().min(1),
+  })
+  .meta({ id: "WebMCPToolIdentity" });
+
+const pageEventRoutingShape = {
+  subscriptionId: z.string().min(1),
+  pageId: z.string().min(1),
+  sessionId: z.string().min(1),
+  targetId: z.string().min(1),
+};
+
+export const PageToolsAddedNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("toolsadded"),
+    tools: z.array(WebMCPToolDescriptorSchema),
+  })
+  .meta({ id: "PageToolsAddedNotification" });
+
+export const PageToolsRemovedNotificationSchema = z
+  .strictObject({
+    ...pageEventRoutingShape,
+    event: z.literal("toolsremoved"),
+    tools: z.array(WebMCPToolIdentitySchema),
+  })
+  .meta({ id: "PageToolsRemovedNotification" });
+
+export const PageEventNotificationSchema = z
+  .discriminatedUnion("event", [
+    PageToolsAddedNotificationSchema,
+    PageToolsRemovedNotificationSchema,
+  ])
+  .meta({ id: "PageEventNotification" });
 
 export const WebMCPToolsOptionsSchema = z
   .strictObject({
@@ -1536,13 +1577,6 @@ export const LocatorDescriptorSchema = z
     ...LocatorSchema.shape,
   })
   .meta({ id: "LocatorDescriptor" });
-
-export const DEFAULT_TELEMETRY_CONFIG = {
-  traces: {
-    endpoint: "https://example.com/v1/traces", // TODO: Replace with the Browserbase OTLP traces ingestion endpoint.
-    headers: {},
-  },
-};
 
 export const ImplementationInfoSchema = z
   .strictObject({
@@ -1598,7 +1632,7 @@ export const StagehandInitParamsSchema = z
       description:
         "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",
     }),
-    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
+    telemetry: TelemetryConfigSchema.optional(),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
     systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
@@ -1729,7 +1763,7 @@ export const PageIdParamsSchema = z
 
 export const PageOnParamsSchema = PageIdParamsSchema.extend({
   subscriptionId: z.string().min(1),
-  event: PageEventNameSchema,
+  event: PageSubscriptionEventNameSchema,
 }).meta({ id: "PageOnParams" });
 
 export const PageOffParamsSchema = z
@@ -1901,6 +1935,39 @@ export const PageScreenshotOptionsSchema = z
 export const PageScreenshotParamsSchema = PageIdParamsSchema.extend({
   options: PageScreenshotOptionsSchema.optional(),
 }).meta({ id: "PageScreenshotParams" });
+
+export const PagePDFMarginSchema = z
+  .strictObject({
+    top: z.number().nonnegative().optional(),
+    bottom: z.number().nonnegative().optional(),
+    left: z.number().nonnegative().optional(),
+    right: z.number().nonnegative().optional(),
+  })
+  .meta({ id: "PagePDFMargin" });
+
+export const PagePDFOptionsSchema = z
+  .strictObject({
+    landscape: z.boolean().optional(),
+    displayHeaderFooter: z.boolean().optional(),
+    printBackground: z.boolean().optional(),
+    scale: z.number().min(0.1).max(2).optional(),
+    width: z.number().positive().optional(),
+    height: z.number().positive().optional(),
+    margin: PagePDFMarginSchema.optional(),
+    pageRanges: z.string().optional(),
+    headerTemplate: z.string().optional(),
+    footerTemplate: z.string().optional(),
+    preferCSSPageSize: z.boolean().optional(),
+    tagged: z.boolean().optional(),
+    outline: z.boolean().optional(),
+    // Leave room for the SDK's 10-second response grace within the JS timer limit.
+    timeout: z.number().nonnegative().max(2_147_473_647).optional(),
+  })
+  .meta({ id: "PagePDFOptions" });
+
+export const PagePDFParamsSchema = PageIdParamsSchema.extend({
+  options: PagePDFOptionsSchema.optional(),
+}).meta({ id: "PagePDFParams" });
 
 export const PageSnapshotParamsSchema = PageIdParamsSchema.extend({
   options: PageSnapshotOptionsSchema.optional(),
@@ -2081,6 +2148,12 @@ export const PageScreenshotResultSchema = z
     data: z.base64().meta({ format: "byte" }),
   })
   .meta({ id: "PageScreenshotResult" });
+
+export const PagePDFResultSchema = z
+  .strictObject({
+    data: z.base64().meta({ format: "byte" }),
+  })
+  .meta({ id: "PagePDFResult" });
 
 export const PageWaitForSelectorResultSchema = z
   .strictObject({

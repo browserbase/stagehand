@@ -4,6 +4,7 @@ import type { ChildProcess } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
+  extractFxTokenUsage,
   buildFxTranscript,
   createFxProcessRunner,
   normalizeFxModel,
@@ -120,6 +121,7 @@ describe("fx CLI session", () => {
       "ask_result",
     ]);
     expect(result.tokenUsage).toEqual({
+      reported: true,
       input_tokens: 100,
       cached_input_tokens: 30,
       output_tokens: 20,
@@ -543,5 +545,48 @@ describe("fx CLI session", () => {
     expect(details).not.toContain("1234567890");
     expect(buildFxTranscript(result.events)).toContain("[redacted]");
     expect(buildFxTranscript(result.events)).not.toContain("1234567890");
+  });
+});
+
+describe("FX token usage presence", () => {
+  it.each([null, undefined, -1, NaN, Infinity, "invalid"])(
+    "omits invalid reported bills: %j",
+    (total_cost) => {
+      expect(extractFxTokenUsage([], { total_cost })).not.toHaveProperty("total_cost");
+    },
+  );
+  it("preserves an explicitly reported zero-dollar bill", () => {
+    expect(extractFxTokenUsage([], { total_cost: 0 })).toMatchObject({
+      total_cost: 0,
+      reported: false,
+    });
+  });
+  it.each([undefined, {}, { total_cost: 0 }, { input_tokens: null, output_tokens: -1 }])(
+    "keeps missing or cost-only telemetry unreported: %j",
+    (snapshot) => {
+      expect(extractFxTokenUsage([], snapshot).reported).toBe(false);
+    },
+  );
+  it("preserves observed zero in snapshots, committed totals and checkpoints", () => {
+    expect(
+      extractFxTokenUsage([], { snapshot: { input_tokens: 0, output_tokens: "0" } }),
+    ).toMatchObject({ reported: true, input_tokens: 0, output_tokens: 0 });
+    const committed = committedEvent();
+    committed.payload.total_input_tokens = 0;
+    committed.payload.total_output_tokens = 0;
+    expect(extractFxTokenUsage([committed]).reported).toBe(true);
+    expect(
+      extractFxTokenUsage([
+        { kind: "usage_checkpointed", payload: { usage: { input_tokens: 0, output_tokens: 0 } } },
+      ]).reported,
+    ).toBe(true);
+    expect(
+      extractFxTokenUsage([
+        {
+          kind: "history_turn_committed",
+          payload: { turn: { kind: "completed", assistant: "done" } },
+        },
+      ]).reported,
+    ).toBe(false);
   });
 });

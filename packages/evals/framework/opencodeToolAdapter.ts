@@ -31,11 +31,10 @@ export interface PreparedOpenCodeToolAdapter {
   cwd: string;
   configRoot: string;
   config: OpenCodeSessionConfig["config"];
-  enabledTools: Record<string, boolean>;
   promptInstructions: string;
   captureEvidence?: () => Promise<ProbeEvidence>;
   drainStepObservations?: () => Promise<StepObservation[]>;
-  onToolResult?: (toolName: string) => void;
+  onToolResult?: (toolName: string) => void | Promise<void>;
   observedToolMatcher: (toolName: string) => boolean;
   cleanup: () => Promise<void>;
 }
@@ -44,31 +43,26 @@ type McpServerSpec = { command: string; args?: string[]; env?: Record<string, st
 
 export function buildOpenCodeMcpConfig(mcpServers: Record<string, unknown>): {
   mcp: NonNullable<OpenCodeSessionConfig["config"]["mcp"]>;
-  tools: Record<string, boolean>;
-  permission: Record<string, "allow" | "deny">;
+  permissions: OpenCodeSessionConfig["config"]["permissions"];
 } {
-  const mcp: Record<string, unknown> = {};
-  const tools: Record<string, boolean> = { "*": false };
-  const permission: Record<string, "allow" | "deny"> = { "*": "deny" };
+  const servers: NonNullable<OpenCodeSessionConfig["config"]["mcp"]>["servers"] = {};
+  const permissions: OpenCodeSessionConfig["config"]["permissions"] = [
+    { action: "*", resource: "*", effect: "deny" },
+  ];
   for (const [serverName, rawSpec] of Object.entries(mcpServers)) {
     if (!isRecord(rawSpec) || typeof rawSpec.command !== "string") {
       throw new EvalsError(`OpenCode MCP server "${serverName}" requires a string command.`);
     }
     const spec = rawSpec as McpServerSpec;
-    mcp[serverName] = {
+    servers[serverName] = {
       type: "local",
-      enabled: true,
+      codemode: false,
       command: [spec.command, ...(Array.isArray(spec.args) ? spec.args : [])],
       environment: isStringRecord(spec.env) ? spec.env : {},
     };
-    tools[`${serverName}_*`] = true;
-    permission[`${serverName}_*`] = "allow";
+    permissions.push({ action: `${serverName}_*`, resource: "*", effect: "allow" });
   }
-  return {
-    mcp: mcp as NonNullable<OpenCodeSessionConfig["config"]["mcp"]>,
-    tools,
-    permission,
-  };
+  return { mcp: { servers }, permissions };
 }
 
 export function isOpenCodeMountToolName(serverNames: string[], toolName: string): boolean {
@@ -118,10 +112,9 @@ export async function prepareOpenCodeToolAdapter(
     const mounted = buildOpenCodeMcpConfig(mount.mcpServers);
     const config: OpenCodeSessionConfig["config"] = {
       share: "disabled",
-      autoupdate: false,
+      update: "disable",
       mcp: mounted.mcp,
-      tools: mounted.tools,
-      permission: mounted.permission,
+      permissions: mounted.permissions,
     };
     const serverNames = Object.keys(mount.mcpServers);
     const observedToolMatcher = (name: string): boolean =>
@@ -146,7 +139,6 @@ export async function prepareOpenCodeToolAdapter(
       cwd,
       configRoot,
       config,
-      enabledTools: mounted.tools,
       promptInstructions: mount.promptInstructions,
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
@@ -157,7 +149,7 @@ export async function prepareOpenCodeToolAdapter(
           return recorder.drain();
         },
         onToolResult: (name: string) => {
-          if (observedToolMatcher(name)) void recorder.record();
+          if (observedToolMatcher(name)) return recorder.record();
         },
       }),
       observedToolMatcher,

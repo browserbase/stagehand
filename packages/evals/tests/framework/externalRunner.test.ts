@@ -309,7 +309,7 @@ describe("external harness runner", () => {
     expect(result.harnessStopReason).toBe("maximum turn budget reached");
   });
 
-  it("bounds hanging evidence capture before verifier fallback", async () => {
+  it("bounds hanging evidence capture before reporting verification failure", async () => {
     const previous = process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS;
     process.env.EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS = "50";
     let captureInvocations = 0;
@@ -351,7 +351,10 @@ describe("external harness runner", () => {
         toTrajectory: () => ({}) as never,
       });
 
-      expect(result._success).toBe(true);
+      expect(result._success).toBe(false);
+      expect(result.agentReportedSuccess).toBe(true);
+      expect(result.outcomeSuccess).toBeUndefined();
+      expect(result.processScore).toBeUndefined();
       expect(result.verifierError).toBeDefined();
       expect(captureInvocations).toBe(1);
       expect(drainInvocations).toBe(1);
@@ -411,7 +414,11 @@ describe("external harness runner", () => {
         },
       });
 
-      expect(result._success).toBe(true);
+      expect(result._success).toBe(false);
+      expect(result.agentReportedSuccess).toBe(true);
+      expect(result.outcomeSuccess).toBeUndefined();
+      expect(result.processScore).toBeUndefined();
+      expect(result.verifierError).toBeDefined();
       expect(trajectoryInput?.finalObservation).toBe(finalObservation);
       expect(trajectoryInput?.stepObservations).toBeUndefined();
       expect(captureInvocations).toBe(1);

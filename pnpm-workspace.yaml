@@ -5,6 +5,11 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@manypkg/get-packages": 1.1.3
+  "@changesets/apply-release-plan": 7.1.1
+  "@changesets/assemble-release-plan": 6.0.10
+  "@changesets/config": 3.1.4
+  "@changesets/read": 0.6.7
   "@modelcontextprotocol/sdk": 1.29.0
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6
@@ -18,7 +23,8 @@ catalog:
   "@opentelemetry/resources": 2.9.0
   "@opentelemetry/sdk-trace-web": 2.9.0
   "@opentelemetry/semantic-conventions": 1.43.0
-  "@opencode-ai/sdk": 1.18.18
+  "@opencode/sdk": 2.0.19
+  "@opencode/plugin": 2.0.19
   "@types/node": ^24
   typescript: ^5
   oxfmt: 0.57.0
@@ -52,7 +58,6 @@ catalog:
   esbuild: 0.28.1
   tsx: ^4.23.1
   openai: ^6.48.0
-  opencode-ai: 1.18.18
   "@browserbasehq/sdk": ^2.16.0
   fflate: ^0.8.3
   mint: 4.2.788
@@ -64,15 +69,18 @@ allowBuilds:
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
   "@google/genai": false
+  "@parcel/watcher": false
   "@scarf/scarf": false
   braintrust: false
   bufferutil: false
   esbuild: true
   keytar: false
-  opencode-ai: true
+  msgpackr-extract: false
   protobufjs: false
   puppeteer: false
   sharp: true
+  tree-sitter-bash: false
+  tree-sitter-powershell: false
 minimumReleaseAgeExclude:
   - "@mintlify/cli@4.0.1391"
   - "@mintlify/common@1.0.1080"
@@ -90,3 +98,15 @@ minimumReleaseAgeExclude:
   - "@earendil-works/pi-protocol@0.84.2"
   - "@earendil-works/pi-telemetry@0.84.2"
   - "@earendil-works/pi-tui@0.84.2"
+  - "@opencode/ai@2.0.19"
+  - "@opencode/client@2.0.19"
+  - "@opencode/codemode@2.0.19"
+  - "@opencode/core@2.0.19"
+  - "@opencode/plugin-browser@2.0.19"
+  - "@opencode/plugin@2.0.19"
+  - "@opencode/protocol@2.0.19"
+  - "@opencode/schema@2.0.19"
+  - "@opencode/sdk@2.0.19"
+  - "@opencode/server@2.0.19"
+  - "@opencode/simulation@2.0.19"
+  - "@opencode/util@2.0.19"

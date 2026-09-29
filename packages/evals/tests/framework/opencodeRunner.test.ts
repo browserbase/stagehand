@@ -24,34 +24,40 @@ describe("OpenCode runner", () => {
 
   it("runs through the shared external lifecycle and reports metrics", async () => {
     const runtime: OpenCodeRuntime = {
-      client: {
-        session: {
-          create: async () => ({ data: { id: "session-1" } }),
-          prompt: async () => ({
-            data: {
-              info: {
-                role: "assistant",
-                cost: 0.02,
-                tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 2, write: 0 } },
+      run: async () => ({
+        messages: [
+          {
+            type: "assistant",
+            content: [
+              {
+                type: "tool",
+                name: "stagehand_run",
+                state: {
+                  status: "completed",
+                  input: {},
+                  content: [{ type: "text", text: "done" }],
+                },
               },
-              parts: [
-                {
-                  type: "tool",
-                  tool: "stagehand_run",
-                  state: { status: "completed", input: {}, output: "done" },
-                },
-                {
-                  type: "text",
-                  text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
-                },
-              ],
-            },
-          }),
-          abort: async () => ({ data: true }),
-          delete: async () => ({ data: true }),
+              {
+                type: "text",
+                text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+              },
+            ],
+          },
+        ],
+        finalMessage: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+        status: "completed",
+        tokenUsage: {
+          inputTokens: 10,
+          outputTokens: 5,
+          cachedInputTokens: 2,
+          cacheCreationInputTokens: 0,
+          reasoningOutputTokens: 0,
+          totalTokens: 15,
         },
-      },
-      close: () => undefined,
+        costUsd: 0.02,
+      }),
+      close: async () => undefined,
     };
     const result = await runOpenCodeAgent({
       plan,
@@ -76,8 +82,7 @@ function fakeAdapter(): PreparedOpenCodeToolAdapter {
     startupProfile: "tool_create_browserbase",
     cwd: "/tmp/workspace",
     configRoot: "/tmp/config",
-    config: {},
-    enabledTools: { "stagehand_*": true },
+    config: { mcp: { servers: {} }, permissions: [] },
     promptInstructions: "Use stagehand_run.",
     observedToolMatcher: (name) => name.startsWith("stagehand_"),
     cleanup: async () => undefined,

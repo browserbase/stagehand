@@ -1,6 +1,6 @@
 [project]
 name = "stagehand"
-version = "4.0.2"
+version = "4.1.0"
 description = "Browserbase's SDK for building browser agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -8,6 +8,7 @@ dependencies = [
   "browserbase>=1.15,<2",
   "opentelemetry-api>=1.35,<2",
   "pydantic>=2.12,<3",
+  "typing_extensions>=4.12,<5",
   "websockets>=16.1.1",
 ]
 license = "MIT"
@@ -39,12 +40,13 @@ select = ["ANN", "E", "F", "I", "PYI", "UP"]
 [tool.ty.environment]
 python-version = "3.11"
 
-[tool.ty.src]
-exclude = ["src/stagehand/_generated"]
-
 [tool.ty.rules]
 missing-type-argument = "error"
-possibly-unresolved-reference = "warn"
+possibly-unresolved-reference = "error"
+unsound-return-statement = "error"
+dynamic-function-decorator-return = "error"
+missing-override-decorator = "error"
+unused-ignore-comment = "error"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -58,5 +60,5 @@ dev = [
   "pytest==9.0.2",
   "pytest-asyncio==1.3.0",
   "ruff==0.15.7",
-  "ty==0.0.56",
+  "ty==0.0.82",
 ]

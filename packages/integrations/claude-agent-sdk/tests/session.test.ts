@@ -1,6 +1,7 @@
 /* eslint-disable require-yield */
 import { describe, expect, it } from "vitest";
 import {
+  extractClaudeCodeTokenUsage,
   isClaudeCodeMaxTurnsError,
   normalizeClaudeModel,
   runClaudeAgentSession,
@@ -196,5 +197,31 @@ describe("Claude Agent SDK session", () => {
     expect(result.stopReason).not.toContain("top-secret");
     expect(added).toEqual(["abort"]);
     expect(removed).toEqual(["abort"]);
+  });
+});
+
+describe("Claude token usage presence", () => {
+  it.each([
+    undefined,
+    {},
+    { usage: {} },
+    { usage: { total_tokens: 0 } },
+    { usage: { input_tokens: null, output_tokens: -1 } },
+  ])("keeps missing or invalid telemetry unreported: %j", (message) => {
+    expect(extractClaudeCodeTokenUsage(message).reported).toBe(false);
+  });
+  it("preserves observed zero and valid modelUsage fallback", () => {
+    expect(
+      extractClaudeCodeTokenUsage({ usage: { input_tokens: 0, output_tokens: "0" } }),
+    ).toMatchObject({ reported: true, totalTokens: 0 });
+    expect(
+      extractClaudeCodeTokenUsage({
+        usage: { input_tokens: "invalid" },
+        modelUsage: { model: { inputTokens: 9, outputTokens: 0 } },
+      }),
+    ).toMatchObject({ reported: true, inputTokens: 9, outputTokens: 0 });
+    expect(
+      extractClaudeCodeTokenUsage({ modelUsage: { model: { inputTokens: 0 } } }).reported,
+    ).toBe(true);
   });
 });

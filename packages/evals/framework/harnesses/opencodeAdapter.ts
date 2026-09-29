@@ -20,10 +20,11 @@ export interface OpenCodeRunResult {
 export class OpenCodeTrajectoryAdapter implements TrajectoryAdapter<OpenCodeRunResult> {
   fromHarnessResult(result: OpenCodeRunResult, taskSpec: TaskSpec): Trajectory {
     const toolCalls: NormalizedToolCall[] = [];
+    const seenToolIDs = new Set<string>();
     let pendingReasoning = "";
     let trailingText = "";
     for (const message of result.messages) {
-      for (const part of message.parts) {
+      for (const part of message.content) {
         if (part.type === "reasoning" && typeof part.text === "string") {
           pendingReasoning = appendText(pendingReasoning, part.text);
           continue;
@@ -35,12 +36,19 @@ export class OpenCodeTrajectoryAdapter implements TrajectoryAdapter<OpenCodeRunR
         if (part.type !== "tool") continue;
         const state = isRecord(part.state) ? part.state : {};
         const status = typeof state.status === "string" ? state.status : "pending";
+        if (status !== "completed" && status !== "error") continue;
+        if (typeof part.id === "string") {
+          if (seenToolIDs.has(part.id)) continue;
+          seenToolIDs.add(part.id);
+        }
+        const images = readImages(state.content);
         toolCalls.push({
-          name: typeof part.tool === "string" ? part.tool : "tool",
+          name: typeof part.name === "string" ? part.name : "tool",
           args: isRecord(state.input) ? state.input : {},
-          result: status === "completed" ? state.output : undefined,
+          result: status === "completed" ? state.content : undefined,
           ok: status === "completed",
-          ...(status === "error" && typeof state.error === "string" && { error: state.error }),
+          ...(status === "error" && { error: readError(state.error) }),
+          ...(images.length > 0 && { images }),
           reasoning: pendingReasoning.trim() || undefined,
         });
         pendingReasoning = "";
@@ -57,6 +65,16 @@ export class OpenCodeTrajectoryAdapter implements TrajectoryAdapter<OpenCodeRunR
       ...(result.finalObservation && { finalObservation: result.finalObservation }),
     });
   }
+}
+
+function readImages(value: unknown): Array<{ bytes: Buffer; mediaType: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item) || item.type !== "file" || typeof item.uri !== "string") return [];
+    const match = /^data:(image\/[\w.+-]+);base64,([A-Za-z0-9+/=]+)$/.exec(item.uri);
+    if (!match) return [];
+    return [{ bytes: Buffer.from(match[2], "base64"), mediaType: match[1] }];
+  });
 }
 
 export const opencodeAdapter = new OpenCodeTrajectoryAdapter();
@@ -80,4 +98,10 @@ function appendText(current: string, next: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readError(value: unknown): string {
+  if (typeof value === "string") return value;
+  const message = isRecord(value) ? value.message : undefined;
+  return typeof message === "string" ? message : "OpenCode tool failed.";
 }

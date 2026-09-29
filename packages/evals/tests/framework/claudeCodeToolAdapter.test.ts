@@ -110,11 +110,14 @@ describe("claude code tool adapter resolution", () => {
     expect(getBrowseCliAllowedTools()).toEqual(["Skill", "Bash"]);
   });
 
-  it("exposes browse cli metadata for Braintrust rows", () => {
+  it("exposes workspace browse cli metadata for Braintrust rows", async () => {
+    const { version } = JSON.parse(
+      await fsp.readFile(new URL("../../../cli/package.json", import.meta.url), "utf8"),
+    );
     expect(getBrowseCliToolMetadata()).toMatchObject({
       toolCommand: "browse",
-      browseCliVersion: "0.9.5",
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      browseCliVersion: version,
+      browseCliEntrypoint: expect.stringMatching(/packages[/\\]cli[/\\]bin[/\\]run\.js$/u),
     });
   });
 

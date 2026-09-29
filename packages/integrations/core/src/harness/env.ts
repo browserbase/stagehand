@@ -4,7 +4,7 @@ export function buildAllowlistedEnv(
 ): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
-    if (/^(STAGEHAND_|BROWSERBASE_)/u.test(key) && value) {
+    if (/^(STAGEHAND_|BROWSERBASE_)/.test(key) && value) {
       env[key] = value;
     }
   }

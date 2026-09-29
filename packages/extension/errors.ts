@@ -20,3 +20,17 @@ export class DuplicatePageEventSubscriptionError extends Error {
     this.name = "DuplicatePageEventSubscriptionError";
   }
 }
+
+export class ShadowRootEvaluationError extends Error {
+  constructor() {
+    super("Shadow-root evaluation failed");
+    this.name = "ShadowRootEvaluationError";
+  }
+}
+
+export class ShadowRootEvaluationUnavailableError extends Error {
+  constructor() {
+    super("Shadow-root evaluation is unavailable");
+    this.name = "ShadowRootEvaluationUnavailableError";
+  }
+}
