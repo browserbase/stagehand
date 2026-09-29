@@ -571,6 +571,8 @@ exit 0
           ok: true,
           params: { answer: 42 },
           sessionId: "sess_123",
+          // Production sends secrets, so handlers can read context.secrets.NAME without a check.
+          secrets: {},
         });
 
         await waitForRequests(requests, 2);
@@ -1054,6 +1056,7 @@ while (true) {
       ok: true,
       params: event.params,
       sessionId: event.context.session.id,
+      secrets: event.context.secrets,
     }),
   });
   if (runtimeStatusLog) {

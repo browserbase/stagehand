@@ -62,7 +62,7 @@ defineFn(
 );
 `;
 
-// pnpm 11 and later fail installs when esbuild's build script is not approved. This file holds only that setting.
+// pnpm 11 and later fail installs when esbuild's build script is not approved.
 const pnpmWorkspaceTemplate = `allowBuilds:
   esbuild: true
 `;
@@ -137,7 +137,7 @@ export async function initFunctionsProject({
     [...install, "@browserbasehq/sdk-functions", "@browserbasehq/stagehand"],
     projectRoot,
   );
-  // Two zod copies make schemas passed to Stagehand fail type checks, so match Stagehand's version.
+  // Match Stagehand's version of zod in order to pass type checks.
   const zodVersion = readStagehandZodVersion(projectRoot);
   runPackageManager(
     packageManager,

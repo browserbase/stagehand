@@ -217,7 +217,7 @@ function ensureArchiveLockfile(
   mkdirSync(tempDir, { recursive: true });
   copyFileSync(join(root, "package.json"), join(tempDir, "package.json"));
 
-  // Omit resolved URLs so the lockfile does not point at a local registry the builder cannot reach.
+  // Omit resolved URLs so the builder installs from its own registry rather than the one on your machine.
   const result = spawnSync(
     "npm",
     ["install", "--package-lock-only", "--omit-lockfile-registry-resolved"],
