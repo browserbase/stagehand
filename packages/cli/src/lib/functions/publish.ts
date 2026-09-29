@@ -215,7 +215,12 @@ function ensureArchiveLockfile(
 
   const tempDir = join(tmpdir(), `bb-functions-lockgen-${randomUUID()}`);
   mkdirSync(tempDir, { recursive: true });
-  copyFileSync(join(root, "package.json"), join(tempDir, "package.json"));
+  // Copy the files that publish uploads, so npm resolves local dependencies the same way the build does.
+  for (const entry of entries) {
+    const target = join(tempDir, entry);
+    mkdirSync(dirname(target), { recursive: true });
+    copyFileSync(join(root, entry), target);
+  }
 
   // Omit resolved URLs so the builder installs from its own registry rather than the one on your machine.
   const result = spawnSync(

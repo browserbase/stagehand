@@ -240,6 +240,70 @@ describe("functions API contracts", () => {
     expect(result.stderr).toContain("EBADDEVENGINES");
   });
 
+  itPosix(
+    "resolves local file dependencies when it generates package-lock.json",
+    async () => {
+      const cwd = await createFunctionFixture("functions-publish-local-dep-");
+      await writeFile(join(cwd, "local-sdk.tgz"), "fake tarball");
+      await writeFile(
+        join(cwd, "package.json"),
+        JSON.stringify({
+          name: "functions-fixture",
+          private: true,
+          type: "module",
+          dependencies: { "local-sdk": "file:local-sdk.tgz" },
+        }),
+      );
+      // Fake npm fails unless the local dependency is next to package.json, like real npm.
+      const fakeBin = await createFakePackageManagerBin(
+        "npm",
+        `#!/bin/sh
+test -f local-sdk.tgz || { echo "npm error ENOENT local-sdk.tgz" >&2; exit 254; }
+echo '{"lockfileVersion":3}' > package-lock.json
+`,
+      );
+
+      await withServer(
+        async (request, response) => {
+          if (
+            request.method === "POST" &&
+            request.path === "/v1/functions/builds"
+          ) {
+            jsonResponse(response, 200, { id: "build_local_dep" });
+            return;
+          }
+
+          jsonResponse(response, 200, {
+            id: "build_local_dep",
+            status: "COMPLETED",
+          });
+        },
+        async ({ baseUrl }) => {
+          const result = await runCli(
+            [
+              "functions",
+              "publish",
+              "index.ts",
+              "--api-key",
+              "test-key",
+              "--base-url",
+              baseUrl,
+            ],
+            {
+              cwd,
+              env: {
+                PATH: `${fakeBin}:${process.env.PATH}`,
+              },
+            },
+          );
+
+          expect(result.stderr).not.toContain("ENOENT");
+          expect(result.exitCode).toBe(0);
+        },
+      );
+    },
+  );
+
   itPosix("exits nonzero when a build fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-fail-");
 
