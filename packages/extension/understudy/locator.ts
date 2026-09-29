@@ -719,7 +719,8 @@ export class Locator {
         else await new Promise((r) => setTimeout(r, options.delay));
       }
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
@@ -747,7 +748,8 @@ export class Locator {
 
       return (res.result.value as string[]) ?? [];
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
@@ -770,7 +772,8 @@ export class Locator {
       );
       return Boolean(res.result.value);
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
@@ -794,7 +797,8 @@ export class Locator {
       );
       return Boolean(res.result.value);
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
@@ -817,7 +821,8 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
@@ -840,7 +845,8 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
@@ -863,7 +869,8 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
@@ -886,7 +893,8 @@ export class Locator {
       );
       return String(res.result.value ?? "");
     } finally {
-      const release = () => session.send<never>("Runtime.releaseObject", { objectId });
+      const release = () =>
+        session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
