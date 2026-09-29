@@ -10,37 +10,93 @@ import { pathToFileURL } from "node:url";
 import { belongsToScope, parseReleaseScope, scopedChangesets } from "./release-scope.ts";
 import type { ReleaseScope } from "./release-scope.ts";
 
-export async function versionScope(repositoryRoot: string, scope: ReleaseScope, snapshot = false) {
+type SnapshotKind = "commit" | "numbered";
+
+async function publishedStagehandVersions(): Promise<string[]> {
+  const response = await fetch("https://registry.npmjs.org/%40browserbasehq%2Fstagehand", {
+    headers: { Accept: "application/vnd.npm.install-v1+json", "Cache-Control": "no-cache" },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok)
+    throw new Error(`Could not read published Stagehand versions (${response.status})`);
+  const metadata: unknown = await response.json();
+  if (
+    typeof metadata !== "object" ||
+    metadata === null ||
+    !("versions" in metadata) ||
+    typeof metadata.versions !== "object" ||
+    metadata.versions === null
+  ) {
+    throw new Error("npm returned invalid Stagehand version metadata");
+  }
+  return Object.keys(metadata.versions);
+}
+
+export function nextAlphaNumber(baseVersion: string, publishedVersions: string[]): number {
+  const prefix = `${baseVersion}-alpha.`;
+  let latest = 0;
+  for (const version of publishedVersions) {
+    if (!version.startsWith(prefix)) continue;
+    const suffix = version.slice(prefix.length);
+    if (/^[1-9]\d*$/u.test(suffix)) latest = Math.max(latest, Number(suffix));
+  }
+  if (!Number.isSafeInteger(latest + 1)) throw new Error("Alpha number exceeds safe integer range");
+  return latest + 1;
+}
+
+export async function versionScope(
+  repositoryRoot: string,
+  scope: ReleaseScope,
+  snapshotKind?: SnapshotKind,
+) {
   // Shared prerelease state cannot safely describe two independent release schedules.
   try {
     await access(path.join(repositoryRoot, ".changeset/pre.json"));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return await applyVersionScope(repositoryRoot, scope, snapshot);
+    return await applyVersionScope(repositoryRoot, scope, snapshotKind);
   }
   throw new Error("Exit Changesets prerelease mode before using scoped releases");
 }
 
-async function applyVersionScope(repositoryRoot: string, scope: ReleaseScope, snapshot: boolean) {
+async function applyVersionScope(
+  repositoryRoot: string,
+  scope: ReleaseScope,
+  snapshotKind: SnapshotKind | undefined,
+) {
+  if (snapshotKind === "numbered" && scope !== "sdk") {
+    throw new Error("Numbered alpha snapshots are only supported for SDK releases");
+  }
   const changesets = await scopedChangesets(repositoryRoot, scope);
   const packages = await getPackages(repositoryRoot);
   const config = await read(repositoryRoot, packages);
   if (scope === "sdk") config.ignore = [...config.ignore, "browse"];
-  const snapshotOptions = snapshot
-    ? {
-        commit: execFileSync("git", ["rev-parse", "HEAD"], {
-          cwd: repositoryRoot,
-          encoding: "utf8",
-        }).trim(),
-      }
-    : undefined;
+  let snapshotOptions: { tag?: string; commit?: string } | undefined;
+  if (snapshotKind === "commit") {
+    snapshotOptions = {
+      commit: execFileSync("git", ["rev-parse", "HEAD"], {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+      }).trim(),
+    };
+  } else if (snapshotKind === "numbered") {
+    const basePlan = assembleReleasePlan(changesets, packages, config, undefined);
+    const stagehand = basePlan.releases.find(
+      (release) => release.name === "@browserbasehq/stagehand" && release.type !== "none",
+    );
+    const number = stagehand
+      ? nextAlphaNumber(stagehand.newVersion, await publishedStagehandVersions())
+      : 1;
+    config.snapshot.prereleaseTemplate = "alpha.{tag}";
+    snapshotOptions = { tag: String(number) };
+  }
   const plan = assembleReleasePlan(changesets, packages, config, undefined, snapshotOptions);
   for (const release of plan.releases) {
     if (release.type !== "none" && !belongsToScope(release.name, scope)) {
       throw new Error(`Release would cross the ${scope} boundary: ${release.name}`);
     }
   }
-  await applyReleasePlan(plan, packages, config, snapshot ? true : undefined, repositoryRoot);
+  await applyReleasePlan(plan, packages, config, snapshotKind ? true : undefined, repositoryRoot);
   return plan;
 }
 
@@ -147,8 +203,18 @@ async function main(): Promise<void> {
     // dependency, so unrelated SDK checks cannot block a CLI release.
     await assertPublishedCliDependencies(repositoryRoot, undefined, 15 * 60_000);
   } else if (command === "version") {
-    if (flags.some((flag) => flag !== "--snapshot")) throw new Error("Unknown version flag");
-    const plan = await versionScope(repositoryRoot, scope, flags.includes("--snapshot"));
+    if (flags.some((flag) => flag !== "--snapshot" && flag !== "--snapshot-alpha")) {
+      throw new Error("Unknown version flag");
+    }
+    if (flags.includes("--snapshot") && flags.includes("--snapshot-alpha")) {
+      throw new Error("Choose one snapshot mode");
+    }
+    const snapshotKind = flags.includes("--snapshot-alpha")
+      ? "numbered"
+      : flags.includes("--snapshot")
+        ? "commit"
+        : undefined;
+    const plan = await versionScope(repositoryRoot, scope, snapshotKind);
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
   } else if (command === "publish") {
     if (flags.some((flag) => flag !== "--alpha")) throw new Error("Unknown publish flag");
