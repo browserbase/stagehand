@@ -126,7 +126,7 @@ export async function initFunctionsProject({
         projectRoot,
         nextSteps: [
           `cd ${projectName}`,
-          "Edit .env with your Browserbase API key",
+          "Export BROWSERBASE_API_KEY in your shell, or edit .env and explicitly set BROWSE_LOAD_DOTENV=1",
           packageManager === "pnpm" ? "pnpm dev" : "npm run dev",
           packageManager === "pnpm" ? "pnpm run deploy" : "npm run deploy",
         ],

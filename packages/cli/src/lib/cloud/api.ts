@@ -56,6 +56,7 @@ export function resolveApiKey(args: { apiKey?: string }): string {
       [
         "Missing Browserbase API key. Cloud commands (search, fetch, sessions, functions, ...) need one.",
         "Set BROWSERBASE_API_KEY or pass --api-key.",
+        "To load credentials from .env, explicitly set BROWSE_LOAD_DOTENV=1 in your shell.",
         `Get a key at ${browserbaseSettingsUrl}.`,
         "",
         "No key? Local browser automation needs none. Try: browse open <url> --local",
