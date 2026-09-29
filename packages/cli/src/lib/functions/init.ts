@@ -9,9 +9,6 @@ const envTemplate = `# Browserbase Configuration
 # Get your API key from https://browserbase.com/settings
 
 BROWSERBASE_API_KEY=your_api_key_here
-
-# Your model key for Stagehand. This example uses OpenAI.
-OPENAI_API_KEY=your_openai_api_key_here
 `;
 
 const gitignoreTemplate = `node_modules/
@@ -24,96 +21,45 @@ dist/
 `;
 
 const starterFunctionTemplate = `import { defineFn } from "@browserbasehq/sdk-functions";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
-
-import { stagehandSessionConfig, withStagehand } from "./stagehand.js";
-
-const HNStories = z.object({
-  stories: z
-    .array(
-      z.object({
-        rank: z.number(),
-        title: z.string(),
-        url: z.string(),
-      }),
-    )
-    .max(3),
-});
 
 defineFn(
   "my-function",
-  (context) =>
-    withStagehand(context, async ({ stagehand, page }) => {
-      await page.goto("https://news.ycombinator.com");
+  async (context) => {
+    const browser = await browserbase.connect({
+      // The local dev server has no secrets, so fall back to .env.
+      apiKey:
+        context.secrets.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY!,
+      sessionId: context.session.id,
+    });
+    // In this example, Stagehand uses the Model Gateway where Browserbase charges for the tokens
+    const stagehand = await Stagehand.create({ browser });
+    const page = (await browser.context.activePage())!;
 
-      const { data } = await stagehand.extract(
-        "Extract the top 3 stories with their rank, title, and link URL.",
-        HNStories,
-      );
-
-      return {
-        message: "Fetched top Hacker News stories",
-        stories: data.stories,
-      };
-    }),
-  { sessionConfig: stagehandSessionConfig },
-);
-`;
-
-const stagehandHelperTemplate = `import { browserbase, type Page, Stagehand } from "@browserbasehq/stagehand";
-
-// Upload the Stagehand extension once, then paste its ID here:
-//   browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
-// The build reads sessionConfig into the Function manifest, so use a literal value.
-export const stagehandSessionConfig = {
-  extensionId: "your-extension-id",
-};
-
-interface StagehandContext {
-  session: { id: string };
-  secrets?: Record<string, string>;
-}
-
-// Deployed Functions read attached secrets. The local dev server has none, so fall back to the environment.
-function readSecret(context: StagehandContext, name: string): string {
-  const value = context.secrets?.[name] ?? process.env[name];
-  if (!value) {
-    throw new Error(
-      \`Secret "\${name}" is not set. Attach it to the function or add it to .env.\`,
+    await page.goto("https://news.ycombinator.com");
+    const { data } = await stagehand.extract(
+      "Extract the top 3 stories with their rank, title, and link URL.",
+      z.object({
+        stories: z
+          .array(z.object({ rank: z.number(), title: z.string(), url: z.string() }))
+          .max(3),
+      }),
     );
-  }
-  return value;
-}
 
-export async function withStagehand<T>(
-  context: StagehandContext,
-  run: (tools: { stagehand: Stagehand; page: Page }) => Promise<T>,
-): Promise<T> {
-  // Attach to the session that Browserbase created for this invocation.
-  // Don't call browser.close(): it releases the session, and Browserbase releases it when the invocation ends.
-  const browser = await browserbase.connect({
-    apiKey: readSecret(context, "BROWSERBASE_API_KEY"),
-    sessionId: context.session.id,
-  });
-
-  const stagehand = await Stagehand.create({
-    browser,
-    model: {
-      modelName: "openai/gpt-5.6-sol",
-      apiKey: readSecret(context, "OPENAI_API_KEY"),
-    },
-  });
-
-  try {
-    const page = await browser.context.activePage();
-    if (!page) {
-      throw new Error("Stagehand initialized without an active page");
-    }
-    return await run({ stagehand, page });
-  } finally {
     await stagehand.close();
-  }
-}
+    return {
+      message: "Successfully fetched top Hacker News stories",
+      timestamp: new Date().toISOString(),
+      results: data.stories,
+    };
+  },
+  {
+    // Upload the Stagehand extension once, then paste its ID here:
+    //   browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+    sessionConfig: { extensionId: "your-extension-id" },
+  },
+);
 `;
 
 // pnpm 11 and later fail installs when esbuild's build script is not approved. This file holds only that setting.
@@ -174,7 +120,6 @@ export async function initFunctionsProject({
   await writeFile(join(projectRoot, ".env"), envTemplate);
   await writeFile(join(projectRoot, ".gitignore"), gitignoreTemplate);
   await writeFile(join(projectRoot, "index.ts"), starterFunctionTemplate);
-  await writeFile(join(projectRoot, "stagehand.ts"), stagehandHelperTemplate);
   await writeFile(join(projectRoot, "tsconfig.json"), tsconfigTemplate);
   if (packageManager === "pnpm") {
     await writeFile(
@@ -220,12 +165,12 @@ export async function initFunctionsProject({
         projectRoot,
         nextSteps: [
           `cd ${projectName}`,
-          "Edit .env with your Browserbase and OpenAI API keys",
+          "Edit .env with your Browserbase API key",
           "browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip",
-          "Paste the uploaded extension ID into stagehand.ts",
+          "Paste the uploaded extension ID into index.ts",
           packageManager === "pnpm" ? "pnpm dev" : "npm run dev",
           packageManager === "pnpm" ? "pnpm run deploy" : "npm run deploy",
-          "Create BROWSERBASE_API_KEY and OPENAI_API_KEY with browse cloud secrets create, then attach them with browse functions secrets attach",
+          "Create a BROWSERBASE_API_KEY secret with browse cloud secrets create, then attach it with browse functions secrets attach",
         ],
       },
       null,

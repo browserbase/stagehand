@@ -471,16 +471,11 @@ exit 0
       );
 
       const projectRoot = join(cwd, "demo-function");
-      expect(await readFile(join(projectRoot, "index.ts"), "utf8")).toContain(
-        'from "./stagehand.js"',
-      );
-      const helper = await readFile(join(projectRoot, "stagehand.ts"), "utf8");
-      expect(helper).toContain("browserbase.connect(");
+      const starter = await readFile(join(projectRoot, "index.ts"), "utf8");
+      expect(starter).toContain("browserbase.connect(");
       // browser.close() releases the Function's session, which Browserbase owns.
-      expect(helper).not.toContain("await browser.close()");
-      expect(await readFile(join(projectRoot, ".env"), "utf8")).toContain(
-        "OPENAI_API_KEY=",
-      );
+      expect(starter).not.toContain("await browser.close()");
+      expect(starter).toContain("Stagehand.create({ browser })");
     },
   );
 
