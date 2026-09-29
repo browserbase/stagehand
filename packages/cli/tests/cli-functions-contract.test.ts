@@ -254,10 +254,16 @@ describe("functions API contracts", () => {
           dependencies: { "local-sdk": "file:local-sdk.tgz" },
         }),
       );
+      // Log outside the project so the log never lands in the publish archive.
+      const argsLog = join(
+        await createTempDir("functions-local-dep-log-"),
+        "npm-args.log",
+      );
       // Fake npm fails unless the local dependency is next to package.json, like real npm.
       const fakeBin = await createFakePackageManagerBin(
         "npm",
         `#!/bin/sh
+echo "$@" > "${argsLog}"
 test -f local-sdk.tgz || { echo "npm error ENOENT local-sdk.tgz" >&2; exit 254; }
 echo '{"lockfileVersion":3}' > package-lock.json
 `,
@@ -299,6 +305,10 @@ echo '{"lockfileVersion":3}' > package-lock.json
 
           expect(result.stderr).not.toContain("ENOENT");
           expect(result.exitCode).toBe(0);
+          // Proves lockfile generation ran, so the test fails if publish ever skips it.
+          expect(await readFile(argsLog, "utf8")).toContain(
+            "--package-lock-only",
+          );
         },
       );
     },
