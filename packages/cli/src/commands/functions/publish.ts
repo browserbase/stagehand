@@ -25,11 +25,17 @@ export default class FunctionsPublish extends BrowseCommand {
       helpValue: "<apiKey>",
     }),
     "base-url": Flags.string({
+      aliases: ["api-url"],
+      char: "u",
       description: "Override the Browserbase API base URL.",
       helpValue: "<baseUrl>",
     }),
     "dry-run": Flags.boolean({
       description: "Show what would be published without uploading.",
+    }),
+    "project-id": Flags.string({
+      description: "Browserbase project ID to publish into.",
+      helpValue: "<projectId>",
     }),
   };
 
@@ -40,6 +46,7 @@ export default class FunctionsPublish extends BrowseCommand {
       baseUrl: flags["base-url"],
       dryRun: flags["dry-run"] ?? false,
       entrypoint: args.entrypoint,
+      projectId: flags["project-id"],
     });
   }
 }

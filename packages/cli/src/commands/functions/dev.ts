@@ -25,6 +25,8 @@ export default class FunctionsDev extends BrowseCommand {
       helpValue: "<apiKey>",
     }),
     "base-url": Flags.string({
+      aliases: ["api-url"],
+      char: "u",
       description: "Override the Browserbase API base URL.",
       helpValue: "<baseUrl>",
     }),
@@ -37,6 +39,10 @@ export default class FunctionsDev extends BrowseCommand {
       default: 14113,
       description: "Port to listen on.",
       helpValue: "<port>",
+    }),
+    "project-id": Flags.string({
+      description: "Browserbase project ID used for local browser sessions.",
+      helpValue: "<projectId>",
     }),
     verbose: Flags.boolean({
       description: "Print verbose runtime logs.",
@@ -51,6 +57,7 @@ export default class FunctionsDev extends BrowseCommand {
       entrypoint: args.entrypoint,
       host: flags.host,
       port: flags.port,
+      projectId: flags["project-id"],
       verbose: flags.verbose ?? false,
     });
   }
