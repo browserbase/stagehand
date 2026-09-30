@@ -43,14 +43,6 @@ export class StagehandFacadeCleanupError extends Error {
   }
 }
 
-export class StagehandFacadeInitializationError extends Error {
-  override readonly name = "StagehandFacadeInitializationError";
-
-  constructor() {
-    super("Failed to initialize the Stagehand browser session.");
-  }
-}
-
 export class StagehandFacadeInputError extends Error {
   override readonly name = "StagehandFacadeInputError";
 
