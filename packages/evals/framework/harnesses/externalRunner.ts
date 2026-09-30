@@ -88,6 +88,8 @@ export function stripEmbeddedEvalReports(text: string): string {
   for (const span of extractJsonObjects(text)) {
     if (isEvalResultJson(span)) output = output.replace(span, "");
   }
+  // Drop the now-empty Markdown fence that wrapped a removed report.
+  output = output.replace(/^[ \t]*```[\w-]+[ \t]*\n\s*```[ \t]*$/gmu, "");
   return output.replace(/\n{3,}/gu, "\n\n");
 }
 
@@ -607,8 +609,11 @@ function extractJsonObjects(value: string): string[] {
 }
 
 function trailingEvalResultJson(text: string): string | undefined {
-  const last = extractJsonObjects(text).at(-1);
-  return last && text.endsWith(last) && isEvalResultJson(last) ? last : undefined;
+  // Models commonly wrap the report in a Markdown fence ("```json\n{...}\n```");
+  // the closing fence must not stop the report from counting as trailing.
+  const unfenced = text.replace(/\s*```\s*$/u, "");
+  const last = extractJsonObjects(unfenced).at(-1);
+  return last && unfenced.endsWith(last) && isEvalResultJson(last) ? last : undefined;
 }
 
 function isEvalResultJson(candidate: string): boolean {
