@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fxHarness } from "../../framework/benchHarness.js";
 import { EvalLogger } from "../../logger.js";
 import {
+  prepareFxToolAdapter,
   buildFxAgentsMarkdown,
   buildFxMcpChildEnv,
   buildFxMcpConfig,
@@ -166,4 +167,15 @@ describe("fx tool adapter helpers", () => {
     expect(markdown).toContain("file tools");
     expect(markdown).toContain("Use snapshots first.");
   });
+});
+
+it("rejects invalid reasoning effort before starting a browser", async () => {
+  vi.stubEnv("EVAL_FX_REASONING_EFFORT", "turbo");
+  try {
+    await expect(
+      prepareFxToolAdapter({} as Parameters<typeof prepareFxToolAdapter>[0]),
+    ).rejects.toThrow("EVAL_FX_REASONING_EFFORT");
+  } finally {
+    vi.unstubAllEnvs();
+  }
 });
