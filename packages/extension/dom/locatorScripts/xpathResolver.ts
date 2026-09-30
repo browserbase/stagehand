@@ -1,4 +1,9 @@
-import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
+import {
+  applyPredicates,
+  parseXPathSteps,
+  type XPathPredicate,
+  type XPathStep,
+} from "./xpathParser.js";
 import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type ShadowRootGetter = (host: Element) => ShadowRoot | null;
@@ -36,6 +41,10 @@ export function resolveXPathAtIndex(
   const pierceShadow = options?.pierceShadow !== false;
   const shadowCtx = pierceShadow ? getShadowContext() : null;
 
+  if (xp.startsWith("(")) {
+    return resolveNativeAtIndexWithError(xp, targetIndex).value;
+  }
+
   if (!pierceShadow) {
     return resolveNativeAtIndexWithError(xp, targetIndex).value;
   }
@@ -50,8 +59,13 @@ export function resolveXPathAtIndex(
   const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
   if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
 
+  const native = resolveNativeMatches(xp);
+  if (!native.error && requiresNativePredicateSemantics(xp)) {
+    return native.values[targetIndex] ?? null;
+  }
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  return composed[targetIndex] ?? null;
+  const matches = mergeXPathMatches(native.values, composed, shadowCtx.getShadowRoot);
+  return matches[targetIndex] ?? null;
 }
 
 export function countXPathMatches(rawXp: string, options?: XPathResolveOptions): number {
@@ -60,6 +74,10 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
 
   const pierceShadow = options?.pierceShadow !== false;
   const shadowCtx = pierceShadow ? getShadowContext() : null;
+
+  if (xp.startsWith("(")) {
+    return resolveNativeCountWithError(xp).count;
+  }
 
   if (!pierceShadow) {
     return resolveNativeCountWithError(xp).count;
@@ -74,7 +92,31 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
   const shadowHopCount = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot).length;
   if (shadowHopCount > 0) return shadowHopCount;
 
-  return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot).length;
+  const native = resolveNativeMatches(xp);
+  if (!native.error && requiresNativePredicateSemantics(xp)) {
+    return native.values.length;
+  }
+  const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
+  return mergeXPathMatches(native.values, composed, shadowCtx.getShadowRoot).length;
+}
+
+function requiresNativePredicateSemantics(xp: string): boolean {
+  return parseXPathSteps(xp).some((step) => step.predicates.some(isPositionalOrUnsupported));
+}
+
+function isPositionalOrUnsupported(predicate: XPathPredicate): boolean {
+  switch (predicate.type) {
+    case "index":
+    case "unsupported":
+      return true;
+    case "and":
+    case "or":
+      return predicate.predicates.some(isPositionalOrUnsupported);
+    case "not":
+      return isPositionalOrUnsupported(predicate.predicate);
+    default:
+      return false;
+  }
 }
 
 export function resolveXPathComposedMatches(
@@ -256,10 +298,47 @@ function composedDescendants(
   return out;
 }
 
+function mergeXPathMatches(
+  native: Element[],
+  composed: Element[],
+  getShadowRoot: ShadowRootGetter | null,
+): Element[] {
+  const shadowMatches = composed.filter((element) => element.getRootNode() instanceof ShadowRoot);
+  const matches = Array.from(new Set([...native, ...shadowMatches]));
+  const composedOrder = new Map(
+    composedDescendants(document, getShadowRoot).map((element, index) => [element, index]),
+  );
+  return matches.sort(
+    (left, right) =>
+      (composedOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
+      (composedOrder.get(right) ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+function resolveNativeMatches(xp: string): { values: Element[]; error: boolean } {
+  try {
+    const snapshot = document.evaluate(
+      xp,
+      document,
+      null,
+      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+      null,
+    );
+    const values: Element[] = [];
+    for (let index = 0; index < snapshot.snapshotLength; index += 1) {
+      const value = snapshot.snapshotItem(index);
+      if (value instanceof Element) values.push(value);
+    }
+    return { values, error: false };
+  } catch {
+    return { values: [], error: true };
+  }
+}
+
 function resolveNativeAtIndexWithError(
   xp: string,
   index: number,
-): { value: Element | null; error: boolean } {
+): { value: Element | null; count: number; error: boolean } {
   try {
     const snapshot = document.evaluate(
       xp,
@@ -270,10 +349,11 @@ function resolveNativeAtIndexWithError(
     );
     return {
       value: snapshot.snapshotItem(index) as Element | null,
+      count: snapshot.snapshotLength,
       error: false,
     };
   } catch {
-    return { value: null, error: true };
+    return { value: null, count: 0, error: true };
   }
 }
 

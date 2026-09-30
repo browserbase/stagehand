@@ -1,16 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Stagehand } from "../../src/index.js";
-import { closeStagehand, createStagehand, firstPage } from "./_support.js";
+import {
+  closeStagehand,
+  createStagehand,
+  firstPage,
+  startFixtureServer,
+  type FixtureServer,
+} from "./_support.js";
 
 describe("Locator count() method tests", () => {
   let stagehand: Stagehand;
+  let fixtureServer: FixtureServer | undefined;
 
   beforeEach(async () => {
     stagehand = await createStagehand();
   });
 
   afterEach(async () => {
-    await closeStagehand(stagehand);
+    await Promise.all([closeStagehand(stagehand), fixtureServer?.close()]);
+    fixtureServer = undefined;
   });
 
   it("count() returns correct number for CSS selectors", async () => {
@@ -48,6 +56,36 @@ describe("Locator count() method tests", () => {
     const count = await locator.count();
 
     expect(count).toBe(3);
+  });
+
+  it("preserves native XPath predicates when an unrelated shadow root exists", async () => {
+    const page = await firstPage(stagehand);
+    fixtureServer = await startFixtureServer(
+      '<section><div class="row">A1</div><div class="row">A2</div></section>' +
+        '<section><div class="row">B1</div><div class="row">B2</div></section>' +
+        '<div id="widget"></div>' +
+        "<script>document.getElementById('widget').attachShadow({mode: 'open'})</script>",
+    );
+    await page.goto(fixtureServer.url);
+
+    await expect(page.locator("xpath=//div[2]").count()).resolves.toBe(2);
+    await expect(page.locator("xpath=//div[0]").count()).resolves.toBe(0);
+    await expect(page.locator("xpath=(//div)[2]").count()).resolves.toBe(1);
+    await expect(page.locator("xpath=//div[position() > 1]").count()).resolves.toBe(2);
+    await expect(page.locator("xpath=//button[last()]").count()).resolves.toBe(0);
+  });
+
+  it("keeps both light and shadow DOM matches for supported XPath", async () => {
+    const page = await firstPage(stagehand);
+    fixtureServer = await startFixtureServer(
+      '<button id="light">light</button><div id="host"></div>' +
+        "<script>document.getElementById('host').attachShadow({mode: 'open'}).innerHTML=" +
+        "'<button id=\"shadow\">shadow</button>'</script>",
+    );
+    await page.goto(fixtureServer.url);
+
+    await expect(page.locator("xpath=//button").count()).resolves.toBe(2);
+    await expect(page.locator("xpath=//button").first().textContent()).resolves.toBe("light");
   });
 
   it("count() works with text selectors", async () => {
