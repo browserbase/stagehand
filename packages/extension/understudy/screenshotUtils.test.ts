@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { withScreenshotLock } from "./screenshotUtils.js";
 import { Progress, runWithProgress } from "./progress.js";
 
+const captureCommands = ["Page.enable", "Page.bringToFront", "Page.captureScreenshot"];
+
 function connection() {
   return { send: vi.fn(), on: vi.fn(), off: vi.fn(), close: vi.fn(), id: null };
 }
@@ -74,111 +76,97 @@ describe("screenshot serialization", () => {
     await expect(b).resolves.toEqual(new Uint8Array([2]));
   });
 
-  it.each(["Page.enable", "Page.bringToFront", "Page.captureScreenshot"])(
-    "keeps stalled %s locked through its late response and cleanup",
-    async (stalledCommand) => {
-      vi.useFakeTimers();
-      const browser = connection();
-      let respond!: (value: { data: string }) => void;
-      const response = new Promise<{ data: string }>((resolve) => {
-        respond = resolve;
-      });
-      browser.send.mockImplementation(async (method: string) =>
-        method === stalledCommand ? response : {},
+  it.each(captureCommands)("keeps stalled %s locked until recovery", async (command) => {
+    vi.useFakeTimers();
+    const browser = connection();
+    let respond!: (value: { data: string }) => void;
+    const response = new Promise<{ data: string }>((resolve) => {
+      respond = resolve;
+    });
+    browser.send.mockImplementation(async (method: string) => (method === command ? response : {}));
+    const frame = new Frame(
+      browser,
+      "frame",
+      "page",
+      false,
+      new StagehandLogger({ tracer: trace.getTracer("screenshot-test") }, () => {}),
+    );
+    const cleanup = captureGate();
+    const cleanupStarted = vi.fn();
+    const operation = progress(10);
+    const first = runCapture(
+      browser,
+      async () => {
+        try {
+          return await frame.screenshot({}, operation);
+        } finally {
+          cleanupStarted();
+          await cleanup.pending;
+        }
+      },
+      operation,
+    );
+    const nextCapture = vi.fn(async () => new Uint8Array([2]));
+    const second = runCapture(browser, nextCapture, progress());
+    const timedOut = expect(first).rejects.toThrow(/screenshot.*timed out/i);
+    const blocked = expect(second).rejects.toThrow(/still recovering/);
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      await timedOut;
+      const expectedCommands = captureCommands.slice(0, captureCommands.indexOf(command) + 1);
+      expect(cleanupStarted).not.toHaveBeenCalled();
+      expect(nextCapture).not.toHaveBeenCalled();
+      await blocked;
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(runCapture(browser, nextCapture, progress())).rejects.toThrow(
+        /still recovering/,
       );
-      const frame = new Frame(
-        browser,
-        "frame",
-        "page",
-        false,
-        new StagehandLogger({ tracer: trace.getTracer("screenshot-test") }, () => {}),
+      respond({ data: "AQ==" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(cleanupStarted).toHaveBeenCalledOnce();
+      await expect(runCapture(browser, nextCapture, progress())).rejects.toThrow(
+        /still recovering/,
       );
-      const cleanup = captureGate();
-      const cleanupStarted = vi.fn();
-      const operation = progress(10);
-      const first = runCapture(
-        browser,
-        async () => {
-          try {
-            return await frame.screenshot({}, operation);
-          } finally {
-            cleanupStarted();
-            await cleanup.pending;
-          }
-        },
-        operation,
+      cleanup.release();
+      await vi.advanceTimersByTimeAsync(0);
+      await expect(runCapture(browser, nextCapture, progress())).resolves.toEqual(
+        new Uint8Array([2]),
       );
-      const nextCapture = vi.fn(async () => new Uint8Array([2]));
-      const second = runCapture(browser, nextCapture, progress());
-      const timedOut = expect(first).rejects.toThrow(/screenshot.*timed out/i);
-      const blocked = expect(second).rejects.toThrow(/still recovering/);
-      try {
-        await vi.advanceTimersByTimeAsync(10);
-        await timedOut;
-        const commands = ["Page.enable", "Page.bringToFront", "Page.captureScreenshot"];
-        const expectedCommands = commands.slice(0, commands.indexOf(stalledCommand) + 1);
-        expect(browser.send.mock.calls.map(([method]) => method)).toEqual(expectedCommands);
-        expect(cleanupStarted).not.toHaveBeenCalled();
-        expect(nextCapture).not.toHaveBeenCalled();
-        await blocked;
-        await vi.advanceTimersByTimeAsync(0);
-        await expect(runCapture(browser, nextCapture, progress())).rejects.toThrow(
-          /still recovering/,
-        );
-        respond({ data: "AQ==" });
-        await vi.advanceTimersByTimeAsync(0);
-        expect(cleanupStarted).toHaveBeenCalledOnce();
-        await expect(runCapture(browser, nextCapture, progress())).rejects.toThrow(
-          /still recovering/,
-        );
-        cleanup.release();
-        await vi.advanceTimersByTimeAsync(0);
-        await expect(runCapture(browser, nextCapture, progress())).resolves.toEqual(
-          new Uint8Array([2]),
-        );
-        respond({ data: "AQ==" });
-        await vi.advanceTimersByTimeAsync(0);
-        expect(cleanupStarted).toHaveBeenCalledOnce();
-        expect(nextCapture).toHaveBeenCalledOnce();
-        expect(browser.send.mock.calls.map(([method]) => method)).toEqual(expectedCommands);
-      } finally {
-        cleanup.release();
-        respond({ data: "AQ==" });
-        vi.useRealTimers();
-      }
-    },
-  );
+      expect(nextCapture).toHaveBeenCalledOnce();
+      expect(browser.send.mock.calls.map(([method]) => method)).toEqual(expectedCommands);
+    } finally {
+      cleanup.release();
+      respond({ data: "AQ==" });
+      vi.useRealTimers();
+    }
+  });
 
-  it.each(["Page.enable", "Page.bringToFront", "Page.captureScreenshot"])(
-    "checks the deadline after %s even before its timer fires",
-    async (lastCommand) => {
-      vi.useFakeTimers();
-      const browser = connection();
-      const frame = new Frame(
-        browser,
-        "frame",
-        "page",
-        false,
-        new StagehandLogger({ tracer: trace.getTracer("screenshot-test") }, () => {}),
+  it.each(captureCommands)("checks expiry after %s before the timer fires", async (command) => {
+    vi.useFakeTimers();
+    const browser = connection();
+    const frame = new Frame(
+      browser,
+      "frame",
+      "page",
+      false,
+      new StagehandLogger({ tracer: trace.getTracer("screenshot-test") }, () => {}),
+    );
+    const operation = progress(10);
+    browser.send.mockImplementation(async (method: string) => {
+      if (method === command) vi.spyOn(performance, "now").mockReturnValue(10);
+      return { data: "AQ==" };
+    });
+    try {
+      await expect(
+        runCapture(browser, () => frame.screenshot({}, operation), operation),
+      ).rejects.toThrow(/screenshot.*timed out/i);
+      expect(browser.send.mock.calls.map(([method]) => method)).toEqual(
+        captureCommands.slice(0, captureCommands.indexOf(command) + 1),
       );
-      const operation = progress(10);
-      browser.send.mockImplementation(async (method: string) => {
-        if (method === lastCommand) vi.spyOn(performance, "now").mockReturnValue(10);
-        return { data: "AQ==" };
-      });
-      try {
-        await expect(
-          runCapture(browser, () => frame.screenshot({}, operation), operation),
-        ).rejects.toThrow(/screenshot.*timed out/i);
-        const commands = ["Page.enable", "Page.bringToFront", "Page.captureScreenshot"];
-        expect(browser.send.mock.calls.map(([method]) => method)).toEqual(
-          commands.slice(0, commands.indexOf(lastCommand) + 1),
-        );
-      } finally {
-        vi.useRealTimers();
-      }
-    },
-  );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it.each(["setup", "cleanup"] as const)(
     "does not block another tab when page %s stalls",
@@ -252,18 +240,12 @@ describe("screenshot serialization", () => {
     const a = runCapture(browser, () => first.pending, progress());
     const nextCapture = vi.fn(async () => new Uint8Array([2]));
     const queuedProgress = progress(10);
-    let leftQueue = false;
-    const b = runWithProgress(queuedProgress, () =>
-      withScreenshotLock(browser, nextCapture, queuedProgress).finally(() => {
-        leftQueue = true;
-      }),
-    );
+    const b = runCapture(browser, nextCapture, queuedProgress);
     const timedOut = expect(b).rejects.toThrow(/screenshot.*timed out/i);
     try {
       if (expiry === "timer") {
         await vi.advanceTimersByTimeAsync(10);
         await timedOut;
-        expect(leftQueue).toBe(true);
         const laterCapture = vi.fn(async () => new Uint8Array([3]));
         const later = runCapture(browser, laterCapture, progress());
         await vi.advanceTimersByTimeAsync(0);

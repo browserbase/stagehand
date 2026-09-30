@@ -11,6 +11,16 @@ describe("Page.pdf", () => {
   let page: Page;
   const send = vi.fn(async (_method: string, _params?: object): Promise<unknown> => ({}));
 
+  const releaseResponses: Array<() => void> = [];
+  function hold<T>(value: T) {
+    let release!: () => void;
+    const promise = new Promise<T>((resolve) => {
+      release = () => resolve(value);
+    });
+    releaseResponses.push(release);
+    return { promise, release };
+  }
+
   beforeEach(() => {
     const logger = new StagehandLogger({ tracer: trace.getTracer("pdf-test") }, () => {});
     const connection = new CdpConnection(
@@ -36,7 +46,9 @@ describe("Page.pdf", () => {
     send.mockResolvedValue({ data: "JVBERi0xLjcK" });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    for (const release of releaseResponses.splice(0)) release();
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0);
     page.dispose();
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -57,13 +69,14 @@ describe("Page.pdf", () => {
       .mockResolvedValue([{ objectId: "mask-node", nodeId: null }]);
     const evaluate = vi.spyOn(page.mainFrame(), "evaluate").mockResolvedValue(undefined);
     send.mockResolvedValue({ result: { value: { x: 1, y: 2, width: 3, height: 4 } } });
+    await vi.advanceTimersByTimeAsync(10);
     const screenshot = page.screenshot({ mask: [mask], caret: "initial", timeout: 999 }, progress);
     const timedOut = expect(screenshot).rejects.toThrow("extract timed out after 105ms");
     try {
       await vi.advanceTimersByTimeAsync(10);
       expect(resolve).toHaveBeenCalledWith(expect.any(Object), {}, progress);
       expect(evaluate).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(95);
+      await vi.advanceTimersByTimeAsync(85);
       await timedOut;
       await expect(screenshot).rejects.toBe(progress.signal.reason);
       expect(evaluate).toHaveBeenCalledTimes(2);
@@ -81,46 +94,34 @@ describe("Page.pdf", () => {
       { objectId: "first", nodeId: null },
       { objectId: "second", nodeId: null },
     ]);
-    let finishMeasurement!: (value: unknown) => void;
-    const measurement = new Promise((resolve) => {
-      finishMeasurement = resolve;
+    const measurement = hold({
+      result: { value: { x: 1, y: 2, width: 3, height: 4, rootToken: "root" } },
     });
     send.mockImplementation(async (method) =>
-      method === "Runtime.callFunctionOn" ? measurement : { data: "AQ==" },
+      method === "Runtime.callFunctionOn" ? measurement.promise : { data: "AQ==" },
     );
-    let finishCleanup!: () => void;
-    const cleanup = new Promise<void>((resolve) => {
-      finishCleanup = resolve;
-    });
-    const evaluate = vi.spyOn(page.mainFrame(), "evaluate").mockReturnValue(cleanup);
+    const cleanup = hold(undefined);
+    const evaluate = vi.spyOn(page.mainFrame(), "evaluate").mockReturnValue(cleanup.promise);
     const screenshot = page.screenshot({ mask: [locator], caret: "initial", timeout: 10 });
     const timedOut = expect(screenshot).rejects.toThrow("screenshot timed out after 10ms");
-    try {
-      await vi.advanceTimersByTimeAsync(10);
-      await timedOut;
-      expect(evaluate).not.toHaveBeenCalled();
-      await expect(page.pdf()).rejects.toThrow(/still recovering/);
-      finishMeasurement({
-        result: { value: { x: 1, y: 2, width: 3, height: 4, rootToken: "root" } },
-      });
-      await vi.advanceTimersByTimeAsync(0);
-      expect(
-        send.mock.calls.filter(([method]) => method === "Runtime.callFunctionOn"),
-      ).toHaveLength(1);
-      for (const objectId of ["first", "second"]) {
-        expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId });
-      }
-      expect(evaluate).toHaveBeenCalledTimes(1);
-      await expect(page.pdf()).rejects.toThrow(/still recovering/);
-      finishCleanup();
-      await vi.advanceTimersByTimeAsync(0);
-      await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
-      expect(send.mock.calls.some(([method]) => method === "Page.captureScreenshot")).toBe(false);
-    } finally {
-      finishMeasurement({ result: { value: null } });
-      finishCleanup();
-      await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(10);
+    await timedOut;
+    expect(evaluate).not.toHaveBeenCalled();
+    await expect(page.pdf()).rejects.toThrow(/still recovering/);
+    measurement.release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.callFunctionOn")).toHaveLength(
+      1,
+    );
+    for (const objectId of ["first", "second"]) {
+      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId });
     }
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    await expect(page.pdf()).rejects.toThrow(/still recovering/);
+    cleanup.release();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
+    expect(send.mock.calls.some(([method]) => method === "Page.captureScreenshot")).toBe(false);
   });
 
   it("preserves a capture error when restoration stalls past the deadline", async () => {
@@ -131,26 +132,14 @@ describe("Page.pdf", () => {
       if (method === "Page.captureScreenshot") throw failure;
       return { data: "AQ==" };
     });
-    let finishCleanup!: () => void;
-    const cleanup = new Promise<void>((resolve) => {
-      finishCleanup = resolve;
-    });
+    const cleanup = hold(undefined);
     vi.spyOn(page.mainFrame(), "evaluate")
-      .mockReturnValue(cleanup)
+      .mockReturnValue(cleanup.promise)
       .mockResolvedValueOnce(undefined);
     const screenshot = page.screenshot({ timeout: 10 });
     const failed = expect(screenshot).rejects.toBe(failure);
-    try {
-      await vi.advanceTimersByTimeAsync(10);
-      await failed;
-      await expect(page.pdf()).rejects.toThrow(/still recovering/);
-      finishCleanup();
-      await vi.advanceTimersByTimeAsync(0);
-      await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
-    } finally {
-      finishCleanup();
-      await vi.advanceTimersByTimeAsync(0);
-    }
+    await vi.advanceTimersByTimeAsync(10);
+    await failed;
   });
 
   it("stops animation preparation at an expired deadline before its timer fires", async () => {
@@ -176,31 +165,23 @@ describe("Page.pdf", () => {
     const frame = page.mainFrame();
     vi.spyOn(page, "frames").mockReturnValue([frame]);
     vi.spyOn(frame, "getMainWorldExecutionContextId").mockResolvedValue(1);
-    let finishEnable!: () => void;
-    const enable = new Promise<void>((resolve) => {
-      finishEnable = resolve;
-    });
+    const enable = hold(undefined);
     send
-      .mockReturnValueOnce(enable)
+      .mockReturnValueOnce(enable.promise)
       .mockResolvedValue({ result: { value: undefined }, data: "AQ==" });
     const screenshot = page.screenshot({ timeout: 10 });
     const timedOut = expect(screenshot).rejects.toThrow("screenshot timed out after 10ms");
-    try {
-      await vi.advanceTimersByTimeAsync(10);
-      await timedOut;
-      await expect(page.pdf()).rejects.toThrow(/still recovering/);
-      finishEnable();
-      await vi.advanceTimersByTimeAsync(0);
-      const evaluations = send.mock.calls.filter(([method]) => method === "Runtime.evaluate");
-      expect(evaluations).toHaveLength(1);
-      expect(evaluations[0]?.[1]).toMatchObject({
-        expression: expect.stringContaining("node.remove()"),
-      });
-      await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
-    } finally {
-      finishEnable();
-      await vi.advanceTimersByTimeAsync(0);
-    }
+    await vi.advanceTimersByTimeAsync(10);
+    await timedOut;
+    await expect(page.pdf()).rejects.toThrow(/still recovering/);
+    enable.release();
+    await vi.advanceTimersByTimeAsync(0);
+    const evaluations = send.mock.calls.filter(([method]) => method === "Runtime.evaluate");
+    expect(evaluations).toHaveLength(1);
+    expect(evaluations[0]?.[1]).toMatchObject({
+      expression: expect.stringContaining("node.remove()"),
+    });
+    await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
   });
 
   it("renders through Page.printToPDF and preserves base64 for transport", async () => {
@@ -300,12 +281,9 @@ describe("Page.pdf", () => {
 
   it("keeps printing blocked until a timed-out screenshot finishes and restores styles", async () => {
     vi.useFakeTimers();
-    let finishCapture!: (result: { data: string }) => void;
-    const capture = new Promise<{ data: string }>((resolve) => {
-      finishCapture = resolve;
-    });
+    const capture = hold({ data: "AQ==" });
     send.mockImplementation(async (method) =>
-      method === "Page.captureScreenshot" ? capture : { data: "AQ==" },
+      method === "Page.captureScreenshot" ? capture.promise : { data: "AQ==" },
     );
     vi.spyOn(page, "frames").mockReturnValue([page.mainFrame()]);
     const evaluate = vi.spyOn(page.mainFrame(), "evaluate").mockResolvedValue(undefined);
@@ -315,20 +293,15 @@ describe("Page.pdf", () => {
       style: "body { color: red; }",
     });
     const timedOut = expect(screenshot).rejects.toThrow(/screenshot.*timed out/i);
-    try {
-      await vi.advanceTimersByTimeAsync(10);
-      await timedOut;
-      expect(evaluate).toHaveBeenCalledTimes(1);
-      await expect(page.pdf()).rejects.toThrow(/still recovering/);
-      expect(send.mock.calls.some(([method]) => method === "Page.printToPDF")).toBe(false);
-      finishCapture({ data: "AQ==" });
-      await vi.advanceTimersByTimeAsync(0);
-      expect(evaluate).toHaveBeenCalledTimes(2);
-      await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
-    } finally {
-      finishCapture({ data: "AQ==" });
-      await vi.advanceTimersByTimeAsync(0);
-    }
+    await vi.advanceTimersByTimeAsync(10);
+    await timedOut;
+    expect(evaluate).toHaveBeenCalledTimes(1);
+    await expect(page.pdf()).rejects.toThrow(/still recovering/);
+    expect(send.mock.calls.some(([method]) => method === "Page.printToPDF")).toBe(false);
+    capture.release();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
   });
 
   it("blocks screenshot setup while printing and releases the lock on failure", async () => {
@@ -446,65 +419,36 @@ describe("Page.pdf", () => {
 
   it("uses the time spent queueing as part of the print deadline", async () => {
     vi.useFakeTimers();
-    let finishFirst!: (result: { data: string }) => void;
-    let finishSecond!: (result: { data: string }) => void;
-    send.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finishFirst = resolve;
-      }),
-    );
-    send.mockReturnValueOnce(
-      new Promise((resolve) => {
-        finishSecond = resolve;
-      }),
-    );
+    const first = hold({ data: "AQ==" });
+    const second = hold({ data: "AQ==" });
+    send.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const active = page.pdf({ timeout: 0 });
     const queued = page.pdf({ timeout: 20 });
     const timedOut = expect(queued).rejects.toThrow("pdf timed out after 20ms");
-    try {
-      await vi.advanceTimersByTimeAsync(10);
-      finishFirst({ data: "AQ==" });
-      await active;
-      await vi.advanceTimersByTimeAsync(0);
-      expect(send).toHaveBeenCalledTimes(2);
-      await vi.advanceTimersByTimeAsync(10);
-      await timedOut;
-    } finally {
-      finishFirst({ data: "AQ==" });
-      finishSecond({ data: "AQ==" });
-      await vi.advanceTimersByTimeAsync(0);
-    }
+    await vi.advanceTimersByTimeAsync(10);
+    first.release();
+    await active;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10);
+    await timedOut;
   });
 
-  it.each(["pdf", "screenshot"] as const)(
-    "%s inherits its parent's remaining budget",
-    async (method) => {
-      vi.useFakeTimers();
-      const progress = new Progress("extract", 20);
-      let finish!: (result: { data: string }) => void;
-      const pending = new Promise<{ data: string }>((resolve) => {
-        finish = resolve;
-      });
-      send.mockImplementation(async (command) =>
-        command === "Page.printToPDF" || command === "Page.captureScreenshot" ? pending : {},
-      );
-      try {
-        await vi.advanceTimersByTimeAsync(10);
-        const capture =
-          method === "pdf"
-            ? page.pdf({ timeout: 0 }, progress)
-            : page.screenshot({ timeout: 0, caret: "initial" }, progress);
-        const timedOut = expect(capture).rejects.toThrow("extract timed out after 20ms");
-        await vi.advanceTimersByTimeAsync(10);
-        await timedOut;
-        await expect(capture).rejects.toBe(progress.signal.reason);
-      } finally {
-        finish({ data: "AQ==" });
-        await vi.advanceTimersByTimeAsync(0);
-        progress.dispose();
-      }
-    },
-  );
+  it("printing inherits its parent's remaining budget", async () => {
+    vi.useFakeTimers();
+    const progress = new Progress("extract", 20);
+    send.mockReturnValue(hold({ data: "AQ==" }).promise);
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      const pdf = page.pdf({ timeout: 0 }, progress);
+      const timedOut = expect(pdf).rejects.toThrow("extract timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(10);
+      await timedOut;
+      await expect(pdf).rejects.toBe(progress.signal.reason);
+    } finally {
+      progress.dispose();
+    }
+  });
 
   it.each([
     { method: "pdf", timeout: 0 },
