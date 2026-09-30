@@ -88,6 +88,7 @@ _preview commit:
 
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
+    pnpm --filter @browserbasehq/eve build
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk
 
 # Publishes a commit-addressed alpha of the TypeScript SDK (`<next>-alpha-<sha>`)
