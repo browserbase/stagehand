@@ -190,6 +190,8 @@ export function parseFxReasoningEffort(
 
 /** Largest tool-result artifact inlined into a step; larger outputs are clipped. */
 export const FX_TOOL_RESULT_MAX_BYTES = 512 * 1024;
+// Screenshots need more room than text output; keep the artifact read bounded.
+const FX_IMAGE_RESULT_MAX_BYTES = 20 * 1024 * 1024;
 
 const liveFxChildren = new Set<ChildProcess>();
 
@@ -883,7 +885,12 @@ export async function hydrateFxToolResults(
           }
           if (!output && typeof result.preview === "string") output = result.preview;
           if (typeof result.tool_image_handle === "string") {
-            output = mergeFxImageBlocks(output, await read(result.tool_image_handle));
+            output = mergeFxImageBlocks(
+              output,
+              await readArtifact(result.tool_image_handle, FX_IMAGE_RESULT_MAX_BYTES).catch(
+                () => undefined,
+              ),
+            );
           }
           return { ...result, output };
         }),
