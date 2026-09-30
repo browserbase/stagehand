@@ -1,6 +1,6 @@
 import { TimeoutError } from "../errors.js";
 
-type LocatorOperationOptions = {
+type ProgressOptions = {
   name: string;
   /** Milliseconds for the whole operation. Zero disables the deadline. */
   timeout: number;
@@ -9,8 +9,8 @@ type LocatorOperationOptions = {
 const MAX_TIMER_MS = 2_147_483_647;
 const CLEANUP_TIMEOUT_MS = 1_000;
 
-/** One invocation's lifetime, shared by its frame resolution and action steps. */
-export class LocatorOperation {
+/** One call's deadline and cancellation state, shared by all downstream steps. */
+export class Progress {
   private readonly controller = new AbortController();
   private readonly deadline: number | null;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -21,7 +21,7 @@ export class LocatorOperation {
     private readonly timeout: number,
   ) {
     if (!Number.isFinite(timeout) || timeout < 0) {
-      throw new RangeError("Locator timeout must be a finite, non-negative number");
+      throw new RangeError("Timeout must be a finite, non-negative number");
     }
     this.deadline = timeout === 0 ? null : performance.now() + timeout;
     if (this.deadline !== null) this.scheduleDeadline();
@@ -95,7 +95,7 @@ export class LocatorOperation {
   /** Sleep within the operation's budget and remove the sleep timer on expiry. */
   async delay(ms: number): Promise<void> {
     if (!Number.isFinite(ms) || ms < 0) {
-      throw new RangeError("Locator delay must be a finite, non-negative number");
+      throw new RangeError("Delay must be a finite, non-negative number");
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -167,19 +167,27 @@ export class LocatorOperation {
  * Own a new operation, or reuse a parent's context without resetting its clock.
  * Expiry stops waiting; work must check the context before continuing its steps.
  */
-export async function runLocatorOperation<T>(
-  options: LocatorOperationOptions | LocatorOperation,
-  work: (operation: LocatorOperation) => Promise<T>,
+export async function runWithProgress<T>(
+  options: ProgressOptions | Progress,
+  work: (progress: Progress) => Promise<T>,
 ): Promise<T> {
-  const ownsOperation = !(options instanceof LocatorOperation);
-  const operation =
-    options instanceof LocatorOperation
-      ? options
-      : new LocatorOperation(options.name, options.timeout);
+  const ownsProgress = !(options instanceof Progress);
+  const progress =
+    options instanceof Progress ? options : new Progress(options.name, options.timeout);
 
   try {
-    return await operation.run(operation.name, () => work(operation));
+    return await progress.run(progress.name, () => work(progress));
   } finally {
-    if (ownsOperation) operation.dispose();
+    if (ownsProgress) progress.dispose();
   }
+}
+
+/** Temporary adapter for resolution callers that do not yet supply progress. */
+export function runLocatorStep<T>(
+  progress: Progress | undefined,
+  phase: string,
+  work: () => Promise<T>,
+  onLateResult?: (value: T) => void | Promise<unknown>,
+): Promise<T> {
+  return progress ? progress.run(phase, work, onLateResult) : work();
 }

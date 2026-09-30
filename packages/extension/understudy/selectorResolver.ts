@@ -1,5 +1,7 @@
 import type { Protocol } from "devtools-protocol";
+import { isCdpClosedError } from "./cdp.js";
 import type { Frame } from "./frame.js";
+import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 
@@ -56,22 +58,27 @@ export class FrameSelectorResolver {
     return { kind: "css", value: selector };
   }
 
-  public async resolveFirst(query: SelectorQuery): Promise<ResolvedNode | null> {
-    return this.resolveAtIndex(query, 0);
+  public async resolveFirst(
+    query: SelectorQuery,
+    progress?: Progress,
+  ): Promise<ResolvedNode | null> {
+    return this.resolveAtIndex(query, 0, progress);
   }
 
   public async resolveAll(
     query: SelectorQuery,
     { limit = Infinity }: ResolveManyOptions = {},
+    progress?: Progress,
   ): Promise<ResolvedNode[]> {
+    progress?.throwIfStopped();
     if (limit <= 0) return [];
     switch (query.kind) {
       case "css":
-        return this.resolveCss(query.value, limit);
+        return this.resolveCss(query.value, limit, progress);
       case "text":
-        return this.resolveText(query.value, limit);
+        return this.resolveText(query.value, limit, progress);
       case "xpath":
-        return this.resolveXPath(query.value, limit);
+        return this.resolveXPath(query.value, limit, progress);
       default:
         return [];
     }
@@ -90,83 +97,82 @@ export class FrameSelectorResolver {
     }
   }
 
-  public async resolveAtIndex(query: SelectorQuery, index: number): Promise<ResolvedNode | null> {
+  public async resolveAtIndex(
+    query: SelectorQuery,
+    index: number,
+    progress?: Progress,
+  ): Promise<ResolvedNode | null> {
+    progress?.throwIfStopped();
     if (index < 0 || !Number.isFinite(index)) return null;
-    const results = await this.resolveAll(query, { limit: index + 1 });
-    return results[index] ?? null;
+    const results = await this.resolveAll(query, { limit: index + 1 }, progress);
+    const selected = results[index] ?? null;
+    if (progress) {
+      await this.releaseNodes(
+        results.filter((node) => node !== selected),
+        progress,
+      );
+      try {
+        progress.throwIfStopped();
+      } catch (error) {
+        if (selected) await this.releaseNodes([selected], progress);
+        throw error;
+      }
+    }
+    return selected;
   }
 
-  async resolveCss(selector: string, limit: number): Promise<ResolvedNode[]> {
-    if (limit <= 0) return [];
-
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
-
-    const results: ResolvedNode[] = [];
-
-    for (let index = 0; index < limit; index += 1) {
-      const expression = buildLocatorInvocation("resolveCssSelector", [
-        JSON.stringify(selector),
-        String(index),
-      ]);
-      const resolved = await this.evaluateElement(expression, ctxId);
-      if (!resolved) break;
-      results.push(resolved);
-    }
-
-    return results;
+  async resolveCss(selector: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
+    return this.resolveElements("resolveCssSelector", selector, limit, progress);
   }
 
-  async resolveText(value: string, limit: number): Promise<ResolvedNode[]> {
-    if (limit <= 0) return [];
-
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
-      this.frame.frameId,
-      1000,
-    );
-
-    const results: ResolvedNode[] = [];
-    for (let index = 0; index < limit; index += 1) {
-      const expr = buildLocatorInvocation("resolveTextSelector", [
-        JSON.stringify(value),
-        String(index),
-      ]);
-      const resolved = await this.evaluateElement(expr, ctxId);
-      if (!resolved) break;
-      results.push(resolved);
-    }
-
-    return results;
+  async resolveText(value: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
+    return this.resolveElements("resolveTextSelector", value, limit, progress);
   }
 
-  async resolveXPath(value: string, limit: number): Promise<ResolvedNode[]> {
-    if (limit <= 0) return [];
+  async resolveXPath(value: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
+    return this.resolveElements("resolveXPathMainWorld", value, limit, progress);
+  }
 
-    const session = this.frame.session;
-    const { contextId: ctxId } = await executionContexts.waitForLocatorWorld(
-      session,
+  private async resolveElements(
+    helper: "resolveCssSelector" | "resolveTextSelector" | "resolveXPathMainWorld",
+    value: string,
+    limit: number,
+    progress?: Progress,
+  ): Promise<ResolvedNode[]> {
+    progress?.throwIfStopped();
+    if (limit <= 0) return [];
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      this.frame.session,
       this.frame.frameId,
       1000,
+      progress,
     );
-
     const results: ResolvedNode[] = [];
-    for (let index = 0; index < limit; index += 1) {
-      const expr = buildLocatorInvocation("resolveXPathMainWorld", [
-        JSON.stringify(value),
-        String(index),
-      ]);
-      const resolved = await this.evaluateElement(expr, ctxId);
-      if (!resolved) break;
-      results.push(resolved);
+    try {
+      for (let index = 0; index < limit; index += 1) {
+        const expression = buildLocatorInvocation(helper, [JSON.stringify(value), String(index)]);
+        const resolved = await this.evaluateElement(expression, contextId, progress);
+        if (!resolved) break;
+        results.push(resolved);
+      }
+      progress?.throwIfStopped();
+      return results;
+    } catch (error) {
+      if (progress) await this.releaseNodes(results, progress);
+      progress?.throwIfStopped();
+      throw error;
     }
+  }
 
-    return results;
+  private async releaseNodes(nodes: ResolvedNode[], progress: Progress): Promise<void> {
+    if (nodes.length)
+      await progress.cleanup(() =>
+        Promise.all(
+          nodes.map(({ objectId }) =>
+            this.frame.session.send("Runtime.releaseObject", { objectId }).catch(() => {}),
+          ),
+        ),
+      );
   }
 
   async countCss(selector: string): Promise<number> {
@@ -262,15 +268,18 @@ export class FrameSelectorResolver {
 
   async resolveFromObjectId(
     objectId: Protocol.Runtime.RemoteObjectId,
+    progress?: Progress,
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
     let nodeId: Protocol.DOM.NodeId | null;
     try {
-      const rn = await session.send<{ nodeId: Protocol.DOM.NodeId }>("DOM.requestNode", {
-        objectId,
-      });
+      const rn = await runLocatorStep(progress, "resolving DOM node", () =>
+        session.send<{ nodeId: Protocol.DOM.NodeId }>("DOM.requestNode", { objectId }),
+      );
       nodeId = rn.nodeId ?? null;
-    } catch {
+    } catch (error) {
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       nodeId = null;
     }
 
@@ -307,23 +316,41 @@ export class FrameSelectorResolver {
   async evaluateElement(
     expression: string,
     contextId: Protocol.Runtime.ExecutionContextId,
+    progress?: Progress,
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
-
+    let objectId: Protocol.Runtime.RemoteObjectId | undefined;
+    const release = (id: string) => session.send("Runtime.releaseObject", { objectId: id });
     try {
-      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId,
-        returnByValue: false,
-        awaitPromise: true,
-      });
-
-      if (evalRes.exceptionDetails || !evalRes.result.objectId) {
+      const evalRes = await runLocatorStep(
+        progress,
+        "evaluating selector",
+        () =>
+          session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression,
+            contextId,
+            returnByValue: false,
+            awaitPromise: true,
+          }),
+        (late) => (late.result.objectId ? release(late.result.objectId) : undefined),
+      );
+      objectId = evalRes.result.objectId;
+      if (evalRes.exceptionDetails || !objectId) {
+        if (progress && objectId) {
+          const discardedId = objectId;
+          objectId = undefined;
+          await progress.cleanup(() => release(discardedId));
+        }
+        progress?.throwIfStopped();
         return null;
       }
-
-      return this.resolveFromObjectId(evalRes.result.objectId);
-    } catch {
+      const resolved = await this.resolveFromObjectId(objectId, progress);
+      progress?.throwIfStopped();
+      return resolved;
+    } catch (error) {
+      if (progress && objectId) await progress.cleanup(() => release(objectId!));
+      progress?.throwIfStopped();
+      if (progress && isCdpClosedError(error)) throw error;
       return null;
     }
   }
