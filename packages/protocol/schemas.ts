@@ -1936,6 +1936,39 @@ export const PageScreenshotParamsSchema = PageIdParamsSchema.extend({
   options: PageScreenshotOptionsSchema.optional(),
 }).meta({ id: "PageScreenshotParams" });
 
+export const PagePDFMarginSchema = z
+  .strictObject({
+    top: z.number().nonnegative().optional(),
+    bottom: z.number().nonnegative().optional(),
+    left: z.number().nonnegative().optional(),
+    right: z.number().nonnegative().optional(),
+  })
+  .meta({ id: "PagePDFMargin" });
+
+export const PagePDFOptionsSchema = z
+  .strictObject({
+    landscape: z.boolean().optional(),
+    displayHeaderFooter: z.boolean().optional(),
+    printBackground: z.boolean().optional(),
+    scale: z.number().min(0.1).max(2).optional(),
+    width: z.number().positive().optional(),
+    height: z.number().positive().optional(),
+    margin: PagePDFMarginSchema.optional(),
+    pageRanges: z.string().optional(),
+    headerTemplate: z.string().optional(),
+    footerTemplate: z.string().optional(),
+    preferCSSPageSize: z.boolean().optional(),
+    tagged: z.boolean().optional(),
+    outline: z.boolean().optional(),
+    // Leave room for the SDK's 10-second response grace within the JS timer limit.
+    timeout: z.number().nonnegative().max(2_147_473_647).optional(),
+  })
+  .meta({ id: "PagePDFOptions" });
+
+export const PagePDFParamsSchema = PageIdParamsSchema.extend({
+  options: PagePDFOptionsSchema.optional(),
+}).meta({ id: "PagePDFParams" });
+
 export const PageSnapshotParamsSchema = PageIdParamsSchema.extend({
   options: PageSnapshotOptionsSchema.optional(),
 }).meta({ id: "PageSnapshotParams" });
@@ -2115,6 +2148,12 @@ export const PageScreenshotResultSchema = z
     data: z.base64().meta({ format: "byte" }),
   })
   .meta({ id: "PageScreenshotResult" });
+
+export const PagePDFResultSchema = z
+  .strictObject({
+    data: z.base64().meta({ format: "byte" }),
+  })
+  .meta({ id: "PagePDFResult" });
 
 export const PageWaitForSelectorResultSchema = z
   .strictObject({

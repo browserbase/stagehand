@@ -5,7 +5,12 @@ import path from "node:path";
 import type { AvailableModel } from "stagehand-v3";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
-import { buildFxPrompt, parseFxResult, runFxAgent } from "../../framework/fxRunner.js";
+import {
+  buildFxPrompt,
+  parseFxResult,
+  readFxReasoningEffort,
+  runFxAgent,
+} from "../../framework/fxRunner.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 
 const plan: ExternalHarnessTaskPlan = {
@@ -69,7 +74,7 @@ describe("fx runner helpers", () => {
         cleanup: async () => {},
       },
       runProcess: async ({ args, stdin }) => {
-        expect(args).toEqual(["ask", "--json", "--auto"]);
+        expect(args).toEqual(["ask", "--json", "--auto", "--model", "openai/gpt-5.6-sol"]);
         expect(stdin).toContain("Find the heading");
         expect(stdin.startsWith(`${EVAL_SYSTEM_PROMPT}\n\n`)).toBe(true);
         expect(stdin.split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
@@ -317,3 +322,97 @@ it.each([false, true])(
     }
   },
 );
+
+describe("fx 0.0.11 runner contract", () => {
+  const toolAdapter = {
+    toolSurface: "stagehand_facade" as const,
+    startupProfile: "tool_launch_local" as const,
+    browserSession: { provider: "local" as const },
+    cwd: "/fake/workspace",
+    home: "/fake/home",
+    env: {},
+    promptInstructions: "Use mounted tools.",
+    mcpServerNames: ["stagehand"],
+    cleanup: async () => {},
+  };
+  const emptyStore = {
+    waitForSessionDir: async (): Promise<undefined> => undefined,
+    readEventsJsonl: async () => "",
+  };
+
+  it("passes EVAL_FX_REASONING_EFFORT as --effort and records it", async () => {
+    const previous = process.env.EVAL_FX_REASONING_EFFORT;
+    process.env.EVAL_FX_REASONING_EFFORT = "xhigh";
+    try {
+      let captured: string[] = [];
+      const result = await runFxAgent({
+        plan,
+        model: "anthropic/claude-sonnet-5-5" as AvailableModel,
+        logger: new EvalLogger(false),
+        toolAdapter,
+        runProcess: async ({ args }) => {
+          captured = args;
+          return {
+            stdout: JSON.stringify({
+              output: "ok",
+              final_output: '{"success":true,"summary":"s","finalAnswer":"a"}',
+              exit_code: 0,
+            }),
+            stderr: "",
+            exitCode: 0,
+          };
+        },
+        store: emptyStore,
+      });
+      expect(captured).toEqual([
+        "ask",
+        "--json",
+        "--auto",
+        "--model",
+        "anthropic/claude-sonnet-5.5",
+        "--effort",
+        "xhigh",
+      ]);
+      expect(result.harnessConfiguration).toMatchObject({
+        requestedReasoningEffort: "xhigh",
+        fxModel: "anthropic/claude-sonnet-5.5",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_FX_REASONING_EFFORT;
+      else process.env.EVAL_FX_REASONING_EFFORT = previous;
+    }
+  });
+
+  it("rejects an effort fx would silently ignore", () => {
+    expect(() => readFxReasoningEffort({ EVAL_FX_REASONING_EFFORT: "turbo" })).toThrow(
+      /EVAL_FX_REASONING_EFFORT must be one of/u,
+    );
+    expect(readFxReasoningEffort({})).toBeUndefined();
+    expect(readFxReasoningEffort({ EVAL_FX_REASONING_EFFORT: "High" })).toBe("high");
+  });
+
+  it("grades the fenced report in final_output, not an empty fence left in the narration", async () => {
+    // Real fx 0.0.11 shape: `output` joins narration + the fenced report, and
+    // `final_output` is the fenced report alone.
+    const report =
+      '```json\n{"success":true,"summary":"Compared prices.","finalAnswer":"Best Buy $799.99; Microsoft $799.99"}\n```';
+    const result = await runFxAgent({
+      plan,
+      model: "anthropic/claude-sonnet-5-5" as AvailableModel,
+      logger: new EvalLogger(false),
+      toolAdapter,
+      runProcess: async () => ({
+        stdout: JSON.stringify({
+          output: `Starting by selecting the Stagehand browser tools.\n\nNext I'll check Microsoft's site.\n\n${report}`,
+          final_output: report,
+          exit_code: 0,
+        }),
+        stderr: "",
+        exitCode: 0,
+      }),
+      store: emptyStore,
+    });
+    expect(result.finalAnswer).toBe("Best Buy $799.99; Microsoft $799.99");
+    expect(result.finalAnswer).not.toContain("```");
+  });
+});
