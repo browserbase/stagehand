@@ -107,21 +107,24 @@ describe("native Stagehand evaluation initialization", () => {
     },
   );
 
-  it("releases the connected browser and remote session when Stagehand creation fails", async () => {
-    const error = new Error("synthetic initialization failure");
-    mocks.create.mockRejectedValue(error);
+  it.each([false, true])(
+    "releases the remote session after create failure even if browser close fails (%s)",
+    async (closeFails) => {
+      if (closeFails) browser.close.mockRejectedValue(new Error("close failed"));
+      const error = new Error("synthetic initialization failure");
+      mocks.create.mockRejectedValue(error);
 
-    await expect(
-      initStagehand({ logger, modelName: "openai/gpt-6-astra", environment: "BROWSERBASE" }),
-    ).rejects.toBe(error);
+      await expect(
+        initStagehand({ logger, modelName: "openai/gpt-6-astra", environment: "BROWSERBASE" }),
+      ).rejects.toBe(error);
 
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ systemPrompt: EVAL_SYSTEM_PROMPT }),
-    );
-    await cleanupActiveRunResources();
-    expect(browser.close).toHaveBeenCalledOnce();
-    expect(releaseSession).toHaveBeenCalledOnce();
-    expect(stagehand.close).not.toHaveBeenCalled();
-    expect(stagehand.browser.context.activePage).not.toHaveBeenCalled();
-  });
+      expect(mocks.create).toHaveBeenCalledWith(
+        expect.objectContaining({ systemPrompt: EVAL_SYSTEM_PROMPT }),
+      );
+      expect(browser.close).toHaveBeenCalledOnce();
+      expect(releaseSession).toHaveBeenCalledOnce();
+      expect(stagehand.close).not.toHaveBeenCalled();
+      expect(stagehand.browser.context.activePage).not.toHaveBeenCalled();
+    },
+  );
 });
