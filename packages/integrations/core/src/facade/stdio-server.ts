@@ -24,7 +24,8 @@ import {
   captureScreenshotWithinBase64Budget,
   screenshotBase64BudgetFromArgs,
 } from "./screenshot-transport.js";
-import { StagehandFacadeTools } from "./tools.js";
+import { StagehandFacadeCleanupError, StagehandFacadeTools } from "./tools.js";
+import { FacadeResourceOwner } from "./resource-owner.js";
 
 type FacadeResources = {
   browser: StagehandBrowser;
@@ -35,7 +36,7 @@ type FacadeResources = {
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
 const facadeTools = facadeToolsFor(facadeSurfaceFromArgs(process.argv.slice(2)));
-let resourcesPromise: Promise<FacadeResources> | undefined;
+const resourceOwner = new FacadeResourceOwner(createResources, releaseResources);
 let closing = false;
 
 server.registerTool(
@@ -123,11 +124,7 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function ensureResources(): Promise<FacadeResources> {
-  resourcesPromise ??= createResources().catch((error) => {
-    resourcesPromise = undefined;
-    throw error;
-  });
-  return await resourcesPromise;
+  return resourceOwner.get();
 }
 
 async function createResources(): Promise<FacadeResources> {
@@ -138,14 +135,26 @@ async function createResources(): Promise<FacadeResources> {
       : await localBrowser.launch(config.browser.launchOptions);
   try {
     const stagehand = await Stagehand.create({ browser, ...config.stagehand });
+    let resources!: FacadeResources;
     const tools = new StagehandFacadeTools(stagehand, {
+      onCloseRequested: () => resourceOwner.close(resources),
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
     });
-    return { browser, stagehand, tools };
+    resources = { browser, stagehand, tools };
+    return resources;
   } catch (error) {
     await browser.close().catch(() => undefined);
     throw error;
+  }
+}
+
+async function releaseResources(resources: FacadeResources): Promise<void> {
+  await resources.stagehand.close().catch(() => undefined);
+  try {
+    await resources.browser.close();
+  } catch {
+    throw new StagehandFacadeCleanupError();
   }
 }
 
@@ -172,14 +181,14 @@ async function shutdown(code: number): Promise<void> {
   closing = true;
   // A launch still in flight must not stall shutdown past the grace window.
   const resources = await Promise.race([
-    resourcesPromise?.catch(() => undefined),
+    resourceOwner.peek()?.catch(() => undefined),
     new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),
   ]);
   const clean = await closeCodeModeStdio([
     ...(resources
       ? [
           {
-            close: () => resources.tools.close(),
+            close: () => resourceOwner.close(resources),
           },
         ]
       : []),
