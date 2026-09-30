@@ -21,6 +21,7 @@ const original = JSON.stringify({
       cached_input_per_m: null,
       output_per_m: null,
       source: "needs owner input",
+      note: "Tiered accounting requires per-request usage.",
     },
   },
 });
@@ -106,5 +107,32 @@ describe("pricing refresh", () => {
     expect(updated.models["openai/example"].input_per_m).toBe(2);
     expect(updated.models["anthropic/pending"]).toMatchObject({ input_per_m: null });
     expect(updated.models["anthropic/pending"].note).toContain("cache_write=3.75");
+    expect(updated.models["anthropic/pending"].note).toContain(
+      "Tiered accounting requires per-request usage.",
+    );
   });
+});
+
+it("rejects an invalid pricing source before fetching", async () => {
+  vi.stubEnv("EVAL_PRICING_SOURCE", "gatway");
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  await expect(updatePricing(target)).rejects.toThrow("EVAL_PRICING_SOURCE");
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(await readFile(target, "utf8")).toBe(original);
+});
+it("preserves owner rationale when the catalog does not list the model", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () =>
+      Response.json({
+        data: [{ id: "openai/example", pricing: { input: "0.000001", output: "0.000004" } }],
+      }),
+    ),
+  );
+  await updatePricing(target);
+  const updated = JSON.parse(await readFile(target, "utf8"));
+  expect(updated.models["anthropic/pending"].note).toBe(
+    "Tiered accounting requires per-request usage.",
+  );
 });

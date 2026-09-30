@@ -368,8 +368,10 @@ function withBenchMetadata(
 
 function buildToolMetadata(row: BenchMatrixRow): Partial<Testcase["metadata"]> {
   const promptVariant =
-    row.toolSurface === "stagehand_facade" && explicitSnapshotActionsEnabled()
-      ? { promptVariant: "explicit_snapshot_actions" }
+    row.toolSurface === "stagehand_facade"
+      ? {
+          promptVariant: explicitSnapshotActionsEnabled() ? "explicit_snapshot_actions" : "default",
+        }
       : {};
   if (
     getBenchHarness(row.harness).supportedToolSurfaces.includes("browse_cli") &&

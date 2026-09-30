@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { buildExperimentMetadata } from "../../framework/runner.js";
+import type { AvailableModel } from "stagehand-v3";
 import type { Testcase } from "../../types/evals.js";
 
-function row(meta: Record<string, unknown>): Testcase {
+function row(meta: Partial<Omit<Testcase["metadata"], "model">> & { model?: string }): Testcase {
   return {
-    input: { name: "agent/hardbenchmark", modelName: "openai/gpt-5.4-mini" as never },
+    input: { name: "agent/hardbenchmark", modelName: "openai/gpt-5.4-mini" as AvailableModel },
     name: "agent/hardbenchmark",
     tags: [],
-    metadata: { model: "openai/gpt-5.4-mini", test: "t", ...meta } as never,
+    metadata: {
+      test: "t",
+      ...meta,
+      model: (meta.model ?? "openai/gpt-5.4-mini") as AvailableModel,
+    },
     expected: true,
   };
 }
@@ -48,7 +53,7 @@ describe("buildExperimentMetadata", () => {
     expect(meta.model).toEqual(["a/x", "b/y"]);
   });
 
-  it("prefers explicit core surface / model override and omits core placeholder models", () => {
+  it("prefers explicit core surface and omits core placeholder models", () => {
     const meta = buildExperimentMetadata({
       environment: "LOCAL",
       tier: "core",
@@ -57,5 +62,21 @@ describe("buildExperimentMetadata", () => {
     });
     expect(meta.tool_surface).toBe("understudy_code");
     expect(meta).not.toHaveProperty("model");
+  });
+});
+
+it("prefers explicit model and startup overrides", () => {
+  const meta = buildExperimentMetadata({
+    environment: "LOCAL",
+    tier: "core",
+    modelOverride: "openai/override",
+    coreStartupProfile: "tool_create_local",
+    useApi: true,
+    testcases: [row({ model: "openai/row", startupProfile: "tool_create_browserbase" })],
+  });
+  expect(meta).toMatchObject({
+    model: "openai/override",
+    startup_profile: "tool_create_local",
+    api: true,
   });
 });

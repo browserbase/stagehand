@@ -206,7 +206,7 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
             _success: false,
             error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
             harnessStatus: "sdk_error",
-            terminationReason: "sdk_error",
+            terminationReason: signal?.aborted ? "aborted" : "sdk_error",
             logs: logger.getLogs(),
           },
           browserSession,
