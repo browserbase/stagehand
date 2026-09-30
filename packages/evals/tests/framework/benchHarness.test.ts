@@ -39,6 +39,7 @@ describe("bench harness registry", () => {
       "deepagents",
       "fx",
       "cursor",
+      "unreal_agent",
     ]);
   });
 
@@ -46,7 +47,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, unreal_agent\./,
     );
   });
 
@@ -75,6 +76,14 @@ describe("bench harness registry", () => {
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
     expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+  });
+
+  it("registers Unreal Agent for the Stagehand facade", () => {
+    const harness = getBenchHarness("unreal_agent");
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportedToolSurfaces).toEqual(["stagehand_facade"]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-6-luna"]);
+    expect(harness.execute).toBeDefined();
   });
 
   it("registers mastra as a concrete executable harness", () => {

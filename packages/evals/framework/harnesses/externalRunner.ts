@@ -150,6 +150,7 @@ export interface RunExternalHarnessTaskInput<TRaw> {
   parseResult?: (raw: string) => ParsedEvalResult;
   runSession: (prompt: string) => Promise<ExternalHarnessSessionOutcome<TRaw>>;
   toTrajectory: (input: ExternalHarnessTrajectoryInput<TRaw>, taskSpec: TaskSpec) => Trajectory;
+  isFacadeTool?: (name: string) => boolean;
 }
 
 /**
@@ -168,6 +169,7 @@ export async function runExternalHarnessTask<TRaw>({
   parseResult,
   runSession,
   toTrajectory,
+  isFacadeTool,
 }: RunExternalHarnessTaskInput<TRaw>): Promise<TaskResult> {
   const prompt = buildExternalHarnessPrompt({
     plan,
@@ -244,6 +246,7 @@ export async function runExternalHarnessTask<TRaw>({
     errorMessage,
     category: harness,
     logger,
+    isFacadeTool,
   });
   return outcome.status === "sdk_error"
     ? { ...gradedResult, _success: false, error: errorMessage }

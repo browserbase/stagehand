@@ -67,6 +67,12 @@ const STAGEHAND_FACADE_MCP_TIMEOUTS = {
   tool_timeout_sec: 300,
 } as const;
 
+const STAGEHAND_FACADE_MCP_TOOLS = {
+  run: { approval_mode: "approve" },
+  snapshot: { approval_mode: "approve" },
+  screenshot: { approval_mode: "approve" },
+} as const;
+
 export function buildCodexMcpServers(
   toolSurface: ToolSurface,
   mcpServers: Record<string, unknown>,
@@ -79,6 +85,7 @@ export function buildCodexMcpServers(
       {
         ...(typeof config === "object" && config !== null ? config : {}),
         ...STAGEHAND_FACADE_MCP_TIMEOUTS,
+        tools: STAGEHAND_FACADE_MCP_TOOLS,
       },
     ]),
   );
