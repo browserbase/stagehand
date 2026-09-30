@@ -257,6 +257,7 @@ describe("bench harness registry", () => {
         },
         runAgent: async (input) => {
           receivedAdapter = input.toolAdapter;
+          expect(input.signal).toBe(controller.signal);
           if (cancel) controller.abort();
           throw new Error("agent failed");
         },
