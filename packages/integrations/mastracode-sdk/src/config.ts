@@ -3,6 +3,7 @@ import {
   MASTRACODE_PROTOCOL_VERSION,
   MASTRACODE_THINKING_LEVELS,
   type MastracodeDriverRequest,
+  type MastracodeRequestProvider,
   type MastracodeStdioServer,
   type MastracodeThinkingLevel,
   type MastracodeTokenUsage,
@@ -45,12 +46,77 @@ export const MASTRACODE_DISABLED_TOOLS = [
   "delete-workflow",
 ] as const;
 
+/**
+ * Every non-facade tool name mastracode's system prompt can describe. mastracode
+ * builds its tool guidance (agents/prompts/tool-guidance.ts) from
+ * `state.permissionRules.tools`, not from the mode's `availableTools` or
+ * `disabledTools`: a tool leaves the prompt only when its rule is "deny". So
+ * without these rules the prompt describes view/execute_command/write_file,
+ * the task tools, `ask_user` ("use when you need clarification") and, for
+ * anthropic/* and openai/* models, web_search/web_extract. A deny rule also
+ * deletes the tool from the dynamic tool set (agents/tools.ts).
+ */
+export const MASTRACODE_PROMPT_DENIED_TOOLS = [
+  // MC_TOOLS (tool-names.ts): workspace, LSP, inbox, agent connections.
+  "view",
+  "write_file",
+  "string_replace_lsp",
+  "find_files",
+  "delete_file",
+  "file_stat",
+  "mkdir",
+  "search_content",
+  "ast_smart_edit",
+  "execute_command",
+  "get_process_output",
+  "kill_process",
+  "lsp_inspect",
+  "notification_inbox",
+  "agent_connections_list",
+  "agent_connect",
+  "agent_disconnect",
+  "agent_signal_send",
+  // Controller built-ins.
+  "ask_user",
+  "submit_plan",
+  "task_write",
+  "task_update",
+  "task_complete",
+  "task_check",
+  "subagent",
+  // Web and memory tools.
+  "web_search",
+  "web_extract",
+  "recall",
+  "ask_memory",
+  "knowledge_search",
+  "knowledge_read",
+  "knowledge_browse",
+] as const;
+
+/** `permissionRules` that deny every non-facade tool (never a facade tool). */
+export function buildDenyPermissionRules(facadeToolNames: readonly string[]): {
+  categories: Record<string, "deny">;
+  tools: Record<string, "deny">;
+} {
+  const facade = new Set(facadeToolNames);
+  const denied = [...new Set([...MASTRACODE_PROMPT_DENIED_TOOLS, ...MASTRACODE_DISABLED_TOOLS])];
+  return {
+    categories: {},
+    tools: Object.fromEntries(
+      denied.filter((name) => !facade.has(name)).map((name) => [name, "deny" as const]),
+    ),
+  };
+}
+
 export const MASTRACODE_EVAL_MODE_ID = "eval";
 
 export function defaultModeInstructions(facadeToolNames: readonly string[]): string {
   return [
     `The only tools available in this session are the browser tools ${facadeToolNames.join(", ")}.`,
-    "There is no shell, filesystem, web search, or subagent in this session; complete the task in the browser.",
+    "There is no shell, filesystem, git, web search, task list, or subagent in this session; complete the task in the browser.",
+    "There is no user to ask: never stop to ask a question or wait for confirmation.",
+    "Where other parts of this prompt describe coding workflows, other tools, or asking the user, they do not apply to this session.",
   ].join(" ");
 }
 
@@ -88,8 +154,21 @@ export function buildMastraCodeConfig(request: MastracodeDriverRequest): Record<
     initialState: {
       yolo: true,
       ...(request.thinkingLevel && { thinkingLevel: request.thinkingLevel }),
+      // Removes the non-facade tools from mastracode's tool guidance (see
+      // MASTRACODE_PROMPT_DENIED_TOOLS); availableTools alone leaves them in the prompt.
+      permissionRules: buildDenyPermissionRules(request.facadeToolNames),
+      // Thread titles and observational memory default to google/gemini-3.5-flash
+      // (DEFAULT_OM_MODEL_ID), a route with no key in the driver env and invisible
+      // to the fetch spy. Pin them to the eval model's route instead.
+      observerModelId: sideModelIdFor(request),
+      reflectorModelId: sideModelIdFor(request),
     },
   };
+}
+
+/** Model for mastracode's side calls (titles, observational memory). */
+export function sideModelIdFor(request: MastracodeDriverRequest): string {
+  return request.sideModelId?.trim() || request.modelId;
 }
 
 /** Add one step's usage to a running sum. Optional buckets stay absent until a step reports them. */
@@ -139,7 +218,7 @@ export function toTokenUsage(value: unknown): MastracodeTokenUsage | undefined {
 }
 
 export interface InspectedModelRequest {
-  provider: "anthropic" | "openai" | "other";
+  provider: MastracodeRequestProvider;
   model: string;
   toolNames: string[];
   cacheBreakpoints: number;
@@ -157,8 +236,9 @@ export interface ProviderResponseUsage {
 }
 
 /**
- * Parse usage from an Anthropic Messages or OpenAI Responses/Chat response
- * body, streamed (SSE) or not. Returns undefined when the body carries none.
+ * Parse usage from an Anthropic Messages, OpenAI Responses/Chat, or Gemini
+ * generateContent response body, streamed (SSE) or not. Returns undefined when
+ * the body carries none (always for provider `other`).
  */
 export function parseProviderResponseUsage(
   provider: InspectedModelRequest["provider"],
@@ -166,9 +246,10 @@ export function parseProviderResponseUsage(
 ): ProviderResponseUsage | undefined {
   const payloads: unknown[] = [];
   const trimmed = bodyText.trim();
-  if (trimmed.startsWith("{")) {
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
-      payloads.push(JSON.parse(trimmed));
+      const parsed: unknown = JSON.parse(trimmed);
+      payloads.push(...(Array.isArray(parsed) ? parsed : [parsed]));
     } catch {
       return undefined;
     }
@@ -193,6 +274,21 @@ export function parseProviderResponseUsage(
   };
   for (const payload of payloads) {
     if (!isRecord(payload)) continue;
+    if (provider === "google") {
+      // Gemini generateContent: every streamed chunk may repeat usageMetadata; keep the latest.
+      const meta = isRecord(payload.usageMetadata) ? payload.usageMetadata : undefined;
+      if (!meta) continue;
+      found = true;
+      const prompt = finite(meta.promptTokenCount);
+      if (prompt > 0) {
+        usage.inputTokens = prompt;
+        usage.cachedInputTokens = finite(meta.cachedContentTokenCount);
+      }
+      const output = finite(meta.candidatesTokenCount) + finite(meta.thoughtsTokenCount);
+      if (output > 0) usage.outputTokens = output;
+      continue;
+    }
+    if (provider === "other") continue;
     const raw = isRecord(payload.usage)
       ? payload.usage
       : isRecord(payload.message) && isRecord(payload.message.usage)
@@ -236,7 +332,10 @@ export function parseProviderResponseUsage(
  * Classify one outgoing HTTP request. Returns undefined for anything that is
  * not a model call (MCP, telemetry, catalog fetches). Tool names are what the
  * model is actually offered: Anthropic Messages `tools[].name`, OpenAI
- * Responses `tools[].name` (or `type` for provider tools such as web search).
+ * Responses `tools[].name` (or `type` for provider tools such as web search),
+ * Gemini `tools[].functionDeclarations[].name`. A POST to a model API the
+ * driver does not parse (Bedrock) is still returned, as provider `other`, so
+ * the call is recorded instead of vanishing.
  */
 export function inspectModelRequest(
   url: string,
@@ -249,36 +348,67 @@ export function inspectModelRequest(
   } catch {
     return undefined;
   }
-  const provider = /\/messages\/?$/u.test(pathname)
+  const gemini = /\/models\/([^/:]+):(?:stream)?generateContent$/iu.exec(pathname);
+  const bedrock =
+    /\/model\/([^/]+)\/(?:converse(?:-stream)?|invoke(?:-with-response-stream)?)$/u.exec(pathname);
+  const provider: MastracodeRequestProvider | undefined = /\/messages\/?$/u.test(pathname)
     ? "anthropic"
     : /\/(responses|chat\/completions)\/?$/u.test(pathname)
       ? "openai"
-      : undefined;
+      : gemini
+        ? "google"
+        : bedrock
+          ? "other"
+          : undefined;
   if (!provider) return undefined;
   let body: unknown;
   try {
     body = JSON.parse(bodyText);
   } catch {
-    return undefined;
+    body = undefined;
+  }
+  const cacheBreakpoints = bodyText.match(/"cache_control"\s*:/gu)?.length ?? 0;
+  if (provider === "google" || provider === "other") {
+    const model =
+      provider === "google"
+        ? `google/${decodeURIComponent(gemini?.[1] ?? "unknown")}`
+        : `bedrock/${decodeURIComponent(bedrock?.[1] ?? "unknown")}`;
+    return { provider, model, toolNames: requestToolNames(body), cacheBreakpoints };
   }
   if (!isRecord(body) || typeof body.model !== "string") return undefined;
-  const tools = Array.isArray(body.tools) ? body.tools : [];
-  const toolNames = tools
-    .map((tool) => {
-      if (!isRecord(tool)) return undefined;
-      if (typeof tool.name === "string") return tool.name;
-      if (isRecord(tool.function) && typeof tool.function.name === "string") {
-        return tool.function.name;
+  return { provider, model: body.model, toolNames: requestToolNames(body), cacheBreakpoints };
+}
+
+function requestToolNames(body: unknown): string[] {
+  if (!isRecord(body)) return [];
+  const names: string[] = [];
+  // Bedrock Converse nests tools under toolConfig.tools[].toolSpec.name.
+  const tools = Array.isArray(body.tools)
+    ? body.tools
+    : isRecord(body.toolConfig) && Array.isArray(body.toolConfig.tools)
+      ? body.toolConfig.tools
+      : [];
+  for (const tool of tools) {
+    if (!isRecord(tool)) continue;
+    if (typeof tool.name === "string") names.push(tool.name);
+    else if (isRecord(tool.function) && typeof tool.function.name === "string") {
+      names.push(tool.function.name);
+    } else if (isRecord(tool.toolSpec) && typeof tool.toolSpec.name === "string") {
+      names.push(tool.toolSpec.name);
+    } else if (Array.isArray(tool.functionDeclarations)) {
+      for (const declaration of tool.functionDeclarations) {
+        if (isRecord(declaration) && typeof declaration.name === "string") {
+          names.push(declaration.name);
+        }
       }
-      return typeof tool.type === "string" ? tool.type : undefined;
-    })
-    .filter((name): name is string => name !== undefined);
-  return {
-    provider,
-    model: body.model,
-    toolNames,
-    cacheBreakpoints: bodyText.match(/"cache_control"\s*:/gu)?.length ?? 0,
-  };
+    } else if (typeof tool.type === "string") names.push(tool.type);
+    else {
+      // Gemini provider tools ({ googleSearch: {} }, { codeExecution: {} }).
+      const key = Object.keys(tool)[0];
+      if (key) names.push(key);
+    }
+  }
+  return names;
 }
 
 export function unexpectedTools(
@@ -337,6 +467,15 @@ export function parseDriverRequest(text: string): MastracodeDriverRequest {
     if (!isStdioServer(server)) {
       throw new Error(`mastracode MCP server "${name}" must be a stdio definition.`);
     }
+  }
+  if (
+    raw.startupTimeoutMs !== undefined &&
+    (!Number.isSafeInteger(raw.startupTimeoutMs) || (raw.startupTimeoutMs as number) <= 0)
+  ) {
+    throw new Error("mastracode driver request startupTimeoutMs must be a positive integer.");
+  }
+  if (raw.sideModelId !== undefined && typeof raw.sideModelId !== "string") {
+    throw new Error("mastracode driver request sideModelId must be a string.");
   }
   if (raw.thinkingLevel !== undefined) {
     parseThinkingLevel(

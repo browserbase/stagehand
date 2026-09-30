@@ -263,8 +263,10 @@ describe("createMastracodeProcessRunner", () => {
 
   it("splits stdout into lines across chunk boundaries", async () => {
     const { children, spawnProcess } = fakeSpawn();
+    const killProcess = vi.fn(() => true);
     const runner = createMastracodeProcessRunner({
       spawnProcess: spawnProcess as never,
+      killProcess: killProcess as never,
       processHooks: new EventEmitter() as never,
     });
     const lines: string[] = [];
@@ -290,6 +292,7 @@ describe("createMastracodeProcessRunner", () => {
     await new Promise((resolve) => setImmediate(resolve));
     child.emit("close", 0, null);
     const output = await pending;
+    expect(killProcess).toHaveBeenCalledWith(-7000, "SIGKILL");
     expect(lines).toEqual(['{"v":1,"type":"ready","mcpTools":[]}', '{"v":1,"type":"done"}']);
     expect(stderrLines).toEqual(["warn one", "warn two"]);
     expect(output.exitCode).toBe(0);
@@ -325,6 +328,9 @@ describe("createMastracodeProcessRunner", () => {
     expect(killProcess).toHaveBeenCalledWith(-7000, "SIGKILL");
     children[0]!.emit("close", null, "SIGKILL");
     await first;
+
+    // Once the driver closes, stragglers in its group (MCP children) are reaped.
+    expect(killProcess).toHaveBeenLastCalledWith(-7000, "SIGKILL");
 
     killProcess.mockClear();
     const second = run(new AbortController().signal);

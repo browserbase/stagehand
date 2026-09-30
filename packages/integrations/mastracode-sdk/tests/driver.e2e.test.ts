@@ -8,6 +8,7 @@
  * Opt-in (boots the full mastracode stack, ~5-10 s): build the package, then
  *   MASTRACODE_DRIVER_E2E=1 pnpm --filter @browserbasehq/stagehand-integrations-mastracode-sdk test:unit
  */
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import http from "node:http";
@@ -103,6 +104,15 @@ function textTurn(id: string, usage: Record<string, number>, text: string) {
   ]);
 }
 
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const FINAL = '{"success":true,"summary":"done","finalAnswer":"42"}';
 
 describe.skipIf(!enabled)("mastracode driver end to end (fake Anthropic)", () => {
@@ -174,14 +184,16 @@ describe.skipIf(!enabled)("mastracode driver end to end (fake Anthropic)", () =>
   });
 
   const facadeToolNames = toolNamesFor("stagehand");
-  async function runDriver(stepBudget: number) {
-    captured.length = 0;
-    sideCalls.length = 0;
+  async function makeRequest(
+    stepBudget: number,
+    extra: Partial<MastracodeDriverRequest> = {},
+    mcpEnv: Record<string, string> = {},
+  ): Promise<MastracodeDriverRequest> {
     const runRoot = await fsp.mkdtemp(path.join(root, "run-"));
     await Promise.all(
       ["home", "appdata", "workspace"].map((dir) => fsp.mkdir(path.join(runRoot, dir))),
     );
-    const request: MastracodeDriverRequest = {
+    return {
       version: MASTRACODE_PROTOCOL_VERSION,
       prompt: "Open the page and report the answer.",
       hostInstructions: "EVAL POLICY: never ask clarifying questions.",
@@ -192,27 +204,42 @@ describe.skipIf(!enabled)("mastracode driver end to end (fake Anthropic)", () =>
         stagehand: {
           command: process.execPath,
           args: [path.join(here, "fixtures/stub-mcp-server.mjs")],
-          env: { PATH: process.env.PATH ?? "" },
+          env: { PATH: process.env.PATH ?? "", ...mcpEnv },
         },
       },
       facadeToolNames,
       workspaceDir: path.join(runRoot, "workspace"),
       appDataDir: path.join(runRoot, "appdata"),
       homeDir: path.join(runRoot, "home"),
+      ...extra,
     };
+  }
+
+  function driverEnv(request: MastracodeDriverRequest): Record<string, string> {
+    return {
+      PATH: process.env.PATH ?? "",
+      HOME: request.homeDir,
+      MASTRA_APP_DATA_DIR: request.appDataDir,
+      MASTRA_TELEMETRY_DISABLED: "1",
+      ANTHROPIC_API_KEY: "sk-ant-fake-e2e",
+      ANTHROPIC_BASE_URL: baseUrl,
+    };
+  }
+
+  async function runDriver(
+    stepBudget: number,
+    extra: Partial<MastracodeDriverRequest> = {},
+    mcpEnv: Record<string, string> = {},
+  ) {
+    captured.length = 0;
+    sideCalls.length = 0;
+    const request = await makeRequest(stepBudget, extra, mcpEnv);
     const stderr: string[] = [];
     const result = await runMastracodeSession({
       request,
       cwd: request.workspaceDir,
       driverPath,
-      env: {
-        PATH: process.env.PATH ?? "",
-        HOME: request.homeDir,
-        MASTRA_APP_DATA_DIR: request.appDataDir,
-        MASTRA_TELEMETRY_DISABLED: "1",
-        ANTHROPIC_API_KEY: "sk-ant-fake-e2e",
-        ANTHROPIC_BASE_URL: baseUrl,
-      },
+      env: driverEnv(request),
       killAfterMs: 90_000,
       onStderrLine: (line) => stderr.push(line),
     });
@@ -252,9 +279,20 @@ describe.skipIf(!enabled)("mastracode driver end to end (fake Anthropic)", () =>
       const names = ((body.tools as Array<{ name: string }>) ?? []).map((tool) => tool.name).sort();
       expect(names).toEqual([...facadeToolNames].sort());
       expect(raw.match(/"cache_control"\s*:/gu)?.length).toBe(2);
-      expect(JSON.stringify(body.system)).toContain("EVAL POLICY: never ask clarifying questions.");
+      const system = JSON.stringify(body.system);
+      expect(system).toContain("EVAL POLICY: never ask clarifying questions.");
+      // permissionRules deny: mastracode's tool guidance no longer describes
+      // tools the session does not have, nor asking the user.
+      expect(system).not.toContain("ask_user");
+      expect(system).not.toContain("web_search");
+      expect(system).not.toContain("task_write");
+      expect(system).not.toContain("**execute_command**");
+      expect(system).not.toContain("**view**");
+      expect(system).not.toContain("# Subagent Rules");
+      expect(system).toContain("There is no user to ask");
     }
-    expect(result.requests.map((entry) => entry.cacheBreakpoints)).toEqual([2, 2, 2]);
+    const agentRequests = result.requests.filter((entry) => entry.role === "agent");
+    expect(agentRequests.map((entry) => entry.cacheBreakpoints)).toEqual([2, 2, 2]);
 
     // AI SDK v6 input total = uncached + cache read + cache write.
     expect(result.usage).toMatchObject({
@@ -272,8 +310,70 @@ describe.skipIf(!enabled)("mastracode driver end to end (fake Anthropic)", () =>
       cacheCreationInputTokens: result.usage?.cacheCreationInputTokens,
       outputTokens: result.usage?.completionTokens,
     });
-    expect(result.responseUsage.side?.requests ?? 0).toBe(sideCalls.length);
+    // Side calls (thread title) take the eval model's route, so the fake
+    // endpoint sees them and their usage is parsed, not lost on google/*.
+    expect(sideCalls.length).toBeGreaterThanOrEqual(1);
+    for (const { body } of sideCalls) expect(body.model).toBe("claude-sonnet-4-6");
+    expect(result.responseUsage.side?.requests).toBe(sideCalls.length);
+    expect(result.responseUsage.side?.models).toEqual(["claude-sonnet-4-6"]);
   }, 120_000);
+
+  it("ends a wedged MCP startup with startup_timeout and reaps the MCP child", async () => {
+    const pidFile = path.join(root, `mcp-pid-${Date.now()}`);
+    const started = Date.now();
+    const { result, context } = await runDriver(
+      10,
+      { startupTimeoutMs: 3_000 },
+      { STUB_MCP_HANG_LIST_TOOLS: "1", STUB_MCP_PID_FILE: pidFile },
+    );
+    expect(result.status, context).toBe("sdk_error");
+    expect(result.stopReason, context).toBe("startup_timeout");
+    expect(result.iterationError).toContain("startup timed out");
+    expect(Date.now() - started).toBeLessThan(60_000);
+    expect(captured).toHaveLength(0);
+    const mcpPid = Number(fs.readFileSync(pidFile, "utf8"));
+    await expect.poll(() => isAlive(mcpPid), { timeout: 5_000 }).toBe(false);
+  }, 120_000);
+
+  it("aborts itself and its MCP child when its parent dies without cleanup (SIGKILL)", async () => {
+    const pidFile = path.join(root, `mcp-pid-orphan-${Date.now()}`);
+    const request = await makeRequest(
+      10,
+      { startupTimeoutMs: 600_000 },
+      { STUB_MCP_HANG_LIST_TOOLS: "1", STUB_MCP_PID_FILE: pidFile },
+    );
+    // A stand-in evals parent: spawns the driver detached (like the real
+    // runner), reports its pid, then idles until SIGKILLed.
+    const parentScript = [
+      'const { spawn } = require("node:child_process");',
+      `const child = spawn(process.execPath, [${JSON.stringify(driverPath)}], {`,
+      `  cwd: ${JSON.stringify(request.workspaceDir)}, env: ${JSON.stringify(driverEnv(request))},`,
+      '  stdio: ["pipe", "pipe", "ignore"], detached: true });',
+      `child.stdin.end(${JSON.stringify(JSON.stringify(request))});`,
+      "child.stdout.resume();",
+      "process.stdout.write(String(child.pid) + '\\n');",
+      "setInterval(() => undefined, 60_000);",
+    ].join("\n");
+    const parent = spawn(process.execPath, ["-e", parentScript], {
+      stdio: ["ignore", "pipe", "inherit"],
+    });
+    const driverPid = await new Promise<number>((resolve, reject) => {
+      parent.stdout.once("data", (chunk) => resolve(Number(String(chunk).trim())));
+      parent.once("error", reject);
+    });
+    expect(driverPid).toBeGreaterThan(0);
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    expect(isAlive(driverPid)).toBe(true);
+    const mcpPid = Number(fs.readFileSync(pidFile, "utf8"));
+    expect(isAlive(mcpPid)).toBe(true);
+    parent.kill("SIGKILL");
+    try {
+      await expect.poll(() => isAlive(driverPid), { timeout: 10_000, interval: 250 }).toBe(false);
+      await expect.poll(() => isAlive(mcpPid), { timeout: 5_000, interval: 250 }).toBe(false);
+    } finally {
+      if (isAlive(driverPid)) process.kill(-driverPid, "SIGKILL");
+    }
+  }, 60_000);
 
   it("stops at the step budget after a tool-calling step with max_turns", async () => {
     const { result, context } = await runDriver(1);

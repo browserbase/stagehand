@@ -14,10 +14,17 @@ import {
   isRecord,
   parseDriverRequest,
   parseProviderResponseUsage,
+  sideModelIdFor,
   stringifyError,
   toTokenUsage,
   unexpectedTools,
 } from "./config.js";
+import {
+  MASTRACODE_DEFAULT_STARTUP_TIMEOUT_MS,
+  StartupTimeoutError,
+  createStartupDeadline,
+  watchParent,
+} from "./lifecycle.js";
 import {
   MASTRACODE_PROTOCOL_VERSION,
   type MastracodeDoneStatus,
@@ -63,9 +70,16 @@ interface RunHandle {
   [Symbol.asyncIterator](): AsyncIterator<Record<string, unknown>>;
 }
 
+interface McpManagerLike {
+  initInBackground(): Promise<unknown>;
+  getTools(): Record<string, unknown> | undefined;
+  disconnect(): unknown;
+}
+
 interface DriverState {
   request?: MastracodeDriverRequest;
   run?: RunHandle;
+  mcpManager?: McpManagerLike;
   violation?: string;
   externallyAborted: boolean;
   steps: number;
@@ -105,22 +119,36 @@ function installFetchSpy(request: MastracodeDriverRequest): void {
         state.run?.abort();
         throw new ToolIsolationViolation(unexpected);
       }
-      const response = await originalFetch(input, init);
-      if (response.ok) {
-        // Tee the body so usage of every model call is visible, side calls included.
-        const pending: Promise<void> = response
-          .clone()
-          .text()
-          .then((text) => {
-            const usage = parseProviderResponseUsage(inspected.provider, text);
-            if (usage) {
-              emit({ type: "request_usage", index, role, model: inspected.model, usage });
-            }
-          })
-          .catch(() => undefined)
-          .finally(() => state.pendingUsage.delete(pending));
-        state.pendingUsage.add(pending);
+      // Track the call from send to parsed usage, so `done` can wait for side
+      // calls mastracode fires at the end of the run (thread title, observer).
+      let settle!: () => void;
+      const pending = new Promise<void>((resolve) => (settle = resolve));
+      state.pendingUsage.add(pending);
+      const release = () => {
+        state.pendingUsage.delete(pending);
+        settle();
+      };
+      let response: Response;
+      try {
+        response = await originalFetch(input, init);
+      } catch (error) {
+        release();
+        throw error;
       }
+      if (!response.ok) {
+        release();
+        return response;
+      }
+      // Tee the body so usage of every model call is visible, side calls included.
+      response
+        .clone()
+        .text()
+        .then((text) => {
+          const usage = parseProviderResponseUsage(inspected.provider, text);
+          if (usage) emit({ type: "request_usage", index, role, model: inspected.model, usage });
+        })
+        .catch(() => undefined)
+        .finally(release);
       return response;
     }
     return originalFetch(input, init);
@@ -191,17 +219,30 @@ async function main(): Promise<void> {
   process.env.MASTRA_APP_DATA_DIR = request.appDataDir;
   process.env.HOME = request.homeDir;
   process.env.MASTRA_TELEMETRY_DISABLED = "1";
+  // Read by @mastra/code-sdk's constants at import time; backs up the
+  // observer/reflector ids in initialState for any path that uses the default.
+  process.env.DEFAULT_OM_MODEL_ID = sideModelIdFor(request);
   installFetchSpy(request);
 
   const versions = readVersions();
   const specifier = "mastracode";
+  // runMC's timeout only starts once the run does; mastracode's MCP client
+  // waits up to 7 days on connect/listTools. Bound startup separately.
+  const startup = createStartupDeadline(
+    request.startupTimeoutMs ?? MASTRACODE_DEFAULT_STARTUP_TIMEOUT_MS,
+  );
   // Loaded by name at runtime: the evals build never type-checks or bundles mastracode.
-  const mc = await import(specifier);
-  const booted = await mc.createMastraCode(buildMastraCodeConfig(request));
-  const { controller, session, mcpManager } = booted;
+  const mc = await startup("import", import(specifier));
+  const booted = await startup(
+    "createMastraCode",
+    Promise.resolve(mc.createMastraCode(buildMastraCodeConfig(request))),
+  );
+  const { controller, session } = booted;
+  const mcpManager = booted.mcpManager as McpManagerLike | undefined;
+  state.mcpManager = mcpManager;
 
-  if (mcpManager) await mcpManager.initInBackground();
-  const mcpTools = Object.keys((mcpManager?.getTools() as Record<string, unknown>) ?? {});
+  if (mcpManager) await startup("mcp_connect", Promise.resolve(mcpManager.initInBackground()));
+  const mcpTools = Object.keys(mcpManager?.getTools() ?? {});
   emit({ type: "ready", ...versions, mcpTools });
   const missing = request.facadeToolNames.filter((name) => !mcpTools.includes(name));
   if (missing.length > 0) {
@@ -217,8 +258,28 @@ async function main(): Promise<void> {
     return;
   }
 
-  await session.model.switch({ modelId: request.modelId });
-  if (request.thinkingLevel) await session.state.set({ thinkingLevel: request.thinkingLevel });
+  await startup(
+    "model_switch",
+    Promise.resolve(session.model.switch({ modelId: request.modelId })),
+  );
+  if (request.thinkingLevel) {
+    await startup(
+      "thinking_level",
+      Promise.resolve(session.state.set({ thinkingLevel: request.thinkingLevel })),
+    );
+  }
+  if (state.externallyAborted) {
+    await withTimeout(Promise.resolve(mcpManager?.disconnect()), 5_000).catch(() => undefined);
+    finishAndExit({
+      type: "done",
+      status: "aborted",
+      stopReason: "aborted",
+      error: "mastracode driver aborted during startup",
+      finalText: "",
+      steps: 0,
+    });
+    return;
+  }
 
   const run: RunHandle = mc.runMC({
     controller,
@@ -359,7 +420,10 @@ async function main(): Promise<void> {
   } catch {
     // Diagnostics only.
   }
-  await withTimeout(Promise.allSettled(state.pendingUsage), 2_000);
+  // mastracode starts some side calls only after the run settles (thread
+  // title): give them a moment to start, then wait for every in-flight call.
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  await withTimeout(Promise.allSettled(state.pendingUsage), 15_000);
   await withTimeout(Promise.resolve(mcpManager?.disconnect()), 5_000).catch(() => undefined);
   finishAndExit({
     type: "done",
@@ -374,10 +438,44 @@ async function main(): Promise<void> {
   });
 }
 
-process.on("SIGTERM", () => {
+/**
+ * Stop the run on an outside signal: SIGTERM from the parent's process-group
+ * kill, or the parent dying without one (SIGKILL, V8 heap OOM), which no
+ * parent hook survives. Abort the model loop, drop the MCP children, then exit.
+ */
+function externalAbort(reason: string, exitCode: number): void {
+  if (state.externallyAborted) return;
   state.externallyAborted = true;
+  process.stderr.write(`[mastracode-driver] aborting: ${reason}\n`);
   state.run?.abort();
-  setTimeout(() => process.exit(143), 1_500).unref();
+  void Promise.resolve()
+    .then(() => state.mcpManager?.disconnect())
+    .catch(() => undefined);
+  setTimeout(() => {
+    // With the parent gone nobody reaps our process group, and a wedged MCP
+    // child may ignore stdin EOF. The driver leads its group when spawned
+    // detached (the runner always does on POSIX); this kills the group, us included.
+    if (process.platform !== "win32") {
+      try {
+        process.kill(-process.pid, "SIGKILL");
+      } catch {
+        // Not a group leader (spawned without detached): just exit.
+      }
+    }
+    process.exit(exitCode);
+  }, 1_500).unref();
+}
+
+process.on("SIGTERM", () => externalAbort("SIGTERM", 143));
+
+// Nobody reads stdout once the parent is gone: writes fail with EPIPE.
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EPIPE") externalAbort("stdout closed (parent gone)", 129);
+});
+
+watchParent({
+  originalPpid: process.ppid,
+  onGone: () => externalAbort("parent process exited", 129),
 });
 
 main().catch((error: unknown) => {
@@ -385,11 +483,21 @@ main().catch((error: unknown) => {
   process.stderr.write(
     `[mastracode-driver] ${error instanceof Error && error.stack ? error.stack : message}\n`,
   );
+  const startupTimeout = error instanceof StartupTimeoutError;
+  if (startupTimeout) {
+    void Promise.resolve()
+      .then(() => state.mcpManager?.disconnect())
+      .catch(() => undefined);
+  }
   finishAndExit(
     {
       type: "done",
       status: "error",
-      stopReason: state.violation ? "tool_isolation_violation" : message,
+      stopReason: state.violation
+        ? "tool_isolation_violation"
+        : startupTimeout
+          ? "startup_timeout"
+          : message,
       error: message,
       finalText: "",
       steps: state.steps,

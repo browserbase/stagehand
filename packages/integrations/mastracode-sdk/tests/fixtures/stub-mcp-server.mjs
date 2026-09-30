@@ -1,6 +1,14 @@
 // Minimal stdio MCP server exposing the Stagehand facade's tool names.
 // Newline-delimited JSON-RPC 2.0, no dependencies.
+import fs from "node:fs";
 import readline from "node:readline";
+
+// Test knobs: record this pid, and never answer tools/list (a wedged facade).
+if (process.env.STUB_MCP_PID_FILE)
+  fs.writeFileSync(process.env.STUB_MCP_PID_FILE, String(process.pid));
+const hangListTools = process.env.STUB_MCP_HANG_LIST_TOOLS === "1";
+// A wedged bridge also ignores stdin EOF: keep the event loop alive.
+if (hangListTools) setInterval(() => undefined, 60_000);
 
 const TOOLS = ["run", "snapshot", "screenshot"].map((name) => ({
   name,
@@ -27,6 +35,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
       },
     });
   } else if (message.method === "tools/list") {
+    if (hangListTools) return;
     send({ jsonrpc: "2.0", id: message.id, result: { tools: TOOLS } });
   } else if (message.method === "tools/call") {
     const name = message.params?.name;

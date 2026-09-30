@@ -35,6 +35,18 @@ export interface MastracodeDriverRequest {
   stepBudget: number;
   /** Wall-clock limit handed to runMC; unset or 0 disables it. */
   timeoutMs?: number;
+  /**
+   * Limit on driver startup (createMastraCode, MCP connect + listTools, model
+   * switch), which runMC's timeout does not cover. Default 120 s.
+   */
+  startupTimeoutMs?: number;
+  /**
+   * Model for mastracode's own side calls (thread title, observational-memory
+   * observer and reflector). Defaults to `modelId`, so side calls take the same
+   * provider route the driver's fetch spy parses and prices, instead of
+   * mastracode's default `google/gemini-3.5-flash`.
+   */
+  sideModelId?: string;
   /** Programmatic MCP servers; the only tool source the agent may see. */
   mcpServers: Record<string, MastracodeStdioServer>;
   /** Exposed tool names the eval mode allows (`<server>_<tool>`). */
@@ -57,6 +69,13 @@ export interface MastracodeTokenUsage {
   cacheCreationInputTokens?: number;
 }
 
+/**
+ * Provider API family of one model request. `other` is a POST to a known model
+ * API (e.g. Bedrock) whose body the driver does not parse: it is still recorded
+ * so no model call goes unseen.
+ */
+export type MastracodeRequestProvider = "anthropic" | "openai" | "google" | "other";
+
 export type MastracodeDoneStatus = "completed" | "max_turns" | "aborted" | "timeout" | "error";
 
 interface EventBase {
@@ -76,7 +95,7 @@ export type MastracodeDriverEvent = EventBase &
         /** One model API request seen by the driver's fetch spy. */
         type: "request";
         index: number;
-        provider: "anthropic" | "openai" | "other";
+        provider: MastracodeRequestProvider;
         /** Model id in the request body. */
         model: string;
         /**

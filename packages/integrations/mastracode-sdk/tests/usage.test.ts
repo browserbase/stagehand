@@ -127,6 +127,45 @@ describe("inspectModelRequest", () => {
     expect(inspectModelRequest("not a url", '{"model":"x"}')).toBeUndefined();
   });
 
+  it("records Gemini generateContent calls instead of dropping them", () => {
+    expect(
+      inspectModelRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:streamGenerateContent?alt=sse",
+        '{"contents":[{"role":"user","parts":[{"text":"title this"}]}]}',
+      ),
+    ).toEqual({
+      provider: "google",
+      model: "google/gemini-3.5-flash",
+      toolNames: [],
+      cacheBreakpoints: 0,
+    });
+    expect(
+      inspectModelRequest(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent",
+        JSON.stringify({
+          tools: [
+            { functionDeclarations: [{ name: "stagehand_run" }, { name: "x" }] },
+            { googleSearch: {} },
+          ],
+        }),
+      )?.toolNames,
+    ).toEqual(["stagehand_run", "x", "googleSearch"]);
+  });
+
+  it("records a Bedrock call as provider other, even with an unparsed body", () => {
+    expect(
+      inspectModelRequest(
+        "https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-haiku/converse-stream",
+        "not json",
+      ),
+    ).toEqual({
+      provider: "other",
+      model: "bedrock/anthropic.claude-haiku",
+      toolNames: [],
+      cacheBreakpoints: 0,
+    });
+  });
+
   it("lists offered tools outside the allowlist once", () => {
     expect(unexpectedTools(["a", "b", "b", "c"], ["a"])).toEqual(["b", "c"]);
     expect(unexpectedTools([], ["a"])).toEqual([]);
@@ -171,6 +210,29 @@ describe("parseProviderResponseUsage", () => {
       cacheCreationInputTokens: 0,
       outputTokens: 20,
     });
+  });
+
+  it("reads Gemini usageMetadata from an SSE stream or a JSON array", () => {
+    const stream = [
+      'data: {"candidates":[],"usageMetadata":{"promptTokenCount":900,"candidatesTokenCount":1}}',
+      'data: {"candidates":[],"usageMetadata":{"promptTokenCount":900,"cachedContentTokenCount":600,"candidatesTokenCount":12,"thoughtsTokenCount":8}}',
+    ].join("\n\n");
+    expect(parseProviderResponseUsage("google", stream)).toEqual({
+      inputTokens: 900,
+      cachedInputTokens: 600,
+      cacheCreationInputTokens: 0,
+      outputTokens: 20,
+    });
+    expect(
+      parseProviderResponseUsage(
+        "google",
+        '[{"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":2}}]',
+      ),
+    ).toMatchObject({ inputTokens: 10, outputTokens: 2 });
+  });
+
+  it("never parses usage for provider other", () => {
+    expect(parseProviderResponseUsage("other", '{"usage":{"input_tokens":5}}')).toBeUndefined();
   });
 
   it("returns undefined when the body carries no usage", () => {

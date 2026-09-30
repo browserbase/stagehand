@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   MASTRACODE_DISABLED_TOOLS,
+  MASTRACODE_PROMPT_DENIED_TOOLS,
   MASTRACODE_PROTOCOL_VERSION,
+  buildDenyPermissionRules,
   buildMastraCodeConfig,
+  defaultModeInstructions,
+  sideModelIdFor,
   parseDriverRequest,
   parseThinkingLevel,
   toolNamesFor,
@@ -70,10 +74,71 @@ describe("buildMastraCodeConfig", () => {
   it("passes the eval policy as host instructions and auto-approves tools", () => {
     const config = buildMastraCodeConfig(request);
     expect(config.hostInstructions).toBe("EVAL POLICY");
-    expect(config.initialState).toEqual({ yolo: true, thinkingLevel: "high" });
-    expect(buildMastraCodeConfig({ ...request, thinkingLevel: undefined }).initialState).toEqual({
-      yolo: true,
+    expect(config.initialState).toMatchObject({ yolo: true, thinkingLevel: "high" });
+    expect(
+      buildMastraCodeConfig({ ...request, thinkingLevel: undefined }).initialState,
+    ).not.toHaveProperty("thinkingLevel");
+  });
+
+  it("denies every non-facade tool so mastracode's prompt stops describing it", () => {
+    const initialState = buildMastraCodeConfig(request).initialState as {
+      permissionRules: { categories: Record<string, string>; tools: Record<string, string> };
+    };
+    const rules = initialState.permissionRules;
+    expect(rules.categories).toEqual({});
+    for (const name of [
+      "ask_user",
+      "execute_command",
+      "view",
+      "write_file",
+      "string_replace_lsp",
+      "search_content",
+      "find_files",
+      "task_write",
+      "task_update",
+      "task_check",
+      "task_complete",
+      "submit_plan",
+      "subagent",
+      "web_search",
+      "web_extract",
+      "recall",
+      "ask_memory",
+      "knowledge_search",
+      ...MASTRACODE_PROMPT_DENIED_TOOLS,
+      ...MASTRACODE_DISABLED_TOOLS,
+    ]) {
+      expect(rules.tools[name], name).toBe("deny");
+    }
+    for (const name of request.facadeToolNames) expect(rules.tools).not.toHaveProperty(name);
+    expect(Object.values(rules.tools).every((policy) => policy === "deny")).toBe(true);
+  });
+
+  it("never denies a facade tool, even one sharing a mastracode tool name", () => {
+    const rules = buildDenyPermissionRules(["view", "stagehand_run"]);
+    expect(rules.tools).not.toHaveProperty("view");
+    expect(rules.tools).not.toHaveProperty("stagehand_run");
+    expect(rules.tools.execute_command).toBe("deny");
+  });
+
+  it("pins titles and observational memory to the eval model, not google/gemini", () => {
+    expect(buildMastraCodeConfig(request).initialState).toMatchObject({
+      observerModelId: "anthropic/claude-sonnet-4-6",
+      reflectorModelId: "anthropic/claude-sonnet-4-6",
     });
+    expect(
+      buildMastraCodeConfig({ ...request, sideModelId: "anthropic/claude-haiku-4-5" }).initialState,
+    ).toMatchObject({
+      observerModelId: "anthropic/claude-haiku-4-5",
+      reflectorModelId: "anthropic/claude-haiku-4-5",
+    });
+    expect(sideModelIdFor({ ...request, sideModelId: "  " })).toBe(request.modelId);
+  });
+
+  it("tells the model there is no user to ask and that coding guidance does not apply", () => {
+    const text = defaultModeInstructions(request.facadeToolNames);
+    expect(text).toContain("There is no user to ask");
+    expect(text).toContain("do not apply to this session");
   });
 
   it("uses caller mode instructions when given", () => {
@@ -97,6 +162,8 @@ describe("parseDriverRequest", () => {
     [JSON.stringify({ ...request, facadeToolNames: [] }), "facadeToolNames"],
     [JSON.stringify({ ...request, mcpServers: { s: { url: "http://x" } } }), "stdio"],
     [JSON.stringify({ ...request, thinkingLevel: "extreme" }), "thinkingLevel"],
+    [JSON.stringify({ ...request, startupTimeoutMs: 0 }), "startupTimeoutMs"],
+    [JSON.stringify({ ...request, sideModelId: 5 }), "sideModelId"],
   ])("rejects %s", (text, message) => {
     expect(() => parseDriverRequest(text)).toThrow(message);
   });

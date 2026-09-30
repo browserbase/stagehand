@@ -46,7 +46,9 @@ const liveChildren = new Set<ChildProcess>();
  * Spawn the driver in its own process group and stream its stdout by line.
  * Abort sends SIGTERM to the group (the driver and the MCP children it
  * started), then SIGKILL after a grace period; parent exit kills the group.
- * Same lifecycle as fx-sdk's createFxProcessRunner.
+ * Same lifecycle as fx-sdk's createFxProcessRunner. None of these hooks runs
+ * if the parent dies by SIGKILL or a V8 heap OOM, so the driver also watches
+ * for its parent's death and aborts itself (lifecycle.ts watchParent).
  */
 export function createMastracodeProcessRunner(
   options: MastracodeProcessRunnerOptions = {},
@@ -93,6 +95,15 @@ export function createMastracodeProcessRunner(
     }, killGraceMs);
     terminationTimers.set(child, timer);
     timer.unref();
+  };
+
+  const reapGroup = (child: ChildProcess): void => {
+    if (process.platform === "win32" || typeof child.pid !== "number") return;
+    try {
+      killProcess(-child.pid, "SIGKILL");
+    } catch {
+      // ESRCH: nothing left in the group.
+    }
   };
 
   const untrackChild = (child: ChildProcess): void => {
@@ -165,6 +176,9 @@ export function createMastracodeProcessRunner(
         });
         spawned.once("close", (exitCode, signal) => {
           untrackChild(spawned);
+          // The driver is gone, but MCP children it started (the facade bridge)
+          // may outlive it, e.g. after a startup timeout: reap its process group.
+          reapGroup(spawned);
           finish(exitCode, signal);
         });
         input.signal.addEventListener("abort", abort, { once: true });

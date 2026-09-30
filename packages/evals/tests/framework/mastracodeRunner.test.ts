@@ -11,6 +11,7 @@ import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPla
 import {
   buildMastracodePrompt,
   readMastracodeMaxSteps,
+  readMastracodeStartupTimeoutMs,
   readMastracodeThinkingLevel,
   readMastracodeTimeoutMs,
   runMastracodeAgent,
@@ -267,6 +268,16 @@ describe("mastracode runner configuration", () => {
     expect(readMastracodeTimeoutMs({ EVAL_MASTRACODE_TIMEOUT_MS: "-1" })).toBe(3_600_000);
   });
 
+  it("defaults the startup budget to two minutes", () => {
+    expect(readMastracodeStartupTimeoutMs({})).toBe(120_000);
+    expect(readMastracodeStartupTimeoutMs({ EVAL_MASTRACODE_STARTUP_TIMEOUT_MS: "5000" })).toBe(
+      5_000,
+    );
+    expect(readMastracodeStartupTimeoutMs({ EVAL_MASTRACODE_STARTUP_TIMEOUT_MS: "0" })).toBe(
+      120_000,
+    );
+  });
+
   it("builds a structured-output task prompt with the tool instructions", () => {
     const prompt = buildMastracodePrompt(plan, "Use stagehand_run.");
     expect(prompt).toContain("Find the heading");
@@ -288,6 +299,7 @@ describe("runMastracodeAgent", () => {
       stepBudget: 12,
       thinkingLevel: "low",
       timeoutMs: 3_600_000,
+      startupTimeoutMs: 120_000,
       facadeToolNames: ["stagehand_run", "stagehand_snapshot", "stagehand_screenshot"],
       workspaceDir: "/r/workspace",
       appDataDir: "/r/appdata",
@@ -376,6 +388,22 @@ describe("runMastracodeAgent", () => {
     expect(result.cost_source).toBe("unavailable");
     expect(result.harnessStatus).toBe("sdk_error");
     expect(result.harnessStopReason).toBe("mcp_unavailable");
+  });
+
+  it("records a startup timeout as sdk_error / startup_timeout", async () => {
+    const { result } = await run([
+      ev({
+        type: "done",
+        status: "error",
+        stopReason: "startup_timeout",
+        error: "mastracode startup timed out after 120000 ms (mcp_connect)",
+        finalText: "",
+        steps: 0,
+      }),
+    ]);
+    expect(result.harnessStatus).toBe("sdk_error");
+    expect(result.harnessStopReason).toBe("startup_timeout");
+    expect(result._success).toBe(false);
   });
 
   it("maps a budget stop to the step_budget termination", async () => {

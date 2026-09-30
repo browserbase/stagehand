@@ -40,7 +40,9 @@ export const MASTRACODE_MAX_STEPS_ENV = "EVAL_MASTRACODE_MAX_STEPS";
 export const MASTRACODE_THINKING_LEVEL_ENV = "EVAL_MASTRACODE_THINKING_LEVEL";
 export const MASTRACODE_TIMEOUT_ENV = "EVAL_MASTRACODE_TIMEOUT_MS";
 export const MASTRACODE_ALLOW_UNCACHED_ROUTES_ENV = "EVAL_MASTRACODE_ALLOW_UNCACHED_ROUTES";
+export const MASTRACODE_STARTUP_TIMEOUT_ENV = "EVAL_MASTRACODE_STARTUP_TIMEOUT_MS";
 export const MASTRACODE_DEFAULT_TIMEOUT_MS = 3_600_000;
+export const MASTRACODE_DEFAULT_STARTUP_TIMEOUT_MS = 120_000;
 /** Grace between the driver's own wall-clock timeout and the parent's hard kill. */
 const HARD_KILL_GRACE_MS = 30_000;
 
@@ -119,6 +121,16 @@ export function readMastracodeTimeoutMs(
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : MASTRACODE_DEFAULT_TIMEOUT_MS;
 }
 
+/** Driver startup budget (mastracode boot, MCP connect + listTools, model switch). */
+export function readMastracodeStartupTimeoutMs(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const parsed = Number(env[MASTRACODE_STARTUP_TIMEOUT_ENV] ?? "");
+  return Number.isSafeInteger(parsed) && parsed > 0
+    ? parsed
+    : MASTRACODE_DEFAULT_STARTUP_TIMEOUT_MS;
+}
+
 export function buildMastracodePrompt(
   plan: ExternalHarnessTaskPlan,
   toolInstructions?: string,
@@ -158,6 +170,7 @@ export async function runMastracodeAgent({
   const stepBudget = readMastracodeMaxSteps(plan.dataset, env);
   const thinkingLevel = readMastracodeThinkingLevel(env);
   const timeoutMs = readMastracodeTimeoutMs(env);
+  const startupTimeoutMs = readMastracodeStartupTimeoutMs(env);
   const adapterLike: ExternalHarnessToolAdapterLike = {
     promptInstructions: toolAdapter.promptInstructions,
     captureEvidence: toolAdapter.captureEvidence,
@@ -186,6 +199,7 @@ export async function runMastracodeAgent({
       cacheRoute,
       requestedThinkingLevel: thinkingLevel,
       timeoutMs,
+      startupTimeoutMs,
       availableTools: toolAdapter.facadeToolNames,
     },
     runSession: async (prompt, systemPrompt) => {
@@ -197,6 +211,7 @@ export async function runMastracodeAgent({
         ...(thinkingLevel && { thinkingLevel }),
         stepBudget,
         timeoutMs,
+        startupTimeoutMs,
         mcpServers: toolAdapter.mcpServers,
         facadeToolNames: toolAdapter.facadeToolNames,
         workspaceDir: toolAdapter.paths.workspace,
@@ -211,7 +226,8 @@ export async function runMastracodeAgent({
         signal,
         runProcess,
         driverPath,
-        killAfterMs: timeoutMs + HARD_KILL_GRACE_MS,
+        // The driver's startup deadline and runMC's timeout run back to back.
+        killAfterMs: startupTimeoutMs + timeoutMs + HARD_KILL_GRACE_MS,
         onEvent: (event) => {
           if (event.type === "tool_start") toolNames.set(event.toolCallId, event.toolName);
           if (event.type === "tool_end") {
