@@ -20,6 +20,7 @@ describe("FacadeResourceOwner", () => {
     expect(create).not.toHaveBeenCalled();
 
     const requested = owner.get();
+    const concurrent = owner.get();
     await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
     const observed = owner.peek();
     expect(observed).toBeDefined();
@@ -29,6 +30,7 @@ describe("FacadeResourceOwner", () => {
     finishLaunch(resource);
     await expect(observed).resolves.toBe(resource);
     await expect(requested).resolves.toBe(resource);
+    await expect(concurrent).resolves.toBe(resource);
     expect(create).toHaveBeenCalledOnce();
   });
 
