@@ -63,7 +63,8 @@ catalog:
   smol-toml: 1.7.0
 catalogs:
   eve:
-    ai: ^7.0.58
+    ai: ^7.0.105
+    eve: 0.68.0
 overrides:
   vite: "catalog:"
 allowBuilds:

@@ -6,7 +6,7 @@ Browserbase browser through three native tools: `run`, `snapshot`, and `screensh
 
 ## Install
 
-Use Node.js 24 or newer, pnpm 10 or newer, and Eve `>=0.39.3 <1`.
+Use Node.js 24 or newer, pnpm 10 or newer, and Eve `0.68.x`.
 
 ```bash
 pnpm add @browserbasehq/eve@^0.2.0
@@ -45,12 +45,12 @@ available unless the consuming agent explicitly overrides them.
 
 ## Configuration
 
-| Option                  | Default               | Description                                                 |
-| ----------------------- | --------------------- | ----------------------------------------------------------- |
-| `apiKey`                | required              | Browserbase API key for browser sessions and Model Gateway. |
-| `model`                 | `openai/gpt-5.4-mini` | Underlying Stagehand client model identifier.               |
-| `sessionTimeoutSeconds` | `900`                 | Browserbase session timeout from 60 to 21,600 seconds.      |
-| `proxies`               | `false`               | Enable Browserbase proxies for new sessions.                |
+| Option                  | Default               | Description                                                        |
+| ----------------------- | --------------------- | ------------------------------------------------------------------ |
+| `apiKey`                | `BROWSERBASE_API_KEY` | Browserbase credential, resolved when the first browser tool runs. |
+| `model`                 | `openai/gpt-5.4-mini` | Underlying Stagehand client model identifier.                      |
+| `sessionTimeoutSeconds` | `900`                 | Browserbase session timeout from 60 to 21,600 seconds.             |
+| `proxies`               | `false`               | Enable Browserbase proxies for new sessions.                       |
 
 Browser-only tool calls do not invoke a Stagehand model or require a separate model-provider key.
 Configure Eve’s own agent model and its authentication separately. Set `BROWSERBASE_PROJECT_ID` in

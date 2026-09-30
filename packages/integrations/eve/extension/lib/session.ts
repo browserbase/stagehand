@@ -219,7 +219,9 @@ export function createStagehandResourceFactory(
 }
 
 async function createBrowser(): Promise<StagehandBrowserLaunch> {
-  const { apiKey, proxies, sessionTimeoutSeconds } = extension.config;
+  const { proxies, sessionTimeoutSeconds } = extension.config;
+  const apiKey = extension.config.apiKey ?? process.env.BROWSERBASE_API_KEY;
+  if (!apiKey) throw new StagehandSessionInitializationError();
   const baseUrl = process.env.BROWSERBASE_API_URL;
   const launchOptions: BrowserbaseLaunchOptions = {
     apiKey,

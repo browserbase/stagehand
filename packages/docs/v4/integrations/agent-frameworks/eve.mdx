@@ -9,7 +9,7 @@ The `@browserbasehq/eve` package uses Eve’s native [extension API](https://eve
 
 - Node.js 24 or newer
 - pnpm 10 or newer
-- An existing agent on Eve `>=0.39.3 <1` and its model-provider authentication
+- An existing agent on Eve `0.68.x` and its model-provider authentication
 - A Browserbase API key
 
 ## Install the extension
@@ -65,7 +65,7 @@ Pass options to `browserbase()` in the extension mount:
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `apiKey` | Required | Browserbase credential for browser sessions and Model Gateway. |
+| `apiKey` | `BROWSERBASE_API_KEY` | Browserbase credential, resolved when the first browser tool runs. |
 | `model` | `openai/gpt-5.4-mini` | Stagehand client model configuration; browser-only tool calls do not invoke it. |
 | `sessionTimeoutSeconds` | `900` | Browserbase timeout, from 60 to 21,600 seconds. |
 | `proxies` | `false` | Enable Browserbase proxies. |

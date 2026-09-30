@@ -54,12 +54,12 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "ai": "catalog:eve",
-    "eve": "catalog:",
+    "eve": "catalog:eve",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "eve": ">=0.39.3 <1"
+    "eve": "^0.68.0"
   },
   "engines": {
     "node": ">=24"
