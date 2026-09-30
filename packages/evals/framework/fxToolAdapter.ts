@@ -1,3 +1,8 @@
+import {
+  parseFxReasoningEffort,
+  stringifyError,
+  type FxReasoningEffort,
+} from "@browserbasehq/stagehand-integrations-fx-sdk";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -219,9 +224,23 @@ export function buildFxAgentsMarkdown(promptInstructions: string, serverNames: s
     .join("\n");
 }
 
+export const FX_REASONING_EFFORT_ENV = "EVAL_FX_REASONING_EFFORT";
+
+/** Validate EVAL_FX_REASONING_EFFORT; unset leaves fx's per-model default (no --effort flag). */
+export function readFxReasoningEffort(
+  env: Record<string, string | undefined> = process.env,
+): FxReasoningEffort | undefined {
+  try {
+    return parseFxReasoningEffort(env[FX_REASONING_EFFORT_ENV], FX_REASONING_EFFORT_ENV);
+  } catch (error) {
+    throw new EvalsError(stringifyError(error));
+  }
+}
+
 export async function prepareFxToolAdapter(
   input: FxToolAdapterInput,
 ): Promise<PreparedFxToolAdapter> {
+  readFxReasoningEffort();
   const toolSurface = resolveToolSurface(
     { harness: "fx", supportedToolSurfaces: FX_TOOL_SURFACES },
     input.toolSurface,
