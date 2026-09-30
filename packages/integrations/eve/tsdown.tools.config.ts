@@ -1,13 +1,13 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
-  entry: "src/tools/index.ts",
+  entry: { web: "src/tools/index.ts" },
   format: ["esm"],
   platform: "node",
   target: "node24",
   outDir: "dist/tools",
   dts: true,
-  clean: true,
+  clean: false,
   deps: {
     skipNodeModulesBundle: true,
   },

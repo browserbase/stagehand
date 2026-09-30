@@ -39,7 +39,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "pnpm run stage:facade && eve extension build && tsdown --config tsdown.tools.config.ts",
+    "build": "pnpm run stage:facade && eve extension build && tsdown --config tsdown.tools.config.ts && node scripts/export-web-tools.mjs",
     "prepack": "pnpm run build",
     "stage:facade": "node scripts/stage-facade.mjs",
     "test": "pnpm run stage:facade && vitest run",
