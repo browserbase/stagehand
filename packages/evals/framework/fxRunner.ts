@@ -1,20 +1,21 @@
 import {
   buildFxTranscript,
   normalizeFxModel,
-  parseFxReasoningEffort,
   runFxSession,
   stringifyError,
-  type FxReasoningEffort,
   toFiniteNumber,
   type FxProcessRunner,
   type FxSessionStore,
   type FxTokenUsage,
 } from "@browserbasehq/stagehand-integrations-fx-sdk";
 import type { AvailableModel } from "stagehand-v3";
-import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import { readFxMaxAgentSteps, type PreparedFxToolAdapter } from "./fxToolAdapter.js";
+import {
+  readFxReasoningEffort,
+  readFxMaxAgentSteps,
+  type PreparedFxToolAdapter,
+} from "./fxToolAdapter.js";
 import {
   buildExternalHarnessPrompt,
   metricValue,
@@ -60,18 +61,7 @@ export function parseFxResult(raw: string): ParsedFxResult {
   return parseEvalResult(raw);
 }
 
-export const FX_REASONING_EFFORT_ENV = "EVAL_FX_REASONING_EFFORT";
-
-/** Validate EVAL_FX_REASONING_EFFORT; unset leaves fx's per-model default (no --effort flag). */
-export function readFxReasoningEffort(
-  env: Record<string, string | undefined> = process.env,
-): FxReasoningEffort | undefined {
-  try {
-    return parseFxReasoningEffort(env[FX_REASONING_EFFORT_ENV], FX_REASONING_EFFORT_ENV);
-  } catch (error) {
-    throw new EvalsError(stringifyError(error));
-  }
-}
+export { FX_REASONING_EFFORT_ENV, readFxReasoningEffort } from "./fxToolAdapter.js";
 
 export async function runFxAgent({
   plan,
