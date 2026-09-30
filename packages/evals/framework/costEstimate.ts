@@ -235,8 +235,7 @@ const PROVIDER_ALIASES: Record<string, string[]> = {
  * Alias forms of a configured model id, most specific first:
  * `gateway/` prefixes dropped, harness defaults expanded, version dashes as
  * dots (`claude-sonnet-4-6` → `claude-sonnet-4.6`), `-preview` and trailing
- * date segments stripped, provider spellings swapped, and finally the
- * bare model name (matched only when one provider carries it).
+ * date segments stripped, provider spellings swapped, and unqualified model names matched only when one provider carries them.
  */
 export function modelPriceCandidates(model: string): string[] {
   let id = model.trim();
@@ -263,7 +262,7 @@ export function modelPriceCandidates(model: string): string[] {
     for (const candidateProvider of providers)
       candidates.push(`${candidateProvider}/${candidateName}`);
   }
-  for (const candidateName of names) candidates.push(candidateName);
+  if (!provider) for (const candidateName of names) candidates.push(candidateName);
   return [...new Set(candidates)];
 }
 

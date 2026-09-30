@@ -434,7 +434,7 @@ describe("model alias resolution", () => {
     expect(resolveModelPrice("b/model-1", ambiguous)?.key).toBe("b/model-1");
   });
 
-  it("orders candidates from the exact id to the bare name", () => {
+  it("orders candidates within explicit provider aliases", () => {
     expect(modelPriceCandidates("gateway/xai/grok-4-5")).toEqual([
       "xai/grok-4-5",
       "spacexai/grok-4-5",
@@ -442,8 +442,6 @@ describe("model alias resolution", () => {
       "xai/grok-4.5",
       "spacexai/grok-4.5",
       "x-ai/grok-4.5",
-      "grok-4-5",
-      "grok-4.5",
     ]);
   });
 });
@@ -468,4 +466,9 @@ describe("shipped price map", () => {
       cache_write_input_per_m: 12.5,
     });
   });
+});
+
+it("does not borrow a price from another provider", () => {
+  expect(resolveModelPrice("custom/gpt-5.4-mini", priceMap)).toBeUndefined();
+  expect(resolveModelPrice("gpt-5.4-mini", priceMap)?.key).toBe("openai/gpt-5.4-mini");
 });
