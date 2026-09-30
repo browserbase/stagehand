@@ -47,6 +47,26 @@ the local tag is missing, recovery requires the original version-bump commit;
 it refuses to label a later main commit as the release. Retry the original
 Release workflow run in that case.
 
+## TypeScript GitHub Releases
+
+The SDK release job reconciles GitHub Releases after Changesets runs. Package
+changelogs are consolidated into the root `CHANGELOG.md` and removed from git,
+so Changesets cannot reliably use them to create GitHub release notes. The
+reconciler reads the root's TypeScript SDK entries and creates releases only
+for tags already pushed to GitHub. It skips existing releases and marks only
+the newest tagged stable SDK as Latest; older backfills and prereleases are
+explicitly excluded from Latest.
+
+Preview the missing releases without publishing:
+
+```sh
+pnpm exec tsx scripts/release/reconcile-github-releases.ts --dry-run
+```
+
+The first successful SDK release job after rollout backfills all missing tagged
+TypeScript entries, currently 4.0.0, 4.0.1, 4.0.2, 4.0.3, and 4.1.0. Subsequent
+runs reconcile newly tagged versions. A retry skips releases already created.
+
 ## First rollout
 
 Merge this infrastructure change before either pending release PR. The next

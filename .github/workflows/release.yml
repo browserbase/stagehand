@@ -83,6 +83,14 @@ jobs:
           CHANGESET_BACKUP: ${{ steps.sdk-changesets.outputs.directory }}
         run: pnpm exec tsx scripts/release/sdk-action-changesets.ts restore "$CHANGESET_BACKUP"
 
+      # Package changelogs are intentionally consolidated into the root changelog and
+      # omitted from git. Changesets Action silently skips GitHub Release creation when
+      # a package changelog is absent, so reconcile tagged TypeScript releases explicitly.
+      - name: Reconcile GitHub Releases
+        run: pnpm exec tsx scripts/release/reconcile-github-releases.ts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   release-cli:
     name: Release Browse CLI
     if: github.ref == 'refs/heads/main'
