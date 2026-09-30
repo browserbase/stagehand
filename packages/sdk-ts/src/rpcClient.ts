@@ -70,6 +70,7 @@ const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
   [StagehandMethods.pageGoForward.name, 15_000],
   [StagehandMethods.pageWaitForLoadState.name, 15_000],
   [StagehandMethods.pageWaitForSelector.name, 30_000],
+  [StagehandMethods.pagePDF.name, 30_000],
   [StagehandMethods.pageWebMCPTools.name, 1_000],
 ]);
 const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
@@ -523,6 +524,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.pageGoBack.name:
     case StagehandMethods.pageGoForward.name:
     case StagehandMethods.pageScreenshot.name:
+    case StagehandMethods.pagePDF.name:
     case StagehandMethods.pageWaitForSelector.name:
     case StagehandMethods.pageWebMCPTools.name:
     case StagehandMethods.pageWebMCPInvocationResult.name:
@@ -537,6 +539,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
   }
 
   if (operationTimeoutMs !== undefined) {
+    if (method === StagehandMethods.pagePDF.name && operationTimeoutMs === 0) return undefined;
     return RPC_RESPONSE_GRACE_MS + Math.max(0, operationTimeoutMs);
   }
 
