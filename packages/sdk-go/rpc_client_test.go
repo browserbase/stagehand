@@ -95,20 +95,22 @@ type uppercaseRPCResult struct {
 	Value string `json:"value"`
 }
 
-func TestPDFResponseTimeout(t *testing.T) {
+func TestCaptureResponseTimeout(t *testing.T) {
 	t.Parallel()
-	for _, test := range []struct {
-		params  string
-		want    time.Duration
-		bounded bool
-	}{
-		{`{"options":{"timeout":250}}`, 10*time.Second + 250*time.Millisecond, true},
-		{`{"options":{"timeout":45000}}`, 55 * time.Second, true},
-		{`{"options":{"timeout":0}}`, 0, false},
-	} {
-		got, bounded := rpcResponseTimeout("page.pdf", json.RawMessage(test.params))
-		if got != test.want || bounded != test.bounded {
-			t.Errorf("page.pdf %s timeout = %v, %t; want %v, %t", test.params, got, bounded, test.want, test.bounded)
+	for _, method := range []string{"page.pdf", "page.snapshot"} {
+		for _, test := range []struct {
+			params  string
+			want    time.Duration
+			bounded bool
+		}{
+			{`{"options":{"timeout":250}}`, 10*time.Second + 250*time.Millisecond, true},
+			{`{"options":{"timeout":45000}}`, 55 * time.Second, true},
+			{`{"options":{"timeout":0}}`, 0, false},
+		} {
+			got, bounded := rpcResponseTimeout(method, json.RawMessage(test.params))
+			if got != test.want || bounded != test.bounded {
+				t.Errorf("%s %s timeout = %v, %t; want %v, %t", method, test.params, got, bounded, test.want, test.bounded)
+			}
 		}
 	}
 }

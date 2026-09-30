@@ -682,12 +682,19 @@ def test_response_deadline_uses_operation_defaults() -> None:
         assert rpc_client._rpc_response_timeout_seconds(method, params) == timeout
 
 
+@pytest.mark.parametrize("method", ["page.pdf", "page.snapshot"])
 @pytest.mark.parametrize("timeout,expected", [(250, 10.25), (45_000, 55), (0, None)])
-def test_pdf_response_deadline_honors_explicit_timeout(
-    timeout: float, expected: float | None
+def test_capture_response_deadline_honors_explicit_timeout(
+    method: str, timeout: float, expected: float | None
 ) -> None:
-    params = models.PagePDFParams(page_id="page-1", options=models.PagePDFOptions(timeout=timeout))
-    assert rpc_client._rpc_response_timeout_seconds("page.pdf", params) == expected
+    params = (
+        models.PagePDFParams(page_id="page-1", options=models.PagePDFOptions(timeout=timeout))
+        if method == "page.pdf"
+        else models.PageSnapshotParams(
+            page_id="page-1", options=models.PageSnapshotOptions(timeout=timeout)
+        )
+    )
+    assert rpc_client._rpc_response_timeout_seconds(method, params) == expected
 
 
 def test_response_deadline_preserves_v3_unbounded_operations() -> None:

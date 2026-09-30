@@ -691,6 +691,10 @@ const snapshot = await page.snapshot();
   <ParamField path="options.includeIframes" type="boolean" optional>
     Whether to include iframe content.
   </ParamField>
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
+    Omit it or use `0` for no timeout. Request delivery is outside this budget.
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="Promise<SnapshotResult>">
@@ -1440,6 +1444,11 @@ snapshot = await page.snapshot()
 
 <ParamField path="include_iframes" type="bool | None" optional>
   Whether to include iframe content.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
+  Omit it or use `0` for no timeout. Request delivery is outside this budget.
 </ParamField>
 
 <ResponseField name="result" type="SnapshotResult">
@@ -2270,6 +2279,10 @@ fmt.Println(snapshot.FormattedTree)
 
   <ParamField path="options.IncludeIframes" type="*bool" optional>
     Whether to include iframe content.
+  </ParamField>
+  <ParamField path="options.Timeout" type="*float64" optional>
+    Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
+    Omit it or use `0` for no timeout. Request delivery is outside this budget.
   </ParamField>
 </ParamField>
 

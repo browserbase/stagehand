@@ -418,7 +418,10 @@ describe("snapshot progress ownership", () => {
           }),
       );
       await vi.advanceTimersByTimeAsync(10);
-      const result = page[method]({}, progress);
+      const result =
+        method === "snapshot"
+          ? page.snapshot({ timeout: 1 }, progress)
+          : page.captureSnapshot({}, progress);
       const timedOut = expect(result).rejects.toThrow(/extract timed out after 20ms/);
       await vi.advanceTimersByTimeAsync(10);
       await timedOut;
@@ -430,12 +433,12 @@ describe("snapshot progress ownership", () => {
     },
   );
 
-  it("creates unlimited progress for a standalone snapshot", async () => {
+  it.each([undefined, 0])("keeps standalone snapshot timeout %s unlimited", async (timeout) => {
     send.mockImplementationOnce(async () => {
       await new Promise((resolve) => setTimeout(resolve, 25_000));
       return {};
     });
-    const result = page.snapshot({ includeIframes: false });
+    const result = page.snapshot({ includeIframes: false, timeout });
     await vi.advanceTimersByTimeAsync(25_000);
     await expect(result).resolves.toMatchObject({
       formattedTree: "root",
@@ -444,6 +447,16 @@ describe("snapshot progress ownership", () => {
     const received = vi.mocked(a11yForFrame).mock.calls[0]![3]!;
     expect(received).toBeInstanceOf(Progress);
     expect(received.remainingMs()).toBe(Infinity);
+  });
+
+  it("stops a public snapshot at its requested deadline", async () => {
+    send.mockImplementationOnce(() => new Promise(() => {}));
+    const result = page.snapshot({ timeout: 10 });
+    const timedOut = expect(result).rejects.toThrow(/snapshot timed out after 10ms/);
+    await vi.advanceTimersByTimeAsync(10);
+    await timedOut;
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(a11yForFrame).not.toHaveBeenCalled();
   });
 
   it("stops before reading another frame even if the deadline timer has not fired", async () => {

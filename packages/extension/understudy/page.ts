@@ -2252,19 +2252,16 @@ export class Page {
     options?: PageSnapshotOptions,
     parentProgress?: Progress,
   ): Promise<SnapshotResult> {
-    const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot(
-      {
-        pierceShadow: true,
-        includeIframes: options?.includeIframes,
+    return await runWithProgress(
+      parentProgress ?? { name: "snapshot", timeout: options?.timeout ?? 0 },
+      async (progress) => {
+        const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot(
+          { pierceShadow: true, includeIframes: options?.includeIframes },
+          progress,
+        );
+        return { formattedTree: combinedTree, xpathMap: combinedXpathMap, urlMap: combinedUrlMap };
       },
-      parentProgress,
     );
-
-    return {
-      formattedTree: combinedTree,
-      xpathMap: combinedXpathMap,
-      urlMap: combinedUrlMap,
-    };
   }
 
   // Track pressed modifier keys

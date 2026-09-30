@@ -446,14 +446,17 @@ describe("RPCClient", () => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
-  it("honors explicit PDF deadlines and allows disabling them", () => {
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 250 } })).toBe(10_250);
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 45_000 } })).toBe(55_000);
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 2_147_473_647 } })).toBe(
-      2_147_483_647,
-    );
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 0 } })).toBeUndefined();
-  });
+  it.each(["page.pdf", "page.snapshot"])(
+    "honors explicit %s deadlines and allows disabling them",
+    (method) => {
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 250 } })).toBe(10_250);
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 45_000 } })).toBe(55_000);
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 2_147_473_647 } })).toBe(
+        2_147_483_647,
+      );
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 0 } })).toBeUndefined();
+    },
+  );
 
   it.each(Object.values(StagehandMethods).filter(({ name }) => name.startsWith("locator.")))(
     "uses the effective locator timeout plus delivery grace for $name",

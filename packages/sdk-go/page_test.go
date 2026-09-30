@@ -735,3 +735,25 @@ func TestPageReferenceSupportsConcurrentReadersAndWriters(t *testing.T) {
 	}
 	group.Wait()
 }
+
+func TestSnapshotForwardsTimeout(t *testing.T) {
+	t.Parallel()
+	zero, finite := 0.0, 5000.0
+	for _, timeout := range []*float64{nil, &zero, &finite} {
+		var options *PageSnapshotOptions
+		if timeout != nil {
+			options = &PageSnapshotOptions{Timeout: timeout}
+		}
+		snapshot := SnapshotResult{FormattedTree: "root"}
+		rpc := &recordingProtocolClient{responses: map[string]any{"page.snapshot": snapshot}}
+		page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+		got, err := page.Snapshot(context.Background(), options)
+		if err != nil || !reflect.DeepEqual(got, snapshot) {
+			t.Fatalf("Snapshot() = %#v, %v", got, err)
+		}
+		want := []recordedCall{{method: "page.snapshot", params: PageSnapshotParams{PageID: "page-1", Options: options}}}
+		if !reflect.DeepEqual(rpc.calls, want) {
+			t.Fatalf("calls = %#v, want %#v", rpc.calls, want)
+		}
+	}
+}

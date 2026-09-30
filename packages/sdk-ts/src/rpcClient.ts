@@ -541,6 +541,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.pageGoForward.name:
     case StagehandMethods.pageScreenshot.name:
     case StagehandMethods.pagePDF.name:
+    case StagehandMethods.pageSnapshot.name:
     case StagehandMethods.pageWaitForSelector.name:
     case StagehandMethods.pageWebMCPTools.name:
     case StagehandMethods.pageWebMCPInvocationResult.name:
@@ -555,7 +556,11 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
   }
 
   if (operationTimeoutMs !== undefined) {
-    if (method === StagehandMethods.pagePDF.name && operationTimeoutMs === 0) return undefined;
+    if (
+      (method === StagehandMethods.pagePDF.name || method === StagehandMethods.pageSnapshot.name) &&
+      operationTimeoutMs === 0
+    )
+      return undefined;
     return RPC_RESPONSE_GRACE_MS + Math.max(0, operationTimeoutMs);
   }
 
