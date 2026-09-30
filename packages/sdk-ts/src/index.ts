@@ -12,6 +12,7 @@ export {
 } from "./browserClipboard.js";
 export {
   Locator,
+  type LocatorOptions,
   type LocatorClickOptions,
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,

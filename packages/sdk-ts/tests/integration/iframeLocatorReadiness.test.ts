@@ -35,26 +35,32 @@ async function createDelayedIframeFixture(options: {
   childSrc: (child: FixtureServer) => string;
   childDelayMs: number;
   childResponseGate?: Promise<void>;
+  nested?: boolean;
   /** URL passed to page.goto (may use a mapped hostname). */
   parentGotoUrl: (parent: FixtureServer) => string;
 }): Promise<IframeFixture> {
   let clickCount = 0;
   let childServed = 0;
 
+  const leafHtml = `<!doctype html><html><body style="margin:0">
+<div style="padding:20px">
+  <button id="b" style="width:300px;height:120px"
+    onclick="fetch('/clicked').catch(()=>{})">click me</button>
+  <input id="t" />
+</div>
+</body></html>`;
   const child = await startFixtureServer({
     "/child": async () => {
       await options.childResponseGate;
       await new Promise((resolve) => setTimeout(resolve, options.childDelayMs));
       childServed += 1;
       return {
-        body: `<!doctype html><html><body style="margin:0">
-<div style="padding:20px">
-  <button id="b" style="width:300px;height:120px"
-    onclick="fetch('/clicked').catch(()=>{})">click me</button>
-</div>
-</body></html>`,
+        body: options.nested
+          ? '<!doctype html><html><body><iframe src="/leaf" width="550" height="300"></iframe></body></html>'
+          : leafHtml,
       };
     },
+    "/leaf": leafHtml,
     "/clicked": () => {
       clickCount += 1;
       return { headers: { "content-type": "text/plain" }, body: "ok" };
@@ -85,14 +91,116 @@ async function waitForIframeElement(page: Awaited<ReturnType<typeof firstPage>>)
 describe("iframe locator readiness", () => {
   const stagehands: Stagehand[] = [];
   const fixtures: IframeFixture[] = [];
+  const gates: Array<ReturnType<typeof createChildResponseGate>> = [];
 
   afterEach(async () => {
+    gates.splice(0).forEach((gate) => gate.release());
     await Promise.all(stagehands.splice(0).map((stagehand) => closeStagehand(stagehand)));
     await Promise.all(
       fixtures.splice(0).map(async (fixture) => {
         await Promise.all([fixture.parent.close(), fixture.child.close()]);
       }),
     );
+  });
+
+  async function gatedPage(crossProcess: boolean, nested = false) {
+    const gate = createChildResponseGate();
+    gates.push(gate);
+    const fixture = await createDelayedIframeFixture({
+      childDelayMs: 0,
+      childResponseGate: gate.ready,
+      nested,
+      childSrc: (child) =>
+        crossProcess
+          ? `http://child.test:${new URL(child.url).port}/child`
+          : new URL("/child", child.url).href,
+      parentGotoUrl: (parent) =>
+        crossProcess ? `http://parent.test:${new URL(parent.url).port}/` : parent.url,
+    });
+    fixtures.push(fixture);
+    const stagehand = await createStagehand(
+      crossProcess
+        ? {
+            browser: {
+              args: [
+                "--host-resolver-rules=MAP parent.test 127.0.0.1,MAP child.test 127.0.0.1",
+                "--site-per-process",
+              ],
+            },
+          }
+        : undefined,
+    );
+    stagehands.push(stagehand);
+    const page = await firstPage(stagehand);
+    await page.goto(fixture.parentGotoUrl, { waitUntil: "domcontentloaded" });
+    await waitForIframeElement(page);
+    expect(fixture.childServed()).toBe(0);
+    return { page, fixture, gate };
+  }
+
+  describe.each([
+    { name: "same-process", crossProcess: false },
+    { name: "OOPIF", crossProcess: true },
+  ])("$name timeout budgets", ({ crossProcess }) => {
+    it("does not click after readiness expires, even when the child later loads", async () => {
+      const { page, fixture, gate } = await gatedPage(crossProcess);
+      const button = page.locator(XPATH_INNER);
+      await expect(button.click({ timeout: 250 })).rejects.toMatchObject({
+        name: "TimeoutError",
+        message: expect.stringContaining("locator.click"),
+      });
+      expect(fixture.childServed()).toBe(0);
+      gate.release();
+      await expect.poll(() => button.count({ timeout: 5_000 }), { timeout: 6_000 }).toBe(1);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      expect(fixture.clickCount()).toBe(0);
+      await button.click({ timeout: 5_000 });
+      await expect.poll(() => fixture.clickCount()).toBe(1);
+    });
+
+    it.each([0, 4_000])("waits beyond the old readiness cap with timeout %s", async (timeout) => {
+      const { page, fixture, gate } = await gatedPage(crossProcess);
+      let settled = false;
+      const click = page.locator(XPATH_INNER).click({ timeout });
+      const checked = expect(click).resolves.toBeUndefined();
+      void click.then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+      // The previous frame readiness cap was 1,200 ms.
+      await new Promise((resolve) => setTimeout(resolve, 1_600));
+      const settledBeforeRelease = settled;
+      gate.release();
+      await checked;
+      expect(settledBeforeRelease).toBe(false);
+      await expect.poll(() => fixture.clickCount()).toBe(1);
+    });
+
+    it("shares one budget across nested frame readiness and typing delays", async () => {
+      const { page, gate } = await gatedPage(crossProcess, true);
+      const input = page.locator("iframe >> iframe >> #t");
+      const started = performance.now();
+      const typed = input.type("abcdefghij", { timeout: 1_800, delay: 200 });
+      const rejected = expect(typed).rejects.toMatchObject({
+        name: "TimeoutError",
+        message: expect.stringContaining("locator.type"),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      gate.release();
+      await rejected;
+      // A fresh action budget after readiness would allow about 2,700 ms.
+      expect(performance.now() - started).toBeLessThan(2_400);
+      const value = await input.inputValue({ timeout: 5_000 });
+      expect(value.length).toBeGreaterThan(0);
+      expect(value.length).toBeLessThan(10);
+      expect("abcdefghij".startsWith(value)).toBe(true);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(await input.inputValue()).toBe(value);
+    });
   });
 
   it("same-process trailing iframe XPath clicks without waiting for the child document", async () => {
