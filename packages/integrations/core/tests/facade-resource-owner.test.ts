@@ -46,9 +46,13 @@ describe("FacadeResourceOwner", () => {
     const owner = new FacadeResourceOwner(create, cleanup);
     await expect(owner.get()).resolves.toBe(first);
     const close = owner.close(first);
+    let nextSettled = false;
+    const next = owner.get().then((resource) => {
+      nextSettled = true;
+      return resource;
+    });
     await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
-    const next = owner.get();
-    await Promise.resolve();
+    expect(nextSettled).toBe(false);
     expect(create).toHaveBeenCalledOnce();
     await expect(owner.peek()).resolves.toBe(first);
     release();
@@ -56,6 +60,37 @@ describe("FacadeResourceOwner", () => {
     await expect(next).resolves.toBe(second);
     expect(create).toHaveBeenCalledTimes(2);
     await owner.close(first);
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it("waits for a current close queued after a stale close", async () => {
+    let release!: () => void;
+    const closing = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const first = { id: 1 };
+    const second = { id: 2 };
+    const create = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+    const cleanup = vi.fn(() => closing);
+    const owner = new FacadeResourceOwner(create, cleanup);
+    await owner.get();
+
+    const staleClose = owner.close({ id: 0 });
+    let nextSettled = false;
+    const next = owner.get().then((resource) => {
+      nextSettled = true;
+      return resource;
+    });
+    const close = owner.close(first);
+    await staleClose;
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
+    expect(nextSettled).toBe(false);
+    expect(create).toHaveBeenCalledOnce();
+
+    release();
+    await close;
+    await expect(next).resolves.toBe(second);
+    expect(create).toHaveBeenCalledTimes(2);
     expect(cleanup).toHaveBeenCalledOnce();
   });
 

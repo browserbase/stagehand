@@ -9,7 +9,7 @@ export class FacadeResourceOwner<Resource> {
   ) {}
 
   async get(): Promise<Resource> {
-    await this.cleanup;
+    while (this.cleanup) await this.cleanup;
     this.resources ??= Promise.resolve()
       .then(() => this.create())
       .catch((error) => {
@@ -25,22 +25,27 @@ export class FacadeResourceOwner<Resource> {
     return this.resources;
   }
 
-  async close(expected: Resource): Promise<void> {
+  close(expected: Resource): Promise<void> {
     const owned = this.resources;
-    const current = await owned?.catch(() => undefined);
-    if (this.resources !== owned || current !== expected) return;
-    this.cleanup ??= Promise.resolve()
-      .then(() => this.release(expected))
-      .catch(() => {
-        throw new StagehandFacadeCleanupError();
+    const cleanup = Promise.resolve(this.cleanup)
+      .then(async () => {
+        const current = await owned?.catch(() => undefined);
+        if (this.resources !== owned || current !== expected) return;
+        try {
+          await this.release(expected);
+        } catch {
+          throw new StagehandFacadeCleanupError();
+        }
+        this.resources = undefined;
       })
       .then(() => {
-        this.resources = undefined;
-        this.cleanup = undefined;
+        if (this.cleanup === cleanup) this.cleanup = undefined;
       });
+    // Register cleanup before yielding so an immediate get waits for every queued close.
+    this.cleanup = cleanup;
     // Retain a rejected cleanup: an SDK may cache its failed close promise.
     // Refuse replacement launches while the old browser's release is unconfirmed.
-    await this.cleanup;
+    return cleanup;
   }
 }
 import { StagehandFacadeConfigError } from "./config.js";
