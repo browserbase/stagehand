@@ -121,6 +121,9 @@ function perMillion(value: unknown): number | undefined {
 
 async function loadPrices(): Promise<{ prices: Map<string, FetchedPrice>; source: string }> {
   const forced = process.env.EVAL_PRICING_SOURCE;
+  if (forced && forced !== "gateway" && forced !== "openrouter") {
+    throw new EvalsError("EVAL_PRICING_SOURCE must be gateway or openrouter.");
+  }
   if (forced !== "openrouter") {
     try {
       return { prices: await fetchGatewayPrices(), source: "gateway" };
@@ -170,8 +173,11 @@ export async function updatePricing(
       cached_input_per_m: null,
       output_per_m: null,
       source: "needs owner input",
+      ...(existing.models[id].note && { note: existing.models[id].note }),
       ...(observed && {
-        note: `${source} lists in=${observed.input_per_m} cached=${observed.cached_input_per_m}${observed.cache_write_input_per_m !== undefined ? ` cache_write=${observed.cache_write_input_per_m}` : ""} out=${observed.output_per_m} USD/M on ${today()}; confirm before enabling this price`,
+        note:
+          (existing.models[id].note ? `${existing.models[id].note} ` : "") +
+          `${source} lists in=${observed.input_per_m} cached=${observed.cached_input_per_m}${observed.cache_write_input_per_m !== undefined ? ` cache_write=${observed.cache_write_input_per_m}` : ""} out=${observed.output_per_m} USD/M on ${today()}; confirm before enabling this price`,
       }),
     };
   }

@@ -230,92 +230,104 @@ describe("bench harness registry", () => {
     }
   });
 
-  it("defines the shared external lifecycle and cleans up when the agent throws", async () => {
-    let cleanupCalled = false;
-    const adapter = {
-      browserSession: {
-        provider: "browserbase" as const,
-        sessionId: "session-a",
-        sessionUrl: "https://www.browserbase.com/sessions/session-a",
-      },
-      cleanup: async (): Promise<void> => {
-        cleanupCalled = true;
-      },
-    };
-    let preparedInput: Record<string, unknown> | undefined;
-    let receivedAdapter: unknown;
-    const harness = defineExternalHarness({
-      harness: "fake_external",
-      supportedToolSurfaces: ["browse_cli"],
-      defaultModels: ["openai/x" as AvailableModel],
-      prepareToolAdapter: async (input) => {
-        preparedInput = input as unknown as Record<string, unknown>;
-        return adapter;
-      },
-      runAgent: async (input) => {
-        receivedAdapter = input.toolAdapter;
-        throw new Error("agent failed");
-      },
-    });
-    const input: EvalInput = {
-      name: "agent/webvoyager",
-      modelName: "openai/x" as AvailableModel,
-      params: {
-        id: "wv-1",
-        web: "https://example.com",
-        ques: "Find the checkout button",
-      },
-    };
-    const row: BenchMatrixRow = {
-      harness: "fake_external",
-      task: input.name,
-      category: "agent",
-      taskKind: "agent",
-      model: input.modelName,
-      environment: "BROWSERBASE",
-      useApi: false,
-      toolSurface: "browse_cli",
-      startupProfile: "tool_create_browserbase",
-      trial: 1,
-      config: {
+  it.each([false, true])(
+    "cleans up after SDK errors and distinguishes cancellation (%s)",
+    async (cancel) => {
+      const controller = new AbortController();
+      let cleanupCalled = false;
+      const adapter = {
+        browserSession: {
+          provider: "browserbase" as const,
+          sessionId: "session-a",
+          sessionUrl: "https://www.browserbase.com/sessions/session-a",
+        },
+        cleanup: async (): Promise<void> => {
+          cleanupCalled = true;
+        },
+      };
+      let preparedInput: Record<string, unknown> | undefined;
+      let receivedAdapter: unknown;
+      const harness = defineExternalHarness({
         harness: "fake_external",
+        supportedToolSurfaces: ["browse_cli"],
+        defaultModels: ["openai/x" as AvailableModel],
+        prepareToolAdapter: async (input) => {
+          preparedInput = input as unknown as Record<string, unknown>;
+          return adapter;
+        },
+        runAgent: async (input) => {
+          receivedAdapter = input.toolAdapter;
+          if (cancel) controller.abort();
+          throw new Error("agent failed");
+        },
+      });
+      const input: EvalInput = {
+        name: "agent/webvoyager",
+        modelName: "openai/x" as AvailableModel,
+        params: {
+          id: "wv-1",
+          web: "https://example.com",
+          ques: "Find the checkout button",
+        },
+      };
+      const row: BenchMatrixRow = {
+        harness: "fake_external",
+        task: input.name,
+        category: "agent",
+        taskKind: "agent",
         model: input.modelName,
         environment: "BROWSERBASE",
         useApi: false,
         toolSurface: "browse_cli",
         startupProfile: "tool_create_browserbase",
-      },
-    };
-    const task: DiscoveredTask = {
-      name: input.name,
-      tier: "bench",
-      primaryCategory: "agent",
-      categories: ["agent"],
-      tags: [],
-      filePath: "/tmp/fake.ts",
-      isLegacy: false,
-    };
+        trial: 1,
+        config: {
+          harness: "fake_external",
+          model: input.modelName,
+          environment: "BROWSERBASE",
+          useApi: false,
+          toolSurface: "browse_cli",
+          startupProfile: "tool_create_browserbase",
+        },
+      };
+      const task: DiscoveredTask = {
+        name: input.name,
+        tier: "bench",
+        primaryCategory: "agent",
+        categories: ["agent"],
+        tags: [],
+        filePath: "/tmp/fake.ts",
+        isLegacy: false,
+      };
 
-    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
-    expect(harness.supportsApi).toBe(false);
-    await expect(
-      harness.execute?.({ task, input, row, logger: new EvalLogger(false) }),
-    ).resolves.toMatchObject({
-      _success: false,
-      error: "agent failed",
-      harnessStatus: "sdk_error",
-      browserProvider: "browserbase",
-      browserbaseSessionId: "session-a",
-      sessionUrl: "https://www.browserbase.com/sessions/session-a",
-    });
-    expect(preparedInput).toMatchObject({
-      toolSurface: "browse_cli",
-      startupProfile: "tool_create_browserbase",
-      environment: "BROWSERBASE",
-    });
-    expect(receivedAdapter).toBe(adapter);
-    expect(cleanupCalled).toBe(true);
-  });
+      expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+      expect(harness.supportsApi).toBe(false);
+      await expect(
+        harness.execute?.({
+          task,
+          input,
+          row,
+          logger: new EvalLogger(false),
+          signal: controller.signal,
+        }),
+      ).resolves.toMatchObject({
+        _success: false,
+        error: "agent failed",
+        harnessStatus: "sdk_error",
+        terminationReason: cancel ? "aborted" : "sdk_error",
+        browserProvider: "browserbase",
+        browserbaseSessionId: "session-a",
+        sessionUrl: "https://www.browserbase.com/sessions/session-a",
+      });
+      expect(preparedInput).toMatchObject({
+        toolSurface: "browse_cli",
+        startupProfile: "tool_create_browserbase",
+        environment: "BROWSERBASE",
+      });
+      expect(receivedAdapter).toBe(adapter);
+      expect(cleanupCalled).toBe(true);
+    },
+  );
 
   it("closes the verifier carrier when adapter cleanup rejects", async () => {
     const close = vi.spyOn(V3.prototype, "close").mockResolvedValue(undefined);
