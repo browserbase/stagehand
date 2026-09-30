@@ -22,7 +22,7 @@ mean equal work:
 
 | Harness                                 | Counted unit          |
 | --------------------------------------- | --------------------- |
-| Codex, Cursor, DeepAgents               | Tool calls            |
+| Codex, Cursor, DeepAgents, Antigravity  | Tool calls            |
 | Eve                                     | Successful tool calls |
 | Mastra                                  | Model steps           |
 | fx                                      | Agent steps           |
