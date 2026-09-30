@@ -223,6 +223,28 @@ describe("external harness runner", () => {
     expect(parseEvalResult(`${raw}\nthen I kept going`).success).toBe(false);
   });
 
+  it("parses a trailing report wrapped in a Markdown fence", () => {
+    // fx 0.0.11 + Sonnet 5.5 ends its turn with a fenced report; the closing
+    // fence used to hide it, leaving an empty ```json``` block as the answer.
+    const report =
+      '{"success":true,"summary":"Compared prices.","finalAnswer":"Best Buy lists it at $799.99."}';
+    const raw = `Best Buy lists it at $799.99. Next I'll check Microsoft's site.\n\n\`\`\`json\n${report}\n\`\`\``;
+    expect(parseEvalResult(raw)).toMatchObject({
+      success: true,
+      finalAnswer: "Best Buy lists it at $799.99.",
+    });
+    expect(parseEvalResult(`\`\`\`json\n${report}\n\`\`\``).finalAnswer).toBe(
+      "Best Buy lists it at $799.99.",
+    );
+    // Prose after the fence still means the report is not the conclusion.
+    expect(parseEvalResult(`${raw}\n\nthen I kept going`).success).toBe(false);
+    // Stripping the report must not leave its empty fence behind as "answer".
+    expect(stripEmbeddedEvalReports(`Body text.\n\n\`\`\`json\n${report}\n\`\`\``).trim()).toBe(
+      "Body text.",
+    );
+    expect(stripEmbeddedEvalReports("```\n\n```")).toBe("```\n\n```");
+  });
+
   it("resolves the final answer from the report, else from the last message minus eval report envelopes", () => {
     expect(resolveFinalAnswer({ finalAnswer: "42" }, "ignored")).toBe("42");
     expect(
