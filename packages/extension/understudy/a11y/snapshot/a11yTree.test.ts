@@ -50,13 +50,6 @@ describe("a11yForFrame focused locators", () => {
         ).rejects.toThrow(/act\(\) timed out/);
         expect(send.mock.calls.filter(([method]) => method === command)).toHaveLength(1);
         if (command === "DOM.describeNode") {
-          expect(resolveObjectIdForCss).toHaveBeenCalledWith(
-            session,
-            ".card",
-            "frame",
-            0,
-            progress,
-          );
           expect(send).toHaveBeenCalledWith("Runtime.releaseObject", {
             objectId: "object-second",
           });

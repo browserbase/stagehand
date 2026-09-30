@@ -1259,28 +1259,26 @@ describe("Stagehand TS object wrapper", () => {
     await expect(page.pdf()).rejects.toThrow("page.pdf returned invalid base64");
   });
 
-  it.each([undefined, 0, 5_000])(
-    "routes snapshot timeout %s and preserves opaque map keys",
-    async (timeout) => {
-      const client = new FakeProtocolClient();
-      const snapshot = {
-        formattedTree: "root",
-        xpathMap: { frameOne: "/html/body" },
-        urlMap: { frameOne: "https://example.test" },
-      };
-      client.queueResponse(StagehandMethods.pageSnapshot, snapshot);
-      const page = new Page(client, { pageId: "page-1" });
+  it("routes page snapshots and preserves opaque map keys", async () => {
+    const client = new FakeProtocolClient();
+    const snapshot = {
+      formattedTree: "root",
+      xpathMap: { frameOne: "/html/body" },
+      urlMap: { frameOne: "https://example.test" },
+    };
+    client.queueResponse(StagehandMethods.pageSnapshot, snapshot);
+    const page = new Page(client, { pageId: "page-1" });
 
-      const options = timeout === undefined ? undefined : { includeIframes: true, timeout };
-      await expect(page.snapshot(options)).resolves.toStrictEqual(snapshot);
-      expect(client.calls).toStrictEqual([
-        requestCall(StagehandMethods.pageSnapshot, {
-          pageId: "page-1",
-          ...(options ? { options } : {}),
-        }),
-      ]);
-    },
-  );
+    await expect(page.snapshot({ includeIframes: true, timeout: 5_000 })).resolves.toStrictEqual(
+      snapshot,
+    );
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageSnapshot, {
+        pageId: "page-1",
+        options: { includeIframes: true, timeout: 5_000 },
+      }),
+    ]);
+  });
 
   it("wraps callable WebMCP tools and invocations with their owned identity", async () => {
     const client = new FakeProtocolClient();

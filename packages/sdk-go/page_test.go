@@ -736,24 +736,31 @@ func TestPageReferenceSupportsConcurrentReadersAndWriters(t *testing.T) {
 	group.Wait()
 }
 
-func TestSnapshotForwardsTimeout(t *testing.T) {
+func TestPageSnapshotTimeoutParams(t *testing.T) {
 	t.Parallel()
-	zero, finite := 0.0, 5000.0
-	for _, timeout := range []*float64{nil, &zero, &finite} {
-		var options *PageSnapshotOptions
-		if timeout != nil {
-			options = &PageSnapshotOptions{Timeout: timeout}
-		}
-		snapshot := SnapshotResult{FormattedTree: "root"}
-		rpc := &recordingProtocolClient{responses: map[string]any{"page.snapshot": snapshot}}
-		page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
-		got, err := page.Snapshot(context.Background(), options)
-		if err != nil || !reflect.DeepEqual(got, snapshot) {
-			t.Fatalf("Snapshot() = %#v, %v", got, err)
-		}
-		want := []recordedCall{{method: "page.snapshot", params: PageSnapshotParams{PageID: "page-1", Options: options}}}
-		if !reflect.DeepEqual(rpc.calls, want) {
-			t.Fatalf("calls = %#v, want %#v", rpc.calls, want)
-		}
+	for _, test := range []struct {
+		name    string
+		options *PageSnapshotOptions
+		want    string
+	}{
+		{"omitted", nil, `{"page_id":"page-1"}`},
+		{"zero", &PageSnapshotOptions{Timeout: new(0.0)}, `{"page_id":"page-1","options":{"timeout":0}}`},
+		{"positive", &PageSnapshotOptions{Timeout: new(5000.0)}, `{"page_id":"page-1","options":{"timeout":5000}}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rpc := &recordingProtocolClient{responses: map[string]any{"page.snapshot": SnapshotResult{}}}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			if _, err := page.Snapshot(context.Background(), test.options); err != nil {
+				t.Fatal(err)
+			}
+			if len(rpc.calls) != 1 || rpc.calls[0].method != "page.snapshot" {
+				t.Fatalf("calls = %#v", rpc.calls)
+			}
+			encoded, err := marshalValidatedJSON(rpc.calls[0].params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertRPCJSON(t, encoded, test.want)
+		})
 	}
 }

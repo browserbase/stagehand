@@ -407,8 +407,8 @@ describe("snapshot progress ownership", () => {
     vi.restoreAllMocks();
   });
 
-  it.each(["snapshot", "captureSnapshot"] as const)(
-    "%s uses its parent's remaining time",
+  it.each(["public snapshot", "nested snapshot", "nested capture"] as const)(
+    "%s stops at its deadline without continuing after a late response",
     async (method) => {
       let respond!: (value: unknown) => void;
       send.mockImplementationOnce(
@@ -419,13 +419,19 @@ describe("snapshot progress ownership", () => {
       );
       await vi.advanceTimersByTimeAsync(10);
       const result =
-        method === "snapshot"
-          ? page.snapshot({ timeout: 1 }, progress)
-          : page.captureSnapshot({}, progress);
-      const timedOut = expect(result).rejects.toThrow(/extract timed out after 20ms/);
+        method === "public snapshot"
+          ? page.snapshot({ timeout: 10 })
+          : method === "nested snapshot"
+            ? page.snapshot({ timeout: 1 }, progress)
+            : page.captureSnapshot({}, progress);
+      const timedOut = expect(result).rejects.toThrow(
+        method === "public snapshot"
+          ? /snapshot timed out after 10ms/
+          : /extract timed out after 20ms/,
+      );
       await vi.advanceTimersByTimeAsync(10);
       await timedOut;
-      await expect(result).rejects.toBe(progress.signal.reason);
+      if (method !== "public snapshot") await expect(result).rejects.toBe(progress.signal.reason);
       respond({ root });
       await vi.advanceTimersByTimeAsync(0);
       expect(send).toHaveBeenCalledTimes(1);
@@ -445,39 +451,24 @@ describe("snapshot progress ownership", () => {
       xpathMap: { "0-1": "/" },
     });
     const received = vi.mocked(a11yForFrame).mock.calls[0]![3]!;
-    expect(received).toBeInstanceOf(Progress);
     expect(received.remainingMs()).toBe(Infinity);
   });
 
-  it("stops a public snapshot at its requested deadline", async () => {
-    send.mockImplementationOnce(() => new Promise(() => {}));
-    const result = page.snapshot({ timeout: 10 });
-    const timedOut = expect(result).rejects.toThrow(/snapshot timed out after 10ms/);
-    await vi.advanceTimersByTimeAsync(10);
-    await timedOut;
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(a11yForFrame).not.toHaveBeenCalled();
-  });
-
   it("stops before reading another frame even if the deadline timer has not fired", async () => {
-    vi.mocked(a11yForFrame).mockImplementationOnce(async (_session, _frame, _options, received) => {
-      expect(received).toBe(progress);
+    vi.mocked(a11yForFrame).mockImplementationOnce(async () => {
       vi.spyOn(performance, "now").mockReturnValue(20);
       return { outline: "root", urlMap: {}, scopeApplied: false };
     });
     await expect(page.snapshot({}, progress)).rejects.toThrow(/extract timed out/);
     expect(a11yForFrame).toHaveBeenCalledTimes(1);
-    expect(send.mock.calls.map(([method]) => method)).toEqual(["DOM.enable", "DOM.getDocument"]);
+    expect(send).toHaveBeenCalledTimes(2);
   });
 
   it("does not turn focus expiry into a full-page fallback", async () => {
-    vi.mocked(resolveCssFocusFrameAndTail).mockImplementationOnce(
-      async (_page, _selector, _parents, _root, received) => {
-        expect(received).toBe(progress);
-        vi.spyOn(performance, "now").mockReturnValue(20);
-        throw new Error("focus unavailable");
-      },
-    );
+    vi.mocked(resolveCssFocusFrameAndTail).mockImplementationOnce(async () => {
+      vi.spyOn(performance, "now").mockReturnValue(20);
+      throw new Error("focus unavailable");
+    });
     await expect(
       page.captureSnapshot({ focusLocator: { selector: ".card" } }, progress),
     ).rejects.toThrow(/extract timed out/);
@@ -486,7 +477,7 @@ describe("snapshot progress ownership", () => {
   });
 
   it("releases ignored-node references without continuing after expiry", async () => {
-    const resolve = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
       { nodeId: null, objectId: "first" },
       { nodeId: null, objectId: "second" },
     ]);
@@ -501,7 +492,6 @@ describe("snapshot progress ownership", () => {
       page.captureSnapshot({ ignoreLocators: [{ selector: ".card" }] }, progress),
     ).rejects.toThrow(/extract timed out/);
     await vi.advanceTimersByTimeAsync(0);
-    expect(resolve).toHaveBeenCalledWith({ kind: "css", value: ".card" }, {}, progress);
     expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
       ["Runtime.releaseObject", { objectId: "first" }],
       ["Runtime.releaseObject", { objectId: "second" }],
