@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
+import { type Progress, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
@@ -1506,7 +1507,10 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  async screenshot(options?: UnderstudyScreenshotOptions): Promise<Uint8Array> {
+  async screenshot(
+    options?: UnderstudyScreenshotOptions,
+    parentProgress?: Progress,
+  ): Promise<Uint8Array> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
@@ -1532,7 +1536,8 @@ export class Page {
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
-    const exec = async (signal: AbortSignal): Promise<Uint8Array> => {
+    const exec = async (progress: Progress): Promise<Uint8Array> => {
+      const signal = progress.signal;
       try {
         const captureScale = await waitForScreenshot(
           computeScreenshotScale(this, scaleMode),
@@ -1577,7 +1582,7 @@ export class Page {
                 scale: captureScale,
                 signal,
               }),
-            undefined,
+            progress,
           ),
           signal,
         );
@@ -1586,11 +1591,14 @@ export class Page {
       }
     };
 
-    return await withScreenshotLock(this, exec, opts.timeout);
+    return await runWithProgress(
+      parentProgress ?? { name: "screenshot", timeout: opts.timeout ?? 0 },
+      (progress) => withScreenshotLock(this, () => exec(progress), progress),
+    );
   }
 
   /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
-  async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
+  async pdf(options?: PagePDFOptions, parentProgress?: Progress): Promise<PagePDFResult> {
     const {
       timeout = 30_000,
       width,
@@ -1600,28 +1608,30 @@ export class Page {
       outline = false,
       ...printOptions
     } = options ?? {};
-    return await withScreenshotLock(
-      this,
-      async () => {
-        const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
-          "Page.printToPDF",
-          {
-            ...printOptions,
-            paperWidth: width,
-            paperHeight: height,
-            marginTop: margin?.top ?? 0,
-            marginBottom: margin?.bottom ?? 0,
-            marginLeft: margin?.left ?? 0,
-            marginRight: margin?.right ?? 0,
-            generateTaggedPDF: tagged,
-            generateDocumentOutline: outline,
-            transferMode: "ReturnAsBase64",
-          },
-        );
-        return { data };
-      },
-      timeout,
-      "pdf",
+    return await runWithProgress(parentProgress ?? { name: "pdf", timeout }, (progress) =>
+      withScreenshotLock(
+        this,
+        async () => {
+          // Keep the print promise in the queue even if progress stops the caller's wait.
+          const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
+            "Page.printToPDF",
+            {
+              ...printOptions,
+              paperWidth: width,
+              paperHeight: height,
+              marginTop: margin?.top ?? 0,
+              marginBottom: margin?.bottom ?? 0,
+              marginLeft: margin?.left ?? 0,
+              marginRight: margin?.right ?? 0,
+              generateTaggedPDF: tagged,
+              generateDocumentOutline: outline,
+              transferMode: "ReturnAsBase64",
+            },
+          );
+          return { data };
+        },
+        progress,
+      ),
     );
   }
 

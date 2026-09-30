@@ -1,4 +1,4 @@
-import { TimeoutError } from "../errors.js";
+import type { Progress } from "./progress.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { DeepLocatorDelegate } from "./deepLocator.js";
@@ -16,40 +16,32 @@ const screenshotQueues = new WeakMap<object, { tail: Promise<void>; blocked: Abo
 export async function withScreenshotLock<T>(
   owner: object,
   capture: (signal: AbortSignal) => Promise<T>,
-  timeout: number | undefined,
-  operation = "screenshot",
+  progress: Progress,
 ): Promise<T> {
+  progress.throwIfStopped();
   const queue = screenshotQueues.get(owner) ?? {
     tail: Promise.resolve(),
     blocked: new AbortController(),
   };
   // Keep late setup/cleanup isolated, but never make callers wait indefinitely for it.
   queue.blocked.signal.throwIfAborted();
-  const controller = new AbortController();
   let started = false;
-  const timer =
-    typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
-      ? setTimeout(
-          () => {
-            const error = new TimeoutError(operation, timeout);
-            controller.abort(error);
-            if (started) {
-              queue.blocked.abort(
-                new Error(`A previous capture is still recovering: ${error.message}`, {
-                  cause: error,
-                }),
-              );
-            }
-          },
-          Math.min(timeout, 2_147_483_647),
-        )
-      : undefined;
+  const onAbort = () => {
+    if (started) {
+      const error = progress.signal.reason as Error;
+      queue.blocked.abort(
+        new Error(`A previous capture is still recovering: ${error.message}`, { cause: error }),
+      );
+    }
+  };
+  progress.signal.addEventListener("abort", onAbort, { once: true });
   const pending = queue.tail.then(() => {
     queue.blocked.signal.throwIfAborted();
-    controller.signal.throwIfAborted();
+    progress.throwIfStopped();
     started = true;
-    return capture(controller.signal);
+    return capture(progress.signal);
   });
+  // The queue follows the capture itself, not the caller's bounded wait.
   const released = pending.then(
     () => {},
     () => {},
@@ -57,12 +49,11 @@ export async function withScreenshotLock<T>(
   queue.tail = released;
   screenshotQueues.set(owner, queue);
   try {
-    return await waitForScreenshot(
+    return await progress.run(progress.name, () =>
       waitForScreenshot(pending, queue.blocked.signal),
-      controller.signal,
     );
   } finally {
-    if (timer !== undefined) clearTimeout(timer);
+    progress.signal.removeEventListener("abort", onAbort);
     void released.then(() => {
       if (queue.tail === released) screenshotQueues.delete(owner);
     });

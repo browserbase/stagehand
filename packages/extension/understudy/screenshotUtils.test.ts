@@ -3,8 +3,9 @@ import { Page } from "./page.js";
 import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
 import { StagehandLogger } from "../logger.js";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { withScreenshotLock } from "./screenshotUtils.js";
+import { Progress } from "./progress.js";
 
 function connection() {
   return { send: vi.fn(), on: vi.fn(), off: vi.fn(), close: vi.fn(), id: null };
@@ -19,12 +20,23 @@ function captureGate() {
 }
 
 describe("screenshot serialization", () => {
+  const operations: Progress[] = [];
+  const progress = (timeout = 0) => {
+    const operation = new Progress("screenshot", timeout);
+    operations.push(operation);
+    return operation;
+  };
+  afterEach(() => {
+    for (const operation of operations.splice(0)) operation.dispose();
+    vi.restoreAllMocks();
+  });
+
   it("keeps another page's capture queued until the first finishes", async () => {
     const browser = connection();
     const first = captureGate();
     const nextCapture = vi.fn(async () => new Uint8Array([2]));
-    const a = withScreenshotLock(browser, () => first.pending, undefined);
-    const b = withScreenshotLock(browser, nextCapture, undefined);
+    const a = withScreenshotLock(browser, () => first.pending, progress());
+    const b = withScreenshotLock(browser, nextCapture, progress());
     await Promise.resolve();
     expect(nextCapture).not.toHaveBeenCalled();
     first.release();
@@ -34,10 +46,10 @@ describe("screenshot serialization", () => {
 
   it("does not block a different browser", async () => {
     const first = captureGate();
-    const a = withScreenshotLock(connection(), () => first.pending, undefined);
+    const a = withScreenshotLock(connection(), () => first.pending, progress());
     try {
       await expect(
-        withScreenshotLock(connection(), async () => new Uint8Array([2]), undefined),
+        withScreenshotLock(connection(), async () => new Uint8Array([2]), progress()),
       ).resolves.toEqual(new Uint8Array([2]));
     } finally {
       first.release();
@@ -52,9 +64,9 @@ describe("screenshot serialization", () => {
       async () => {
         throw new Error("capture failed");
       },
-      undefined,
+      progress(),
     );
-    const b = withScreenshotLock(browser, async () => new Uint8Array([2]), undefined);
+    const b = withScreenshotLock(browser, async () => new Uint8Array([2]), progress());
     await expect(a).rejects.toThrow("capture failed");
     await expect(b).resolves.toEqual(new Uint8Array([2]));
   });
@@ -88,10 +100,10 @@ describe("screenshot serialization", () => {
           await cleanup.pending;
         }
       },
-      10,
+      progress(10),
     );
     const nextCapture = vi.fn(async () => new Uint8Array([2]));
-    const second = withScreenshotLock(browser, nextCapture, undefined);
+    const second = withScreenshotLock(browser, nextCapture, progress());
     const timedOut = expect(first).rejects.toThrow(/screenshot.*timed out/i);
     const blocked = expect(second).rejects.toThrow(/still recovering/);
     try {
@@ -103,7 +115,7 @@ describe("screenshot serialization", () => {
       await blocked;
       cleanup.release();
       await vi.advanceTimersByTimeAsync(0);
-      await expect(withScreenshotLock(browser, nextCapture, undefined)).resolves.toEqual(
+      await expect(withScreenshotLock(browser, nextCapture, progress())).resolves.toEqual(
         new Uint8Array([2]),
       );
       respond({ data: "AQ==" });
@@ -182,20 +194,28 @@ describe("screenshot serialization", () => {
     },
   );
 
-  it("does not activate a queued page after its timeout", async () => {
+  it.each(["timer", "clock"])("does not start expired queued work (%s)", async (expiry) => {
     vi.useFakeTimers();
     const browser = connection();
     const first = captureGate();
-    const a = withScreenshotLock(browser, () => first.pending, undefined);
+    const a = withScreenshotLock(browser, () => first.pending, progress());
     const nextCapture = vi.fn(async () => new Uint8Array([2]));
-    const b = withScreenshotLock(browser, nextCapture, 10);
+    const queuedProgress = progress(10);
+    const b = withScreenshotLock(browser, nextCapture, queuedProgress);
     const timedOut = expect(b).rejects.toThrow(/screenshot.*timed out/i);
     try {
-      await vi.advanceTimersByTimeAsync(10);
-      await timedOut;
+      if (expiry === "timer") {
+        await vi.advanceTimersByTimeAsync(10);
+        await timedOut;
+      } else {
+        // Advance the clock without delivering the deadline timer.
+        vi.spyOn(performance, "now").mockReturnValue(10);
+        expect(queuedProgress.signal.aborted).toBe(false);
+      }
       first.release();
       await a;
-      await withScreenshotLock(browser, async () => new Uint8Array([3]), undefined);
+      await timedOut;
+      await withScreenshotLock(browser, async () => new Uint8Array([3]), progress());
       expect(nextCapture).not.toHaveBeenCalled();
     } finally {
       first.release();
