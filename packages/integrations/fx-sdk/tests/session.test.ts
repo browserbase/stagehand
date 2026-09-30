@@ -105,7 +105,7 @@ describe("fx CLI session", () => {
       }),
     });
 
-    expect(captured?.args).toEqual(["ask", "--json", "--auto"]);
+    expect(captured?.args).toEqual(["ask", "--json", "--auto", "--model", "openai/gpt-5.6-sol"]);
     expect(captured?.stdin).toBe("do the task");
     expect(captured?.env).toMatchObject({
       HOME: "/fake/home",
