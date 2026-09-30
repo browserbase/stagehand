@@ -13,11 +13,12 @@ export type ScreenshotCleanup = () => Promise<void> | void;
 const screenshotQueues = new WeakMap<object, { tail: Promise<void>; blocked: AbortController }>();
 
 /** Serialize page mutations, or the browser-wide activation/capture critical section. */
-export async function withScreenshotLock(
+export async function withScreenshotLock<T>(
   owner: object,
-  capture: (signal: AbortSignal) => Promise<Uint8Array>,
+  capture: (signal: AbortSignal) => Promise<T>,
   timeout: number | undefined,
-): Promise<Uint8Array> {
+  operation = "screenshot",
+): Promise<T> {
   const queue = screenshotQueues.get(owner) ?? {
     tail: Promise.resolve(),
     blocked: new AbortController(),
@@ -30,10 +31,13 @@ export async function withScreenshotLock(
     typeof timeout === "number" && Number.isFinite(timeout) && timeout > 0
       ? setTimeout(
           () => {
-            controller.abort(new TimeoutError("screenshot", timeout));
+            const error = new TimeoutError(operation, timeout);
+            controller.abort(error);
             if (started) {
               queue.blocked.abort(
-                new Error("screenshot: a previous timed-out capture is still recovering"),
+                new Error(`A previous capture is still recovering: ${error.message}`, {
+                  cause: error,
+                }),
               );
             }
           },
