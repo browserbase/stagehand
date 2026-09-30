@@ -135,6 +135,31 @@ describe("fx 0.0.11 session layout", () => {
     expect(result.status).toBe("sdk_error");
   });
 
+  it("preserves screenshot artifacts larger than the text output limit", async () => {
+    const home = await homeWithSession("in-flight");
+    const artifacts = path.join(home, ".fx", "sessions", "S3ss10nId", "tool-results");
+    const imageFile = (await fsp.readdir(artifacts)).find((name) =>
+      name.startsWith("image-result-"),
+    )!;
+    const data = "a".repeat(1024 * 1024);
+    await fsp.writeFile(
+      path.join(artifacts, imageFile),
+      JSON.stringify([{ type: "image", mimeType: "image/png", data }]),
+    );
+    const result = await runFxSession({
+      prompt: "task",
+      cwd: home,
+      home,
+      env: {},
+      logger,
+      runProcess: async () => ({ stdout: "", stderr: "killed", exitCode: null, signal: "SIGKILL" }),
+    });
+    const screenshot = toolSteps(result.events)
+      .flatMap((step) => step.tool_results)
+      .find((r) => r.tool_name === "mcp_stagehand_screenshot");
+    expect(JSON.parse(screenshot!.output!).result.content[1].data).toBe(data);
+  });
+
   it("tails recovery.json for live observations while fx runs", async () => {
     const home = await homeWithSession("in-flight");
     let release: (() => void) | undefined;
