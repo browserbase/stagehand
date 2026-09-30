@@ -74,7 +74,7 @@ describe("experimentalBatch client deadline", () => {
         expect(typed.clientTimeout).toBe(60_000 + CALLBACK_BATCH_CLIENT_GRACE_MS);
         expect(typed.cause).toBeInstanceOf(RPCResponseTimeoutError);
         expect(typed.cause).toMatchObject({
-          message: `RPC response timed out: ${StagehandMethods.stagehandCallbackBatch.name} after 75000ms`,
+          message: `RPC response timed out after 75000ms: ${StagehandMethods.stagehandCallbackBatch.name}`,
           method: StagehandMethods.stagehandCallbackBatch.name,
           timeoutMs: 75_000,
         });
