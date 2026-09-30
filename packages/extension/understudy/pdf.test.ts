@@ -136,6 +136,39 @@ describe("Page.pdf", () => {
     await expect(pdf).resolves.toEqual({ data: "JVBERi0xLjcK" });
   });
 
+  it("keeps printing blocked until a timed-out screenshot finishes and restores styles", async () => {
+    vi.useFakeTimers();
+    let finishCapture!: (result: { data: string }) => void;
+    const capture = new Promise<{ data: string }>((resolve) => {
+      finishCapture = resolve;
+    });
+    send.mockImplementation(async (method) =>
+      method === "Page.captureScreenshot" ? capture : { data: "AQ==" },
+    );
+    vi.spyOn(page, "frames").mockReturnValue([page.mainFrame()]);
+    const evaluate = vi.spyOn(page.mainFrame(), "evaluate").mockResolvedValue(undefined);
+    const screenshot = page.screenshot({
+      timeout: 10,
+      caret: "initial",
+      style: "body { color: red; }",
+    });
+    const timedOut = expect(screenshot).rejects.toThrow(/screenshot.*timed out/i);
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      await timedOut;
+      expect(evaluate).toHaveBeenCalledTimes(1);
+      await expect(page.pdf()).rejects.toThrow(/still recovering/);
+      expect(send.mock.calls.some(([method]) => method === "Page.printToPDF")).toBe(false);
+      finishCapture({ data: "AQ==" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(evaluate).toHaveBeenCalledTimes(2);
+      await expect(page.pdf()).resolves.toEqual({ data: "AQ==" });
+    } finally {
+      finishCapture({ data: "AQ==" });
+      await vi.advanceTimersByTimeAsync(0);
+    }
+  });
+
   it("blocks screenshot setup while printing and releases the lock on failure", async () => {
     let rejectPrint!: (error: Error) => void;
     const print = new Promise<never>((_, reject) => {

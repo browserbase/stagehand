@@ -1569,22 +1569,21 @@ export class Page {
         }
 
         // Setup and cleanup mutate this page only. Hold the browser-wide lock solely
-        // while activating and capturing, so a stalled page cannot block other tabs.
-        return await waitForScreenshot(
-          withScreenshotLock(
-            this.conn,
-            () =>
-              this.mainFrameWrapper.screenshot({
+        // while activating and capturing, so stalled preparation cannot block other tabs.
+        return await withScreenshotLock(
+          this.conn,
+          () =>
+            this.mainFrameWrapper.screenshot(
+              {
                 fullPage: opts.fullPage,
                 clip,
                 type,
                 quality: type === "jpeg" ? opts.quality : undefined,
                 scale: captureScale,
-                signal,
-              }),
-            progress,
-          ),
-          signal,
+              },
+              progress,
+            ),
+          progress,
         );
       } finally {
         await runScreenshotCleanups(cleanupTasks);

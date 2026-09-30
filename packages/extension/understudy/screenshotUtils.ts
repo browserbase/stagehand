@@ -15,7 +15,7 @@ const screenshotQueues = new WeakMap<object, { tail: Promise<void>; blocked: Abo
 /** Serialize page mutations, or the browser-wide activation/capture critical section. */
 export async function withScreenshotLock<T>(
   owner: object,
-  capture: (signal: AbortSignal) => Promise<T>,
+  capture: () => Promise<T>,
   progress: Progress,
 ): Promise<T> {
   progress.throwIfStopped();
@@ -35,23 +35,32 @@ export async function withScreenshotLock<T>(
     }
   };
   progress.signal.addEventListener("abort", onAbort, { once: true });
-  const pending = queue.tail.then(() => {
+  const previous = queue.tail;
+  const pending = waitForScreenshot(
+    previous,
+    AbortSignal.any([queue.blocked.signal, progress.signal]),
+  ).then(async () => {
     queue.blocked.signal.throwIfAborted();
     progress.throwIfStopped();
     started = true;
-    return capture(progress.signal);
+    try {
+      return await capture();
+    } finally {
+      started = false;
+    }
   });
-  // The queue follows the capture itself, not the caller's bounded wait.
-  const released = pending.then(
+  const settled = pending.then(
     () => {},
     () => {},
   );
+  // A queued request can fail before the active capture finishes. Retain both
+  // promises so that failure cannot release the active capture's lock.
+  const released = Promise.all([previous, settled]).then(() => {});
   queue.tail = released;
   screenshotQueues.set(owner, queue);
   try {
-    return await progress.run(progress.name, () =>
-      waitForScreenshot(pending, queue.blocked.signal),
-    );
+    // The page's operation bounds its caller; nested locks await actual recovery.
+    return await pending;
   } finally {
     progress.signal.removeEventListener("abort", onAbort);
     void released.then(() => {
@@ -60,7 +69,7 @@ export async function withScreenshotLock<T>(
   }
 }
 
-/** Stop waiting for a stalled CDP capture; its eventual response cannot resume cleanup. */
+/** Bound a wait by an operation or queue recovery signal. */
 export async function waitForScreenshot<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return await pending;
   return await new Promise<T>((resolve, reject) => {
