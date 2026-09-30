@@ -37,6 +37,34 @@ const doubleClickFixtureUrl = `data:text/html,${encodeURIComponent(`<!DOCTYPE ht
   </body>
 </html>`)}`;
 
+const reactiveOptionFixtureUrl = `data:text/html,${encodeURIComponent(`<!DOCTYPE html>
+<html>
+  <body>
+    <div id="panel" data-open="true">
+      <a id="option" role="button" href="#next" aria-pressed="false">Option A</a>
+    </div>
+    <div id="step" data-value="25">25</div>
+    <script>
+      const panel = document.getElementById("panel");
+      const option = document.getElementById("option");
+      const step = document.getElementById("step");
+
+      option.addEventListener("pointerover", () => {
+        queueMicrotask(() => option.dataset.hoverReady = "true");
+      });
+
+      option.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (option.dataset.hoverReady !== "true") return;
+        option.setAttribute("aria-pressed", "true");
+        panel.dataset.open = "false";
+        step.dataset.value = String(Number(step.dataset.value) + 1);
+        step.textContent = step.dataset.value;
+      });
+    </script>
+  </body>
+</html>`)}`;
+
 describe("Locator and Page click methods", () => {
   let stagehand: Stagehand;
 
@@ -67,6 +95,38 @@ describe("Locator and Page click methods", () => {
     // Verify count incremented by 1
     const newCount = await countDisplay.inputValue();
     expect(newCount).toBe("1");
+  });
+
+  it("locator.click() commits a reactive role=button selection", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(reactiveOptionFixtureUrl);
+    await page.waitForLoadState("domcontentloaded");
+
+    const option = page.locator("xpath=//*[@role='button'][normalize-space(.)='Option A']");
+    const readState = () =>
+      page.evaluate(() => ({
+        panelOpen: document.getElementById("panel")?.getAttribute("data-open"),
+        step: document.getElementById("step")?.getAttribute("data-value"),
+        rowClass: document.getElementById("option")?.getAttribute("class") ?? "",
+        ariaPressed: document.getElementById("option")?.getAttribute("aria-pressed"),
+      }));
+
+    await expect.poll(() => option.count()).toBe(1);
+    await expect.poll(readState).toEqual({
+      panelOpen: "true",
+      step: "25",
+      rowClass: "",
+      ariaPressed: "false",
+    });
+
+    await option.click();
+
+    await expect.poll(readState).toEqual({
+      panelOpen: "false",
+      step: "26",
+      rowClass: "",
+      ariaPressed: "true",
+    });
   });
 
   it("locator.click() with clickCount: 2 performs double-click", async () => {
