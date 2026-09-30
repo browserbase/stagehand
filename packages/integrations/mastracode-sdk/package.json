@@ -1,0 +1,37 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-mastracode-sdk",
+  "version": "4.0.1",
+  "private": true,
+  "description": "mastracode (Mastra's coding-agent CLI) harness adapter for Stagehand integrations",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./driver": {
+      "import": "./dist/driver.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/mastracode-sdk/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/mastracode-sdk/tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "mastracode": "0.41.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

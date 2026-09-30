@@ -11,6 +11,7 @@ import {
   parseBenchHarness,
   listBenchHarnessesForToolSurface,
   mastraHarness,
+  mastracodeHarness,
   piHarness,
   cursorHarness,
   fxHarness,
@@ -19,6 +20,7 @@ import {
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
 import { MASTRA_TOOL_SURFACES } from "../../framework/mastraToolAdapter.js";
+import { MASTRACODE_TOOL_SURFACES } from "../../framework/mastracodeToolAdapter.js";
 import { PI_TOOL_SURFACES } from "../../framework/piToolAdapter.js";
 import { CURSOR_TOOL_SURFACES } from "../../framework/cursorToolAdapter.js";
 import { defaultModelsEnvKey } from "../../framework/benchPlanner.js";
@@ -34,6 +36,7 @@ describe("bench harness registry", () => {
       "claude_code",
       "codex",
       "mastra",
+      "mastracode",
       "pi",
       "eve",
       "deepagents",
@@ -48,7 +51,7 @@ describe("bench harness registry", () => {
     expect(parseBenchHarness(undefined)).toBe("stagehand");
     expect(parseBenchHarness("codex")).toBe("codex");
     expect(() => parseBenchHarness("nope")).toThrow(
-      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, pi, eve, deepagents, fx, cursor, claude_cua, gemini_cua\./,
+      /Unknown harness "nope"\. Supported: stagehand, claude_code, codex, mastra, mastracode, pi, eve, deepagents, fx, cursor, claude_cua, gemini_cua\./,
     );
   });
 
@@ -93,6 +96,26 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces[0]).toBe("stagehand_facade");
     expect(listBenchHarnessesForToolSurface("stagehand_facade")).toContain("mastra");
     expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+  });
+
+  it("registers mastracode as a concrete executable harness", () => {
+    const harness = getBenchHarness("mastracode");
+
+    expect(harness).toBe(mastracodeHarness);
+    expect(harness).not.toBe(mastraHarness);
+    expect(parseBenchHarness("mastracode")).toBe("mastracode");
+    expect(isExecutableBenchHarness("mastracode")).toBe(true);
+    expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
+    expect(harness.supportsApi).toBe(false);
+    expect(harness.execute).toBeDefined();
+    expect(harness.start).toBeUndefined();
+    // Facade only: the contract's runner-owned surface is the sole MCP server.
+    expect(harness.supportedToolSurfaces).toEqual(MASTRACODE_TOOL_SURFACES);
+    expect(harness.supportedToolSurfaces).toEqual(["stagehand_facade"]);
+    expect(listBenchHarnessesForToolSurface("stagehand_facade")).toContain("mastracode");
+    expect(listBenchHarnessesForToolSurface("playwright_mcp")).not.toContain("mastracode");
+    expect(harness.defaultModels).toEqual(["anthropic/claude-sonnet-4-6"]);
+    expect(defaultModelsEnvKey("mastracode")).toBe("EVAL_MASTRACODE_MODELS");
   });
 
   it("registers pi as a concrete executable harness", () => {

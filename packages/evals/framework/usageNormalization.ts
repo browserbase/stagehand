@@ -60,6 +60,8 @@ export interface NormalizeUsageInput {
  * | claude_code | result message `usage.input_tokens` + separate `cache_read/creation_input_tokens`       |
  * | codex       | `turn.completed` usage: `cached_input_tokens` ⊂ `input_tokens`, reasoning ⊂ output      |
  * | mastra      | @mastra/core 1.57 on ai@7: `inputTokens` total, `cachedInputTokens` subset               |
+ * | mastracode  | per-step `usage_update` (@mastra/core 1.68, ai@6 V3 usage): `promptTokens` = input.total   |
+ * |             | incl. cache read + write; `cachedInputTokens` / `cacheCreationInputTokens` are subsets   |
  * | eve         | eve 0.29 reads AI SDK 7 `usage.inputTokens` + `inputTokenDetails.cacheReadTokens`        |
  * | deepagents  | LangChain `usage_metadata.input_tokens` total, `input_token_details.cache_read` subset   |
  * | fx          | `usage-v2.json`: cached input is a subset; reasoning_tokens is separate from output_tokens    |
@@ -72,6 +74,7 @@ const HARNESS_CONVENTIONS: Readonly<Record<string, UsageConvention>> = {
   claude_code: "anthropic_cache_separate",
   codex: "openai_cached_subset",
   mastra: "openai_cached_subset",
+  mastracode: "openai_cached_subset",
   eve: "openai_cached_subset",
   deepagents: "openai_cached_subset",
   fx: "openai_cached_subset",

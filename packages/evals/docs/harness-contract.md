@@ -24,11 +24,68 @@ mean equal work:
 | --------------------------------------- | --------------------- |
 | Codex, Cursor, DeepAgents               | Tool calls            |
 | Eve                                     | Successful tool calls |
-| Mastra                                  | Model steps           |
+| Mastra, mastracode                      | Model steps           |
 | fx                                      | Agent steps           |
 | Claude Code, Pi, Claude CUA, Gemini CUA | Turns                 |
 
 These are execution limits, not comparable measures of model efficiency.
+
+## mastracode (`--harness mastracode`)
+
+`mastracode` is Mastra's coding-agent CLI (npm `mastracode`, pinned in
+`packages/integrations/mastracode-sdk`), not the Mastra agent SDK behind `mastra`.
+Each task spawns a driver (`mastracode-sdk/dist/driver.mjs`) in its own Node process
+group. The driver calls mastracode's own SDK (`createMastraCode` + `runMC`, the path
+`mastracode --prompt` takes). The runner writes one request to stdin
+(`MastracodeDriverRequest`: prompt, `hostInstructions`, model id, step budget,
+timeout, MCP servers, allowed tool names, per-task directories). The driver answers
+with JSONL events on stdout: `ready`, `request`, `request_usage`, `tool_start`,
+`tool_end`, `step`, `violation`, then one `done`.
+
+- **Facade only.** The Stagehand facade is the only MCP server. One eval mode
+  allowlists exactly `stagehand_run`, `stagehand_snapshot`, and
+  `stagehand_screenshot` (`availableTools`, enforced through AI SDK `activeTools`).
+  This also hides mastracode's workspace and controller tools. `disabledTools`
+  removes the auto-added provider `web_search` and the workflow, inbox, and
+  access tools. Subagents, hooks, plugins, GitHub signals, and interval handlers
+  are off.
+- **Request guard.** The driver's fetch spy inspects every model request. If a
+  request offers any other tool, the driver blocks it, emits `violation`, and the
+  run records `harnessStatus: sdk_error` with `harnessStopReason:
+tool_isolation_violation`.
+- **Isolation.** The workspace, HOME, and `MASTRA_APP_DATA_DIR` are fresh empty
+  temp directories. The driver env is an allowlist: provider keys, base URLs,
+  proxies, and `NODE_OPTIONS`. `MASTRA_GATEWAY_API_KEY`, `TAVILY_API_KEY`,
+  `PARALLEL_API_KEY`, and `MASTRA_DB_*` never reach it. The MCP child gets the fx
+  child-env allowlist and no provider keys.
+- **Prompt.** The eval policy goes in as `hostInstructions`, appended to
+  mastracode's system prompt (`systemPromptMode: native`). mastracode's
+  coding-agent base prompt and its observational memory stay in place. They
+  cannot be replaced, and the task-state signal requires memory. Both are a
+  confound against other harnesses.
+- **Caching.** Only the direct `anthropic/*` route (with `ANTHROPIC_API_KEY`) gets
+  prompt caching: `promptCacheMiddleware` marks the last system message and the
+  last message (2 breakpoints per request, recorded as
+  `mastracode_cache_breakpoints_per_request`). `openai/*` relies on OpenAI's
+  automatic caching. Other routes (models.dev router, Mastra gateway) get no
+  breakpoints. They are rejected unless `EVAL_MASTRACODE_ALLOW_UNCACHED_ROUTES=1`,
+  and then recorded as `cacheRoute: none`.
+- **Steps and usage.** One step is one `usage_update` (a model step). The driver
+  aborts after the budget-th step that called tools, and the run records
+  `max_turns`. Usage is the sum of every step. `promptTokens` is the whole prompt,
+  and cache read and cache write are subsets (`openai_cached_subset`). A bucket no
+  step reported stays missing. Cost is computed at list price from the reported
+  buckets, cache writes included.
+- **Side calls.** Tool-less calls mastracode makes on its own (thread titles,
+  observational-memory observer and reflector) emit no `usage_update`. The driver
+  reads their usage from the raw responses and reports it as
+  `mastracode_side_*` metrics. `cost_usd` excludes these calls.
+
+Knobs: `EVAL_MASTRACODE_MAX_STEPS`, `EVAL_MASTRACODE_MODELS`,
+`EVAL_MASTRACODE_THINKING_LEVEL` (`off|low|medium|high|xhigh|max`; unset keeps
+mastracode's default), `EVAL_MASTRACODE_TIMEOUT_MS` (driver wall clock, default 1 h;
+the runner hard-kills 30 s later), `EVAL_MASTRACODE_DRIVER_PATH`, and
+`EVAL_MASTRACODE_ALLOW_UNCACHED_ROUTES`.
 
 ## Session and result records
 

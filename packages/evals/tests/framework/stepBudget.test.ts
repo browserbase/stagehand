@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readDeepagentsRecursionLimit } from "../../framework/deepagentsRunner.js";
+import { readMastracodeMaxSteps } from "../../framework/mastracodeRunner.js";
 import { DATASET_STEP_BUDGETS, resolveStepBudget } from "../../framework/stepBudget.js";
 
 describe("resolveStepBudget", () => {
@@ -54,6 +55,19 @@ describe("resolveStepBudget", () => {
         env: {},
       }),
     ).toBe(50);
+  });
+
+  it("resolves mastracode's model-step budget with the shared precedence", () => {
+    expect(readMastracodeMaxSteps("hardbenchmark", {})).toBe(100);
+    expect(readMastracodeMaxSteps("webvoyager", {})).toBe(50);
+    expect(readMastracodeMaxSteps("hardbenchmark", { AGENT_EVAL_MAX_STEPS: "34" })).toBe(34);
+    expect(
+      readMastracodeMaxSteps("hardbenchmark", {
+        EVAL_MASTRACODE_MAX_STEPS: "8",
+        AGENT_EVAL_MAX_STEPS: "34",
+      }),
+    ).toBe(8);
+    expect(readMastracodeMaxSteps("hardbenchmark", { EVAL_MASTRACODE_MAX_STEPS: "0" })).toBe(100);
   });
 
   it("ignores non-positive and non-numeric env values", () => {
