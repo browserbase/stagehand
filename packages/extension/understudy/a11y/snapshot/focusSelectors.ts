@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
+import { type Progress, runLocatorStep } from "../../progress.js";
 import { Page } from "../../page.js";
 import { executionContexts } from "../../executionContextRegistry.js";
 import { buildLocatorInvocation } from "../../locatorInvocation.js";
@@ -63,7 +64,9 @@ export async function resolveFocusFrameAndTail(
   absoluteXPath: string,
   parentByFrame: FrameParentIndex,
   rootId: string,
+  progress?: Progress,
 ): Promise<ResolvedFocusFrame> {
+  progress?.throwIfStopped();
   const steps = parseXPathToSteps(absoluteXPath);
   let ctxFrameId = rootId;
   let buf: Step[] = [];
@@ -73,29 +76,40 @@ export async function resolveFocusFrameAndTail(
     if (!buf.length) return;
     const selectorForIframe = buildXPathFromSteps(buf);
     const parentSess = page.getSessionForFrame(ctxFrameId);
-    const objectId = await resolveObjectIdForXPath(parentSess, selectorForIframe, ctxFrameId);
+    const objectId = await resolveObjectIdForXPath(
+      parentSess,
+      selectorForIframe,
+      ctxFrameId,
+      0,
+      progress,
+    );
     if (!objectId) {
       throw iframeResolutionError(selectorForIframe, "Failed to resolve iframe element by XPath");
     }
 
     try {
-      await parentSess.send("DOM.enable").catch(() => {});
-      const desc = await parentSess.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
-        objectId,
-      });
+      await runLocatorStep(progress, "enabling DOM", () =>
+        parentSess.send("DOM.enable").catch(() => {}),
+      );
+      const desc = await runLocatorStep(progress, "reading snapshot iframe", () =>
+        parentSess.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
+      );
       const iframeBackendNodeId = desc.node.backendNodeId;
 
       let childFrameId: string | undefined;
       for (const fid of listChildrenOf(parentByFrame, ctxFrameId)) {
         try {
-          const { backendNodeId } = await parentSess.send<{
-            backendNodeId: number;
-          }>("DOM.getFrameOwner", { frameId: fid });
+          const { backendNodeId } = await runLocatorStep(
+            progress,
+            "finding snapshot iframe owner",
+            () => parentSess.send<{ backendNodeId: number }>("DOM.getFrameOwner", { frameId: fid }),
+          );
           if (backendNodeId === iframeBackendNodeId) {
             childFrameId = fid;
             break;
           }
         } catch {
+          progress?.throwIfStopped();
           continue;
         }
       }
@@ -106,19 +120,21 @@ export async function resolveFocusFrameAndTail(
       absPrefix = prefixXPath(absPrefix || "/", selectorForIframe);
       ctxFrameId = childFrameId;
     } finally {
-      await parentSess.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      await releaseSnapshotObject(parentSess, objectId, progress);
     }
 
     buf = [];
   };
 
   for (const st of steps) {
+    progress?.throwIfStopped();
     buf.push(st);
     if (IFRAME_STEP_RE.test(st.name)) {
       await flushIntoChild();
     }
   }
 
+  progress?.throwIfStopped();
   const tailXPath = buildXPathFromSteps(buf);
   return { targetFrameId: ctxFrameId, tailXPath, absPrefix };
 }
@@ -129,7 +145,9 @@ export async function resolveCssFocusFrameAndTail(
   rawSelector: string,
   parentByFrame: FrameParentIndex,
   rootId: string,
+  progress?: Progress,
 ): Promise<ResolvedCssFocus> {
+  progress?.throwIfStopped();
   const parts = rawSelector
     .split(">>")
     .map((s) => s.trim())
@@ -139,27 +157,32 @@ export async function resolveCssFocusFrameAndTail(
 
   for (let i = 0; i < Math.max(0, parts.length - 1); i++) {
     const parentSess = page.getSessionForFrame(ctxFrameId);
-    const objectId = await resolveObjectIdForCss(parentSess, parts[i]!, ctxFrameId);
+    const objectId = await resolveObjectIdForCss(parentSess, parts[i]!, ctxFrameId, 0, progress);
     if (!objectId) {
       throw iframeResolutionError(parts[i]!, "Failed to resolve iframe via CSS hop");
     }
     try {
-      await parentSess.send("DOM.enable").catch(() => {});
-      const desc = await parentSess.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
-        objectId,
-      });
+      await runLocatorStep(progress, "enabling DOM", () =>
+        parentSess.send("DOM.enable").catch(() => {}),
+      );
+      const desc = await runLocatorStep(progress, "reading snapshot iframe", () =>
+        parentSess.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
+      );
       const iframeBackendNodeId = desc.node.backendNodeId;
       let childFrameId: string | undefined;
       for (const fid of listChildrenOf(parentByFrame, ctxFrameId)) {
         try {
-          const { backendNodeId } = await parentSess.send<{
-            backendNodeId: number;
-          }>("DOM.getFrameOwner", { frameId: fid });
+          const { backendNodeId } = await runLocatorStep(
+            progress,
+            "finding snapshot iframe owner",
+            () => parentSess.send<{ backendNodeId: number }>("DOM.getFrameOwner", { frameId: fid }),
+          );
           if (backendNodeId === iframeBackendNodeId) {
             childFrameId = fid;
             break;
           }
         } catch {
+          progress?.throwIfStopped();
           continue;
         }
       }
@@ -168,10 +191,11 @@ export async function resolveCssFocusFrameAndTail(
       }
       ctxFrameId = childFrameId;
     } finally {
-      await parentSess.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      await releaseSnapshotObject(parentSess, objectId, progress);
     }
   }
 
+  progress?.throwIfStopped();
   const tailSelector = parts[parts.length - 1] ?? "*";
   return { targetFrameId: ctxFrameId, tailSelector, absPrefix };
 }
@@ -188,26 +212,13 @@ export async function resolveObjectIdForXPath(
   xpath: string,
   frameId?: string,
   index = 0,
+  progress?: Progress,
 ): Promise<string | null> {
-  let contextId: number | undefined;
-  if (frameId) {
-    contextId = (await executionContexts.waitForLocatorWorld(session, frameId, 800)).contextId;
-  }
-  const expr = buildLocatorInvocation("resolveXPathMainWorld", [
+  const expression = buildLocatorInvocation("resolveXPathMainWorld", [
     JSON.stringify(xpath),
     JSON.stringify(index),
   ]);
-  const { result, exceptionDetails } = await session.send<{
-    result: { objectId?: string | undefined };
-    exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-  }>("Runtime.evaluate", {
-    expression: expr,
-    returnByValue: false,
-    contextId,
-    awaitPromise: true,
-  });
-  if (exceptionDetails) return null;
-  return result?.objectId ?? null;
+  return resolveObjectId(session, expression, frameId, progress);
 }
 
 /** Resolve a CSS selector (supports '>>' within the same frame only) to a Runtime objectId. */
@@ -216,31 +227,57 @@ export async function resolveObjectIdForCss(
   selector: string,
   frameId?: string,
   index = 0,
+  progress?: Progress,
 ): Promise<string | null> {
-  let contextId: number | undefined;
-  if (frameId) {
-    contextId = (await executionContexts.waitForLocatorWorld(session, frameId, 800)).contextId;
-  }
   const expression = buildLocatorInvocation("resolveCssSelector", [
     JSON.stringify(selector),
     JSON.stringify(index),
   ]);
+  return resolveObjectId(session, expression, frameId, progress);
+}
 
-  const evaluate = async (expression: string): Promise<string | null> => {
-    const { result, exceptionDetails } = await session.send<{
-      result: { objectId?: string | undefined };
-      exceptionDetails?: Protocol.Runtime.ExceptionDetails;
-    }>("Runtime.evaluate", {
-      expression,
-      returnByValue: false,
-      contextId,
-      awaitPromise: true,
-    });
-    if (exceptionDetails) return null;
-    return result?.objectId ?? null;
-  };
+async function resolveObjectId(
+  session: CDPSessionLike,
+  expression: string,
+  frameId: string | undefined,
+  progress?: Progress,
+): Promise<string | null> {
+  progress?.throwIfStopped();
+  const contextId = frameId
+    ? (await executionContexts.waitForLocatorWorld(session, frameId, 800, progress)).contextId
+    : undefined;
+  const release = (response: Protocol.Runtime.EvaluateResponse) =>
+    releaseSnapshotObject(session, response.result?.objectId, progress);
+  const response = await runLocatorStep(
+    progress,
+    "resolving snapshot focus",
+    () =>
+      session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+        expression,
+        returnByValue: false,
+        contextId,
+        awaitPromise: true,
+      }),
+    release,
+  );
+  if (response.exceptionDetails) {
+    await release(response);
+    progress?.throwIfStopped();
+    return null;
+  }
+  return response.result?.objectId ?? null;
+}
 
-  return evaluate(expression);
+/** Release snapshot references even after expiry, without replacing the read error. */
+export async function releaseSnapshotObject(
+  session: CDPSessionLike,
+  objectId: string | undefined,
+  progress?: Progress,
+): Promise<void> {
+  if (!objectId) return;
+  const release = () => session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+  if (progress) await progress.cleanup(release);
+  else await release();
 }
 
 export function listChildrenOf(parentByFrame: FrameParentIndex, parentId: string): string[] {
