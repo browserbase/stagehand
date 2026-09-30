@@ -226,7 +226,7 @@ async function createBrowser(): Promise<StagehandBrowserLaunch> {
   const launchOptions: BrowserbaseLaunchOptions = {
     apiKey,
     keepAlive: false,
-    proxies,
+    ...(proxies !== undefined ? { proxies } : {}),
     timeout: sessionTimeoutSeconds,
   };
   if (baseUrl) launchOptions.baseUrl = baseUrl;

@@ -45,12 +45,12 @@ available unless the consuming agent explicitly overrides them.
 
 ## Configuration
 
-| Option                  | Default               | Description                                                        |
-| ----------------------- | --------------------- | ------------------------------------------------------------------ |
-| `apiKey`                | `BROWSERBASE_API_KEY` | Browserbase credential, resolved when the first browser tool runs. |
-| `model`                 | `openai/gpt-5.4-mini` | Underlying Stagehand client model identifier.                      |
-| `sessionTimeoutSeconds` | `900`                 | Browserbase session timeout from 60 to 21,600 seconds.             |
-| `proxies`               | `false`               | Enable Browserbase proxies for new sessions.                       |
+| Option                  | Default               | Description                                                           |
+| ----------------------- | --------------------- | --------------------------------------------------------------------- |
+| `apiKey`                | `BROWSERBASE_API_KEY` | Browserbase credential, resolved when the first browser tool runs.    |
+| `model`                 | `openai/gpt-5.4-mini` | Underlying Stagehand client model identifier.                         |
+| `sessionTimeoutSeconds` | `900`                 | Browserbase session timeout from 60 to 21,600 seconds.                |
+| `proxies`               | Browserbase default   | Omit to use Browserbase's default; set `true` or `false` to override. |
 
 Browser-only tool calls do not invoke a Stagehand model or require a separate model-provider key.
 Configure Eve’s own agent model and its authentication separately. Set `BROWSERBASE_PROJECT_ID` in

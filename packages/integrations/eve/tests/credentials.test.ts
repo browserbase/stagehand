@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const config = vi.hoisted(() => ({
   apiKey: undefined as string | undefined,
-  proxies: false,
+  proxies: undefined as boolean | undefined,
   sessionTimeoutSeconds: 900,
 }));
 
@@ -16,6 +16,7 @@ import {
 
 afterEach(() => {
   config.apiKey = undefined;
+  config.proxies = undefined;
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
@@ -49,5 +50,22 @@ describe("browser credentials", () => {
       StagehandSessionInitializationError,
     );
     expect(launch).not.toHaveBeenCalled();
+  });
+
+  it("preserves Browserbase proxy defaults and forwards explicit overrides", async () => {
+    vi.stubEnv("BROWSERBASE_API_KEY", "test-runtime-key");
+    const launch = vi
+      .spyOn(browserbase, "launch")
+      .mockResolvedValue({ closed: false } as StagehandBrowser);
+    const create = createStagehandResourceFactory(undefined, async () => ({}) as Stagehand);
+
+    await create();
+    expect(launch.mock.calls.at(-1)?.[0]).not.toHaveProperty("proxies");
+
+    for (const proxies of [true, false]) {
+      config.proxies = proxies;
+      await create();
+      expect(launch).toHaveBeenLastCalledWith(expect.objectContaining({ proxies }));
+    }
   });
 });

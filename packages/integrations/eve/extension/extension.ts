@@ -6,6 +6,6 @@ export default defineExtension({
     apiKey: z.string().min(1).optional(),
     model: z.string().min(1).default("openai/gpt-5.4-mini"),
     sessionTimeoutSeconds: z.number().int().min(60).max(21_600).default(900),
-    proxies: z.boolean().default(false),
+    proxies: z.boolean().optional(),
   }),
 });
