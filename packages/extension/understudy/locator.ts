@@ -948,7 +948,7 @@ export class Locator {
    * Resolve all matching nodes for this locator.
    * If the locator is narrowed via nth(), only that index is returned.
    */
-  public async resolveNodesForMask(): Promise<
+  public async resolveNodesForMask(progress: Progress): Promise<
     Array<{
       nodeId: Protocol.DOM.NodeId | null;
       objectId: Protocol.Runtime.RemoteObjectId;
@@ -956,13 +956,14 @@ export class Locator {
   > {
     const session = this.frame.session;
 
-    await session.send("Runtime.enable");
-    await session.send("DOM.enable");
+    await progress.run("enabling runtime", () => session.send("Runtime.enable"));
+    await progress.run("enabling DOM", () => session.send("DOM.enable"));
 
     if (this.nthIndex >= 0) {
       const resolved = await this.selectorResolver.resolveAtIndex(
         this.selectorQuery,
         this.nthIndex,
+        progress,
       );
       if (!resolved) {
         throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
@@ -970,7 +971,7 @@ export class Locator {
       return [resolved];
     }
 
-    const resolved = await this.selectorResolver.resolveAll(this.selectorQuery);
+    const resolved = await this.selectorResolver.resolveAll(this.selectorQuery, {}, progress);
     if (!resolved.length) {
       throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }

@@ -58,7 +58,6 @@ import {
   runScreenshotCleanups,
   setTransparentBackground,
   withScreenshotLock,
-  waitForScreenshot,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
@@ -1536,36 +1535,33 @@ export class Page {
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
+    let failure: { error: unknown } | undefined;
     const exec = async (progress: Progress): Promise<Uint8Array> => {
-      const signal = progress.signal;
       try {
-        const captureScale = await waitForScreenshot(
-          computeScreenshotScale(this, scaleMode),
-          signal,
-        );
+        const captureScale = await computeScreenshotScale(this, scaleMode, progress);
         if (opts.omitBackground) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await setTransparentBackground(this.mainSession));
+          await setTransparentBackground(this.mainSession, progress, cleanupTasks);
         }
 
         if (animationsMode === "disabled") {
-          signal.throwIfAborted();
-          cleanupTasks.push(await disableAnimations(frames));
+          await disableAnimations(frames, progress, cleanupTasks);
         }
 
         if (caretMode === "hide") {
-          signal.throwIfAborted();
-          cleanupTasks.push(await hideCaret(frames));
+          await hideCaret(frames, progress, cleanupTasks);
         }
 
         if (opts.style && opts.style.trim()) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await applyStyleToFrames(frames, opts.style, "custom"));
+          await applyStyleToFrames(frames, opts.style, "custom", progress, cleanupTasks);
         }
 
         if (maskLocators.length > 0) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await applyMaskOverlays(maskLocators, opts.maskColor ?? "#FF00FF"));
+          await applyMaskOverlays(
+            maskLocators,
+            opts.maskColor ?? "#FF00FF",
+            progress,
+            cleanupTasks,
+          );
         }
 
         // Setup and cleanup mutate this page only. Hold the browser-wide lock solely
@@ -1585,15 +1581,24 @@ export class Page {
             ),
           progress,
         );
+      } catch (error) {
+        progress.throwIfStopped();
+        failure = { error };
+        throw error;
       } finally {
         await runScreenshotCleanups(cleanupTasks);
       }
     };
 
-    return await runWithProgress(
-      parentProgress ?? { name: "screenshot", timeout: opts.timeout ?? 0 },
-      (progress) => withScreenshotLock(this, () => exec(progress), progress),
-    );
+    try {
+      return await runWithProgress(
+        parentProgress ?? { name: "screenshot", timeout: opts.timeout ?? 0 },
+        (progress) => withScreenshotLock(this, () => exec(progress), progress),
+      );
+    } catch (error) {
+      // Cleanup may outlast the deadline; preserve a capture error already received.
+      throw failure ? failure.error : error;
+    }
   }
 
   /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */

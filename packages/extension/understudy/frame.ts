@@ -126,13 +126,17 @@ export class Frame implements FrameManager {
    * Evaluate a function or expression in this frame's main world.
    * - If a string is provided, treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
+   * Progress guards dispatch, but issued evaluations are awaited so screenshot
+   * restoration cannot run before a late page mutation finishes.
    */
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
+    progress?: Progress,
   ): Promise<R> {
+    progress?.throwIfStopped();
     await this.session.send("Runtime.enable").catch(() => {});
-    const contextId = await this.getMainWorldExecutionContextId();
+    const contextId = await this.getMainWorldExecutionContextId(progress);
 
     const isString = typeof pageFunctionOrExpression === "string";
     let expression: string;
@@ -156,6 +160,7 @@ export class Frame implements FrameManager {
 
     let res: Protocol.Runtime.EvaluateResponse;
     try {
+      progress?.throwIfStopped();
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId,
@@ -167,7 +172,8 @@ export class Frame implements FrameManager {
       // Runtime.evaluate during popup/navigate churn. Retry once with a fresh id.
       const msg = error instanceof Error ? error.message : String(error);
       if (!msg.includes("Cannot find context with specified id")) throw error;
-      const freshContextId = await this.getMainWorldExecutionContextId();
+      const freshContextId = await this.getMainWorldExecutionContextId(progress);
+      progress?.throwIfStopped();
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId: freshContextId,
@@ -360,8 +366,8 @@ export class Frame implements FrameManager {
   }
 
   /** Resolve the main-world execution context id for this frame. */
-  async getMainWorldExecutionContextId(): Promise<number> {
-    return executionContexts.waitForMainWorld(this.session, this.frameId, 1000);
+  async getMainWorldExecutionContextId(progress?: Progress): Promise<number> {
+    return executionContexts.waitForMainWorld(this.session, this.frameId, 1000, progress);
   }
 
   async getExtensionWorldExecutionContextId(): Promise<number> {
