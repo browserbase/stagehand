@@ -333,3 +333,23 @@ describe("benchPlanner", () => {
     expect(testcases[0].metadata.task_category).not.toBe("agent");
   });
 });
+
+it.each([
+  ["1", "stagehand_facade", "explicit_snapshot_actions"],
+  ["", "stagehand_facade", "default"],
+  ["1", "playwright_mcp", undefined],
+] as const)("records the prompt variant for %s on %s", async (enabled, toolSurface, expected) => {
+  await withEnvOverrides(
+    { EXPLICIT_SNAPSHOT_ACTIONS: enabled, EVAL_HARDBENCHMARK_LIMIT: "1", EVAL_MAX_K: "1" },
+    async () => {
+      const result = generateSuiteTestcases(
+        [makeSuiteTask("agent/hardbenchmark")],
+        { harness: "codex", datasetFilter: "hardbenchmark", coreToolSurface: toolSurface },
+        [{ modelName: "openai/gpt-4.1-mini", mode: "hybrid", cua: false }],
+      );
+      expect(result.testcases.length).toBeGreaterThan(0);
+      for (const testcase of result.testcases)
+        expect(testcase.metadata.promptVariant).toBe(expected);
+    },
+  );
+});

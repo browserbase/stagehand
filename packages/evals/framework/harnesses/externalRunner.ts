@@ -88,6 +88,7 @@ export function stripEmbeddedEvalReports(text: string): string {
   for (const span of extractJsonObjects(text)) {
     if (isEvalResultJson(span)) output = output.replace(span, "");
   }
+  output = output.replace(/^[ \t]*(?:\*\*)?EVAL_RESULT:[ \t]*(?:\*\*)?[ \t]*$/gmu, "");
   // Drop the now-empty Markdown fence that wrapped a removed report.
   output = output.replace(/^[ \t]*```[\w-]+[ \t]*\n\s*```[ \t]*$/gmu, "");
   return output.replace(/\n{3,}/gu, "\n\n");

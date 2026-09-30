@@ -1150,3 +1150,14 @@ it("sanitizes SDK stop reasons before emitting verifier trajectory traces", asyn
   expect(logger.getLogs().some((line) => line.category === "trace")).toBe(true);
   expect(JSON.stringify(logger.getLogs())).not.toContain("secret-query-value");
 });
+
+it.each(["EVAL_RESULT:", "**EVAL_RESULT:"])(
+  "does not grade an empty %s envelope as the answer",
+  (marker) => {
+    const text = `${marker} {"success": true, "summary": "Done"}`;
+    expect(resolveFinalAnswer(parseEvalResult(text), text)).toBeUndefined();
+    expect(resolveFinalAnswer(parseEvalResult(text), `Actual answer\n${text}`)).toBe(
+      "Actual answer",
+    );
+  },
+);
