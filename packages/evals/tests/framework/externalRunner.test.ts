@@ -434,6 +434,46 @@ describe("external harness runner", () => {
     expect(result.cost_usd).toBeUndefined();
   });
 
+  it("prefers provenance the session reported over the runner's", async () => {
+    const result = await runExternalHarnessTask({
+      harness: "example",
+      implementation: { name: "driver", version: 1 },
+      plan,
+      logger: new EvalLogger(false),
+      resultContract: "marker",
+      fallbackErrorMessage: "missing result",
+      stepBudget: 100,
+      configuration: { cacheRoute: "requested", timeoutMs: 5 },
+      runSession: async () => ({
+        raw: {},
+        resultText: 'EVAL_RESULT: {"success":true,"finalAnswer":"done"}',
+        transcriptText: "",
+        status: "completed",
+        usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, reported: false },
+        metrics: {},
+        implementation: { name: "driver", version: 1, sdkVersion: "0.41.0" },
+        // The eval-owned keys are not the session's to override.
+        configuration: { cacheRoute: "effective", driverVersion: "1.8.0", stepBudget: 7 },
+      }),
+      toTrajectory: () => {
+        throw new Error("no verifier");
+      },
+    });
+    expect(result.harnessImplementation).toEqual({
+      name: "driver",
+      version: 1,
+      sdkVersion: "0.41.0",
+    });
+    expect(result.harnessConfiguration).toEqual({
+      evalPolicyVersion: 1,
+      systemPromptMode: "task_prefix",
+      stepBudget: 100,
+      cacheRoute: "effective",
+      timeoutMs: 5,
+      driverVersion: "1.8.0",
+    });
+  });
+
   it("assembles normalized and deprecated task-result fields", async () => {
     const result = await runExternalHarnessTask({
       harness: "claude_code",

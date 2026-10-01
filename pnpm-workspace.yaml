@@ -71,10 +71,14 @@ allowBuilds:
   "@ast-grep/lang-python": true
   "@google/genai": false
   "@scarf/scarf": false
+  agent-browser: false
   braintrust: false
   bufferutil: false
+  edgedriver: false
   esbuild: true
+  geckodriver: false
   keytar: false
+  onnxruntime-node: false
   protobufjs: false
   puppeteer: false
   sharp: true

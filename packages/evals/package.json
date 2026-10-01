@@ -34,6 +34,7 @@
     "@browserbasehq/stagehand-integrations-fx-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-gemini-cua-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-mastracode-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",

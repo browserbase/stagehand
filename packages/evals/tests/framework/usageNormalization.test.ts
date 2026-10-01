@@ -126,7 +126,7 @@ describe("normalizeUsage", () => {
   });
 
   it("treats OpenAI-style cached tokens as a subset of input (codex, mastra, eve, deepagents, fx)", () => {
-    for (const harness of ["codex", "mastra", "eve", "deepagents"]) {
+    for (const harness of ["codex", "mastra", "mastracode", "eve", "deepagents"]) {
       const usage = normalizeUsage({
         harness,
         raw: {
@@ -166,6 +166,32 @@ describe("normalizeUsage", () => {
       input_cached: 600,
       input_cache_write: 100,
       input_uncached: 300,
+    });
+  });
+
+  it("carves mastracode's reported cache writes out of its whole-prompt input", () => {
+    // mastracode sums usage_update steps: promptTokens = AI SDK v6 input.total
+    // (uncached + cache read + cache write), cache buckets as subsets.
+    const usage = normalizeUsage({
+      harness: "mastracode",
+      raw: {
+        reported: true,
+        inputTokens: 17_200,
+        cachedInputTokens: 10_700,
+        cacheCreationInputTokens: 6150,
+        outputTokens: 130,
+        totalTokens: 17_330,
+      },
+    });
+    expect(usage).toEqual({
+      input_total: 17_200,
+      input_cached: 10_700,
+      input_cache_write: 6150,
+      input_uncached: 350,
+      output: 130,
+      reasoning: 0,
+      reasoning_in_output: true,
+      convention: "openai_cached_subset",
     });
   });
 

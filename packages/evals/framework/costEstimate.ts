@@ -50,6 +50,7 @@ export interface BilledCost {
  * | fx          | total_cost in usage-v2.json             | fx_gateway            | fx always bills via its gateway → unavailable         |
  * | codex       | never (turn.completed has tokens only)  | —                     | OpenAI API with our key → computed openai_api         |
  * | mastra      | never (AI SDK usage has no dollars)     | —                     | provider SDK with our key → computed <provider>_api   |
+ * | mastracode  | never (usage_update has tokens only)    | —                     | provider SDK with our key → computed <provider>_api   |
  * | deepagents  | never (LangChain usage_metadata)        | —                     | provider SDK with our key → computed <provider>_api   |
  * | cursor      | never                                   | —                     | subscription → unavailable                            |
  */
@@ -68,6 +69,7 @@ const DIRECT_PROVIDER_HARNESSES: ReadonlySet<string> = new Set([
   "claude_cua",
   "gemini_cua",
   "mastra",
+  "mastracode",
   "deepagents",
   "eve",
   "pi",
