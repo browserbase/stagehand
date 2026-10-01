@@ -471,7 +471,7 @@ async function buildHarnessRow(
               status: "fail",
               label: "BB keys missing",
               detail: "defaults.env=browserbase but BROWSERBASE_API_KEY is not set.",
-              fix: "source ~/.envs/prod.env",
+              fix: addEnvKeysFix(["BROWSERBASE_API_KEY"]),
             };
       }
       break;
@@ -658,6 +658,12 @@ async function buildVerifierRow(
   };
 }
 
+/** `add A and B to <pkg>/.env or export them in your shell`. */
+function addEnvKeysFix(names: string[]): string {
+  const them = names.length === 1 ? "it" : "them";
+  return `add ${names.join(" and ")} to ${path.join(getPackageRootDir(), ".env")} or export ${them} in your shell`;
+}
+
 async function buildBrowserbaseRow(
   options: Required<Pick<HarnessProbeOptions, "env" | "fetchImpl">> & HarnessProbeOptions,
 ): Promise<NamedProbeRow> {
@@ -675,7 +681,7 @@ async function buildBrowserbaseRow(
       : {
           status: options.config?.defaults.env === "browserbase" ? "fail" : "warn",
           label: `${missing.join(" + ")} missing`,
-          fix: "source ~/.envs/prod.env",
+          fix: addEnvKeysFix(missing),
         },
   );
   if (options.probe && apiKey && projectId) {
@@ -696,7 +702,10 @@ async function buildBrowserbaseRow(
                   : res.status === 404
                     ? "Project not found for this key."
                     : `HTTP ${res.status}`,
-              fix: "source ~/.envs/prod.env",
+              fix:
+                res.status === 404
+                  ? `check BROWSERBASE_PROJECT_ID belongs to this key's Browserbase project`
+                  : "replace BROWSERBASE_API_KEY (or BB_API_KEY) with a valid key",
             },
       );
     } catch (error) {
