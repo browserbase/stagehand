@@ -590,7 +590,7 @@ export class Locator {
 
       if (status === "needsinput") {
         const singleCharacterInput =
-          value.length > 1 && (await this.isSingleCharacterInput(objectId));
+          value.length > 1 && (await this.isSingleCharacterInput(objectId, progress));
         // Release the current handle before synthesizing keyboard input to avoid leaking it.
         await release();
 
