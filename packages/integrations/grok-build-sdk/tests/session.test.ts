@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildGrokBuildArgs,
   buildGrokBuildStopReason,
+  defaultGrokBuildProcessRunner,
   extractGrokBuildToolCall,
   normalizeGrokBuildModel,
   parseGrokBuildStreamLine,
@@ -208,6 +209,89 @@ describe("Grok Build CLI session", () => {
     });
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toContain("exited with code 1");
+  });
+
+  it.each(["end_turn", "max_turn_requests"])(
+    "fails a non-zero exit after %s",
+    async (stopReason) => {
+      const result = await runGrokBuildSession({
+        prompt: "do it",
+        model: "grok-build/auto",
+        logger,
+        session: {},
+        runProcess: scriptedRunner([{ type: "end", stopReason }], 1),
+      });
+      expect(result.status).toBe("sdk_error");
+      expect(result.stopReason).toContain("exited with code 1");
+    },
+  );
+
+  it("reports signal termination even after an end event", async () => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: async (input) => {
+        await input.onStdoutLine(JSON.stringify({ type: "end", stopReason: "end_turn" }));
+        return { exitCode: null, signal: "SIGTERM" };
+      },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("SIGTERM");
+  });
+
+  it.each(["max_tokens", "refusal", "cancelled", "unknown_reason"])(
+    "does not report %s as normal completion",
+    async (stopReason) => {
+      const result = await runGrokBuildSession({
+        prompt: "do it",
+        model: "grok-build/auto",
+        logger,
+        session: {},
+        runProcess: scriptedRunner([{ type: "end", stopReason }]),
+      });
+      expect(result.status).toBe("sdk_error");
+      expect(result.stopReason).toContain(stopReason);
+    },
+  );
+
+  it.each(["end_turn", "EndTurn"])("accepts normal completion %s", async (stopReason) => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([{ type: "end", stopReason }]),
+    });
+    expect(result.status).toBe("completed");
+    expect(result.stopReason).toBeUndefined();
+  });
+
+  it("rejects an end event without a stop reason", async () => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([{ type: "end" }]),
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("missing its stop reason");
+  });
+
+  it("terminates the child and rejects when a stream callback fails", async () => {
+    await expect(
+      defaultGrokBuildProcessRunner({
+        command: process.execPath,
+        args: ["-e", "console.log('event'); setInterval(() => {}, 1000)"],
+        signal: new AbortController().signal,
+        onStdoutLine: async () => {
+          throw new Error("callback failed");
+        },
+        onStderr: () => {},
+      }),
+    ).rejects.toThrow("callback failed");
   });
 
   it("reports max-turn stops without treating them as SDK errors", () => {

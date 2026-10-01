@@ -38,7 +38,7 @@ grok -p \
   "Use the stagehand MCP tools: open https://example.com, snapshot it, and report the heading citing the snapshot ID."
 ```
 
-The eval harness uses the same CLI path with an isolated temporary Grok home and project config:
+The eval harness uses the same CLI path with configuration in an isolated temporary Grok home:
 
 ```bash
 evals run b:webvoyager --harness grok_build --tool stagehand_facade -l 1 -t 1 -e browserbase

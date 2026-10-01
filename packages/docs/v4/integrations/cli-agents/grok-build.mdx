@@ -55,7 +55,7 @@ grok -p \
 
 ## Eval harness
 
-The registered `grok_build` harness follows the same CLI pattern as the Cursor harness. It creates an isolated temporary home and workspace, copies cached Grok authentication only when no API key is present, writes the selected Stagehand MCP mount to project configuration, runs `grok -p --output-format streaming-json`, and maps native tool and usage events into the shared verifier trajectory.
+The registered `grok_build` harness follows the same CLI pattern as the Cursor harness. It creates an isolated temporary home and workspace, copies cached Grok authentication only when no API key is present, writes the selected Stagehand MCP mount to the temporary Grok home configuration, runs `grok -p --output-format streaming-json`, and maps native tool and usage events into the shared verifier trajectory.
 
 ```bash
 evals run b:webvoyager \
@@ -66,7 +66,7 @@ evals run b:webvoyager \
 
 | Variable | Purpose |
 | --- | --- |
-| `XAI_API_KEY` | Grok credential. The Stagehand MCP server receives only its own configured environment. |
+| `XAI_API_KEY` | Grok credential. MCP children inherit Grok's environment; each server's `env` entries override inherited values. |
 | `GROK_HOME` | Source for cached `auth.json` when `XAI_API_KEY` is unset. |
 | `EVAL_GROK_BUILD_PATH` | Optional path to the `grok` binary for eval runs. |
 | `EVAL_GROK_BUILD_MAX_TURNS` | Grok turn limit. Defaults to 50. |

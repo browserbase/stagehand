@@ -151,11 +151,21 @@ export const defaultGrokBuildProcessRunner: GrokBuildProcessRunner = async (inpu
     });
     let stdoutBuffer = "";
     let lineQueue = Promise.resolve();
+    let lineFailed = false;
+    let lineError: unknown;
     let killTimer: NodeJS.Timeout | undefined;
     let settled = false;
 
     const queueLine = (line: string): void => {
-      lineQueue = lineQueue.then(() => input.onStdoutLine(line));
+      lineQueue = lineQueue
+        .then(() => {
+          if (!lineFailed) return input.onStdoutLine(line);
+        })
+        .catch((error) => {
+          lineFailed = true;
+          lineError = error;
+          abort();
+        });
     };
     const removeAbort = (): void => input.signal.removeEventListener("abort", abort);
     const abort = (): void => {
@@ -199,7 +209,7 @@ export const defaultGrokBuildProcessRunner: GrokBuildProcessRunner = async (inpu
       if (killTimer) clearTimeout(killTimer);
       if (stdoutBuffer) queueLine(stdoutBuffer);
       lineQueue.then(
-        () => resolve({ exitCode, signal }),
+        () => (lineFailed ? reject(lineError) : resolve({ exitCode, signal })),
         (error) => reject(error),
       );
     });
@@ -334,8 +344,11 @@ export function resolveGrokBuildStatus(
   stopReason?: string,
 ): "completed" | "max_turns" | "sdk_error" {
   const reason = readString(endEvent?.stopReason) ?? "";
+  if (iterationError || errorEvent || (stopReason && stopReason !== "max turns reached")) {
+    return "sdk_error";
+  }
   if (/max_turn/iu.test(reason) || stopReason === "max turns reached") return "max_turns";
-  if (iterationError || errorEvent || stopReason || !endEvent) return "sdk_error";
+  if (!isNormalStopReason(reason)) return "sdk_error";
   return "completed";
 }
 
@@ -353,18 +366,28 @@ export function buildGrokBuildStopReason(input: {
     return readString(input.errorEvent.message) ?? "Grok Build returned an error event";
   }
   const reason = readString(input.endEvent?.stopReason);
-  if (reason && /max_turn/iu.test(reason)) return "max turns reached";
-  if (!input.endEvent) {
+  if (input.exit?.signal) return `grok exited with signal ${input.exit.signal}`;
+  if (input.exit && input.exit.exitCode !== 0) {
     const lastLine = input.stderr
       .split(/\r?\n/u)
       .map((line) => line.trim())
       .filter(Boolean)
       .at(-1);
-    return input.exit?.exitCode !== 0
-      ? `grok exited with code ${String(input.exit?.exitCode ?? "unknown")}${lastLine ? `: ${lastLine}` : ""}`
-      : "Grok Build exited without a terminal end event";
+    return `grok exited with code ${String(input.exit.exitCode ?? "unknown")}${lastLine ? `: ${lastLine}` : ""}`;
   }
+  if (reason && /max_turn/iu.test(reason)) return "max turns reached";
+  if (reason && !isNormalStopReason(reason)) {
+    return `Grok Build stopped with ${reason}`;
+  }
+  if (!input.endEvent) {
+    return "Grok Build exited without a terminal end event";
+  }
+  if (!reason) return "Grok Build end event is missing its stop reason";
   return undefined;
+}
+
+function isNormalStopReason(reason: string): boolean {
+  return reason === "end_turn" || reason === "EndTurn";
 }
 
 export function buildGrokBuildTranscript(events: GrokBuildEvent[]): string {
