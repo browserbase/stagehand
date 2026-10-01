@@ -5,12 +5,12 @@ and mounts the Stagehand facade (`run` / `snapshot` / `screenshot`) as its only 
 
 ## Setup
 
-Use Node.js 24 or later. From the repository root, install dependencies and build the shared
-integration package:
+Use Node.js 24 or later. From the repository root, install dependencies and build the OpenCode
+adapter and its shared dependencies:
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-opencode-sdk
 ```
 
 Export a supported provider API key for the SDK example. Install the [OpenCode v2 CLI](https://opencode.ai/v2/docs) separately and use `opencode auth login` for the interactive workflow. Configure
