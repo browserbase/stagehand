@@ -74,7 +74,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/browserbase/stagehand/packages/sdk-go"
+	"github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
 func main() {
@@ -113,6 +113,6 @@ Call `stagehand.close()` before the process exits. Spans sit in a one-second bat
 
 Open Explore, select Traces, and filter to the time of your run. Look for `stagehand-service-worker`.
 
-A failed `act` / `observe` / `extract` sets error status on the operation span and records the exception. That is the path into Sentry Issues. Log records are their own spans (`stagehand.span.type = log`), not OpenTelemetry span events. Sentry drops span events on ingest, so this distinction matters. You still get the log spans in the trace view.
+A failed `act` / `observe` / `extract` sets error status on the operation span and records the exception as a span event. Sentry drops span events on ingest, so the recorded exception does not create a Sentry error issue. Use a Sentry SDK to capture exceptions if you need error issues. Log records are their own spans (`stagehand.span.type = log`), so you still get them in the trace view.
 
 Sentry ingests array attributes and span links but does not let you search or aggregate them. Filter on `service.name` and span name. If Explore is empty, the usual causes are a URL copied from the DSN instead of the OTLP settings, a stale public key, or a process that exited before `close()`.

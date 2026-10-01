@@ -31,7 +31,7 @@ Call `stagehand.close()` before the process exits. Spans sit in a one-second bat
 
 ## Configure the collector
 
-This example receives OTLP/HTTP from Stagehand and forwards it to two providers. Copy each exporter's endpoint and headers from that provider's page. `otlphttp` exporter `endpoint` values are the base host. The exporter appends `/v1/traces` itself, so do not include the path twice.
+This example receives OTLP/HTTP from Stagehand and forwards it to two providers. Copy each provider's full traces URL into `FIRST_OTLP_TRACES_ENDPOINT` or `SECOND_OTLP_TRACES_ENDPOINT`, and set its headers on the matching exporter. The `otlp_http` exporter's `traces_endpoint` uses the URL exactly as given, including `/v1/traces`.
 
 ```yaml
 receivers:
@@ -44,27 +44,27 @@ processors:
   batch: {}
 
 exporters:
-  otlphttp/first:
-    endpoint: ${FIRST_OTLP_ENDPOINT}
+  otlp_http/first:
+    traces_endpoint: ${env:FIRST_OTLP_TRACES_ENDPOINT}
     headers:
-      Authorization: ${FIRST_OTLP_AUTHORIZATION}
-  otlphttp/second:
-    endpoint: ${SECOND_OTLP_ENDPOINT}
+      Authorization: ${env:FIRST_OTLP_AUTHORIZATION}
+  otlp_http/second:
+    traces_endpoint: ${env:SECOND_OTLP_TRACES_ENDPOINT}
     headers:
-      Authorization: ${SECOND_OTLP_AUTHORIZATION}
+      Authorization: ${env:SECOND_OTLP_AUTHORIZATION}
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlphttp/first, otlphttp/second]
+      exporters: [otlp_http/first, otlp_http/second]
 ```
 
 Some providers use a header other than `Authorization`. Braintrust wants `x-bt-parent`. LangSmith wants `x-api-key` and `Langsmith-Project`. Sentry wants `x-sentry-auth`. Put those on the matching exporter.
 
 ## Verify traces
 
-Start the collector before Stagehand. Watch the collector logs for export errors first. A 404 on an exporter usually means the endpoint already included `/v1/traces` and the exporter appended it again. A 401 is a header name or credential. Then confirm the run in each provider UI, filtering on `service.name = stagehand-service-worker`.
+Start the collector before Stagehand. Watch the collector logs for export errors first. A 404 can mean the traces URL is wrong. If you use the exporter's `endpoint` instead of `traces_endpoint`, remove only the `/v1/traces` suffix. Keep any provider path prefix, such as `/otel` or `/api/public/otel`, because the exporter appends `/v1/traces`. A 401 is a header name or credential. Then confirm the run in each provider UI, filtering on `service.name = stagehand-service-worker`.
 
 If only one backend shows the trace, the pipeline is fine and the other exporter's host or header is wrong. If neither shows it, Stagehand never reached the collector. Confirm port 4318 and that `close()` ran.

@@ -6,7 +6,7 @@ description: "Send Stagehand browser traces to Langfuse."
 
 Langfuse is an LLM tracing backend. Sessions, scores, and the observation table are the product. OTLP is how Stagehand gets spans into that table without a Langfuse SDK.
 
-Auth is HTTP Basic with the project's public and secret keys. The `x-langfuse-ingestion-version: 4` header sends spans to the current tracing table in real time. Leave it off and Langfuse can delay OTLP data by up to 10 minutes. See [Langfuse's OpenTelemetry documentation](https://langfuse.com/integrations/native/opentelemetry).
+Auth is HTTP Basic with the project's public and secret keys. The `x-langfuse-ingestion-version: 4` header sends spans to the current tracing table in real time. Leave it off and Langfuse can delay OTLP data by up to 15 minutes. See [Langfuse's OpenTelemetry documentation](https://langfuse.com/integrations/native/opentelemetry) and [version compatibility](https://langfuse.com/docs/compatibility#faq-delay).
 
 ## Cloud setup
 
@@ -77,8 +77,9 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
+	"strings"
 
-	"github.com/browserbase/stagehand/packages/sdk-go"
+	"github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
 func envOr(name, fallback string) string {
@@ -95,7 +96,7 @@ func main() {
 		Browser: browser,
 		Telemetry: stagehand.TelemetryConfig{
 			Traces: stagehand.TelemetryTraces{
-				Endpoint: envOr("LANGFUSE_BASE_URL", "https://cloud.langfuse.com") + "/api/public/otel/v1/traces",
+				Endpoint: strings.TrimRight(envOr("LANGFUSE_BASE_URL", "https://cloud.langfuse.com"), "/") + "/api/public/otel/v1/traces",
 				Headers: stagehand.TelemetryTracesHeaders{
 					"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte(os.Getenv("LANGFUSE_PUBLIC_KEY") + ":" + os.Getenv("LANGFUSE_SECRET_KEY"))),
 					"x-langfuse-ingestion-version": "4",
@@ -129,4 +130,4 @@ Open the project and select Tracing. With the ingestion-version header, new span
 
 You will see `operation` spans for `act`, `observe`, and `extract`, and `log` spans for each log record. Langfuse maps `gen_ai.*` attributes into generations with token and cost fields. Stagehand does not emit those conventions, so these runs land as observations, not model generations. That is still enough to attach a session and a score to a browser pass.
 
-If Tracing is empty, wait a minute only if you omitted the version header. Otherwise check the region host, the Basic Auth encoding (`public:secret`), and that `close()` ran.
+If Tracing is empty and you omitted the version header, data can take up to 15 minutes to appear. Otherwise check the region host, the Basic Auth encoding (`public:secret`), and that `close()` ran.
