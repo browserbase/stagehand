@@ -17,7 +17,7 @@ WireUrl = Annotated[str, AfterValidator(_validate_url)]
 
 
 class WireModel(BaseModel):
-    model_config = ConfigDict(validate_assignment=True)
+    model_config = ConfigDict(validate_assignment=True, allow_inf_nan=False)
 
     @override
     def model_post_init(self, context: object, /) -> None:

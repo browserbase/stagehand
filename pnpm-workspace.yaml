@@ -63,6 +63,8 @@ catalog:
   mint: 4.2.788
   publint: ^0.3.8
   smol-toml: 1.7.0
+  "@playwright/mcp": ^0.0.82
+  ffmpeg-static: ^5.3.0
 overrides:
   vite: "catalog:"
 allowBuilds:
@@ -73,6 +75,7 @@ allowBuilds:
   braintrust: false
   bufferutil: false
   esbuild: true
+  ffmpeg-static: true
   keytar: false
   protobufjs: false
   puppeteer: false
