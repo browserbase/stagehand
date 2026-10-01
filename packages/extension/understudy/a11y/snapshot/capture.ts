@@ -545,7 +545,8 @@ async function resolveIgnoredNodesInFrame(
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
   const session = ownerSession(page, frameId);
   const frame = new Frame(session, frameId, "", false, page.logger);
-  const resolver = new FrameSelectorResolver(frame);
+  // An unavailable ignore locator can be skipped; progress still enforces expiry.
+  const resolver = new FrameSelectorResolver(frame, { readinessRetries: "none" });
   const resolvedNodes =
     nth === undefined
       ? await resolver.resolveAll(query, {}, progress)

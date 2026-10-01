@@ -243,8 +243,14 @@ async function resolveObjectId(
   progress?: Progress,
 ): Promise<string | null> {
   progress?.throwIfStopped();
+  // Scope can fall back to the full tree; unresolved exclusions can be skipped.
+  // Avoid repeated readiness attempts, but still honor the caller's deadline.
   const contextId = frameId
-    ? (await executionContexts.waitForLocatorWorld(session, frameId, 800, progress)).contextId
+    ? (
+        await executionContexts.waitForLocatorWorld(session, frameId, 800, progress, {
+          readinessRetries: "none",
+        })
+      ).contextId
     : undefined;
   const release = (response: Protocol.Runtime.EvaluateResponse) =>
     releaseSnapshotObject(session, response.result?.objectId, progress);

@@ -3,6 +3,7 @@ import type { FrameContext, FrameDomMaps, SessionDomIndex } from "../../../types
 import type { StagehandLogger } from "../../../logger.js";
 import { Page } from "../../page.js";
 import { Progress } from "../../progress.js";
+import { executionContexts } from "../../executionContextRegistry.js";
 import { FrameSelectorResolver } from "../../selectorResolver.js";
 import { a11yForFrame } from "./a11yTree.js";
 import {
@@ -475,6 +476,44 @@ describe("snapshot progress ownership", () => {
     expect(warn).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
   });
+
+  it.each(
+    [
+      { name: "css scope", options: { focusLocator: { selector: "iframe >> .card" } } },
+      { name: "xpath scope", options: { focusLocator: { selector: "xpath=/iframe/div" } } },
+      { name: "ignore", options: { ignoreLocators: [{ selector: ".card" }] } },
+      { name: "indexed ignore", options: { ignoreLocators: [{ selector: ".card", nth: 0 }] } },
+    ].flatMap((test) => [0, 10].map((timeout) => ({ ...test, timeout }))),
+  )(
+    "$name falls back only while the caller is active (timeout: $timeout)",
+    async ({ options, timeout }) => {
+      progress.dispose();
+      progress = new Progress("extract", timeout);
+      const actual = await vi.importActual<typeof focusSelectors>("./focusSelectors.js");
+      vi.mocked(resolveCssFocusFrameAndTail).mockImplementation(actual.resolveCssFocusFrameAndTail);
+      Object.assign(page, { getSessionForFrame: () => session });
+      executionContexts.register(session as never, "root", 1);
+      send.mockImplementation(async (method) =>
+        method === "Runtime.evaluate" ? { result: { value: "https:" } } : { root },
+      );
+
+      const result = page.captureSnapshot({ ...options, includeIframes: false }, progress);
+      const checked = timeout
+        ? expect(result).rejects.toThrow(/extract timed out after 10ms/)
+        : expect(result).resolves.toMatchObject({ combinedTree: "root" });
+      await vi.advanceTimersByTimeAsync(1100);
+      await checked;
+      expect(send).toHaveBeenCalledWith("Runtime.enable");
+      if (timeout) {
+        await expect(result).rejects.toBe(progress.signal.reason);
+        expect(a11yForFrame).not.toHaveBeenCalled();
+        expect(warn).not.toHaveBeenCalled();
+      } else {
+        expect(a11yForFrame).toHaveBeenCalledTimes(1);
+        if (options.focusLocator) expect(warn).toHaveBeenCalledOnce();
+      }
+    },
+  );
 
   it("releases ignored-node references without continuing after expiry", async () => {
     vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([

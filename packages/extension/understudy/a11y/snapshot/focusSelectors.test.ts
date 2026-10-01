@@ -37,7 +37,9 @@ describe("snapshot focus resolution", () => {
     const timedOut = expect(read).rejects.toThrow(/snapshot timed out/);
     await vi.advanceTimersByTimeAsync(10);
     await timedOut;
-    expect(waitForWorld).toHaveBeenCalledWith(session, "frame", 800, progress);
+    expect(waitForWorld).toHaveBeenCalledWith(session, "frame", 800, progress, {
+      readinessRetries: "none",
+    });
     respond({ result: { type: "object", objectId: "late-node" } });
     await vi.advanceTimersByTimeAsync(0);
     expect(send).toHaveBeenCalledTimes(2);
