@@ -70,9 +70,8 @@ describe("Every public SDK field participates in the protocol pipeline", () => {
       if (topLevelFields.length === 0 || isWholeParamsReference(call.params)) continue;
 
       const scopeText = call.scope.text();
-      const tokens = semanticTokens(
-        `${scopeText}\n${relatedHelperBodies(call.scope, call.language, helperBodies)}`,
-      );
+      const extendedText = `${scopeText}\n${relatedHelperBodies(call.scope, call.language, helperBodies)}`;
+      const tokens = semanticTokens(extendedText);
       const descriptorFields = Object.keys(
         schemaProperties(protocol, protocol.$defs.LocatorDescriptor ?? {}),
       );
@@ -90,19 +89,13 @@ describe("Every public SDK field participates in the protocol pipeline", () => {
       for (const [field, fieldSchema] of Object.entries(schemaProperties(protocol, params))) {
         const nestedFields = nestedFieldNames(protocol, fieldSchema);
         if (nestedFields.length === 0) continue;
-        if (directlyForwardsParameter(call.params, field, scopeText)) continue;
+        if (directlyForwardsParameter(call.params, field, extendedText)) continue;
 
-        const extendedText = `${scopeText}\n${relatedHelperBodies(
-          call.scope,
-          call.language,
-          helperBodies,
-        )}`;
         // A rest spread forwards newly added fields automatically. Explicitly transformed
         // fields remain visible beside the spread.
         if (/\.\.\.[A-Za-z_$][A-Za-z0-9_$]*\b/u.test(extendedText)) continue;
-        const extendedTokens = semanticTokens(extendedText);
         for (const nestedField of nestedFields) {
-          if (!extendedTokens.has(snakeCase(nestedField))) {
+          if (!tokens.has(snakeCase(nestedField))) {
             missing.push(
               `${call.language} ${call.wireMethod}: nested request field ${field}.${nestedField}`,
             );
