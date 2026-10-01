@@ -21,6 +21,7 @@ from pydantic import (
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
 _RPC_RESPONSE_GRACE_MS = 10_000
+_DEFAULT_LOCATOR_TIMEOUT_MS = 20_000
 _TRACE_CONTEXT_PROPAGATOR = TraceContextTextMapPropagator()
 _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.goto": 15_000,
@@ -536,6 +537,14 @@ class RPCClient:
 
 
 def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
+    if method.startswith("locator."):
+        timeout = _numeric_property(_property(params, "options"), "timeout")
+        if timeout == 0:
+            return None
+        if timeout is None:
+            timeout = _DEFAULT_LOCATOR_TIMEOUT_MS
+        return (_RPC_RESPONSE_GRACE_MS + timeout) / 1_000
+
     operation_timeout_ms: float | int | None = None
     if method in {
         "stagehand.act",
@@ -568,7 +577,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
 
     # These operations had no v3 deadline. Keep the server as the owner of their
     # lifetime instead of turning the transport grace period into a 10s ceiling.
-    if method in _UNBOUNDED_BY_DEFAULT_METHODS or method.startswith("locator."):
+    if method in _UNBOUNDED_BY_DEFAULT_METHODS:
         return None
 
     return _RPC_RESPONSE_GRACE_MS / 1_000
