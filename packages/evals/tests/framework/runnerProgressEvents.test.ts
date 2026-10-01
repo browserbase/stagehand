@@ -176,7 +176,8 @@ describe("runner progress events carry row identity", () => {
     const { executeBenchTask } = await import("../../framework/benchRunner.js");
     vi.mocked(executeBenchTask).mockImplementation(async (input) => {
       const web = String((input.params as { web: string }).web);
-      new EvalLogger(false).log({ category: "codex", message: `navigating ${web}`, level: 1 });
+      // echo=true: only the row routing keeps this line off the console.
+      new EvalLogger(true).log({ category: "codex", message: `navigating ${web}`, level: 1 });
       console.log(`raw console from ${web}`);
       return { _success: web === "a.com" };
     });
@@ -209,7 +210,7 @@ describe("runner progress events carry row identity", () => {
       );
       expect(done?.logPath).toMatch(
         new RegExp(
-          `${domain.slice(0, 1).repeat(8)}-${domain.replace(".", "\\.")}__gpt-5\\.4-mini\\.log$`,
+          `${domain.slice(0, 1).repeat(8)}-${domain.replace(".", "\\.")}__openai-gpt-5\\.4-mini\\.log$`,
         ),
       );
       const text = fs.readFileSync(done!.logPath!, "utf8");

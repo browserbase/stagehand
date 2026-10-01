@@ -65,12 +65,16 @@ function parseLogLine(logLine: LogLine): LogLineEval {
  * - Also keeps a structured version of the logs that can be returned for analysis or
  *   included in evaluation output.
  */
-function toRowLogEntry(logLine: LogLine): RowLogEntry {
+function toRowLogEntry(logLine: LogLine, defaultLevel?: number): RowLogEntry {
   const error = logLine.auxiliary?.error?.value;
+  // The stack, when the caller serialized one, goes on the lines below.
+  const trace = logLine.auxiliary?.trace?.value;
+  const message = error ? `${logLine.message}: ${String(error)}` : logLine.message;
+  const level = typeof logLine.level === "number" ? logLine.level : defaultLevel;
   return {
     category: logLine.category || "log",
-    message: error ? `${logLine.message}: ${String(error)}` : logLine.message,
-    ...(typeof logLine.level === "number" && { level: logLine.level }),
+    message: trace ? `${message}\n${String(trace)}` : message,
+    ...(level !== undefined && { level }),
   };
 }
 
@@ -116,7 +120,7 @@ export class EvalLogger {
   error(logLine: LogLine) {
     // Inside a run, the line goes to the row's log (file + optional live
     // stream) instead of the console, where concurrent rows interleave.
-    if (!logToRow(toRowLogEntry(logLine)) && this.echo) {
+    if (!logToRow(toRowLogEntry(logLine, 0)) && this.echo) {
       console.error(logLineToString(logLine));
     }
     this.logs.push(parseLogLine(logLine));

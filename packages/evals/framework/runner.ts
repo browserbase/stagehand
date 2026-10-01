@@ -51,7 +51,7 @@ import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
 import { resolveVerifierModel } from "./verifierModel.js";
 import { describeCase, rowKey, type CaseLabel } from "./caseIdentity.js";
 import { runInRowContext, type RowLogEntry, type RowPhase } from "./rowContext.js";
-import { RowLogWriter, resolveRunLogDir, rowLogFileName } from "./rowLog.js";
+import { RowLogNames, RowLogWriter, resolveRunLogDir, rowLogFileName } from "./rowLog.js";
 import path from "node:path";
 import { classifyRowOutcome, type RowOutcome } from "./runSummary.js";
 import {
@@ -464,6 +464,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       trajectoryGroup,
       persist: shouldPersistTrajectory(undefined),
     });
+    const logNames = new RowLogNames();
     process.env.EVAL_EXPERIMENT_NAME = experimentName;
     process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
     if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
@@ -589,12 +590,15 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             const rowLog = new RowLogWriter(
               path.join(
                 logDir,
-                rowLogFileName({
-                  name: row.case.shortId ?? input.name,
-                  domain: row.case.domain,
-                  model: input.modelName,
-                  trial,
-                }),
+                logNames.claim(
+                  rowLogFileName({
+                    name: row.case.shortId ?? input.name,
+                    domain: row.case.domain,
+                    model: input.modelName,
+                    trial,
+                  }),
+                  row.rowKey,
+                ),
               ),
             );
             const rowContext = {

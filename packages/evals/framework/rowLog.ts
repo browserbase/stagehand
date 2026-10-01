@@ -27,14 +27,18 @@ export function resolveRunLogDir(options: {
 
 const UNSAFE = /[^A-Za-z0-9._-]+/g;
 
-/** `47e314cc-recreation.gov__gpt-5.4-mini.log`, `-t2` for later trials. */
+/**
+ * `47e314cc-recreation.gov__openai-gpt-5.4-mini.log`, `-t2` for later trials.
+ * The provider stays in the name: `openai/foo` and `anthropic/foo` are
+ * different rows.
+ */
 export function rowLogFileName(input: {
   name: string;
   domain?: string;
   model?: string;
   trial?: number;
 }): string {
-  const model = input.model ? input.model.slice(input.model.indexOf("/") + 1) : undefined;
+  const model = input.model?.replaceAll("/", "-");
   const base = [input.name, input.domain].filter(Boolean).join("-");
   const trial = input.trial ? `-t${input.trial + 1}` : "";
   return `${`${base}${trial}${model ? `__${model}` : ""}`.replace(UNSAFE, "_")}.log`;
@@ -46,12 +50,37 @@ function formatEntry(entry: RowLogEntry, at: Date): string {
 }
 
 /**
+ * Hands out one file name per row within a run. Two rows whose names would
+ * collide (the same case id in two suites, or two tool surfaces of one cell)
+ * get `~2`, `~3`, … instead of interleaving in one append-only file. The same
+ * row key always gets the same name back.
+ */
+export class RowLogNames {
+  private readonly owners = new Map<string, string>();
+
+  claim(fileName: string, rowKey: string): string {
+    const stem = fileName.replace(/\.log$/, "");
+    for (let n = 1; ; n++) {
+      const candidate = n === 1 ? fileName : `${stem}~${n}.log`;
+      const owner = this.owners.get(candidate);
+      if (owner === undefined) {
+        this.owners.set(candidate, rowKey);
+        return candidate;
+      }
+      if (owner === rowKey) return candidate;
+    }
+  }
+}
+
+/**
  * Appends a row's lines to its file. The file is only created on the first
- * line, so rows that log nothing leave nothing behind.
+ * line, so rows that log nothing leave nothing behind. Logging is best
+ * effort: a filesystem error disables this row's file and never fails the row.
  */
 export class RowLogWriter {
   private stream?: fs.WriteStream;
   private wrote = false;
+  private disabled = false;
 
   constructor(readonly filePath: string) {}
 
@@ -60,14 +89,20 @@ export class RowLogWriter {
   }
 
   write(entry: RowLogEntry, at: Date = new Date()): void {
-    if (!this.stream) {
-      fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
-      this.stream = fs.createWriteStream(this.filePath, { flags: "a" });
-      // Logging must never fail a row.
-      this.stream.on("error", () => {});
+    if (this.disabled) return;
+    try {
+      if (!this.stream) {
+        fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+        this.stream = fs.createWriteStream(this.filePath, { flags: "a" });
+        this.stream.on("error", () => {
+          this.disabled = true;
+        });
+      }
+      this.stream.write(formatEntry(entry, at));
+      this.wrote = true;
+    } catch {
+      this.disabled = true;
     }
-    this.stream.write(formatEntry(entry, at));
-    this.wrote = true;
   }
 
   /** Marks a retry so the second attempt is distinguishable in the file. */

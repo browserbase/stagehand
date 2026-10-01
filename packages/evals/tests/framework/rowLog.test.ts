@@ -2,7 +2,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RowLogWriter, resolveRunLogDir, rowLogFileName } from "../../framework/rowLog.js";
+import {
+  RowLogNames,
+  RowLogWriter,
+  resolveRunLogDir,
+  rowLogFileName,
+} from "../../framework/rowLog.js";
 import { runInRowContext, type RowLogEntry } from "../../framework/rowContext.js";
 import { EvalLogger } from "../../logger.js";
 
@@ -21,10 +26,35 @@ describe("rowLog", () => {
   it("names files by case, site, trial and model", () => {
     expect(
       rowLogFileName({ name: "47e314cc", domain: "recreation.gov", model: "openai/gpt-5.4-mini" }),
-    ).toBe("47e314cc-recreation.gov__gpt-5.4-mini.log");
+    ).toBe("47e314cc-recreation.gov__openai-gpt-5.4-mini.log");
     expect(rowLogFileName({ name: "act/dropdown", model: "openai/gpt-4.1-mini", trial: 1 })).toBe(
-      "act_dropdown-t2__gpt-4.1-mini.log",
+      "act_dropdown-t2__openai-gpt-4.1-mini.log",
     );
+    // Same model id on two providers: two files.
+    expect(rowLogFileName({ name: "a", model: "openai/foo" })).not.toBe(
+      rowLogFileName({ name: "a", model: "anthropic/foo" }),
+    );
+  });
+
+  it("gives colliding rows distinct names and the same row the same name", () => {
+    const names = new RowLogNames();
+    expect(names.claim("47e314cc__m.log", "suiteA|row")).toBe("47e314cc__m.log");
+    expect(names.claim("47e314cc__m.log", "suiteB|row")).toBe("47e314cc__m~2.log");
+    expect(names.claim("47e314cc__m.log", "suiteC|row")).toBe("47e314cc__m~3.log");
+    expect(names.claim("47e314cc__m.log", "suiteB|row")).toBe("47e314cc__m~2.log");
+    expect(names.claim("47e314cc__m.log", "suiteA|row")).toBe("47e314cc__m.log");
+  });
+
+  it("never throws when the log directory can't be created", async () => {
+    const dir = tmp();
+    const blocker = path.join(dir, "file");
+    fs.writeFileSync(blocker, "");
+    // A path under a regular file: mkdir fails with ENOTDIR.
+    const writer = new RowLogWriter(path.join(blocker, "logs", "row.log"));
+    expect(() => writer.write({ category: "codex", message: "x" })).not.toThrow();
+    expect(() => writer.write({ category: "codex", message: "y" })).not.toThrow();
+    expect(writer.hasContent).toBe(false);
+    await writer.close();
   });
 
   it("puts logs beside persisted trajectories, else in a temp dir", () => {
@@ -80,11 +110,25 @@ describe("rowLog", () => {
           level: 0,
           auxiliary: { error: { value: "timeout", type: "string" } },
         });
+        logger.error({
+          category: "bench",
+          message: "Error in task x",
+          auxiliary: {
+            error: { value: "boom", type: "string" },
+            trace: { value: "Error: boom\n    at task.ts:1", type: "string" },
+          },
+        });
       },
     );
     expect(entries).toEqual([
       { category: "codex", message: "step 3", level: 1 },
       { category: "codex", message: "tool failed: timeout", level: 0 },
+      // No level given: error() still marks it as an error, and keeps the stack.
+      {
+        category: "bench",
+        message: "Error in task x: boom\nError: boom\n    at task.ts:1",
+        level: 0,
+      },
     ]);
     expect(log).not.toHaveBeenCalled();
     // Outside a row, echo works as before and the line is still recorded.
@@ -93,6 +137,7 @@ describe("rowLog", () => {
     expect(logger.getLogs().map((line) => line.message)).toEqual([
       "step 3",
       "tool failed",
+      "Error in task x",
       "outside",
     ]);
   });
