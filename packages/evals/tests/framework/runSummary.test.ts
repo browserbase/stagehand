@@ -153,6 +153,19 @@ describe("collectFailures", () => {
     expect(failures[2].reason).toBe(DEAD);
   });
 
+  it("carries the row's log file into failures and the --json summary", () => {
+    const logged = row("l1", "openai/gpt-5.4-mini", {
+      harnessStatus: "sdk_error",
+      harnessStopReason: "stream closed",
+      logPath: "/tmp/run/logs/l1__openai-gpt-5.4-mini.log",
+    });
+    expect(collectFailures([logged], "codex")[0].logPath).toBe(
+      "/tmp/run/logs/l1__openai-gpt-5.4-mini.log",
+    );
+    const json = buildRunSummaryJson({ results: [logged], harness: "codex", experimentName: "x" });
+    expect(json.failures[0].logPath).toBe("/tmp/run/logs/l1__openai-gpt-5.4-mini.log");
+  });
+
   it("classifies plain rubric fails and reads error when no stop reason", () => {
     const [failure] = collectFailures(
       [row("z", "openai/gpt-5.4-mini", { error: "wrong answer", criterionCount: 2 })],

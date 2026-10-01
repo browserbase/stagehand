@@ -91,15 +91,15 @@ Team defaults live in the tracked `evals.config.json` (schema v2: `defaults`, `b
 
 ![evals run --preview output](./assets/readme/preview.png)
 
-A live run draws one row per case in flight: case id and site, the task, the phase it's in (`session` → `agent` → `verify`) and how long it has been running. Elapsed time turns yellow once a row outlasts three quarters of the finished ones. Rows waiting for a provider slot are counted in the queue line rather than shown; the `↓` marks a provider whose width was halved after a 429. The last few finishes show their outcome and session URL:
+A live run draws one row per case in flight: case id and site, the task, the phase it's in (`session` → `agent` → `verify`) and how long it has been running. Elapsed time turns yellow once a row outlasts three quarters of the finished ones. Rows waiting for a provider slot are counted in the queue line rather than shown; the `↓` marks a provider whose width was halved after a 429. The last few finishes show their outcome, and failures their session URL:
 
 ![Live bench run](./assets/readme/run-live.png)
 
-Every case writes its own log file (`.trajectories/<run>/logs/`), whether or not you're watching. `-v` streams those lines above the board, attributed by case id; `--follow <id>` streams one case. While a run is going, `v` cycles the stream off → all → one (the oldest running case) → off, `?` shows the keys, and `esc` stops the run:
+Every case that logs anything gets its own file under `.trajectories/<run>/logs/` (with the provider in the name), whether or not you're watching. `-v` streams those lines above the board, attributed by case id; `--follow <id>` streams one case. While a run is going, `v` cycles the stream off → all → one (the oldest running case) → off, `?` shows the keys, and `esc` stops the run:
 
 ![Live bench run with -v](./assets/readme/run-verbose.png)
 
-The end-of-run summary has one line per cell (harness × tool × model) with the pass rate and the failure kinds that aren't the agent's fault or aren't what they look like: `max_turns`, `sdk_error`, `gated` (the judge passed it, a deterministic check such as "never used the browser" failed it), `ungraded`, and `retried`. Infra failures are listed with their reason and session URL; rubric fails by case id. `--json` emits the same as an object:
+The end-of-run summary has one line per cell (harness × tool × model) with the pass rate, the failure kinds that aren't the agent's fault or aren't what they look like (`max_turns`, `sdk_error`, `gated`: the judge passed it, a deterministic check such as "never used the browser" failed it, and `ungraded`), and `retried`: rows retried after a provider 429, which may still have passed. Infra failures are listed with their reason and session URL; rubric fails by case id. `--json` emits the same as an object:
 
 ![Run summary](./assets/readme/run-summary.png)
 

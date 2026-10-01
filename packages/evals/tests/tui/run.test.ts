@@ -567,7 +567,7 @@ describe("deriveCategoryFilter", () => {
       normalizedTarget: "act",
       trials: 1,
       concurrency: 10,
-      environment: "BROWSERBASE",
+      environment: "BROWSERBASE" as const,
       model: "openai/gpt-4.1-mini",
       useApi: false,
       harness: "stagehand" as const,

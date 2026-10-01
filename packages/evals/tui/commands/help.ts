@@ -129,7 +129,7 @@ export async function printRunHelp(): Promise<void> {
     row(dim("keys"), `${cyan("esc")} stop · ${cyan("v")} logs off → all → one · ${cyan("?")} help`),
     row(
       dim("logs"),
-      `One file per case under ${gray(".trajectories/<run>/logs/")}, always written`,
+      `One file per case that logs, under ${gray(".trajectories/<run>/logs/")}, streamed or not`,
     ),
     "",
     `  ${bold("Examples:")}`,
