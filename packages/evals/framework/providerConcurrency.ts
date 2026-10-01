@@ -480,14 +480,21 @@ export interface RunGatedRowOptions {
   maxRetries?: number;
   /** Delay before retrying a Browserbase session-create 429. */
   browserbaseRetryDelayMs?: number;
-  /** Injectable for tests. */
-  sleep?: (ms: number) => Promise<void>;
+  /** Injectable for tests. Resolves early when the signal aborts. */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
-const defaultSleep = (ms: number) =>
+const defaultSleep = (ms: number, signal?: AbortSignal) =>
   new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms);
+    if (signal?.aborted) return resolve();
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
     timer.unref?.();
+    signal?.addEventListener("abort", done, { once: true });
   });
 
 /** Row returned when the run is aborted before this row got a slot. */
@@ -525,7 +532,10 @@ export async function runGatedRow(options: RunGatedRowOptions): Promise<TaskResu
         throw error;
       }
       const source = classifyResultThrottle(result);
-      if (!source) return decorate(result, throttleInfo);
+      // A provider throttle needs a provider: rows with no model provider
+      // (core tasks run with modelName "none") have no width to halve, so a
+      // 429 or timeout in their own output is an ordinary failure.
+      if (!source || (source === "provider" && !provider)) return decorate(result, throttleInfo);
 
       const reason =
         (typeof result.harnessStopReason === "string" && result.harnessStopReason) ||
@@ -545,7 +555,7 @@ export async function runGatedRow(options: RunGatedRowOptions): Promise<TaskResu
 
       if (!willRetry) return decorate(result, throttleInfo);
       if (source === "browserbase") {
-        await sleep(options.browserbaseRetryDelayMs ?? BROWSERBASE_RETRY_DELAY_MS);
+        await sleep(options.browserbaseRetryDelayMs ?? BROWSERBASE_RETRY_DELAY_MS, signal);
         if (signal?.aborted) return decorate(result, { ...throttleInfo, retried: false });
       }
     }

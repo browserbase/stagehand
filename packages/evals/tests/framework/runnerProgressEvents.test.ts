@@ -62,6 +62,7 @@ describe("runner progress events", () => {
     delete process.env.EVAL_TRAJECTORY_GROUP;
     delete process.env.EVAL_EXPERIMENT_NAME;
     delete process.env.EVAL_MODEL_OVERRIDE;
+    delete process.env.EVAL_TRAJECTORY_MODEL;
   });
 
   async function startRun(events: RunProgressEvent[]) {
