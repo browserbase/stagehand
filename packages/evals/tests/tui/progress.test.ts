@@ -257,6 +257,30 @@ describe("ProgressRenderer board", () => {
     expect(text).not.toContain("queued 0");
   });
 
+  it("shows the error of a failed row that has no outcome (aborted before it ran)", () => {
+    const renderer = new ProgressRenderer({ animated: true, now: () => 0 });
+    renderer.onPlanned(2);
+    renderer.onStart(suiteRow(...CASES[0]));
+    renderer.onFail(suiteRow(...CASES[1]), { error: "aborted" });
+    expect(board(renderer)).toContainEqual(
+      expect.stringMatching(/✗ 9b2c07aa imgur\.com .*aborted/),
+    );
+    renderer.dispose();
+  });
+
+  it("sizes the board to the stream it draws on, not stdout", () => {
+    const stderrLike = Object.assign(Object.create(process.stdout), {
+      columns: 72,
+      write: () => true,
+    }) as NodeJS.WriteStream;
+    const renderer = new ProgressRenderer({ animated: true, stream: stderrLike, now: () => 0 });
+    renderer.onPlanned(6);
+    for (const [id, web] of CASES) renderer.onStart(suiteRow(id, web));
+    // stdout says 140 columns; the board's own stream says 72.
+    for (const line of board(renderer)) expect(line.length).toBeLessThanOrEqual(72);
+    renderer.dispose();
+  });
+
   it("logLine scrolls a line above the board and redraws the board under it", () => {
     const renderer = new ProgressRenderer({ animated: true, now: () => 0 });
     renderer.onStart(suiteRow(...CASES[0]));

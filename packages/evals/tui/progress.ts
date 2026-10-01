@@ -249,7 +249,7 @@ export class ProgressRenderer {
         details.durationMs !== undefined ? dim(formatMs(details.durationMs)) : undefined,
       );
       if (details.error) {
-        const available = Math.max(24, getTerminalWidth() - 10);
+        const available = Math.max(24, this.width() - 10);
         this.line(`    ${dim("→")} ${gray(truncateText(details.error, available))}`);
       }
     }
@@ -274,9 +274,7 @@ export class ProgressRenderer {
       return;
     }
     this.lastQueueLinePrintedAt = now;
-    this.line(
-      `  ${dim(truncateText(formatConcurrencyQueueLine(snapshot), getTerminalWidth() - 4))}`,
-    );
+    this.line(`  ${dim(truncateText(formatConcurrencyQueueLine(snapshot), this.width() - 4))}`);
   }
 
   /** Backpressure hit a row; always worth a line in streamed mode. */
@@ -340,7 +338,7 @@ export class ProgressRenderer {
     }
     this.line("");
     if (options.totals === false) return;
-    this.line(separator());
+    this.line(separator(this.width()));
     const total = this.passed + this.failed + this.maxTurns;
     const failed = this.failed + this.maxTurns;
     this.line(
@@ -352,7 +350,7 @@ export class ProgressRenderer {
         `  ${bold("Pass rate:")} ${pct >= 80 ? green(`${pct}%`) : pct >= 50 ? `${pct}%` : red(`${pct}%`)}`,
       );
     }
-    this.line(separator());
+    this.line(separator(this.width()));
     this.line("");
   }
 
@@ -364,11 +362,21 @@ export class ProgressRenderer {
     }
   }
 
+  /**
+   * Width of the stream the board is drawn on (stderr under `--json`), falling
+   * back to stdout's when that stream isn't a terminal.
+   */
+  private width(): number {
+    return typeof this.out.columns === "number" && this.out.columns > 0
+      ? getTerminalWidth(100, this.out)
+      : getTerminalWidth();
+  }
+
   // ─── Board ─────────────────────────────────────────────────────────────
 
   /** The animated board as lines, without trailing newline handling. */
   boardLines(): string[] {
-    const width = getTerminalWidth();
+    const width = this.width();
     const lines: string[] = [this.statusLine(width)];
     if (this.queue)
       lines.push(`  ${dim(truncateText(formatConcurrencyQueueLine(this.queue), width - 4))}`);
@@ -484,7 +492,8 @@ export class ProgressRenderer {
       row.durationMs !== undefined ? formatElapsed(row.durationMs) : undefined,
       // Failures link their session; rubric fails also carry the reason.
       row.outcome !== "pass" ? row.sessionUrl : undefined,
-      row.outcome === "fail" ? row.error : undefined,
+      // No outcome: a row that failed before it ran (e.g. aborted while queued).
+      row.outcome === "fail" || row.outcome === undefined ? row.error : undefined,
     ].filter(Boolean);
     const tail = truncateText(parts.join(" · "), Math.max(10, width - visibleLength(prefix) - 2));
     return `${prefix}${dim(tail)}`;
@@ -549,7 +558,7 @@ export class ProgressRenderer {
     status: string,
     duration?: string,
   ): void {
-    const width = getTerminalWidth();
+    const width = this.width();
     const statusWidth = Math.max(9, visibleLength(status));
     const modelWidth = model ? Math.min(28, visibleLength(model)) : 0;
     const nameWidth = Math.max(18, width - 6 - statusWidth - (model ? modelWidth + 1 : 0) - 12);
@@ -563,7 +572,7 @@ export class ProgressRenderer {
     const total = this.total ?? 0;
     if (total <= 0) return;
     const completed = this.passed + this.failed + this.maxTurns;
-    const barWidth = Math.max(12, Math.min(34, Math.floor(getTerminalWidth() * 0.24)));
+    const barWidth = Math.max(12, Math.min(34, Math.floor(this.width() * 0.24)));
     const filled = Math.min(barWidth, Math.round((completed / total) * barWidth));
     const pct = Math.round((completed / total) * 100);
     this.line(

@@ -112,16 +112,22 @@ export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LI
   const kindWidth = Math.max(4, ...shown.map((failure) => failure.kind.length));
   for (const failure of shown) {
     const harness = showHarness ? `${padRight(failure.harness, harnessWidth)} ` : "";
-    const urlPart = failure.sessionUrl ? ` ${dim(failure.sessionUrl)}` : "";
     const fixed = 4 + (showHarness ? harnessWidth + 1 : 0) + taskWidth + 1 + kindWidth + 1;
+    // The URL shares the line when a readable reason still fits beside it;
+    // on a narrow terminal it moves to its own line instead of wrapping.
+    const urlInline =
+      failure.sessionUrl !== undefined && width - fixed - failure.sessionUrl.length - 1 >= 12;
     const reasonWidth = Math.max(
       12,
-      width - fixed - (failure.sessionUrl ? failure.sessionUrl.length + 1 : 0),
+      width - fixed - (urlInline ? failure.sessionUrl!.length + 1 : 0),
     );
-    const reason = failure.reason ? gray(truncateText(failure.reason, reasonWidth)) : "";
+    // Multi-line SDK errors would break the row; one line, whitespace collapsed.
+    const reasonText = failure.reason?.replace(/\s+/g, " ").trim();
+    const reason = reasonText ? gray(truncateText(reasonText, reasonWidth)) : "";
     console.log(
-      `  ${FAILURE_ICON[failure.kind]} ${harness}${padRight(truncateText(failure.task, taskWidth), taskWidth)} ${padRight(failure.kind, kindWidth)} ${reason}${urlPart}`,
+      `  ${FAILURE_ICON[failure.kind]} ${harness}${padRight(truncateText(failure.task, taskWidth), taskWidth)} ${padRight(failure.kind, kindWidth)} ${reason}${urlInline ? ` ${dim(failure.sessionUrl!)}` : ""}`,
     );
+    if (failure.sessionUrl && !urlInline) console.log(`    ${dim(failure.sessionUrl)}`);
   }
   if (infra.length > shown.length) {
     console.log(dim(`  … ${infra.length - shown.length} more — --json has the full list`));

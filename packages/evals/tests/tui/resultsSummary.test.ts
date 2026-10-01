@@ -126,6 +126,28 @@ describe("printFailures", () => {
     expect(text).not.toContain("amazon.com");
   });
 
+  it("keeps a multi-line reason on one row and moves the URL down on a narrow terminal", () => {
+    process.stdout.columns = 70;
+    printFailures([
+      {
+        ...failures[0],
+        reason: "stream closed\n    at Socket.onEnd (net.js:1)\n    at emit",
+        sessionUrl: "https://www.browserbase.com/sessions/9ab0c1d2-5f6a-4b7c-8d9e-0123456789ab",
+      },
+    ]);
+    const lines = logSpy.mock.calls.map(([line]) => stripAnsi(String(line)));
+    const row = lines.find((line) => line.includes("9ab0c1d2 united.com"));
+    expect(row).toMatch(/sdk_error\s+stream closed at Socket/);
+    expect(row).not.toContain("https://");
+    expect(lines).toContain(
+      "    https://www.browserbase.com/sessions/9ab0c1d2-5f6a-4b7c-8d9e-0123456789ab",
+    );
+    // Everything but the URL line (a URL is never cut) fits the terminal.
+    for (const line of lines.filter((line) => !line.includes("https://"))) {
+      expect(line.length).toBeLessThanOrEqual(70);
+    }
+  });
+
   it("prints nothing when there are no failures", () => {
     printFailures([]);
     expect(logSpy).not.toHaveBeenCalled();
