@@ -463,13 +463,20 @@ describe("snapshot progress ownership", () => {
   });
 
   it("stops before reading another frame even if the deadline timer has not fired", async () => {
+    const readCommands = () =>
+      send.mock.calls
+        .map(([method]) => method)
+        .filter((method) => method !== "Runtime.releaseObject");
+    let readsAtExpiry: string[] = [];
     vi.mocked(a11yForFrame).mockImplementationOnce(async () => {
+      readsAtExpiry = readCommands();
       vi.spyOn(performance, "now").mockReturnValue(20);
       return { outline: "root", urlMap: {}, scopeApplied: false };
     });
     await expect(page.snapshot({}, progress)).rejects.toThrow(/extract timed out/);
+    await vi.advanceTimersByTimeAsync(0);
     expect(a11yForFrame).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledTimes(2);
+    expect(readCommands()).toEqual(readsAtExpiry);
   });
 
   it("does not turn focus expiry into a full-page fallback", async () => {

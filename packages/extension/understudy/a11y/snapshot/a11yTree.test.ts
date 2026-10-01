@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Progress } from "../../progress.js";
+import { executionContexts } from "../../executionContextRegistry.js";
 import { a11yForFrame } from "./a11yTree.js";
 import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
 
@@ -60,6 +61,48 @@ describe("a11yForFrame focused locators", () => {
     },
   );
 
+  it.each([".card", "xpath=//article"])(
+    "bounds a stalled %s focus lookup by the caller's deadline",
+    async (selector) => {
+      vi.useFakeTimers();
+      const progress = new Progress("snapshot", 10);
+      const actual =
+        await vi.importActual<typeof import("./focusSelectors.js")>("./focusSelectors.js");
+      vi.mocked(resolveObjectIdForCss).mockImplementation(actual.resolveObjectIdForCss);
+      vi.mocked(resolveObjectIdForXPath).mockImplementation(actual.resolveObjectIdForXPath);
+      const session = fakeSession(20, async (method) => {
+        if (method === "Runtime.evaluate") await new Promise((resolve) => setTimeout(resolve, 25));
+      });
+      executionContexts.registerExtensionWorld(session, "frame", 1);
+      const send = vi.spyOn(session, "send");
+      let failure: unknown;
+      const settled = a11yForFrame(
+        session,
+        "frame",
+        {
+          focusLocator: { selector },
+          tagNameMap: {},
+          scrollableMap: {},
+          encode: String,
+        },
+        progress,
+      ).catch((error: unknown) => {
+        failure = error;
+      });
+      try {
+        await vi.advanceTimersByTimeAsync(10);
+        const failureAtDeadline = failure;
+        await vi.advanceTimersByTimeAsync(15);
+        await settled;
+        expect(failureAtDeadline).toBe(progress.signal.reason);
+        expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "object-second" });
+        expect(send).not.toHaveBeenCalledWith("DOM.describeNode", expect.anything());
+      } finally {
+        progress.dispose();
+      }
+    },
+  );
+
   it.each([
     {
       name: "CSS",
@@ -100,11 +143,11 @@ describe("a11yForFrame focused locators", () => {
 
 function fakeSession(
   focusedBackendNodeId: number,
-  beforeSend?: (method: string) => void,
+  beforeSend?: (method: string) => void | Promise<void>,
 ): CDPSessionLike {
   return {
     send: vi.fn(async (method: string, params?: Record<string, unknown>) => {
-      beforeSend?.(method);
+      await beforeSend?.(method);
       if (
         method === "Accessibility.enable" ||
         method === "Runtime.enable" ||
@@ -115,6 +158,9 @@ function fakeSession(
       }
       if (method === "Accessibility.getFullAXTree") {
         return { nodes: repeatedSubtreeNodes() };
+      }
+      if (method === "Runtime.evaluate") {
+        return { result: { type: "object", objectId: "object-second" } };
       }
       if (method === "DOM.describeNode" && params?.objectId === "object-second") {
         return { node: { backendNodeId: focusedBackendNodeId } };
