@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildHarnessMatrix,
@@ -14,12 +17,20 @@ const baseConfig = (overrides: Partial<ConfigFile> = {}): ConfigFile => ({
   ...overrides,
 });
 
+/** Every URL a test expects to be probed must be listed; anything else throws. */
 function fetchStub(routes: Record<string, number>): typeof fetch {
   return vi.fn(async (input: string | URL | Request) => {
     const url = String(input);
-    const status = Object.entries(routes).find(([prefix]) => url.startsWith(prefix))?.[1] ?? 200;
+    const status = Object.entries(routes).find(([prefix]) => url.startsWith(prefix))?.[1];
+    if (status === undefined) throw new Error(`unexpected probe: ${url}`);
     return new Response(null, { status });
   }) as unknown as typeof fetch;
+}
+
+function fetchCalls(fetchImpl: typeof fetch): string[] {
+  return (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((call) =>
+    String(call[0]),
+  );
 }
 
 const allResolvable = () => true;
@@ -28,7 +39,7 @@ const noBinaries = (): string | undefined => undefined;
 function options(overrides: Partial<HarnessProbeOptions> = {}): HarnessProbeOptions {
   return {
     config: baseConfig(),
-    env: {},
+    env: { CODEX_HOME: os.tmpdir() },
     resolvePackage: allResolvable,
     which: noBinaries,
     execArgv: [],
@@ -58,7 +69,7 @@ describe("buildHarnessMatrix", () => {
   it("reports missing keys and binaries with the exact fix, without network", async () => {
     const matrix = await buildHarnessMatrix(
       options({
-        env: { OPENAI_API_KEY: "sk" },
+        env: { OPENAI_API_KEY: "sk", CODEX_HOME: os.tmpdir() },
         resolvePackage: (specifier) => specifier !== "@anthropic-ai/claude-agent-sdk",
         requested: ["claude_code", "codex", "deepagents"],
       }),
@@ -111,11 +122,13 @@ describe("buildHarnessMatrix", () => {
 
   it("--probe validates each provider key once and classifies 401 as a dead key with the .env line", async () => {
     const fetchImpl = fetchStub({
-      "https://api.anthropic.com": 401,
-      "https://api.openai.com": 200,
+      "https://api.anthropic.com/v1/models?limit=1": 401,
+      "https://api.openai.com/v1/models?limit=1": 200,
       "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash": 200,
+      "https://api.browserbase.com/v1/projects/proj": 200,
     });
-    const envFile = `${process.cwd()}/tests/fixtures/doctor.env`;
+    const envFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "doctor-env-")), ".env");
+    fs.writeFileSync(envFile, "# provider keys\nANTHROPIC_API_KEY=placeholder\n");
     const matrix = await buildHarnessMatrix(
       options({
         probe: true,
@@ -137,13 +150,13 @@ describe("buildHarnessMatrix", () => {
     );
     const byName = Object.fromEntries(matrix.harnesses.map((row) => [row.harness, row]));
     expect(byName.claude_code.probe).toMatchObject({ status: "fail", label: "401" });
-    expect(byName.claude_code.probe.fix).toContain(`replace ANTHROPIC_API_KEY in ${envFile}`);
+    expect(byName.claude_code.probe.fix).toBe(
+      `replace ANTHROPIC_API_KEY in ${envFile} (line 2 is what the runner loads)`,
+    );
     expect(byName.codex.probe).toMatchObject({ status: "ok", label: "200" });
     expect(byName.mastra.probe).toMatchObject({ status: "ok", label: "200" });
     // openai probed once for codex + mastra, anthropic once, google once (judge), browserbase once
-    const calls = (fetchImpl as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((c) =>
-      String(c[0]),
-    );
+    const calls = fetchCalls(fetchImpl);
     expect(calls.filter((url) => url.startsWith("https://api.openai.com"))).toHaveLength(1);
     expect(calls.filter((url) => url.startsWith("https://api.anthropic.com"))).toHaveLength(1);
     expect(
@@ -174,6 +187,119 @@ describe("buildHarnessMatrix", () => {
       fix: "evals config verifier set model google/gemini-3.5-flash",
     });
     expect(matrix.verifier.probes[1].detail).toContain("Fused judgment call failed");
+  });
+
+  it("--probe flags a retired OpenAI or Anthropic judge, not just a Google one", async () => {
+    for (const [model, url, key] of [
+      [
+        "openai/gpt-4o-2024-05-13",
+        "https://api.openai.com/v1/models/gpt-4o-2024-05-13",
+        "OPENAI_API_KEY",
+      ],
+      [
+        "anthropic/claude-3-opus-20240229",
+        "https://api.anthropic.com/v1/models/claude-3-opus-20240229",
+        "ANTHROPIC_API_KEY",
+      ],
+    ] as const) {
+      const fetchImpl = fetchStub({ [url]: 404 });
+      const matrix = await buildHarnessMatrix(
+        options({
+          probe: true,
+          fetchImpl,
+          env: { [key]: "k", EVAL_VERIFIER_MODEL: model },
+          requested: ["eve"],
+        }),
+      );
+      expect(matrix.verifier.probes[1]).toMatchObject({ status: "fail", label: "model not found" });
+      expect(fetchCalls(fetchImpl)).toContain(url);
+    }
+  });
+
+  it("probes the judge set in config when EVAL_VERIFIER_MODEL is unset", async () => {
+    const config = baseConfig({ verifier: { model: "openai/gpt-5.4-mini" } });
+    const fromConfig = await buildHarnessMatrix(options({ config, env: {} }));
+    expect(fromConfig.verifier.detail).toBe("openai/gpt-5.4-mini (config)");
+    expect(fromConfig.verifier.probes[0]).toMatchObject({ label: "OPENAI_API_KEY" });
+    const fromEnv = await buildHarnessMatrix(
+      options({ config, env: { EVAL_VERIFIER_MODEL: "anthropic/claude-haiku-4-5" } }),
+    );
+    expect(fromEnv.verifier.detail).toBe("anthropic/claude-haiku-4-5 (EVAL_VERIFIER_MODEL)");
+  });
+
+  it("checks the providers the harness would call, with EVAL_<H>_MODELS over config", async () => {
+    const config = baseConfig({ harnesses: { codex: { models: ["anthropic/claude-haiku-4-5"] } } });
+    const configOnly = await buildHarnessMatrix(
+      options({ config, env: { OPENAI_API_KEY: "sk" }, requested: ["codex"] }),
+    );
+    expect(configOnly.harnesses[0].key).toMatchObject({
+      status: "fail",
+      label: "ANTHROPIC_API_KEY",
+    });
+    // The planner reads the env twin first, so the doctor must too.
+    const envWins = await buildHarnessMatrix(
+      options({
+        config,
+        env: { OPENAI_API_KEY: "sk", EVAL_CODEX_MODELS: "openai/gpt-5.4-mini" },
+        requested: ["codex"],
+      }),
+    );
+    expect(envWins.harnesses[0].key).toMatchObject({ status: "ok", label: "OPENAI_API_KEY" });
+  });
+
+  it("requires a key for every provider in the stagehand matrix", async () => {
+    const partial = await buildHarnessMatrix(
+      options({
+        env: {
+          GOOGLE_GENERATIVE_AI_API_KEY: "g",
+          EVAL_MODELS: "google/gemini-2.5-flash,openai/gpt-4.1-mini",
+        },
+        requested: ["stagehand"],
+      }),
+    );
+    expect(partial.harnesses[0].key).toMatchObject({ status: "fail", label: "OPENAI_API_KEY" });
+    const pinned = await buildHarnessMatrix(
+      options({
+        config: baseConfig({ defaults: { concurrency: 3, model: "google/gemini-2.5-flash" } }),
+        env: { GOOGLE_GENERATIVE_AI_API_KEY: "g", EVAL_MODELS: "openai/gpt-4.1-mini" },
+        requested: ["stagehand"],
+      }),
+    );
+    expect(pinned.harnesses[0].key).toMatchObject({
+      status: "ok",
+      label: "GOOGLE_GENERATIVE_AI_API_KEY",
+    });
+  });
+
+  it("--harness all makes every row's failures count", async () => {
+    const matrix = await buildHarnessMatrix(options({ env: {}, requested: ["all"] }));
+    expect(matrix.harnesses.every((row) => row.required)).toBe(true);
+    expect(harnessMatrixReasons(matrix).failures).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("claude_code: ANTHROPIC_API_KEY is not set"),
+      ]),
+    );
+  });
+
+  it("checks the CODEX_HOME codex will use, or its parent when it does not exist yet", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-codex-"));
+    const extraFor = async (codexHome: string) =>
+      (
+        await buildHarnessMatrix(
+          options({ env: { OPENAI_API_KEY: "sk", CODEX_HOME: codexHome }, requested: ["codex"] }),
+        )
+      ).harnesses[0].extra;
+    expect(await extraFor(path.join(root, "fresh"))).toMatchObject({ status: "ok" });
+    fs.chmodSync(root, 0o500);
+    try {
+      expect(await extraFor(path.join(root, "fresh"))).toMatchObject({
+        status: "fail",
+        label: "CODEX_HOME not writable",
+        fix: `chmod u+w ${root}`,
+      });
+    } finally {
+      fs.chmodSync(root, 0o700);
+    }
   });
 
   it("warns about the heap for in-process harnesses at concurrency ≥ 5", async () => {
