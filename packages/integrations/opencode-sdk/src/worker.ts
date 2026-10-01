@@ -18,9 +18,11 @@ let sequence = 0;
 let activeHost: Awaited<ReturnType<typeof OpenCode.create>> | undefined;
 let activeSessionID: string | undefined;
 let interrupted = false;
+let readinessAbort: AbortController | undefined;
 
 export function interruptOpenCodeSession(): void {
   interrupted = true;
+  readinessAbort?.abort(new Error("OpenCode run interrupted."));
   if (activeHost && activeSessionID) {
     void activeHost.sessions.interrupt({ sessionID: activeSessionID }).catch(() => undefined);
   }
@@ -69,9 +71,26 @@ export async function executeOpenCodeSession(input: {
   let outcome: string | undefined;
   let costUsd: number | undefined;
   let tokens: unknown;
+  const expectedServers = Object.entries(input.session.config.mcp.servers)
+    .filter(([, server]) => !server.disabled)
+    .map(([name]) => name.replace(/[^a-zA-Z0-9_-]/g, "_"));
+  let ready: (() => void) | undefined;
+  const toolsReady = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  readinessAbort = new AbortController();
   const plugin = Plugin.define({
     id: "stagehand-opencode-observer",
     async setup(ctx) {
+      await ctx.tool.transform((editor) => {
+        const tools = editor.list();
+        if (
+          expectedServers.every((server) =>
+            tools.some((tool) => tool.options?.namespace === server),
+          )
+        )
+          ready?.();
+      });
       await ctx.tool.hook("execute.after", async (event) => {
         if (event.status === "completed" || event.status === "error") await toolResult(event.tool);
       });
@@ -95,6 +114,12 @@ export async function executeOpenCodeSession(input: {
     activeSessionID = session.id;
     const model = normalizeOpenCodeModel(input.model);
     if (model) await activeHost.sessions.switchModel({ sessionID: session.id, model });
+    if (expectedServers.length) {
+      // SDK startup can register MCP tools after the first prompt takes its tool snapshot.
+      await activeHost.mcp.list({ location: { directory: input.session.directory } });
+      await waitForToolRegistration(toolsReady, readinessAbort.signal, expectedServers);
+    }
+    if (interrupted) throw new Error("OpenCode run interrupted.");
     await activeHost.sessions.prompt({ sessionID: session.id, text: input.prompt });
     await activeHost.sessions.wait({ sessionID: session.id });
     const info = await activeHost.sessions.get({ sessionID: session.id });
@@ -134,7 +159,31 @@ export async function executeOpenCodeSession(input: {
     await activeHost?.close();
     activeHost = undefined;
     activeSessionID = undefined;
+    readinessAbort = undefined;
   }
+}
+
+async function waitForToolRegistration(
+  ready: Promise<void>,
+  signal: AbortSignal,
+  servers: string[],
+): Promise<void> {
+  signal.throwIfAborted();
+  await new Promise<void>((resolve, reject) => {
+    const onAbort = () => finish(signal.reason);
+    const timer = setTimeout(
+      () => finish(new Error(`OpenCode MCP tools did not register: ${servers.join(", ")}.`)),
+      30_000,
+    );
+    function finish(error?: unknown): void {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", onAbort);
+      if (error) reject(error);
+      else resolve();
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    ready.then(() => finish(), finish);
+  });
 }
 
 if (process.send) {
