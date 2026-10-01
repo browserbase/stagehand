@@ -23,7 +23,11 @@ import { runEveAgent } from "./eveRunner.js";
 import { EVE_TOOL_SURFACES, prepareEveToolAdapter } from "./eveToolAdapter.js";
 import { runDeepagentsAgent } from "./deepagentsRunner.js";
 import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
-import { runAntigravityAgent, ANTIGRAVITY_DEFAULT_MODELS } from "./antigravityRunner.js";
+import {
+  runAntigravityAgent,
+  ANTIGRAVITY_DEFAULT_MODELS,
+  ANTIGRAVITY_TOOL_SURFACES,
+} from "./antigravityRunner.js";
 import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
@@ -374,7 +378,7 @@ export const deepagentsHarness = defineExternalHarness({
  */
 export const antigravityHarness = defineExternalHarness({
   harness: "antigravity",
-  supportedToolSurfaces: DEEPAGENTS_TOOL_SURFACES,
+  supportedToolSurfaces: ANTIGRAVITY_TOOL_SURFACES,
   defaultModels: ANTIGRAVITY_DEFAULT_MODELS,
   prepareToolAdapter: prepareDeepagentsToolAdapter,
   runAgent: runAntigravityAgent,

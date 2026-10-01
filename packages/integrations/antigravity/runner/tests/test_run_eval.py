@@ -109,9 +109,23 @@ def test_find_offloaded_output_matches_step_and_claims(tmp_path):
         paths[step] = str(path)
     claimed: set[str] = set()
     assert run_eval.find_offloaded_output(str(root), "traj:9", claimed) == paths["9"]
-    # One unclaimed file left: unambiguous even when the step number is unknown.
-    assert run_eval.find_offloaded_output(str(root), None, claimed) == paths["4"]
+    # One unclaimed file left, written after this call started: unambiguous
+    # even when the step number is unknown.
+    assert run_eval.find_offloaded_output(str(root), None, claimed, not_before=0.0) == paths["4"]
     assert run_eval.find_offloaded_output(str(root), "traj:4", claimed) is None
+
+
+def test_find_offloaded_output_ignores_files_older_than_the_call(tmp_path):
+    root = tmp_path / "brain"
+    stale = root / "conv" / ".system_generated" / "steps" / "4" / "output.txt"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("left by an earlier call")
+    later = stale.stat().st_mtime + 60
+    assert run_eval.find_offloaded_output(str(root), "traj:7", set(), not_before=later) is None
+    # Without a start time there is nothing to tie the file to this call.
+    assert run_eval.find_offloaded_output(str(root), "traj:7", set()) is None
+    # A matching step number is enough on its own.
+    assert run_eval.find_offloaded_output(str(root), "traj:4", set(), not_before=later) == str(stale)
 
 
 def test_find_offloaded_output_is_none_when_ambiguous(tmp_path):

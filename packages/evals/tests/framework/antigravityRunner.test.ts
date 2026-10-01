@@ -54,9 +54,12 @@ function eventSpawner(
 }
 
 describe("Antigravity runner", () => {
-  it("is registered with a Gemini default model", () => {
+  it("is registered for the Stagehand facade only, with a Gemini default model", () => {
     const harness = getBenchHarness("antigravity");
     expect(harness.harness).toBe("antigravity");
+    // The system prompt names the facade's three tools; no other surface has them.
+    expect(harness.supportedToolSurfaces).toEqual(["stagehand_facade"]);
+    expect(harness.defaultModels).toEqual(["google/gemini-3.8-flash"]);
   });
 
   it("resolves the runner dir from the env override or the repo checkout", () => {
@@ -104,7 +107,14 @@ describe("Antigravity runner", () => {
       spawn: eventSpawner([
         { type: "assistant", text: "Open the page", reasoning: "" },
         { type: "tool_call", id: "call_1", name: "run", server: "stagehand", args: {} },
-        { type: "tool_result", id: "call_1", name: "run", server: "stagehand", ok: true, text: "ok" },
+        {
+          type: "tool_result",
+          id: "call_1",
+          name: "run",
+          server: "stagehand",
+          ok: true,
+          text: "ok",
+        },
         { type: "final", text: final },
         {
           type: "usage",

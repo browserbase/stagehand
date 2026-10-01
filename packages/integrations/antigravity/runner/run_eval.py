@@ -140,12 +140,15 @@ def view_file_target(call_args: object, canonical_path: str | None) -> str | Non
     return None
 
 
-def find_offloaded_output(brain_root: str, step_id: str | None, claimed: set[str]) -> str | None:
+def find_offloaded_output(brain_root: str, step_id: str | None, claimed: set[str],
+                          not_before: float | None = None) -> str | None:
     """Locate the output.txt the runtime wrote for a tool call, if it offloaded one.
 
     Files live at <brain>/<conversation>/.system_generated/steps/<n>/output.txt.
-    Prefer the file whose step number matches `step_id` ("<trajectory>:<n>");
-    with sequential tool calls a single unclaimed file is also unambiguous.
+    Prefer the file whose step number matches `step_id` ("<trajectory>:<n>").
+    Otherwise accept a single unclaimed file only if it was written after the
+    call started (`not_before`), so a file left by an earlier call is never
+    attributed to this one.
     """
     pattern = os.path.join(glob.escape(brain_root), "*", ".system_generated", "steps", "*", "output.txt")
     candidates = sorted(path for path in glob.glob(pattern) if path not in claimed)
@@ -153,8 +156,16 @@ def find_offloaded_output(brain_root: str, step_id: str | None, claimed: set[str
         return None
     index = step_id.rsplit(":", 1)[-1] if step_id else None
     chosen = next((p for p in candidates if os.path.basename(os.path.dirname(p)) == index), None)
-    if chosen is None and len(candidates) == 1:
-        chosen = candidates[0]
+    if chosen is None and not_before is not None:
+        fresh = []
+        for path in candidates:
+            try:
+                if os.path.getmtime(path) >= not_before:
+                    fresh.append(path)
+            except OSError:
+                continue
+        if len(fresh) == 1:
+            chosen = fresh[0]
     if chosen is not None:
         claimed.add(chosen)
     return chosen
@@ -281,6 +292,10 @@ _BUDGET_STOPS = {"MAX_TOOL_CALLS_EXCEEDED", "MAX_MODEL_CALLS_EXCEEDED"}
 _VIEW_FILE = "view_file"
 
 
+class WallTimeout(Exception):
+    """The runner's own wall-clock limit expired (not a timeout inside the SDK)."""
+
+
 async def run(config: RunnerConfig) -> int:
     from google.antigravity import Agent, LocalAgentConfig, types
     from google.antigravity.hooks import hooks
@@ -292,6 +307,7 @@ async def run(config: RunnerConfig) -> int:
     app_data_dir = tempfile.mkdtemp(prefix="stagehand-antigravity-")
     brain_root = os.path.join(app_data_dir, "brain")
     claimed_outputs: set[str] = set()
+    call_started: dict[str, float] = {}
     budget_exhausted = asyncio.Event()
     counted_calls = 0
 
@@ -379,6 +395,8 @@ async def run(config: RunnerConfig) -> int:
                 budget_exhausted.set()
                 return types.HookResult(allow=False, message="Tool-call budget exhausted.")
         pending_calls.append(call)
+        # 1 s of slack: file mtimes can be coarser than time.time().
+        call_started[call["id"]] = time.time() - 1.0
         return types.HookResult(allow=True)
 
     @hooks.post_tool_call
@@ -389,7 +407,8 @@ async def run(config: RunnerConfig) -> int:
         if error is None and name != _VIEW_FILE:
             # What the hook sees for an offloaded output is only a title or a
             # pointer; record the real output so the verifier has the evidence.
-            saved = find_offloaded_output(brain_root, getattr(data, "step_id", None), claimed_outputs)
+            saved = find_offloaded_output(brain_root, getattr(data, "step_id", None), claimed_outputs,
+                                          call_started.pop(str(getattr(data, "id", "") or ""), None))
             if saved is not None:
                 try:
                     with open(saved, encoding="utf-8", errors="replace") as handle:
@@ -442,13 +461,12 @@ async def run(config: RunnerConfig) -> int:
             return agent.conversation.total_usage if agent is not None else None
         except Exception:
             return None
-    try:
-        async with Agent(agent_config) as agent:
-            agent_ref["agent"] = agent
-
-            response = await agent.chat(config.prompt)
-            text_task = asyncio.create_task(response.text())
-            budget_task = asyncio.create_task(budget_exhausted.wait())
+    async def drive(agent: Any) -> None:
+        nonlocal final_text
+        response = await agent.chat(config.prompt)
+        text_task = asyncio.create_task(response.text())
+        budget_task = asyncio.create_task(budget_exhausted.wait())
+        try:
             done, _ = await asyncio.wait({text_task, budget_task}, timeout=config.wall_timeout_s,
                                          return_when=asyncio.FIRST_COMPLETED)
             budget_hit = budget_task in done and not text_task.done()
@@ -459,39 +477,61 @@ async def run(config: RunnerConfig) -> int:
                     pass
                 try:
                     final_text = await asyncio.wait_for(text_task, 30)
-                except (Exception, asyncio.CancelledError):  # noqa: BLE001
+                except (Exception, asyncio.CancelledError):  # noqa: BLE001 - a cancelled turn has no text
+                    task = asyncio.current_task()
+                    if task is not None and task.cancelling():
+                        raise  # SIGTERM arrived while winding down; let it through
                     final_text = ""
                 if not done:
-                    raise asyncio.TimeoutError
+                    raise WallTimeout
             else:
-                budget_task.cancel()
                 final_text = text_task.result()
-            flush_pending()
-            usage = agent.conversation.total_usage
-            stop = getattr(response.stop_reason, "value", str(response.stop_reason or ""))
-            if budget_hit:
-                emit({"type": "error", "kind": "tool_step_budget",
-                      "message": f"Tool-call budget exhausted (max_tool_steps={config.max_tool_steps})"})
-            elif stop in _BUDGET_STOPS:
-                emit({"type": "error", "kind": "tool_step_budget",
-                      "message": f"Antigravity stopped: {stop} (max_tool_calls={config.max_tool_steps})"})
-            elif stop and stop != "UNSPECIFIED":
-                emit({"type": "error", "kind": "stop_reason", "message": f"Antigravity stopped: {stop}"})
-    except asyncio.TimeoutError:
+        finally:
+            budget_task.cancel()
+            text_task.cancel()
+        flush_pending()
+        stop = getattr(response.stop_reason, "value", str(response.stop_reason or ""))
+        if budget_hit:
+            emit({"type": "error", "kind": "tool_step_budget",
+                  "message": f"Tool-call budget exhausted (max_tool_steps={config.max_tool_steps})"})
+        elif stop in _BUDGET_STOPS:
+            emit({"type": "error", "kind": "tool_step_budget",
+                  "message": f"Antigravity stopped: {stop} (max_tool_calls={config.max_tool_steps})"})
+        elif stop and stop != "UNSPECIFIED":
+            emit({"type": "error", "kind": "stop_reason", "message": f"Antigravity stopped: {stop}"})
+
+    # SIGTERM cancels this task so the agent context unwinds and the terminal
+    # events below are still written. A handler that raises out of the event
+    # loop would skip them.
+    current = asyncio.current_task()
+    loop = asyncio.get_running_loop()
+    if current is not None:
+        try:
+            loop.add_signal_handler(signal.SIGTERM, current.cancel)
+        except (NotImplementedError, RuntimeError, ValueError):
+            pass  # not the main thread, or no signal support
+    try:
+        async with Agent(agent_config) as agent:
+            agent_ref["agent"] = agent
+            try:
+                await drive(agent)
+            finally:
+                # Read usage while the conversation is still open.
+                usage = current_usage()
+    except WallTimeout:
         flush_pending()
         emit({"type": "error", "kind": "wall_timeout", "message": f"wall timeout after {config.wall_timeout_s}s"})
-        usage = current_usage()
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         flush_pending()
         emit({"type": "error", "kind": "exception", "message": "terminated"})
         emit({"type": "final", "text": final_text})
-        emit(usage_event(usage or current_usage()))
+        emit(usage_event(usage))
         return 1
     except Exception as error:  # noqa: BLE001 - reported to the parent as an event
         flush_pending()
         emit({"type": "error", "kind": "exception", "message": sanitize_error(f"{type(error).__name__}: {error}")})
         emit({"type": "final", "text": final_text})
-        emit(usage_event(usage or current_usage()))
+        emit(usage_event(usage))
         return 1
     finally:
         shutil.rmtree(app_data_dir, ignore_errors=True)

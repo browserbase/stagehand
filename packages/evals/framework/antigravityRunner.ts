@@ -22,6 +22,7 @@ import {
   type DeepagentsTokenUsage,
 } from "@browserbasehq/stagehand-integrations-deepagents-sdk";
 import type { AvailableModel } from "stagehand-v3";
+import type { ToolSurface } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
 import { getRepoRootDir } from "../runtimePaths.js";
 import type { PreparedDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
@@ -33,6 +34,12 @@ import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 export const ANTIGRAVITY_DEFAULT_MODELS = ["google/gemini-3.8-flash" as AvailableModel];
+
+/**
+ * Only the Stagehand facade: the system prompt below describes its three tools,
+ * and the saved-output handling has been exercised on no other surface.
+ */
+export const ANTIGRAVITY_TOOL_SURFACES: ToolSurface[] = ["stagehand_facade"];
 
 export interface AntigravityRunnerInput {
   plan: ExternalHarnessTaskPlan;

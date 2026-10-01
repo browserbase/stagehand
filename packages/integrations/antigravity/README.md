@@ -25,7 +25,7 @@ Agents session driver, MCP tool mount and trajectory adapter.
   cancels the turn after N. A budget stop maps to `max_turns`.
 - Usage: the SDK's `prompt_token_count` is net of cached tokens, so the runner
   reports input as prompt + cached (cached is a subset) and `candidates +
-  thoughts` as output.
+thoughts` as output.
 
 ```sh
 EVAL_HARDBENCHMARK_IDS=bestbuy_comparison_shopping_45 \
@@ -33,12 +33,12 @@ EVAL_HARDBENCHMARK_IDS=bestbuy_comparison_shopping_45 \
   --harness antigravity -m google/gemini-3.8-flash -t 1
 ```
 
-| Variable | Purpose |
-| --- | --- |
-| `GEMINI_API_KEY` | Gemini API key (`GOOGLE_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` also accepted). |
-| `EVAL_ANTIGRAVITY_MAX_STEPS` | Tool-call budget (then `AGENT_EVAL_MAX_STEPS`, dataset default, 50). |
-| `EVAL_ANTIGRAVITY_THINKING_LEVEL` | `minimal`, `low`, `medium`, `high` or `extra_high`. |
-| `EVAL_ANTIGRAVITY_WALL_TIMEOUT_S` | Optional wall-clock limit for the agent turn. |
-| `STAGEHAND_ANTIGRAVITY_RUNNER_DIR` | Override the runner project directory. |
+| Variable                           | Purpose                                                                           |
+| ---------------------------------- | --------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`                   | Gemini API key (`GOOGLE_API_KEY` / `GOOGLE_GENERATIVE_AI_API_KEY` also accepted). |
+| `EVAL_ANTIGRAVITY_MAX_STEPS`       | Tool-call budget (then `AGENT_EVAL_MAX_STEPS`, dataset default, 50).              |
+| `EVAL_ANTIGRAVITY_THINKING_LEVEL`  | `minimal`, `low`, `medium`, `high` or `extra_high`.                               |
+| `EVAL_ANTIGRAVITY_WALL_TIMEOUT_S`  | Optional wall-clock limit for the agent turn.                                     |
+| `STAGEHAND_ANTIGRAVITY_RUNNER_DIR` | Override the runner project directory.                                            |
 
 Runner tests: `uv run --project packages/integrations/antigravity/runner --group dev pytest`.
