@@ -260,3 +260,11 @@ describe("-v / --follow", () => {
     expect(() => parseRunArgs(["b:hardbenchmark", "--follow"])).toThrow(/Missing value/);
   });
 });
+
+describe("resolveRunOptions: harnesses.<h>.models", () => {
+  it("is ignored for harnesses that pick models per task category (stagehand)", () => {
+    const sections = { harnesses: { stagehand: { models: ["openai/x"] } } };
+    const resolved = resolveRunOptions({ harness: "stagehand" }, {}, {}, {}, {}, sections);
+    expect(resolved.envOverrides.EVAL_STAGEHAND_MODELS).toBeUndefined();
+  });
+});

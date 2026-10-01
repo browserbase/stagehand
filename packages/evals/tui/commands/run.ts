@@ -43,8 +43,10 @@ import type { RunEvalsResult, RunProgressEvent } from "../../framework/runner.js
 import { logToRow } from "../../framework/rowContext.js";
 import { format } from "node:util";
 import {
+  PROVIDER_CONCURRENCY_ENV,
   ProviderConcurrency,
   describeProviderWidths,
+  parseProviderConcurrencyEnv,
 } from "../../framework/providerConcurrency.js";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
@@ -467,6 +469,21 @@ export async function runCommand(
       return;
     }
     throw new Error(message);
+  }
+
+  // A malformed EVAL_PROVIDER_CONCURRENCY fails the plan (dry-run and
+  // preview included) rather than the first row of a real run.
+  try {
+    parseProviderConcurrencyEnv(
+      options.envOverrides[PROVIDER_CONCURRENCY_ENV] ?? process.env[PROVIDER_CONCURRENCY_ENV],
+    );
+  } catch (err) {
+    if (planMode) {
+      await emitDryRun(options, tasks, registry, (err as Error).message);
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
   }
 
   const hasCoreOnly = tasks.every((task) => task.tier === "core");

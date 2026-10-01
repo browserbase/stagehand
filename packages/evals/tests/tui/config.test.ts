@@ -143,7 +143,12 @@ describe("config v2: tracked + local", () => {
     const entryDir = makeTempEntryDir();
     seed(
       entryDir,
-      { version: 2, defaults: { env: "local", concurrency: 3 }, benchmarks: {} },
+      {
+        version: 2,
+        defaults: { env: "local", concurrency: 3 },
+        benchmarks: {},
+        _meta: { firstRunCompletedAt: "tracked", version: 1 },
+      },
       { defaults: { concurrency: 10 }, _meta: { firstRunCompletedAt: "x", version: 1 } },
     );
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -195,11 +200,15 @@ describe("config v2: tracked + local", () => {
 
     await handleConfig(["set", "harness", "nope"], entryDir);
     expect(error.mock.calls.flat().join("\n")).toContain('Unknown harness "nope"');
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
     await handleConfig(["set", "successMode", "maybe"], entryDir);
     expect(error.mock.calls.flat().join("\n")).toContain(
       "successMode must be outcome, process or both",
     );
+    expect(process.exitCode).toBe(1);
     process.exitCode = undefined;
+    expect(readConfig(entryDir).defaults).toEqual({});
 
     await handleConfig(["set", "provider", "openai"], entryDir);
     expect(log.mock.calls.flat().join("\n")).toContain('config key "provider" is deprecated');
@@ -264,5 +273,90 @@ describe("config v2: tracked + local", () => {
     await handleConfig(["providers", "reset", "openai"], entryDir);
     expect(readLocal(entryDir)).toEqual({ providers: { openai: null } });
     expect(readConfig(entryDir).providers).toEqual({});
+  });
+});
+
+describe("config v2: validation", () => {
+  function seed(entryDir: string, local?: unknown) {
+    fs.writeFileSync(
+      path.join(entryDir, "evals.config.json"),
+      JSON.stringify({ version: 2, defaults: { env: "local" }, benchmarks: {} }),
+    );
+    if (local !== undefined) {
+      fs.writeFileSync(path.join(entryDir, "evals.config.local.json"), JSON.stringify(local));
+    }
+  }
+  const localPath = (entryDir: string) => path.join(entryDir, "evals.config.local.json");
+
+  async function expectRejected(entryDir: string, args: string[], message: string) {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    await handleConfig(args, entryDir);
+    expect(error.mock.calls.flat().join("\n")).toContain(message);
+    expect(process.exitCode).toBe(1);
+    process.exitCode = undefined;
+    expect(fs.existsSync(localPath(entryDir))).toBe(false);
+  }
+
+  it("rejects unsafe integers, malformed judge ids and models for category-picked harnesses", async () => {
+    const entryDir = makeTempEntryDir();
+    seed(entryDir);
+    await expectRejected(
+      entryDir,
+      ["providers", "set", "openai", "concurrency", "99999999999999999999"],
+      "concurrency must be a positive integer",
+    );
+    await expectRejected(
+      entryDir,
+      ["verifier", "set", "model", "/gemini"],
+      "verifier model must be provider/model",
+    );
+    await expectRejected(
+      entryDir,
+      ["verifier", "set", "model", "google/"],
+      "verifier model must be provider/model",
+    );
+    await expectRejected(
+      entryDir,
+      ["harnesses", "set", "stagehand", "models", "openai/gpt-4.1"],
+      'Harness "stagehand" picks models per task category',
+    );
+  });
+
+  it("accepts 0 for maxUnverifiableCriteria (zero tolerance)", async () => {
+    const entryDir = makeTempEntryDir();
+    seed(entryDir);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    await handleConfig(["verifier", "set", "maxUnverifiableCriteria", "0"], entryDir);
+    expect(process.exitCode).toBeUndefined();
+    expect(readConfig(entryDir).verifier).toEqual({ maxUnverifiableCriteria: 0 });
+  });
+
+  it("rejects --shared for core and tracing instead of writing a personal override", async () => {
+    const entryDir = makeTempEntryDir();
+    seed(entryDir);
+    await expectRejected(
+      entryDir,
+      ["core", "set", "tool", "understudy_code", "--shared"],
+      "--shared is not supported for config core",
+    );
+    await expectRejected(
+      entryDir,
+      ["tracing", "set", "transport", "otel", "--shared"],
+      "--shared is not supported for config tracing",
+    );
+    // The command tree hands the raw args (still carrying --shared) to the handlers.
+    const { handleCore } = await import("../../tui/commands/core.js");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await handleCore(["set", "tool", "understudy_code", "--shared"], entryDir);
+    expect(error.mock.calls.flat().join("\n")).toContain("--shared is not supported");
+    process.exitCode = undefined;
+    expect(fs.existsSync(localPath(entryDir))).toBe(false);
+  });
+
+  it("refuses a local file whose defaults is not an object", () => {
+    const entryDir = makeTempEntryDir();
+    seed(entryDir, { defaults: null });
+    expect(() => readConfig(entryDir)).toThrow(/"defaults" must be an object/);
   });
 });

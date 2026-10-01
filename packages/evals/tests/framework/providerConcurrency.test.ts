@@ -152,9 +152,7 @@ describe("classifyThrottle", () => {
   });
 
   it("attributes session-create failures to Browserbase", () => {
-    expect(classifyThrottle("Browserbase session creation failed: 429 Too Many Requests")).toBe(
-      "browserbase",
-    );
+    expect(classifyThrottle("Browserbase session creation failed (HTTP 429).")).toBe("browserbase");
   });
 
   it.each([
@@ -188,7 +186,7 @@ describe("classifyResultThrottle", () => {
     expect(
       classifyResultThrottle({
         _success: false,
-        error: "Browserbase session creation failed: 429 Too Many Requests",
+        error: "Browserbase session creation failed (HTTP 429).",
       }),
     ).toBe("browserbase");
   });
@@ -395,7 +393,7 @@ describe("runGatedRow", () => {
       .fn<(attempt: number) => Promise<TaskResult>>()
       .mockResolvedValueOnce({
         _success: false,
-        error: "Browserbase session creation failed: 429 Too Many Requests",
+        error: "Browserbase session creation failed (HTTP 429).",
       })
       .mockResolvedValueOnce({ _success: true });
     const result = await runGatedRow({
@@ -405,13 +403,56 @@ describe("runGatedRow", () => {
       sleep,
       browserbaseRetryDelayMs: 1234,
     });
-    expect(sleep).toHaveBeenCalledWith(1234);
+    expect(sleep).toHaveBeenCalledWith(1234, undefined);
     expect(result).toMatchObject({
       _success: true,
       providerThrottled: { source: "browserbase", throttles: 1, retried: true },
     });
     expect(scheduler.snapshot().semaphores.openai.width).toBe(4);
     expect(scheduler.snapshot().throttled).toBe(0);
+  });
+
+  it("stops waiting out the Browserbase retry delay when the run aborts", async () => {
+    const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
+    const controller = new AbortController();
+    const execute = vi.fn(
+      async (): Promise<TaskResult> => ({
+        _success: false,
+        error: "Browserbase session creation failed (HTTP 429).",
+      }),
+    );
+    const row = runGatedRow({
+      scheduler,
+      modelName: "openai/gpt-5.4-mini",
+      execute,
+      signal: controller.signal,
+      browserbaseRetryDelayMs: 60_000,
+    });
+    await flush();
+    controller.abort("cooperative");
+    const outcome = await Promise.race([
+      row,
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 200)),
+    ]);
+    expect(outcome).toMatchObject({
+      _success: false,
+      providerThrottled: { source: "browserbase", retried: false },
+    });
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not treat a 429 in a provider-less row as a provider throttle", async () => {
+    const scheduler = new ProviderConcurrency({ globalConcurrency: 8 });
+    const execute = vi.fn(
+      async (): Promise<TaskResult> => ({
+        _success: false,
+        error: "page returned HTTP 429 Too Many Requests",
+      }),
+    );
+    const result = await runGatedRow({ scheduler, modelName: "none", execute });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(result.providerThrottled).toBeUndefined();
+    expect(scheduler.snapshot()).toMatchObject({ throttled: 0, semaphores: {} });
   });
 
   it("does not re-run the agent when only the judge was rate limited", async () => {

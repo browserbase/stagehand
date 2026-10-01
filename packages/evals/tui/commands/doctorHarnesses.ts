@@ -18,11 +18,12 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { getBenchHarness, listExecutableBenchHarnesses } from "../../framework/benchHarness.js";
 import { ProviderConcurrency, providerFromModel } from "../../framework/providerConcurrency.js";
-import { resolveVerifierModel } from "../../framework/verifierModel.js";
+import { DEFAULT_VERIFIER_MODEL, resolveVerifierModel } from "../../framework/verifierModel.js";
 import { getPackageRootDir } from "../../runtimePaths.js";
 import { getEvalsEnvReport, type EvalsEnvReport } from "../../evalsEnv.js";
 import type { ConfigFile } from "./config.js";
@@ -256,23 +257,39 @@ async function probeProvider(
   }
 }
 
-/** Judge model exists for its provider (Google: GET models/<id>; others: provider probe). */
+/**
+ * Judge model is still served: GET the model itself (`models/<id>`) on the
+ * provider's models API, so a retired judge (404) fails here instead of
+ * failing every rubric criterion mid-run.
+ */
 async function probeJudge(
   modelName: string,
   apiKey: string,
   fetchImpl: typeof fetch,
 ): Promise<ProviderProbeResult & { retired?: boolean }> {
   const provider = providerFromModel(modelName);
-  if (provider !== "google") {
-    return provider
-      ? probeProvider(provider, apiKey, fetchImpl)
-      : { ok: false, error: "no provider" };
-  }
-  const id = modelName.slice("google/".length);
+  if (!provider) return { ok: false, error: "no provider" };
+  const id = encodeURIComponent(modelName.slice(provider.length + 1));
+  const request: { url: string; headers: Record<string, string> } | undefined =
+    provider === "openai"
+      ? {
+          url: `https://api.openai.com/v1/models/${id}`,
+          headers: { Authorization: `Bearer ${apiKey}` },
+        }
+      : provider === "anthropic"
+        ? {
+            url: `https://api.anthropic.com/v1/models/${id}`,
+            headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+          }
+        : provider === "google"
+          ? {
+              url: `https://generativelanguage.googleapis.com/v1beta/models/${id}?key=${encodeURIComponent(apiKey)}`,
+              headers: {},
+            }
+          : undefined;
+  if (!request) return probeProvider(provider, apiKey, fetchImpl);
   try {
-    const res = await fetchImpl(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(id)}?key=${encodeURIComponent(apiKey)}`,
-    );
+    const res = await fetchImpl(request.url, { headers: request.headers });
     if (res.status === 404) return { ok: false, status: 404, retired: true };
     return { ok: res.ok, status: res.status };
   } catch (error) {
@@ -378,6 +395,48 @@ function heapProbe(
   };
 }
 
+/**
+ * The models a run of this harness would call, in the planner's order:
+ * `EVAL_<HARNESS>_MODELS` (which `harnesses.<h>.models` feeds when the env
+ * twin is unset), then the harness's defaults. Stagehand has no harness
+ * defaults; its matrix is `defaults.model` (the `-m` default) or the shared
+ * category list, which honours `EVAL_MODELS`.
+ */
+async function resolveHarnessModels(
+  harness: string,
+  env: NodeJS.ProcessEnv,
+  config: ConfigFile | undefined,
+): Promise<string[]> {
+  const parse = (raw: string | undefined) =>
+    (raw ?? "")
+      .split(",")
+      .map((model) => model.trim())
+      .filter(Boolean);
+  if (harness === "stagehand") {
+    const pinned = config?.defaults.model?.trim();
+    if (pinned) return [pinned];
+    const fromEnv = parse(env.EVAL_MODELS);
+    if (fromEnv.length > 0) return fromEnv;
+    const { getModelList } = await import("../../taskConfig.js");
+    return getModelList();
+  }
+  const fromEnv = parse(env[`EVAL_${harness.toUpperCase()}_MODELS`]);
+  if (fromEnv.length > 0) return fromEnv;
+  const fromConfig = (config?.harnesses?.[harness]?.models ?? [])
+    .map((model) => model.trim())
+    .filter(Boolean);
+  if (fromConfig.length > 0) return fromConfig;
+  return getBenchHarness(harness).defaultModels ?? [];
+}
+
+/** One cell for several providers: the worst probe wins, labels join when all are ok. */
+function combineProbes(probes: Probe[]): Probe {
+  if (probes.length === 1) return probes[0];
+  const bad = probes.find((probe) => probe.status === worst(...probes.map((p) => p.status)));
+  if (bad && bad.status !== "ok") return bad;
+  return { status: "ok", label: probes.map((probe) => probe.label).join(" + ") };
+}
+
 async function buildHarnessRow(
   harness: string,
   options: Required<
@@ -393,19 +452,11 @@ async function buildHarnessRow(
   const harnessConfig = config?.harnesses?.[harness];
   const globalConcurrency = options.concurrency ?? config?.defaults.concurrency ?? 3;
 
-  // Provider comes from the first configured/default model of the harness.
-  const models =
-    harnessConfig?.models ??
-    env[`EVAL_${harness.toUpperCase()}_MODELS`]
-      ?.split(",")
-      .map((m) => m.trim())
-      .filter(Boolean) ??
-    getBenchHarness(harness).defaultModels ??
-    [];
-  const provider =
-    harness === "stagehand"
-      ? Object.keys(PROVIDER_KEY_ENV).find((p) => keyProbe(p, env).status === "ok")
-      : providerFromModel(models[0]);
+  const models = await resolveHarnessModels(harness, env, config);
+  // Every provider the harness's model matrix calls needs a working key.
+  const providers = [
+    ...new Set(models.map((model) => providerFromModel(model)).filter(Boolean)),
+  ] as string[];
 
   let binary: Probe;
   let extra: Probe = skipped();
@@ -468,14 +519,17 @@ async function buildHarnessRow(
               fix: "pnpm install, or export EVAL_CODEX_PATH=$(which codex)",
             };
       }
-      const cwd = process.cwd();
-      extra = isWritableDir(cwd)
+      // Codex writes sessions and rollouts under CODEX_HOME (default ~/.codex);
+      // when it does not exist yet, its parent must let Codex create it.
+      const codexHome = env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex");
+      const target = fs.existsSync(codexHome) ? codexHome : path.dirname(codexHome);
+      extra = isWritableDir(target)
         ? { status: "ok", label: "CODEX_HOME writable" }
         : {
             status: "fail",
             label: "CODEX_HOME not writable",
-            detail: `Codex sessions create ${path.join(cwd, ".codex-home")} per run.`,
-            fix: `chmod u+w ${cwd}`,
+            detail: `Codex writes its sessions under ${codexHome}.`,
+            fix: `chmod u+w ${target}`,
           };
       break;
     }
@@ -524,17 +578,27 @@ async function buildHarnessRow(
       binary = skipped();
   }
 
-  const key = keyProbe(provider, env);
+  const keys = providers.map((provider) => ({ provider, ...keyProbe(provider, env) }));
+  const keyWithoutValue = combineProbes(
+    keys.length > 0
+      ? keys.map(({ value: _value, provider: _provider, ...probe }) => probe)
+      : [keyProbe(undefined, env)],
+  );
   let probe: Probe = skipped();
-  if (options.probe && key.status === "ok" && provider && key.value) {
-    const cached =
-      providerProbeCache.get(provider) ?? probeProvider(provider, key.value, options.fetchImpl);
-    providerProbeCache.set(provider, cached);
-    const keyFile = fileForKey(key.label, options.envReport);
-    probe = probeFromResult(await cached, key.label, keyFile);
+  if (options.probe && keys.length > 0 && keys.every((key) => key.status === "ok" && key.value)) {
+    const results: Probe[] = [];
+    for (const key of keys) {
+      const cached =
+        providerProbeCache.get(key.provider) ??
+        probeProvider(key.provider, key.value!, options.fetchImpl);
+      providerProbeCache.set(key.provider, cached);
+      results.push(
+        probeFromResult(await cached, key.label, fileForKey(key.label, options.envReport)),
+      );
+    }
+    probe = combineProbes(results);
   }
 
-  const { value: _value, ...keyWithoutValue } = key;
   const status = worst(binary.status, keyWithoutValue.status, probe.status, extra.status);
   return { harness, required, binary, key: keyWithoutValue, probe, extra, status };
 }
@@ -547,7 +611,20 @@ function fileForKey(name: string, report: EvalsEnvReport | undefined): string | 
 async function buildVerifierRow(
   options: Required<Pick<HarnessProbeOptions, "env" | "fetchImpl">> & HarnessProbeOptions,
 ): Promise<NamedProbeRow> {
-  const judge = resolveVerifierModel(options.env);
+  // Same rule the run applies: EVAL_VERIFIER_MODEL wins, then verifier.model
+  // from config, then the default.
+  const configModel = options.config?.verifier?.model?.trim();
+  const judge = resolveVerifierModel(
+    configModel && !options.env.EVAL_VERIFIER_MODEL?.trim()
+      ? { ...options.env, EVAL_VERIFIER_MODEL: configModel }
+      : options.env,
+  );
+  const judgeSource =
+    judge.source === "default"
+      ? "default"
+      : options.env.EVAL_VERIFIER_MODEL?.trim()
+        ? "EVAL_VERIFIER_MODEL"
+        : "config";
   const provider = providerFromModel(judge.modelName);
   const key = keyProbe(provider, options.env);
   const probes: Probe[] = [];
@@ -560,7 +637,7 @@ async function buildVerifierRow(
         status: "fail",
         label: "model not found",
         detail: `${judge.modelName} is not served any more — every rubric criterion would fail with "Fused judgment call failed" and runs would exit 1 as dead-judge.`,
-        fix: "evals config verifier set model google/gemini-3.5-flash",
+        fix: `evals config verifier set model ${DEFAULT_VERIFIER_MODEL}`,
       });
     } else {
       probes.push(probeFromResult(result, key.label, fileForKey(key.label, options.envReport)));
@@ -577,7 +654,7 @@ async function buildVerifierRow(
     name: "verifier",
     probes,
     status: worst(...probes.map((probe) => probe.status)),
-    detail: `${judge.modelName} (${judge.source === "env" ? "EVAL_VERIFIER_MODEL" : "default"})`,
+    detail: `${judge.modelName} (${judgeSource})`,
   };
 }
 
@@ -670,14 +747,17 @@ export async function buildHarnessMatrix(
   };
   const executable = listExecutableBenchHarnesses();
   const requested = options.requested?.filter((h) => h !== "all");
-  const candidates = requested && requested.length > 0 ? requested : executable;
+  // `--harness all` asks for every row, so every row's failures count.
+  const allRequested = options.requested?.includes("all") ?? false;
+  const candidates = requested && requested.length > 0 && !allRequested ? requested : executable;
   const skippedHarnesses = candidates.filter((h) => UNPROBED_HARNESSES.has(h));
   const rows = candidates.filter((h) => executable.includes(h) && !UNPROBED_HARNESSES.has(h));
 
   const cache = new Map<string, Promise<ProviderProbeResult>>();
   const harnesses: HarnessProbeRow[] = [];
   for (const harness of rows) {
-    harnesses.push(await buildHarnessRow(harness, resolved, cache));
+    const row = await buildHarnessRow(harness, resolved, cache);
+    harnesses.push(allRequested ? { ...row, required: true } : row);
   }
   return {
     harnesses,

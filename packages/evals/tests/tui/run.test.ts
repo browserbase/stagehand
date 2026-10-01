@@ -449,6 +449,8 @@ describe("deriveCategoryFilter", () => {
       }),
     ]);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    // The default widths only show when no shell export overrides them.
+    vi.stubEnv("EVAL_PROVIDER_CONCURRENCY", undefined);
 
     await runCommand(
       {
@@ -598,6 +600,38 @@ describe("deriveCategoryFilter", () => {
       if (saved === undefined) delete process.env.EVAL_PROVIDER_CONCURRENCY;
       else process.env.EVAL_PROVIDER_CONCURRENCY = saved;
     }
+  });
+
+  it("fails a dry-run plan on a malformed EVAL_PROVIDER_CONCURRENCY", async () => {
+    const registry = makeRegistry([makeTask({ name: "act/alpha" })]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubEnv("EVAL_PROVIDER_CONCURRENCY", "openai=three");
+
+    await runCommand(
+      {
+        target: "act",
+        normalizedTarget: "act",
+        trials: 1,
+        concurrency: 1,
+        environment: "BROWSERBASE",
+        useApi: false,
+        harness: "stagehand",
+        envOverrides: {},
+        dryRun: true,
+        preview: false,
+        successMode: "outcome",
+        verbose: false,
+      },
+      registry,
+    );
+
+    const payload = JSON.parse(String(log.mock.calls[0][0]));
+    expect(String(payload.error)).toContain(
+      'Invalid EVAL_PROVIDER_CONCURRENCY entry "openai=three"',
+    );
+    expect(process.exitCode).toBe(1);
+    expect(runEvalsMock).not.toHaveBeenCalled();
+    process.exitCode = undefined;
   });
 });
 

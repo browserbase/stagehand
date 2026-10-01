@@ -47,12 +47,13 @@ function fail(message: string, hint?: string): void {
   process.exitCode = 1;
 }
 
-function parsePositiveInt(raw: string, label: string): number | undefined {
-  if (!/^[0-9]+$/.test(raw) || Number(raw) <= 0) {
-    fail(`${label} must be a positive integer`);
+function parseInteger(raw: string, label: string, min: 0 | 1): number | undefined {
+  const value = Number(raw);
+  if (!/^[0-9]+$/.test(raw) || !Number.isSafeInteger(value) || value < min) {
+    fail(`${label} must be a ${min === 0 ? "non-negative" : "positive"} integer`);
     return undefined;
   }
-  return Number(raw);
+  return value;
 }
 
 function printSection(name: ConfigSectionName, config: ConfigFile): void {
@@ -138,6 +139,13 @@ function handleHarnesses(
   }
   let patch: HarnessConfigSection;
   if (key === "models") {
+    if (!getBenchHarness(harness).defaultModels) {
+      fail(
+        `Harness "${harness}" picks models per task category; harnesses.${harness}.models does not apply.`,
+        "Use -m/--model or EVAL_MODELS to choose its models.",
+      );
+      return;
+    }
     const models = raw
       .split(",")
       .map((model) => model.trim())
@@ -195,7 +203,7 @@ function handleProviders(
     fail("Usage: config providers set <provider> concurrency <n>");
     return;
   }
-  const value = parsePositiveInt(args[2], "concurrency");
+  const value = parseInteger(args[2], "concurrency", 1);
   if (value === undefined) return;
   apply((config) => {
     const current: ProviderConfigSection = { ...config.providers?.[provider], concurrency: value };
@@ -224,7 +232,7 @@ function handleVerifier(
     return;
   }
   if (key === "model") {
-    if (!raw.includes("/")) {
+    if (!/^[^\s/]+\/\S+$/.test(raw)) {
       fail(
         `verifier model must be provider/model, e.g. google/gemini-3.5-flash; received "${raw}"`,
       );
@@ -240,7 +248,7 @@ function handleVerifier(
       config.verifier = verifier;
     });
   } else {
-    const value = parsePositiveInt(raw, key);
+    const value = parseInteger(raw, key, 0);
     if (value === undefined) return;
     apply((config) => {
       config.verifier = { ...config.verifier, maxUnverifiableCriteria: value };
