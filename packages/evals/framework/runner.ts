@@ -48,6 +48,12 @@ export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { rejectAgentMountOnlyCoreTool, resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
+import { resolveVerifierModel } from "./verifierModel.js";
+import { describeCase, rowKey, type CaseLabel } from "./caseIdentity.js";
+import { runInRowContext, type RowLogEntry, type RowPhase } from "./rowContext.js";
+import { RowLogWriter, resolveRunLogDir, rowLogFileName } from "./rowLog.js";
+import path from "node:path";
+import { classifyRowOutcome, type RowOutcome } from "./runSummary.js";
 import {
   ProviderConcurrency,
   runGatedRow,
@@ -56,10 +62,39 @@ import {
 } from "./providerConcurrency.js";
 
 export interface RunProgressEvent {
-  type: "planned" | "started" | "passed" | "failed" | "error" | "queue" | "throttled";
+  type:
+    | "planned"
+    | "started"
+    | "phase"
+    | "passed"
+    | "failed"
+    | "error"
+    | "queue"
+    | "throttled"
+    | "log";
   taskName?: string;
   modelName?: string;
+  /**
+   * Identity of one execution (cell + case + trial). Suite rows share
+   * `taskName` (`agent/hardbenchmark`), so consumers must key by this.
+   */
+  rowKey?: string;
+  /** Which dataset case the row is (suite rows only). */
+  case?: CaseLabel;
+  /** 0-based trial index. */
+  trial?: number;
+  /** Wall-clock time from slot acquisition to result, on passed/failed. */
   durationMs?: number;
+  /** Outcome kind on passed/failed (`max_turns`, `sdk_error`, `gated`, …). */
+  outcome?: RowOutcome;
+  /** What a running row is doing; present on `phase` events. */
+  phase?: RowPhase;
+  /** Browserbase session URL, once known (phase events and results). */
+  sessionUrl?: string;
+  /** One log line from the row; present on `log` events. */
+  log?: RowLogEntry;
+  /** The row's log file, on passed/failed when it logged anything. */
+  logPath?: string;
   error?: string;
   total?: number;
   /** Live scheduler state; present on `queue` events. */
@@ -84,9 +119,9 @@ export interface RunEvalsOptions {
   onProgress?: (event: RunProgressEvent) => void;
   verbose?: boolean;
   /**
-   * Per-provider widths under the global cap (`{ openai: 3, anthropic: 3 }`).
-   * `EVAL_PROVIDER_CONCURRENCY` layers on top of these; unset providers
-   * default to 3.
+   * Per-provider widths under the global cap (`{ openai: 3, anthropic: 3 }`,
+   * `browserbase` for session creation). `EVAL_PROVIDER_CONCURRENCY` layers on
+   * top of these; unset providers default to 3.
    */
   providerConcurrency?: Record<string, number>;
   /**
@@ -294,6 +329,14 @@ async function executeCoreTask(
 
 export interface RunEvalsResult {
   experimentName: string;
+  /** Braintrust experiment URL, when Eval() resolved one. */
+  experimentUrl?: string;
+  /** Judge model the verifier used for this run (env or default). */
+  judgeModel?: string;
+  /** Local trajectory group slug under the trajectory root, when persisted. */
+  trajectoryGroup?: string;
+  /** Directory holding one log file per row. */
+  logDir?: string;
   summary: { passed: number; failed: number; total: number };
   results: Array<{
     input: EvalInput;
@@ -416,6 +459,11 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       model: runModel,
       runToken: generateRunToken(),
     });
+    const logDir = resolveRunLogDir({
+      trajectoryRoot: resolveTrajectoryRoot(),
+      trajectoryGroup,
+      persist: shouldPersistTrajectory(undefined),
+    });
     process.env.EVAL_EXPERIMENT_NAME = experimentName;
     process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
     if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
@@ -467,19 +515,22 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             }),
           },
           data: () => testcases,
-          task: async (input: EvalInput): Promise<TaskResult> => {
+          task: async (input: EvalInput, hooks?: { trialIndex?: number }): Promise<TaskResult> => {
+            const trial = hooks?.trialIndex ?? 0;
+            const row = {
+              taskName: input.name,
+              modelName: input.modelName,
+              rowKey: rowKey(input, trial),
+              case: describeCase(input),
+              trial,
+            };
             // Cooperative abort: skip any testcase that hasn't started yet
             // when the signal has flipped. The in-flight task at the moment of
             // abort still finishes its current step; this stops the next one
             // from spinning up.
             if (options.signal?.aborted) {
               activeScheduler.markFinished();
-              options.onProgress?.({
-                type: "failed",
-                taskName: input.name,
-                modelName: input.modelName,
-                error: "aborted",
-              });
+              options.onProgress?.({ type: "failed", ...row, error: "aborted" });
               return {
                 _success: false,
                 error: "aborted by user",
@@ -531,30 +582,57 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             // its own session inside executeTask, so a retry is a fresh one.
             // `started` fires once the provider slot is held, so rows queued
             // behind a provider limit never show as running.
-            const result = await runGatedRow({
+            let startedAt: number | undefined;
+            // Each attempt runs in a row context so session / agent / verify
+            // code deep in the harness can report the row's phase, and every
+            // log line lands in this row's own file.
+            const rowLog = new RowLogWriter(
+              path.join(
+                logDir,
+                rowLogFileName({
+                  name: row.case.shortId ?? input.name,
+                  domain: row.case.domain,
+                  model: input.modelName,
+                  trial,
+                }),
+              ),
+            );
+            const rowContext = {
+              reportPhase: (phase: RowPhase, detail?: { sessionUrl?: string }) =>
+                options.onProgress?.({ type: "phase", ...row, phase, ...detail }),
+              log: (entry: RowLogEntry) => {
+                rowLog.write(entry);
+                options.onProgress?.({ type: "log", ...row, log: entry });
+              },
+            };
+            const rawResult = await runGatedRow({
               scheduler: activeScheduler,
               modelName: input.modelName,
-              execute: executeAttempt,
+              execute: (attempt) => {
+                rowLog.attempt(attempt);
+                return runInRowContext(rowContext, executeAttempt);
+              },
               signal: options.signal,
-              onStart: () =>
-                options.onProgress?.({
-                  type: "started",
-                  taskName: input.name,
-                  modelName: input.modelName,
-                }),
+              onStart: () => {
+                startedAt = Date.now();
+                options.onProgress?.({ type: "started", ...row });
+              },
               onThrottle: (throttle) =>
-                options.onProgress?.({
-                  type: "throttled",
-                  taskName: input.name,
-                  modelName: input.modelName,
-                  throttle,
-                }),
+                options.onProgress?.({ type: "throttled", ...row, throttle }),
             });
+
+            await rowLog.close();
+            const result: TaskResult = rowLog.hasContent
+              ? { ...rawResult, logPath: rowLog.filePath }
+              : rawResult;
 
             options.onProgress?.({
               type: result._success ? "passed" : "failed",
-              taskName: input.name,
-              modelName: input.modelName,
+              ...row,
+              ...(startedAt !== undefined && { durationMs: Date.now() - startedAt }),
+              outcome: classifyRowOutcome(result),
+              ...(typeof result.sessionUrl === "string" && { sessionUrl: result.sessionUrl }),
+              ...(typeof result.logPath === "string" && { logPath: result.logPath }),
               error: result._success ? undefined : formatProgressError(result.error),
             });
 
@@ -625,8 +703,13 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     const passed = summaryResults.filter((r) => r.output._success).length;
     const failed = summaryResults.filter((r) => !r.output._success).length;
 
+    const persistedTrajectories = !hasCoreOnly && shouldPersistTrajectory(undefined);
     return {
       experimentName: resolvedExperimentName,
+      ...(resolvedExperimentUrl && { experimentUrl: resolvedExperimentUrl }),
+      ...(!hasCoreOnly && { judgeModel: resolveVerifierModel().modelName }),
+      ...(persistedTrajectories && { trajectoryGroup }),
+      logDir,
       summary: { passed, failed, total: summaryResults.length },
       results: summaryResults,
     };

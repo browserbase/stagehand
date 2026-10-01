@@ -118,10 +118,22 @@ function renderHeader(p: PreviewPayload): void {
     headerBits.push(`${bold("Harness:")} ${opts.harness}`);
   if (opts.useApi === true) headerBits.push(`${bold("API:")} ${yellow("on")}`);
   if (opts.model) headerBits.push(`${bold("Model override:")} ${opts.model}`);
-  if (opts.provider) headerBits.push(`${bold("Provider:")} ${opts.provider}`);
 
   if (headerBits.length > 0) {
     console.log(`  ${headerBits.join("  ")}`);
+  }
+
+  // Header line 3: every column the combinations table pruned because it is
+  // the same for all runs. Without this a single-cell run shows no tool
+  // surface, provider or model anywhere in the preview.
+  const constants = constantColumns(p.matrix).filter(
+    ([column]) => !HEADER_ECHOED_COLUMNS.has(column),
+  );
+  if (constants.length > 0) {
+    const fragments = constants.map(
+      ([column, value]) => `${bold(`${COLUMN_HEADERS[column] ?? column}:`)} ${formatCell(value)}`,
+    );
+    console.log(`  ${fragments.join("  ")}`);
   }
 
   const envOverrideKeys = Object.keys(p.envOverrides ?? {}).filter(
@@ -135,6 +147,27 @@ function renderHeader(p: PreviewPayload): void {
   }
 
   console.log("");
+}
+
+/** Columns already printed on header line 2; not repeated among the constants. */
+const HEADER_ECHOED_COLUMNS = new Set(["environment", "harness", "useApi"]);
+
+/**
+ * Columns whose value is identical across every matrix row, in COLUMN_ORDER.
+ * Null/undefined constants are dropped — nothing to summarize.
+ */
+export function constantColumns(matrix: MatrixRow[]): Array<[string, unknown]> {
+  const { columns, rows } = buildCombinations(matrix);
+  if (rows.length === 0) return [];
+  const varying = new Set(columns);
+  const first = rows[0].values;
+  const constants = Object.keys(first).filter(
+    (column) => !varying.has(column) && first[column] !== null && first[column] !== undefined,
+  );
+  return [
+    ...COLUMN_ORDER.filter((c) => constants.includes(c)),
+    ...constants.filter((c) => !COLUMN_ORDER.includes(c)).sort(),
+  ].map((column) => [column, first[column]]);
 }
 
 function uniqueTiers(matrix: MatrixRow[]): string[] {

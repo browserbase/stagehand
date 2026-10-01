@@ -9,11 +9,132 @@ import {
   dim,
   cyan,
   gray,
+  yellow,
   separator,
   padRight,
   getTerminalWidth,
+  truncateText,
+  visibleLength,
 } from "./format.js";
 import type { SummaryResult } from "../types/evals.js";
+import type { CellSummary, FailureRow } from "../framework/runSummary.js";
+
+/** How many failures the human summary lists before pointing at `--json`. */
+export const DEFAULT_FAILURE_LIMIT = 10;
+
+function padLeft(value: string, width: number): string {
+  const pad = Math.max(0, width - visibleLength(value));
+  return `${" ".repeat(pad)}${value}`;
+}
+
+function passRateColor(pct: number): (s: string) => string {
+  return pct >= 80 ? green : pct >= 50 ? cyan : red;
+}
+
+/**
+ * Per-cell table (harness × tool × model), always printed for bench runs:
+ *
+ *   cell                                   pass        max_turns  sdk_error  gated  ungraded  retried
+ *   claude_code × stagehand_facade × …     72% 33/46   2          0          1      0         0
+ */
+export function printCellTable(cells: CellSummary[]): void {
+  if (cells.length === 0) return;
+  const columns = ["max_turns", "sdk_error", "gated", "ungraded", "retried"] as const;
+  const width = getTerminalWidth();
+  const passWidth = 12;
+  const numericWidth = columns.reduce((sum, column) => sum + column.length + 2, 0);
+  const longestCell = Math.max(...cells.map((cell) => visibleLength(cell.cell)), 4);
+  const available = width - 4 - passWidth - numericWidth - 1;
+  // The cell name is the row's identity; when the terminal cannot fit it next
+  // to the counts, the name gets its own line instead of being truncated.
+  const stacked = longestCell > available;
+  const cellWidth = stacked ? 0 : longestCell;
+  const indent = stacked ? "    " : `  ${" ".repeat(cellWidth)} `;
+
+  const headerRow = [
+    ...(stacked ? [] : [bold(padRight("cell", cellWidth))]),
+    bold(padRight("pass", passWidth)),
+    ...columns.map((column) => bold(padRight(column, column.length + 2))),
+  ].join(" ");
+  console.log(`${stacked ? "    " : "  "}${headerRow}`);
+
+  for (const cell of cells) {
+    const pct = cell.total === 0 ? 0 : Math.round((cell.passed / cell.total) * 100);
+    const passCell = `${passRateColor(pct)(padLeft(`${pct}%`, 4))} ${gray(`${cell.passed}/${cell.total}`)}`;
+    const counts = [cell.maxTurns, cell.sdkError, cell.gated, cell.ungraded, cell.retried];
+    const numeric = counts.map((count, index) => {
+      const text = padRight(String(count), columns[index].length + 2);
+      if (count === 0) return dim(text);
+      return columns[index] === "gated" || columns[index] === "ungraded" ? yellow(text) : text;
+    });
+    // padRight strips ANSI; pad the colored pass cell by hand.
+    const passPadded = `${passCell}${" ".repeat(Math.max(0, passWidth - visibleLength(passCell)))}`;
+    if (stacked) {
+      console.log(`  ${cell.cell}`);
+      console.log(`${indent}${passPadded} ${numeric.join(" ")}`);
+    } else {
+      console.log(`  ${padRight(cell.cell, cellWidth)} ${passPadded} ${numeric.join(" ")}`);
+    }
+  }
+  console.log("");
+}
+
+const FAILURE_ICON: Record<FailureRow["kind"], string> = {
+  sdk_error: red("✗"),
+  max_turns: yellow("⏱"),
+  ungraded: yellow("?"),
+  gated: yellow("◐"),
+  fail: red("✗"),
+};
+
+/**
+ * Failures, infra first (sdk_error → max_turns → ungraded → gated), one line
+ * each with the reason and session URL. Rubric fails — the expected kind of
+ * failure — are listed by case id on one line; `--json` has their reasons.
+ */
+export function printFailures(failures: FailureRow[], limit = DEFAULT_FAILURE_LIMIT): void {
+  if (failures.length === 0) return;
+  const infra = failures.filter((failure) => failure.kind !== "fail");
+  const rubric = failures.filter((failure) => failure.kind === "fail");
+  const shown = infra.slice(0, limit);
+  const kinds = [...new Set(shown.map((failure) => failure.kind))];
+  console.log(
+    `  ${bold(`Failures (${failures.length}${kinds.length > 0 ? ` · ${kinds.join(" + ")} first` : ""})`)}`,
+  );
+
+  const width = getTerminalWidth();
+  // A harness column only earns its space when the run spans several.
+  const showHarness = new Set(failures.map((failure) => failure.harness)).size > 1;
+  const harnessWidth = showHarness
+    ? Math.max(...shown.map((failure) => failure.harness.length), 6)
+    : 0;
+  const taskWidth = Math.min(34, Math.max(4, ...shown.map((failure) => failure.task.length)));
+  const kindWidth = Math.max(4, ...shown.map((failure) => failure.kind.length));
+  for (const failure of shown) {
+    const harness = showHarness ? `${padRight(failure.harness, harnessWidth)} ` : "";
+    const urlPart = failure.sessionUrl ? ` ${dim(failure.sessionUrl)}` : "";
+    const fixed = 4 + (showHarness ? harnessWidth + 1 : 0) + taskWidth + 1 + kindWidth + 1;
+    const reasonWidth = Math.max(
+      12,
+      width - fixed - (failure.sessionUrl ? failure.sessionUrl.length + 1 : 0),
+    );
+    const reason = failure.reason ? gray(truncateText(failure.reason, reasonWidth)) : "";
+    console.log(
+      `  ${FAILURE_ICON[failure.kind]} ${harness}${padRight(truncateText(failure.task, taskWidth), taskWidth)} ${padRight(failure.kind, kindWidth)} ${reason}${urlPart}`,
+    );
+  }
+  if (infra.length > shown.length) {
+    console.log(dim(`  … ${infra.length - shown.length} more — --json has the full list`));
+  }
+  if (rubric.length > 0) {
+    const ids = rubric.map((failure) => failure.task.split(" ")[0]).join(" ");
+    const label = `${rubric.length} rubric fail${rubric.length === 1 ? "" : "s"}: `;
+    console.log(
+      `  ${red("✗")} ${label}${dim(truncateText(ids, Math.max(12, width - label.length - 6)))}`,
+    );
+  }
+  console.log("");
+}
 
 export function printResultsTable(results: SummaryResult[]): void {
   if (results.length === 0) {

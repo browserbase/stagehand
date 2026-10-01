@@ -7,9 +7,18 @@
  * values don't leak across REPL commands.
  */
 
-import { bold, dim, cyan, yellow, separator } from "../format.js";
-import { ProgressRenderer } from "../progress.js";
-import { printModelSummary, printResultsTable } from "../results.js";
+import { bold, dim, cyan, red, yellow, separator, stripAnsi } from "../format.js";
+import { ProgressRenderer, formatElapsed, rowDisplayName, type ProgressRow } from "../progress.js";
+import { setActiveRun } from "../liveRun.js";
+import { printCellTable, printFailures, printModelSummary, printResultsTable } from "../results.js";
+import {
+  type SummaryRow,
+  buildRunSummaryJson,
+  collectFailures,
+  isDeadJudgeRun,
+  summarizeCells,
+  summarizeVerifier,
+} from "../../framework/runSummary.js";
 import { resolveVerifierModel } from "../../framework/verifierModel.js";
 import { renderPreview } from "../preview.js";
 import { discoverTasks, resolveTarget } from "../../framework/discovery.js";
@@ -20,11 +29,6 @@ import type { AvailableModel } from "stagehand-v3";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
-import type { RunProgressEvent } from "../../framework/runner.js";
-import {
-  ProviderConcurrency,
-  describeProviderWidths,
-} from "../../framework/providerConcurrency.js";
 import type { Harness } from "../../framework/benchTypes.js";
 import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
 import {
@@ -34,6 +38,14 @@ import {
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
 } from "../../framework/verifierGate.js";
+
+import type { RunEvalsResult, RunProgressEvent } from "../../framework/runner.js";
+import { logToRow } from "../../framework/rowContext.js";
+import { format as formatConsoleArgsRaw } from "node:util";
+import {
+  ProviderConcurrency,
+  describeProviderWidths,
+} from "../../framework/providerConcurrency.js";
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
@@ -209,6 +221,209 @@ export function renderRunHeader(
   print("");
 }
 
+/**
+ * Everything printed after the run: pass/fail totals, per-cell table,
+ * verifiability + dead-judge banner, failures, experiment link — or the
+ * `--json` object. Exit code side effects (dead judge, verifiability gate)
+ * live here too. Exported so the summary can be rendered from fixture data.
+ */
+export function renderRunSummary(
+  result: RunEvalsResult,
+  options: Pick<ResolvedRunOptions, "harness" | "json" | "verbose" | "target" | "normalizedTarget">,
+  progress: ProgressRenderer,
+  { isBenchRun, elapsedMs }: { isBenchRun: boolean; elapsedMs?: number },
+): void {
+  const summaryJson = buildRunSummaryJson({
+    results: result.results,
+    harness: options.harness,
+    experimentName: result.experimentName,
+    experimentUrl: result.experimentUrl,
+    judgeModel: result.judgeModel,
+    trajectoryGroup: result.trajectoryGroup,
+    logDir: result.logDir,
+  });
+  const deadJudge = isDeadJudgeRun(summaryJson.verifier);
+
+  if (options.json) {
+    progress.dispose();
+    process.stdout.write(`${JSON.stringify(summaryJson, null, 2)}\n`);
+    if (deadJudge) process.exitCode = 1;
+    applyVerifiabilityGate(result.results, options.harness);
+    return;
+  }
+
+  progress.printSummary({ totals: !isBenchRun });
+
+  if (result.results.length > 0 && options.verbose) {
+    printResultsTable(result.results);
+  } else if (result.results.length > 0 && !isBenchRun) {
+    printModelSummary(result.results);
+  }
+  if (isBenchRun && result.results.length > 0) {
+    console.log(`  ${buildSummaryHeadline(options, summaryJson, elapsedMs)}`);
+    console.log("");
+    printCellTable(summarizeCells(result.results, options.harness));
+    const gates = Object.entries(summaryJson.gates);
+    if (gates.length > 0) {
+      console.log(
+        dim(
+          `  gated = judge passed, a deterministic gate failed it (${gates.map(([gate, n]) => `${gate} ${n}`).join(" · ")})`,
+        ),
+      );
+      console.log("");
+    }
+  }
+
+  printVerifiabilityLines(result, deadJudge);
+  if (isBenchRun) {
+    // With a dead judge every row is ungraded for the same reason, which the
+    // banner below states once; listing them all would bury the rest.
+    const failures = collectFailures(result.results, options.harness);
+    printFailures(deadJudge ? failures.filter((failure) => failure.kind !== "ungraded") : failures);
+  }
+  applyVerifiabilityGate(result.results, options.harness);
+
+  if (deadJudge) {
+    const verifier = summarizeVerifier(result.results);
+    console.error(
+      red(
+        `  ✗ judge produced no grades: all ${verifier.ungraded} verifier-backed rows failed closed (${result.judgeModel ?? "judge"}). The pass rate reflects the verifier, not the agent.`,
+      ),
+    );
+    console.log("");
+    process.exitCode = 1;
+  }
+
+  console.log(
+    dim(
+      `  Experiment: ${result.experimentName}${result.experimentUrl ? `  ${result.experimentUrl}` : ""}`,
+    ),
+  );
+  if (result.trajectoryGroup) {
+    console.log(dim(`  Trajectories: ${result.trajectoryGroup}`));
+  }
+  if (result.logDir && result.results.some((row) => typeof row.output.logPath === "string")) {
+    console.log(dim(`  Logs: ${result.logDir}`));
+  }
+  console.log("");
+}
+
+const COMPACT = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+
+/** `hardbenchmark · 46 runs · 35m12s · 1.9M tokens · $4.81 (12/46 rows report cost)` */
+function buildSummaryHeadline(
+  options: Pick<ResolvedRunOptions, "target" | "normalizedTarget">,
+  summary: ReturnType<typeof buildRunSummaryJson>,
+  elapsedMs: number | undefined,
+): string {
+  const name = (options.target ?? options.normalizedTarget ?? "bench").replace(
+    /^(?:b|benchmark):|^agent\//,
+    "",
+  );
+  const { usage } = summary;
+  const parts = [
+    formatCount(summary.summary.total, "run"),
+    ...(elapsedMs !== undefined ? [formatElapsed(elapsedMs)] : []),
+    ...(usage.totalTokens > 0 ? [`${COMPACT.format(usage.totalTokens)} tokens`] : []),
+    ...(usage.costUsd !== undefined
+      ? [
+          `$${usage.costUsd.toFixed(2)}${usage.costRows < summary.summary.total ? ` (${usage.costRows}/${summary.summary.total} rows report cost)` : ""}`,
+        ]
+      : []),
+  ];
+  return `${bold(name)} ${dim(`· ${parts.join(" · ")}`)}`;
+}
+
+/**
+ * Per-arm verifiability line plus the judge. Dead-judge rows are called out
+ * by count; the banner and exit code live in runCommand.
+ */
+function printVerifiabilityLines(
+  result: { results: SummaryRow[]; judgeModel?: string },
+  deadJudge: boolean,
+): void {
+  const verifier = summarizeVerifier(result.results);
+  if (verifier.attempted === 0) return;
+  const judge = result.judgeModel ? `judge ${result.judgeModel} · ` : "";
+  const ungradedPart =
+    verifier.ungraded > 0
+      ? (deadJudge ? red : yellow)(`${verifier.ungraded} ungraded`)
+      : dim("0 ungraded");
+  console.log(
+    dim(
+      `  Verifiability: ${judge}${verifier.unverifiableCriteria}/${verifier.totalCriteria} criteria unverifiable across ${verifier.graded} graded runs · `,
+    ) + ungradedPart,
+  );
+  if (verifier.passesWithoutBrowserUse > 0) {
+    console.log(
+      yellow(
+        `  ⚠ ${verifier.passesWithoutBrowserUse} passes without browser use — not counted as browser passes in Braintrust tags`,
+      ),
+    );
+  }
+  console.log("");
+}
+
+/**
+ * EVAL_MAX_UNVERIFIABLE_CRITERIA gate. Only active when the env var is set;
+ * a gated batch must never publish self-reported rows as passes.
+ */
+function applyVerifiabilityGate(results: SummaryRow[], harness: string): void {
+  const unverifiableLimit = resolveUnverifiableCriteriaLimit();
+  if (unverifiableLimit === undefined) return;
+  const arms = summarizeArmVerifiability(results, harness);
+  const over = armsOverLimit(arms, unverifiableLimit);
+  for (const arm of over) {
+    console.error(
+      `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${unverifiableLimit})`,
+    );
+  }
+  const ungraded = armsWithUngradedRuns(arms);
+  for (const arm of ungraded) {
+    console.error(
+      `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
+    );
+  }
+  // A pass the agent reached without the browser surface is not a
+  // browser-benchmark pass, whatever the rubric said.
+  const noBrowser = armsWithPassesWithoutBrowserUse(arms);
+  for (const arm of noBrowser) {
+    console.error(
+      `  ✗ verifiability gate: ${arm.arm} has ${arm.passesWithoutBrowserUse} passes without browser use`,
+    );
+  }
+  if (over.length > 0 || ungraded.length > 0 || noBrowser.length > 0) {
+    process.exitCode = 1;
+  }
+}
+
+function formatConsoleArgs(args: unknown[]): string {
+  return formatConsoleArgsRaw(...args);
+}
+
+type LogMode = "off" | "all" | "one";
+
+const LOG_MODE_CYCLE: Record<LogMode, LogMode> = { off: "all", all: "one", one: "off" };
+
+/** `14:02:11 47e314cc codex   tool browser_navigate …` — one streamed log line. */
+function formatStreamLine(event: RunProgressEvent): string {
+  const at = new Date().toTimeString().slice(0, 8);
+  const who = event.case?.shortId ?? event.taskName ?? "run";
+  const entry = event.log!;
+  const text = `${dim(at)} ${cyan(who)} ${dim(entry.category)}  ${entry.message}`;
+  return `  ${entry.level === 0 ? red(stripAnsi(text)) : text}`;
+}
+
+function progressRow(event: RunProgressEvent): ProgressRow {
+  return {
+    rowKey: event.rowKey,
+    taskName: event.taskName ?? "task",
+    model: event.modelName,
+    case: event.case,
+    trial: event.trial,
+  };
+}
+
 /** Canonical names of the Browserbase credentials that are absent (aliases BB_* count). */
 export function missingBrowserbaseKeys(env: NodeJS.ProcessEnv): string[] {
   const missing: string[] = [];
@@ -293,14 +508,80 @@ export async function runCommand(
   }
   const matrix = await buildDryRunMatrix(options, tasks, registry);
 
-  renderRunHeader(options, tasks, matrix);
+  const isBenchRun = tasks.some((task) => task.tier === "bench");
+  // With --json, stdout carries only the summary object: everything a human
+  // reads (header, board, console output during the run) goes to stderr.
+  const humanStream = options.json ? process.stderr : process.stdout;
+  renderRunHeader(
+    options,
+    tasks,
+    matrix,
+    options.json ? (line) => console.error(line) : (line) => console.log(line),
+  );
 
+  // The animated board rewrites lines in place; without a TTY (CI, pipes)
+  // those cursor escapes turn into garbage, so fall back to one line per event.
+  const interactive = Boolean(humanStream.isTTY);
   const progress = new ProgressRenderer({
-    animated: !options.verbose,
-    progressBar: options.verbose,
+    animated: interactive,
+    progressBar: options.verbose && !interactive,
+    stream: humanStream,
+  });
+
+  // Log streaming: off by default (every row still writes its own file),
+  // `-v` streams all rows above the board, `--follow <id>` one row. The `v`
+  // key cycles off → all → one (the oldest running row) → off.
+  let logMode: LogMode = options.follow ? "one" : options.verbose ? "all" : "off";
+  let followedRowKey: string | undefined;
+  let helpOpen = false;
+  const running = new Map<string, { startedAt: number; shortId?: string }>();
+  const followsRow = (event: RunProgressEvent): boolean => {
+    if (followedRowKey) return event.rowKey === followedRowKey;
+    const prefix = options.follow;
+    if (!prefix) return false;
+    return Boolean(event.case?.id?.startsWith(prefix) || event.taskName?.includes(prefix));
+  };
+  const streamsLog = (event: RunProgressEvent): boolean =>
+    logMode === "all" || (logMode === "one" && followsRow(event));
+  const refreshHints = (): void => {
+    if (!interactive) return;
+    const followed = followedRowKey ? running.get(followedRowKey)?.shortId : options.follow;
+    const mode = logMode === "one" ? `one${followed ? ` (${followed})` : ""}` : logMode;
+    progress.setKeyHints(
+      helpOpen
+        ? `esc stop (twice: stop now) · v logs: off → all → one → off (now ${mode}) · ? close help`
+        : `esc stop · v logs: ${mode} · ? help`,
+    );
+  };
+  refreshHints();
+  // Key handlers (REPL and argv keypress listeners) reach the run through the
+  // active-run registry instead of printing over the redrawn board.
+  setActiveRun({
+    setStopping: (mode) => progress.setStopping(mode),
+    onKey: (name) => {
+      if (name === "v") {
+        logMode = LOG_MODE_CYCLE[logMode];
+        if (logMode === "one") {
+          const oldest = [...running.entries()].sort((a, b) => a[1].startedAt - b[1].startedAt)[0];
+          followedRowKey = oldest?.[0];
+          if (!followedRowKey && !options.follow) logMode = "off";
+        } else {
+          followedRowKey = undefined;
+        }
+        refreshHints();
+        return true;
+      }
+      if (name === "?") {
+        helpOpen = !helpOpen;
+        refreshHints();
+        return true;
+      }
+      return false;
+    },
   });
   const categoryFilter = deriveCategoryFilter(registry, options.normalizedTarget);
 
+  const runStartedAt = Date.now();
   await withEnvOverrides(options.envOverrides, async () => {
     try {
       const { runEvals } = await import("../../framework/runner.js");
@@ -324,74 +605,49 @@ export async function runCommand(
           onProgress: (event: RunProgressEvent) => {
             if (event.type === "planned") {
               progress.onPlanned(event.total ?? 0);
+            } else if (event.type === "log" && event.log) {
+              if (streamsLog(event)) progress.logLine(formatStreamLine(event));
             } else if (event.type === "started" && event.taskName) {
-              progress.onStart(event.taskName, event.modelName);
+              if (event.rowKey) {
+                running.set(event.rowKey, { startedAt: Date.now(), shortId: event.case?.shortId });
+              }
+              progress.onStart(progressRow(event));
+            } else if (event.type === "phase" && event.taskName && event.phase) {
+              progress.onPhase(progressRow(event), event.phase, event.sessionUrl);
             } else if (event.type === "passed" && event.taskName) {
-              progress.onPass(event.taskName, event.modelName, event.durationMs);
+              if (event.rowKey) running.delete(event.rowKey);
+              progress.onPass(progressRow(event), event.durationMs, {
+                sessionUrl: event.sessionUrl,
+              });
             } else if (event.type === "failed" && event.taskName) {
-              progress.onFail(event.taskName, event.modelName, event.error);
+              if (event.rowKey) running.delete(event.rowKey);
+              progress.onFail(progressRow(event), {
+                error: event.error,
+                outcome: event.outcome,
+                durationMs: event.durationMs,
+                sessionUrl: event.sessionUrl,
+              });
+            } else if (event.type === "queue" && event.queue) {
+              progress.onQueue(event.queue);
+            } else if (event.type === "throttled" && event.throttle) {
+              progress.onThrottled(rowDisplayName(progressRow(event)), event.throttle);
             }
           },
         });
 
-      const result = options.verbose ? await run() : await withSuppressedConsole(run);
-
-      progress.printSummary();
-
-      if (result.results.length > 0 && options.verbose) {
-        printResultsTable(result.results);
-      } else if (result.results.length > 0) {
-        printModelSummary(result.results);
-      }
-
-      const arms = summarizeArmVerifiability(result.results, options.harness);
-      const unverifiableLimit = resolveUnverifiableCriteriaLimit();
-      if (arms.length > 0) {
-        for (const arm of arms) {
-          const ungradedSuffix =
-            arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
-          const browserlessSuffix =
-            arm.passesWithoutBrowserUse > 0
-              ? `, ${arm.passesWithoutBrowserUse} passes without browser use`
-              : "";
-          console.log(
-            dim(
-              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}${browserlessSuffix}`,
-            ),
-          );
-        }
-        if (unverifiableLimit !== undefined) {
-          const over = armsOverLimit(arms, unverifiableLimit);
-          for (const arm of over) {
-            console.error(
-              `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${unverifiableLimit})`,
-            );
-          }
-          // A gated batch must never publish self-reported rows as passes:
-          // any verifier failure fails the batch, whatever the criteria count.
-          const ungraded = armsWithUngradedRuns(arms);
-          for (const arm of ungraded) {
-            console.error(
-              `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
-            );
-          }
-          const browserless = armsWithPassesWithoutBrowserUse(arms);
-          for (const arm of browserless) {
-            console.error(
-              `  ✗ verifiability gate: ${arm.arm} has ${arm.passesWithoutBrowserUse} passes without browser use`,
-            );
-          }
-          if (over.length > 0 || ungraded.length > 0 || browserless.length > 0) {
-            process.exitCode = 1;
-          }
-        }
-      }
-
-      console.log(dim(`  Experiment: ${result.experimentName}`));
-      console.log("");
+      const result = await withConsoleCapture(
+        run,
+        options.verbose ? (text) => progress.logLine(`  ${dim(text)}`) : undefined,
+      );
+      renderRunSummary(result, options, progress, {
+        isBenchRun,
+        elapsedMs: Date.now() - runStartedAt,
+      });
     } catch (error) {
       progress.dispose();
       throw error;
+    } finally {
+      setActiveRun(undefined);
     }
   });
 }
@@ -569,7 +825,16 @@ function sortKeys<T extends Record<string, unknown>>(obj: T): T {
   return sorted as T;
 }
 
-async function withSuppressedConsole<T>(fn: () => Promise<T>): Promise<T> {
+/**
+ * Console output during a run. Inside a row it belongs to that row: it goes
+ * to the row's log file (and the live stream when enabled) instead of
+ * scribbling over the board. Outside a row (Braintrust, the runner itself)
+ * it's dropped unless `outside` is given.
+ */
+async function withConsoleCapture<T>(
+  fn: () => Promise<T>,
+  outside?: (text: string) => void,
+): Promise<T> {
   const original = {
     log: console.log,
     info: console.info,
@@ -577,21 +842,20 @@ async function withSuppressedConsole<T>(fn: () => Promise<T>): Promise<T> {
     error: console.error,
     debug: console.debug,
   };
-
-  const noop = () => {};
-  console.log = noop;
-  console.info = noop;
-  console.warn = noop;
-  console.error = noop;
-  console.debug = noop;
-
+  const route =
+    (level: number) =>
+    (...args: unknown[]): void => {
+      const message = formatConsoleArgs(args);
+      if (!logToRow({ category: "console", message, level })) outside?.(message);
+    };
+  console.log = route(1);
+  console.info = route(1);
+  console.debug = route(2);
+  console.warn = route(1);
+  console.error = route(0);
   try {
     return await fn();
   } finally {
-    console.log = original.log;
-    console.info = original.info;
-    console.warn = original.warn;
-    console.error = original.error;
-    console.debug = original.debug;
+    Object.assign(console, original);
   }
 }

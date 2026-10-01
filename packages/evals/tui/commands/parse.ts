@@ -16,6 +16,7 @@
 import { DEFAULT_BENCH_HARNESS, type Harness } from "../../framework/benchTypes.js";
 import { TRACING_ENV_VARS } from "./config.js";
 import { parseBenchHarness } from "../../framework/benchHarness.js";
+import { isBenchSuite, listBenchSuites } from "../../framework/benchSuites.js";
 
 export interface RunFlags {
   target?: string;
@@ -32,6 +33,12 @@ export interface RunFlags {
   filter?: Array<[string, string]>;
   dryRun?: boolean;
   preview?: boolean;
+  /** Emit the end-of-run summary as JSON instead of the table (CI). */
+  json?: boolean;
+  /** Stream every row's log lines above the board (`-v`). */
+  verbose?: boolean;
+  /** Stream only this row's log lines (case id prefix, e.g. `47e314cc`). */
+  follow?: string;
   /**
    * Rubric success mode for the verifier — outcome | process | both.
    *   outcome (default): binary EvaluationResult.outcomeSuccess.
@@ -95,21 +102,17 @@ export interface ResolvedRunOptions {
   envOverrides: Record<string, string>;
   dryRun: boolean;
   preview: boolean;
+  /** End-of-run summary as JSON (see framework/runSummary.ts). Optional so existing callers need no change. */
+  json?: boolean;
   /** Per-provider semaphore widths from config (`providers.<p>.concurrency`); env layers on top. */
   providerConcurrency?: Record<string, number>;
+  /** `-v`: stream every row's log lines above the board. */
   verbose: boolean;
+  /** `--follow <id>`: stream only rows whose case id starts with this. */
+  follow?: string;
 }
 
-/** Suites wired into the unified runner. */
-const SUPPORTED_BENCHMARKS = new Set([
-  "webvoyager",
-  "onlineMind2Web",
-  "webtailbench",
-  "hardbenchmark",
-  "odysseysbench",
-]);
-
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "json", "verbose"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -122,9 +125,11 @@ const VALUE_FLAGS = new Set([
   "harness",
   "filter",
   "success",
+  "follow",
 ]);
 
 const FLAG_ALIASES: Record<string, string> = {
+  v: "verbose",
   t: "trials",
   c: "concurrency",
   e: "env",
@@ -199,6 +204,8 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         if (name === "api") flags.api = true;
         else if (name === "dry-run") flags.dryRun = true;
         else if (name === "preview") flags.preview = true;
+        else if (name === "json") flags.json = true;
+        else if (name === "verbose") flags.verbose = true;
         i++;
         continue;
       }
@@ -239,6 +246,9 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "harness":
           flags.harness = value;
+          break;
+        case "follow":
+          flags.follow = value;
           break;
         case "filter": {
           filters.push(parseFilter(value));
@@ -310,9 +320,9 @@ export function applyBenchmarkShorthand(
 
   const benchmarkName = match[2];
 
-  if (!SUPPORTED_BENCHMARKS.has(benchmarkName)) {
+  if (!isBenchSuite(benchmarkName)) {
     throw new Error(
-      `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
+      `Unknown benchmark "${benchmarkName}". Supported: ${listBenchSuites().join(", ")}.`,
     );
   }
 
@@ -490,8 +500,10 @@ export function resolveRunOptions(
     envOverrides,
     dryRun: flags.dryRun ?? false,
     preview: flags.preview ?? false,
+    json: flags.json ?? false,
     ...(Object.keys(providerConcurrency).length > 0 && { providerConcurrency }),
-    verbose: defaults.verbose ?? false,
+    verbose: flags.verbose ?? defaults.verbose ?? false,
+    ...(flags.follow && { follow: flags.follow }),
   };
 }
 

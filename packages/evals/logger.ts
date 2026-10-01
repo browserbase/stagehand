@@ -11,6 +11,7 @@
  * reviewed after the tasks complete.
  */
 import { logLineToString } from "./utils.js";
+import { logToRow, type RowLogEntry } from "./framework/rowContext.js";
 import { LogLineEval } from "./types/evals.js";
 import { LogLine } from "stagehand-v3";
 import type { V3 } from "stagehand-v3";
@@ -64,6 +65,15 @@ function parseLogLine(logLine: LogLine): LogLineEval {
  * - Also keeps a structured version of the logs that can be returned for analysis or
  *   included in evaluation output.
  */
+function toRowLogEntry(logLine: LogLine): RowLogEntry {
+  const error = logLine.auxiliary?.error?.value;
+  return {
+    category: logLine.category || "log",
+    message: error ? `${logLine.message}: ${String(error)}` : logLine.message,
+    ...(typeof logLine.level === "number" && { level: logLine.level }),
+  };
+}
+
 export class EvalLogger {
   private logs: LogLineEval[] = [];
   private echo: boolean;
@@ -90,7 +100,9 @@ export class EvalLogger {
    * and then stores the parsed log line in `this.logs`.
    */
   log(logLine: LogLine) {
-    if (this.echo) {
+    // Inside a run, the line goes to the row's log (file + optional live
+    // stream) instead of the console, where concurrent rows interleave.
+    if (!logToRow(toRowLogEntry(logLine)) && this.echo) {
       console.log(logLineToString(logLine));
     }
     this.logs.push(parseLogLine(logLine));
@@ -102,7 +114,9 @@ export class EvalLogger {
    * Useful for capturing and differentiating error-level logs.
    */
   error(logLine: LogLine) {
-    if (this.echo) {
+    // Inside a run, the line goes to the row's log (file + optional live
+    // stream) instead of the console, where concurrent rows interleave.
+    if (!logToRow(toRowLogEntry(logLine)) && this.echo) {
       console.error(logLineToString(logLine));
     }
     this.logs.push(parseLogLine(logLine));
@@ -114,7 +128,9 @@ export class EvalLogger {
    * Helps differentiate warnings from regular info logs.
    */
   warn(logLine: LogLine) {
-    if (this.echo) {
+    // Inside a run, the line goes to the row's log (file + optional live
+    // stream) instead of the console, where concurrent rows interleave.
+    if (!logToRow(toRowLogEntry(logLine)) && this.echo) {
       console.warn(logLineToString(logLine));
     }
     this.logs.push(parseLogLine(logLine));

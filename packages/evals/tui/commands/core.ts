@@ -137,7 +137,7 @@ async function setCoreKey(entryDir: string, key: CoreKey, value: string): Promis
     const toolSurface = core.tool as (typeof validTools)[number] | undefined;
     if (!toolSurface) {
       console.error(red("  Cannot set startup without a tool. Set core.tool first."));
-      console.log(dim(`  Example: evals core config set tool understudy_code`));
+      console.log(dim(`  Example: evals config core set tool understudy_code`));
       process.exitCode = 1;
       return;
     }

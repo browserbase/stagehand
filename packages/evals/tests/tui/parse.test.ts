@@ -152,6 +152,21 @@ describe("resolveRunOptions: tracing config → env overrides", () => {
   });
 });
 
+describe("--json", () => {
+  it("parses --json as a boolean flag and resolves it onto run options", () => {
+    const flags = parseRunArgs(["b:hardbenchmark", "--json"]);
+    expect(flags.json).toBe(true);
+    expect(resolveRunOptions(flags, {}, {}).json).toBe(true);
+    expect(resolveRunOptions({}, {}, {}).json).toBe(false);
+  });
+
+  it("lists supported benchmarks from the suite registry in the error", () => {
+    expect(() => applyBenchmarkShorthand("b:nope", {})).toThrow(
+      /Supported: webvoyager, onlineMind2Web, webtailbench, hardbenchmark, odysseysbench\./,
+    );
+  });
+});
+
 describe("resolveRunOptions: config v2 sections", () => {
   it("applies defaults.harness and defaults.successMode under flags and env", () => {
     const resolved = resolveRunOptions({}, { harness: "claude_code", successMode: "process" }, {});
@@ -225,5 +240,21 @@ describe("resolveRunOptions: config v2 sections", () => {
       applyBenchmarkShorthand("b:hardbenchmark", {}, benchmarks, { EVAL_MAX_K: "9" }).envOverrides
         .EVAL_HARDBENCHMARK_LIMIT,
     ).toBeUndefined();
+  });
+});
+
+describe("-v / --follow", () => {
+  it("parses -v and --follow and resolves them onto run options", () => {
+    const flags = parseRunArgs(["b:hardbenchmark", "-v", "--follow", "47e314cc"]);
+    expect(flags).toMatchObject({ verbose: true, follow: "47e314cc" });
+    const resolved = resolveRunOptions(flags, {}, {});
+    expect(resolved.verbose).toBe(true);
+    expect(resolved.follow).toBe("47e314cc");
+  });
+
+  it("-v overrides a config verbose=false, and config verbose still works without the flag", () => {
+    expect(resolveRunOptions({ verbose: true }, { verbose: false }, {}).verbose).toBe(true);
+    expect(resolveRunOptions({}, { verbose: true }, {}).verbose).toBe(true);
+    expect(() => parseRunArgs(["b:hardbenchmark", "--follow"])).toThrow(/Missing value/);
   });
 });
