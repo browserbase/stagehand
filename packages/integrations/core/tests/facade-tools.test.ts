@@ -415,7 +415,7 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     const clicked = world.locators.find((l) => l.selector.endsWith("button.background"));
     expect(clicked?.click).toHaveBeenCalledTimes(1);
     const filled = world.locators.find((l) => l.selector.includes("placeholder"));
-    expect(filled?.fill).toHaveBeenCalledWith("frog");
+    expect(filled?.fill).toHaveBeenCalledWith("frog", { timeout: expect.any(Number) });
   });
 
   it("chains nested frameLocator hops and descendant selectors", async () => {
@@ -595,12 +595,29 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     world.clickErrors["#editor >> .hidden"] = new Error(
       "-32000 Node does not have a layout object",
     );
-    const { tools } = setup(world);
-    const result = tools.run(
-      `await page.frameLocator("#editor").locator(".hidden").click({ timeout: 300 });`,
-    );
-    await expect(result).rejects.toThrow(/not rendered \(no layout box/u);
-    await expect(result).rejects.not.toThrow(/-32000|Original:/u);
+    const { page, tools } = setup(world);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(0);
+    try {
+      const raw = page.locator("#editor >> .hidden");
+      page.locator.mockReturnValue(raw);
+      page.waitForTimeout.mockImplementation(async () => {
+        vi.setSystemTime(250);
+      });
+      raw.count.mockResolvedValueOnce(1).mockImplementation(async () => {
+        // The retry finds the element just as the remaining budget expires.
+        vi.setSystemTime(300);
+        return 1;
+      });
+      const result = tools.run(
+        `await page.frameLocator("#editor").locator(".hidden").click({ timeout: 300 });`,
+      );
+      await expect(result).rejects.toThrow(/not rendered \(no layout box/u);
+      await expect(result).rejects.not.toThrow(/-32000|Original:/u);
+      expect(raw.click).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rejects operations that cannot cross the frame boundary with guidance", async () => {
