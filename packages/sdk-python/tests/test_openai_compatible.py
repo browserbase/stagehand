@@ -6,7 +6,8 @@ import pytest
 from stagehand import LLMStructuredGenerateParams, LLMStructuredGenerateResult, open_ai_compatible
 
 LIVE_PNG_1X1 = (
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGA"
+    "hKmMIQAAAABJRU5ErkJggg=="
 )
 
 
