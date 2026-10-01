@@ -80,7 +80,7 @@ Set `EVALS_WELCOME_WIZARD=1` to auto-run the flow on the first REPL launch; `EVA
 | `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets                         |
 | `--preview`                                                       | Print the resolved plan and exit — no browser, no LLM calls |
 
-Team defaults live in the tracked `evals.config.json` (schema v2: `defaults`, `benchmarks`, `harnesses`, `providers`, `verifier`, `campaign`). `evals config set …` writes your personal overrides to the gitignored `evals.config.local.json` beside it; add `--shared` to change the team file. Flags always win; `defaults` then come from the local file, the tracked file and the `EVAL_*` env vars in that order, while every other section yields to its env twin. `.env` loads from the cwd first (it wins), then `packages/evals/.env` (where `evals setup` saves keys), and shell exports always win.
+Team defaults live in the tracked `evals.config.json` (schema v2: `defaults`, `benchmarks`, `harnesses`, `providers`, `verifier`, `campaign`). `evals config set …` writes your personal overrides to the gitignored `evals.config.local.json` beside it; add `--shared` to change the team file. Flags always win; `defaults` then come from the local file, the tracked file and the `EVAL_*` env vars in that order, while every other section yields to its env twin. `.env` loads from the cwd first (it wins), then `packages/evals/.env` (where `evals setup` saves keys), and shell exports always win — `evals doctor` reports which file supplied each key.
 
 Concurrency is capped per model provider under the global `-c` value (default 3 per provider); tune with `EVAL_PROVIDER_CONCURRENCY=openai=6,anthropic=4` or `evals config providers set openai concurrency 6`. The cap applies within one `evals run`: separately launched runs don't share it. When the agent's own provider call hits a 429 or connect timeout, that provider's width is halved for 60 s and the row is retried once; a Browserbase session-create 429 is retried once after 20 s. Retried rows carry `provider_throttled` in Braintrust. A rate-limited judge never re-runs the agent.
 
@@ -91,6 +91,10 @@ Concurrency is capped per model provider under the global `-c` value (default 3 
 A live run paints an in-place progress table, then prints a final summary with a per-model breakdown:
 
 ![Live bench run](./assets/readme/run.gif)
+
+`evals doctor --harness a,b [--probe]` probes each harness (binary, key, key validity, extras like heap or `CODEX_HOME`), the judge and Browserbase, and prints the command that fixes each failure:
+
+![evals doctor](./assets/readme/doctor.png)
 
 ## Adding a bench task
 
