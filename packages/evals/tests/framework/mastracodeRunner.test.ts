@@ -489,10 +489,10 @@ describe("runMastracodeAgent", () => {
     expect(result.terminationReason).toBe("browser_session_lost");
   });
 
-  it("records a probe observation after each facade tool result", async () => {
+  it("records a probe observation, keyed by toolCallId, after each facade tool result", async () => {
     const recordObservation = vi.fn();
     await run(completedRun(), { adapter: { recordObservation } });
-    expect(recordObservation).toHaveBeenCalledTimes(2);
+    expect(recordObservation.mock.calls).toEqual([["t1"], ["t2"]]);
   });
 
   it("rejects an invalid thinking level before spawning", async () => {

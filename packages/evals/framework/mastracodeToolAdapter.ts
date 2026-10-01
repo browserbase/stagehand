@@ -137,7 +137,8 @@ export interface PreparedMastracodeToolAdapter {
   captureEvidence?: () => Promise<ProbeEvidence>;
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
-  recordObservation?: () => void;
+  /** Probes the page after a facade tool result; the id keys the observation to its call. */
+  recordObservation?: (toolCallId?: string) => void;
   observedToolMatcher: (name: string) => boolean;
   cleanup: () => Promise<void>;
 }
@@ -223,7 +224,7 @@ export async function prepareMastracodeToolAdapter(
           await recorder.settle();
           return recorder.drain();
         },
-        recordObservation: () => void recorder.record(),
+        recordObservation: (toolCallId) => void recorder.record(toolCallId),
       }),
       observedToolMatcher: mastraToolNameMatcher(serverNames),
       cleanup: async () => {

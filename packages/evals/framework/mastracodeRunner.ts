@@ -232,7 +232,9 @@ export async function runMastracodeAgent({
           if (event.type === "tool_start") toolNames.set(event.toolCallId, event.toolName);
           if (event.type === "tool_end") {
             const name = toolNames.get(event.toolCallId) ?? "";
-            if (toolAdapter.observedToolMatcher(name)) toolAdapter.recordObservation?.();
+            if (toolAdapter.observedToolMatcher(name)) {
+              toolAdapter.recordObservation?.(event.toolCallId);
+            }
           }
           if (event.type === "violation") {
             logger.warn({
@@ -254,16 +256,12 @@ export async function runMastracodeAgent({
       warnOnUsageDrift(session, logger);
       return toSessionOutcome(session, { model, cacheRoute });
     },
-    toTrajectory: (
-      { raw, parsed, finalObservation, stepObservations, observedToolName, status },
-      taskSpec,
-    ) =>
+    toTrajectory: ({ raw, parsed, finalObservation, stepObservations, status }, taskSpec) =>
       mastracodeAdapter.fromHarnessResult(
         {
           events: raw.events,
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
-          ...(observedToolName && { observedToolName }),
           finalAnswer: resolveFinalAnswer(parsed, raw.finalText),
           status,
           usage: {

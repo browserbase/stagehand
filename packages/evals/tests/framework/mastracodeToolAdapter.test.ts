@@ -153,8 +153,10 @@ describe("mastracode tool adapter", () => {
     expect(await fsp.readdir(adapter.paths.workspace)).toEqual([]);
     expect(adapter.observedToolMatcher("stagehand_snapshot")).toBe(true);
     expect(adapter.observedToolMatcher("execute_command")).toBe(false);
-    adapter.recordObservation?.();
-    expect(await adapter.drainStepObservations?.()).toHaveLength(1);
+    adapter.recordObservation?.("call-1");
+    expect(await adapter.drainStepObservations?.()).toEqual([
+      { runIndex: 0, toolCallId: "call-1", evidence: { url: "https://x" } },
+    ]);
     await adapter.cleanup();
     await adapter.cleanup();
     expect(cleanup).toHaveBeenCalledOnce();

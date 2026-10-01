@@ -112,28 +112,48 @@ describe("mastracode trajectory adapter", () => {
     expect(trajectory.finalObservation?.screenshot).toEqual(png);
   });
 
-  it("pairs per-step probe evidence with facade calls by ordinal", () => {
+  it("pairs per-step probe evidence with its call by toolCallId, not by position", () => {
     const trajectory = mastracodeAdapter.fromHarnessResult(
       {
+        // Two calls of one step finish in the opposite order to how they
+        // started, so the recorder's run order is not the call order.
         events: [
           start("1", "stagehand_run", {}),
-          end("1", "ok"),
           start("2", "other_tool", {}),
-          end("2", "ok"),
           start("3", "stagehand_snapshot", {}),
           end("3", "ok"),
+          end("2", "ok"),
+          end("1", "ok"),
         ],
-        observedToolName: (name) => name.startsWith("stagehand_"),
         stepObservations: [
-          { runIndex: 0, evidence: { url: "https://example.com/one" } },
-          { runIndex: 1, evidence: { url: "https://example.com/two" } },
+          { runIndex: 0, toolCallId: "3", evidence: { url: "https://example.com/three" } },
+          { runIndex: 1, toolCallId: "1", evidence: { url: "https://example.com/one" } },
         ],
       },
       TASK_SPEC,
     );
     expect(trajectory.steps[0]?.probeEvidence).toEqual({ url: "https://example.com/one" });
     expect(trajectory.steps[1]?.probeEvidence).toEqual({});
-    expect(trajectory.steps[2]?.probeEvidence).toEqual({ url: "https://example.com/two" });
+    expect(trajectory.steps[2]?.probeEvidence).toEqual({ url: "https://example.com/three" });
+  });
+
+  it("attaches no probe evidence it cannot key to a call", () => {
+    const trajectory = mastracodeAdapter.fromHarnessResult(
+      {
+        events: [
+          start("1", "stagehand_run", {}),
+          end("1", "ok"),
+          start("2", "stagehand_run", {}),
+          end("2", "ok"),
+        ],
+        stepObservations: [
+          { runIndex: 0, evidence: { url: "https://example.com/unkeyed" } },
+          { runIndex: 1, toolCallId: "gone", evidence: { url: "https://example.com/unknown" } },
+        ],
+      },
+      TASK_SPEC,
+    );
+    expect(trajectory.steps.map((entry) => entry.probeEvidence)).toEqual([{}, {}]);
   });
 
   it("falls back to the last step's text for the final answer", () => {

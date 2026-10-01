@@ -1,7 +1,8 @@
 /**
  * mastracodeAdapter converts the mastracode driver's event stream into a
- * verifier trajectory. `tool_start` / `tool_end` pair by toolCallId; the
- * driver already attaches the reasoning and narration that preceded each call.
+ * verifier trajectory. `tool_start` / `tool_end` pair by toolCallId, and so do
+ * per-step probe observations; the driver already attaches the reasoning and
+ * narration that preceded each call.
  */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import type { MastracodeDriverEvent } from "@browserbasehq/stagehand-integrations-mastracode-sdk";
@@ -20,7 +21,6 @@ export interface MastracodeRunResult {
   usage?: Partial<Trajectory["usage"]>;
   finalObservation?: ProbeEvidence;
   stepObservations?: StepObservation[];
-  observedToolName?: (name: string) => boolean;
 }
 
 interface PendingCall {
@@ -38,6 +38,7 @@ export class MastracodeTrajectoryAdapter implements TrajectoryAdapter<Mastracode
       if (event.type === "tool_start") {
         const pending: PendingCall = {
           call: {
+            ...(event.toolCallId && { id: event.toolCallId }),
             name: event.toolName || "tool",
             args: isRecord(event.args)
               ? (deepSanitize(event.args) as Record<string, unknown>)
@@ -77,18 +78,13 @@ export class MastracodeTrajectoryAdapter implements TrajectoryAdapter<Mastracode
       if (event.type === "step" && event.text.trim()) lastStepText = event.text.trim();
     }
 
-    const observationsByRunIndex = new Map(
-      (result.stepObservations ?? []).map((observation) => [
-        observation.runIndex,
-        observation.evidence,
-      ]),
-    );
-    const isObserved = result.observedToolName ?? (() => true);
-    let runOrdinal = 0;
-    for (const pending of calls) {
-      if (!isObserved(pending.call.name)) continue;
-      const observation = observationsByRunIndex.get(runOrdinal++);
-      if (observation) pending.call.probeEvidence = observation;
+    // Observations are recorded as tool results arrive, which need not be the
+    // order the calls started in, so they attach by toolCallId only. One with
+    // no id, or an id no call carries, is dropped: evidence on the wrong step
+    // is worse than a gap.
+    for (const observation of result.stepObservations ?? []) {
+      const pending = observation.toolCallId ? callsById.get(observation.toolCallId) : undefined;
+      if (pending) pending.call.probeEvidence = observation.evidence;
     }
 
     let finalObservation = result.finalObservation?.screenshot
