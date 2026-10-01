@@ -405,6 +405,20 @@ func (p *Page) Screenshot(ctx context.Context, options *ScreenshotOptions) ([]by
 	return data, nil
 }
 
+// PDF renders the current page through Chrome's native print pipeline.
+func (p *Page) PDF(ctx context.Context, options *PagePDFOptions) ([]byte, error) {
+	params := PagePDFParams{PageID: p.PageID(), Options: options}
+	var result PagePDFResult
+	if err := p.rpc.call(ctx, "page.pdf", params, &result); err != nil {
+		return nil, err
+	}
+	data, err := base64.StdEncoding.DecodeString(result.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode page.pdf result: %w", err)
+	}
+	return data, nil
+}
+
 func screenshotProtocolOptions(options *ScreenshotOptions, pageID string) (*PageScreenshotOptions, error) {
 	if options == nil {
 		return nil, nil

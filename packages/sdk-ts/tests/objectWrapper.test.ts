@@ -1166,23 +1166,97 @@ describe("Stagehand TS object wrapper", () => {
     }
   });
 
-  it("reports when screenshot paths are unavailable outside Node.js", async () => {
-    vi.doMock("node:fs/promises", () => {
-      throw new Error("module resolution failed");
-    });
-    try {
-      const client = new FakeProtocolClient();
-      client.queueResponse(StagehandMethods.pageScreenshot, {
-        data: "iVBORw0KGgo=",
+  it.each(["screenshot", "pdf"] as const)(
+    "reports when %s paths are unavailable outside Node.js",
+    async (method) => {
+      vi.doMock("node:fs/promises", () => {
+        throw new Error("module resolution failed");
       });
+      try {
+        const client = new FakeProtocolClient();
+        client.queueResponse(
+          method === "pdf" ? StagehandMethods.pagePDF : StagehandMethods.pageScreenshot,
+          {
+            data: "iVBORw0KGgo=",
+          },
+        );
+        const page = new Page(client, { pageId: "page-1" });
+
+        await expect(page[method]({ path: `capture.${method}` })).rejects.toThrow(
+          `page.${method}(): path is only supported in Node.js; omit path to receive ${method === "pdf" ? "PDF" : "screenshot"} bytes`,
+        );
+      } finally {
+        vi.doUnmock("node:fs/promises");
+      }
+    },
+  );
+
+  it.each(["screenshot", "pdf"] as const)(
+    "preserves the filesystem error for an explicitly empty %s path",
+    async (method) => {
+      const client = new FakeProtocolClient();
+      client.queueResponse(
+        method === "pdf" ? StagehandMethods.pagePDF : StagehandMethods.pageScreenshot,
+        { data: method === "pdf" ? "JVBERi0xLjcK" : "iVBORw0KGgo=" },
+      );
       const page = new Page(client, { pageId: "page-1" });
 
-      await expect(page.screenshot({ path: "screenshot.png" })).rejects.toThrow(
-        "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
-      );
+      await expect(page[method]({ path: "" })).rejects.toMatchObject({
+        code: "ENOENT",
+        syscall: "open",
+        path: "",
+      });
+    },
+  );
+
+  it("returns PDF bytes, writes paths locally, and serializes print options", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pagePDF, {
+      data: "JVBERi0xLjcK",
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-pdf-"));
+    const pdfPath = path.join(directory, "page.pdf");
+
+    try {
+      const bytes = await page.pdf({
+        landscape: true,
+        printBackground: true,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25, bottom: 0, left: 0.5, right: 0.75 },
+        tagged: true,
+        outline: true,
+        path: pdfPath,
+      });
+
+      expect(new TextDecoder().decode(bytes)).toBe("%PDF-1.7\n");
+      expect(await readFile(pdfPath)).toStrictEqual(Buffer.from(bytes));
+      expect(client.calls).toStrictEqual([
+        requestCall(StagehandMethods.pagePDF, {
+          pageId: "page-1",
+          options: {
+            landscape: true,
+            printBackground: true,
+            width: 8.5,
+            height: 11,
+            margin: { top: 0.25, bottom: 0, left: 0.5, right: 0.75 },
+            tagged: true,
+            outline: true,
+          },
+        }),
+      ]);
     } finally {
-      vi.doUnmock("node:fs/promises");
+      await rm(directory, { recursive: true });
     }
+  });
+
+  it("rejects malformed PDF base64", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pagePDF, { data: "Zh==" });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.pdf()).rejects.toThrow("page.pdf returned invalid base64");
   });
 
   it("routes page snapshots and preserves opaque map keys", async () => {
@@ -1694,6 +1768,48 @@ describe("Stagehand TS object wrapper", () => {
     expect(page).not.toHaveProperty("observe");
     expect(page).not.toHaveProperty("extract");
   });
+
+  it.each([undefined, {}, { timeout: 0 }, { timeout: 75 }])(
+    "forwards timeout options %j for every terminal locator method",
+    async (options) => {
+      const client = new FakeProtocolClient();
+      const send = vi.spyOn(client, "send").mockResolvedValue(undefined);
+      const locator = new Page(client, { pageId: "page-1" }).locator("button").nth(2);
+      await locator.click(options);
+      await locator.hover(options);
+      await locator.fill("hello", options);
+      await locator.count(options);
+      await locator.isChecked(options);
+      await locator.inputValue(options);
+      await locator.isVisible(options);
+      await locator.innerText(options);
+      await locator.innerHtml(options);
+      await locator.textContent(options);
+      await locator.scrollTo(50, options);
+      await locator.centroid(options);
+      await locator.highlight(options);
+      await locator.sendClickEvent(options);
+      await locator.type("hello", options);
+      await locator.selectOption("a", options);
+      await locator.setInputFiles([], options);
+
+      const registered = Object.values(StagehandMethods).filter(({ name }) =>
+        name.startsWith("locator."),
+      );
+      expect(send.mock.calls.map(([method]) => method.name).sort()).toEqual(
+        registered.map(({ name }) => name).sort(),
+      );
+      for (const [method, params] of send.mock.calls) {
+        expect(method.params.parse(params)).toMatchObject({
+          pageId: "page-1",
+          selector: "button",
+          nth: 2,
+        });
+        if (options === undefined) expect(params).not.toHaveProperty("options");
+        else expect(params).toHaveProperty("options", options);
+      }
+    },
+  );
 
   it("creates descriptor-backed locators without sending protocol calls", () => {
     const client = new FakeProtocolClient();
