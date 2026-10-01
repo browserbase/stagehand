@@ -49,6 +49,38 @@ function options(overrides: Partial<HarnessProbeOptions> = {}): HarnessProbeOpti
 }
 
 describe("buildHarnessMatrix", () => {
+  it("names the missing Browserbase keys and where to put them in the fix hint", async () => {
+    const matrix = await buildHarnessMatrix(
+      options({
+        config: baseConfig({ defaults: { env: "browserbase", concurrency: 3 } }),
+        env: {},
+      }),
+    );
+    const fixes = [
+      matrix.browserbase.probes[0]?.fix,
+      matrix.harnesses.find((row) => row.harness === "stagehand")?.extra.fix,
+    ];
+    expect(fixes[0]).toMatch(
+      /^add BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID to .*\.env or export them in your shell$/,
+    );
+    expect(fixes[1]).toMatch(/^add BROWSERBASE_API_KEY to .*\.env or export it in your shell$/);
+  });
+
+  it("tells a rejected key apart from an unknown project", async () => {
+    const env = { BROWSERBASE_API_KEY: "bb", BROWSERBASE_PROJECT_ID: "proj" };
+    const run = (status: number) =>
+      buildHarnessMatrix(
+        options({
+          env,
+          probe: true,
+          requested: ["stagehand"],
+          fetchImpl: fetchStub({ "https://api.browserbase.com/v1/projects/proj": status }),
+        }),
+      );
+    expect((await run(401)).browserbase.probes[1]?.fix).toContain("replace BROWSERBASE_API_KEY");
+    expect((await run(404)).browserbase.probes[1]?.fix).toContain("check BROWSERBASE_PROJECT_ID");
+  });
+
   it("builds one row per executable harness, skipping fx and cursor", async () => {
     const matrix = await buildHarnessMatrix(options());
     expect(matrix.harnesses.map((row) => row.harness)).toEqual([
