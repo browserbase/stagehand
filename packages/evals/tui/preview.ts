@@ -127,7 +127,8 @@ function renderHeader(p: PreviewPayload): void {
   // the same for all runs. Without this a single-cell run shows no tool
   // surface, provider or model anywhere in the preview.
   const constants = constantColumns(p.matrix).filter(
-    ([column]) => !HEADER_ECHOED_COLUMNS.has(column),
+    // `Model override:` above already names the model when one was given.
+    ([column]) => !HEADER_ECHOED_COLUMNS.has(column) && !(column === "model" && opts.model),
   );
   if (constants.length > 0) {
     const fragments = constants.map(

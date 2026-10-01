@@ -556,6 +556,49 @@ describe("deriveCategoryFilter", () => {
     expect(stream).toContain("running 1 · queued 1 · openai 1/3↓ · throttled 1");
     expect(stream).toContain("act/alpha: openai throttled — width 6 → 3 for 60s, retrying");
   });
+
+  it("shows config provider widths, with EVAL_PROVIDER_CONCURRENCY layered on top", async () => {
+    const registry = makeRegistry([
+      makeTask({ name: "act/alpha", primaryCategory: "act", categories: ["act"] }),
+    ]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const options = {
+      target: "act",
+      normalizedTarget: "act",
+      trials: 1,
+      concurrency: 10,
+      environment: "BROWSERBASE",
+      model: "openai/gpt-4.1-mini",
+      useApi: false,
+      harness: "stagehand" as const,
+      envOverrides: {},
+      dryRun: false,
+      preview: false,
+      successMode: "outcome" as const,
+      verbose: false,
+      providerConcurrency: { openai: 4, anthropic: 5 },
+    };
+    const heading = () => log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
+    const saved = process.env.EVAL_PROVIDER_CONCURRENCY;
+    try {
+      delete process.env.EVAL_PROVIDER_CONCURRENCY;
+      await runCommand(options, registry);
+      expect(heading()).toContain("Concurrency: 10 global · openai 4");
+      // The config widths reach the runner, which layers the env on top itself.
+      expect(runEvalsMock).toHaveBeenCalledWith(
+        expect.objectContaining({ providerConcurrency: { openai: 4, anthropic: 5 } }),
+      );
+
+      log.mockClear();
+      process.env.EVAL_PROVIDER_CONCURRENCY = "openai=6";
+      await runCommand(options, registry);
+      expect(heading()).toContain("Concurrency: 10 global · openai 6");
+      expect(heading()).not.toContain("openai 4");
+    } finally {
+      if (saved === undefined) delete process.env.EVAL_PROVIDER_CONCURRENCY;
+      else process.env.EVAL_PROVIDER_CONCURRENCY = saved;
+    }
+  });
 });
 
 describe("buildCombinations (preview column-pruning)", () => {
@@ -702,6 +745,20 @@ describe("preview header constants", () => {
       "Model: openai/gpt-5.4-mini  Dataset: hardbenchmark  Provider: openai  Tool surface: stagehand_facade  Startup: runner_provided_browserbase_cdp",
     );
     expect(output).not.toContain("Provider: openai  Provider:");
+
+    // With --model the override line names it; the constants line doesn't repeat it.
+    log.mockClear();
+    renderPreview({
+      target: "b:hardbenchmark",
+      normalizedTarget: "agent/hardbenchmark",
+      tasks: ["agent/hardbenchmark"],
+      envOverrides: {},
+      runOptions: { environment: "BROWSERBASE", harness: "codex", model: "openai/gpt-5.4-mini" },
+      matrix,
+    });
+    const withOverride = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
+    expect(withOverride).toContain("Model override: openai/gpt-5.4-mini");
+    expect(withOverride.match(/openai\/gpt-5\.4-mini/g)).toHaveLength(1);
   });
 });
 
