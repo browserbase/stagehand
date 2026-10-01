@@ -6,8 +6,10 @@
  * Agents JSONL event protocol, so this harness reuses the Deep Agents session
  * driver (subprocess lifecycle, event parsing, status mapping) and trajectory
  * adapter. Antigravity keeps its native system prompt; the eval policy is
- * appended as a section. Builtin tools are disabled in the runner, leaving the
- * mounted MCP servers as the only tools.
+ * appended as a section. The mounted MCP servers are the only tools that act.
+ * The runtime saves any tool output over about 4 KB to a file, so the runner
+ * leaves the builtin view_file enabled, restricted to those saved outputs;
+ * view_file reads do not count against the step budget.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -49,7 +51,11 @@ You control the browser through exactly three tools:
 - run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
 - screenshot: inspect the rendered page visually.
 Snapshot IDs are valid only for the latest snapshot of the active page. Snapshot again after
-navigation or stale IDs. Finish with the EVAL_RESULT line requested by the task prompt.
+navigation or stale IDs.
+Large tool outputs, such as page snapshots and long page text, are saved to a file instead of
+being shown inline. Open that file with view_file to read it. view_file can read only those saved
+outputs and the tool schemas.
+Finish with the EVAL_RESULT line requested by the task prompt.
 `;
 
 export function resolveAntigravityRunnerDir(env: NodeJS.ProcessEnv = process.env): string {

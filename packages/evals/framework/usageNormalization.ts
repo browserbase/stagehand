@@ -62,7 +62,7 @@ export interface NormalizeUsageInput {
  * | mastra      | @mastra/core 1.57 on ai@7: `inputTokens` total, `cachedInputTokens` subset               |
  * | eve         | eve 0.29 reads AI SDK 7 `usage.inputTokens` + `inputTokenDetails.cacheReadTokens`        |
  * | deepagents  | LangChain `usage_metadata.input_tokens` total, `input_token_details.cache_read` subset   |
- * | antigravity | Gemini `prompt_token_count` total, `cached_content_token_count` subset; thoughts ⊂ output |
+ * | antigravity | SDK prompt count is net of cache; the runner reports prompt + cached, cached subset     |
  * | fx          | `usage-v2.json`: cached input is a subset; reasoning_tokens is separate from output_tokens    |
  * | pi          | pi-ai `usage.input` is the uncached remainder; `cacheRead`/`cacheWrite` separate         |
  * | cursor      | SDK input excludes cache; historical CLI records explicitly report no usage            |

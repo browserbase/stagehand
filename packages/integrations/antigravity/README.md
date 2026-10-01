@@ -10,15 +10,22 @@ Agents session driver, MCP tool mount and trajectory adapter.
 
 - Antigravity keeps its native system prompt; the eval policy is appended as a
   section.
-- Every builtin tool is disabled (`CapabilitiesConfig(enabled_tools=[])`). The
-  mounted MCP servers are the only tools, apart from the SDK's generic MCP
-  helpers (`call_mcp_tool`, `list_resources`, `read_resource`).
+- The mounted MCP servers are the only tools that act, apart from the SDK's
+  generic MCP helpers (`call_mcp_tool`, `list_resources`, `read_resource`).
+- The Antigravity runtime replaces any tool output over about 4 KB with a notice
+  pointing at a file under its app-data `brain` directory, and stores MCP tool
+  schemas there too. This limit is not configurable, so the builtin `view_file`
+  is the one builtin left enabled. A pre-tool hook denies any `view_file` path
+  outside that directory. Without it the agent never sees a page snapshot.
+- Each run gets its own temporary app-data directory, removed at exit. The runner
+  reads the saved files to record full tool outputs and screenshots as evidence.
 - The Antigravity runtime starts MCP servers with a reduced environment, so the
   runner forwards non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables to them.
-- Step budget: `BudgetConfig(max_tool_calls=N)`; a budget stop maps to
-  `max_turns`.
-- Usage: Gemini `prompt_token_count` (cached tokens are a subset) and
-  `candidates + thoughts` as output.
+- Step budget: the runner counts every tool call except `view_file` reads and
+  cancels the turn after N. A budget stop maps to `max_turns`.
+- Usage: the SDK's `prompt_token_count` is net of cached tokens, so the runner
+  reports input as prompt + cached (cached is a subset) and `candidates +
+  thoughts` as output.
 
 ```sh
 EVAL_HARDBENCHMARK_IDS=bestbuy_comparison_shopping_45 \

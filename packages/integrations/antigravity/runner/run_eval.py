@@ -10,19 +10,29 @@ session driver and trajectory adapter:
    "max_tool_steps": int, ...}
 
 The agent runs Antigravity's own loop and system prompt (eval instructions
-are appended as a section, not a replacement). Every builtin tool is disabled
-so the mounted MCP servers are the agent's only way to act.
+are appended as a section, not a replacement). The mounted MCP servers are the
+agent's only way to act.
+
+The Antigravity runtime replaces any tool output larger than about 4 KB with a
+notice pointing at a file under its app-data "brain" directory. The one builtin
+tool left enabled is therefore view_file, restricted to that directory, so the
+agent can read page snapshots and other large outputs. The runner reads the
+same files to record the full output as evidence.
 """
 
 from __future__ import annotations
 
 import asyncio
 import base64
+import glob
 import json
+import mimetypes
 import os
 import re
+import shutil
 import signal
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -107,6 +117,68 @@ def browser_env(env: dict[str, str] | None = None) -> dict[str, str]:
     return {k: v for k, v in env.items() if v and k.startswith(("STAGEHAND_", "BROWSERBASE_"))}
 
 
+def path_within(path: str, root: str) -> bool:
+    """True when `path` (plain path or file:// URI) resolves inside `root`."""
+    if path.startswith("file://"):
+        path = path[len("file://"):]
+    path = path.split("#", 1)[0]
+    try:
+        real, real_root = os.path.realpath(path), os.path.realpath(root)
+    except OSError:
+        return False
+    return real == real_root or real.startswith(real_root + os.sep)
+
+
+def view_file_target(call_args: object, canonical_path: str | None) -> str | None:
+    """Path a view_file call wants to read."""
+    if canonical_path:
+        return canonical_path
+    if isinstance(call_args, dict):
+        for value in call_args.values():
+            if isinstance(value, str) and (value.startswith("/") or value.startswith("file://")):
+                return value
+    return None
+
+
+def find_offloaded_output(brain_root: str, step_id: str | None, claimed: set[str]) -> str | None:
+    """Locate the output.txt the runtime wrote for a tool call, if it offloaded one.
+
+    Files live at <brain>/<conversation>/.system_generated/steps/<n>/output.txt.
+    Prefer the file whose step number matches `step_id` ("<trajectory>:<n>");
+    with sequential tool calls a single unclaimed file is also unambiguous.
+    """
+    pattern = os.path.join(glob.escape(brain_root), "*", ".system_generated", "steps", "*", "output.txt")
+    candidates = sorted(path for path in glob.glob(pattern) if path not in claimed)
+    if not candidates:
+        return None
+    index = step_id.rsplit(":", 1)[-1] if step_id else None
+    chosen = next((p for p in candidates if os.path.basename(os.path.dirname(p)) == index), None)
+    if chosen is None and len(candidates) == 1:
+        chosen = candidates[0]
+    if chosen is not None:
+        claimed.add(chosen)
+    return chosen
+
+
+_OFFLOADED_MEDIA = re.compile(r"file://(/[^\s\]\)]+\.(?:png|jpe?g|webp|gif))", re.IGNORECASE)
+
+
+def offloaded_images(text: str, brain_root: str) -> list[dict[str, str]]:
+    """Read images the runtime offloaded ("[Resource offloaded to file://...png]")."""
+    images: list[dict[str, str]] = []
+    for path in _OFFLOADED_MEDIA.findall(text or ""):
+        if not path_within(path, brain_root):
+            continue
+        try:
+            with open(path, "rb") as handle:
+                data = handle.read()
+        except OSError:
+            continue
+        images.append({"data": base64.b64encode(data).decode(),
+                       "mime_type": mimetypes.guess_type(path)[0] or "image/png"})
+    return images
+
+
 def sanitize_error(message: str) -> str:
     for name, value in os.environ.items():
         if len(value) >= 6 and re.search(
@@ -175,7 +247,13 @@ def result_payload(result: object) -> tuple[str, list[dict[str, str]]]:
 
 
 def usage_event(usage: object) -> Event:
-    """Gemini counters: prompt includes cached tokens; thoughts bill as output."""
+    """Map the SDK's cumulative usage onto the cached-subset convention.
+
+    Despite its docstring, the SDK's `prompt_token_count` is net of cached
+    tokens (cached regularly exceeds it), and `total_token_count` leaves them
+    out too. Report input as prompt + cached so cached is a subset of input.
+    Thoughts bill as output.
+    """
     if usage is None:
         return {"type": "usage", "reported": False, "input_tokens": 0, "output_tokens": 0,
                 "cache_read_input_tokens": 0, "reasoning_output_tokens": 0, "total_tokens": 0}
@@ -184,7 +262,8 @@ def usage_event(usage: object) -> Event:
         value = getattr(usage, name, None)
         return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
-    prompt = count("prompt_token_count")
+    cached = count("cached_content_token_count")
+    prompt = count("prompt_token_count") + cached
     candidates = count("candidates_token_count")
     thoughts = count("thoughts_token_count")
     return {
@@ -192,13 +271,14 @@ def usage_event(usage: object) -> Event:
         "reported": True,
         "input_tokens": prompt,
         "output_tokens": candidates + thoughts,
-        "cache_read_input_tokens": count("cached_content_token_count"),
+        "cache_read_input_tokens": cached,
         "reasoning_output_tokens": thoughts,
-        "total_tokens": count("total_token_count") or prompt + candidates + thoughts,
+        "total_tokens": prompt + candidates + thoughts,
     }
 
 
 _BUDGET_STOPS = {"MAX_TOOL_CALLS_EXCEEDED", "MAX_MODEL_CALLS_EXCEEDED"}
+_VIEW_FILE = "view_file"
 
 
 async def run(config: RunnerConfig) -> int:
@@ -209,6 +289,11 @@ async def run(config: RunnerConfig) -> int:
     agent_ref: dict[str, Any] = {}
     reported_steps: set[str] = set()
     pending_calls: list[Event] = []
+    app_data_dir = tempfile.mkdtemp(prefix="stagehand-antigravity-")
+    brain_root = os.path.join(app_data_dir, "brain")
+    claimed_outputs: set[str] = set()
+    budget_exhausted = asyncio.Event()
+    counted_calls = 0
 
     def emit(event: Event) -> None:
         print_line({**event, "ts": time.time()})
@@ -274,15 +359,45 @@ async def run(config: RunnerConfig) -> int:
 
     @hooks.pre_tool_call_decide
     async def on_pre_tool(data: types.ToolCall) -> types.HookResult:
-        pending_calls.append({"id": str(data.id or ""), "name": tool_name(data.name),
-                              "server": data.server_name, "args": unwrap_hook_args(data.args)})
+        nonlocal counted_calls
+        name = tool_name(data.name)
+        call = {"id": str(data.id or ""), "name": name,
+                "server": data.server_name, "args": unwrap_hook_args(data.args)}
+        if data.server_name is None and name == _VIEW_FILE:
+            # Reading saved tool outputs is free; anything else on disk is off limits.
+            target = view_file_target(data.args, data.canonical_path)
+            if not target or not path_within(target, brain_root):
+                message = "view_file may only read tool outputs that were saved to a file."
+                reasoning_for(call)
+                emit({"type": "tool_call", **call})
+                emit({"type": "tool_result", "id": call["id"], "name": name, "server": None,
+                      "ok": False, "text": message, "images": [], "structured": None})
+                return types.HookResult(allow=False, message=message)
+        else:
+            counted_calls += 1
+            if counted_calls > config.max_tool_steps:
+                budget_exhausted.set()
+                return types.HookResult(allow=False, message="Tool-call budget exhausted.")
+        pending_calls.append(call)
         return types.HookResult(allow=True)
 
     @hooks.post_tool_call
     async def on_post_tool(data: Any) -> None:
         error = getattr(data, "error", None)
+        name = tool_name(getattr(data, "name", ""))
         text, images = result_payload(getattr(data, "result", None))
-        complete_call(str(getattr(data, "id", "") or ""), tool_name(getattr(data, "name", "")),
+        if error is None and name != _VIEW_FILE:
+            # What the hook sees for an offloaded output is only a title or a
+            # pointer; record the real output so the verifier has the evidence.
+            saved = find_offloaded_output(brain_root, getattr(data, "step_id", None), claimed_outputs)
+            if saved is not None:
+                try:
+                    with open(saved, encoding="utf-8", errors="replace") as handle:
+                        text = handle.read()
+                except OSError:
+                    pass
+            images = images + offloaded_images(text, brain_root)
+        complete_call(str(getattr(data, "id", "") or ""), name,
                       getattr(data, "server_name", None), error is None,
                       sanitize_error(str(error)) if error else text, images)
 
@@ -309,8 +424,11 @@ async def run(config: RunnerConfig) -> int:
     agent_config = LocalAgentConfig(
         model=target,
         mcp_servers=servers,
-        capabilities=types.CapabilitiesConfig(enabled_tools=[]),
-        budget_config=types.BudgetConfig(max_tool_calls=config.max_tool_steps),
+        app_data_dir=app_data_dir,
+        capabilities=types.CapabilitiesConfig(enabled_tools=[types.BuiltinTools.VIEW_FILE]),
+        # The runner enforces the real budget (view_file reads are not counted);
+        # the SDK limit is only a backstop.
+        budget_config=types.BudgetConfig(max_tool_calls=config.max_tool_steps * 3 + 10),
         hooks=[on_pre_tool, on_post_tool, on_tool_error],
         **({"system_instructions": config.system_prompt} if config.system_prompt else {}),
     )
@@ -328,19 +446,33 @@ async def run(config: RunnerConfig) -> int:
         async with Agent(agent_config) as agent:
             agent_ref["agent"] = agent
 
-            async def converse() -> Any:
-                response = await agent.chat(config.prompt)
-                text = await response.text()
-                return response, text
-
-            if config.wall_timeout_s:
-                response, final_text = await asyncio.wait_for(converse(), config.wall_timeout_s)
+            response = await agent.chat(config.prompt)
+            text_task = asyncio.create_task(response.text())
+            budget_task = asyncio.create_task(budget_exhausted.wait())
+            done, _ = await asyncio.wait({text_task, budget_task}, timeout=config.wall_timeout_s,
+                                         return_when=asyncio.FIRST_COMPLETED)
+            budget_hit = budget_task in done and not text_task.done()
+            if budget_hit or not done:
+                try:
+                    await response.cancel()
+                except Exception:  # noqa: BLE001 - best effort; the turn is over either way
+                    pass
+                try:
+                    final_text = await asyncio.wait_for(text_task, 30)
+                except (Exception, asyncio.CancelledError):  # noqa: BLE001
+                    final_text = ""
+                if not done:
+                    raise asyncio.TimeoutError
             else:
-                response, final_text = await converse()
+                budget_task.cancel()
+                final_text = text_task.result()
             flush_pending()
             usage = agent.conversation.total_usage
             stop = getattr(response.stop_reason, "value", str(response.stop_reason or ""))
-            if stop in _BUDGET_STOPS:
+            if budget_hit:
+                emit({"type": "error", "kind": "tool_step_budget",
+                      "message": f"Tool-call budget exhausted (max_tool_steps={config.max_tool_steps})"})
+            elif stop in _BUDGET_STOPS:
                 emit({"type": "error", "kind": "tool_step_budget",
                       "message": f"Antigravity stopped: {stop} (max_tool_calls={config.max_tool_steps})"})
             elif stop and stop != "UNSPECIFIED":
@@ -361,6 +493,8 @@ async def run(config: RunnerConfig) -> int:
         emit({"type": "final", "text": final_text})
         emit(usage_event(usage or current_usage()))
         return 1
+    finally:
+        shutil.rmtree(app_data_dir, ignore_errors=True)
     emit({"type": "final", "text": final_text})
     emit(usage_event(usage))
     return 0
