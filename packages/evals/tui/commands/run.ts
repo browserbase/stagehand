@@ -41,7 +41,7 @@ import {
 
 import type { RunEvalsResult, RunProgressEvent } from "../../framework/runner.js";
 import { logToRow } from "../../framework/rowContext.js";
-import { format as formatConsoleArgsRaw } from "node:util";
+import { format } from "node:util";
 import {
   ProviderConcurrency,
   describeProviderWidths,
@@ -395,10 +395,6 @@ function applyVerifiabilityGate(results: SummaryRow[], harness: string): void {
   if (over.length > 0 || ungraded.length > 0 || noBrowser.length > 0) {
     process.exitCode = 1;
   }
-}
-
-function formatConsoleArgs(args: unknown[]): string {
-  return formatConsoleArgsRaw(...args);
 }
 
 type LogMode = "off" | "all" | "one";
@@ -845,7 +841,7 @@ async function withConsoleCapture<T>(
   const route =
     (level: number) =>
     (...args: unknown[]): void => {
-      const message = formatConsoleArgs(args);
+      const message = format(...args);
       if (!logToRow({ category: "console", message, level })) outside?.(message);
     };
   console.log = route(1);
