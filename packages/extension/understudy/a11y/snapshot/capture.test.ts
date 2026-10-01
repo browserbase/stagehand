@@ -408,7 +408,7 @@ describe("snapshot progress ownership", () => {
     vi.restoreAllMocks();
   });
 
-  it.each(["public snapshot", "nested snapshot", "nested capture"] as const)(
+  it.each(["public snapshot", "default snapshot", "nested snapshot", "nested capture"] as const)(
     "%s stops at its deadline without continuing after a late response",
     async (method) => {
       let respond!: (value: unknown) => void;
@@ -420,19 +420,23 @@ describe("snapshot progress ownership", () => {
       );
       await vi.advanceTimersByTimeAsync(10);
       const result =
-        method === "public snapshot"
-          ? page.snapshot({ timeout: 10 })
-          : method === "nested snapshot"
-            ? page.snapshot({ timeout: 1 }, progress)
-            : page.captureSnapshot({}, progress);
+        method === "default snapshot"
+          ? page.snapshot()
+          : method === "public snapshot"
+            ? page.snapshot({ timeout: 10 })
+            : method === "nested snapshot"
+              ? page.snapshot({ timeout: 1 }, progress)
+              : page.captureSnapshot({}, progress);
       const timedOut = expect(result).rejects.toThrow(
-        method === "public snapshot"
-          ? /snapshot timed out after 10ms/
-          : /extract timed out after 20ms/,
+        method === "default snapshot"
+          ? /snapshot timed out after 20000ms/
+          : method === "public snapshot"
+            ? /snapshot timed out after 10ms/
+            : /extract timed out after 20ms/,
       );
-      await vi.advanceTimersByTimeAsync(10);
+      await vi.advanceTimersByTimeAsync(method === "default snapshot" ? 20_000 : 10);
       await timedOut;
-      if (method !== "public snapshot") await expect(result).rejects.toBe(progress.signal.reason);
+      if (method.startsWith("nested")) await expect(result).rejects.toBe(progress.signal.reason);
       respond({ root });
       await vi.advanceTimersByTimeAsync(0);
       expect(send).toHaveBeenCalledTimes(1);
@@ -440,17 +444,20 @@ describe("snapshot progress ownership", () => {
     },
   );
 
-  it.each([undefined, 0])("keeps standalone snapshot timeout %s unlimited", async (timeout) => {
+  it.each([
+    { name: "explicit zero", capture: () => page.snapshot({ includeIframes: false, timeout: 0 }) },
+    { name: "internal capture", capture: () => page.captureSnapshot({ includeIframes: false }) },
+    { name: "unlimited parent", capture: () => page.snapshot({ includeIframes: false }, progress) },
+  ])("keeps $name unlimited beyond the public default", async ({ capture }) => {
+    progress.dispose();
+    progress = new Progress("extract", 0);
     send.mockImplementationOnce(async () => {
       await new Promise((resolve) => setTimeout(resolve, 25_000));
       return {};
     });
-    const result = page.snapshot({ includeIframes: false, timeout });
+    const result = capture();
     await vi.advanceTimersByTimeAsync(25_000);
-    await expect(result).resolves.toMatchObject({
-      formattedTree: "root",
-      xpathMap: { "0-1": "/" },
-    });
+    await expect(result).resolves.toBeDefined();
     const received = vi.mocked(a11yForFrame).mock.calls[0]![3]!;
     expect(received.remainingMs()).toBe(Infinity);
   });

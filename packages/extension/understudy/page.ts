@@ -2253,7 +2253,7 @@ export class Page {
     parentProgress?: Progress,
   ): Promise<SnapshotResult> {
     return await runWithProgress(
-      parentProgress ?? { name: "snapshot", timeout: options?.timeout ?? 0 },
+      parentProgress ?? { name: "snapshot", timeout: options?.timeout ?? 20_000 },
       async (progress) => {
         const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot(
           { pierceShadow: true, includeIframes: options?.includeIframes },

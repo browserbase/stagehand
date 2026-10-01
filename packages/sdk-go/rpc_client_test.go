@@ -210,6 +210,7 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"page.wait_for_load_state": 25 * time.Second,
 		"page.wait_for_selector":   40 * time.Second,
 		"page.pdf":                 40 * time.Second,
+		"page.snapshot":            30 * time.Second,
 		"page.webmcp_tools":        11 * time.Second,
 	}
 	for method, expected := range defaultTimeouts {
@@ -242,7 +243,6 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"page.close",
 		"page.evaluate",
 		"page.screenshot",
-		"page.snapshot",
 		"page.webmcp_invocation_result",
 	}
 	for _, method := range unboundedMethods {

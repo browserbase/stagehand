@@ -31,6 +31,7 @@ _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.wait_for_load_state": 15_000,
     "page.wait_for_selector": 30_000,
     "page.pdf": 30_000,
+    "page.snapshot": 20_000,
     "page.webmcp_tools": 1_000,
 }
 _UNBOUNDED_BY_DEFAULT_METHODS = {
@@ -56,7 +57,6 @@ _UNBOUNDED_BY_DEFAULT_METHODS = {
     "page.close",
     "page.evaluate",
     "page.screenshot",
-    "page.snapshot",
     "page.webmcp_invocation_result",
 }
 

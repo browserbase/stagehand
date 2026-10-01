@@ -675,6 +675,7 @@ def test_response_deadline_uses_operation_defaults() -> None:
         "page.wait_for_load_state": 25,
         "page.wait_for_selector": 40,
         "page.pdf": 40,
+        "page.snapshot": 30,
         "page.webmcp_tools": 11,
     }
 
@@ -722,7 +723,6 @@ def test_response_deadline_preserves_v3_unbounded_operations() -> None:
         "page.close",
         "page.evaluate",
         "page.screenshot",
-        "page.snapshot",
         "page.webmcp_invocation_result",
     }
 

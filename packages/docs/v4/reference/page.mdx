@@ -693,7 +693,7 @@ const snapshot = await page.snapshot();
   </ParamField>
   <ParamField path="options.timeout" type="number" optional>
     Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
-    Omit it or use `0` for no timeout. Request delivery is outside this budget.
+    Defaults to 20,000 ms. Use `0` for no timeout. Request delivery is outside this budget.
   </ParamField>
 </ParamField>
 
@@ -1448,7 +1448,7 @@ snapshot = await page.snapshot()
 
 <ParamField path="timeout" type="float | None" optional>
   Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
-  Omit it or use `0` for no timeout. Request delivery is outside this budget.
+  Defaults to 20,000 ms. Use `0` for no timeout. Request delivery is outside this budget.
 </ParamField>
 
 <ResponseField name="result" type="SnapshotResult">
@@ -2282,7 +2282,7 @@ fmt.Println(snapshot.FormattedTree)
   </ParamField>
   <ParamField path="options.Timeout" type="*float64" optional>
     Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
-    Omit it or use `0` for no timeout. Request delivery is outside this budget.
+    Defaults to 20,000 ms. Use `0` for no timeout. Request delivery is outside this budget.
   </ParamField>
 </ParamField>
 

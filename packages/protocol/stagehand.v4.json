@@ -3924,7 +3924,7 @@
       "type": "object",
       "properties": {
         "timeout": {
-          "description": "Milliseconds for the whole snapshot call. Zero disables the timeout.",
+          "description": "Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the timeout.",
           "type": "number",
           "minimum": 0
         },

@@ -42,6 +42,7 @@ var (
 		"page.wait_for_load_state": 15 * time.Second,
 		"page.wait_for_selector":   30 * time.Second,
 		"page.pdf":                 30 * time.Second,
+		"page.snapshot":            20 * time.Second,
 		"page.webmcp_tools":        time.Second,
 	}
 	unboundedByDefaultMethods = map[string]struct{}{
@@ -67,7 +68,6 @@ var (
 		"page.close":                     {},
 		"page.evaluate":                  {},
 		"page.screenshot":                {},
-		"page.snapshot":                  {},
 		"page.webmcp_invocation_result":  {},
 	}
 )

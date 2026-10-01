@@ -441,6 +441,7 @@ describe("RPCClient", () => {
     [StagehandMethods.pageWaitForLoadState.name, 25_000],
     [StagehandMethods.pageWaitForSelector.name, 40_000],
     [StagehandMethods.pagePDF.name, 40_000],
+    [StagehandMethods.pageSnapshot.name, 30_000],
     [StagehandMethods.pageWebMCPTools.name, 11_000],
   ])("uses the operation default plus transport grace for %s", (method, timeout) => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
@@ -550,7 +551,6 @@ describe("RPCClient", () => {
       StagehandMethods.pageClose.name,
       StagehandMethods.pageEvaluate.name,
       StagehandMethods.pageScreenshot.name,
-      StagehandMethods.pageSnapshot.name,
       StagehandMethods.pageWebMCPInvocationResult.name,
     ];
 

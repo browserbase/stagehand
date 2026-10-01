@@ -1687,7 +1687,8 @@ type PageSnapshotOptions struct {
 	// IncludeIframes corresponds to the JSON schema field "include_iframes".
 	IncludeIframes *bool `json:"include_iframes,omitempty,omitzero"`
 
-	// Milliseconds for the whole snapshot call. Zero disables the timeout.
+	// Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the
+	// timeout.
 	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
