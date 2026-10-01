@@ -161,6 +161,13 @@ export interface ExternalHarnessSessionOutcome<TRaw> {
   usage: ExternalHarnessUsage;
   costUsd?: number;
   metrics: Record<string, MetricValue>;
+  /**
+   * Provenance only known once the session ran (a subprocess reporting its
+   * driver and SDK versions). Replaces the runner-level `implementation`.
+   */
+  implementation?: { name: string; version: number; sdkVersion?: string };
+  /** Configuration facts learned during the session, merged over the runner's. */
+  configuration?: Record<string, unknown>;
 }
 
 export interface ExternalHarnessToolAdapterLike {
@@ -238,7 +245,7 @@ export interface RunExternalHarnessTaskInput<TRaw> {
  */
 export async function runExternalHarnessTask<TRaw>({
   harness,
-  implementation,
+  implementation: runnerImplementation,
   plan,
   model,
   logger,
@@ -259,13 +266,6 @@ export async function runExternalHarnessTask<TRaw>({
     toolInstructions: toolAdapter?.promptInstructions,
     resultContract,
   });
-  const harnessConfiguration = {
-    ...configuration,
-    evalPolicyVersion: 1,
-    systemPromptMode,
-    ...(stepBudget !== undefined && { stepBudget }),
-    ...(stepBudgetUnit && { stepBudgetUnit }),
-  };
   const startedAt = performance.now();
   // CLI-only harnesses without a system-instruction channel receive the same
   // eval policy as a task prefix. Native channels must not also get the prefix.
@@ -274,6 +274,15 @@ export async function runExternalHarnessTask<TRaw>({
     systemPromptMode === "native" ? EVAL_SYSTEM_PROMPT : "",
   );
   const agentWallMs = performance.now() - startedAt;
+  const implementation = sessionOutcome.implementation ?? runnerImplementation;
+  const harnessConfiguration = {
+    ...configuration,
+    ...sessionOutcome.configuration,
+    evalPolicyVersion: 1,
+    systemPromptMode,
+    ...(stepBudget !== undefined && { stepBudget }),
+    ...(stepBudgetUnit && { stepBudgetUnit }),
+  };
   // A run that outlived its browser has no trustworthy self-report: the agent
   // was answering terminal "Browser session lost" errors, not the task.
   const browserSessionLoss = toolAdapter?.browserSessionLoss?.();
