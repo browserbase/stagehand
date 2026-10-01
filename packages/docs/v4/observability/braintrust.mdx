@@ -77,7 +77,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/browserbase/stagehand/packages/sdk-go"
+	"github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
 func envOr(name, fallback string) string {
@@ -120,7 +120,7 @@ Call `stagehand.close()` before the process exits. Spans sit in a one-second bat
 
 ## Verify traces
 
-Open the project named in `x-bt-parent`, then its tracing view. Traces are filed under that parent, so a missing or mistyped header looks like a successful export that never arrived.
+Open the project named in `x-bt-parent`, then its Logs view. Traces are filed under that parent. If they are missing, check the header and export errors. A `403` can mean the API key lacks write permission or the destination cannot be resolved.
 
 Stagehand does not emit Braintrust's LLM span conventions. You get `operation` spans for `act`, `observe`, and `extract`, and `log` spans for each log record, with `service.name` set to `stagehand-service-worker`. That is enough to hang a score on a browser run. It is not a reconstructed chat transcript.
 
