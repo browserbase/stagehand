@@ -93,4 +93,16 @@ describe("loadEvalsEnv", () => {
     expect(env.B).toBe("2");
     expect(loadEvalsEnv()).toBe(first);
   });
+
+  it("force: true bypasses the cached report and re-applies the files", () => {
+    const root = tmp({ "pkg/.env": "A=1\n" });
+    const options = { packageRoot: path.join(root, "pkg"), cwd: path.join(root, "pkg") };
+    const first = loadEvalsEnv({ ...options, env: {} });
+    fs.writeFileSync(path.join(root, "pkg/.env"), "A=2\n");
+    const env: NodeJS.ProcessEnv = {};
+    const second = loadEvalsEnv({ ...options, env, force: true });
+    expect(second).not.toBe(first);
+    expect(env.A).toBe("2");
+    expect(loadEvalsEnv()).toBe(second);
+  });
 });

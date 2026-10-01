@@ -15,7 +15,7 @@
  */
 import { DEFAULT_BENCH_HARNESS, type Harness } from "../../framework/benchTypes.js";
 import { TRACING_ENV_VARS } from "./config.js";
-import { parseBenchHarness } from "../../framework/benchHarness.js";
+import { getBenchHarness, parseBenchHarness } from "../../framework/benchHarness.js";
 
 export interface RunFlags {
   target?: string;
@@ -411,7 +411,14 @@ export function resolveRunOptions(
   // planner keeps reading env, so the precedence stays flag → env → config.
   const harnessModels = harnessConfig?.models?.map((model) => model.trim()).filter(Boolean);
   const modelsEnv = `EVAL_${harness.toUpperCase()}_MODELS`;
-  if (harnessModels && harnessModels.length > 0 && !env[modelsEnv]?.trim()) {
+  // Only harnesses with a default model list read the env twin; the rest
+  // (stagehand) pick models per task category.
+  if (
+    getBenchHarness(harness).defaultModels &&
+    harnessModels &&
+    harnessModels.length > 0 &&
+    !env[modelsEnv]?.trim()
+  ) {
     envOverrides[modelsEnv] = harnessModels.join(",");
   }
 

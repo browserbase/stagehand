@@ -543,11 +543,11 @@ export function buildCommandTree(): CommandNode {
 
   const configPath: CommandNode = {
     name: "path",
-    summary: "Print the evals.config.json file path",
+    summary: "Print the tracked (or local) config file path",
     printHelp: printConfigHelpThunk,
-    handler: async (_args, ctx) => {
+    handler: async (args, ctx) => {
       const { handleConfig } = await import("./commands/config.js");
-      await handleConfig(["path"], ctx.entryDir);
+      await handleConfig(["path", ...args], ctx.entryDir);
     },
   };
   const configSet: CommandNode = {

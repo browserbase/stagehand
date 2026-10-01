@@ -75,6 +75,7 @@ afterEach(() => {
   runEvalsMock.mockClear();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
+  vi.unstubAllEnvs();
   process.exitCode = undefined;
 });
 
@@ -449,6 +450,8 @@ describe("deriveCategoryFilter", () => {
       }),
     ]);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    // The default widths only show when no shell export overrides them.
+    vi.stubEnv("EVAL_PROVIDER_CONCURRENCY", undefined);
 
     await runCommand(
       {
@@ -476,6 +479,38 @@ describe("deriveCategoryFilter", () => {
       "Env: BROWSERBASE  Harness: stagehand  Concurrency: 25 global · openai 3",
     );
     expect(runEvalsMock).toHaveBeenCalledOnce();
+  });
+
+  it("fails a dry-run plan on a malformed EVAL_PROVIDER_CONCURRENCY", async () => {
+    const registry = makeRegistry([makeTask({ name: "act/alpha" })]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.stubEnv("EVAL_PROVIDER_CONCURRENCY", "openai=three");
+
+    await runCommand(
+      {
+        target: "act",
+        normalizedTarget: "act",
+        trials: 1,
+        concurrency: 1,
+        environment: "BROWSERBASE",
+        useApi: false,
+        harness: "stagehand",
+        envOverrides: {},
+        dryRun: true,
+        preview: false,
+        successMode: "outcome",
+        verbose: false,
+      },
+      registry,
+    );
+
+    const payload = JSON.parse(String(log.mock.calls[0][0]));
+    expect(String(payload.error)).toContain(
+      'Invalid EVAL_PROVIDER_CONCURRENCY entry "openai=three"',
+    );
+    expect(process.exitCode).toBe(1);
+    expect(runEvalsMock).not.toHaveBeenCalled();
+    process.exitCode = undefined;
   });
 });
 
@@ -677,29 +712,39 @@ describe("runCommand zero-browser-pass gate", () => {
     const registry = makeRegistry([
       makeTask({ name: "act/alpha", primaryCategory: "act", categories: ["act"] }),
     ]);
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    await runCommand(
-      {
-        target: "act",
-        normalizedTarget: "act",
-        trials: 1,
-        concurrency: 10,
-        environment: "BROWSERBASE",
-        model: "openai/gpt-4.1-mini",
-        useApi: false,
-        harness: "stagehand",
-        envOverrides: {},
-        dryRun: false,
-        preview: false,
-        successMode: "outcome",
-        verbose: false,
-        providerConcurrency: { openai: 4 },
-      },
-      registry,
-    );
-
-    const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
-    expect(output).toContain("Concurrency: 10 global · openai 4");
+    const options = {
+      target: "act",
+      normalizedTarget: "act",
+      trials: 1,
+      concurrency: 10,
+      environment: "BROWSERBASE" as const,
+      model: "openai/gpt-4.1-mini",
+      useApi: false,
+      harness: "stagehand" as const,
+      envOverrides: {},
+      dryRun: false,
+      preview: false,
+      successMode: "outcome" as const,
+      verbose: false,
+      providerConcurrency: { openai: 4 },
+    };
+    const saved = process.env.EVAL_PROVIDER_CONCURRENCY;
+    const headings = async (): Promise<string> => {
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      await runCommand(options, registry);
+      const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
+      log.mockRestore();
+      return output;
+    };
+    try {
+      delete process.env.EVAL_PROVIDER_CONCURRENCY;
+      expect(await headings()).toContain("Concurrency: 10 global · openai 4");
+      process.env.EVAL_PROVIDER_CONCURRENCY = "openai=6";
+      expect(await headings()).toContain("Concurrency: 10 global · openai 6");
+    } finally {
+      if (saved === undefined) delete process.env.EVAL_PROVIDER_CONCURRENCY;
+      else process.env.EVAL_PROVIDER_CONCURRENCY = saved;
+    }
     expect(runEvalsMock).toHaveBeenCalledWith(
       expect.objectContaining({ providerConcurrency: { openai: 4 } }),
     );
