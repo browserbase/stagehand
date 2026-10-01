@@ -418,6 +418,7 @@ func registerNotification[Notification any](
 		c.mu.Unlock()
 		return func() {}
 	}
+	active := true
 	registration := registeredNotificationHandler{
 		id: c.nextRegistrationID,
 		decode: func(raw json.RawMessage) (any, error) {
@@ -428,7 +429,14 @@ func registerNotification[Notification any](
 			return notification, nil
 		},
 		handler: func(notification any) {
-			handler(notification.(Notification))
+			// Queued deliveries can outlive their registration. Admit them under
+			// the same mutex as removal, but never hold it during user callbacks.
+			c.mu.Lock()
+			deliver := active && !c.closed
+			c.mu.Unlock()
+			if deliver {
+				handler(notification.(Notification))
+			}
 		},
 	}
 	c.nextRegistrationID++
@@ -455,6 +463,7 @@ func registerNotification[Notification any](
 
 	return func() {
 		c.mu.Lock()
+		active = false
 		handlers := c.notificationHandlers[method]
 		for index, current := range handlers {
 			if current.id != registration.id {
