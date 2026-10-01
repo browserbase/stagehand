@@ -63,6 +63,27 @@ def test_generated_models_validate_and_serialize_wire_values() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        models.LocatorOptions,
+        models.LocatorClickOptions,
+        models.LocatorHighlightOptions,
+        models.LocatorSendClickEventOptions,
+        models.LocatorTypeOptions,
+        models.ActOptions,
+    ],
+)
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+def test_generated_models_reject_nonfinite_timeouts(model: type[BaseModel], value: float) -> None:
+    with pytest.raises(ValidationError, match="finite number"):
+        model.model_validate({"timeout": value})
+
+    options = model.model_validate({"timeout": 1000})
+    with pytest.raises(ValidationError, match="finite number"):
+        setattr(options, "timeout", value)
+
+
 def test_generated_json_values_preserve_integer_and_float_types() -> None:
     value = {
         "count": 7,
