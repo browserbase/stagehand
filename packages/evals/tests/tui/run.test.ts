@@ -75,7 +75,6 @@ afterEach(() => {
   runEvalsMock.mockClear();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
-  vi.unstubAllEnvs();
   process.exitCode = undefined;
 });
 
