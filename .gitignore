@@ -51,3 +51,8 @@ to dos.md
 # Changesets Action reads these after the version command consolidates them.
 /packages/*/CHANGELOG.md
 /packages/integrations/*/CHANGELOG.md
+
+# Showcase run artifacts (recordings, results) synced to stagehand.dev
+packages/examples/*/.out/
+# Playwright MCP writes run output here during showcase benchmarks
+.playwright-mcp/

@@ -859,6 +859,9 @@ type LocatorClickOptions struct {
 
 	// ClickCount corresponds to the JSON schema field "click_count".
 	ClickCount *int `json:"click_count,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorClickParams struct {
@@ -897,6 +900,9 @@ type LocatorFillParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
 
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
+
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
 
@@ -921,6 +927,9 @@ type LocatorHighlightOptions struct {
 
 	// DurationMs corresponds to the JSON schema field "duration_ms".
 	DurationMs *int `json:"duration_ms,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorHighlightParams struct {
@@ -957,9 +966,31 @@ type LocatorIsCheckedResult bool
 
 type LocatorIsVisibleResult bool
 
+type LocatorOptions struct {
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+}
+
+type LocatorParams struct {
+	// Nth corresponds to the JSON schema field "nth".
+	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// Selector corresponds to the JSON schema field "selector".
+	Selector string `json:"selector"`
+}
+
 type LocatorScrollToParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -979,6 +1010,9 @@ type LocatorScrollToResult struct {
 type LocatorSelectOptionParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1004,6 +1038,9 @@ type LocatorSendClickEventOptions struct {
 
 	// Detail corresponds to the JSON schema field "detail".
 	Detail *float64 `json:"detail,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorSendClickEventParams struct {
@@ -1032,6 +1069,9 @@ type LocatorSetInputFilesParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
 
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
+
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
 
@@ -1049,6 +1089,9 @@ type LocatorTextContentResult string
 type LocatorTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
 	Delay *float64 `json:"delay,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorTypeParams struct {
@@ -2566,6 +2609,12 @@ type generatedModelCatalog struct {
 	// LocatorIsVisibleResult corresponds to the JSON schema field
 	// "LocatorIsVisibleResult".
 	LocatorIsVisibleResult *LocatorIsVisibleResult `json:"LocatorIsVisibleResult,omitempty,omitzero"`
+
+	// LocatorOptions corresponds to the JSON schema field "LocatorOptions".
+	LocatorOptions *LocatorOptions `json:"LocatorOptions,omitempty,omitzero"`
+
+	// LocatorParams corresponds to the JSON schema field "LocatorParams".
+	LocatorParams *LocatorParams `json:"LocatorParams,omitempty,omitzero"`
 
 	// LocatorScrollToParams corresponds to the JSON schema field
 	// "LocatorScrollToParams".

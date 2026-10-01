@@ -1043,6 +1043,8 @@ class LocatorClickOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
 
@@ -1088,6 +1090,7 @@ class LocatorFillParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     value: StrictStr
 
 
@@ -1104,6 +1107,8 @@ class LocatorHighlightOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     duration_ms: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     border_color: Optional[RgbaColor] = None
     content_color: Optional[RgbaColor] = None
@@ -1156,6 +1161,26 @@ class LocatorIsVisibleResult(RootModel[StrictBool]):
     root: StrictBool
 
 
+class LocatorOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
+
+
+class LocatorParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    selector: Annotated[StrictStr, Field(min_length=1)]
+    nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
+
+
 class LocatorScrollToParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1164,6 +1189,7 @@ class LocatorScrollToParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     percent: Union[StrictFloat, StrictStr]
 
 
@@ -1183,6 +1209,7 @@ class LocatorSelectOptionParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     values: Union[StrictStr, list[StrictStr]]
 
 
@@ -1195,6 +1222,8 @@ class LocatorSendClickEventOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     bubbles: Optional[StrictBool] = None
     cancelable: Optional[StrictBool] = None
     composed: Optional[StrictBool] = None
@@ -1228,6 +1257,7 @@ class LocatorSetInputFilesParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     files: list[InputFilePayload]
 
 
@@ -1248,6 +1278,8 @@ class LocatorTypeOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
 
 
@@ -1259,8 +1291,8 @@ class LocatorTypeParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
-    text: StrictStr
     options: Optional[LocatorTypeOptions] = None
+    text: StrictStr
 
 
 class LocatorTypeResult(WireModel):
