@@ -22,8 +22,10 @@ import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
 import type { RunProgressEvent } from "../../framework/runner.js";
 import {
+  PROVIDER_CONCURRENCY_ENV,
   ProviderConcurrency,
   describeProviderWidths,
+  parseProviderConcurrencyEnv,
 } from "../../framework/providerConcurrency.js";
 import type { Harness } from "../../framework/benchTypes.js";
 import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
@@ -256,6 +258,21 @@ export async function runCommand(
       return;
     }
     throw new Error(message);
+  }
+
+  // A malformed EVAL_PROVIDER_CONCURRENCY fails the plan (dry-run and
+  // preview included) rather than the first row of a real run.
+  try {
+    parseProviderConcurrencyEnv(
+      options.envOverrides[PROVIDER_CONCURRENCY_ENV] ?? process.env[PROVIDER_CONCURRENCY_ENV],
+    );
+  } catch (err) {
+    if (planMode) {
+      await emitDryRun(options, tasks, registry, (err as Error).message);
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
   }
 
   const hasCoreOnly = tasks.every((task) => task.tier === "core");
