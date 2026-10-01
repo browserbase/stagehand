@@ -35,36 +35,62 @@ run([
   "--log-level=warning",
 ]);
 
-/* ── merge config: always update tasks/benchmarks from source, but preserve user defaults ── */
+/* ── config: seed the tracked file verbatim. Personal overrides and the
+   first-run marker live in dist/cli/evals.config.local.json, which the CLI
+   writes and this script never touches — so nothing needs merging.
+
+   One-time migration: a pre-v2 dist config carried user edits (defaults,
+   core, tracing, _meta) inline. If no local file exists yet, move whatever
+   differs from the source into the local file so a rebuild does not reset
+   concurrency or re-show the welcome. ── */
+// The v1 tracked defaults. Old builds copied them into the dist config, so a
+// value equal to one of them is not a personal edit and must not be pinned
+// over the new tracked default (v2 lowers concurrency from 10 to 3).
+const PREVIOUS_TRACKED_DEFAULTS: Record<string, unknown> = {
+  env: "local",
+  trials: 3,
+  concurrency: 10,
+  model: null,
+  api: false,
+  verbose: false,
+};
 const sourceConfig = JSON.parse(
   fs.readFileSync(`${repoRoot}/packages/evals/evals.config.json`, "utf-8"),
 );
 const distConfigPath = `${repoRoot}/packages/evals/dist/cli/evals.config.json`;
+const distLocalConfigPath = `${repoRoot}/packages/evals/dist/cli/evals.config.local.json`;
 
-if (fs.existsSync(distConfigPath)) {
+if (fs.existsSync(distConfigPath) && !fs.existsSync(distLocalConfigPath)) {
   try {
-    const existing = JSON.parse(fs.readFileSync(distConfigPath, "utf-8"));
-    if (existing.defaults) {
-      sourceConfig.defaults = {
-        ...sourceConfig.defaults,
-        ...existing.defaults,
-      };
+    const existing = JSON.parse(fs.readFileSync(distConfigPath, "utf-8")) as Record<
+      string,
+      Record<string, unknown> | undefined
+    >;
+    const local: Record<string, Record<string, unknown>> = {};
+    for (const section of ["defaults", "core", "tracing", "_meta"]) {
+      const before = existing[section];
+      if (!before || typeof before !== "object") continue;
+      const source = (sourceConfig[section] ?? {}) as Record<string, unknown>;
+      const diff: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(before)) {
+        if (section === "defaults" && key === "provider") continue; // never read
+        if (JSON.stringify(source[key]) === JSON.stringify(value)) continue;
+        if (
+          section === "defaults" &&
+          key in PREVIOUS_TRACKED_DEFAULTS &&
+          JSON.stringify(PREVIOUS_TRACKED_DEFAULTS[key]) === JSON.stringify(value)
+        ) {
+          continue;
+        }
+        diff[key] = value;
+      }
+      if (Object.keys(diff).length > 0) local[section] = diff;
     }
-    // Preserve the first-run welcome marker across rebuilds so a contributor
-    // who's already seen the welcome on the dist path doesn't see it again
-    // after every `pnpm run build:cli`. If the source has _meta and dist
-    // doesn't (fresh dist install), the source value is inherited via the
-    // sourceConfig literal — already correct.
-    if (existing._meta) {
-      sourceConfig._meta = { ...sourceConfig._meta, ...existing._meta };
+    if (Object.keys(local).length > 0) {
+      fs.writeFileSync(distLocalConfigPath, JSON.stringify(local, null, 2) + "\n");
     }
-    // Same for the user-owned `core` and `tracing` sections (set via
-    // `evals config core|tracing` on the built CLI) — the source config never
-    // carries them, so without this a rebuild would silently drop them.
-    if (existing.core) sourceConfig.core = { ...sourceConfig.core, ...existing.core };
-    if (existing.tracing) sourceConfig.tracing = { ...sourceConfig.tracing, ...existing.tracing };
   } catch {
-    // invalid existing config – overwrite entirely
+    // invalid existing config – nothing worth migrating
   }
 }
 

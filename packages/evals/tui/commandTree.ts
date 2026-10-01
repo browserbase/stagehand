@@ -391,6 +391,13 @@ export function buildCommandTree(): CommandNode {
         process.env,
         configFile.core,
         configFile.tracing,
+        {
+          benchmarks: configFile.benchmarks,
+          harnesses: configFile.harnesses,
+          providers: configFile.providers,
+          verifier: configFile.verifier,
+          campaign: configFile.campaign,
+        },
       );
 
       if (ctx.abortRef === null) {

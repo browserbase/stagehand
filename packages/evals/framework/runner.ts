@@ -461,6 +461,10 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
             ...(options.modelOverride && { model: options.modelOverride }),
             ...(options.useApi && { api: true }),
+            // campaign.tag / EVAL_CAMPAIGN_TAG groups experiments across cells.
+            ...(process.env.EVAL_CAMPAIGN_TAG?.trim() && {
+              campaign: process.env.EVAL_CAMPAIGN_TAG.trim(),
+            }),
           },
           data: () => testcases,
           task: async (input: EvalInput): Promise<TaskResult> => {

@@ -151,3 +151,79 @@ describe("resolveRunOptions: tracing config → env overrides", () => {
     expect(resolved.envOverrides.LANGSMITH_PROJECT).toBeUndefined();
   });
 });
+
+describe("resolveRunOptions: config v2 sections", () => {
+  it("applies defaults.harness and defaults.successMode under flags and env", () => {
+    const resolved = resolveRunOptions({}, { harness: "claude_code", successMode: "process" }, {});
+    expect(resolved.harness).toBe("claude_code");
+    expect(resolved.successMode).toBe("process");
+    expect(
+      resolveRunOptions({}, { successMode: "process" }, { EVAL_SUCCESS_MODE: "both" }).successMode,
+    ).toBe("both");
+    expect(resolveRunOptions({ harness: "codex" }, { harness: "claude_code" }, {}).harness).toBe(
+      "codex",
+    );
+  });
+
+  it("turns harnesses/verifier/campaign into env overrides only when the env twin is unset", () => {
+    const sections = {
+      harnesses: {
+        claude_code: { models: ["anthropic/a", "anthropic/b"], tool: "stagehand_facade" },
+      },
+      verifier: { model: "google/gemini-3.5-flash", maxUnverifiableCriteria: 2 },
+      campaign: { tag: "facade-batch-0831" },
+      providers: {
+        openai: { concurrency: 6 },
+        Anthropic: { concurrency: 4 },
+        bad: { concurrency: 0 },
+      },
+    };
+    const resolved = resolveRunOptions({ harness: "claude_code" }, {}, {}, {}, {}, sections);
+    expect(resolved.envOverrides).toMatchObject({
+      EVAL_CLAUDE_CODE_MODELS: "anthropic/a,anthropic/b",
+      EVAL_VERIFIER_MODEL: "google/gemini-3.5-flash",
+      EVAL_MAX_UNVERIFIABLE_CRITERIA: "2",
+      EVAL_CAMPAIGN_TAG: "facade-batch-0831",
+    });
+    expect(resolved.coreToolSurface).toBe("stagehand_facade");
+    expect(resolved.providerConcurrency).toEqual({ openai: 6, anthropic: 4 });
+
+    const shadowed = resolveRunOptions(
+      { harness: "claude_code", tool: "browse_cli" },
+      {},
+      {
+        EVAL_CLAUDE_CODE_MODELS: "anthropic/z",
+        EVAL_VERIFIER_MODEL: "openai/o",
+        EVAL_MAX_UNVERIFIABLE_CRITERIA: "0",
+        EVAL_CAMPAIGN_TAG: "shell",
+      },
+      {},
+      {},
+      sections,
+    );
+    expect(shadowed.envOverrides.EVAL_CLAUDE_CODE_MODELS).toBeUndefined();
+    expect(shadowed.envOverrides.EVAL_VERIFIER_MODEL).toBeUndefined();
+    expect(shadowed.envOverrides.EVAL_MAX_UNVERIFIABLE_CRITERIA).toBeUndefined();
+    expect(shadowed.envOverrides.EVAL_CAMPAIGN_TAG).toBeUndefined();
+    expect(shadowed.coreToolSurface).toBe("browse_cli");
+  });
+
+  it("honours benchmarks.<suite>.limit only when --limit and the env twins are unset", () => {
+    const benchmarks = { hardbenchmark: { limit: 46 } };
+    expect(applyBenchmarkShorthand("b:hardbenchmark", {}, benchmarks, {}).envOverrides).toEqual({
+      EVAL_DATASET: "hardbenchmark",
+      EVAL_HARDBENCHMARK_LIMIT: "46",
+    });
+    expect(
+      applyBenchmarkShorthand("b:hardbenchmark", { limit: 5 }, benchmarks, {}).envOverrides,
+    ).toMatchObject({ EVAL_MAX_K: "5", EVAL_HARDBENCHMARK_LIMIT: "5" });
+    expect(
+      applyBenchmarkShorthand("b:hardbenchmark", {}, benchmarks, { EVAL_HARDBENCHMARK_LIMIT: "9" })
+        .envOverrides.EVAL_HARDBENCHMARK_LIMIT,
+    ).toBeUndefined();
+    expect(
+      applyBenchmarkShorthand("b:hardbenchmark", {}, benchmarks, { EVAL_MAX_K: "9" }).envOverrides
+        .EVAL_HARDBENCHMARK_LIMIT,
+    ).toBeUndefined();
+  });
+});

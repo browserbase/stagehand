@@ -11,21 +11,38 @@ const CLI_PATH = path.join(repoRoot, "packages", "evals", "cli.ts");
 const SOURCE_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.json");
 const CLI_CHILD_TIMEOUT_MS = 15_000;
 const CLI_TEST_TIMEOUT_MS = CLI_CHILD_TIMEOUT_MS + 2_000;
+// Every write the CLI makes (config set, first-run marker) lands here; the
+// tracked file is never touched.
+const LOCAL_CONFIG = path.join(repoRoot, "packages", "evals", "evals.config.local.json");
 
 // File-level snapshot/restore: any `evals run …` invocation through the
-// real CLI writes `_meta.firstRunCompletedAt` into the source config
+// real CLI writes `_meta.firstRunCompletedAt` into the local config
 // (because the test runs in source mode). Restore at the end so the
-// repo file stays pristine.
+// developer's own overrides survive the test run.
 let __fileLevelConfigSnapshot: string;
+let __fileLevelLocalSnapshot: string | undefined;
 beforeAll(async () => {
   __fileLevelConfigSnapshot = fs.readFileSync(SOURCE_CONFIG, "utf-8");
+  __fileLevelLocalSnapshot = fs.existsSync(LOCAL_CONFIG)
+    ? fs.readFileSync(LOCAL_CONFIG, "utf-8")
+    : undefined;
   // Warm tsx's compile cache once so the first test doesn't pay the whole
   // cold start against the 10s per-test budget (it sat at ~10.0s on CI).
   await runCli(["--help"]);
 }, 40_000);
 afterAll(() => {
   fs.writeFileSync(SOURCE_CONFIG, __fileLevelConfigSnapshot);
+  restoreLocalConfig(__fileLevelLocalSnapshot);
 });
+
+function restoreLocalConfig(snapshot: string | undefined): void {
+  if (snapshot === undefined) fs.rmSync(LOCAL_CONFIG, { force: true });
+  else fs.writeFileSync(LOCAL_CONFIG, snapshot);
+}
+
+function readLocalConfig(): Record<string, any> {
+  return fs.existsSync(LOCAL_CONFIG) ? JSON.parse(fs.readFileSync(LOCAL_CONFIG, "utf-8")) : {};
+}
 
 async function runCli(args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
   try {
@@ -54,14 +71,13 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 }
 
 function resetSourceWelcomeMeta(): void {
-  const config = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+  const config = readLocalConfig();
   delete config._meta;
-  fs.writeFileSync(SOURCE_CONFIG, JSON.stringify(config, null, 2) + "\n");
+  fs.writeFileSync(LOCAL_CONFIG, JSON.stringify(config, null, 2) + "\n");
 }
 
 function readSourceWelcomeCompletedAt(): string | undefined {
-  const config = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
-  return config._meta?.firstRunCompletedAt;
+  return readLocalConfig()._meta?.firstRunCompletedAt;
 }
 
 describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
@@ -330,20 +346,21 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
 });
 
 describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
-  // Tests mutate packages/evals/evals.config.json. Snapshot beforeAll,
-  // reset to snapshot before each test, restore afterAll.
-  let snapshot: string;
+  // Tests mutate packages/evals/evals.config.local.json (the tracked file is
+  // read-only for the CLI). Snapshot beforeAll, reset before each test,
+  // restore afterAll.
+  let snapshot: string | undefined;
 
   beforeAll(() => {
-    snapshot = fs.readFileSync(SOURCE_CONFIG, "utf-8");
+    snapshot = fs.existsSync(LOCAL_CONFIG) ? fs.readFileSync(LOCAL_CONFIG, "utf-8") : undefined;
   });
 
   afterAll(() => {
-    fs.writeFileSync(SOURCE_CONFIG, snapshot);
+    restoreLocalConfig(snapshot);
   });
 
   function resetConfig(): void {
-    fs.writeFileSync(SOURCE_CONFIG, snapshot);
+    fs.rmSync(LOCAL_CONFIG, { force: true });
   }
 
   it("prints placeholder when no core section exists", async () => {
@@ -360,8 +377,10 @@ describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     expect(setResult.code).toBe(0);
     expect(setResult.stdout).toContain("Set core.tool to understudy_code");
 
-    const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+    const saved = readLocalConfig();
     expect(saved.core?.tool).toBe("understudy_code");
+    // The tracked file is never written by `config set`.
+    expect(JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8")).core).toBeUndefined();
   });
 
   it(
@@ -434,7 +453,7 @@ describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
       expect(code).toBe(0);
       expect(stdout).toContain("Resetting startup");
 
-      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+      const saved = readLocalConfig();
       expect(saved.core?.tool).toBe("browse_cli");
       expect(saved.core?.startup).toBeUndefined();
     },
@@ -449,7 +468,7 @@ describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
       const { code } = await runCli(["config", "core", "reset"]);
       expect(code).toBe(0);
 
-      const saved = JSON.parse(fs.readFileSync(SOURCE_CONFIG, "utf-8"));
+      const saved = readLocalConfig();
       expect(saved.core).toBeUndefined();
     },
     2 * CLI_CHILD_TIMEOUT_MS + 2_000,
