@@ -10,9 +10,10 @@
  * keys that differ from the tracked file, so `git diff` stays quiet and a
  * `config set` never rewrites team defaults by accident.
  *
- * Precedence: a flag always wins. `defaults.*` then read local → tracked
- * before the ambient EVAL_* env vars (see parse.ts); every other section
- * yields to its env twin: flag → env → local → tracked → code default.
+ * Precedence: a flag always wins. Most `defaults.*` then read local → tracked
+ * before the ambient EVAL_* env vars (see parse.ts); EVAL_SUCCESS_MODE and
+ * STAGEHAND_BROWSER_TARGET beat the config, and every other section yields
+ * to its env twin: flag → env → local → tracked → code default.
  *
  * Per-mode storage (source vs. dist) is intentional:
  *   - Source mode (tsx packages/evals/cli.ts): packages/evals/
@@ -315,6 +316,10 @@ export function readLocalConfig(entryDir: string): Partial<ConfigFile> {
   for (const section of CONFIG_SECTIONS) {
     if (section in raw) local[section] = raw[section];
   }
+  // Inside a section, null marks a key removed; `defaults` itself is required.
+  if ("defaults" in local && !isPlainObject(local.defaults)) {
+    throw new Error(`Invalid ${resolveLocalConfigPath(entryDir)}: "defaults" must be an object.`);
+  }
   if (isPlainObject(local.defaults)) {
     const defaults = { ...local.defaults };
     delete defaults.provider;
@@ -474,12 +479,25 @@ export function printConfig(entryDir: string): void {
   }
 
   console.log(
-    `\n    ${dim("Precedence: flag → evals.config.local.json → evals.config.json → env → default (defaults); env twins win for the other sections")}`,
+    `\n    ${dim("Precedence: flag → evals.config.local.json → evals.config.json → env for most defaults; env wins for successMode, the browser target and the other sections")}`,
   );
   console.log(
     `    ${dim(`Files: ${resolveConfigPath(entryDir)}${fs.existsSync(resolveLocalConfigPath(entryDir)) ? ` + ${LOCAL_CONFIG_FILE_NAME}` : ""}`)}`,
   );
   console.log("");
+}
+
+/**
+ * `config core` / `config tracing` always write the local file; say so
+ * instead of silently turning a `--shared` edit into a personal override.
+ */
+export function rejectSharedScope(section: "core" | "tracing"): void {
+  console.error(
+    red(
+      `  --shared is not supported for config ${section}; edit ${CONFIG_FILE_NAME} directly to change the team default.`,
+    ),
+  );
+  process.exitCode = 1;
 }
 
 /** Strip a trailing `--shared` from a `config … set` argv. */
@@ -507,6 +525,11 @@ export async function handleConfig(rawArgs: string[], entryDir: string): Promise
   if (sub === "help" || sub === "-h" || sub === "--help") {
     const { printConfigHelp } = await import("./help.js");
     await printConfigHelp();
+    return;
+  }
+
+  if ((sub === "core" || sub === "tracing") && scope === "shared") {
+    rejectSharedScope(sub);
     return;
   }
 

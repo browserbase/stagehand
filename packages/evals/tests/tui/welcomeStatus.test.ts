@@ -1,4 +1,8 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { __resetEvalsEnvForTests, loadEvalsEnv } from "../../evalsEnv.js";
 import { snapshotEnv, renderInlineWarning, hasZeroProviderKeys } from "../../tui/welcomeStatus.js";
 
 const PROVIDER_KEYS = [
@@ -156,5 +160,37 @@ describe("renderInlineWarning", () => {
   it("returns null even when Braintrust+BB are missing but a provider is set", () => {
     process.env.ANTHROPIC_API_KEY = "ak-test";
     expect(renderInlineWarning(snapshotEnv())).toBeNull();
+  });
+});
+
+describe("snapshotEnv source provenance", () => {
+  beforeEach(() => clearProviderKeys());
+  afterEach(() => {
+    __resetEvalsEnvForTests();
+    restoreProviderKeys();
+  });
+
+  it("attributes keys to the .env file the loader took them from", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "evals-provenance-"));
+    try {
+      fs.mkdirSync(path.join(root, "pkg"));
+      fs.mkdirSync(path.join(root, "cwd"));
+      fs.writeFileSync(path.join(root, "pkg/.env"), "ANTHROPIC_API_KEY=pkg-test\n");
+      fs.writeFileSync(path.join(root, "cwd/.env"), "OPENAI_API_KEY=cwd-test\n");
+      process.env.GEMINI_API_KEY = "shell-test";
+      __resetEvalsEnvForTests();
+      loadEvalsEnv({
+        packageRoot: path.join(root, "pkg"),
+        cwd: path.join(root, "cwd"),
+        env: process.env,
+        force: true,
+      });
+      const s = snapshotEnv();
+      expect(s.openai).toEqual({ state: "set", source: "cwd-dotenv" });
+      expect(s.anthropic).toEqual({ state: "set", source: "package-dotenv" });
+      expect(s.google.source).toBe("process-env");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

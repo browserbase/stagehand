@@ -347,18 +347,8 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
 
 describe.sequential("core config", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
   // Tests mutate packages/evals/evals.config.local.json (the tracked file is
-  // read-only for the CLI). Snapshot beforeAll, reset before each test,
-  // restore afterAll.
-  let snapshot: string | undefined;
-
-  beforeAll(() => {
-    snapshot = fs.existsSync(LOCAL_CONFIG) ? fs.readFileSync(LOCAL_CONFIG, "utf-8") : undefined;
-  });
-
-  afterAll(() => {
-    restoreLocalConfig(snapshot);
-  });
-
+  // read-only for the CLI). Each test starts without a local file; the
+  // file-level afterAll restores the developer's own.
   function resetConfig(): void {
     fs.rmSync(LOCAL_CONFIG, { force: true });
   }
