@@ -13,7 +13,35 @@ dependencies = [
 ]
 license = "MIT"
 authors = [{ name = "Browserbase" }]
-keywords = ["ai", "browser", "automation", "web-scraping", "testing"]
+keywords = [
+  "ai",
+  "agent",
+  "ai-agent",
+  "browser",
+  "browser-agent",
+  "browser-automation",
+  "computer-use",
+  "headless",
+  "cdp",
+  "llm",
+  "automation",
+  "web-scraping",
+  "testing",
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Internet :: WWW/HTTP :: Browsers",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Software Development :: Testing",
+  "Typing :: Typed",
+  "Framework :: AsyncIO",
+]
 
 [project.urls]
 Homepage = "https://stagehand.dev"
