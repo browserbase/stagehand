@@ -249,7 +249,7 @@ async function ensureChildFrameReady(
         childFrameId,
         Math.min(remaining, LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS),
         progress,
-        false, // Recheck session ownership between attempts.
+        { readinessRetries: "none" }, // Recheck session ownership between attempts.
       );
       progress?.throwIfStopped();
       if (page.getSessionForFrame(childFrameId) === session) return;
