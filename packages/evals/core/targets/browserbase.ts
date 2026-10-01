@@ -207,9 +207,11 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
 
   try {
     created = await sessionPromise;
-  } catch {
+  } catch (error) {
     await cleanup();
-    throw new Error("Browserbase session creation failed.");
+    // Keep the SDK's status text: the runner classifies 429s off this message.
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Browserbase session creation failed: ${detail}`);
   }
 
   if (!created.id || !created.connectUrl) {

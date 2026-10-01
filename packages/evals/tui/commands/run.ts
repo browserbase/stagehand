@@ -19,6 +19,11 @@ import type { AvailableModel } from "stagehand-v3";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
+import type { RunProgressEvent } from "../../framework/runner.js";
+import {
+  ProviderConcurrency,
+  describeProviderWidths,
+} from "../../framework/providerConcurrency.js";
 import type { Harness } from "../../framework/benchTypes.js";
 import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
 import {
@@ -28,15 +33,6 @@ import {
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
 } from "../../framework/verifierGate.js";
-
-type RunProgressEvent = {
-  type: "planned" | "started" | "passed" | "failed" | "error";
-  taskName?: string;
-  modelName?: string;
-  durationMs?: number;
-  error?: string;
-  total?: number;
-};
 
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
@@ -132,8 +128,21 @@ function buildRunContextLine(
     parts.push(`${bold("Tool:")} ${toolSurfaces[0]}`);
   }
 
-  parts.push(`${bold("Concurrency:")} ${options.concurrency}`);
+  parts.push(`${bold("Concurrency:")} ${describeConcurrency(options, matrix)}`);
   return parts.join("  ");
+}
+
+function describeConcurrency(
+  options: ResolvedRunOptions,
+  matrix: Array<Record<string, unknown>>,
+): string {
+  const global = options.concurrency;
+  if (!Number.isInteger(global) || global < 1) return String(global);
+  const widths = describeProviderWidths(
+    ProviderConcurrency.fromEnv(global),
+    matrix.map((row) => (typeof row.provider === "string" ? row.provider : undefined)),
+  );
+  return widths ? `${global} global · ${widths}` : String(global);
 }
 
 export async function runCommand(

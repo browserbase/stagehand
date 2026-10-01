@@ -455,7 +455,9 @@ describe("deriveCategoryFilter", () => {
     const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(output).toContain("Running: act");
     expect(output).toContain("Plan: 2 tasks × 1 model × 4 trials = 8 runs");
-    expect(output).toContain("Env: BROWSERBASE  Harness: stagehand  Concurrency: 25");
+    expect(output).toContain(
+      "Env: BROWSERBASE  Harness: stagehand  Concurrency: 25 global · openai 3",
+    );
     expect(runEvalsMock).toHaveBeenCalledOnce();
   });
 });
@@ -618,4 +620,39 @@ describe("runCommand zero-browser-pass gate", () => {
       }
     },
   );
+
+  it("shows provider widths from EVAL_PROVIDER_CONCURRENCY in the heading", async () => {
+    const registry = makeRegistry([
+      makeTask({ name: "act/alpha", primaryCategory: "act", categories: ["act"] }),
+    ]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const saved = process.env.EVAL_PROVIDER_CONCURRENCY;
+    process.env.EVAL_PROVIDER_CONCURRENCY = "openai=6";
+    try {
+      await runCommand(
+        {
+          target: "act",
+          normalizedTarget: "act",
+          trials: 1,
+          concurrency: 10,
+          environment: "BROWSERBASE",
+          model: "openai/gpt-4.1-mini",
+          useApi: false,
+          harness: "stagehand",
+          envOverrides: {},
+          dryRun: false,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
+        },
+        registry,
+      );
+    } finally {
+      if (saved === undefined) delete process.env.EVAL_PROVIDER_CONCURRENCY;
+      else process.env.EVAL_PROVIDER_CONCURRENCY = saved;
+    }
+
+    const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
+    expect(output).toContain("Concurrency: 10 global · openai 6");
+  });
 });

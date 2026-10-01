@@ -135,7 +135,7 @@ describe("runner-provided Browserbase target", () => {
       await import("../../core/targets/browserbase.js");
 
     await expect(launchRunnerProvidedBrowserbaseChrome()).rejects.toThrow(
-      "Browserbase session creation failed.",
+      "Browserbase session creation failed: session create failed",
     );
     expect(extensionDeleteMock).toHaveBeenCalledWith("extension-123", {
       headers: { "Content-Type": null },
