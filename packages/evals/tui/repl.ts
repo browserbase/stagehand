@@ -36,14 +36,19 @@ export type ReplOptions = {
  * password prompts). Returns a function that restores echo and clears any
  * input typed meanwhile.
  */
-function muteReadlineEcho(rl: readline.Interface): () => void {
+export function muteReadlineEcho(rl: readline.Interface): () => void {
   const target = rl as unknown as { _writeToOutput?: (text: string) => void; line: string };
   const original = target._writeToOutput;
   if (typeof original !== "function") return () => {};
   target._writeToOutput = () => {};
   return () => {
     target._writeToOutput = original;
-    if (target.line) rl.write(null, { ctrl: true, name: "u" });
+    // Ctrl-U only deletes left of the cursor: jump to the end first, or a
+    // suffix typed before an arrow key would reappear at the prompt.
+    if (target.line) {
+      rl.write(null, { ctrl: true, name: "e" });
+      rl.write(null, { ctrl: true, name: "u" });
+    }
   };
 }
 
@@ -186,8 +191,12 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
 
   const onKeypress = (str: string, key: { name?: string } | undefined): void => {
     if (key?.name !== "escape") {
-      // During a run, keys go to the live board (`v` logs, `?` help).
-      if (abortRef.current) getActiveRun()?.onKey?.(key?.name ?? str);
+      // During a run, plain keys go to the live board (`v` logs, `?` help).
+      // Ctrl/Meta chords stay with readline: Ctrl+C is its SIGINT path.
+      const chord = (key as { ctrl?: boolean; meta?: boolean } | undefined) ?? {};
+      if (abortRef.current && !chord.ctrl && !chord.meta) {
+        getActiveRun()?.onKey?.(key?.name ?? str);
+      }
       return;
     }
     if (!abortRef.current) {
@@ -224,18 +233,9 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     else rl.close();
   });
 
-  rl.on("line", async (line) => {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      rl.setPrompt(renderPrompt(contextPath));
-      rl.prompt();
-      return;
-    }
-
-    const tokens = tokenize(trimmed);
-
-    // While a command runs, readline must not echo keystrokes: a typed `v`
-    // would land on the live board. Anything typed is discarded afterwards.
+  // While a command runs, readline must not echo keystrokes: a typed `v`
+  // would land on the live board. Anything typed is discarded afterwards.
+  const dispatchMuted = async (tokens: string[]): Promise<void> => {
     const unmute = muteReadlineEcho(rl);
     try {
       await dispatch(tree, tokens, ctx);
@@ -244,6 +244,17 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     } finally {
       unmute();
     }
+  };
+
+  rl.on("line", async (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      rl.setPrompt(renderPrompt(contextPath));
+      rl.prompt();
+      return;
+    }
+
+    await dispatchMuted(tokenize(trimmed));
 
     rl.setPrompt(renderPrompt(contextPath));
     rl.prompt();
@@ -259,11 +270,7 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
   // promised — after every listener is in place, so Ctrl+C mid-run behaves
   // exactly as it does for a typed command.
   if (pendingHandoff) {
-    try {
-      await dispatch(tree, tokenize(pendingHandoff), ctx);
-    } catch (err) {
-      console.error(red(`  Error: ${(err as Error).message}`));
-    }
+    await dispatchMuted(tokenize(pendingHandoff));
     rl.setPrompt(renderPrompt(contextPath));
   }
   rl.prompt();
