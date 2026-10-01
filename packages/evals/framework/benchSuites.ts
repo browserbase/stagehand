@@ -1,7 +1,8 @@
 /**
  * The one list of agent benchmark suites.
  *
- * Kept dependency-free so the CLI parser and help can import it without
+ * Discovery registers one virtual task per name here, and the CLI parser
+ * and help list them. Kept dependency-free so they can import it without
  * pulling the suite builders (and their dataset readers) into REPL startup.
  * `benchPlanner.ts` maps each name to its builder with a `satisfies` check, so
  * adding a suite here without a builder fails typecheck instead of silently

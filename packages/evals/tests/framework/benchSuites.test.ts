@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   benchSuiteTaskName,
@@ -15,8 +18,27 @@ describe("benchSuites registry", () => {
       "hardbenchmark",
       "odysseysbench",
     ]);
-    expect(listBenchSuiteTaskNames()).toEqual(listBenchSuites().map(benchSuiteTaskName));
+    expect(listBenchSuiteTaskNames()).toEqual([
+      "agent/webvoyager",
+      "agent/onlineMind2Web",
+      "agent/webtailbench",
+      "agent/hardbenchmark",
+      "agent/odysseysbench",
+    ]);
     expect(benchSuiteTaskName("hardbenchmark")).toBe("agent/hardbenchmark");
+  });
+
+  it("is what discovery registers as bench suites", async () => {
+    const { discoverTasks } = await import("../../framework/discovery.js");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "evals-suites-"));
+    try {
+      const registry = await discoverTasks(root);
+      expect((registry.byTier.get("bench") ?? []).map((task) => task.name)).toEqual(
+        listBenchSuiteTaskNames(),
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("guards unknown names", () => {

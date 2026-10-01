@@ -5,6 +5,7 @@ import {
   resolveRunOptions,
   withEnvOverrides,
 } from "../../tui/commands/parse.js";
+import { listBenchSuites } from "../../framework/benchSuites.js";
 
 describe("resolveRunOptions", () => {
   it("defaults verbose to false", () => {
@@ -161,8 +162,9 @@ describe("--json", () => {
   });
 
   it("lists supported benchmarks from the suite registry in the error", () => {
+    // The concrete list is pinned in benchSuites.test.ts.
     expect(() => applyBenchmarkShorthand("b:nope", {})).toThrow(
-      /Supported: webvoyager, onlineMind2Web, webtailbench, hardbenchmark, odysseysbench\./,
+      `Supported: ${listBenchSuites().join(", ")}.`,
     );
   });
 });
