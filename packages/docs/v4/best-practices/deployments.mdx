@@ -3,14 +3,14 @@ title: 'Deploying Stagehand'
 description: 'Deploy your AI agents and automations to the cloud'
 ---
 
-We recommend that you deploy Stagehand as a [Browserbase Function](https://docs.browserbase.com/platform/functions/quickstart). The Function runs next to its browser session on Browserbase, and it reads your API key from an encrypted project secret. You do not need a separate server, a Chrome binary, or a secrets store.
+Browserbase recommends that you deploy Stagehand as a [Browserbase Function](https://docs.browserbase.com/platform/functions/quickstart). The Function runs next to its browser session on Browserbase, and it reads your API key from an encrypted project secret. You do not need a separate server, a Chrome binary, or a secrets store.
 
 Stagehand also runs on other platforms. If Functions is not a good fit for you, see [Other deployment options](#other-deployment-options).
 
 ## Prerequisites
 
 - A Browserbase API key from [Settings](https://www.browserbase.com/settings)
-- Node.js and pnpm
+- Node.js 22.18 or later and pnpm
 - The `browse` CLI:
 
 ```bash
@@ -19,9 +19,11 @@ npm install -g browse
 
 ## Deploy a Stagehand Function
 
+These steps start from a template project. The template contains a starter Function that you replace with your own Stagehand code before you publish.
+
 <Steps>
 
-<Step title="Create the project">
+<Step title="Initialize a Functions project">
 
 ```bash
 browse functions init my-stagehand-function
@@ -44,9 +46,9 @@ In `index.ts`, replace `your-extension-id` with the `id` from the output.
 
 </Step>
 
-<Step title="Review the Function">
+<Step title="Replace the starter Function">
 
-The initializer creates this Function in `index.ts`. It connects Stagehand to the session that Browserbase creates for each invocation, then extracts the top stories from Hacker News:
+This is the starter Function in `index.ts`. Replace the template with the Stagehand code that you want to deploy. Keep the `defineFn` call. If you change the name `my-function`, use the new name in the steps that follow.
 
 ```typescript
 import { defineFn } from "@browserbasehq/sdk-functions";
