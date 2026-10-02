@@ -364,6 +364,26 @@ export function focusElement(this: Element): void {
   }
 }
 
+export function isSingleCharacterInput(this: Element): boolean {
+  if (!(this instanceof HTMLInputElement)) return false;
+  if (this.maxLength === 1 || this.getAttribute("maxlength") === "1" || this.size === 1) {
+    return true;
+  }
+
+  const siblings = this.parentElement?.children;
+  if (!siblings) return false;
+  const index = Array.prototype.indexOf.call(siblings, this) as number;
+  let count = 1;
+  for (const direction of [-1, 1]) {
+    for (let i = index + direction; i >= 0 && i < siblings.length; i += direction) {
+      const sibling = siblings[i];
+      if (!(sibling instanceof HTMLInputElement) || sibling.type !== this.type) break;
+      count++;
+    }
+  }
+  return count >= 3;
+}
+
 export function selectElementOptions(this: Element, rawValues: string | string[]): string[] {
   try {
     if (!(this instanceof HTMLSelectElement)) return [];

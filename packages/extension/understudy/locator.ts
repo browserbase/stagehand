@@ -9,6 +9,7 @@ import {
   focusElement,
   isElementChecked,
   isElementVisible,
+  isSingleCharacterInput,
   prepareElementForTyping,
   readElementInnerHTML,
   readElementInnerText,
@@ -26,6 +27,8 @@ import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
+const AUTO_ADVANCE_FOCUS_TIMEOUT_MS = 150;
+const AUTO_ADVANCE_POLL_INTERVAL_MS = 8;
 
 /**
  * Locator
@@ -586,6 +589,8 @@ export class Locator {
       }
 
       if (status === "needsinput") {
+        const singleCharacterInput =
+          value.length > 1 && (await this.isSingleCharacterInput(objectId, progress));
         // Release the current handle before synthesizing keyboard input to avoid leaking it.
         await release();
 
@@ -643,6 +648,8 @@ export class Locator {
               nativeVirtualKeyCode: 8,
             } as Protocol.Input.DispatchKeyEventRequest),
           );
+        } else if (singleCharacterInput) {
+          await this.type(valueToType, undefined, progress);
         } else {
           await runLocatorStep(progress, "inserting text", () =>
             session.send<never>("Input.insertText", { text: valueToType }),
@@ -674,7 +681,8 @@ export class Locator {
   /**
    * Type text into the element (focuses first).
    * - Focus via element.focus() in page JS (no DOM.focus(nodeId)).
-   * - If no delay, uses `Input.insertText` for efficiency.
+   * - If no delay, uses `Input.insertText` for efficiency, except on single-character
+   *   fields where input handlers may move focus to the next field.
    * - With delay, synthesizes `keyDown`/`keyUp` per character.
    */
   async type(text: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
@@ -691,7 +699,53 @@ export class Locator {
         }),
       );
 
-      if (!options?.delay) {
+      const delay = options?.delay;
+      if (text.length > 1 && (await this.isSingleCharacterInput(objectId, progress))) {
+        for (const [index, ch] of [...text].entries()) {
+          const focused = await runLocatorStep(progress, "reading focused element", () =>
+            session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+              objectId,
+              functionDeclaration: "function() { return this.ownerDocument.activeElement; }",
+            }),
+          );
+          const focusedObjectId = focused.result.objectId;
+          try {
+            await runLocatorStep(progress, "dispatching keyboard events", () =>
+              session.send<never>("Input.dispatchKeyEvent", {
+                type: "keyDown",
+                text: ch,
+                key: ch,
+              } as Protocol.Input.DispatchKeyEventRequest),
+            );
+            await runLocatorStep(progress, "dispatching keyboard events", () =>
+              session.send<never>("Input.dispatchKeyEvent", {
+                type: "keyUp",
+                text: ch,
+                key: ch,
+              } as Protocol.Input.DispatchKeyEventRequest),
+            );
+            if (index < text.length - 1 && focusedObjectId) {
+              await this.waitForFocusChange(focusedObjectId, progress);
+            }
+            if (delay) {
+              if (progress) await progress.delay(delay);
+              else await new Promise((resolve) => setTimeout(resolve, delay));
+            }
+          } finally {
+            if (focusedObjectId) {
+              const releaseFocused = () =>
+                session
+                  .send<never>("Runtime.releaseObject", { objectId: focusedObjectId })
+                  .catch(() => {});
+              if (progress) await progress.cleanup(releaseFocused);
+              else await releaseFocused();
+            }
+          }
+        }
+        return;
+      }
+
+      if (!delay) {
         await runLocatorStep(progress, "inserting text", () =>
           session.send<never>("Input.insertText", { text }),
         );
@@ -715,14 +769,41 @@ export class Locator {
           } as Protocol.Input.DispatchKeyEventRequest),
         );
 
-        if (progress) await progress.delay(options.delay);
-        else await new Promise((r) => setTimeout(r, options.delay));
+        if (progress) await progress.delay(delay);
+        else await new Promise((r) => setTimeout(r, delay));
       }
     } finally {
       const release = () => session.send<never>("Runtime.releaseObject", { objectId });
       if (progress) await progress.cleanup(release);
       else await release();
       progress?.throwIfStopped();
+    }
+  }
+
+  private async isSingleCharacterInput(objectId: string, progress?: Progress): Promise<boolean> {
+    const result = await runLocatorStep(progress, "checking input length", () =>
+      this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: isSingleCharacterInput.toString(),
+        returnByValue: true,
+      }),
+    );
+    return result.result.value === true;
+  }
+
+  private async waitForFocusChange(objectId: string, progress?: Progress): Promise<void> {
+    const deadline = Date.now() + AUTO_ADVANCE_FOCUS_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      const result = await runLocatorStep(progress, "waiting for input focus to advance", () =>
+        this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function() { return this.ownerDocument.activeElement !== this; }",
+          returnByValue: true,
+        }),
+      );
+      if (result.result.value === true) return;
+      if (progress) await progress.delay(AUTO_ADVANCE_POLL_INTERVAL_MS);
+      else await new Promise((resolve) => setTimeout(resolve, AUTO_ADVANCE_POLL_INTERVAL_MS));
     }
   }
 
