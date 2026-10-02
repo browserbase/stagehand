@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/eve",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Browserbase for Eve, powered by Stagehand V4 Code Mode.",
   "keywords": [
     "ai-agents",
