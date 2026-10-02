@@ -441,19 +441,91 @@ describe("RPCClient", () => {
     [StagehandMethods.pageWaitForLoadState.name, 25_000],
     [StagehandMethods.pageWaitForSelector.name, 40_000],
     [StagehandMethods.pagePDF.name, 40_000],
+    [StagehandMethods.pageSnapshot.name, 30_000],
     [StagehandMethods.pageWebMCPTools.name, 11_000],
   ])("uses the operation default plus transport grace for %s", (method, timeout) => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
-  it("honors explicit PDF deadlines and allows disabling them", () => {
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 250 } })).toBe(10_250);
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 45_000 } })).toBe(55_000);
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 2_147_473_647 } })).toBe(
-      2_147_483_647,
-    );
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 0 } })).toBeUndefined();
+  it.each(["page.pdf", "page.snapshot"])(
+    "honors explicit %s deadlines and allows disabling them",
+    (method) => {
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 250 } })).toBe(10_250);
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 45_000 } })).toBe(55_000);
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 2_147_473_647 } })).toBe(
+        2_147_483_647,
+      );
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 0 } })).toBeUndefined();
+    },
+  );
+
+  it.each(Object.values(StagehandMethods).filter(({ name }) => name.startsWith("locator.")))(
+    "uses the effective locator timeout plus delivery grace for $name",
+    ({ name }) => {
+      expect(rpcResponseTimeoutMs(name, {})).toBe(30_000);
+      expect(rpcResponseTimeoutMs(name, { options: {} })).toBe(30_000);
+      expect(rpcResponseTimeoutMs(name, { options: { timeout: 50 } })).toBe(10_050);
+      expect(rpcResponseTimeoutMs(name, { options: { timeout: 0 } })).toBeUndefined();
+    },
+  );
+
+  it("preserves a locator timeout's name, message, and error envelope", async () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+    const pending = client.send(StagehandMethods.locatorCount, {
+      pageId: "page-1",
+      selector: "button",
+    });
+    const error = {
+      code: JSONRPCErrorCodes.internalError,
+      message: "locator.count timed out after 20000ms while resolving frame",
+      data: { name: "TimeoutError" },
+    };
+    const rejected = expect(pending).rejects.toMatchObject({
+      name: "TimeoutError",
+      message: error.message,
+      cause: error,
+    });
+    await cdp.receive({ jsonrpc: "2.0", id: 1, error });
+    await rejected;
+    expect(client.pending.size).toBe(0);
+    client.close();
   });
+
+  it.each([undefined, 50, 0, 2_147_483_648])(
+    "waits for a locator response with timeout %s",
+    async (timeout) => {
+      vi.useFakeTimers();
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      try {
+        const pending = client.send(StagehandMethods.locatorCount, {
+          pageId: "page-1",
+          selector: "button",
+          ...(timeout === undefined ? {} : { options: { timeout } }),
+        });
+        if (timeout === 0) {
+          await vi.advanceTimersByTimeAsync(60_000);
+          expect(client.pending.size).toBe(1);
+          await cdp.receive({ jsonrpc: "2.0", id: 1, result: 2 });
+          await expect(pending).resolves.toBe(2);
+        } else {
+          const rejected = expect(pending).rejects.toThrow(
+            `RPC response timed out after ${(timeout ?? 20_000) + 10_000}ms: locator.count`,
+          );
+          await vi.advanceTimersByTimeAsync((timeout ?? 20_000) + 10_000 - 1);
+          expect(client.pending.size).toBe(1);
+          await vi.advanceTimersByTimeAsync(1);
+          await rejected;
+        }
+        expect(client.pending.size).toBe(0);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        client.close();
+        vi.useRealTimers();
+      }
+    },
+  );
 
   it("does not impose response deadlines on operations that were unbounded in v3", () => {
     const methods = [
@@ -479,11 +551,7 @@ describe("RPCClient", () => {
       StagehandMethods.pageClose.name,
       StagehandMethods.pageEvaluate.name,
       StagehandMethods.pageScreenshot.name,
-      StagehandMethods.pageSnapshot.name,
       StagehandMethods.pageWebMCPInvocationResult.name,
-      ...Object.values(StagehandMethods)
-        .map(({ name }) => name)
-        .filter((name) => name.startsWith("locator.")),
     ];
 
     for (const method of methods) {
