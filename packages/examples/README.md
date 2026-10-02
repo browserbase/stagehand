@@ -1,42 +1,20 @@
-# Stagehand examples
-
-## Examples docs
-
-These runnable SDK examples pair with pages in the [Examples docs](https://docs.stagehand.dev/v4/examples/overview). Clone one folder with sparse checkout:
-
-```bash
-git clone --depth 1 --sparse https://github.com/browserbase/stagehand.git
-cd stagehand
-git sparse-checkout set packages/examples/<example-name>
-```
-
-| Folder | Languages | Job |
-| --- | --- | --- |
-| [approve-form-submission](approve-form-submission) | TypeScript, Python, Go | Fill a form and require approval before submit |
-| [paginated-catalog](paginated-catalog) | TypeScript, Python, Go | Export a complete book catalog across pages |
-| [files-to-bucket](files-to-bucket) | TypeScript | Extract book data and upload files with Files SDK |
-| [ai-sdk-research-agent](ai-sdk-research-agent) | TypeScript | Research two approved docs pages with typed source citations |
-| [webmcp-smoke-test](webmcp-smoke-test) | TypeScript, Python, Go | Invoke a tool registered by a real WebMCP page |
-
-Cloud browser jobs need `BROWSERBASE_API_KEY` and use `OPENAI_API_KEY` unless the paginated catalog sets `MODEL_PROVIDER=gateway`. WebMCP uses local Chromium without either key. SDK samples used by `just example` remain under the SDK packages.
-
-## Showcase cookbooks
+# Stagehand cookbooks
 
 Real-world examples on real websites, each one recorded and benchmarked on [stagehand.dev/showcase](https://stagehand.dev/showcase).
 
-| Cookbook | Category | Site |
-| --- | --- | --- |
-| [Compare laptop specs across product pages](laptop-spec-comparison) | Shopping | staples.com |
-| [Build a list of YC startups in an industry](yc-companies-by-industry) | Companies & jobs | ycombinator.com |
-| [Collect remote roles across different job boards](remote-roles-across-ats) | Companies & jobs | jobs.ashbyhq.com |
-| [Monitor SaaS pricing pages](saas-pricing-monitor) | QA & monitoring | linear.app |
-| [QA a checkout flow end to end](qa-checkout-flow) | QA & monitoring | saucedemo.com |
-| [Catch UI regressions with one test across app variants](qa-find-ui-regressions) | QA & monitoring | saucedemo.com |
+| Cookbook                                                                                | Category               | Site                       |
+| --------------------------------------------------------------------------------------- | ---------------------- | -------------------------- |
+| [Compare laptop specs across product pages](laptop-spec-comparison)                     | Shopping               | staples.com                |
+| [Build a list of YC startups in an industry](yc-companies-by-industry)                  | Companies & jobs       | ycombinator.com            |
+| [Collect remote roles across different job boards](remote-roles-across-ats)             | Companies & jobs       | jobs.ashbyhq.com           |
+| [Monitor SaaS pricing pages](saas-pricing-monitor)                                      | QA & monitoring        | linear.app                 |
+| [QA a checkout flow end to end](qa-checkout-flow)                                       | QA & monitoring        | saucedemo.com              |
+| [Catch UI regressions with one test across app variants](qa-find-ui-regressions)        | QA & monitoring        | saucedemo.com              |
 | [Pull the latest quarterly results of a public company](digitalocean-quarterly-results) | Research & public data | investors.digitalocean.com |
-| [Turn a leaderboard into structured data](stagehand-evals-leaderboard) | Research & public data | stagehand.dev |
-| [Solve today's Wordle](wordle-solver) | Games | nytimes.com |
+| [Turn a leaderboard into structured data](stagehand-evals-leaderboard)                  | Research & public data | stagehand.dev              |
+| [Solve today's Wordle](wordle-solver)                                                   | Games                  | nytimes.com                |
 
-### Run a cookbook
+## Run a cookbook
 
 Copy `.env.example` to `.env` in this folder and fill in `BROWSERBASE_API_KEY` and `ANTHROPIC_API_KEY`. Then, from the repository root:
 
@@ -44,7 +22,7 @@ Copy `.env.example` to `.env` in this folder and fill in `BROWSERBASE_API_KEY` a
 just cookbook laptop-spec-comparison
 ```
 
-### Benchmark a cookbook
+## Benchmark a cookbook
 
 `just showcase <slug>` benchmarks four lanes, three runs each, all on the same model (Claude Sonnet 5 by default; set `SHOWCASE_MODEL` and its corresponding provider API key, such as `OPENAI_API_KEY`, to change it):
 
@@ -65,7 +43,7 @@ just showcase laptop-spec-comparison --runs 1 --skip-baseline --skip-script
 
 Every lane uses the same Browserbase session settings (see `_harness/session.ts`) and the same success check. Medians are taken over successful runs, and failed runs still count toward the success rate. A skipped lane keeps its numbers from the previous `results.json`, so one lane can be re-run on its own. Prices per model live in `_harness/pricing.ts` and are copied into each results file.
 
-### Add a cookbook
+## Add a cookbook
 
 1. Create `<slug>/workflow.ts` exporting a zod `schema` and `run(stagehand, page)`.
 2. Create `<slug>/task.ts` with the start URL, a natural-language goal for the baseline, and a `check` on the output.

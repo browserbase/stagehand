@@ -120,15 +120,15 @@
             ]
           },
           {
-            "tab": "Examples",
-            "root": "v4/examples/overview",
+            "tab": "Cookbooks",
+            "root": "v4/cookbooks/overview",
             "pages": [
-              "v4/examples/overview",
-              "v4/examples/approve-form-submission",
-              "v4/examples/paginated-catalog",
-              "v4/examples/files-to-bucket",
-              "v4/examples/ai-sdk-research-agent",
-              "v4/examples/webmcp-smoke-test"
+              "v4/cookbooks/overview",
+              "v4/cookbooks/approve-form-submission",
+              "v4/cookbooks/paginated-catalog",
+              "v4/cookbooks/files-to-bucket",
+              "v4/cookbooks/ai-sdk-research-agent",
+              "v4/cookbooks/webmcp-smoke-test"
             ]
           }
         ]
@@ -680,11 +680,35 @@
     },
     {
       "source": "/v4/examples/observe-then-act",
-      "destination": "/v4/examples/paginated-catalog"
+      "destination": "/v4/cookbooks/paginated-catalog"
     },
     {
       "source": "/v4/examples/tanstack-ai-extraction-tool",
-      "destination": "/v4/examples/overview"
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/overview",
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/approve-form-submission",
+      "destination": "/v4/cookbooks/approve-form-submission"
+    },
+    {
+      "source": "/v4/examples/paginated-catalog",
+      "destination": "/v4/cookbooks/paginated-catalog"
+    },
+    {
+      "source": "/v4/examples/files-to-bucket",
+      "destination": "/v4/cookbooks/files-to-bucket"
+    },
+    {
+      "source": "/v4/examples/ai-sdk-research-agent",
+      "destination": "/v4/cookbooks/ai-sdk-research-agent"
+    },
+    {
+      "source": "/v4/examples/webmcp-smoke-test",
+      "destination": "/v4/cookbooks/webmcp-smoke-test"
     }
   ]
 }
