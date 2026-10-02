@@ -47,6 +47,20 @@ the local tag is missing, recovery requires the original version-bump commit;
 it refuses to label a later main commit as the release. Retry the original
 Release workflow run in that case.
 
+## Browse alphas
+
+Every push to `main` that changes `packages/cli/` without changing the Browse
+version publishes `<current-version>-alpha-<full-commit-sha>` under npm's `alpha`
+dist-tag. This restores the original path-based Browse canary behavior: no
+changeset is required, and pending CLI and SDK changesets remain available for
+their stable releases. Pushes containing a Browse version bump publish stable
+releases instead. Already-published alpha versions are skipped on retries.
+
+The alpha job runs independently of the stable release jobs, uses only the
+Browse publisher, and creates no Git tag. It builds and smoke-tests the tarball
+against the published workspace SDK version, just like stable Browse releases;
+it does not depend on an SDK alpha being published for the same commit.
+
 ## First rollout
 
 Merge this infrastructure change before either pending release PR. The next
