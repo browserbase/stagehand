@@ -441,19 +441,23 @@ describe("RPCClient", () => {
     [StagehandMethods.pageWaitForLoadState.name, 25_000],
     [StagehandMethods.pageWaitForSelector.name, 40_000],
     [StagehandMethods.pagePDF.name, 40_000],
+    [StagehandMethods.pageSnapshot.name, 30_000],
     [StagehandMethods.pageWebMCPTools.name, 11_000],
   ])("uses the operation default plus transport grace for %s", (method, timeout) => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
-  it("honors explicit PDF deadlines and allows disabling them", () => {
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 250 } })).toBe(10_250);
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 45_000 } })).toBe(55_000);
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 2_147_473_647 } })).toBe(
-      2_147_483_647,
-    );
-    expect(rpcResponseTimeoutMs("page.pdf", { options: { timeout: 0 } })).toBeUndefined();
-  });
+  it.each(["page.pdf", "page.snapshot"])(
+    "honors explicit %s deadlines and allows disabling them",
+    (method) => {
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 250 } })).toBe(10_250);
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 45_000 } })).toBe(55_000);
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 2_147_473_647 } })).toBe(
+        2_147_483_647,
+      );
+      expect(rpcResponseTimeoutMs(method, { options: { timeout: 0 } })).toBeUndefined();
+    },
+  );
 
   it.each(Object.values(StagehandMethods).filter(({ name }) => name.startsWith("locator.")))(
     "uses the effective locator timeout plus delivery grace for $name",
@@ -547,7 +551,6 @@ describe("RPCClient", () => {
       StagehandMethods.pageClose.name,
       StagehandMethods.pageEvaluate.name,
       StagehandMethods.pageScreenshot.name,
-      StagehandMethods.pageSnapshot.name,
       StagehandMethods.pageWebMCPInvocationResult.name,
     ];
 

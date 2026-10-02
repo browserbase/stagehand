@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { scopedChangesets } from "./release-scope.ts";
 import {
+  assertCliAlphaVersion,
   assertPublishedCliDependencies,
   isCliVersionPublished,
   versionScope,
@@ -78,6 +79,25 @@ const manifest = async (root: string, name: string) =>
   JSON.parse(await readFile(path.join(root, "packages", name, "package.json"), "utf8"));
 
 describe("independent release scopes using the real Changesets engine", () => {
+  it("allows only a Browse alpha for the checked-out commit, preserving pending notes", async () => {
+    const root = await fixture();
+    await expect(assertCliAlphaVersion(root)).rejects.toThrow("Prepare a Browse alpha");
+    const file = path.join(root, "packages/cli/package.json");
+    const original = await manifest(root, "cli");
+    const commit = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    for (const version of ["0.9.6-beta-" + commit, "0.9.6-alpha-" + "0".repeat(40)]) {
+      await writeFile(file, JSON.stringify({ ...original, version }));
+      await expect(assertCliAlphaVersion(root)).rejects.toThrow("Prepare a Browse alpha");
+    }
+    await writeFile(file, JSON.stringify({ ...original, version: `0.9.6-alpha-${commit}` }));
+    await expect(assertCliAlphaVersion(root)).resolves.toBeUndefined();
+    expect(await scopedChangesets(root, "cli")).toHaveLength(1);
+    expect(await scopedChangesets(root, "sdk")).toHaveLength(1);
+  });
+
   it("waits for an in-flight SDK publication without waiting on unrelated SDK jobs", async () => {
     const root = await fixture("cli");
     let requests = 0;
