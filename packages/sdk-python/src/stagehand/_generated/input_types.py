@@ -910,6 +910,7 @@ class PageSetViewportSizeParams(TypedDict):
 
 
 class PageSnapshotOptions(TypedDict):
+    timeout: NotRequired[float]
     include_iframes: NotRequired[bool]
 
 
