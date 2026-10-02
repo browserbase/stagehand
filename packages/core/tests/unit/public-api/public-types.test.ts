@@ -120,7 +120,7 @@ describe("Stagehand public API types", () => {
   describe("ClientOptions", () => {
     it("exposes optional Gemini thinking levels", () => {
       expectTypeOf<Stagehand.ClientOptions["thinkingLevel"]>().toEqualTypeOf<
-        "minimal" | "low" | "medium" | "high" | undefined
+        "minimal" | "low" | "medium" | "high" | undefined // undefined means the option wasn't provided. when this happens, thinkingConfig is omitted and the model's default behavior is unchanged.
       >();
     });
   });
