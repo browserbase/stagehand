@@ -37,7 +37,36 @@ export type StagehandFacadeRunReport = {
   closeRequested: boolean;
 };
 
+export class StagehandFacadeCleanupError extends Error {
+  override readonly name = "StagehandFacadeCleanupError";
+
+  constructor() {
+    super("Failed to close the Stagehand browser session.");
+  }
+}
+
+export class StagehandFacadeInputError extends Error {
+  override readonly name = "StagehandFacadeInputError";
+
+  constructor(message: string) {
+    super(sanitizeErrorMessage(message));
+  }
+}
+
+export class StagehandFacadeExecutionError extends Error {
+  readonly facadeExecutionError = true;
+
+  constructor(error: { name: string; message: string }) {
+    super(sanitizeErrorMessage(error.message));
+    const name = sanitizeErrorMessage(error.name);
+    this.name = /^[A-Za-z][A-Za-z0-9]*Error$/u.test(name) ? name : "Error";
+    this.stack = undefined;
+  }
+}
+
 export type StagehandFacadeToolsOptions = {
+  /** Replaces default cleanup when the host owns session release and replacement. */
+  onCloseRequested?: () => Promise<void>;
   /** Owned directory for screenshot artifacts; paths must stay within it. Defaults to process.cwd(). */
   artifactRoot?: string;
   /** Observes every completed `run` batch (including ones whose code threw). */
@@ -171,19 +200,23 @@ export class StagehandFacadeTools {
   close(): Promise<void> {
     this.closed = true;
     return (this.closePromise ??= (async () => {
-      const failures: unknown[] = [];
+      if (this.options.onCloseRequested) {
+        try {
+          await this.options.onCloseRequested();
+        } catch {
+          throw new StagehandFacadeCleanupError();
+        }
+        return;
+      }
+      let failed = false;
       for (const close of [() => this.stagehand.close(), () => this.stagehand.browser.close()]) {
         try {
           await close();
-        } catch (error) {
-          failures.push(error);
+        } catch {
+          failed = true;
         }
       }
-      if (failures.length) {
-        throw new Error("Failed to close the Stagehand facade browser.", {
-          cause: new AggregateError(failures, "Facade browser cleanup failures"),
-        });
-      }
+      if (failed) throw new StagehandFacadeCleanupError();
     })());
   }
 
@@ -251,16 +284,16 @@ export class StagehandFacadeTools {
     const parsed = RefActionSchema.array().min(1).parse(actions);
     const page = await this.activePage();
     const snapshot = this.snapshotsByPage.get(page.pageId);
-    if (!snapshot) throw new Error(NO_HYDRATED_SNAPSHOT_ERROR);
+    if (!snapshot) throw new StagehandFacadeInputError(NO_HYDRATED_SNAPSHOT_ERROR);
 
     if ((await page.url()) !== snapshot.url) {
       this.snapshotsByPage.delete(page.pageId);
-      throw new Error(NAVIGATED_SNAPSHOT_ERROR);
+      throw new StagehandFacadeInputError(NAVIGATED_SNAPSHOT_ERROR);
     }
 
     const hydrated = parsed.map((action) => {
       const xpath = trimTrailingTextNode(resolveSnapshotXPath(snapshot.xpathById, action.id));
-      if (!xpath) throw new Error(staleSnapshotIdError(action.id));
+      if (!xpath) throw new StagehandFacadeInputError(staleSnapshotIdError(action.id));
       return { ...action, selector: `xpath=${xpath}` };
     });
     // The callback can already have dispatched earlier actions when one fails.
@@ -284,6 +317,8 @@ export class StagehandFacadeTools {
     const keeperPageId = await this.keeper;
     const input: RunInput = keeperPageId ? { hiddenPageIds: [keeperPageId] } : {};
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
+    let runError: unknown;
+    let runFailed = false;
     try {
       this.options.onRunReport?.({
         telemetry: envelope.telemetry,
@@ -295,20 +330,26 @@ export class StagehandFacadeTools {
       if (envelope.executionError) {
         // Thrown by the agent's own code inside the browser, so its message can
         // never be evidence about this process's connection to the browser.
-        const error = new Error(envelope.executionError.message) as Error & {
-          facadeExecutionError: true;
-        };
-        error.name = envelope.executionError.name;
-        if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
-        error.facadeExecutionError = true;
-        throw error;
+        throw new StagehandFacadeExecutionError(envelope.executionError);
       }
-      return envelope.value;
-    } finally {
-      // The batch must finish before closing its own transport. This also
-      // honors close requests when agent code or artifact persistence failed.
-      if (envelope.closeRequested) await this.close();
+    } catch (error) {
+      runError = error;
+      runFailed = true;
     }
+    // Wait until the batch finishes before closing its transport, even when
+    // agent code, telemetry, or artifact persistence failed.
+    if (envelope.closeRequested) {
+      try {
+        await this.close();
+      } catch (closeError) {
+        if (runFailed) {
+          throw new AggregateError([runError, closeError], "Run failed and cleanup also failed.");
+        }
+        throw closeError;
+      }
+    }
+    if (runFailed) throw runError;
+    return envelope.value;
   }
 
   /**
@@ -353,7 +394,9 @@ export class StagehandFacadeTools {
         relative.startsWith(`..${path.sep}`) ||
         path.isAbsolute(relative)
       ) {
-        throw new Error("Screenshot artifact path must stay within artifactRoot.");
+        throw new StagehandFacadeInputError(
+          "Screenshot artifact path must stay within artifactRoot.",
+        );
       }
       // Reject symlink traversal before creating nested directories or opening
       // the output. O_NOFOLLOW also refuses an existing symlink at the file.
@@ -365,7 +408,9 @@ export class StagehandFacadeTools {
           if (error.code !== "EEXIST") throw error;
         });
         if (!(await fsp.lstat(directory)).isDirectory()) {
-          throw new Error("Screenshot artifact directory must not be a symlink.");
+          throw new StagehandFacadeInputError(
+            "Screenshot artifact directory must not be a symlink.",
+          );
         }
       }
       const file = await fsp.open(
@@ -427,7 +472,7 @@ export class StagehandFacadeTools {
   private enqueue<Result>(tool: string, operation: () => Promise<Result>): Promise<Result> {
     const guarded = async (): Promise<Result> => {
       if (this.loss) throw new StagehandFacadeSessionLostError(this.loss);
-      if (this.closed) throw new Error("Stagehand facade browser is closed.");
+      if (this.closed) throw new StagehandFacadeInputError("Stagehand facade browser is closed.");
       try {
         await this.ensureKeeperPage();
         const value = await operation();
