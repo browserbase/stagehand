@@ -117,6 +117,14 @@ type ExpectedExportedTypes = {
 };
 
 describe("Stagehand public API types", () => {
+  describe("ClientOptions", () => {
+    it("exposes optional Gemini thinking levels", () => {
+      expectTypeOf<Stagehand.ClientOptions["thinkingLevel"]>().toEqualTypeOf<
+        "minimal" | "low" | "medium" | "high" | undefined
+      >();
+    });
+  });
+
   describe("AnyPage", () => {
     type ExpectedAnyPage =
       | Stagehand.PlaywrightPage
