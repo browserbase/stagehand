@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TypeVar, cast, overload
 
 import pytest
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, RootModel, ValidationError
 from typing_extensions import override
 
 from stagehand import PagePDFMargin, Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
@@ -35,6 +35,7 @@ from stagehand._generated.models import (
     PageWebMCPInvokeToolParams,
     PageWebMCPToolsParams,
     PageWebMCPToolsResult,
+    SnapshotResult,
     WebMCPInvocationDescriptor,
     WebMCPResultOptions,
     WebMCPToolIdentity,
@@ -972,3 +973,27 @@ def test_optional_page_arguments_are_keyword_only() -> None:
                 offenders.append(f"Page.{name}({parameter.name}=...)")
 
     assert offenders == []
+
+
+@pytest.mark.parametrize("timeout", [None, 0, 5_000])
+async def test_snapshot_forwards_timeout(timeout: float | None) -> None:
+    snapshot = SnapshotResult(formatted_tree="root", xpath_map={}, url_map={})
+    recording = RecordingRPCClient({"page.snapshot": snapshot})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    assert await page.snapshot(timeout=timeout) == snapshot
+    method, params, result_model = recording.calls[0]
+    expected: dict[str, object] = {"page_id": "page-1"}
+    if timeout is not None:
+        expected["options"] = {"timeout": timeout}
+    assert method == "page.snapshot"
+    assert params.model_dump(exclude_unset=True) == expected
+    assert result_model is SnapshotResult
+
+
+@pytest.mark.parametrize("timeout", [-1, float("inf"), float("nan")])
+async def test_snapshot_rejects_invalid_timeout_before_sending(timeout: float) -> None:
+    recording = RecordingRPCClient()
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    with pytest.raises(ValidationError):
+        await page.snapshot(timeout=timeout)
+    assert not recording.calls

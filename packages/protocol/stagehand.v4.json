@@ -3923,6 +3923,11 @@
     "PageSnapshotOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "description": "Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        },
         "include_iframes": {
           "type": "boolean"
         }

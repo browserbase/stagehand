@@ -2240,21 +2240,29 @@ export class Page {
       throw error;
     }
   }
-  async captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot> {
-    return await captureHybridSnapshot(this, options, this.logger);
+  async captureSnapshot(
+    options?: SnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<HybridSnapshot> {
+    return await runWithProgress(parentProgress ?? { name: "snapshot", timeout: 0 }, (progress) =>
+      captureHybridSnapshot(this, options, progress, this.logger),
+    );
   }
 
-  async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
-    const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot({
-      pierceShadow: true,
-      includeIframes: options?.includeIframes,
-    });
-
-    return {
-      formattedTree: combinedTree,
-      xpathMap: combinedXpathMap,
-      urlMap: combinedUrlMap,
-    };
+  async snapshot(
+    options?: PageSnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<SnapshotResult> {
+    return await runWithProgress(
+      parentProgress ?? { name: "snapshot", timeout: options?.timeout ?? 20_000 },
+      async (progress) => {
+        const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot(
+          { pierceShadow: true, includeIframes: options?.includeIframes },
+          progress,
+        );
+        return { formattedTree: combinedTree, xpathMap: combinedXpathMap, urlMap: combinedUrlMap };
+      },
+    );
   }
 
   // Track pressed modifier keys

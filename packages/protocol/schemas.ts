@@ -1338,6 +1338,13 @@ export const SnapshotResultSchema = z
 
 export const PageSnapshotOptionsSchema = z
   .strictObject({
+    timeout: z
+      .number()
+      .nonnegative()
+      .optional()
+      .describe(
+        "Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the timeout.",
+      ),
     includeIframes: z.boolean().optional(),
   })
   .meta({ id: "PageSnapshotOptions" });

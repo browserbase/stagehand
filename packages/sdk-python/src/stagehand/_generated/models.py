@@ -1899,6 +1899,8 @@ class PageSnapshotOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the timeout."""
     include_iframes: Optional[StrictBool] = None
 
 
