@@ -314,8 +314,8 @@ catalogs:
       specifier: ^10.0.2
       version: 10.0.2
     devtools-protocol:
-      specifier: ^0.0.1657692
-      version: 0.0.1657692
+      specifier: ^0.0.1694333
+      version: 0.0.1694333
     dotenv:
       specifier: ^17.4.2
       version: 17.4.2
@@ -792,7 +792,7 @@ importers:
         version: 7.0.16(zod@4.4.3)
       devtools-protocol:
         specifier: 'catalog:'
-        version: 0.0.1657692
+        version: 0.0.1694333
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -5180,8 +5180,8 @@ packages:
   devtools-protocol@0.0.1642743:
     resolution: {integrity: sha512-vTCGze95hGFayPNUXv2H/3cNt/Kqv3J7XqS519j7U8HYhmtD6+eVEPHp6nRHD64dDXJ022TU4reAYhjYyuxm8Q==}
 
-  devtools-protocol@0.0.1657692:
-    resolution: {integrity: sha512-fcyY7qijcIOtJ/0fdCf4L7LMaqOgF0JeH1EqNjGYDS/b9HJB32fe3KepCdOQDy4eXaUdQehUivmz64wCVXlxAA==}
+  devtools-protocol@0.0.1694333:
+    resolution: {integrity: sha512-3HN0ovN1czdWwtC6vJ2/1jqh5VKlt7yozBXzqOGHeO1Nu6Q/NbfaRGGHCR1SKQf936FYZh2NBZlvG/7PbRGYTw==}
 
   didyoumean@1.2.2:
     resolution: {integrity: sha512-gxtyfqMg7GKyhQmb056K7M3xszy/myH8w+B4RT+QXBQsvAOdc3XymqDDPHx1BgPgsdAA5SIifona89YtRATDzw==}
@@ -11872,6 +11872,7 @@ snapshots:
       eventsource-parser: 3.1.0
       express: 5.2.1
       express-rate-limit: 8.6.0(express@5.2.1)
+
       hono: 4.12.31
       jose: 6.2.4
       json-schema-typed: 8.0.2
@@ -13443,6 +13444,7 @@ snapshots:
     dependencies:
       fill-range: 7.1.1
 
+
   braintrust@3.28.0(@aws-sdk/credential-provider-web-identity@3.972.77)(zod@4.4.3):
     dependencies:
       '@next/env': 14.2.35
@@ -13979,7 +13981,7 @@ snapshots:
 
   devtools-protocol@0.0.1642743: {}
 
-  devtools-protocol@0.0.1657692: {}
+  devtools-protocol@0.0.1694333: {}
 
   didyoumean@1.2.2: {}
 
@@ -14487,6 +14489,7 @@ snapshots:
   expr-eval-fork@3.0.3: {}
 
   express-rate-limit@8.6.0(express@5.2.1):
+
     dependencies:
       debug: 4.4.3(supports-color@8.1.1)
       express: 5.2.1
@@ -17798,6 +17801,7 @@ snapshots:
   rou3@0.8.1: {}
 
   rou3@0.9.2: {}
+
 
   router@2.2.0:
     dependencies:

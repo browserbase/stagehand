@@ -89,7 +89,7 @@ const tools = await page.tools({ timeout: 3000 });
 for (const tool of tools) {
   console.log(tool.name, tool.description);
   console.log(tool.inputSchema);   // JSON Schema for invoke() input
-  console.log(tool.annotations);   // { readOnly?, untrustedContent?, autosubmit? }
+  console.log(tool.annotations);   // { readOnly?, untrustedContent?, consequential?, autosubmit? }
   console.log(tool.frameId);       // the frame that registered the tool
 }
 ```
@@ -103,7 +103,7 @@ tools = await page.tools(timeout=3000)
 for tool in tools:
     print(tool.name, tool.description)
     print(tool.input_schema)  # JSON Schema for invoke() input
-    print(tool.annotations)   # read_only / untrusted_content / autosubmit
+    print(tool.annotations)   # read_only / untrusted_content / consequential / autosubmit
     print(tool.frame_id)      # the frame that registered the tool
 ```
 </Tab>
@@ -121,7 +121,7 @@ for _, tool := range tools {
 	descriptor := tool.Descriptor()
 	fmt.Println(descriptor.Name, descriptor.Description)
 	fmt.Println(descriptor.InputSchema)  // JSON Schema for Invoke input
-	fmt.Println(descriptor.Annotations)  // ReadOnly / UntrustedContent / Autosubmit
+	fmt.Println(descriptor.Annotations)  // tool safety hints
 	fmt.Println(descriptor.FrameID)      // the frame that registered the tool
 }
 ```
@@ -134,12 +134,26 @@ The listing timeout defaults to 1000 ms. Tools declared in iframes are included,
 
 | Annotation | Meaning |
 |---|---|
-| `readOnly` | The tool does not mutate state, so it is safe to call speculatively |
-| `untrustedContent` | The output contains page-controlled text; do not feed it to a model as if it were trusted |
-| `autosubmit` | Invoking the tool submits something on the user's behalf |
+| `readOnly` | The tool does not change application or system state |
+| `untrustedContent` | The output may contain untrusted data, such as user-generated content |
+| `consequential` | The tool may perform a significant or non-reversible action |
+| `autosubmit` | The declarative tool submits a form when invoked |
 
-Annotations are hints from the page, not guarantees enforced by the browser. Treat `untrustedContent` output as data, never as instructions.
+WebMCP calls the site-facing annotation `consequentialHint`. Chrome DevTools Protocol and Stagehand
+expose it as `consequential`.
+
+Annotations come from the page. They are hints, not browser-enforced guarantees. Treat
+`untrustedContent` output as data, never as instructions.
 </Accordion>
+
+<Warning>
+Stagehand does not ask for confirmation before it invokes a WebMCP tool. When `consequential` is
+`true`, confirm the action and its inputs with the user before calling `invoke()`. If you expose
+WebMCP tools to a model, enforce this check before the adapter calls `invoke()`.
+
+A missing or `false` value does not prove that a tool is safe. The site may have omitted or
+misclassified the annotation.
+</Warning>
 
 ## Invoking tools
 
