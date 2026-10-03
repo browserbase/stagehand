@@ -156,8 +156,7 @@ export const LLMParsedResponseSchema: z.ZodType<
   LLMParsedResponse<unknown>
 > = z
   .object({
-    // TODO: wire response_model through JSON Schema so parsed data can be
-    // validated against a concrete schema instead of remaining unknown.
+    // AISdkClient validates structured output via AI SDK Output.object(response_model.schema).
     data: z.unknown(),
     usage: LLMUsageSchema.optional(),
   })
