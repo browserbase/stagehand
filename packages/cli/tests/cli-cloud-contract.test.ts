@@ -795,21 +795,6 @@ describe("cloud API contracts", () => {
       args: [
         "cloud",
         "contexts",
-        "update",
-        "00000000-0000-4000-8000-000000000000",
-      ],
-      expectedMethod: "PUT",
-      expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
-      expectedBody: undefined,
-      responseBody: {
-        id: "00000000-0000-4000-8000-000000000000",
-        uploadUrl: "https://example.com/upload",
-      },
-    },
-    {
-      args: [
-        "cloud",
-        "contexts",
         "delete",
         "00000000-0000-4000-8000-000000000000",
       ],
@@ -854,6 +839,58 @@ describe("cloud API contracts", () => {
       );
     },
   );
+
+  describe.each([undefined, "test-key"])(
+    "deprecated contexts update with apiKey=%s",
+    (apiKey) => {
+      it.each(["00000000-0000-4000-8000-000000000000", "github"])(
+        "fails locally for %s with migration guidance",
+        async (ref) => {
+          await withServer(
+            async (_request, response) => jsonResponse(response, 200, {}),
+            async ({ baseUrl, requests }) => {
+              const result = await runCli(
+                ["cloud", "contexts", "update", ref, "--base-url", baseUrl],
+                {
+                  env: {
+                    BROWSERBASE_API_KEY: apiKey,
+                    BROWSE_LOAD_DOTENV: "0",
+                    BROWSERBASE_TELEMETRY_DISABLED: "1",
+                  },
+                },
+              );
+              expect(result.exitCode).toBe(1);
+              expect(result.stdout).toBe("");
+              expect(result.stderr).toContain("deprecated");
+              expect(result.stderr).toContain(
+                "Browserbase no longer supports context uploads",
+              );
+              expect(result.stderr).toContain(
+                "browse cloud sessions create --context-id <context-id|name> --persist",
+              );
+              expect(result.stderr).toContain("close the session");
+              expect(result.stderr).toContain(
+                "browse cloud sessions update <session-id> --status REQUEST_RELEASE",
+              );
+              expect(result.stderr).not.toContain(
+                "Missing Browserbase API key",
+              );
+              expect(requests).toHaveLength(0);
+            },
+          );
+        },
+      );
+    },
+  );
+
+  it("marks contexts update as deprecated in help", async () => {
+    const result = await runCli(["cloud", "contexts", "update", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("deprecated");
+    expect(result.stdout).toContain("no longer supports context uploads");
+    expect(result.stdout).toContain("--persist");
+    expect(result.stdout).toContain("REQUEST_RELEASE");
+  });
 
   it.each([
     {
