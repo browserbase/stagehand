@@ -57,6 +57,19 @@ afterEach(async () => {
 });
 
 describe("driver foundation", () => {
+  it("hides the detached daemon window on Windows", async () => {
+    const source = await fs.readFile(
+      new URL("../src/lib/driver/daemon/client.ts", import.meta.url),
+      "utf8",
+    );
+    const spawnDaemon = source.slice(
+      source.indexOf("function spawnDaemon"),
+      source.indexOf("async function waitForSocketReady"),
+    );
+
+    expect(spawnDaemon).toContain("windowsHide: true");
+  });
+
   it("defaults remote mode from BROWSERBASE_API_KEY", async () => {
     const previousApiKey = process.env.BROWSERBASE_API_KEY;
     process.env.BROWSERBASE_API_KEY = "test-key";
