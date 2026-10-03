@@ -48,6 +48,7 @@ export function prioritizeExactSkillMatch(
 }
 
 interface SkillTableOptions {
+  footer?: boolean;
   heading?: string;
   limit?: number;
   wide?: boolean;
@@ -100,6 +101,8 @@ export function outputSkillTable(
     ],
     { wide: options.wide },
   );
+
+  if (options.footer === false) return;
 
   console.log("Install with: browse skills add <skill>");
   if (visibleSkills.length < skills.length) {

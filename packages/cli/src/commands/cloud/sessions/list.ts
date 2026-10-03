@@ -1,6 +1,12 @@
 import { Flags } from "@oclif/core";
 
 import {
+  collectionVersionFlag,
+  usesCollectionContract,
+  outputCollection,
+  validateCollectionFlags,
+} from "../../../lib/collections.js";
+import {
   createBrowserbaseClient,
   outputJson,
   withBrowserbaseApi,
@@ -42,12 +48,14 @@ export default class SessionsList extends BrowseCommand {
   static override flags = {
     ...apiCommonFlags,
     ...outputFormatFlags,
+    ...collectionVersionFlag,
     all: Flags.boolean({
-      description: "Show all returned sessions in table output.",
+      description:
+        "Show all returned sessions (all output formats in version 2).",
     }),
     limit: Flags.integer({
-      default: 20,
-      description: "Maximum sessions to show in table output.",
+      description:
+        "Maximum sessions: table rows in version 1 (default 20), records in version 2 (default 20).",
       helpValue: "<count>",
       min: 1,
     }),
@@ -64,6 +72,7 @@ export default class SessionsList extends BrowseCommand {
 
   async run(): Promise<void> {
     const { flags } = await this.parse(SessionsList);
+    if (usesCollectionContract(flags)) validateCollectionFlags(flags);
     await withBrowserbaseApi("sessions", async () => {
       const client = createBrowserbaseClient(toApiOptions(flags));
       const query: { q?: string; status?: SessionStatus } = {};
@@ -77,13 +86,30 @@ export default class SessionsList extends BrowseCommand {
       const sessions = (await client.sessions.list(
         query,
       )) as BrowserbaseSession[];
+      if (usesCollectionContract(flags)) {
+        await outputCollection({
+          flags,
+          source: {
+            kind: "array",
+            complete: false,
+            load: async () => sessions,
+          },
+          table: (items) =>
+            outputSessionsTable(items, {
+              limit: items.length,
+              wide: flags.wide,
+            }),
+        });
+        return;
+      }
+
       if (resolveOutputFormat(flags) === "json") {
         outputJson(sessions);
         return;
       }
 
       outputSessionsTable(sessions, {
-        limit: flags.all ? sessions.length : flags.limit,
+        limit: flags.all ? sessions.length : (flags.limit ?? 20),
         wide: flags.wide,
       });
     });
