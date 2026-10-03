@@ -30,7 +30,7 @@ claude -p 'On saucedemo.com (password secret_sauce), run the same checkout test 
 Once the flow works, `workflow.ts` runs it as plain Stagehand calls, with no agent. Copy `packages/examples/.env.example` to `packages/examples/.env`, fill in `BROWSERBASE_API_KEY` and `ANTHROPIC_API_KEY`, then from the repository root:
 
 ```bash
-just cookbook qa-find-ui-regressions
+just showcase-script qa-find-ui-regressions
 ```
 
 ## Files

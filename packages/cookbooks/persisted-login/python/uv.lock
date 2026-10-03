@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -26,7 +26,7 @@ wheels = [
 
 [[package]]
 name = "browserbase"
-version = "1.19.0"
+version = "1.20.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -36,9 +36,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/40/e8/dd95443386a7ba17bdd8bfe65688506e806cd702ca5842d596b74dec39e7/browserbase-1.19.0.tar.gz", hash = "sha256:6061190b753014f950a0ef9377f96b4700af352003c62c8c48b52a7d306e7e7d", size = 292409, upload-time = "2026-09-09T09:52:22.647Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/00/c220539147a908dfb81ce728af2dca8651a44324d378e6b8e26ab3a03964/browserbase-1.20.0.tar.gz", hash = "sha256:3014c01cb7d7edd94ebb9a2fda7e98ee235866ed879fdb2eaf907356e8c145a6", size = 299433, upload-time = "2026-09-24T23:25:25.957Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/af/a8/c69ca00622f46528980364aba738d216c8d9de1dfdd40268d8635b625454/browserbase-1.19.0-py3-none-any.whl", hash = "sha256:4c4dca798039e78059c426e5799aef909bdf6f0a51a80b16642f0f5ad3d1eaea", size = 154989, upload-time = "2026-09-09T09:52:21.258Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/85/17a4e092a0aa931571df696ddfd660a5d106aadda2c398fe64bf5e16a55d/browserbase-1.20.0-py3-none-any.whl", hash = "sha256:ab488d7f5555751afd0be83bfc86a8ea9470eba834e4f8722e296a01fde15278", size = 169358, upload-time = "2026-09-24T23:25:27.315Z" },
 ]
 
 [[package]]
@@ -107,14 +107,14 @@ wheels = [
 
 [[package]]
 name = "opentelemetry-api"
-version = "1.44.0"
+version = "1.45.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ee/8b/aa9e2d8b8dfa7c946f7dec5d1f8f6ba8eca062f43509a06bdb5ce93d26c0/opentelemetry_api-1.44.0.tar.gz", hash = "sha256:67647e5e9566edcf421166fdf022b3537f818635daa852b289e34604dc6fb33a", size = 72406, upload-time = "2026-07-16T15:25:32.678Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/dc/e12c1fe1ed8a7b7149777127b1a0e12ce5bd5a81d97408bedc2128c260f5/opentelemetry_api-1.45.0.tar.gz", hash = "sha256:711ede81773c8025c2c03dac0450bc89f3d30aea6eabcc815c570d4e35a963f7", size = 72115, upload-time = "2026-09-25T12:32:28.399Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ca/6f/a04e900f465ff3221ccc395522503e2d10e79fa21f2723c8e177aae1e0d1/opentelemetry_api-1.44.0-py3-none-any.whl", hash = "sha256:94b98c893a91b88657eaac1e3ba89618cdb85be6918196705354f34728b2cdef", size = 60018, upload-time = "2026-07-16T15:25:11.657Z" },
+    { url = "https://files.pythonhosted.org/packages/44/b9/040d1a1c7836922828e6480cd2366bb8fe0ebf75b413d2bb51a9b0e7f78f/opentelemetry_api-1.45.0-py3-none-any.whl", hash = "sha256:80e068aba7cd56c8b58512d6a36f8d25cb1dfaa0c0a4cc1c938ccf9f362d9cb3", size = 60020, upload-time = "2026-09-25T12:32:03.192Z" },
 ]
 
 [[package]]
@@ -236,11 +236,11 @@ wheels = [
 
 [[package]]
 name = "python-dotenv"
-version = "1.2.3"
+version = "1.2.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6a/53/ed9d74092561d4b01a2ef1349d52cdbc135e526c245f366b089cfca6de49/python_dotenv-1.2.3.tar.gz", hash = "sha256:a20a594dabeaa385725aa239d5244871c143ecb356add8a20fcf23773a6c3a35", size = 58945, upload-time = "2026-08-16T16:54:54.067Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/26/2fbeedb218a787a5eea551c7532cac4e009f83d689dd2faa0d0353473f86/python_dotenv-1.2.4.tar.gz", hash = "sha256:f0d53e69935a851c0dcc78f3ab7aaccd8cabef0b92382b576b824212902873c0", size = 60824, upload-time = "2026-10-01T05:36:10Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0d/17/c5c6b53ddc18f297992099b3d9ec16c855c0ccc83263a21fe4d1c625ec6c/python_dotenv-1.2.3-py3-none-any.whl", hash = "sha256:904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9", size = 22780, upload-time = "2026-08-16T16:54:52.473Z" },
+    { url = "https://files.pythonhosted.org/packages/60/d1/38f3a3405989a89ac18390803e70c6ad7c7760da4f9b83cbeca0c44a0c72/python_dotenv-1.2.4-py3-none-any.whl", hash = "sha256:42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc", size = 23266, upload-time = "2026-10-01T05:36:08.633Z" },
 ]
 
 [[package]]
@@ -268,7 +268,7 @@ wheels = [
 ]
 
 [[package]]
-name = "stagehand-cookbook-webmcp-smoke-test"
+name = "stagehand-cookbook-persisted-login"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
@@ -279,7 +279,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "stagehand", specifier = ">=4.1.0" },
+    { name = "stagehand", specifier = "==4.1.0" },
 ]
 
 [[package]]

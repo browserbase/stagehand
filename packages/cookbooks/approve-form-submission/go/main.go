@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"strings"
 
@@ -19,15 +20,21 @@ func main() {
 }
 func run(ctx context.Context) (err error) {
 	apiKey, modelKey := os.Getenv("BROWSERBASE_API_KEY"), os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" || modelKey == "" {
-		return errors.New("BROWSERBASE_API_KEY and OPENAI_API_KEY are required")
+	if apiKey == "" {
+		return errors.New("BROWSERBASE_API_KEY is required")
 	}
-	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	timeout := float64(300)
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey, Timeout: &timeout})
 	if err != nil {
 		return err
 	}
-	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &stagehand.ModelConfig{ModelName: "openai/gpt-5.4-mini", APIKey: &modelKey}})
+	defer func() { err = errors.Join(err, browser.Close(context.Background())) }()
+	fmt.Printf("Session: https://www.browserbase.com/sessions/%s\n", browser.SessionID())
+	opts := stagehand.CreateOptions{Browser: browser}
+	if modelKey != "" {
+		opts.Model = &stagehand.ModelConfig{ModelName: "openai/gpt-5.4-mini", APIKey: &modelKey}
+	}
+	client, err := stagehand.Create(ctx, opts)
 	if err != nil {
 		return err
 	}
@@ -67,6 +74,24 @@ func run(ctx context.Context) (err error) {
 	if !size.Data.Success {
 		return fmt.Errorf("size selection failed: %s", size.Data.Message)
 	}
+	expected := map[string]string{"customer": "Ada Lovelace", "email": "ada@example.com", "size": "medium", "comments": "Leave at reception"}
+	selectors := map[string]string{"customer": `[name="custname"]`, "email": `[name="custemail"]`, "size": `[name="size"]:checked`, "comments": `[name="comments"]`}
+	verifyValues := func() error {
+		for name, selector := range selectors {
+			value, err := page.Locator(selector).InputValue(ctx)
+			if err != nil {
+				return err
+			}
+			if value != expected[name] {
+				return fmt.Errorf("form value %s does not match the approval payload", name)
+			}
+		}
+		return nil
+	}
+	if err = verifyValues(); err != nil {
+		return err
+	}
+	fmt.Printf("Form values to submit: %v\n", expected)
 	fmt.Print("Submit this form? [y/N] ")
 	answer, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil {
@@ -75,6 +100,9 @@ func run(ctx context.Context) (err error) {
 	if strings.ToLower(strings.TrimSpace(answer)) != "y" {
 		fmt.Println("Rejected: submit was not executed.")
 		return nil
+	}
+	if err = verifyValues(); err != nil {
+		return err
 	}
 	submitted, err := client.Act(ctx, stagehand.ActInstruction("Click the Submit order button"), &stagehand.StagehandClientActOptions{Page: page})
 	if err != nil {
@@ -86,10 +114,17 @@ func run(ctx context.Context) (err error) {
 	if err = page.WaitForLoadState(ctx, stagehand.LoadStateDOMContentLoaded, nil); err != nil {
 		return err
 	}
-	url, err := page.URL(ctx)
+	submittedURL, err := page.URL(ctx)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Submitted once: %s\n", url)
+	destination, err := url.Parse(submittedURL)
+	if err != nil {
+		return err
+	}
+	if destination.Scheme != "https" || destination.Host != "httpbin.org" || destination.Path != "/post" {
+		return errors.New("submission destination was not verified; inspect before rerunning")
+	}
+	fmt.Printf("Submitted once: %s\n", submittedURL)
 	return nil
 }

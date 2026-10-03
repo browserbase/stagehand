@@ -1,4 +1,4 @@
-# Stagehand cookbooks
+# Stagehand showcase
 
 Real-world examples on real websites, each one recorded and benchmarked on [stagehand.dev/showcase](https://stagehand.dev/showcase).
 
@@ -14,12 +14,12 @@ Real-world examples on real websites, each one recorded and benchmarked on [stag
 | [Turn a leaderboard into structured data](stagehand-evals-leaderboard)                  | Research & public data | stagehand.dev              |
 | [Solve today's Wordle](wordle-solver)                                                   | Games                  | nytimes.com                |
 
-## Run a cookbook
+## Run a showcase script
 
 Copy `.env.example` to `.env` in this folder and fill in `BROWSERBASE_API_KEY` and `ANTHROPIC_API_KEY`. Then, from the repository root:
 
 ```bash
-just cookbook laptop-spec-comparison
+just showcase-script laptop-spec-comparison
 ```
 
 ## Benchmark a cookbook

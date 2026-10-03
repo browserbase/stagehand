@@ -2,7 +2,6 @@ import { defineConfig } from "oxlint";
 import { stagehandRuleConfig } from "./rules/oxlint/stagehand-plugin.ts";
 
 export default defineConfig({
-  ignorePatterns: ["packages/cookbooks/**"],
   jsPlugins: [{ name: "stagehand", specifier: "./rules/oxlint/stagehand-plugin.ts" }],
   rules: {
     "no-console": "error",
@@ -24,7 +23,11 @@ export default defineConfig({
       },
     },
     {
-      files: ["packages/sdk-ts/examples/**/*.ts", "packages/examples/**/*.ts"],
+      files: [
+        "packages/sdk-ts/examples/**/*.ts",
+        "packages/examples/**/*.ts",
+        "packages/cookbooks/**/*.ts",
+      ],
       rules: {
         "no-console": "off",
       },

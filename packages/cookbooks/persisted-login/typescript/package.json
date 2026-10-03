@@ -1,13 +1,15 @@
 {
-  "name": "stagehand-cookbook-webmcp-smoke-test",
+  "name": "stagehand-cookbook-persisted-login",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "4.1.0",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "^24",

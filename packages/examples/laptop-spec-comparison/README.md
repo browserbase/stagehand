@@ -30,7 +30,7 @@ claude -p 'Search Staples for "laptops 16gb ram". Open the first three laptops i
 Once the flow works, `workflow.ts` runs it as plain Stagehand calls, with no agent. Copy `packages/examples/.env.example` to `packages/examples/.env`, fill in `BROWSERBASE_API_KEY` and `ANTHROPIC_API_KEY`, then from the repository root:
 
 ```bash
-just cookbook laptop-spec-comparison
+just showcase-script laptop-spec-comparison
 ```
 
 ## Files

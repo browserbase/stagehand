@@ -1,4 +1,4 @@
-module stagehand-cookbook-webmcp-smoke-test
+module stagehand-cookbook-persisted-login
 
 go 1.26.0
 

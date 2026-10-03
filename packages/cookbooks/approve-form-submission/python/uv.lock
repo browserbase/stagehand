@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -279,7 +279,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "stagehand", specifier = ">=4.1.0" },
+    { name = "stagehand", specifier = "==4.1.0" },
 ]
 
 [[package]]

@@ -1,0 +1,132 @@
+name: Cookbooks
+
+on:
+  pull_request:
+    paths:
+      - "packages/cookbooks/**"
+      - "packages/docs/v4/cookbooks/**"
+      - ".github/workflows/cookbooks.yml"
+      - "oxlint.config.ts"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cookbooks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        cookbook:
+          [
+            approve-form-submission,
+            paginated-catalog,
+            persisted-login,
+            files-to-bucket,
+            ai-sdk-research-agent,
+          ]
+    defaults:
+      run:
+        working-directory: packages/cookbooks/${{ matrix.cookbook }}/typescript
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm --if-present test
+
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        cookbook: [approve-form-submission, paginated-catalog, persisted-login]
+    defaults:
+      run:
+        working-directory: packages/cookbooks/${{ matrix.cookbook }}/python
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          python-version: "3.12"
+      - run: uv sync --locked
+      - run: uv run --locked python -m compileall -q main.py
+      - run: uv run --locked python -m unittest discover
+        if: matrix.cookbook == 'paginated-catalog'
+
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        cookbook: [approve-form-submission, paginated-catalog, persisted-login]
+    defaults:
+      run:
+        working-directory: packages/cookbooks/${{ matrix.cookbook }}/go
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26.x"
+          cache: false
+      - run: test -z "$(gofmt -l .)"
+      - run: go test ./...
+      - run: go vet ./...
+
+  smoke:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+      - uses: ./.github/actions/setup-chrome-verified
+      - name: Check two-page catalog fixture
+        working-directory: packages/cookbooks/paginated-catalog/typescript
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BROWSER_ENV: LOCAL
+          CATALOG_URL: http://127.0.0.1:8765/index.html
+          MAX_PAGES: "2"
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo 'Catalog smoke requires OPENAI_API_KEY in repository secrets.'
+            exit 1
+          fi
+          pnpm install --frozen-lockfile
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory ../fixtures > /tmp/catalog-fixture.log 2>&1 &
+          fixture_pid=$!
+          trap 'kill "$fixture_pid"' EXIT
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS "$CATALOG_URL" > /dev/null; then break; fi
+            sleep 1
+          done
+          timeout 180s pnpm start
+          node --input-type=module -e 'import fs from "node:fs"; import assert from "node:assert/strict"; const c=JSON.parse(fs.readFileSync("out/catalog.json")); assert.equal(c.pages,2); assert.equal(c.count,2); assert.deepEqual(c.books.map(b=>b.title),["First book","Second book"]);'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: cookbook-smoke-output
+          path: packages/cookbooks/paginated-catalog/typescript/out/
+          retention-days: 7

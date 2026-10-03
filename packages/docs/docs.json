@@ -124,11 +124,11 @@
             "root": "v4/cookbooks/overview",
             "pages": [
               "v4/cookbooks/overview",
-              "v4/cookbooks/approve-form-submission",
+              "v4/cookbooks/persisted-login",
               "v4/cookbooks/paginated-catalog",
               "v4/cookbooks/files-to-bucket",
-              "v4/cookbooks/ai-sdk-research-agent",
-              "v4/cookbooks/webmcp-smoke-test"
+              "v4/cookbooks/approve-form-submission",
+              "v4/cookbooks/ai-sdk-research-agent"
             ]
           }
         ]
@@ -705,10 +705,6 @@
     {
       "source": "/v4/examples/ai-sdk-research-agent",
       "destination": "/v4/cookbooks/ai-sdk-research-agent"
-    },
-    {
-      "source": "/v4/examples/webmcp-smoke-test",
-      "destination": "/v4/cookbooks/webmcp-smoke-test"
     }
   ]
 }
