@@ -205,7 +205,7 @@ function parseAtomicPredicate(input: string): XPathPredicate | null {
   const quoted = "(?:'([^']*)'|\"([^\"]*)\")";
 
   if (/^\d+$/.test(input)) {
-    return { type: "index", index: Math.max(1, Number(input)) };
+    return { type: "index", index: Number(input) };
   }
 
   const normalizeAttrMatch = input.match(
@@ -482,4 +482,33 @@ export function applyPredicates(elements: Element[], predicates: XPathPredicate[
     current = current.filter((el) => evaluatePredicate(el, predicate));
   }
   return current;
+}
+
+/**
+ * Apply a step's predicates to candidates collected from more than one parent.
+ *
+ * A positional predicate counts along the child axis: `//div[2]` is every div that is
+ * the second div child of its parent, not the second div in the document. Candidates
+ * are filtered within their own sibling group and keep the order they came in.
+ */
+export function applyPredicatesPerParent(
+  elements: Element[],
+  predicates: XPathPredicate[],
+): Element[] {
+  if (!predicates.some((predicate) => predicate.type === "index")) {
+    return applyPredicates(elements, predicates);
+  }
+
+  const siblingGroups = new Map<Node | null, Element[]>();
+  for (const element of elements) {
+    const siblings = siblingGroups.get(element.parentNode);
+    if (siblings) siblings.push(element);
+    else siblingGroups.set(element.parentNode, [element]);
+  }
+
+  const kept = new Set<Element>();
+  for (const siblings of siblingGroups.values()) {
+    for (const element of applyPredicates(siblings, predicates)) kept.add(element);
+  }
+  return elements.filter((element) => kept.has(element));
 }
