@@ -23,11 +23,34 @@ import { snapshotEnv, renderInlineWarning } from "./welcomeStatus.js";
 import { isFirstRun, markFirstRunComplete } from "./welcomeState.js";
 import { welcomeEnabled } from "./welcome/index.js";
 import { abortActiveRun } from "../framework/activeRunCleanup.js";
+import { getActiveRun } from "./liveRun.js";
 
 export type ReplOptions = {
   /** Suppress banner, welcome, and any inline warnings. Output is just the prompt. */
   quiet?: boolean;
 };
+
+/**
+ * Silence readline's own echo (it writes each keystroke and the prompt to
+ * output through `_writeToOutput`, the documented-by-convention hook used for
+ * password prompts). Returns a function that restores echo and clears any
+ * input typed meanwhile.
+ */
+export function muteReadlineEcho(rl: readline.Interface): () => void {
+  const target = rl as unknown as { _writeToOutput?: (text: string) => void; line: string };
+  const original = target._writeToOutput;
+  if (typeof original !== "function") return () => {};
+  target._writeToOutput = () => {};
+  return () => {
+    target._writeToOutput = original;
+    // Ctrl-U only deletes left of the cursor: jump to the end first, or a
+    // suffix typed before an arrow key would reappear at the prompt.
+    if (target.line) {
+      rl.write(null, { ctrl: true, name: "e" });
+      rl.write(null, { ctrl: true, name: "u" });
+    }
+  };
+}
 
 export async function startRepl(entryDir: string, options: ReplOptions = {}): Promise<void> {
   const quiet = options.quiet === true;
@@ -159,12 +182,23 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
 
   const abortImmediately = (): void => {
     if (!abortRef.current) return;
-    console.log(red("\n  ✗ Aborting immediately…"));
+    // A live board shows the stop itself; printing would break its redraw.
+    const board = getActiveRun();
+    if (board) board.setStopping("aggressive");
+    else console.log(red("\n  ✗ Aborting immediately…"));
     void abortActiveRun(abortRef.current, "aggressive");
   };
 
-  const onKeypress = (_str: string, key: { name?: string } | undefined): void => {
-    if (!key || key.name !== "escape") return;
+  const onKeypress = (str: string, key: { name?: string } | undefined): void => {
+    if (key?.name !== "escape") {
+      // During a run, plain keys go to the live board (`v` logs, `?` help).
+      // Ctrl/Meta chords stay with readline: Ctrl+C is its SIGINT path.
+      const chord = (key as { ctrl?: boolean; meta?: boolean } | undefined) ?? {};
+      if (abortRef.current && !chord.ctrl && !chord.meta) {
+        getActiveRun()?.onKey?.(key?.name ?? str);
+      }
+      return;
+    }
     if (!abortRef.current) {
       // Idle Esc: pop one level if we're inside a context.
       if (contextPath.length > 0) {
@@ -181,9 +215,12 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     if (isDouble) {
       abortImmediately();
     } else {
-      console.log(
-        yellow("\n  ⚠ Aborting after current task… (press Esc again to abort immediately)"),
-      );
+      const board = getActiveRun();
+      if (board) board.setStopping("cooperative");
+      else
+        console.log(
+          yellow("\n  ⚠ Aborting after current task… (press Esc again to abort immediately)"),
+        );
       void abortActiveRun(abortRef.current, "cooperative");
     }
   };
@@ -196,6 +233,19 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     else rl.close();
   });
 
+  // While a command runs, readline must not echo keystrokes: a typed `v`
+  // would land on the live board. Anything typed is discarded afterwards.
+  const dispatchMuted = async (tokens: string[]): Promise<void> => {
+    const unmute = muteReadlineEcho(rl);
+    try {
+      await dispatch(tree, tokens, ctx);
+    } catch (err) {
+      console.error(red(`  Error: ${(err as Error).message}`));
+    } finally {
+      unmute();
+    }
+  };
+
   rl.on("line", async (line) => {
     const trimmed = line.trim();
     if (!trimmed) {
@@ -204,13 +254,7 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
       return;
     }
 
-    const tokens = tokenize(trimmed);
-
-    try {
-      await dispatch(tree, tokens, ctx);
-    } catch (err) {
-      console.error(red(`  Error: ${(err as Error).message}`));
-    }
+    await dispatchMuted(tokenize(trimmed));
 
     rl.setPrompt(renderPrompt(contextPath));
     rl.prompt();
@@ -226,11 +270,7 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
   // promised — after every listener is in place, so Ctrl+C mid-run behaves
   // exactly as it does for a typed command.
   if (pendingHandoff) {
-    try {
-      await dispatch(tree, tokenize(pendingHandoff), ctx);
-    } catch (err) {
-      console.error(red(`  Error: ${(err as Error).message}`));
-    }
+    await dispatchMuted(tokenize(pendingHandoff));
     rl.setPrompt(renderPrompt(contextPath));
   }
   rl.prompt();

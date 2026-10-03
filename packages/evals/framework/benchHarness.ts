@@ -1,5 +1,6 @@
 import { V3, normalizeRubric, type AvailableModel, type TaskSpec } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
+import { reportRowPhase } from "./rowContext.js";
 import type { EvalLogger } from "../logger.js";
 import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
@@ -157,6 +158,7 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
           logger,
         });
         const preparedAdapter = toolAdapter;
+        reportRowPhase("agent");
         return await withHarnessAgentSpan(
           {
             harness,
@@ -237,7 +239,7 @@ export const stagehandHarness: BenchHarness = {
   async start({ task, input, row, logger }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
     if (row.config.harness !== "stagehand") {
       throw new EvalsError(
-        `Harness "${row.config.harness}" is not implemented yet. Use --harness stagehand for the current unified runner.`,
+        `Harness "${row.config.harness}" cannot be started by the stagehand runner. Use ${formatBenchHarnessFlags()}.`,
       );
     }
     const config = row.config;
@@ -399,7 +401,7 @@ export function getBenchHarness(harness: Harness): BenchHarness {
   const implementation = harnessRegistry.get(harness);
   if (!implementation) {
     throw new EvalsError(
-      `Harness "${harness}" is not implemented yet. Use --harness stagehand for the current unified runner.`,
+      `Unknown harness "${harness}". Registered: ${listBenchHarnesses().join(", ")}.`,
     );
   }
   return implementation;

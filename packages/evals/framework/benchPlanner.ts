@@ -27,6 +27,16 @@ import {
   resolveOptionalStartupProfile,
   resolveToolSurface,
 } from "./harnesses/toolSurfaceResolution.js";
+import { benchSuiteTaskName, listBenchSuiteTaskNames, type BenchSuiteName } from "./benchSuites.js";
+
+/** Suite builders keyed by short name; `satisfies` keeps this in lockstep with benchSuites.ts. */
+const SUITE_BUILDERS = {
+  webvoyager: (models: AgentModelEntry[]) => buildWebVoyagerTestcases(models),
+  onlineMind2Web: (models: AgentModelEntry[]) => buildOnlineMind2WebTestcases(models),
+  webtailbench: (models: AgentModelEntry[]) => buildWebTailBenchTestcases(models),
+  hardbenchmark: (models: AgentModelEntry[]) => buildHardBenchmarkTestcases(models),
+  odysseysbench: (models: AgentModelEntry[]) => buildOdysseysBenchTestcases(models),
+} satisfies Record<BenchSuiteName, (models: AgentModelEntry[]) => Testcase[]>;
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
@@ -242,7 +252,7 @@ export function generateBenchTestcases(
         .sort()
         .join(", ");
       throw new EvalsError(
-        `Harness "${harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/hardbenchmark, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
+        `Harness "${harness}" only supports agent benchmark suites: ${listBenchSuiteTaskNames().join(", ")}. Unsupported task(s): ${unsupported}.`,
       );
     }
     return allTestcases;
@@ -296,18 +306,12 @@ export function generateSuiteTestcases(
   const remaining = [...benchTasks];
   const datasetFilter = options.datasetFilter;
 
-  const suiteMap: Record<string, (models: AgentModelEntry[]) => Testcase[]> = {
-    "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
-    "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
-    "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
-    "agent/hardbenchmark": (models) => buildHardBenchmarkTestcases(models),
-    "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
-  };
-
-  for (const [suiteName, builder] of Object.entries(suiteMap)) {
+  for (const [datasetName, builder] of Object.entries(SUITE_BUILDERS) as Array<
+    [BenchSuiteName, (models: AgentModelEntry[]) => Testcase[]]
+  >) {
+    const suiteName = benchSuiteTaskName(datasetName);
     const idx = remaining.findIndex((t) => t.name === suiteName);
     if (idx === -1) continue;
-    const datasetName = suiteName.split("/").pop();
     if (!datasetFilter || datasetFilter === datasetName) {
       const task = remaining[idx];
       testcases.push(
