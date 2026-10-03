@@ -12,8 +12,8 @@ describe("tool surface resolution", () => {
     expect(resolveToolSurface(stagehandHarness, "understudy_code")).toBe("understudy_code");
   });
 
-  it("defaults to the first supported surface and accepts supported requests", () => {
-    expect(resolveToolSurface(claudeCodeHarness)).toBe("browse_cli");
+  it("defaults to the facade when supported and accepts supported requests", () => {
+    expect(resolveToolSurface(claudeCodeHarness)).toBe("stagehand_facade");
     expect(resolveToolSurface(claudeCodeHarness, "cdp_code")).toBe("cdp_code");
   });
 
