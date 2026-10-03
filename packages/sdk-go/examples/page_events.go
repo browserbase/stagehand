@@ -38,7 +38,7 @@ func runPageEvents(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	model := stagehand.ModelConfig{ModelName: "openai/gpt-6.1-sol", APIKey: &modelAPIKey}
+	model := stagehand.ModelConfig{ModelName: "openai/gpt-6-luna", APIKey: &modelAPIKey}
 	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
 	if err != nil {
 		return err

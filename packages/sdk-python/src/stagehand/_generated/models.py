@@ -1322,8 +1322,8 @@ class ModelConfig(WireModel):
     """
     headers: Optional[dict[StrictStr, StrictStr]] = None
     """Custom headers sent with every request to the model provider"""
-    model_name: Annotated[ModelName, Field(examples=["openai/gpt-6.1-sol"])]
-    """Example: 'openai/gpt-6.1-sol'"""
+    model_name: Annotated[ModelName, Field(examples=["openai/gpt-6-luna"])]
+    """Example: 'openai/gpt-6-luna'"""
 
 
 class MouseButton(StrEnum):

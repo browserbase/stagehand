@@ -75,7 +75,7 @@ describe("pi runner", () => {
     const customTool = { name: "test" } as never;
     const result = await runPiAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
       toolAdapter: {
@@ -114,7 +114,7 @@ describe("pi runner", () => {
     };
     const result = await runPiAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
     });

@@ -23,7 +23,7 @@ const companiesSchema = z.object({
 const stagehand = await Stagehand.create({
   browser,
   model: {
-    modelName: "openai/gpt-6.1-sol",
+    modelName: "openai/gpt-6-luna",
     apiKey: OPENAI_API_KEY,
   },
 });

@@ -8,7 +8,6 @@ const HYBRID_CAPABLE_MODEL_PATTERNS = [
   "gpt-5.4",
   "gpt-5.5",
   "gpt-5.6",
-  "gpt-6",
 ] as const;
 
 export function isCuaCapableModel(modelName: string): boolean {

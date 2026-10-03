@@ -83,7 +83,7 @@ async function generateWithOpenAI(params: LLMGenerateParams): Promise<LLMGenerat
     content: messageText(message.content),
   }));
   const response = await openai.responses.create({
-    model: "gpt-6.1-sol",
+    model: "gpt-6-luna",
     instructions: params.systemPrompt,
     input,
     temperature: params.temperature,

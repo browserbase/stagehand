@@ -85,7 +85,7 @@ describe("benchPlanner", () => {
     });
     await withEnvOverrides({ EVAL_FX_MODELS: "" }, async () => {
       expect(resolveBenchModelEntries([makeTask()], { harness: "fx" }).modelEntries).toEqual([
-        { modelName: "openai/gpt-6.1-sol", mode: "hybrid", cua: false },
+        { modelName: "openai/gpt-5.4-mini", mode: "hybrid", cua: false },
       ]);
     });
   });
@@ -225,14 +225,14 @@ describe("benchPlanner", () => {
       },
       async () =>
         generateBenchTestcases([makeSuiteTask("agent/webvoyager")], {
-          modelOverride: "openai/gpt-6.1-sol",
+          modelOverride: "openai/gpt-5.4-mini",
           datasetFilter: "webvoyager",
           harness: "codex",
         }),
     );
 
     expect(testcases).toHaveLength(1);
-    expect(testcases[0].input.modelName).toBe("openai/gpt-6.1-sol");
+    expect(testcases[0].input.modelName).toBe("openai/gpt-5.4-mini");
     expect(testcases[0].input.agentMode).toBeUndefined();
     expect(testcases[0].input.isCUA).toBeUndefined();
     expect(testcases[0].tags).toContain("harness/codex");
