@@ -98,6 +98,7 @@ export type {
   PageSnapshotOptions,
   RgbaColor,
   SnapshotResult,
+  StagehandLog,
   StagehandMetrics,
   StagehandResultMetadata,
   StagehandResultUsage,
