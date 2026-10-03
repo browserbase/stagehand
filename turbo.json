@@ -94,6 +94,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "@browserbasehq/stagehand-integrations-pydantic-ai-sdk#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -247,6 +252,16 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
+    "@browserbasehq/stagehand-integrations-pydantic-ai-sdk#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-pydantic-ai-sdk#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
     "@browserbasehq/eve#typecheck": {
       "dependsOn": ["^build"],
       "inputs": [
@@ -298,6 +313,9 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-cursor-sdk#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-pydantic-ai-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
