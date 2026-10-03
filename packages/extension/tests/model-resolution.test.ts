@@ -54,7 +54,7 @@ describe("model configuration", () => {
   describe("provider model names", () => {
     it.each([
       "openai/gpt-6-astra",
-      "anthropic/claude-sonnet-5",
+      "anthropic/claude-sonnet-5-5",
       "google/gemini-3.8-flash",
       "openai/team/custom/model",
     ])("accepts an opaque model ID under a registered provider: %s", (modelName) => {
@@ -90,12 +90,12 @@ describe("model configuration", () => {
     it("accepts a known model with provider credentials and headers", () => {
       expect(
         ModelConfigSchema.parse({
-          modelName: "openai/gpt-5.4-mini",
+          modelName: "openai/gpt-6.1-sol",
           apiKey: "sk-test",
           headers: { "x-tenant-id": "tenant-123" },
         }),
       ).toEqual({
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6.1-sol",
         apiKey: "sk-test",
         headers: { "x-tenant-id": "tenant-123" },
       });
@@ -104,7 +104,7 @@ describe("model configuration", () => {
     it("rejects an empty model API key", () => {
       expect(
         ModelConfigSchema.safeParse({
-          modelName: "openai/gpt-5.4-mini",
+          modelName: "openai/gpt-6.1-sol",
           apiKey: "",
         }).success,
       ).toBe(false);
@@ -113,7 +113,7 @@ describe("model configuration", () => {
     it("rejects the removed provider and provider options fields", () => {
       expect(
         ModelConfigSchema.safeParse({
-          modelName: "openai/gpt-5.4-mini",
+          modelName: "openai/gpt-6.1-sol",
           provider: "openai",
           providerOptions: {},
         }).success,

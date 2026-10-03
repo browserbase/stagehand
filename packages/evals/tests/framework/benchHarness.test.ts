@@ -64,7 +64,7 @@ describe("bench harness registry", () => {
     expect(harness.execute).toBeDefined();
     expect(harness.start).toBeUndefined();
     expect(harness.supportedToolSurfaces[0]).toBe("browse_cli");
-    expect(harness.defaultModels).toEqual(["anthropic/claude-sonnet-4-6"]);
+    expect(harness.defaultModels).toEqual(["anthropic/claude-sonnet-5-5"]);
   });
 
   it("registers codex as a concrete executable harness", () => {
@@ -74,7 +74,7 @@ describe("bench harness registry", () => {
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
     expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
-    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-6.1-sol"]);
   });
 
   it("registers mastra as a concrete executable harness", () => {
@@ -90,7 +90,7 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces).toEqual(MASTRA_TOOL_SURFACES);
     expect(harness.supportedToolSurfaces[0]).toBe("stagehand_facade");
     expect(listBenchHarnessesForToolSurface("stagehand_facade")).toContain("mastra");
-    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-6.1-sol"]);
   });
 
   it("registers pi as a concrete executable harness", () => {
@@ -106,7 +106,7 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces).toEqual(PI_TOOL_SURFACES);
     expect(harness.supportedToolSurfaces[0]).toBe("stagehand_facade");
     expect(harness.supportedToolSurfaces).not.toContain("browse_cli");
-    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-6.1-sol"]);
   });
 
   it("registers eve as a concrete executable harness", () => {
@@ -124,7 +124,7 @@ describe("bench harness registry", () => {
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
-    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-6.1-sol"]);
     expect(defaultModelsEnvKey("eve")).toBe("EVAL_EVE_MODELS");
   });
 
@@ -142,7 +142,7 @@ describe("bench harness registry", () => {
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
-    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-6.1-sol"]);
     expect(isExecutableBenchHarness("deepagents")).toBe(true);
   });
 
@@ -159,7 +159,7 @@ describe("bench harness registry", () => {
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);
-    expect(harness.defaultModels).toEqual(["openai/gpt-5.4-mini"]);
+    expect(harness.defaultModels).toEqual(["openai/gpt-6.1-sol"]);
     expect(isExecutableBenchHarness("fx")).toBe(true);
   });
 

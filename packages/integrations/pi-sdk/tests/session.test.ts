@@ -117,7 +117,7 @@ describe("pi SDK session", () => {
     });
     const result = await runPiSession({
       prompt: "task",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-6.1-sol",
       sdk: fake.sdk,
       logger,
       session: {
@@ -329,7 +329,7 @@ describe("pi SDK session", () => {
     ]);
     const result = await runPiSession({
       prompt: "task",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-6.1-sol",
       sdk: fake.sdk,
       logger: { ...logger, log },
       session: {},
@@ -362,7 +362,7 @@ describe("pi SDK session", () => {
   });
 
   it("normalizes models, MCP names/results, code tools, and statuses", async () => {
-    expect(normalizePiModel("pi/default")).toBe("openai/gpt-5.4-mini");
+    expect(normalizePiModel("pi/default")).toBe("openai/gpt-6.1-sol");
     expect(normalizePiModel("google/gemini-2.5-pro")).toBe("google/gemini-2.5-pro");
     expect(buildPiMcpToolName("stage.hand", "take shot")).toBe("mcp__stage_hand__take_shot");
     expect(isPiMcpToolName("mcp__stage_hand__run", "stage.hand")).toBe(true);

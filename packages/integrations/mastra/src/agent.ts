@@ -29,7 +29,7 @@ async function main() {
       instructions: FACADE_AGENT_INSTRUCTIONS,
       model: {
         providerId: "openai",
-        modelId: process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5.6-luna",
+        modelId: process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-6-luna",
       },
       tools,
     });

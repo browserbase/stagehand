@@ -83,7 +83,7 @@ describe("Eve runner helpers", () => {
     ]);
     const result = await runEveAgent({
       plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
+      model: "openai/gpt-6.1-sol" as AvailableModel,
       logger: new EvalLogger(false),
       client,
       serverUrl: "http://eve",
@@ -129,7 +129,7 @@ describe("Eve runner helpers", () => {
 
     const result = await runEveAgent({
       plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
+      model: "openai/gpt-6.1-sol" as AvailableModel,
       logger: new EvalLogger(false),
       client,
       serverUrl: "http://eve",
@@ -179,7 +179,7 @@ describe("Eve runner helpers", () => {
     };
     const result = await runEveAgent({
       plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
+      model: "openai/gpt-6.1-sol" as AvailableModel,
       logger: new EvalLogger(false),
       client,
       serverUrl: "http://eve",
@@ -197,7 +197,7 @@ describe("Eve runner helpers", () => {
     await expect(
       runEveAgent({
         plan,
-        model: "openai/gpt-5.4-mini" as AvailableModel,
+        model: "openai/gpt-6.1-sol" as AvailableModel,
         logger: new EvalLogger(false),
       }),
     ).rejects.toThrow("Eve harness needs a prepared tool adapter (generated app) or a serverUrl.");

@@ -84,7 +84,7 @@ describe("codex runner helpers", () => {
 
     const result = await runCodexAgent({
       plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
+      model: "openai/gpt-6.1-sol" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
       toolAdapter: {
@@ -107,7 +107,7 @@ describe("codex runner helpers", () => {
     expect(result.codexStatus).toBe("completed");
     expect(result.finalAnswer).toBe("ok");
     expect(capturedThreadOptions).toMatchObject({
-      model: "gpt-5.4-mini",
+      model: "gpt-6.1-sol",
       workingDirectory: "/tmp/stagehand-evals-test",
       skipGitRepoCheck: true,
       sandboxMode: "read-only",
@@ -156,7 +156,7 @@ describe("codex runner helpers", () => {
 
     const result = await runCodexAgent({
       plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
+      model: "openai/gpt-6.1-sol" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
     });
@@ -177,7 +177,7 @@ describe("codex runner helpers", () => {
 
     const result = await runCodexAgent({
       plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
+      model: "openai/gpt-6.1-sol" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
     });
@@ -200,7 +200,7 @@ describe("codex runner helpers", () => {
 
     const result = await runCodexAgent({
       plan,
-      model: "openai/gpt-5.4-mini" as AvailableModel,
+      model: "openai/gpt-6.1-sol" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
     });

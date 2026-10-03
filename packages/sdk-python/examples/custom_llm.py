@@ -104,7 +104,7 @@ async def generate_with_openai(params: LLMGenerateInput) -> LLMGenerateOutput:
         openai_format["description"] = response_format.description
     text = ResponseTextConfigParam(format=openai_format)
     response = await openai.responses.create(
-        model="gpt-5.4-mini",
+        model="gpt-6.1-sol",
         instructions=request.system_prompt,
         input=[
             {
