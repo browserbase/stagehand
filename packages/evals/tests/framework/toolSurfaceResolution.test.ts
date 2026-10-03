@@ -19,7 +19,7 @@ describe("tool surface resolution", () => {
 
   it("rejects unsupported surfaces with the full supported list", () => {
     expect(() => resolveToolSurface(claudeCodeHarness, "understudy_code")).toThrow(
-      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
+      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, stagehand_facade, or stagehand_facade_legacy; received "understudy_code"/,
     );
   });
 });
