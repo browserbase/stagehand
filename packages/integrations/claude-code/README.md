@@ -30,7 +30,7 @@ pnpm --filter @browserbasehq/stagehand-integrations-example-claude-code-facade s
 | ------------------------ | ------------------------------------------------------------------------------------------------ |
 | `STAGEHAND_BROWSER`      | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
 | `BROWSERBASE_API_KEY`    | Browserbase credential for the browser session.                                                  |
-| `CLAUDE_STAGEHAND_MODEL` | Agent model; defaults to `claude-sonnet-5-5`.                                                      |
+| `CLAUDE_STAGEHAND_MODEL` | Agent model; defaults to `claude-sonnet-5-5`.                                                    |
 | `ANTHROPIC_API_KEY`      | Claude Agent SDK credential (never forwarded to the browser).                                    |
 
 The agent is restricted to the three `mcp__stagehand__*` tools (`allowedTools` plus a
