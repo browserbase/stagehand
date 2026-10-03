@@ -121,12 +121,12 @@ class StagehandBrowser:
         "_attachment",
         "_claimed",
         "_close_callback",
-        "_invalidate_callback",
-        "_terminal_task",
         "_context",
+        "_invalidate_callback",
         "_origin",
         "_provider",
         "_session_id",
+        "_terminal_task",
     )
 
     def __init__(
@@ -336,7 +336,7 @@ async def _connect_browser(
             raise
         for cleanup_error in cleanup_errors:
             if not isinstance(cleanup_error, Exception):
-                raise cleanup_error
+                raise cleanup_error from error
         if cleanup_errors:
             raise BaseExceptionGroup(
                 "Browser connection failed and browser cleanup also failed",

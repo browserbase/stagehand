@@ -128,7 +128,7 @@ async def test_response_surfaces_finished_failures_transport_errors_and_malforme
     finished_error = await response.finished()
     assert isinstance(finished_error, RuntimeError)
     assert str(finished_error) == "net::ERR_FAILED"
-    with pytest.raises(ValueError, match="response.body returned invalid base64"):
+    with pytest.raises(ValueError, match=r"response.body returned invalid base64"):
         await response.body()
     with pytest.raises(RuntimeError, match="handle unavailable"):
         await response.all_headers()
@@ -139,7 +139,7 @@ async def test_response_rejects_noncanonical_base64_pad_bits() -> None:
     recording = RecordingRPCClient({"response.body": {"body": "Zh==", "base64_encoded": True}})
     response = Response(cast(RPCClient, recording), descriptor())
 
-    with pytest.raises(ValueError, match="response.body returned invalid base64"):
+    with pytest.raises(ValueError, match=r"response.body returned invalid base64"):
         await response.body()
 
 

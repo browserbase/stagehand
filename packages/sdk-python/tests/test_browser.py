@@ -800,13 +800,13 @@ async def test_browserbase_validation_precedes_api_calls(
     _, api_keys = _install_browserbase_client(monkeypatch)
     with pytest.raises(ValueError, match="api_key"):
         await browserbase.launch(api_key="")
-    with pytest.raises(ValueError, match="^base_url must not be empty$"):
+    with pytest.raises(ValueError, match=r"^base_url must not be empty$"):
         await browserbase.launch(api_key="api-key", base_url="  ")
-    with pytest.raises(ValueError, match="^extension_id must not be empty$"):
+    with pytest.raises(ValueError, match=r"^extension_id must not be empty$"):
         await browserbase.launch(api_key="api-key", extension_id="  ")
     with pytest.raises(
         ValueError,
-        match="^browser_settings.extension_id must not be empty$",
+        match=r"^browser_settings.extension_id must not be empty$",
     ):
         await browserbase.launch(
             api_key="api-key",
@@ -987,7 +987,7 @@ async def test_invalid_explicit_executable_precedes_profile_creation(
 
     monkeypatch.setattr(browser.tempfile, "mkdtemp", create_profile)
 
-    with pytest.raises(RuntimeError, match="Chrome executable.*does not exist"):
+    with pytest.raises(RuntimeError, match=r"Chrome executable.*does not exist"):
         await _launch_local_browser(LocalBrowserLaunchOptions(executable_path="/missing/chrome"))
 
 

@@ -251,7 +251,7 @@ async def test_page_pdf_preserves_omitted_and_empty_options(
 async def test_page_on_rejects_unsupported_events_before_subscribing(event: str) -> None:
     recording = RecordingRPCClient({})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
-    with pytest.raises(ValueError, match='page.on only supports "console" events'):
+    with pytest.raises(ValueError, match=r'page.on only supports "console" events'):
         await page.on(cast(PageEventName, event), lambda _: None)
     assert recording.calls == []
     assert recording.notifications == {}
@@ -618,7 +618,7 @@ async def test_unsubscribe_retries_after_page_off_failure() -> None:
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     subscription = await page.on("console", lambda _: None)
 
-    with pytest.raises(RuntimeError, match="temporary page.off failure"):
+    with pytest.raises(RuntimeError, match=r"temporary page.off failure"):
         await subscription.unsubscribe()
     assert "page.cdp_event" in recording.notifications
 
