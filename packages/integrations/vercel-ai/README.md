@@ -28,7 +28,7 @@ Configure the environment as needed:
 | `BROWSERBASE_API_KEY`     | Browserbase API key.                                                                                                                                                                                              |
 | `STAGEHAND_MODEL_NAME`    | Model used by the facade server.                                                                                                                                                                                  |
 | `STAGEHAND_MODEL_API_KEY` | API key for the facade server model.                                                                                                                                                                              |
-| `AI_SDK_STAGEHAND_MODEL`  | AI SDK agent model; defaults to `gpt-6-luna`.                                                                                                                                                                   |
+| `AI_SDK_STAGEHAND_MODEL`  | AI SDK agent model; defaults to `gpt-6-luna`.                                                                                                                                                                     |
 | `OPENAI_API_KEY`          | Used by the AI SDK agent model in the host process. It is not forwarded: it is neither allowlisted nor one of the host variables (`HOME`, `LOGNAME`, `PATH`, `SHELL`, `TERM`, `USER`) inherited by the transport. |
 
 ## Run
