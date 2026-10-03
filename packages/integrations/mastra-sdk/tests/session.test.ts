@@ -69,7 +69,7 @@ describe("Mastra SDK session", () => {
   it("normalizes provider-prefixed, bare, and default models", () => {
     expect(normalizeMastraModel("anthropic/claude-sonnet-4-6")).toBe("anthropic/claude-sonnet-4-6");
     expect(normalizeMastraModel("gpt-5.4")).toBe("openai/gpt-5.4");
-    expect(normalizeMastraModel("mastra/default")).toBe("openai/gpt-6.1-sol");
+    expect(normalizeMastraModel("mastra/default")).toBe("openai/gpt-6-luna");
   });
 
   it("forwards agent and stream options and merges MCP tools", async () => {
@@ -107,7 +107,7 @@ describe("Mastra SDK session", () => {
   it("collects final text after the last tool call and finish usage", async () => {
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       sdk: fakeSdk({
         events: [
@@ -155,7 +155,7 @@ describe("Mastra SDK session", () => {
     const observed: string[] = [];
     await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       sdk: fakeSdk({
         events: [
@@ -177,7 +177,7 @@ describe("Mastra SDK session", () => {
     const warn = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger: { ...logger, warn },
       sdk: fakeSdk({
         discoveryErrors: {
@@ -222,7 +222,7 @@ describe("Mastra SDK session", () => {
     const disconnect = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       sdk: fakeSdk({ streamError: new Error("stream failed"), disconnect }),
       session: { mcpServers: { stagehand: { command: "node" } } },
@@ -235,7 +235,7 @@ describe("Mastra SDK session", () => {
   it("maps a tool-calls finish reason to max_turns", async () => {
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       sdk: fakeSdk({
         events: [
@@ -260,7 +260,7 @@ describe("Mastra SDK session", () => {
     const log = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger: { ...logger, log },
       sdk: fakeSdk({
         events: [
@@ -296,7 +296,7 @@ describe("Mastra SDK session", () => {
     const log = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger: { ...logger, log },
       sdk: fakeSdk({
         events: [
@@ -359,7 +359,7 @@ describe("Mastra SDK session", () => {
     const createAgent = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       signal: caller.signal,
       sdk: fakeSdk({
@@ -379,7 +379,7 @@ describe("Mastra SDK session", () => {
     const warn = vi.fn();
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger: { ...logger, warn },
       sdk: fakeSdk({ disconnect: () => new Promise(() => {}) }),
       session: {
@@ -396,7 +396,7 @@ describe("Mastra SDK session", () => {
     let streamSignal: AbortSignal | undefined;
     const pending = runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       signal: caller.signal,
       sdk: fakeSdk({
@@ -414,7 +414,7 @@ describe("Mastra SDK session", () => {
   it("sanitizes the returned final text", async () => {
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       sdk: fakeSdk({
         events: [
@@ -453,7 +453,7 @@ describe("Mastra token usage presence", () => {
     async ({ finish, expectedInput, reported }) => {
       const result = await runMastraSession({
         prompt: "task",
-        model: "gpt-6.1-sol",
+        model: "gpt-6-luna",
         logger,
         session: {},
         sdk: fakeSdk({
@@ -475,7 +475,7 @@ describe("Mastra token usage presence", () => {
   it("does not invent usage on an empty stream", async () => {
     const result = await runMastraSession({
       prompt: "task",
-      model: "gpt-6.1-sol",
+      model: "gpt-6-luna",
       logger,
       session: {},
       sdk: fakeSdk({ events: [] }),

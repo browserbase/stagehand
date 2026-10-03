@@ -51,7 +51,7 @@ describe("fx runner helpers", () => {
     });
     const result = await runFxAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.6-sol" as AvailableModel,
       logger: new EvalLogger(false),
       toolAdapter: {
         toolSurface: "stagehand_facade",
@@ -104,7 +104,7 @@ describe("fx runner helpers", () => {
   it("returns a failed task result with sdk_error status when fx cannot start", async () => {
     const result = await runFxAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.6-sol" as AvailableModel,
       logger: new EvalLogger(false),
       toolAdapter: {
         toolSurface: "stagehand_facade",
@@ -135,7 +135,7 @@ describe("fx runner helpers", () => {
   it("does not trust structured success output from a failed fx session", async () => {
     const result = await runFxAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.6-sol" as AvailableModel,
       logger: new EvalLogger(false),
       toolAdapter: {
         toolSurface: "stagehand_facade",

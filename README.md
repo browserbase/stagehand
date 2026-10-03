@@ -58,7 +58,7 @@ import { z } from "zod/v4";
 const browser = await localBrowser.launch({ userDataDir: "./browser-data" });
 const stagehand = await Stagehand.create({
   browser,
-  model: { modelName: "openai/gpt-6.1-sol", apiKey: process.env.OPENAI_API_KEY },
+  model: { modelName: "openai/gpt-6-luna", apiKey: process.env.OPENAI_API_KEY },
 });
 
 const [page] = await browser.context.pages();
@@ -115,7 +115,7 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(
             browser=browser,
-            model="openai/gpt-6.1-sol",
+            model="openai/gpt-6-luna",
             model_api_key=os.environ["OPENAI_API_KEY"],
         )
         try:
@@ -195,7 +195,7 @@ func run(ctx context.Context) (err error) {
 	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 		Browser: browser,
 		Model: &stagehand.ModelConfig{
-			ModelName: "openai/gpt-6.1-sol",
+			ModelName: "openai/gpt-6-luna",
 			APIKey:    &modelAPIKey,
 		},
 	})

@@ -166,23 +166,13 @@ type ModelPricing = {
 };
 
 const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
-  ["anthropic/claude-sonnet-5-5", { input: 2, cachedInput: 0.2, output: 10 }],
-  ["claude-sonnet-5-5", { input: 2, cachedInput: 0.2, output: 10 }],
+  // Standard (non-introductory) Sonnet 5 pricing. NOTE: introductory pricing
+  // ($2 / $0.20 cached / $10 per 1M) applies through 2026-08-31, so costs
+  // published before then are overstated ~1.5x; standard rates are used
+  // deliberately to keep the dashboard stable across the cutover.
   ["anthropic/claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
   ["claude-sonnet-5", { input: 3, cachedInput: 0.3, output: 15 }],
-  ["anthropic/claude-opus-5-5", { input: 4, cachedInput: 0.2, output: 20 }],
-  ["claude-opus-5-5", { input: 4, cachedInput: 0.2, output: 20 }],
-  ["anthropic/claude-fable-5-1", { input: 10, cachedInput: 0.25, output: 50 }],
-  ["claude-fable-5-1", { input: 10, cachedInput: 0.25, output: 50 }],
-  // GPT-6 and GPT-5.6 tiers per OpenAI pricing (2026-10).
-  ["openai/gpt-6-astra", { input: 10, cachedInput: 1, output: 50 }],
-  ["gpt-6-astra", { input: 10, cachedInput: 1, output: 50 }],
-  ["openai/gpt-6.1-sol", { input: 2, cachedInput: 0.1, output: 10 }],
-  ["gpt-6.1-sol", { input: 2, cachedInput: 0.1, output: 10 }],
-  ["openai/gpt-6-sol", { input: 2, cachedInput: 0.2, output: 10 }],
-  ["gpt-6-sol", { input: 2, cachedInput: 0.2, output: 10 }],
-  ["openai/gpt-6-luna", { input: 0.1, cachedInput: 0.01, output: 0.5 }],
-  ["gpt-6-luna", { input: 0.1, cachedInput: 0.01, output: 0.5 }],
+  // GPT-5.6 tiers per OpenAI pricing (2026-07).
   ["openai/gpt-5.6-sol", { input: 5, cachedInput: 0.5, output: 30 }],
   ["gpt-5.6-sol", { input: 5, cachedInput: 0.5, output: 30 }],
   ["openai/gpt-5.6-terra", { input: 2.5, cachedInput: 0.25, output: 15 }],
@@ -216,8 +206,6 @@ const MODEL_PRICING_USD_PER_1M_TOKENS = new Map<string, ModelPricing>([
   ["gpt-5.4", { input: 2.5, cachedInput: 0.25, output: 15 }],
   ["openai/gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
   ["gpt-5.4-mini", { input: 0.75, cachedInput: 0.075, output: 4.5 }],
-  ["google/gemini-3.8-flash", { input: 0.75, cachedInput: 0.075, output: 3.75 }],
-  ["gemini-3.8-flash", { input: 0.75, cachedInput: 0.075, output: 3.75 }],
   ["google/gemini-3-flash-preview", { input: 0.5, cachedInput: 0.05, output: 3 }],
   ["gemini-3-flash-preview", { input: 0.5, cachedInput: 0.05, output: 3 }],
   [

@@ -45,10 +45,10 @@ def test_sanitize_error_redacts_browserbase_credentials() -> None:
 
 
 def test_runtime_config_accepts_stagehand_byok(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("STAGEHAND_MODEL", "openai/gpt-6.1-sol")
+    monkeypatch.setenv("STAGEHAND_MODEL", "openai/gpt-6-luna")
     monkeypatch.setenv("STAGEHAND_MODEL_API_KEY", "provider-key")
     config = RuntimeConfig.from_env()
-    assert config.stagehand_model == "openai/gpt-6.1-sol"
+    assert config.stagehand_model == "openai/gpt-6-luna"
     assert config.stagehand_model_api_key == "provider-key"
 
 

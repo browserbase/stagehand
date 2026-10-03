@@ -86,7 +86,7 @@ describe("Mastra runner", () => {
     );
     const result = await runMastraAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
       toolAdapter: {
@@ -103,7 +103,7 @@ describe("Mastra runner", () => {
     expect(result.harnessStatus).toBe("completed");
     expect(result.mastraStatus).toBe("completed");
     expect(result.finalAnswer).toBe("ok");
-    expect(agentConfig).toMatchObject({ model: "openai/gpt-6.1-sol" });
+    expect(agentConfig).toMatchObject({ model: "openai/gpt-5.4-mini" });
     expect(agentConfig?.instructions).not.toBe("Use Stagehand.");
     expect(streamOptions).toMatchObject({ maxSteps: 50 });
     expect(mcpServers?.stagehand).toMatchObject({ command: "node", onToolError: "return" });
@@ -120,7 +120,7 @@ describe("Mastra runner", () => {
     const sdk = fakeSdk([], { streamError: new Error("mastra failed") });
     const result = await runMastraAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
     });
@@ -141,7 +141,7 @@ describe("Mastra runner", () => {
     ]);
     const result = await runMastraAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
       logger: new EvalLogger(false),
       sdk,
     });

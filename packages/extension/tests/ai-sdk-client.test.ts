@@ -21,8 +21,8 @@ describe("AI SDK language models", () => {
   it.each([
     {
       name: "OpenAI",
-      modelName: "openai/gpt-6.1-sol" as const,
-      modelId: "gpt-6.1-sol",
+      modelName: "openai/gpt-6-luna" as const,
+      modelId: "gpt-6-luna",
       provider: "openai.responses",
     },
     {
@@ -65,7 +65,7 @@ describe("AI SDK language models", () => {
   it("uses Chat Completions for OpenAI requests with stop sequences", () => {
     const model = createAiSdkLanguageModel(
       {
-        modelName: "openai/gpt-6.1-sol",
+        modelName: "openai/gpt-6-luna",
         apiKey: "provider-secret",
       },
       { stopSequences: ["STOP"] },
@@ -73,7 +73,7 @@ describe("AI SDK language models", () => {
 
     expect(model).toMatchObject({
       provider: "openai.chat",
-      modelId: "gpt-6.1-sol",
+      modelId: "gpt-6-luna",
     });
   });
 
@@ -178,7 +178,7 @@ describe("AI SDK language models", () => {
 
     await llmService.generate(
       {
-        modelName: "openai/gpt-6.1-sol",
+        modelName: "openai/gpt-6-luna",
         apiKey: "provider-secret",
       },
       {
@@ -191,7 +191,7 @@ describe("AI SDK language models", () => {
       expect.objectContaining({
         model: expect.objectContaining({
           provider: "openai.responses",
-          modelId: "gpt-6.1-sol",
+          modelId: "gpt-6-luna",
         }),
       }),
     );
@@ -231,7 +231,7 @@ describe("AI SDK language models", () => {
 
     await llmService.generate(
       {
-        modelName: "openai/gpt-6.1-sol",
+        modelName: "openai/gpt-6-luna",
         apiKey: "provider-secret",
       },
       {

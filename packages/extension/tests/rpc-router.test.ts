@@ -310,7 +310,7 @@ describe("Stagehand RPC router", () => {
       clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       logLevel: "info",
-      model: { modelName: "openai/gpt-6.1-sol", apiKey: "test" },
+      model: { modelName: "openai/gpt-6-luna", apiKey: "test" },
       telemetry: { traces: { endpoint: "https://collector.test/v1/traces", headers: {} } },
     });
     vi.spyOn(runtime, "resolveUnderstudyPage").mockReturnValue({} as Page);

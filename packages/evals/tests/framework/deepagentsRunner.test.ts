@@ -103,7 +103,7 @@ describe("Deep Agents runner", () => {
     for (const toolSurface of ["playwright_mcp", "stagehand_facade"] as const) {
       await runDeepagentsAgent({
         plan,
-        model: "openai/gpt-6.1-sol" as AvailableModel,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
         logger: new EvalLogger(false),
         toolAdapter: adapter(toolSurface),
         spawn,
@@ -127,7 +127,7 @@ describe("Deep Agents runner", () => {
     const final = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
     const result = await runDeepagentsAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
       logger: new EvalLogger(false),
       spawn: eventSpawner([
         { type: "assistant", text: "working" },
@@ -161,7 +161,7 @@ describe("Deep Agents runner", () => {
   it("returns a failed task result for recursion limits", async () => {
     const result = await runDeepagentsAgent({
       plan,
-      model: "openai/gpt-6.1-sol" as AvailableModel,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
       logger: new EvalLogger(false),
       spawn: eventSpawner([
         { type: "error", kind: "recursion_limit", message: "recursion limit reached" },

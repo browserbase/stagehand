@@ -72,7 +72,7 @@ func modelFromEnvironment() (stagehand.ModelConfig, error) {
 		return stagehand.ModelConfig{}, errors.New("OPENAI_API_KEY is required")
 	}
 	return stagehand.ModelConfig{
-		ModelName: "openai/gpt-6.1-sol",
+		ModelName: "openai/gpt-6-luna",
 		APIKey:    &apiKey,
 	}, nil
 }

@@ -18,12 +18,12 @@ export const PRICES: Record<string, ModelPrice> = {
     source: "https://platform.claude.com/docs/en/about-claude/pricing",
     checkedOn: "2026-09-25",
   },
-  "openai/gpt-6.1-sol": {
-    inputPerMTok: 2,
-    cachedInputPerMTok: 0.1,
-    cacheWritePerMTok: 2.5,
-    outputPerMTok: 10,
-    source: "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+  "openai/gpt-6-luna": {
+    inputPerMTok: 0.1,
+    cachedInputPerMTok: 0.01,
+    cacheWritePerMTok: 0.1,
+    outputPerMTok: 0.5,
+    source: "https://developers.openai.com/api/docs/models/gpt-6-luna",
     checkedOn: "2026-10-03",
   },
 };

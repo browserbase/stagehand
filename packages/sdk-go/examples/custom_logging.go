@@ -29,7 +29,7 @@ func run(ctx context.Context) (err error) {
 	defer func() { err = errors.Join(err, logFile.Close()) }()
 
 	model := stagehand.ModelConfig{
-		ModelName: "openai/gpt-6.1-sol",
+		ModelName: "openai/gpt-6-luna",
 		APIKey:    &apiKey,
 	}
 	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
