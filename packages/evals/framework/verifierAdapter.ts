@@ -27,6 +27,10 @@ import { RubricCache } from "./rubricCache.js";
 import type { TaskResult } from "./types.js";
 import { applyVerdictGates, resolveRequireGrounding, type VerdictGates } from "./verifierGates.js";
 
+import { DEFAULT_VERIFIER_MODEL, resolveVerifierModel } from "./verifierModel.js";
+
+export { DEFAULT_VERIFIER_MODEL, resolveVerifierModel };
+
 /**
  * What scores/result.json holds: the judge's EvaluationResult shape with the
  * gated verdict at the top level, so a reader of result.json alone sees the
@@ -89,10 +93,7 @@ export function buildPersistedEvaluationResult(
   };
 }
 
-const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
-/** Shared default; callers can pin the judge independently. */
-export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.5-flash";
 
 /**
  * Build the shared rubric verifier. EVAL_VERIFIER_MODEL makes the verifier
@@ -101,8 +102,10 @@ export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.5-flash";
  * takes precedence over the environment without mutating process-wide policy.
  */
 export function createVerifierEvaluator(v3: V3, modelOverride?: string): V3Evaluator {
-  const explicitModel = modelOverride?.trim() || process.env[VERIFIER_MODEL_ENV]?.trim();
-  const modelName = explicitModel || DEFAULT_VERIFIER_MODEL;
+  const resolved = resolveVerifierModel();
+  const explicitModel =
+    modelOverride?.trim() || (resolved.source === "env" ? resolved.modelName : undefined);
+  const modelName = explicitModel || resolved.modelName;
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const apiKey = loadApiKeyFromEnv(provider, () => {});
