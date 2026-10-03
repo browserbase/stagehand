@@ -1,15 +1,15 @@
 # Reuse an authenticated session
 
-Run a recurring authenticated job with a Browserbase context. The first run logs into the public test site with `%variable%` credentials. Later runs check authenticated state before deciding whether to log in again. Each run writes `out/login.json` with `authenticated`, `reused`, and the session ID.
+Log in to the public test site and reuse a Browserbase context on later runs. Each run writes `out/login.json` with authentication, reuse, and session details.
 
-Create a context in your Browserbase project and put its ID in `BROWSERBASE_CONTEXT_ID`. Copy `.env.example` to `.env` in a language folder and fill in the API keys. The example includes the public test site's credentials.
+Create a Browserbase context and set `BROWSERBASE_CONTEXT_ID` in a language folder's `.env`. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`. The environment template includes the test site's public login credentials.
 
 - TypeScript: `pnpm install --frozen-lockfile`, then `pnpm start`.
 - Python: `uv sync --locked`, then `uv run --locked python main.py`.
-- Go: export the variables in `.env`, then `go run .`.
+- Go: export `.env` with `set -a; . ./.env; set +a`, then `go run .`.
 
-Run twice, sequentially. The first run should report authentication and the second should report context reuse. A wrong password with a fresh context must fail. A previously authenticated context will skip login even if the password has changed.
+Run twice sequentially with the same context. A fresh context should authenticate; the next run should report reuse. A wrong password fails only when login is needed, so use a fresh test context for that check.
 
-The browser closes after every run, which persists the context. Browser lifetime is capped at five minutes. Only one run may write a given context at a time. Context IDs grant access to saved authenticated state; keep them out of logs and version control. Use a separate context per account and environment.
+Adapt the login URL, protected URL, and authenticated marker together. Credentials use Stagehand variables. The script attempts login once and does not handle MFA. Closing the browser persists the context; browser lifetime is five minutes. Use one writer per context and keep context IDs out of logs and version control.
 
-Adapt the fixed login and protected URLs and the `a[href="/logout"]` marker together for your own application. The marker must prove access to a protected page. This recipe does not automate MFA or solve expired-account problems. It attempts login once and fails when authentication cannot be verified.
+Run `pnpm typecheck` in `typescript/` or `go test ./...` in `go/`.

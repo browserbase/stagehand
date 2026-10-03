@@ -18,7 +18,15 @@ Fill the [httpbin test form](https://httpbin.org/forms/post) in a Browserbase cl
 ## Agent prompt
 
 <Prompt description="Add an approval gate before Stagehand submits a form." icon="robot" actions={["copy"]}>
-Adapt `packages/cookbooks/approve-form-submission` to the form in my project. Keep a Browserbase cloud browser open while the form waits for approval. Fill user values through Stagehand variables. Show the pending action before asking for approval. A rejection must never call submit; an approval must call it once. In TypeScript, use the AI SDK `toolApproval` gate. In Python or Go, use the CLI gate shown in the folder. Check every `act()` result and close Stagehand and the browser even when the action fails. Start with the runnable folder; do not recreate it from this prompt.
+Adapt `packages/cookbooks/approve-form-submission` to my form. Read the README, environment template, and source for my chosen language first. Keep the existing OpenAI setup and approval mechanism: AI SDK in TypeScript, CLI input in Python and Go.
+
+Change the target, fields, expected values, and confirmation check together. Fill through Stagehand variables and check action results. Read actual values, compare them with the request, and show the exact action to the human. Only the human may approve. Rejection must stop without Submit.
+
+Keep the code guard. Recheck values immediately before Submit; changed values invalidate approval. Permit at most one approved attempt and verify confirmation before reporting success. On an ambiguous failure, stop for inspection and never retry automatically. Preserve existing receipts, timeouts, tool limits, session links, and cleanup. The CLI receipt does not support cross-process recovery.
+
+When combining recipes, keep approval directly before the side effect and bind it to the final values.
+
+Run local checks. Use a test form for approval and rejection; verify changed values and repeated attempts are blocked. Report commands, observed results, receipts where supported, and untested behavior. Keep the implementation small.
 </Prompt>
 
 ## Prerequisites and inputs

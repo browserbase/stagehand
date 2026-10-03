@@ -18,7 +18,13 @@ Log into the public [Internet test site](https://the-internet.herokuapp.com/logi
 ## Agent prompt
 
 <Prompt description="Adapt persisted login to an application I own." icon="robot" actions={["copy"]}>
-Start from packages/cookbooks/persisted-login. Adapt the fixed login URL, protected URL, and authenticated-page marker together for my application. Reuse a Browserbase context with persist enabled. Check protected-page access before logging in. Pass credentials through variables. Permit one login attempt and fail if the authenticated marker remains absent. Close the browser to persist the context. Keep context IDs and credentials out of logs. Serialize runs that share a context.
+Adapt `packages/cookbooks/persisted-login` to my application. Read the README, environment template, and source for my chosen language first. Reuse the existing dependencies and OpenAI setup. Ask only for missing application details.
+
+Change the login URL, protected URL, and authenticated marker together. Wait for the page, then check protected access before logging in. Use a persisted Browserbase context and `%variable%` credentials. Attempt login once; stop if access cannot be verified. Do not automate MFA or retry failed credentials.
+
+Keep the session link, five-minute browser lifetime, cleanup, and one writer per context. Keep credentials and context IDs out of logs. Write `out/login.json` only after verifying access. When combining with another recipe, authenticate before the next step and keep one owner of browser cleanup.
+
+Run local checks. With test credentials, verify fresh login and then reuse sequentially. Use a fresh test context for a wrong-password check. Report changed files, commands, receipt results, and anything untested. Keep the implementation small.
 </Prompt>
 
 ## Prerequisites and inputs

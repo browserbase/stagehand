@@ -1,14 +1,15 @@
-# Research two Stagehand docs with the AI SDK
+# Research with the AI SDK
 
-A research agent compares `act()` and `extract()` using two approved Stagehand documentation pages. It keeps one Browserbase browser alive across tool calls and prints a typed JSON report with the exact source URLs used.
+Read two approved Stagehand docs pages and save a comparison of `act()` and `extract()` to `out/report.json`.
 
 ```bash
 cd typescript
 cp .env.example .env
 pnpm install --frozen-lockfile
-pnpm start
 ```
 
-Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. Both Stagehand and the agent use OpenAI. The source-reading tool serializes navigation and extraction on the shared page. An unapproved URL fails before navigation. The report fails if either page was not visited and extracted or if it cites another URL.
+Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`, then run `pnpm start`.
 
-Edit the `sourceUrls` array in `src/index.ts` and set `RESEARCH_QUESTION` to change the task. Redirects are rejected. The report is saved to `out/report.json`. Generation has a 10-step, 120-second, 3,000-output-token limit, with no model retries. Browser lifetime is five minutes. Citation checks do not prove that every generated fact is correct.
+Edit `sourceUrls` in `src/index.ts` and set `RESEARCH_QUESTION` to change the task. Update the report schema and source checks if changing the number of sources. Page reads are serialized; redirects and unapproved URLs are rejected. Every requested source must be read and cited. Citation checks do not establish factual accuracy.
+
+Generation is limited to 10 steps, 120 seconds, and 3,000 output tokens, with no model retries. Browser lifetime is five minutes. Run `pnpm typecheck` locally.

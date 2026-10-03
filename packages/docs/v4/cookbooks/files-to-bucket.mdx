@@ -18,7 +18,15 @@ Read the first page of [Books to Scrape](https://books.toscrape.com/) in a Brows
 ## Agent prompt
 
 <Prompt description="Connect Stagehand extraction to Files SDK storage." icon="robot" actions={["copy"]}>
-Adapt `packages/cookbooks/files-to-bucket` to my target page and S3-compatible bucket. Use a Browserbase cloud browser. Extract a validated book catalog, download a real cover image, and write JSON and image bytes locally. If `S3_BUCKET` is set, upload both through Files SDK's S3 adapter. Keep bucket credentials in the server process. Fail on empty extraction or an unsuccessful or empty download. Start from the runnable folder and preserve cleanup on failure.
+Adapt `packages/cookbooks/files-to-bucket/typescript` to my target page. Read the README, environment template, and source first. Reuse Stagehand, Files SDK, and the existing OpenAI setup.
+
+Change the target, schema, image DOM selector, and download allowlist together. Extract validated records and get the image URL from the DOM. Download in Node, preserving HTTPS host checks, redirect rejection, the 15-second timeout, 5 MiB limit, and JPEG verification. Replace format checks explicitly if another file type is required.
+
+Write local JSON and image artifacts first. Upload both only when `S3_BUCKET` is configured for the task. Keep credentials in the server process and out of logs. Use a distinct prefix when earlier objects must be preserved. Report local output and uploads separately. Keep the session link, browser lifetime, and cleanup.
+
+When combining with pagination, store its validated output instead of creating another extraction loop.
+
+Run the typecheck and download tests. With configured keys, verify nonempty local artifacts; check real uploads only with bucket credentials. Report artifact paths, upload results, commands, and anything untested. Keep configuration simple.
 </Prompt>
 
 ## Prerequisites and inputs

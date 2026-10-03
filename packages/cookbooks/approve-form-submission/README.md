@@ -1,35 +1,43 @@
-# Approve before submitting a form
+# Approve a form submission
 
-Fill a form with Stagehand, then require a human to approve the submit click.
+Fill a test form, show its actual values, and require human approval before Submit. Requires `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`.
 
 ## TypeScript
-
-Uses Vercel AI SDK `toolApproval` and a code guard for one approved submit attempt. Requires `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`.
 
 ```bash
 cd typescript
 cp .env.example .env
 pnpm install --frozen-lockfile
-pnpm start
 ```
 
-Answer `y` or `n` when the CLI asks to submit.
+Fill in `.env`, then run `pnpm start`. TypeScript uses AI SDK approval and a code guard. The approval prompt expires after 60 seconds.
 
 ## Python
-
-Fills the form, then blocks on stdin before `act()` clicks Submit. Requires `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`.
 
 ```bash
 cd python
 cp .env.example .env
 uv sync --locked
-uv run --locked python main.py
 ```
+
+Fill in `.env`, then run `uv run --locked python main.py`.
 
 ## Go
 
-Uses a CLI approval gate. From `go/`, copy `.env.example` to `.env`, set the Browserbase key, then run `set -a; . ./.env; set +a; go run .`. Go 1.26+ is required.
+```bash
+cd go
+cp .env.example .env
+```
 
-Cloud jobs print a session link and cap browser lifetime at five minutes. Every language checks actual form values before requesting approval and again before submitting. Rejection ends the run. The TypeScript approval prompt times out after 60 seconds. `out/approval.json` is an atomic receipt, not a cross-process resume token. A `submission-attempted` receipt requires inspection before rerunning because a failed browser call may still have reached the server. One process per output directory.
+Fill in both keys in `.env`, then run:
 
-Run `pnpm test` and `pnpm typecheck` from `typescript/` without credentials. Python and Go use a direct CLI gate rather than the AI SDK tool loop.
+```bash
+set -a; . ./.env; set +a
+go run .
+```
+
+Python and Go use a CLI approval gate. Answer `y` or `n`. Each implementation rechecks values before Submit and permits at most one approved attempt. Browser lifetime is five minutes.
+
+TypeScript writes `out/approval.json`. A `submission-attempted` receipt may mean the server received the form; inspect the session before rerunning. The receipt does not support approval across process restarts. Use one writer per output directory.
+
+Run `pnpm typecheck` and `pnpm test` in `typescript/`, or `go test ./...` in `go/`.
