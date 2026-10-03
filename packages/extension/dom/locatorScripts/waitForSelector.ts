@@ -248,30 +248,6 @@ export function waitForSelector(
       }
     };
 
-    // Handle case where document.body is not ready yet
-    const observeRoot = document.body || document.documentElement;
-    if (!observeRoot) {
-      domReadyHandler = (): void => {
-        document.removeEventListener("DOMContentLoaded", domReadyHandler!);
-        domReadyHandler = null;
-        check();
-        setupObservers();
-      };
-      document.addEventListener("DOMContentLoaded", domReadyHandler);
-      timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        clearTimer();
-        cleanup();
-        reject(
-          new Error(
-            `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
-          ),
-        );
-      }, timeout);
-      return;
-    }
-
     const setupObservers = (): void => {
       const root = document.body || document.documentElement;
       if (!root) return;
@@ -298,6 +274,30 @@ export function waitForSelector(
         }, 100);
       }
     };
+
+    // Handle case where document.body is not ready yet
+    const observeRoot = document.body || document.documentElement;
+    if (!observeRoot) {
+      domReadyHandler = (): void => {
+        document.removeEventListener("DOMContentLoaded", domReadyHandler!);
+        domReadyHandler = null;
+        check();
+        if (!settled) setupObservers();
+      };
+      document.addEventListener("DOMContentLoaded", domReadyHandler);
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        clearTimer();
+        cleanup();
+        reject(
+          new Error(
+            `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
+          ),
+        );
+      }, timeout);
+      return;
+    }
 
     setupObservers();
 
