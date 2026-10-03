@@ -24,7 +24,7 @@ Start from packages/cookbooks/persisted-login. Adapt the fixed login URL, protec
 ## Prerequisites and inputs
 
 - Create a [Browserbase context](https://docs.browserbase.com/features/contexts) in your project. Set `BROWSERBASE_CONTEXT_ID` to its ID.
-- Set `BROWSERBASE_API_KEY` in `.env`. The SDK uses Browserbase Model Gateway by default. `OPENAI_API_KEY` optionally selects direct OpenAI.
+- Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`.
 - The example includes the test site's public `LOGIN_USER` and `LOGIN_PASSWORD`. Use credentials for your own account when adapting it.
 - TypeScript requires Node.js 22.18+ and pnpm. Python requires Python 3.11+ and uv. Go requires Go 1.26+.
 
@@ -38,7 +38,10 @@ Check out [`packages/cookbooks/persisted-login`](https://github.com/browserbase/
 cd packages/cookbooks/persisted-login/typescript
 cp .env.example .env
 pnpm install --frozen-lockfile
+# First run: authenticates and persists context
 pnpm start
+
+# Second run: verifies context reuse
 pnpm start
 ```
 </Tab>
@@ -47,7 +50,10 @@ pnpm start
 cd packages/cookbooks/persisted-login/python
 cp .env.example .env
 uv sync --locked
+# First run: authenticates and persists context
 uv run --locked python main.py
+
+# Second run: verifies context reuse
 uv run --locked python main.py
 ```
 </Tab>
@@ -56,7 +62,10 @@ uv run --locked python main.py
 cd packages/cookbooks/persisted-login/go
 cp .env.example .env
 set -a; . ./.env; set +a
+# First run: authenticates and persists context
 go run .
+
+# Second run: verifies context reuse
 go run .
 ```
 </Tab>

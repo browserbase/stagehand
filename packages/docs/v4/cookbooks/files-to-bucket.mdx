@@ -23,7 +23,7 @@ Adapt `packages/cookbooks/files-to-bucket` to my target page and S3-compatible b
 
 ## Prerequisites and inputs
 
-Use Node.js 22.18+ and pnpm. Add `BROWSERBASE_API_KEY` to `.env`. Stagehand uses Browserbase Model Gateway unless `OPENAI_API_KEY` is set; see [model configuration](/v4/configuration/models) to use another provider. For upload, set `S3_BUCKET` and credentials supported by the AWS credential chain. `AWS_REGION` defaults to `us-east-1`, `S3_PREFIX` defaults to `stagehand-cookbooks/files-to-bucket`, and `S3_ENDPOINT` can target an S3-compatible service. Without `S3_BUCKET`, the job stops after local output.
+Use Node.js 22.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. For upload, set `S3_BUCKET` and credentials supported by the AWS credential chain. `AWS_REGION` defaults to `us-east-1`, `S3_PREFIX` defaults to `stagehand-cookbooks/files-to-bucket`, and `S3_ENDPOINT` can target an S3-compatible service. Without `S3_BUCKET`, the job stops after local output.
 
 ## Check out and run
 

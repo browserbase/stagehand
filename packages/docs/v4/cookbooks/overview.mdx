@@ -17,11 +17,11 @@ Cloud recipes print a Browserbase session link and limit browser lifetime to fiv
 
 | Cookbook | Use it when | Inputs | Output | Stagehand methods | Languages |
 | --- | --- | --- | --- | --- | --- |
-| [Approve a form submission](/v4/cookbooks/approve-form-submission) | A browser action needs human consent | Test form values, approval answer | Submitted URL or a clear rejection | `act()` | TypeScript, Python, Go |
+| [Reuse an authenticated session](/v4/cookbooks/persisted-login) | A recurring job needs persisted login | Context ID, test credentials | Authentication and reuse receipt | `act()`, browser context | TypeScript, Python, Go |
 | [Export a paginated book catalog](/v4/cookbooks/paginated-catalog) | The number of result pages is unknown | Catalog URL, page limit | Validated `out/catalog.json` | `extract()`, `observe()`, `act()` | TypeScript, Python, Go |
 | [Save extracted files to a bucket](/v4/cookbooks/files-to-bucket) | Extracted page data and downloaded bytes must reach object storage | Target page, optional S3 bucket | Local JSON and cover, optional bucket objects | `extract()` | TypeScript |
+| [Approve a form submission](/v4/cookbooks/approve-form-submission) | A browser action needs human consent | Test form values, approval answer | Submitted URL or a clear rejection | `act()` | TypeScript, Python, Go |
 | [Build an AI SDK research agent](/v4/cookbooks/ai-sdk-research-agent) | An agent must research approved pages and cite sources | Research question, approved URLs | Typed report with source URLs | `extract()` | TypeScript |
-| [Reuse an authenticated session](/v4/cookbooks/persisted-login) | A recurring job needs persisted login | Context ID, test credentials | Authentication and reuse receipt | `act()`, browser context | TypeScript, Python, Go |
 
 ## Run a cookbook
 
