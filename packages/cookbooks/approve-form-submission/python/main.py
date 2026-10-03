@@ -8,6 +8,8 @@ load_dotenv()
 
 BROWSERBASE_API_KEY = os.environ["BROWSERBASE_API_KEY"]
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is required")
 
 
 def confirm_submit() -> bool:
@@ -21,11 +23,8 @@ async def main() -> None:
         print(f"Session: https://www.browserbase.com/sessions/{browser.session_id}")
         stagehand = await Stagehand.create(
             browser=browser,
-            **(
-                {"model": "openai/gpt-5.4-mini", "model_api_key": OPENAI_API_KEY}
-                if OPENAI_API_KEY
-                else {}
-            ),
+            model="openai/gpt-6-sol",
+            model_api_key=OPENAI_API_KEY,
         )
         try:
             page = await browser.context.active_page()

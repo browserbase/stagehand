@@ -24,7 +24,7 @@ Each language folder is independent of the monorepo workspace so sparse checkout
 
 Cloud jobs print Browserbase session links and cap browser lifetime at five minutes. The catalog defaults to a two-page category and checkpoints progress before navigation. AI SDK loops also bound steps and generated tokens. These limits do not guarantee a dollar cost ceiling. File uploads and terminal input can outlive a browser session.
 
-Run `pnpm typecheck` in each TypeScript folder. Catalog, approval, and download tests use `pnpm test` without credentials. Python catalog tests use `uv run --locked python -m unittest`. Run `go test ./...` in each Go folder. CI checks every standalone project on cookbook changes. Weekly smoke tests on Mondays at 05:00 UTC check a two-page local catalog fixture with an OpenAI key in repository secrets.
+Run `pnpm typecheck` in each TypeScript folder. Catalog, approval, and download tests use `pnpm test` without credentials. Python catalog tests use `uv run --locked python -m unittest`. Run `go test ./...` in each Go folder.
 
 ## Contribution requirements
 

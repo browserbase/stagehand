@@ -9,7 +9,7 @@ Use this when a browser action needs a human decision on the exact values about 
 
 | Browser | Languages | Output |
 | --- | --- | --- |
-| Browserbase, SDK 4.1.0 | TypeScript, Python, Go | Submission or rejection; TS approval receipt |
+| Browserbase | TypeScript, Python, Go | Submission or rejection; TS approval receipt |
 
 ## Goal and output
 
@@ -94,7 +94,7 @@ This recipe keeps approval inside one process. The receipt is an audit record, n
 <CodeGroup>
 ```typescript TypeScript approval
 const result = await generateText({
-  model: agentModel,
+  model: openai("gpt-6-sol"),
   tools,
   toolApproval: { submitForm: "user-approval" },
   prompt: "Fill the test form, then request approval before submit.",

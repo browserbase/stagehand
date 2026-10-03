@@ -9,7 +9,7 @@ Use this when a catalog spans several pages and failed runs must preserve progre
 
 | Browser | Languages | Output |
 | --- | --- | --- |
-| Browserbase, SDK 4.1.0 | TypeScript, Python, Go | `out/checkpoint.json`, `out/catalog.json` |
+| Browserbase | TypeScript, Python, Go | `out/checkpoint.json`, `out/catalog.json` |
 
 ## Goal and output
 
@@ -23,7 +23,7 @@ Adapt `packages/cookbooks/paginated-catalog` to my catalog. Launch a Browserbase
 
 ## Prerequisites and inputs
 
-- Add `BROWSERBASE_API_KEY` to `.env`. `OPENAI_API_KEY` is optional. Without an OpenAI key, the job uses [Browserbase Model Gateway](/v4/configuration/models#model-gateway) without a separate model key. Set `MODEL_PROVIDER=openai` for direct OpenAI, or adapt the [model configuration](/v4/configuration/models) for another provider.
+- Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`.
 - `CATALOG_URL` defaults to the two-page mystery category on Books to Scrape. `MAX_PAGES` defaults to 2 and accepts 1 through 100. The default completes a small category. For the full catalog, set `CATALOG_URL=https://books.toscrape.com/` and raise `MAX_PAGES` to 50. `NEXT_SELECTOR` defaults to `li.next a`; change it when adapting the target. `OUT_DIR` defaults to `out`.
 - TypeScript needs Node.js 22.18+ and pnpm; Python needs Python 3.11+ and uv; Go needs Go 1.26+.
 

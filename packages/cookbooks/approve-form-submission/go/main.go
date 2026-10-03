@@ -23,6 +23,9 @@ func run(ctx context.Context) (err error) {
 	if apiKey == "" {
 		return errors.New("BROWSERBASE_API_KEY is required")
 	}
+	if modelKey == "" {
+		return errors.New("OPENAI_API_KEY is required")
+	}
 	timeout := float64(300)
 	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey, Timeout: &timeout})
 	if err != nil {
@@ -30,9 +33,9 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, browser.Close(context.Background())) }()
 	fmt.Printf("Session: https://www.browserbase.com/sessions/%s\n", browser.SessionID())
-	opts := stagehand.CreateOptions{Browser: browser}
-	if modelKey != "" {
-		opts.Model = &stagehand.ModelConfig{ModelName: "openai/gpt-5.4-mini", APIKey: &modelKey}
+	opts := stagehand.CreateOptions{
+		Browser: browser,
+		Model:   &stagehand.ModelConfig{ModelName: "openai/gpt-6-sol", APIKey: &modelKey},
 	}
 	client, err := stagehand.Create(ctx, opts)
 	if err != nil {

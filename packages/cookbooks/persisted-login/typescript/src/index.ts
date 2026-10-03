@@ -9,7 +9,7 @@ function requireEnv(name: string): string {
 }
 const apiKey = requireEnv("BROWSERBASE_API_KEY");
 const contextId = requireEnv("BROWSERBASE_CONTEXT_ID");
-const modelKey = process.env.OPENAI_API_KEY;
+const modelKey = requireEnv("OPENAI_API_KEY");
 const username = requireEnv("LOGIN_USER");
 const password = requireEnv("LOGIN_PASSWORD");
 const browser = await browserbase.launch({
@@ -21,7 +21,7 @@ try {
   console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);
   const stagehand = await Stagehand.create({
     browser,
-    ...(modelKey ? { model: { modelName: "openai/gpt-5.4-mini", apiKey: modelKey } } : {}),
+    model: { modelName: "openai/gpt-6-sol", apiKey: modelKey },
   });
   try {
     const page = await browser.context.activePage();

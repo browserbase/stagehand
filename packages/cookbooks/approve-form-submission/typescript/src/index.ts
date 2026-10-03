@@ -3,14 +3,7 @@ import { SubmissionGuard } from "./approval.js";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { openai } from "@ai-sdk/openai";
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-import {
-  createGateway,
-  generateText,
-  stepCountIs,
-  tool,
-  type ModelMessage,
-  type ToolApprovalResponse,
-} from "ai";
+import { generateText, stepCountIs, tool, type ModelMessage, type ToolApprovalResponse } from "ai";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import { z } from "zod/v4";
@@ -23,14 +16,8 @@ function requireEnv(name: string): string {
 
 async function main() {
   const browserbaseApiKey = requireEnv("BROWSERBASE_API_KEY");
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  if (!openaiApiKey && !process.env.AI_GATEWAY_API_KEY)
-    throw new Error("AI_GATEWAY_API_KEY or OPENAI_API_KEY is required for the agent");
-  const agentModel = openaiApiKey
-    ? openai(process.env.OPENAI_MODEL ?? "gpt-5.4-mini")
-    : createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY })(
-        process.env.AI_GATEWAY_MODEL ?? "openai/gpt-5.4-mini",
-      );
+  const openaiApiKey = requireEnv("OPENAI_API_KEY");
+  const agentModel = openai("gpt-6-sol");
 
   const browser = await browserbase.launch({
     apiKey: browserbaseApiKey,
@@ -41,9 +28,7 @@ async function main() {
     console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);
     const stagehand = await Stagehand.create({
       browser,
-      ...(openaiApiKey
-        ? { model: { modelName: "openai/gpt-5.4-mini", apiKey: openaiApiKey } }
-        : {}),
+      model: { modelName: "openai/gpt-6-sol", apiKey: openaiApiKey },
     });
     try {
       const page = await browser.context.activePage();

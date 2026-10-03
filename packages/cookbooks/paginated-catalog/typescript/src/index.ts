@@ -7,15 +7,8 @@ const local = process.env.BROWSER_ENV === "LOCAL";
 if (process.env.BROWSER_ENV && !["LOCAL", "BROWSERBASE"].includes(process.env.BROWSER_ENV))
   throw new Error("BROWSER_ENV must be LOCAL or BROWSERBASE");
 if (!local && !apiKey) throw new Error("BROWSERBASE_API_KEY is required");
-const gateway =
-  process.env.MODEL_PROVIDER === "gateway" ||
-  (!process.env.MODEL_PROVIDER && !process.env.OPENAI_API_KEY);
-if (local && gateway) throw new Error("Local fixture runs require OPENAI_API_KEY");
-if (process.env.MODEL_PROVIDER && !["gateway", "openai"].includes(process.env.MODEL_PROVIDER))
-  throw new Error("MODEL_PROVIDER must be gateway or openai");
 const openaiKey = process.env.OPENAI_API_KEY;
-if (!gateway && !openaiKey)
-  throw new Error("OPENAI_API_KEY is required unless MODEL_PROVIDER=gateway");
+if (!openaiKey) throw new Error("OPENAI_API_KEY is required");
 const maxPages = parseMaxPages(process.env.MAX_PAGES);
 const catalogUrl =
   process.env.CATALOG_URL ??
@@ -28,7 +21,7 @@ try {
     console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);
   const stagehand = await Stagehand.create({
     browser,
-    ...(gateway ? {} : { model: { modelName: "openai/gpt-5.4-mini", apiKey: openaiKey } }),
+    model: { modelName: "openai/gpt-6-sol", apiKey: openaiKey },
   });
   try {
     const page = await browser.context.activePage();

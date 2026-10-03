@@ -46,14 +46,9 @@ async def main() -> None:
     api_key = os.environ.get("BROWSERBASE_API_KEY")
     if not api_key:
         raise RuntimeError("BROWSERBASE_API_KEY is required")
-    provider = os.environ.get(
-        "MODEL_PROVIDER", "openai" if os.environ.get("OPENAI_API_KEY") else "gateway"
-    )
-    if provider not in ("openai", "gateway"):
-        raise RuntimeError("MODEL_PROVIDER must be gateway or openai")
     openai_key = os.environ.get("OPENAI_API_KEY")
-    if provider != "gateway" and not openai_key:
-        raise RuntimeError("OPENAI_API_KEY is required unless MODEL_PROVIDER=gateway")
+    if not openai_key:
+        raise RuntimeError("OPENAI_API_KEY is required")
     max_pages = int(os.environ.get("MAX_PAGES", "2"))
     if not 1 <= max_pages <= 100:
         raise RuntimeError("MAX_PAGES must be an integer between 1 and 100")
@@ -63,11 +58,8 @@ async def main() -> None:
         print(f"Session: https://www.browserbase.com/sessions/{browser.session_id}")
         stagehand = await Stagehand.create(
             browser=browser,
-            **(
-                {}
-                if provider == "gateway"
-                else {"model": "openai/gpt-5.4-mini", "model_api_key": openai_key}
-            ),
+            model="openai/gpt-6-sol",
+            model_api_key=openai_key,
         )
         try:
             page = await browser.context.active_page()

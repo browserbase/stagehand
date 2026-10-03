@@ -12,6 +12,7 @@ load_dotenv()
 async def main() -> None:
     names = [
         "BROWSERBASE_API_KEY",
+        "OPENAI_API_KEY",
         "BROWSERBASE_CONTEXT_ID",
         "LOGIN_USER",
         "LOGIN_PASSWORD",
@@ -30,14 +31,8 @@ async def main() -> None:
         print(f"Session: https://www.browserbase.com/sessions/{browser.session_id}")
         stagehand = await Stagehand.create(
             browser=browser,
-            **(
-                {
-                    "model": "openai/gpt-5.4-mini",
-                    "model_api_key": os.environ["OPENAI_API_KEY"],
-                }
-                if os.environ.get("OPENAI_API_KEY")
-                else {}
-            ),
+            model="openai/gpt-6-sol",
+            model_api_key=os.environ["OPENAI_API_KEY"],
         )
         try:
             page = await browser.context.active_page()

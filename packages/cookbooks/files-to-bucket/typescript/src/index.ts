@@ -22,13 +22,14 @@ const openaiApiKey = process.env.OPENAI_API_KEY;
 if (!browserbaseApiKey) {
   throw new Error("BROWSERBASE_API_KEY is required");
 }
+if (!openaiApiKey) throw new Error("OPENAI_API_KEY is required");
 const browser = await browserbase.launch({ apiKey: browserbaseApiKey, api_timeout: 300 });
 
 try {
   console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);
   const stagehand = await Stagehand.create({
     browser,
-    ...(openaiApiKey ? { model: { modelName: "openai/gpt-5.4-mini", apiKey: openaiApiKey } } : {}),
+    model: { modelName: "openai/gpt-6-sol", apiKey: openaiApiKey },
   });
   try {
     const page = await browser.context.activePage();

@@ -2,7 +2,7 @@
 
 Extract validated book records, checkpoint every completed page, and write `out/catalog.json` after pagination ends. All three languages use the same checkpoint format.
 
-Copy `.env.example` to `.env` in a language folder. Add `BROWSERBASE_API_KEY`. Browserbase Model Gateway is the default; `OPENAI_API_KEY` optionally selects direct OpenAI.
+Copy `.env.example` to `.env` in a language folder. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY`.
 
 - TypeScript: `pnpm install --frozen-lockfile`, then `pnpm start`.
 - Python: `uv sync --locked`, then `uv run --locked python main.py`.

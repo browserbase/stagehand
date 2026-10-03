@@ -17,7 +17,7 @@ func main() {
 	}
 }
 func run(ctx context.Context) (err error) {
-	for _, name := range []string{"BROWSERBASE_API_KEY", "BROWSERBASE_CONTEXT_ID", "LOGIN_USER", "LOGIN_PASSWORD"} {
+	for _, name := range []string{"BROWSERBASE_API_KEY", "OPENAI_API_KEY", "BROWSERBASE_CONTEXT_ID", "LOGIN_USER", "LOGIN_PASSWORD"} {
 		if os.Getenv(name) == "" {
 			return fmt.Errorf("%s is required", name)
 		}
@@ -31,9 +31,9 @@ func run(ctx context.Context) (err error) {
 	defer func() { err = errors.Join(err, browser.Close(context.Background())) }()
 	fmt.Printf("Session: https://www.browserbase.com/sessions/%s\n", browser.SessionID())
 	key := os.Getenv("OPENAI_API_KEY")
-	opts := stagehand.CreateOptions{Browser: browser}
-	if key != "" {
-		opts.Model = &stagehand.ModelConfig{ModelName: "openai/gpt-5.4-mini", APIKey: &key}
+	opts := stagehand.CreateOptions{
+		Browser: browser,
+		Model:   &stagehand.ModelConfig{ModelName: "openai/gpt-6-sol", APIKey: &key},
 	}
 	client, err := stagehand.Create(ctx, opts)
 	if err != nil {

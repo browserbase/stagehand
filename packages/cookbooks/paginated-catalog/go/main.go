@@ -40,20 +40,9 @@ func run(ctx context.Context) (err error) {
 	if apiKey == "" {
 		return errors.New("BROWSERBASE_API_KEY is required")
 	}
-	provider := os.Getenv("MODEL_PROVIDER")
-	if provider == "" {
-		if os.Getenv("OPENAI_API_KEY") != "" {
-			provider = "openai"
-		} else {
-			provider = "gateway"
-		}
-	}
-	if provider != "openai" && provider != "gateway" {
-		return errors.New("MODEL_PROVIDER must be gateway or openai")
-	}
 	openaiKey := os.Getenv("OPENAI_API_KEY")
-	if provider != "gateway" && openaiKey == "" {
-		return errors.New("OPENAI_API_KEY is required unless MODEL_PROVIDER=gateway")
+	if openaiKey == "" {
+		return errors.New("OPENAI_API_KEY is required")
 	}
 	maxPages, err := strconv.Atoi(envDefault("MAX_PAGES", "2"))
 	if err != nil || maxPages < 1 || maxPages > 100 {
@@ -66,9 +55,9 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, browser.Close(context.Background())) }()
 	fmt.Printf("Session: https://www.browserbase.com/sessions/%s\n", browser.SessionID())
-	opts := stagehand.CreateOptions{Browser: browser}
-	if provider != "gateway" {
-		opts.Model = &stagehand.ModelConfig{ModelName: "openai/gpt-5.4-mini", APIKey: &openaiKey}
+	opts := stagehand.CreateOptions{
+		Browser: browser,
+		Model:   &stagehand.ModelConfig{ModelName: "openai/gpt-6-sol", APIKey: &openaiKey},
 	}
 	client, err := stagehand.Create(ctx, opts)
 	if err != nil {

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openai } from "@ai-sdk/openai";
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-import { createGateway, generateText, Output, stepCountIs, tool } from "ai";
+import { generateText, Output, stepCountIs, tool } from "ai";
 import { z } from "zod/v4";
 
 const sourceUrls = [
@@ -28,19 +28,14 @@ const reportSchema = z.object({
 const browserbaseKey = process.env.BROWSERBASE_API_KEY;
 const openaiKey = process.env.OPENAI_API_KEY;
 if (!browserbaseKey) throw new Error("BROWSERBASE_API_KEY is required");
-if (!openaiKey && !process.env.AI_GATEWAY_API_KEY)
-  throw new Error("AI_GATEWAY_API_KEY or OPENAI_API_KEY is required for the agent");
-const agentModel = openaiKey
-  ? openai(process.env.OPENAI_MODEL ?? "gpt-5.4-mini")
-  : createGateway({ apiKey: process.env.AI_GATEWAY_API_KEY })(
-      process.env.AI_GATEWAY_MODEL ?? "openai/gpt-5.4-mini",
-    );
+if (!openaiKey) throw new Error("OPENAI_API_KEY is required");
+const agentModel = openai("gpt-6-sol");
 const browser = await browserbase.launch({ apiKey: browserbaseKey, api_timeout: 300 });
 try {
   console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);
   const stagehand = await Stagehand.create({
     browser,
-    ...(openaiKey ? { model: { modelName: "openai/gpt-5.4-mini", apiKey: openaiKey } } : {}),
+    model: { modelName: "openai/gpt-6-sol", apiKey: openaiKey },
   });
   try {
     const page = await browser.context.activePage();
