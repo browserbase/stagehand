@@ -36,26 +36,32 @@ describe("Locator.fill()", () => {
     await closeStagehand(stagehand);
   });
 
-  it("fills date inputs via value setter even when beforeinput blocks insertText", async () => {
-    const page = await firstPage(stagehand);
-    await page.goto(
-      "data:text/html," +
-        encodeURIComponent(`<!doctype html><html><body>
-          <input id="date" type="date" />
+  it.each([
+    { type: "date", value: "2026-01-01" },
+    { type: "time", value: "14:30" },
+    { type: "datetime-local", value: "2026-01-01T14:30" },
+  ] as const)(
+    "fills $type inputs via value setter even when beforeinput blocks insertText",
+    async ({ type, value }) => {
+      const page = await firstPage(stagehand);
+      await page.goto(
+        "data:text/html," +
+          encodeURIComponent(`<!doctype html><html><body>
+          <input id="target" type="${type}" />
           <script>
-            const input = document.getElementById('date');
+            const input = document.getElementById('target');
             input.addEventListener('beforeinput', (event) => {
               if (event && event.inputType === 'insertText') event.preventDefault();
             });
           </script>
         </body></html>`),
-    );
+      );
 
-    const dateInput = page.locator("xpath=/html/body/input");
-    await dateInput.fill("2026-01-01");
-    const value = await dateInput.inputValue();
-    expect(value).toBe("2026-01-01");
-  });
+      const input = page.locator("xpath=/html/body/input");
+      await input.fill(value);
+      expect(await input.inputValue()).toBe(value);
+    },
+  );
 
   it("xpath case: throws an error when fill encounters an exception", async () => {
     const page = await firstPage(stagehand);
