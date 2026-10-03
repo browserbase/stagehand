@@ -36,6 +36,12 @@ describe("applyPredicatesPerParent", () => {
     expect(applyPredicatesPerParent(candidates, predicatesOf("//div[4]"))).toEqual([]);
   });
 
+  it("matches nothing at position zero", () => {
+    // Positions start at 1, so [0] is an empty set rather than another spelling of [1].
+    expect(predicatesOf("//div[0]")).toEqual([{ type: "index", index: 0 }]);
+    expect(applyPredicatesPerParent(candidates, predicatesOf("//div[0]"))).toEqual([]);
+  });
+
   it("counts after the predicates that precede the position", () => {
     // The first parent has a single .x child, so only the second one has a second.
     expect(ids(applyPredicatesPerParent(candidates, predicatesOf("//div[@class='x'][2]")))).toEqual(

@@ -205,7 +205,7 @@ function parseAtomicPredicate(input: string): XPathPredicate | null {
   const quoted = "(?:'([^']*)'|\"([^\"]*)\")";
 
   if (/^\d+$/.test(input)) {
-    return { type: "index", index: Math.max(1, Number(input)) };
+    return { type: "index", index: Number(input) };
   }
 
   const normalizeAttrMatch = input.match(

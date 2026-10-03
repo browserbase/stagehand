@@ -70,6 +70,15 @@ describe("XPath positional predicates with a shadow root in the document", () =>
     await expect(secondX.innerHtml()).resolves.toBe("B2");
   });
 
+  it("matches nothing at position zero", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(fixtureServer.url, { waitUntil: "load" });
+
+    await expect.poll(() => page.locator("xpath=//div[1]").count()).toBe(3);
+    await expect(page.locator("xpath=//div[0]").count()).resolves.toBe(0);
+    await expect(page.locator("xpath=//section[@id='s1']/div[0]").count()).resolves.toBe(0);
+  });
+
   it("still counts inside the shadow root", async () => {
     const page = await firstPage(stagehand);
     await page.goto(fixtureServer.url, { waitUntil: "load" });
