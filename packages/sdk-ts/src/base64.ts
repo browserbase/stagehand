@@ -1,4 +1,4 @@
-const BASE64_PATTERN = /^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/;
+const BASE64_PATTERN = /^[A-Za-z\d+/]*={0,2}$/;
 
 export function decodeBase64(value: string, source: string): Uint8Array {
   if (value.length % 4 !== 0 || !BASE64_PATTERN.test(value)) {
