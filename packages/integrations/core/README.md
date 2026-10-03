@@ -53,6 +53,18 @@ A successful tool resets the counter. A failed snapshot invalidates its previous
 IDs, and late completion cannot overwrite a newer snapshot. Terminal loss rejects
 queued calls before dispatch. There is no CDP reconnect or action replay.
 
+| Setting                      | Default and behavior                                                                                     |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_CDP_HEARTBEAT_MS` | `20000`; integer milliseconds from `1000` through `2147483647`. Invalid values fall back to the default. |
+| `STAGEHAND_CDP_LOG`          | Unset disables logging; exactly `1` enables `CDP_DROP` on stderr.                                        |
+| `STAGEHAND_CDP_LOG_FILE`     | Optional append-only copy of enabled `CDP_DROP` lines. Setting the path alone does not enable logging.   |
+
+At most one `Browser.getVersion` heartbeat is pending. It has its own deadline of
+the smaller of the interval and 10000 ms. Timers are unref'ed and stop on closure;
+a missed heartbeat alone does not reconnect or mark the facade lost. Drop logs
+contain timing, pending-count, method, code, and sanitized reason metadata, without
+connection URLs or protocol payloads. Logging failure does not change the outcome.
+
 The optional stdio `--max-screenshot-base64-bytes=N` flag requires an integer of
 at least 1024. When enabled, compressed viewport fallbacks enforce both the byte
 budget and a 2000-pixel maximum side; without the flag this transport adjustment
