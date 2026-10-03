@@ -168,7 +168,7 @@ describe("llmService.generate gateway routing", () => {
 
   it("rejects xAI without a provider key before calling Gateway", async () => {
     await expect(
-      llmService.generate({ modelName: "xai/grok-4.3" }, input, vi.fn(), {
+      llmService.generate({ modelName: "xai/grok-4.7" }, input, vi.fn(), {
         apiUrl: "https://api.stagehand.browserbase.com/v1",
         apiKey: "bb-api-key",
         sessionId: "session-123",

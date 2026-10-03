@@ -550,7 +550,7 @@ import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
-    modelName: "xai/grok-4.3",
+    modelName: "xai/grok-4.7",
     apiKey: process.env.XAI_API_KEY,
   },
 });
@@ -566,7 +566,7 @@ from stagehand import Stagehand, browserbase
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 stagehand = await Stagehand.create(
     browser=browser,
-    model="xai/grok-4.3",
+    model="xai/grok-4.7",
     model_api_key=os.environ["XAI_API_KEY"],
 )
 ```
@@ -576,7 +576,7 @@ stagehand = await Stagehand.create(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("XAI_API_KEY")
-model := stagehand.ModelConfig{ModelName: "xai/grok-4.3", APIKey: &modelAPIKey}
+model := stagehand.ModelConfig{ModelName: "xai/grok-4.7", APIKey: &modelAPIKey}
 
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
 	APIKey: apiKey,
@@ -595,6 +595,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
 </Tabs>
+
+Commonly used: `xai/grok-4.7`, `xai/grok-4.6`.
 
 Stagehand calls xAI through the AI SDK Responses provider when you supply an xAI API key. xAI is not available through Model Gateway, so an xAI model without its own API key fails before inference. Use an xAI model that supports the tools and structured output required by your workflow. xAI Responses does not support `stopSequences`; Stagehand rejects that option for direct xAI calls. [Check xAI's model catalog](https://docs.x.ai/developers/models) for current IDs and capabilities.
 </Tab>

@@ -39,8 +39,8 @@ describe("AI SDK language models", () => {
     },
     {
       name: "xAI",
-      modelName: "xai/grok-4.3" as const,
-      modelId: "grok-4.3",
+      modelName: "xai/grok-4.7" as const,
+      modelId: "grok-4.7",
       provider: "xai.responses",
     },
     {
@@ -78,16 +78,16 @@ describe("AI SDK language models", () => {
   });
 
   it("uses the same xAI provider in the agent path", () => {
-    expect(getAISDKLanguageModel("xai", "grok-4.3")).toMatchObject({
+    expect(getAISDKLanguageModel("xai", "grok-4.7")).toMatchObject({
       provider: "xai.responses",
-      modelId: "grok-4.3",
+      modelId: "grok-4.7",
     });
   });
 
   it("rejects stop sequences for xAI before inference", () => {
     expect(() =>
       createAiSdkLanguageModel(
-        { modelName: "xai/grok-4.3", apiKey: "provider-secret" },
+        { modelName: "xai/grok-4.7", apiKey: "provider-secret" },
         { stopSequences: ["STOP"] },
       ),
     ).toThrow("xAI Responses does not support stopSequences");
@@ -121,7 +121,7 @@ describe("AI SDK language models", () => {
         throw new Error("request intercepted");
       },
     );
-    const model = createProviderLanguageModel("xai", "grok-4.3", {
+    const model = createProviderLanguageModel("xai", "grok-4.7", {
       apiKey: "provider-secret",
       fetch,
     });
@@ -205,14 +205,14 @@ describe("AI SDK language models", () => {
     } as never);
 
     await llmService.generate(
-      { modelName: "xai/grok-4.3", apiKey: "provider-secret" },
+      { modelName: "xai/grok-4.7", apiKey: "provider-secret" },
       { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] },
       vi.fn(),
     );
 
     expect(generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: expect.objectContaining({ provider: "xai.responses", modelId: "grok-4.3" }),
+        model: expect.objectContaining({ provider: "xai.responses", modelId: "grok-4.7" }),
       }),
     );
   });

@@ -63,7 +63,7 @@ def test_generated_models_validate_and_serialize_wire_values() -> None:
     }
 
 
-@pytest.mark.parametrize("model_name", ["openai/gpt-6-astra", "xai/grok-4.3"])
+@pytest.mark.parametrize("model_name", ["openai/gpt-6-astra", "xai/grok-4.7"])
 def test_generated_model_names_accept_new_ids(model_name: str) -> None:
     config = models.ModelConfig.model_validate({"model_name": model_name})
     assert config.model_name.root.root == model_name

@@ -6,4 +6,4 @@
 "@browserbasehq/stagehand": minor
 ---
 
-Add direct xAI Grok support with a provider API key. Model Gateway does not support xAI, and direct xAI Responses requests reject stop sequences. `ModelProvider` gains `xai`; consumers with exhaustive TypeScript checks may need to update them.
+Add direct xAI Grok support with a provider API key. Examples and tests use `xai/grok-4.7`. Model Gateway does not support xAI, and direct xAI Responses requests reject stop sequences. `ModelProvider` gains `xai`; consumers with exhaustive TypeScript checks may need to update them.

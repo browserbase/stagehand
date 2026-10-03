@@ -56,7 +56,7 @@ describe("model configuration", () => {
       "openai/gpt-6-astra",
       "anthropic/claude-sonnet-5-5",
       "google/gemini-3.8-flash",
-      "xai/grok-4.3",
+      "xai/grok-4.7",
       "xai/team/custom/grok",
     ])("accepts an opaque model ID under a registered provider: %s", (modelName) => {
       expect(ModelNameSchema.safeParse(modelName).success).toBe(true);
