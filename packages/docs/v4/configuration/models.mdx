@@ -328,7 +328,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand ships a list of known model IDs per provider and validates the full name when you call `Stagehand.create()` or pass a per-call override, so a name it does not recognize fails before any request reaches the provider. Upgrade the SDK to pick up newly released models. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
+Built-in providers use `provider/model` names. Stagehand checks the prefix and requires a nonempty model ID. It passes the ID to the provider without checking a local model list, so newly released models do not require a Stagehand update. The provider decides whether the ID exists, your account can use it, and the requested features work. For Azure OpenAI deployments, self-hosted models, or other providers, use the [bring-your-own-LLM callback](#custom-models).
 </Note>
 
 
@@ -538,13 +538,14 @@ OpenAI models are called through the Responses API.
 [View all supported OpenAI models →](https://platform.openai.com/docs/models)
 </Tab>
 
+
 </Tabs>
 
 ---
 
 ### Custom models
 
-Any provider Stagehand does not call natively is supported by bringing your own LLM. Instead of a model name, pass a function that Stagehand calls whenever it needs an inference. Your function runs in your process, on your machine, with your own SDKs and credentials: Amazon Bedrock, Cohere, Azure OpenAI, a self-hosted model, anything you can reach from code.
+To use a provider Stagehand does not call natively, bring your own LLM callback. Instead of a model name, pass a function that Stagehand calls whenever it needs an inference. Your function runs in your process, on your machine, with your own SDKs and credentials: Amazon Bedrock, Cohere, Azure OpenAI, or a self-hosted model. It must handle the messages and response format Stagehand sends.
 
 Stagehand sends a provider-neutral request (messages, system prompt, temperature, and a response format) and expects a matching result back. When the response format is a JSON schema, return the parsed object in the structured content field.
 
@@ -818,6 +819,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 <Accordion title="OpenAI-compatible SDKs">
 
+Use an OpenAI SDK against a compatible endpoint by setting its base URL, API key, and model ID. This example uses the Responses API with JSON schema output and image input. Check that your endpoint implements those features; compatibility with Chat Completions alone is insufficient for this example. If it does not, adapt its own API in the callback. You can also use [AI SDK's OpenAI-compatible provider](https://ai-sdk.dev/providers/openai-compatible-providers) inside a callback, translating its result into Stagehand's response shape.
+
 <Steps>
 <Step title="Install dependencies">
 Install your provider's SDK.
@@ -853,7 +856,10 @@ go get github.com/openai/openai-go
 ```typescript
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.COMPATIBLE_API_KEY,
+  baseURL: process.env.COMPATIBLE_BASE_URL,
+});
 
 // The shape Stagehand passes to your callback. The TypeScript SDK does not
 // re-export `LLMGenerateParams` yet, so spell out the fields you read.
@@ -895,7 +901,7 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
   }
 
   const response = await openai.responses.create({
-    model: "gpt-5.6-sol",
+    model: process.env.COMPATIBLE_MODEL!,
     instructions: params.systemPrompt,
     input: params.messages.map((message) => ({
       role: message.role,
@@ -931,7 +937,10 @@ from openai import AsyncOpenAI
 
 from stagehand import LLMStructuredGenerateResult
 
-openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+openai = AsyncOpenAI(
+    api_key=os.environ["COMPATIBLE_API_KEY"],
+    base_url=os.environ["COMPATIBLE_BASE_URL"],
+)
 
 def content_part(block):
     # Each block is a LLMTextContent or LLMImageContent under `.root`. The
@@ -954,7 +963,7 @@ def message_content(message):
 async def generate_with_openai(params):
     response_format = params.response_format
     response = await openai.responses.create(
-        model="gpt-5.6-sol",
+        model=os.environ["COMPATIBLE_MODEL"],
         instructions=params.system_prompt,
         input=[
             {"role": message.role.value, "content": message_content(message)}
@@ -1440,7 +1449,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-There is no base URL option. A model configuration always names one of the five supported providers, so Azure OpenAI deployments, self-hosted models, and any other custom endpoint go through the [bring-your-own-LLM callback](#custom-models) instead, where you own the client, the transport, and the credentials.
+The built-in `model` configuration has no base URL option. For Azure OpenAI deployments, self-hosted models, and other custom endpoints, use the [bring-your-own-LLM callback](#custom-models). The SDK inside your callback can have its own base URL, transport, and credentials.
 </Note>
 
 ---
@@ -1624,12 +1633,11 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 **Solutions:**
 
 - Use the `provider/model` format: `openai/gpt-5.6-sol`. The prefix is required; bare model names are rejected
-- Use one of the three supported providers: `openai`, `anthropic`, `google`
-- Check the model ID against the lists on this page. Stagehand validates the whole name, so a typo fails at `Stagehand.create()` rather than on the first inference
-- Upgrade the SDK if the model shipped after your installed version
+- Use one of the three built-in providers: `openai`, `anthropic`, `google`
+- Check the model ID in the provider's catalog. Stagehand validates the prefix and syntax; the provider reports unknown IDs on the first inference
 - For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)
 
-A model that passes validation can still fail at request time if your model API key cannot reach it. That surfaces as the provider's own error, usually a `400`.
+A model that passes validation can still fail at request time if the provider does not offer it to your account or it lacks a requested feature. Stagehand returns the provider error.
 </Accordion>
 
 <Accordion title="Model doesn't support structured outputs">
