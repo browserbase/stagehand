@@ -9,7 +9,7 @@ Use this when a catalog spans several pages and failed runs must preserve progre
 
 | Browser | Languages | Output |
 | --- | --- | --- |
-| Browserbase | TypeScript, Python, Go | `out/checkpoint.json`, `out/catalog.json` |
+| Local or Browserbase | TypeScript, Python, Go | `out/checkpoint.json`, `out/catalog.json` |
 
 ## Goal and output
 
@@ -18,12 +18,12 @@ Export the [Books to Scrape](https://books.toscrape.com/) catalog into `out/cata
 ## Agent prompt
 
 <Prompt description="Export a complete paginated catalog with Stagehand." icon="robot" actions={["copy"]}>
-Adapt `packages/cookbooks/paginated-catalog` to my catalog. Launch a Browserbase cloud browser. Extract a typed list from every page; use `observe()` to find the enabled Next link and pass its returned Action directly to `act()`. Use the configured pagination marker to prove when no Next link exists. Reject empty records, repeated URLs, failed actions, a Next click that does not navigate, and a page limit reached before the end. Save each validated page atomically and resume from the last checkpoint. Write the final catalog only after the last page. Begin with the runnable folder and keep its validation and cleanup.
+Adapt `packages/cookbooks/paginated-catalog` to my catalog. Launch a local or Browserbase cloud browser. Extract a typed list from every page; use `observe()` to find the enabled Next link and pass its returned Action directly to `act()`. Use the configured pagination marker to prove when no Next link exists. Reject empty records, repeated URLs, failed actions, a Next click that does not navigate, and a page limit reached before the end. Save each validated page atomically and resume from the last checkpoint. Write the final catalog only after the last page. Begin with the runnable folder and keep its validation and cleanup.
 </Prompt>
 
 ## Prerequisites and inputs
 
-- Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`.
+- Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. The TypeScript runner can also use a local browser by setting `BROWSER_ENV=LOCAL`.
 - `CATALOG_URL` defaults to the two-page mystery category on Books to Scrape. `MAX_PAGES` defaults to 2 and accepts 1 through 100. The default completes a small category. For the full catalog, set `CATALOG_URL=https://books.toscrape.com/` and raise `MAX_PAGES` to 50. `NEXT_SELECTOR` defaults to `li.next a`; change it when adapting the target. `OUT_DIR` defaults to `out`.
 - TypeScript needs Node.js 22.18+ and pnpm; Python needs Python 3.11+ and uv; Go needs Go 1.26+.
 
