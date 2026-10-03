@@ -1,0 +1,168 @@
+name: Promote Docs
+
+# Promotes a released commit from main to docs-production, which Mintlify
+# deploys to docs.stagehand.dev. Called by release.yml after the SDKs publish;
+# run it manually to retry a failed promotion or to dry-run one.
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Released commit on main to promote.
+        required: true
+        type: string
+    secrets:
+      DOCS_BOT_PRIVATE_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Released commit on main to promote.
+        required: true
+        type: string
+      dry-run:
+        description: Promote without pushing.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: docs-production
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote release to docs-production
+    if: vars.DOCS_PRODUCTION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PROMOTE_SHA: ${{ inputs.sha }}
+      DRY_RUN: ${{ inputs.dry-run == true }}
+    steps:
+      - name: Create docs bot token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.DOCS_BOT_APP_ID }}
+          private-key: ${{ secrets.DOCS_BOT_PRIVATE_KEY }}
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: docs-production
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure bot identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          user_id="$(gh api "/users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+
+      # Every hotfix lands on main before it is cherry-picked here, so the
+      # release commit already contains the released hotfixes and its tree is
+      # exactly what production should show. Taking that tree instead of doing a
+      # three-way merge avoids conflicts where main edited a hotfixed line again.
+      # Hotfixes whose originals landed on main after the release commit are
+      # then re-applied.
+      - name: Promote release commit
+        id: promote
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$PROMOTE_SHA" origin/main; then
+            echo "::error::$PROMOTE_SHA is not on main."
+            exit 1
+          fi
+          if git merge-base --is-ancestor "$PROMOTE_SHA" HEAD; then
+            echo "$PROMOTE_SHA is already in docs-production."
+            exit 0
+          fi
+
+          # Production-only commits since the last promotion (or since the
+          # branch was cut from main, before the first promotion).
+          last_promotion="$(git rev-list --first-parent --merges -1 --grep='^docs: promote release ' HEAD)"
+          since="${last_promotion:-$(git merge-base HEAD "$PROMOTE_SHA")}"
+          pending="$(git rev-list --reverse --first-parent --no-merges "$since..HEAD")"
+
+          git merge --no-ff --no-commit -s ours "$PROMOTE_SHA"
+          git read-tree -u --reset "$PROMOTE_SHA"
+          git commit --no-edit -m "docs: promote release ${PROMOTE_SHA::9} to production"
+
+          dropped=""
+          for commit in $pending; do
+            origin="$(git log -1 --format=%B "$commit" | sed -n 's/^(cherry picked from commit \([0-9a-f]\{40\}\))$/\1/p' | tail -1)"
+            if [ -n "$origin" ] && git merge-base --is-ancestor "$origin" "$PROMOTE_SHA"; then
+              echo "Released with ${PROMOTE_SHA::9}: ${commit::9}"
+              continue
+            fi
+            # A hotfix that no longer applies must not block the release. Its
+            # original is on main, so it ships with the next release at the latest.
+            if ! git cherry-pick --no-commit "$commit"; then
+              git reset -q --hard HEAD
+              echo "::warning::Could not re-apply hotfix ${commit::9} on top of the release; dropped."
+              dropped="$dropped $commit"
+              continue
+            fi
+            if git diff --cached --quiet; then
+              echo "Already in release: ${commit::9}"
+              continue
+            fi
+            git commit --no-edit -C "$commit"
+            echo "Re-applied unreleased hotfix: ${commit::9}"
+          done
+
+          echo "dropped=${dropped# }" >> "$GITHUB_OUTPUT"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run: promotion succeeded, not pushing."
+            git log --oneline -1
+          else
+            git push origin HEAD:docs-production
+          fi
+
+      - name: Report dropped hotfixes
+        if: steps.promote.outputs.dropped != '' && env.DRY_RUN != 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          DROPPED: ${{ steps.promote.outputs.dropped }}
+        with:
+          script: |
+            const sha = process.env.PROMOTE_SHA;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Docs hotfixes dropped when promoting release ${sha.slice(0, 9)}`,
+              body: [
+                `Release \`${sha}\` was promoted to production (${runUrl}), but these production-only commits no longer apply on top of it and were dropped:`,
+                '',
+                ...process.env.DROPPED.split(' ').map((commit) => `- ${commit}`),
+                '',
+                'Each one is already on main, so it returns with the next release. To restore one sooner, cherry-pick it onto `docs-production` again through a PR (keep the `(cherry picked from commit …)` line in the PR description).',
+              ].join('\n'),
+            });
+
+      - name: Report failure
+        if: failure() && env.DRY_RUN != 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const sha = process.env.PROMOTE_SHA;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Docs promotion failed for release ${sha.slice(0, 9)}`,
+              body: [
+                `Promoting released commit \`${sha}\` to \`docs-production\` failed: ${runUrl}`,
+                '',
+                'Production docs are still on the previous release. Check the log, then re-run this workflow with the same SHA.',
+              ].join('\n'),
+            });
