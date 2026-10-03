@@ -1,6 +1,7 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex-sdk";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import {
@@ -51,7 +52,8 @@ export interface PreparedCodexCodeAdapter {
    * it to record per-step observations (their tool calls never pass through
    * the workspace bridge).
    */
-  recordObservation?: () => void;
+  recordObservation?: (item: Record<string, unknown>) => Promise<void>;
+  allowedMcpServers?: string[];
   /** Which normalized tool-call names consume observation indexes. */
   observedToolMatcher?: (name: string) => boolean;
   cleanup: () => Promise<void>;
@@ -85,7 +87,7 @@ const STAGEHAND_FACADE_MCP_TIMEOUTS = {
 export const CODEX_MCP_TOOLS_APPROVAL_MODE = "approve";
 
 /** Name of the per-run Codex home directory created inside the adapter cwd. */
-export const CODEX_HOME_DIRNAME = ".codex-home";
+export const CODEX_HOME_DIRNAME = path.join("home", ".codex");
 
 export function buildCodexMcpServers(
   toolSurface: ToolSurface,
@@ -104,34 +106,14 @@ export function buildCodexMcpServers(
   );
 }
 
-/**
- * Build the child env for a Codex session with `CODEX_HOME` pointed at a
- * per-run directory. Without this the binary loads the operator's
- * ~/.codex/config.toml — extra mcp_servers, plugins, approvals_reviewer — which
- * hands the agent browser escape hatches the tool surface never granted.
- */
-export function buildIsolatedCodexEnv(
-  baseEnv: NodeJS.ProcessEnv,
-  codexHome: string,
-): Record<string, string> {
-  const env: Record<string, string> = {};
-  for (const [key, value] of Object.entries(baseEnv)) {
-    if (value !== undefined) env[key] = value;
-  }
-  env.CODEX_HOME = codexHome;
-  return env;
-}
-
-async function createIsolatedCodexHome(cwd: string): Promise<string> {
-  const codexHome = path.join(cwd, CODEX_HOME_DIRNAME);
-  await fsp.mkdir(codexHome, { recursive: true });
-  // Every setting the run needs arrives as `--config` overrides from the SDK;
-  // the file exists only so nothing in this home is inherited from elsewhere.
+/** Create the isolated profile once and retain the SDK's filtered environment. */
+async function createIsolatedCodexEnvironment(cwd: string): Promise<Record<string, string>> {
+  const env = await isolatedCodexEnv(cwd);
   await fsp.writeFile(
-    path.join(codexHome, "config.toml"),
+    path.join(env.CODEX_HOME, "config.toml"),
     "# Per-run Codex home created by stagehand-evals; intentionally empty.\n",
   );
-  return codexHome;
+  return env;
 }
 
 /** Mirrors the claude adapter's bounded, best-effort terminal capture. */
@@ -226,7 +208,7 @@ export async function prepareCodexToolAdapter(
         path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
       );
       const capturedCwd = cwd;
-      const codexHome = await createIsolatedCodexHome(cwd);
+      const env = await createIsolatedCodexEnvironment(cwd);
       const serverNames = Object.keys(mount.mcpServers);
       const codexMcpServers = buildCodexMcpServers(toolSurface, mount.mcpServers);
 
@@ -244,10 +226,11 @@ export async function prepareCodexToolAdapter(
         toolSurface,
         startupProfile,
         cwd,
-        env: buildIsolatedCodexEnv(process.env, codexHome),
+        env,
         promptInstructions: mount.promptInstructions,
         browserSession: runtime.browserSession,
         codexConfig: { mcp_servers: codexMcpServers },
+        allowedMcpServers: serverNames,
         ...(runtime.running.browserSessionLoss && {
           browserSessionLoss: runtime.running.browserSessionLoss,
         }),
@@ -259,7 +242,11 @@ export async function prepareCodexToolAdapter(
             await recorder.settle();
             return recorder.drain();
           },
-          recordObservation: () => void recorder.record(),
+          recordObservation: async (item: Record<string, unknown>) => {
+            if (serverNames.includes(String(item.server))) {
+              await recorder.record(typeof item.id === "string" ? item.id : undefined);
+            }
+          },
         }),
         observedToolMatcher: (name: string) =>
           serverNames.some((server) => name.startsWith(`${server}.`)),
@@ -289,7 +276,7 @@ export async function prepareCodexToolAdapter(
       path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
     );
     await fsp.writeFile(path.join(cwd, "browser_run.mjs"), buildBridgeClientScript(bridge.port));
-    const codexHome = await createIsolatedCodexHome(cwd);
+    const env = await createIsolatedCodexEnvironment(cwd);
 
     input.logger.log({
       category: "codex",
@@ -307,7 +294,7 @@ export async function prepareCodexToolAdapter(
       toolSurface,
       startupProfile,
       cwd,
-      env: buildIsolatedCodexEnv(process.env, codexHome),
+      env,
       promptInstructions: buildCodexCodePromptInstructions(mount, toolSurface),
       browserSession: runtime.browserSession,
       ...(runtime.running.browserSessionLoss && {

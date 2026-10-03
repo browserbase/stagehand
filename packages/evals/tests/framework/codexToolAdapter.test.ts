@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildCodexMcpServers,
-  buildIsolatedCodexEnv,
   CODEX_MCP_TOOLS_APPROVAL_MODE,
   prepareCodexToolAdapter,
 } from "../../framework/codexToolAdapter.js";
@@ -60,13 +59,5 @@ describe("codex tool adapter", () => {
       startup_timeout_sec: 60,
       tool_timeout_sec: 300,
     });
-  });
-
-  it("points CODEX_HOME at the per-run directory and drops the inherited one", () => {
-    const env = buildIsolatedCodexEnv(
-      { PATH: "/usr/bin", CODEX_HOME: "/Users/someone/.codex", UNSET: undefined },
-      "/tmp/run/.codex-home",
-    );
-    expect(env).toEqual({ PATH: "/usr/bin", CODEX_HOME: "/tmp/run/.codex-home" });
   });
 });
