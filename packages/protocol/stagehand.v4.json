@@ -1299,6 +1299,10 @@
       "type": "string",
       "pattern": "^google\\/\\S+$"
     },
+    "XAIModelName": {
+      "type": "string",
+      "pattern": "^xai\\/\\S+$"
+    },
     "ModelName": {
       "anyOf": [
         {
@@ -1309,6 +1313,9 @@
         },
         {
           "$ref": "#/$defs/GoogleModelName"
+        },
+        {
+          "$ref": "#/$defs/XAIModelName"
         }
       ],
       "description": "A model name with a registered provider prefix"

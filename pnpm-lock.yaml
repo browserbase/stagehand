@@ -220,6 +220,9 @@ catalogs:
     '@ai-sdk/provider':
       specifier: ^4.0.19
       version: 4.0.19
+    '@ai-sdk/xai':
+      specifier: ^5.0.11
+      version: 5.0.11
     '@anthropic-ai/claude-agent-sdk':
       specifier: 0.3.224
       version: 0.3.224
@@ -757,6 +760,9 @@ importers:
       '@ai-sdk/provider':
         specifier: 'catalog:'
         version: 4.0.19
+      '@ai-sdk/xai':
+        specifier: 'catalog:'
+        version: 5.0.11(zod@4.4.3)
       '@opentelemetry/api':
         specifier: 'catalog:'
         version: 1.9.1
@@ -1453,6 +1459,12 @@ packages:
   '@ai-sdk/xai@2.0.82':
     resolution: {integrity: sha512-alMBmY/85rXVlblDr4NgIIQ3Tp0Xl8z+0S14Vw3WHGobOFByN2TD2vKmXICNyF6UARJgv1NRP5mSK1eddUUTjA==}
     engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/xai@5.0.11':
+    resolution: {integrity: sha512-XqSAN7pxizpo1laRft0FZ3Mow7zl2B51ew5ELw4ujgYA0tuN+VvQZuHr1JjiCvAuSwUywcOBMXryx3WkHFTQqQ==}
+    engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
@@ -9634,6 +9646,12 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.30(zod@4.4.3)
       zod: 4.4.3
     optional: true
+
+  '@ai-sdk/xai@5.0.11(zod@4.4.3)':
+    dependencies:
+      '@ai-sdk/provider': 4.0.19
+      '@ai-sdk/provider-utils': 5.0.50(zod@4.4.3)
+      zod: 4.4.3
 
   '@alcalzone/ansi-tokenize@0.2.5':
     dependencies:

@@ -56,7 +56,8 @@ describe("model configuration", () => {
       "openai/gpt-6-astra",
       "anthropic/claude-sonnet-5",
       "google/gemini-3.8-flash",
-      "openai/team/custom/model",
+      "xai/grok-4.3",
+      "xai/team/custom/grok",
     ])("accepts an opaque model ID under a registered provider: %s", (modelName) => {
       expect(ModelNameSchema.safeParse(modelName).success).toBe(true);
     });
@@ -76,7 +77,7 @@ describe("model configuration", () => {
       expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(true);
     });
 
-    it.each(["openai/", "google/ ", "openai/a b", "/gpt-5", "gpt-5"])(
+    it.each(["openai/", "xai/ ", "openai/a b", "/gpt-5", "gpt-5"])(
       "rejects a malformed model name: %s",
       (modelName) => {
         expect(ModelNameSchema.safeParse(modelName).success).toBe(false);

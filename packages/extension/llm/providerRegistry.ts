@@ -1,6 +1,7 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createXai } from "@ai-sdk/xai";
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { ModelProvider } from "@browserbasehq/stagehand-protocol/types";
 
@@ -36,6 +37,12 @@ const providerFactories: Record<ModelProvider, ProviderFactory> = {
       },
     })(modelId),
   google: (modelId, connection) => createGoogleGenerativeAI(connection)(modelId),
+  xai: (modelId, connection, options) => {
+    if (options?.stopSequences?.length) {
+      throw new TypeError("xAI Responses does not support stopSequences");
+    }
+    return createXai(connection).responses(modelId);
+  },
 };
 
 export function createProviderLanguageModel(

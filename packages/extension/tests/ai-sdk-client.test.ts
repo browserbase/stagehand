@@ -1,6 +1,7 @@
 import { Output, generateText } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
+import { getAISDKLanguageModel } from "../llm/LLMProvider.js";
 import { createProviderLanguageModel } from "../llm/providerRegistry.js";
 import * as llmService from "../services/llmService.js";
 
@@ -37,6 +38,12 @@ describe("AI SDK language models", () => {
       provider: "google.generative-ai",
     },
     {
+      name: "xAI",
+      modelName: "xai/grok-4.3" as const,
+      modelId: "grok-4.3",
+      provider: "xai.responses",
+    },
+    {
       name: "new OpenAI ID",
       modelName: "openai/gpt-6-astra" as const,
       modelId: "gpt-6-astra",
@@ -70,6 +77,22 @@ describe("AI SDK language models", () => {
     });
   });
 
+  it("uses the same xAI provider in the agent path", () => {
+    expect(getAISDKLanguageModel("xai", "grok-4.3")).toMatchObject({
+      provider: "xai.responses",
+      modelId: "grok-4.3",
+    });
+  });
+
+  it("rejects stop sequences for xAI before inference", () => {
+    expect(() =>
+      createAiSdkLanguageModel(
+        { modelName: "xai/grok-4.3", apiKey: "provider-secret" },
+        { stopSequences: ["STOP"] },
+      ),
+    ).toThrow("xAI Responses does not support stopSequences");
+  });
+
   it("keeps Anthropic's browser header after provider construction", async () => {
     const fetch = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
@@ -92,13 +115,49 @@ describe("AI SDK language models", () => {
     expect(headers.get("x-tenant-id")).toBe("tenant-123");
   });
 
+  it("maps Stagehand function tools and structured output to xAI Responses", async () => {
+    const fetch = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+        throw new Error("request intercepted");
+      },
+    );
+    const model = createProviderLanguageModel("xai", "grok-4.3", {
+      apiKey: "provider-secret",
+      fetch,
+    });
+
+    await expect(
+      model.doGenerate({
+        prompt: [{ role: "user", content: [{ type: "text", text: "Find a button" }] }],
+        tools: [
+          {
+            type: "function",
+            name: "click",
+            description: "Click a button",
+            inputSchema: { type: "object", properties: { id: { type: "string" } } },
+          },
+        ],
+        responseFormat: {
+          type: "json",
+          name: "action",
+          schema: { type: "object", properties: { id: { type: "string" } } },
+        },
+      }),
+    ).rejects.toThrow("request intercepted");
+
+    const init = fetch.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(init.body as string);
+    expect(body.tools).toContainEqual(expect.objectContaining({ type: "function", name: "click" }));
+    expect(body.text?.format).toMatchObject({ type: "json_schema", name: "action" });
+  });
+
   it("returns an upstream unknown-model error without replacing it", async () => {
-    const upstreamError = new Error("OpenAI: model private-model was not found");
+    const upstreamError = new Error("xAI: model grok-unavailable was not found");
     vi.mocked(generateText).mockRejectedValue(upstreamError);
 
     await expect(
       llmService.generate(
-        { modelName: "openai/private-model", apiKey: "provider-secret" },
+        { modelName: "xai/grok-unavailable", apiKey: "provider-secret" },
         { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] },
         vi.fn(),
       ),
@@ -134,6 +193,26 @@ describe("AI SDK language models", () => {
           provider: "openai.responses",
           modelId: "gpt-5.4-mini",
         }),
+      }),
+    );
+  });
+
+  it("routes xAI direct inference through its Responses provider", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      text: "Done",
+      finishReason: "stop",
+      usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+    } as never);
+
+    await llmService.generate(
+      { modelName: "xai/grok-4.3", apiKey: "provider-secret" },
+      { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] },
+      vi.fn(),
+    );
+
+    expect(generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({ provider: "xai.responses", modelId: "grok-4.3" }),
       }),
     );
   });

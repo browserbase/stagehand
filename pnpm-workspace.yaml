@@ -42,6 +42,7 @@ catalog:
   "@mastra/mcp": ^1.15.0
   "@ai-sdk/mcp": 2.0.22
   eve: 0.44.4
+  "@ai-sdk/xai": ^5.0.11
   "@ai-sdk/provider": ^4.0.19
   "@ai-sdk/openai": ^4.0.79
   "@ai-sdk/anthropic": ^4.0.67
@@ -103,4 +104,5 @@ minimumReleaseAgeExclude:
   - "@ai-sdk/openai@4.0.79"
   - "@ai-sdk/provider-utils@5.0.50"
   - "@ai-sdk/provider@4.0.19"
+  - "@ai-sdk/xai@5.0.11"
   - ai@7.0.120

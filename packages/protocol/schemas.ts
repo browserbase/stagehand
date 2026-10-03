@@ -10,9 +10,10 @@ const ModelIdSchema = z.string().min(1).regex(/^\S+$/);
 export const OpenAIModelIdSchema = ModelIdSchema.meta({ id: "OpenAIModelId" });
 export const AnthropicModelIdSchema = ModelIdSchema.meta({ id: "AnthropicModelId" });
 export const GoogleModelIdSchema = ModelIdSchema.meta({ id: "GoogleModelId" });
+export const XAIModelIdSchema = ModelIdSchema.meta({ id: "XAIModelId" });
 
 export const ModelProviderSchema = z
-  .enum(["openai", "anthropic", "google"])
+  .enum(["openai", "anthropic", "google", "xai"])
   .meta({ id: "ModelProvider" });
 
 export const OpenAIModelNameSchema = z
@@ -24,8 +25,16 @@ export const AnthropicModelNameSchema = z
 export const GoogleModelNameSchema = z
   .templateLiteral(["google/", GoogleModelIdSchema])
   .meta({ id: "GoogleModelName" });
+export const XAIModelNameSchema = z
+  .templateLiteral(["xai/", XAIModelIdSchema])
+  .meta({ id: "XAIModelName" });
 export const ModelNameSchema = z
-  .union([OpenAIModelNameSchema, AnthropicModelNameSchema, GoogleModelNameSchema])
+  .union([
+    OpenAIModelNameSchema,
+    AnthropicModelNameSchema,
+    GoogleModelNameSchema,
+    XAIModelNameSchema,
+  ])
   .meta({
     id: "ModelName",
     description: "A model name with a registered provider prefix",
