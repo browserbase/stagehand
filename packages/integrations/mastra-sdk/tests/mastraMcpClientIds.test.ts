@@ -35,7 +35,7 @@ describe("Mastra MCP client IDs", () => {
     for (const port of ["50001", "50002"]) {
       await runMastraSession({
         prompt: "task",
-        model: "openai/gpt-6.1-sol",
+        model: "openai/gpt-6-luna",
         logger,
         sdk,
         session: { mcpServers: stdioServer(port) },

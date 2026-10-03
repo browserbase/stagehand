@@ -24,7 +24,7 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(
             browser=browser,
-            model="openai/gpt-6.1-sol",
+            model="openai/gpt-6-luna",
             model_api_key=OPENAI_API_KEY,
         )
         subscription: CDPSubscription | None = None

@@ -1280,7 +1280,7 @@
           }
         },
         "model_name": {
-          "example": "openai/gpt-6.1-sol",
+          "example": "openai/gpt-6-luna",
           "$ref": "#/$defs/ModelName"
         }
       },

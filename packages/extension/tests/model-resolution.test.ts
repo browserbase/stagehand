@@ -90,12 +90,12 @@ describe("model configuration", () => {
     it("accepts a known model with provider credentials and headers", () => {
       expect(
         ModelConfigSchema.parse({
-          modelName: "openai/gpt-6.1-sol",
+          modelName: "openai/gpt-6-luna",
           apiKey: "sk-test",
           headers: { "x-tenant-id": "tenant-123" },
         }),
       ).toEqual({
-        modelName: "openai/gpt-6.1-sol",
+        modelName: "openai/gpt-6-luna",
         apiKey: "sk-test",
         headers: { "x-tenant-id": "tenant-123" },
       });
@@ -104,7 +104,7 @@ describe("model configuration", () => {
     it("rejects an empty model API key", () => {
       expect(
         ModelConfigSchema.safeParse({
-          modelName: "openai/gpt-6.1-sol",
+          modelName: "openai/gpt-6-luna",
           apiKey: "",
         }).success,
       ).toBe(false);
@@ -113,7 +113,7 @@ describe("model configuration", () => {
     it("rejects the removed provider and provider options fields", () => {
       expect(
         ModelConfigSchema.safeParse({
-          modelName: "openai/gpt-6.1-sol",
+          modelName: "openai/gpt-6-luna",
           provider: "openai",
           providerOptions: {},
         }).success,

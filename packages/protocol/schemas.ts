@@ -674,7 +674,7 @@ const ModelConnectionSchema = z
 export const ModelConfigSchema = ModelConnectionSchema.extend({
   modelName: ModelNameSchema.meta({
     description: "A model name with a registered provider prefix",
-    example: "openai/gpt-6.1-sol",
+    example: "openai/gpt-6-luna",
   }),
 }).meta({ id: "ModelConfig" });
 
