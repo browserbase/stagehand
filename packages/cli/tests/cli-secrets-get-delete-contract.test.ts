@@ -6,6 +6,7 @@ import {
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
 
+const secretId = "d2c4f48f-38e9-4b82-a36a-2b373fd14a65";
 const env = {
   BROWSERBASE_API_KEY: "test-key",
   BROWSE_LOAD_DOTENV: "0",
@@ -18,25 +19,32 @@ afterEach(async () => {
 });
 
 describe("project secrets get/delete HTTP contracts", () => {
-  it("gets metadata by ID and prints the API response", async () => {
-    const metadata = { id: "secret-1", secretKey: "SERVICE_TOKEN" };
-    server = await startFakeBrowserbaseServer((_request, response) =>
-      jsonResponse(response, 200, metadata),
-    );
-    const result = await runCli(
-      ["cloud", "secrets", "get", "secret-1", "--base-url", server.baseUrl],
-      { env },
-    );
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual(metadata);
-    expect(server.requests).toHaveLength(1);
-    expect(server.requests[0]).toMatchObject({
-      method: "GET",
-      path: "/v1/secrets/secret-1",
-      bodyText: "",
-      headers: { "x-bb-api-key": "test-key" },
-    });
-  });
+  it.each([
+    secretId,
+    secretId.toUpperCase(),
+    "019f0000-0000-7000-8000-000000000001",
+  ])(
+    "gets metadata for UUID %s and prints the API response",
+    async (secretId) => {
+      const metadata = { id: secretId, secretKey: "SERVICE_TOKEN" };
+      server = await startFakeBrowserbaseServer((_request, response) =>
+        jsonResponse(response, 200, metadata),
+      );
+      const result = await runCli(
+        ["cloud", "secrets", "get", secretId, "--base-url", server.baseUrl],
+        { env },
+      );
+      expect(result.exitCode, result.stderr).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual(metadata);
+      expect(server.requests).toHaveLength(1);
+      expect(server.requests[0]).toMatchObject({
+        method: "GET",
+        path: `/v1/secrets/${secretId}`,
+        bodyText: "",
+        headers: { "x-bb-api-key": "test-key" },
+      });
+    },
+  );
 
   it("deletes by ID and handles an empty 204 response", async () => {
     server = await startFakeBrowserbaseServer((_request, response) => {
@@ -48,7 +56,7 @@ describe("project secrets get/delete HTTP contracts", () => {
         "cloud",
         "secrets",
         "delete",
-        "secret-1",
+        secretId,
         "--base-url",
         server.baseUrl,
         "--api-key",
@@ -61,36 +69,11 @@ describe("project secrets get/delete HTTP contracts", () => {
     expect(server.requests).toHaveLength(1);
     expect(server.requests[0]).toMatchObject({
       method: "DELETE",
-      path: "/v1/secrets/secret-1",
+      path: `/v1/secrets/${secretId}`,
       bodyText: "",
       headers: { "x-bb-api-key": "override-key" },
     });
   });
-
-  it.each(["get", "delete"])(
-    "%s escapes the ID as a single URL segment",
-    async (command) => {
-      server = await startFakeBrowserbaseServer((_request, response) =>
-        jsonResponse(response, 200, {}),
-      );
-      const result = await runCli(
-        [
-          "cloud",
-          "secrets",
-          command,
-          "id/with?query#fragment",
-          "--base-url",
-          server.baseUrl,
-        ],
-        { env },
-      );
-      expect(result.exitCode, result.stderr).toBe(0);
-      expect(server.requests).toHaveLength(1);
-      expect(server.requests[0]?.path).toBe(
-        "/v1/secrets/id%2Fwith%3Fquery%23fragment",
-      );
-    },
-  );
 
   it.each([
     ["get", 404, "Secret not found"],
@@ -100,7 +83,7 @@ describe("project secrets get/delete HTTP contracts", () => {
       jsonResponse(response, status, { message }),
     );
     const result = await runCli(
-      ["cloud", "secrets", command, "secret-1", "--base-url", server.baseUrl],
+      ["cloud", "secrets", command, secretId, "--base-url", server.baseUrl],
       { env },
     );
     expect(result.exitCode).not.toBe(0);

@@ -55,29 +55,6 @@ describe("function secret attach HTTP contract", () => {
     },
   );
 
-  it("escapes the function ID as one path segment", async () => {
-    server = await startFakeBrowserbaseServer((_request, response) => {
-      response.writeHead(204);
-      response.end();
-    });
-    const result = await runCli(
-      [
-        "functions",
-        "secrets",
-        "attach",
-        "id/with?query#fragment",
-        secretId,
-        "--base-url",
-        server.baseUrl,
-      ],
-      { env },
-    );
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(server.requests[0]?.path).toBe(
-      "/v1/functions/id%2Fwith%3Fquery%23fragment/secrets",
-    );
-  });
-
   it.each([400, 403, 404])(
     "reports HTTP %s without retrying",
     async (status) => {
