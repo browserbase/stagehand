@@ -33,8 +33,6 @@ import type {
   CacheStatusSchema,
   CacheTokenSavingsSchema,
   CachingSchema,
-  CerebrasModelIdSchema,
-  CerebrasModelNameSchema,
   ClientOptionsBaseSchema,
   ClientOptionsSchema,
   ClientModelReferenceSchema,
@@ -72,6 +70,8 @@ import type {
   ExtractResultSchema,
   GoogleModelIdSchema,
   GoogleModelNameSchema,
+  XAIModelIdSchema,
+  XAIModelNameSchema,
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
   ImplementationInfoSchema,
@@ -142,8 +142,6 @@ import type {
   ModelNameSchema,
   ModelProviderOptionsSchema,
   ModelProviderSchema,
-  GroqModelIdSchema,
-  GroqModelNameSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
@@ -264,13 +262,11 @@ export type AzureModelProviderOptions = z.infer<typeof AzureModelProviderOptions
 export type OpenAIModelId = z.infer<typeof OpenAIModelIdSchema>;
 export type AnthropicModelId = z.infer<typeof AnthropicModelIdSchema>;
 export type GoogleModelId = z.infer<typeof GoogleModelIdSchema>;
-export type GroqModelId = z.infer<typeof GroqModelIdSchema>;
-export type CerebrasModelId = z.infer<typeof CerebrasModelIdSchema>;
+export type XAIModelId = z.infer<typeof XAIModelIdSchema>;
 export type OpenAIModelName = z.infer<typeof OpenAIModelNameSchema>;
 export type AnthropicModelName = z.infer<typeof AnthropicModelNameSchema>;
 export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
-export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
-export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
+export type XAIModelName = z.infer<typeof XAIModelNameSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;

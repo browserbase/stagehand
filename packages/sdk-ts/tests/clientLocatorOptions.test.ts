@@ -22,7 +22,7 @@ describe("client locator option serialization", () => {
     const options = serializeClientLocatorOptions("extract", "page-1", {
       locator: page.locator("main").nth(2),
       ignoreLocators: [],
-      model: { modelName: "openai/gpt-5.4-mini" },
+      model: { modelName: "openai/gpt-6-luna" },
       timeout: 30_000,
       variables: { accountEmail: "user@example.com" },
     });
@@ -30,7 +30,7 @@ describe("client locator option serialization", () => {
     expect(options).toEqual({
       locator: { selector: "main", nth: 2 },
       ignoreLocators: [],
-      model: { modelName: "openai/gpt-5.4-mini" },
+      model: { modelName: "openai/gpt-6-luna" },
       timeout: 30_000,
       variables: { accountEmail: "user@example.com" },
     });

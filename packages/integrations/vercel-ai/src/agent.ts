@@ -15,7 +15,7 @@ async function main() {
 
   try {
     const result = await generateText({
-      model: openai(process.env.AI_SDK_STAGEHAND_MODEL ?? "gpt-5.6-luna"),
+      model: openai(process.env.AI_SDK_STAGEHAND_MODEL ?? "gpt-6-luna"),
       // `ai` and `@ai-sdk/mcp` pin different exact @ai-sdk/provider-utils
       // versions, so their structurally identical schema types are nominally
       // distinct (unique-symbol brand). The cast bridges that; runtime is fine.

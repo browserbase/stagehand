@@ -1,13 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  AnthropicModelIdSchema,
-  CerebrasModelIdSchema,
-  GoogleModelIdSchema,
-  GroqModelIdSchema,
-  ModelConfigSchema,
-  ModelNameSchema,
-  OpenAIModelIdSchema,
-} from "@browserbasehq/stagehand-protocol/schemas";
+import { ModelConfigSchema, ModelNameSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   StagehandInitParams,
   StagehandResultMetadata,
@@ -59,48 +51,52 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
 }
 
 describe("model configuration", () => {
-  describe("supported models", () => {
-    it("accepts every explicitly supported model", () => {
-      const providers = [
-        ["openai", OpenAIModelIdSchema.options],
-        ["anthropic", AnthropicModelIdSchema.options],
-        ["google", GoogleModelIdSchema.options],
-        ["groq", GroqModelIdSchema.options],
-        ["cerebras", CerebrasModelIdSchema.options],
-      ] as const;
-
-      for (const [provider, modelIds] of providers) {
-        for (const modelId of modelIds) {
-          expect(ModelNameSchema.safeParse(`${provider}/${modelId}`).success).toBe(true);
-        }
-      }
-    });
-
-    it("accepts a provider model ID that contains additional slashes", () => {
-      expect(ModelNameSchema.safeParse("groq/openai/gpt-oss-120b").success).toBe(true);
+  describe("provider model names", () => {
+    it.each([
+      "openai/gpt-6-astra",
+      "anthropic/claude-sonnet-5-5",
+      "google/gemini-3.8-flash",
+      "xai/grok-4.7",
+      "xai/team/custom/grok",
+    ])("accepts an opaque model ID under a registered provider: %s", (modelName) => {
+      expect(ModelNameSchema.safeParse(modelName).success).toBe(true);
     });
 
     it("rejects a model from an unsupported provider", () => {
       expect(ModelNameSchema.safeParse("bedrock/anthropic.claude-sonnet-v1:0").success).toBe(false);
     });
 
-    it("rejects an unsupported model from a supported provider", () => {
-      expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(false);
+    it.each(["groq/llama-3.3-70b-versatile", "cerebras/gpt-oss-120b"])(
+      "rejects removed provider model %s",
+      (modelName) => {
+        expect(ModelNameSchema.safeParse(modelName).success).toBe(false);
+      },
+    );
+
+    it("accepts unknown IDs under registered providers", () => {
+      expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(true);
     });
 
-    it("rejects a model under the wrong provider prefix", () => {
-      expect(ModelNameSchema.safeParse("openai/claude-sonnet-4-6").success).toBe(false);
+    it.each(["openai/", "xai/ ", "openai/a b", "/gpt-5", "gpt-5"])(
+      "rejects a malformed model name: %s",
+      (modelName) => {
+        expect(ModelNameSchema.safeParse(modelName).success).toBe(false);
+      },
+    );
+
+    it("leaves model availability to the provider", () => {
+      expect(ModelNameSchema.safeParse("openai/claude-sonnet-4-6").success).toBe(true);
     });
 
     it("accepts a known model with provider credentials and headers", () => {
       expect(
         ModelConfigSchema.parse({
-          modelName: "openai/gpt-5.4-mini",
+          modelName: "openai/gpt-6-luna",
           apiKey: "sk-test",
           headers: { "x-tenant-id": "tenant-123" },
         }),
       ).toEqual({
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6-luna",
         apiKey: "sk-test",
         headers: { "x-tenant-id": "tenant-123" },
       });
@@ -109,7 +105,7 @@ describe("model configuration", () => {
     it("rejects an empty model API key", () => {
       expect(
         ModelConfigSchema.safeParse({
-          modelName: "openai/gpt-5.4-mini",
+          modelName: "openai/gpt-6-luna",
           apiKey: "",
         }).success,
       ).toBe(false);
@@ -118,7 +114,7 @@ describe("model configuration", () => {
     it("rejects the removed provider and provider options fields", () => {
       expect(
         ModelConfigSchema.safeParse({
-          modelName: "openai/gpt-5.4-mini",
+          modelName: "openai/gpt-6-luna",
           provider: "openai",
           providerOptions: {},
         }).success,
