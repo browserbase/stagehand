@@ -464,7 +464,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-Commonly used: `anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5-5`, `anthropic/claude-fable-5-1`, `anthropic/claude-haiku-4-5`.
+Commonly used: `anthropic/claude-fable-5-1`, `anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5-5`, `anthropic/claude-haiku-4-5`.
 
 [View all supported Anthropic models →](https://docs.anthropic.com/en/docs/models-overview)
 </Tab>
@@ -529,7 +529,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-Commonly used: `openai/gpt-6.1-sol`, `openai/gpt-6-astra`, `openai/gpt-6-sol`, `openai/gpt-6-luna`.
+Commonly used: `openai/gpt-6-astra`, `openai/gpt-6.1-sol`, `openai/gpt-6-sol`, `openai/gpt-6-luna`.
 
 <Note>
 OpenAI models are called through the Responses API.
@@ -1232,7 +1232,7 @@ The result is validated against the response format Stagehand asked for. If you 
 
 ## Choose a model
 
-Different models excel at different tasks. The picks below follow [Browserbase Benchmark v2](https://www.stagehand.dev/evals).
+Different models excel at different tasks. OpenAI's current family is Luna (mini-class), Sol (default), and Astra (largest). Anthropic's is Haiku, Sonnet, Opus, then Fable as the largest.
 
 <Card title="Browser Agent Evals" href="https://www.stagehand.dev/evals" icon="scale-balanced">
   Live accuracy, cost, and speed comparisons across models and harnesses.
@@ -1240,14 +1240,12 @@ Different models excel at different tasks. The picks below follow [Browserbase B
 
 **Quick recommendations**
 
-Rankings below use [Browserbase Benchmark v2](https://www.stagehand.dev/evals) as of 2026-09-03 (HardBench, 15 published runs). Token prices are the current provider API rates.
-
 | Use Case          | Recommended Model              | Why                                                                 |
 | ----------------- | ------------------------------ | ------------------------------------------------------------------- |
-| **Production**    | `openai/gpt-6.1-sol`           | 79% accuracy at $0.305/task; near-Astra quality at one-fifth Astra's API price |
-| **Intelligence**  | `anthropic/claude-opus-5-5`    | 89% accuracy leader at $0.51/task                                   |
-| **Speed**         | `openai/gpt-6-sol`             | Fastest among the current top evals (268s/task)                     |
-| **Cost**          | `openai/gpt-6-luna`            | Lowest cost per task ($0.0225) at 74% accuracy                      |
+| **Production**    | `openai/gpt-6.1-sol`           | Sol is the default quality/cost balance                             |
+| **Intelligence**  | `openai/gpt-6-astra`           | Astra is the largest OpenAI model; Anthropic's largest is `anthropic/claude-fable-5-1` |
+| **Speed**         | `openai/gpt-6-luna`            | Luna is the mini-class model                                        |
+| **Cost**          | `openai/gpt-6-luna`            | Lowest token price in the current OpenAI family                     |
 | **Local/offline** | Bring your own LLM callback    | No API costs, full control                                          |
 
 
