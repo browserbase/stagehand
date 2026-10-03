@@ -105,7 +105,7 @@ export async function loadCodexSdk(
 }
 
 export function normalizeCodexModel(model: string): string {
-  if (model === "codex/default") return "gpt-5.4-mini";
+  if (model === "codex/default") return "gpt-6-luna";
   return model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
 }
 

@@ -27,7 +27,7 @@ async function main(): Promise<void> {
 
   const result = await runClaudeAgentSession({
     prompt: instruction,
-    model: process.env.CLAUDE_STAGEHAND_MODEL ?? "claude-sonnet-5",
+    model: process.env.CLAUDE_STAGEHAND_MODEL ?? "claude-sonnet-5-5",
     logger,
     session: {
       maxTurns: 20,
