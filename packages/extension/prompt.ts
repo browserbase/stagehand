@@ -70,8 +70,7 @@ ONLY print the content using the print_extracted_data tool provided.
     : "";
 
   const additionalInstructions =
-    "If a user is attempting to extract links or URLs, you MUST respond with ONLY the IDs of the link elements. \n" +
-    "Do not attempt to extract links directly from the text unless absolutely necessary. ";
+    'Hrefs are not shown in the DOM list. For any value that should be a URL, return the matching link element\'s ID in the form frameId-backendId (e.g. "0-432"), without square brackets. Do not invent hrefs. For every other field, print the exact visible text and never return element IDs.';
 
   const userInstructions = buildUserInstructionsString(userProvidedInstructions);
 

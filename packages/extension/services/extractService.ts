@@ -14,7 +14,7 @@ import type { StagehandLogger } from "../logger.js";
 import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
 import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
-import { injectUrls, transformSchema } from "../utils.js";
+import { injectUrls, replaceElementIdsWithUrls, transformSchema } from "../utils.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
@@ -164,6 +164,7 @@ export async function extract({
         idToUrl as unknown as Record<string, string>,
       );
     }
+    replaceElementIdsWithUrls(output, idToUrl as unknown as Record<string, string>);
     if (!isObjectSchema && output && typeof output === "object") {
       output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
     }
