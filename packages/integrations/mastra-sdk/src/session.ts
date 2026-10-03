@@ -130,7 +130,7 @@ export async function loadMastraSdk(): Promise<MastraSdk> {
 }
 
 export function normalizeMastraModel(model: string): string {
-  if (model === "mastra/default") return "openai/gpt-5.4-mini";
+  if (model === "mastra/default") return "openai/gpt-6.1-sol";
   return model.includes("/") ? model : `openai/${model}`;
 }
 

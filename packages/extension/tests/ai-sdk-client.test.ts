@@ -20,8 +20,8 @@ describe("AI SDK language models", () => {
   it.each([
     {
       name: "OpenAI",
-      modelName: "openai/gpt-5.4-mini" as const,
-      modelId: "gpt-5.4-mini",
+      modelName: "openai/gpt-6.1-sol" as const,
+      modelId: "gpt-6.1-sol",
       provider: "openai.responses",
     },
     {
@@ -58,7 +58,7 @@ describe("AI SDK language models", () => {
   it("uses Chat Completions for OpenAI requests with stop sequences", () => {
     const model = createAiSdkLanguageModel(
       {
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6.1-sol",
         apiKey: "provider-secret",
       },
       { stopSequences: ["STOP"] },
@@ -66,7 +66,7 @@ describe("AI SDK language models", () => {
 
     expect(model).toMatchObject({
       provider: "openai.chat",
-      modelId: "gpt-5.4-mini",
+      modelId: "gpt-6.1-sol",
     });
   });
 
@@ -76,7 +76,7 @@ describe("AI SDK language models", () => {
         throw new Error("request intercepted");
       },
     );
-    const model = createProviderLanguageModel("anthropic", "claude-sonnet-5", {
+    const model = createProviderLanguageModel("anthropic", "claude-sonnet-5-5", {
       apiKey: "provider-secret",
       headers: { "x-tenant-id": "tenant-123" },
       fetch,
@@ -119,7 +119,7 @@ describe("AI SDK language models", () => {
 
     await llmService.generate(
       {
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6.1-sol",
         apiKey: "provider-secret",
       },
       {
@@ -132,7 +132,7 @@ describe("AI SDK language models", () => {
       expect.objectContaining({
         model: expect.objectContaining({
           provider: "openai.responses",
-          modelId: "gpt-5.4-mini",
+          modelId: "gpt-6.1-sol",
         }),
       }),
     );
@@ -152,7 +152,7 @@ describe("AI SDK language models", () => {
 
     await llmService.generate(
       {
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6.1-sol",
         apiKey: "provider-secret",
       },
       {

@@ -37,7 +37,7 @@ class SportsSummary(BaseModel):
 
 
 async def main() -> None:
-    model = "openai:gpt-5.6-luna"
+    model = "openai:gpt-6-luna"
     instruction = "Go find me a summary of all main sports events today"
     response_format = SportsSummary
 

@@ -89,7 +89,7 @@ func run(ctx context.Context) (err error) {
 	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 		Browser: browser,
 		Model: &stagehand.ModelConfig{
-			ModelName: "openai/gpt-5.4-mini",
+			ModelName: "openai/gpt-6.1-sol",
 			APIKey:    &modelAPIKey,
 		},
 	})

@@ -215,9 +215,9 @@ const DEFAULT_EVAL_MODELS = process.env.EVAL_MODELS
   : ["google/gemini-2.5-flash", "openai/gpt-4.1-mini", "anthropic/claude-haiku-4-5"];
 
 const DEFAULT_AGENT_MODELS_STANDARD = [
-  "anthropic/claude-haiku-4-5",
-  "openai/gpt-5.4-mini",
-  "google/gemini-3-flash-preview",
+  "anthropic/claude-sonnet-5-5",
+  "openai/gpt-6.1-sol",
+  "google/gemini-3.8-flash",
 ];
 
 const DEFAULT_AGENT_MODELS_CUA = [

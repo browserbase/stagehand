@@ -21,10 +21,10 @@ describe("Eve tool adapter helpers", () => {
   });
 
   it("resolves supported model providers and defaults bare ids to OpenAI", () => {
-    expect(resolveEveModelProvider("openai/gpt-5.4-mini")).toEqual({
+    expect(resolveEveModelProvider("openai/gpt-6.1-sol")).toEqual({
       pkg: "@ai-sdk/openai",
       factory: "openai",
-      modelId: "gpt-5.4-mini",
+      modelId: "gpt-6.1-sol",
     });
     expect(resolveEveModelProvider("anthropic/claude-sonnet-4-6")).toEqual({
       pkg: "@ai-sdk/anthropic",
@@ -36,7 +36,7 @@ describe("Eve tool adapter helpers", () => {
       factory: "google",
       modelId: "gemini-2.5-pro",
     });
-    expect(resolveEveModelProvider("gpt-5.4-mini").factory).toBe("openai");
+    expect(resolveEveModelProvider("gpt-6.1-sol").factory).toBe("openai");
     expect(() => resolveEveModelProvider("mistral/x")).toThrow(EvalsError);
     expect(() => resolveEveModelProvider("mistral/x")).toThrow(/openai\/, anthropic\/, google\//);
   });

@@ -391,7 +391,7 @@ async def test_local_browser_omits_metadata_and_forwards_caller_options(
     await Stagehand.create(
         browser=browser,
         api_key="caller-key",
-        model="openai/gpt-5.4-mini",
+        model="openai/gpt-6.1-sol",
         model_api_key="model-key",
         telemetry=telemetry,
         system_prompt="Use the test policy",
