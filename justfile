@@ -102,11 +102,11 @@ _publish-typescript:
     pnpm --filter @browserbasehq/eve build
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk
 
-# Publishes a commit-addressed alpha of the TypeScript SDK (`<next>-alpha-<sha>`)
+# Publishes the next numbered alpha of the TypeScript SDK (`<next>-alpha.<N>`)
 # under the `alpha` dist-tag. Only packages with pending changesets are versioned,
 # so this is a no-op when nothing is unreleased.
 _publish-typescript-alpha:
-    pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
+    pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot-alpha
     pnpm --filter ./packages/sdk-ts build
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk --alpha
 
