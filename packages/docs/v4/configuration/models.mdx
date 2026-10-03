@@ -1232,7 +1232,7 @@ The result is validated against the response format Stagehand asked for. If you 
 
 ## Choose a model
 
-Different models excel at different tasks. OpenAI's current family is Luna (mini-class), Sol (default), and Astra (largest). Anthropic's is Haiku, Sonnet, Opus, then Fable as the largest.
+Different models excel at different tasks. The picks below follow [Browserbase Benchmark v2](https://www.stagehand.dev/evals).
 
 <Card title="Browser Agent Evals" href="https://www.stagehand.dev/evals" icon="scale-balanced">
   Live accuracy, cost, and speed comparisons across models and harnesses.
@@ -1240,13 +1240,13 @@ Different models excel at different tasks. OpenAI's current family is Luna (mini
 
 **Quick recommendations**
 
-| Use Case          | Recommended Model              | Why                                                                 |
-| ----------------- | ------------------------------ | ------------------------------------------------------------------- |
-| **Production**    | `openai/gpt-6.1-sol`           | Sol is the default quality/cost balance                             |
-| **Intelligence**  | `openai/gpt-6-astra`           | Astra is the largest OpenAI model; Anthropic's largest is `anthropic/claude-fable-5-1` |
-| **Speed**         | `openai/gpt-6-luna`            | Luna is the mini-class model                                        |
-| **Cost**          | `openai/gpt-6-luna`            | Lowest token price in the current OpenAI family                     |
-| **Local/offline** | Bring your own LLM callback    | No API costs, full control                                          |
+| Use Case          | Recommended Model           | Why                                  |
+| ----------------- | --------------------------- | ------------------------------------ |
+| **Production**    | `openai/gpt-6.1-sol`        | Strong accuracy without a high bill  |
+| **Intelligence**  | `openai/gpt-6-astra`        | Best accuracy on hard tasks          |
+| **Speed**         | `openai/gpt-6-luna`         | Fastest response times               |
+| **Cost**          | `openai/gpt-6-luna`         | Lowest cost per task                 |
+| **Local/offline** | Bring your own LLM callback | No API costs, full control           |
 
 
 ---
