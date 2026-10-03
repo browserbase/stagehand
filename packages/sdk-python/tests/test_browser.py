@@ -572,6 +572,54 @@ async def test_launch_converts_argument_tuples_to_flag_lists(
     await handle.close()
 
 
+# Chrome parses --disable-features and --enable-features as a single value each:
+# a second occurrence replaces the first outright rather than adding to it. Since
+# the defaults are emitted before options.args, these switches have to be merged
+# or a caller passing one of their own silently drops every default feature name.
+_WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
+
+
+def _feature_values(flags: list[str], name: str) -> list[str]:
+    return [flag for flag in flags if flag.startswith(f"{name}=")]
+
+
+def _flags_for(tmp_path: Path, **overrides: object) -> list[str]:
+    options = LocalBrowserLaunchOptions(**overrides)  # ty: ignore[missing-argument]
+    return _local_browser_flags(options, port=9222, user_data_dir=tmp_path, is_ci=False)
+
+
+def test_feature_flags_merge_caller_values_into_the_defaults(tmp_path: Path) -> None:
+    flags = _flags_for(tmp_path, args=["--disable-features=ExampleFeature"])
+    assert _feature_values(flags, "--disable-features") == [
+        f"{_DEFAULT_CHROME_FLAGS[0]},ExampleFeature"
+    ]
+
+    flags = _flags_for(tmp_path, args=["--enable-features=ExampleFeature"])
+    assert _feature_values(flags, "--enable-features") == [f"{_WEBMCP_CHROME_FLAG},ExampleFeature"]
+
+
+def test_feature_flags_merge_in_order_without_duplicating_a_value(tmp_path: Path) -> None:
+    flags = _flags_for(
+        tmp_path,
+        args=["--disable-features=Translate,First", "--mute-audio", "--disable-features=Second"],
+    )
+
+    assert flags[0] == f"{_DEFAULT_CHROME_FLAGS[0]},First,Second"
+    assert len(_feature_values(flags, "--disable-features")) == 1
+    assert "--mute-audio" in flags
+
+
+def test_feature_flags_leave_the_caller_alone_when_defaults_are_ignored(tmp_path: Path) -> None:
+    flags = _flags_for(
+        tmp_path,
+        ignore_default_args=True,
+        args=["--disable-features=ExampleFeature"],
+    )
+
+    assert _feature_values(flags, "--disable-features") == ["--disable-features=ExampleFeature"]
+    assert _feature_values(flags, "--enable-features") == []
+
+
 async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_source(
     fake_cdp: type[FakeCDPClient],
 ) -> None:
