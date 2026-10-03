@@ -95,7 +95,7 @@ With Model Gateway, switching between providers is a config change: no new accou
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
-  model: { modelName: "openai/gpt-5.6-sol" },
+  model: { modelName: "openai/gpt-6.1-sol" },
 });
 ```
 </Tab>
@@ -106,7 +106,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model="openai/gpt-5.6-sol",
+    model="openai/gpt-6.1-sol",
 )
 ```
 </Tab>
@@ -115,7 +115,7 @@ stagehand = await Stagehand.create(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
-model := stagehand.ModelConfig{ModelName: "openai/gpt-5.6-sol"}
+model := stagehand.ModelConfig{ModelName: "openai/gpt-6.1-sol"}
 
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
 	APIKey: apiKey,
@@ -144,7 +144,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
-  model: { modelName: "anthropic/claude-sonnet-5" },
+  model: { modelName: "anthropic/claude-sonnet-5-5" },
 });
 ```
 </Tab>
@@ -155,7 +155,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model="anthropic/claude-sonnet-5",
+    model="anthropic/claude-sonnet-5-5",
 )
 ```
 </Tab>
@@ -164,7 +164,7 @@ stagehand = await Stagehand.create(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
-model := stagehand.ModelConfig{ModelName: "anthropic/claude-sonnet-5"}
+model := stagehand.ModelConfig{ModelName: "anthropic/claude-sonnet-5-5"}
 
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
 	APIKey: apiKey,
@@ -249,8 +249,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 | Provider   | Example Model                  |
 | ---------- | ------------------------------ |
-| OpenAI     | `openai/gpt-5.6-sol`                |
-| Anthropic  | `anthropic/claude-sonnet-5` |
+| OpenAI     | `openai/gpt-6.1-sol`                |
+| Anthropic  | `anthropic/claude-sonnet-5-5` |
 | Google     | `google/gemini-3.8-flash`     |
 
 <Tip>
@@ -401,7 +401,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-Commonly used: `google/gemini-3.8-flash`, `google/gemini-3.7-flash`, `google/gemini-3.6-flash`, `google/gemini-3.5-flash`, `google/gemini-3.1-pro-preview`.
+Commonly used: `google/gemini-3.8-flash`, `google/gemini-3.1-pro-preview`, `google/gemini-3.7-flash`, `google/gemini-3.1-flash-lite`, `google/gemini-3.5-flash`.
 
 [View all supported Google models →](https://ai.google.dev/gemini-api/docs/models)
 </Tab>
@@ -416,7 +416,7 @@ import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
-    modelName: "anthropic/claude-sonnet-5",
+    modelName: "anthropic/claude-sonnet-5-5",
   },
 });
 ```
@@ -432,7 +432,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model="anthropic/claude-sonnet-5",
+    model="anthropic/claude-sonnet-5-5",
     model_api_key=os.environ["ANTHROPIC_API_KEY"],
 )
 ```
@@ -443,7 +443,7 @@ stagehand = await Stagehand.create(
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "anthropic/claude-sonnet-5",
+	ModelName: "anthropic/claude-sonnet-5-5",
 	APIKey:    &modelAPIKey,
 }
 
@@ -466,7 +466,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-Commonly used: `anthropic/claude-fable-5-1`, `anthropic/claude-opus-5`, `anthropic/claude-sonnet-5`, `anthropic/claude-haiku-4-5`, `anthropic/claude-sonnet-4-6`.
+Commonly used: `anthropic/claude-opus-5-5`, `anthropic/claude-sonnet-5-5`, `anthropic/claude-fable-5-1`, `anthropic/claude-haiku-4-5`.
 
 [View all supported Anthropic models →](https://docs.anthropic.com/en/docs/models-overview)
 </Tab>
@@ -481,7 +481,7 @@ import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
-    modelName: "openai/gpt-5.6-sol",
+    modelName: "openai/gpt-6.1-sol",
   },
 });
 ```
@@ -497,7 +497,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model="openai/gpt-5.6-sol",
+    model="openai/gpt-6.1-sol",
     model_api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
@@ -508,7 +508,7 @@ stagehand = await Stagehand.create(
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "openai/gpt-5.6-sol",
+	ModelName: "openai/gpt-6.1-sol",
 	APIKey:    &modelAPIKey,
 }
 
@@ -531,13 +531,13 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-Commonly used: `openai/gpt-6-astra`, `openai/gpt-5.6-sol`, `openai/gpt-5.6-terra`, `openai/gpt-5.6-luna`, `openai/gpt-5.5`, `openai/gpt-5.4`.
+Commonly used: `openai/gpt-6.1-sol`, `openai/gpt-6-astra`, `openai/gpt-6-sol`, `openai/gpt-6-luna`.
 
 <Note>
 OpenAI models are called through the Responses API.
 </Note>
 
-[View all supported OpenAI models →](https://platform.openai.com/docs/models)
+[View all supported OpenAI models →](https://developers.openai.com/api/docs/models)
 </Tab>
 
 <Tab title="xAI">
@@ -1061,7 +1061,7 @@ func generateWithOpenAI(
 	}
 
 	text, err := callOpenAI(ctx, callOpenAIInput{
-		Model:          "gpt-5.6-luna",
+		Model:          "gpt-6-luna",
 		Instructions:   request.SystemPrompt,
 		Messages:       request.Messages,
 		Temperature:    request.Temperature,
@@ -1300,13 +1300,15 @@ Different models excel at different tasks. The picks below follow [Browserbase B
 
 **Quick recommendations**
 
-| Use Case          | Recommended Model           | Why                                  |
-| ----------------- | --------------------------- | ------------------------------------ |
-| **Production**    | `openai/gpt-5.6-sol`        | Strong accuracy without a high bill  |
-| **Intelligence**  | `openai/gpt-6-astra`        | Best accuracy on hard tasks          |
-| **Speed**         | `openai/gpt-5.6-luna`       | Fastest response times               |
-| **Cost**          | `openai/gpt-5.6-luna`       | Lowest cost per task                 |
-| **Local/offline** | Bring your own LLM callback | No API costs, full control           |
+Rankings below use [Browserbase Benchmark v2](https://www.stagehand.dev/evals) as of 2026-09-03 (HardBench, 15 published runs). Token prices are the current provider API rates.
+
+| Use Case          | Recommended Model              | Why                                                                 |
+| ----------------- | ------------------------------ | ------------------------------------------------------------------- |
+| **Production**    | `openai/gpt-6.1-sol`           | 79% accuracy at $0.305/task; near-Astra quality at one-fifth Astra's API price |
+| **Intelligence**  | `anthropic/claude-opus-5-5`    | 89% accuracy leader at $0.51/task                                   |
+| **Speed**         | `openai/gpt-6-sol`             | Fastest among the current top evals (268s/task)                     |
+| **Cost**          | `openai/gpt-6-luna`            | Lowest cost per task ($0.0225) at 74% accuracy                      |
+| **Local/offline** | Bring your own LLM callback    | No API costs, full control                                          |
 
 
 ---
@@ -1335,7 +1337,7 @@ await stagehand.act("click the login button");
 // Uses a stronger model for one hard extraction
 const { data } = await stagehand.extract("summarize the pricing table", PricingSchema, {
   model: {
-    modelName: "anthropic/claude-sonnet-5",
+    modelName: "anthropic/claude-sonnet-5-5",
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
 });
@@ -1371,7 +1373,7 @@ data = (await stagehand.extract(
     "summarize the pricing table",
     Pricing,
     model=ModelConfig(
-        model_name="anthropic/claude-sonnet-5",
+        model_name="anthropic/claude-sonnet-5-5",
         api_key=os.environ["ANTHROPIC_API_KEY"],
     ),
 )).data
@@ -1417,7 +1419,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"),
 // Uses a stronger model for one hard extraction
 anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
 strongModel := stagehand.ModelConfig{
-	ModelName: "anthropic/claude-sonnet-5",
+	ModelName: "anthropic/claude-sonnet-5-5",
 	APIKey:    &anthropicKey,
 }
 
@@ -1454,7 +1456,7 @@ Some enterprise gateways require extra headers on every model request. Attach th
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
-    modelName: "openai/gpt-5.6-sol",
+    modelName: "openai/gpt-6.1-sol",
     headers: { "x-tenant-id": "acme" },
   },
 });
@@ -1471,7 +1473,7 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(
     browser=browser,
-    model="openai/gpt-5.6-sol",
+    model="openai/gpt-6.1-sol",
     model_api_key=os.environ["OPENAI_API_KEY"],
     model_headers={"x-tenant-id": "acme"},
 )
@@ -1483,7 +1485,7 @@ stagehand = await Stagehand.create(
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "openai/gpt-5.6-sol",
+	ModelName: "openai/gpt-6.1-sol",
 	APIKey:    &modelAPIKey,
 	Headers:   stagehand.ModelConfigHeaders{"x-tenant-id": "acme"},
 }
@@ -1693,7 +1695,7 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 
 **Solutions:**
 
-- Use the `provider/model` format: `openai/gpt-5.6-sol`. The prefix is required; bare model names are rejected
+- Use the `provider/model` format: `openai/gpt-6.1-sol`. The prefix is required; bare model names are rejected
 - Use one of the four built-in providers: `openai`, `anthropic`, `google`, `xai`
 - Check the model ID in the provider's catalog. Stagehand validates the prefix and syntax; the provider reports unknown IDs on the first inference
 - For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)

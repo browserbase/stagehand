@@ -285,7 +285,7 @@ export const stagehandHarness: BenchHarness = {
 export const claudeCodeHarness = defineExternalHarness({
   harness: "claude_code",
   supportedToolSurfaces: CLAUDE_CODE_TOOL_SURFACES,
-  defaultModels: ["anthropic/claude-sonnet-4-6" as AvailableModel],
+  defaultModels: ["anthropic/claude-sonnet-5-5" as AvailableModel],
   prepareToolAdapter: prepareClaudeCodeToolAdapter,
   runAgent: runClaudeCodeAgent,
 });
@@ -293,7 +293,7 @@ export const claudeCodeHarness = defineExternalHarness({
 export const codexHarness = defineExternalHarness({
   harness: "codex",
   supportedToolSurfaces: CODEX_TOOL_SURFACES,
-  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  defaultModels: ["openai/gpt-6.1-sol" as AvailableModel],
   prepareToolAdapter: prepareCodexToolAdapter,
   runAgent: runCodexAgent,
 });
@@ -301,7 +301,7 @@ export const codexHarness = defineExternalHarness({
 export const mastraHarness = defineExternalHarness({
   harness: "mastra",
   supportedToolSurfaces: MASTRA_TOOL_SURFACES,
-  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  defaultModels: ["openai/gpt-6.1-sol" as AvailableModel],
   prepareToolAdapter: prepareMastraToolAdapter,
   runAgent: runMastraAgent,
 });
@@ -309,7 +309,7 @@ export const mastraHarness = defineExternalHarness({
 export const piHarness = defineExternalHarness({
   harness: "pi",
   supportedToolSurfaces: PI_TOOL_SURFACES,
-  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  defaultModels: ["openai/gpt-6.1-sol" as AvailableModel],
   prepareToolAdapter: preparePiToolAdapter,
   runAgent: runPiAgent,
 });
@@ -317,7 +317,7 @@ export const piHarness = defineExternalHarness({
 export const eveHarness = defineExternalHarness({
   harness: "eve",
   supportedToolSurfaces: EVE_TOOL_SURFACES,
-  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  defaultModels: ["openai/gpt-6.1-sol" as AvailableModel],
   prepareToolAdapter: prepareEveToolAdapter,
   runAgent: runEveAgent,
 });
@@ -325,7 +325,7 @@ export const eveHarness = defineExternalHarness({
 export const deepagentsHarness = defineExternalHarness({
   harness: "deepagents",
   supportedToolSurfaces: DEEPAGENTS_TOOL_SURFACES,
-  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  defaultModels: ["openai/gpt-6.1-sol" as AvailableModel],
   prepareToolAdapter: prepareDeepagentsToolAdapter,
   runAgent: runDeepagentsAgent,
 });
@@ -333,7 +333,7 @@ export const deepagentsHarness = defineExternalHarness({
 export const fxHarness = defineExternalHarness({
   harness: "fx",
   supportedToolSurfaces: FX_TOOL_SURFACES,
-  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  defaultModels: ["openai/gpt-6.1-sol" as AvailableModel],
   prepareToolAdapter: prepareFxToolAdapter,
   runAgent: runFxAgent,
 });

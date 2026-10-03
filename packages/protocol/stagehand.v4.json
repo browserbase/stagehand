@@ -1280,7 +1280,7 @@
           }
         },
         "model_name": {
-          "example": "openai/gpt-5.4-mini",
+          "example": "openai/gpt-6.1-sol",
           "$ref": "#/$defs/ModelName"
         }
       },

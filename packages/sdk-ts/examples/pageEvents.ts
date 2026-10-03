@@ -27,7 +27,7 @@ const browser = await browserbase.launch({ apiKey: BROWSERBASE_API_KEY });
 try {
   const stagehand = await Stagehand.create({
     browser,
-    model: { modelName: "openai/gpt-5.4-mini", apiKey: OPENAI_API_KEY },
+    model: { modelName: "openai/gpt-6.1-sol", apiKey: OPENAI_API_KEY },
   });
   let subscription: CDPSubscription | undefined;
   try {
