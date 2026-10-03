@@ -208,15 +208,9 @@ catalogs:
     '@ai-sdk/anthropic':
       specifier: ^4.0.8
       version: 4.0.8
-    '@ai-sdk/cerebras':
-      specifier: ^3.0.5
-      version: 3.0.5
     '@ai-sdk/google':
       specifier: ^4.0.8
       version: 4.0.8
-    '@ai-sdk/groq':
-      specifier: ^4.0.5
-      version: 4.0.5
     '@ai-sdk/mcp':
       specifier: 2.0.22
       version: 2.0.22
@@ -754,15 +748,9 @@ importers:
       '@ai-sdk/anthropic':
         specifier: 'catalog:'
         version: 4.0.8(zod@4.4.3)
-      '@ai-sdk/cerebras':
-        specifier: 'catalog:'
-        version: 3.0.5(zod@4.4.3)
       '@ai-sdk/google':
         specifier: 'catalog:'
         version: 4.0.8(zod@4.4.3)
-      '@ai-sdk/groq':
-        specifier: 'catalog:'
-        version: 4.0.5(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: 'catalog:'
         version: 4.0.8(zod@4.4.3)
@@ -1319,12 +1307,6 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/cerebras@3.0.5':
-    resolution: {integrity: sha512-XXR63//DjzLuoYVzKXRIw3wSIDiP5S5XOkVAbVWqxEBc5olHfUSPY/PBffKWdKhZVD9RV99x+De+u8KHnNzOqA==}
-    engines: {node: '>=22'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   '@ai-sdk/deepseek@1.0.48':
     resolution: {integrity: sha512-rNp5vEG1gYSdlFeP7Ky/Pd2xUWfjuzVq1aG2RL4I1PyulGwFHGq50/xeNqWapFi/2+jE+AHHnnUPChDTa3s1Gg==}
     engines: {node: '>=18'}
@@ -1376,12 +1358,6 @@ packages:
   '@ai-sdk/groq@2.0.45':
     resolution: {integrity: sha512-WHvrgyrSvPLTwPlm+KdfGy9sPntLKYJVLvTBljGbXfJ2y3BB1Vb+Bd7/29hAlc4KAJBrVmFoXh2pmaxvbDqRMQ==}
     engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/groq@4.0.5':
-    resolution: {integrity: sha512-aiAxz/Og5Z1DZ8XR7UHmb8exxXF9qHAem0TwSFod2b6Imz0AJ22tygl2M9mbv0Q5gCTWkAq7DyOXXdJYv1hzHw==}
-    engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
@@ -9474,13 +9450,6 @@ snapshots:
       zod: 4.4.3
     optional: true
 
-  '@ai-sdk/cerebras@3.0.5(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/openai-compatible': 3.0.5(zod@4.4.3)
-      '@ai-sdk/provider': 4.0.2
-      '@ai-sdk/provider-utils': 5.0.5(zod@4.4.3)
-      zod: 4.4.3
-
   '@ai-sdk/deepseek@1.0.48(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 2.0.3
@@ -9548,12 +9517,6 @@ snapshots:
       '@ai-sdk/provider-utils': 3.0.30(zod@4.4.3)
       zod: 4.4.3
     optional: true
-
-  '@ai-sdk/groq@4.0.5(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 4.0.2
-      '@ai-sdk/provider-utils': 5.0.5(zod@4.4.3)
-      zod: 4.4.3
 
   '@ai-sdk/mcp@2.0.22(zod@4.4.3)':
     dependencies:

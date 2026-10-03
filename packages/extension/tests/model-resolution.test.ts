@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AnthropicModelIdSchema,
-  CerebrasModelIdSchema,
   GoogleModelIdSchema,
-  GroqModelIdSchema,
   ModelConfigSchema,
   ModelNameSchema,
   OpenAIModelIdSchema,
@@ -65,8 +63,6 @@ describe("model configuration", () => {
         ["openai", OpenAIModelIdSchema.options],
         ["anthropic", AnthropicModelIdSchema.options],
         ["google", GoogleModelIdSchema.options],
-        ["groq", GroqModelIdSchema.options],
-        ["cerebras", CerebrasModelIdSchema.options],
       ] as const;
 
       for (const [provider, modelIds] of providers) {
@@ -76,13 +72,16 @@ describe("model configuration", () => {
       }
     });
 
-    it("accepts a provider model ID that contains additional slashes", () => {
-      expect(ModelNameSchema.safeParse("groq/openai/gpt-oss-120b").success).toBe(true);
-    });
-
     it("rejects a model from an unsupported provider", () => {
       expect(ModelNameSchema.safeParse("bedrock/anthropic.claude-sonnet-v1:0").success).toBe(false);
     });
+
+    it.each(["groq/llama-3.3-70b-versatile", "cerebras/gpt-oss-120b"])(
+      "rejects removed provider model %s",
+      (modelName) => {
+        expect(ModelNameSchema.safeParse(modelName).success).toBe(false);
+      },
+    );
 
     it("rejects an unsupported model from a supported provider", () => {
       expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(false);

@@ -1,17 +1,13 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { createCerebras } from "@ai-sdk/cerebras";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, jsonSchema, Output } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { z } from "zod/v4";
 import {
   AnthropicModelIdSchema,
-  CerebrasModelIdSchema,
   createLLMGenerateResultSchema,
   GoogleModelIdSchema,
-  GroqModelIdSchema,
   LLMGenerateParamsSchema,
   LLMMessageSchema,
   LLMGenerateResultSchema,
@@ -163,10 +159,6 @@ export function createAiSdkLanguageModel(
       })(AnthropicModelIdSchema.parse(modelId));
     case "google":
       return createGoogleGenerativeAI(connection)(GoogleModelIdSchema.parse(modelId));
-    case "groq":
-      return createGroq(connection)(GroqModelIdSchema.parse(modelId));
-    case "cerebras":
-      return createCerebras(connection)(CerebrasModelIdSchema.parse(modelId));
   }
 }
 
