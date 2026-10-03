@@ -56,3 +56,6 @@ to dos.md
 packages/examples/*/.out/
 # Playwright MCP writes run output here during showcase benchmarks
 .playwright-mcp/
+
+# Cookbook output
+packages/cookbooks/*/*/out/

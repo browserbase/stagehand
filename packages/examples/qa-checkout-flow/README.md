@@ -30,7 +30,7 @@ claude -p 'On saucedemo.com, log in as standard_user with password secret_sauce,
 Once the flow works, `workflow.ts` runs it as plain Stagehand calls, with no agent. Copy `packages/examples/.env.example` to `packages/examples/.env`, fill in `BROWSERBASE_API_KEY` and `ANTHROPIC_API_KEY`, then from the repository root:
 
 ```bash
-just cookbook qa-checkout-flow
+just showcase-script qa-checkout-flow
 ```
 
 ## Files

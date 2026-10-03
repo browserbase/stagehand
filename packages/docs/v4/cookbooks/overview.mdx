@@ -1,0 +1,40 @@
+---
+title: "Stagehand cookbooks"
+sidebarTitle: "Overview"
+description: "Runnable Stagehand cookbooks with prompts, setup instructions, and source code."
+---
+
+Cookbooks are runnable browser jobs with a source folder, an agent prompt, defined output, and failure checks. Start with the job you need, then adapt its target and validation.
+
+| Resource | What it contains |
+| --- | --- |
+| Cookbooks | Projects you can clone, run, and adapt, including checkpoints and authenticated sessions |
+| [Best practices](/v4/best-practices/caching) | Small patterns for caching and browser data |
+| [Showcase](https://stagehand.dev/showcase) | Recorded jobs on real sites, with benchmark results |
+| [Functions](/v4/best-practices/deployments) | Deployment instructions and CLI templates |
+
+Cloud recipes print a Browserbase session link and limit browser lifetime to five minutes. Model calls and integrations can add charges. Page and step limits bound work, not a fixed dollar amount. See [model configuration](/v4/configuration/models).
+
+| Cookbook | Use it when | Inputs | Output | Stagehand methods | Languages |
+| --- | --- | --- | --- | --- | --- |
+| [Reuse an authenticated session](/v4/cookbooks/persisted-login) | A recurring job needs persisted login | Context ID, test credentials | Authentication and reuse receipt | `act()`, browser context | TypeScript, Python, Go |
+| [Export a paginated book catalog](/v4/cookbooks/paginated-catalog) | The number of result pages is unknown | Catalog URL, page limit | Validated `out/catalog.json` | `extract()`, `observe()`, `act()` | TypeScript, Python, Go |
+| [Save extracted files to a bucket](/v4/cookbooks/files-to-bucket) | Extracted page data and downloaded bytes must reach object storage | Target page, optional S3 bucket | Local JSON and cover, optional bucket objects | `extract()` | TypeScript |
+| [Approve a form submission](/v4/cookbooks/approve-form-submission) | A browser action needs human consent | Test form values, approval answer | Submitted URL or a clear rejection | `act()` | TypeScript, Python, Go |
+| [Build an AI SDK research agent](/v4/cookbooks/ai-sdk-research-agent) | An agent must research approved pages and cite sources | Research question, approved URLs | Typed report with source URLs | `extract()` | TypeScript |
+
+## Run a cookbook
+
+Choose a cookbook folder in [`packages/cookbooks`](https://github.com/browserbase/stagehand/tree/main/packages/cookbooks), then check out that folder:
+
+```bash
+git clone --depth 1 --sparse https://github.com/browserbase/stagehand.git
+cd stagehand
+git sparse-checkout set packages/cookbooks/<cookbook-name>
+```
+
+Open the cookbook's README or docs page for its supported languages, required keys, install steps, and run command. Each cookbook folder contains its own source and configuration.
+
+For recorded data-collection and QA jobs, see the [showcase](https://stagehand.dev/showcase).
+
+For individual SDK methods, start with the [Stagehand basics](/v4/basics/act).

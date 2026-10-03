@@ -30,7 +30,7 @@ claude -p 'From the Y Combinator directory'\''s Developer Tools industry page, r
 Once the flow works, `workflow.ts` runs it as plain Stagehand calls, with no agent. Copy `packages/examples/.env.example` to `packages/examples/.env`, fill in `BROWSERBASE_API_KEY` and `ANTHROPIC_API_KEY`, then from the repository root:
 
 ```bash
-just cookbook yc-companies-by-industry
+just showcase-script yc-companies-by-industry
 ```
 
 ## Files

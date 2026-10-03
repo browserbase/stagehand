@@ -22,91 +22,113 @@
     "versions": [
       {
         "version": "v4",
-        "groups": [
+        "tabs": [
           {
-            "group": "First steps",
-            "pages": [
-              "v4/first-steps/introduction",
-              "v4/first-steps/quickstart",
-              "v4/first-steps/installation",
-              "v4/first-steps/ai-rules"
-            ]
-          },
-          {
-            "group": "The basics",
-            "pages": ["v4/basics/act", "v4/basics/extract", "v4/basics/observe", "v4/basics/webmcp"]
-          },
-          {
-            "group": "Configuration",
-            "pages": ["v4/configuration/browser", "v4/configuration/logging"]
-          },
-          {
-            "group": "Add-ons",
-            "pages": [
-              "v4/add-ons/search",
-              "v4/add-ons/fetch",
-              "v4/configuration/models",
-              "v4/configuration/observability"
-            ]
-          },
-          {
-            "group": "Integrations",
-            "pages": [
-              "v4/integrations/overview",
+            "tab": "Docs",
+            "groups": [
               {
-                "group": "Agent Frameworks",
+                "group": "First steps",
                 "pages": [
-                  "v4/integrations/agent-frameworks/overview",
-                  "v4/integrations/agent-frameworks/eve",
-                  "v4/integrations/agent-frameworks/deep-agents",
-                  "v4/integrations/agent-frameworks/crewai",
-                  "v4/integrations/agent-frameworks/mastra",
-                  "v4/integrations/agent-frameworks/vercel-ai-sdk"
+                  "v4/first-steps/introduction",
+                  "v4/first-steps/quickstart",
+                  "v4/first-steps/installation",
+                  "v4/first-steps/ai-rules"
                 ]
               },
               {
-                "group": "CLI Agents",
+                "group": "The basics",
                 "pages": [
-                  "v4/integrations/cli-agents/overview",
-                  "v4/integrations/cli-agents/claude-code",
-                  "v4/integrations/cli-agents/codex",
-                  "v4/integrations/cli-agents/fx",
-                  "v4/integrations/cli-agents/pi"
+                  "v4/basics/act",
+                  "v4/basics/extract",
+                  "v4/basics/observe",
+                  "v4/basics/webmcp"
                 ]
               },
               {
-                "group": "Applications",
-                "pages": ["v4/integrations/applications/stripe"]
+                "group": "Configuration",
+                "pages": ["v4/configuration/browser", "v4/configuration/logging"]
+              },
+              {
+                "group": "Add-ons",
+                "pages": [
+                  "v4/add-ons/search",
+                  "v4/add-ons/fetch",
+                  "v4/configuration/models",
+                  "v4/configuration/observability"
+                ]
+              },
+              {
+                "group": "Integrations",
+                "pages": [
+                  "v4/integrations/overview",
+                  {
+                    "group": "Agent Frameworks",
+                    "pages": [
+                      "v4/integrations/agent-frameworks/overview",
+                      "v4/integrations/agent-frameworks/eve",
+                      "v4/integrations/agent-frameworks/deep-agents",
+                      "v4/integrations/agent-frameworks/crewai",
+                      "v4/integrations/agent-frameworks/mastra",
+                      "v4/integrations/agent-frameworks/vercel-ai-sdk"
+                    ]
+                  },
+                  {
+                    "group": "CLI Agents",
+                    "pages": [
+                      "v4/integrations/cli-agents/overview",
+                      "v4/integrations/cli-agents/claude-code",
+                      "v4/integrations/cli-agents/codex",
+                      "v4/integrations/cli-agents/fx",
+                      "v4/integrations/cli-agents/pi"
+                    ]
+                  },
+                  {
+                    "group": "Applications",
+                    "pages": ["v4/integrations/applications/stripe"]
+                  }
+                ]
+              },
+              {
+                "group": "Best practices",
+                "pages": [
+                  "v4/best-practices/prompting-best-practices",
+                  "v4/best-practices/usecase-observe",
+                  "v4/best-practices/caching",
+                  "v4/best-practices/using-multiple-tabs",
+                  "v4/best-practices/user-data",
+                  "v4/best-practices/speed-optimization",
+                  "v4/best-practices/cost-optimization",
+                  "v4/best-practices/deployments"
+                ]
+              },
+              {
+                "group": "Migration guide",
+                "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
+              },
+              {
+                "group": "SDK reference",
+                "pages": [
+                  "v4/reference/stagehand",
+                  "v4/reference/context",
+                  "v4/reference/clipboard",
+                  "v4/reference/page",
+                  "v4/reference/webmcp",
+                  "v4/reference/response",
+                  "v4/reference/locator"
+                ]
               }
             ]
           },
           {
-            "group": "Best practices",
+            "tab": "Cookbooks",
+            "root": "v4/cookbooks/overview",
             "pages": [
-              "v4/best-practices/prompting-best-practices",
-              "v4/best-practices/usecase-observe",
-              "v4/best-practices/caching",
-              "v4/best-practices/using-multiple-tabs",
-              "v4/best-practices/user-data",
-              "v4/best-practices/speed-optimization",
-              "v4/best-practices/cost-optimization",
-              "v4/best-practices/deployments"
-            ]
-          },
-          {
-            "group": "Migration guide",
-            "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
-          },
-          {
-            "group": "SDK reference",
-            "pages": [
-              "v4/reference/stagehand",
-              "v4/reference/context",
-              "v4/reference/clipboard",
-              "v4/reference/page",
-              "v4/reference/webmcp",
-              "v4/reference/response",
-              "v4/reference/locator"
+              "v4/cookbooks/overview",
+              "v4/cookbooks/persisted-login",
+              "v4/cookbooks/paginated-catalog",
+              "v4/cookbooks/files-to-bucket",
+              "v4/cookbooks/approve-form-submission",
+              "v4/cookbooks/ai-sdk-research-agent"
             ]
           }
         ]
@@ -647,6 +669,42 @@
     {
       "source": "/migrations/:slug*",
       "destination": "/v3/migrations/:slug*"
+    },
+    {
+      "source": "/v4/examples/compare-pages-in-parallel",
+      "destination": "/v4/best-practices/using-multiple-tabs"
+    },
+    {
+      "source": "/v4/examples/model-gateway-extract",
+      "destination": "/v4/configuration/models#model-gateway"
+    },
+    {
+      "source": "/v4/examples/observe-then-act",
+      "destination": "/v4/cookbooks/paginated-catalog"
+    },
+    {
+      "source": "/v4/examples/tanstack-ai-extraction-tool",
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/overview",
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/approve-form-submission",
+      "destination": "/v4/cookbooks/approve-form-submission"
+    },
+    {
+      "source": "/v4/examples/paginated-catalog",
+      "destination": "/v4/cookbooks/paginated-catalog"
+    },
+    {
+      "source": "/v4/examples/files-to-bucket",
+      "destination": "/v4/cookbooks/files-to-bucket"
+    },
+    {
+      "source": "/v4/examples/ai-sdk-research-agent",
+      "destination": "/v4/cookbooks/ai-sdk-research-agent"
     }
   ]
 }
