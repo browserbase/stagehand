@@ -187,6 +187,67 @@ describe("extract service", () => {
     });
   });
 
+  it("sends caller descriptions of containers that hold URL fields to the LLM", async () => {
+    const clientLLMGenerate = vi.fn(
+      async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+        structuredResult(
+          params.responseFormat?.type === "json_schema" &&
+            params.responseFormat.name === "Extraction"
+            ? { footerLinks: ["0-2"], author: { name: "Ada", profile: "0-3" }, canonical: null }
+            : { progress: "Extracted the links", completed: true },
+        ),
+    );
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the footer links and the author",
+        // The SDK sends the caller's Zod schema as JSON Schema.
+        schema: z.json().parse(
+          z.toJSONSchema(
+            z.object({
+              footerLinks: z.array(z.url()).describe("links in the page footer only"),
+              author: z
+                .object({ name: z.string(), profile: z.url() })
+                .describe("the article's author, not commenters"),
+              canonical: z.url().nullable().describe("the canonical link"),
+            }),
+          ),
+        ),
+        options: { cache: false },
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: "[0-1] heading",
+          combinedXpathMap: {},
+          combinedUrlMap: { "0-2": "https://example.com/about", "0-3": "https://example.com/ada" },
+        }),
+        screenshot: async () => new Uint8Array(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    const extraction = clientLLMGenerate.mock.calls
+      .map(([params]) => params.responseFormat)
+      .find((format) => format?.type === "json_schema" && format.name === "Extraction");
+    expect(extraction).toMatchObject({
+      schema: {
+        properties: {
+          footerLinks: { description: "links in the page footer only" },
+          author: { description: "the article's author, not commenters" },
+          canonical: { description: "the canonical link" },
+        },
+      },
+    });
+    expect(result.data).toStrictEqual({
+      footerLinks: ["https://example.com/about"],
+      author: { name: "Ada", profile: "https://example.com/ada" },
+      canonical: null,
+    });
+  });
+
   it("captures and forwards a screenshot through a client-provided LLM", async () => {
     const withCache = vi.spyOn(cacheService, "withCache");
     const captureSnapshot = vi.fn(async () => ({

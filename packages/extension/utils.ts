@@ -185,7 +185,7 @@ export function transformSchema(
     }
 
     if (changed) {
-      return [z.object(newShape), urlPaths];
+      return [withSchemaMetadata(z.object(newShape), schema), urlPaths];
     }
     return [schema, urlPaths];
   }
@@ -200,7 +200,7 @@ export function transformSchema(
       segments: ["*", ...cp.segments],
     }));
     if (transformedItem !== itemType) {
-      return [z.array(transformedItem), arrayPaths];
+      return [withSchemaMetadata(z.array(transformedItem), schema), arrayPaths];
     }
     return [schema, arrayPaths];
   }
@@ -224,7 +224,13 @@ export function transformSchema(
     });
 
     if (changed) {
-      return [z.union(newOptions as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]]), allPaths];
+      return [
+        withSchemaMetadata(
+          z.union(newOptions as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]]),
+          schema,
+        ),
+        allPaths,
+      ];
     }
     return [schema, allPaths];
   }
@@ -239,7 +245,7 @@ export function transformSchema(
     const changed = newLeft !== left || newRight !== right;
     const allPaths = [...leftPaths, ...rightPaths];
     if (changed) {
-      return [z.intersection(newLeft, newRight), allPaths];
+      return [withSchemaMetadata(z.intersection(newLeft, newRight), schema), allPaths];
     }
     return [schema, allPaths];
   }
@@ -251,7 +257,7 @@ export function transformSchema(
     }
     const [inner, innerPaths] = transformSchema(innerType, currentPath);
     if (inner !== innerType) {
-      return [inner.optional(), innerPaths];
+      return [withSchemaMetadata(inner.optional(), schema), innerPaths];
     }
     return [schema, innerPaths];
   }
@@ -263,7 +269,7 @@ export function transformSchema(
     }
     const [inner, innerPaths] = transformSchema(innerType, currentPath);
     if (inner !== innerType) {
-      return [inner.nullable(), innerPaths];
+      return [withSchemaMetadata(inner.nullable(), schema), innerPaths];
     }
     return [schema, innerPaths];
   }
@@ -280,7 +286,7 @@ export function transformSchema(
 
     if (newIn !== inSchema || newOut !== outSchema) {
       const result = z.pipe(newIn as z.ZodType, newOut as z.ZodType) as z.ZodType;
-      return [result, allPaths];
+      return [withSchemaMetadata(result, schema), allPaths];
     }
     return [schema, allPaths];
   }
@@ -339,6 +345,19 @@ export function injectUrls(
       injectUrls(record[key], rest, idToUrlMapping);
     }
   }
+}
+
+/**
+ * Copy the original schema's metadata (e.g. `.describe()`) onto a rebuilt
+ * container, so the model still sees the caller's field descriptions.
+ */
+function withSchemaMetadata(next: z.ZodType, original: z.ZodType): z.ZodType {
+  const metadata = z.globalRegistry.get(original);
+  if (!metadata) return next;
+  // Registry ids must stay unique, so the rebuilt schema carries everything else.
+  const rest = { ...metadata };
+  delete rest.id;
+  return Object.keys(rest).length > 0 ? next.meta(rest) : next;
 }
 
 // Helper to check if a schema is of a specific type
