@@ -72,6 +72,30 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
 
+// Warn-once flag for contexts that start without a domain policy. With no
+// policy, navigation/fetch decisions fail open (every host is allowed), so
+// operators running production agents should call setDomainPolicy.
+let hasWarnedAboutMissingDomainPolicy = false;
+
+/**
+ * Warn once per process when a browser context starts without a domain policy.
+ *
+ * A null policy means navigation and fetch are unrestricted (fail-open), so
+ * this nudges operators toward `setDomainPolicy` for production agents.
+ */
+export function warnOnceWhenNoDomainPolicy(
+  logger: StagehandLogger,
+  policy: NormalizedDomainPolicy | null,
+): void {
+  if (policy || hasWarnedAboutMissingDomainPolicy) return;
+  hasWarnedAboutMissingDomainPolicy = true;
+  logger.warn(
+    "Browser context started without a domain policy; navigation and fetch are unrestricted. " +
+      "Call setDomainPolicy to restrict agent browsing in production.",
+    { category: "ctx" },
+  );
+}
+
 /**
  * BrowserContext
  *
@@ -195,6 +219,7 @@ export class BrowserContext {
       } else {
         await bootstrap();
       }
+      warnOnceWhenNoDomainPolicy(ctx.logger, ctx.domainPolicy);
       return ctx;
     };
 
@@ -341,6 +366,15 @@ export class BrowserContext {
     };
   }
 
+  /**
+   * Set the domain policy enforced on this context's navigation and fetch.
+   *
+   * The context starts with no domain policy (`null`), in which case
+   * navigation/fetch decisions fail open and every host is allowed. A
+   * one-time warning is logged when a context starts without a policy, so
+   * production agents should call this with `allowedDomains` and/or
+   * `blockedDomains` before exposing browsing tools.
+   */
   public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
     const nextPolicy = normalizeDomainPolicy(policy);
     this.domainPolicy = nextPolicy;
