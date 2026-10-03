@@ -107,7 +107,7 @@ _publish-typescript:
 # so this is a no-op when nothing is unreleased.
 _publish-typescript-alpha:
     pnpm exec tsx scripts/release/scoped-release.ts version sdk --snapshot
-    pnpm --filter ./packages/sdk-ts build
+    pnpm exec turbo run build --filter=@browserbasehq/stagehand
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk --alpha
 
 # Rewrites the Python project to the commit-addressed alpha (`<next>a0.dev<N>`)
