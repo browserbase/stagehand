@@ -6,6 +6,7 @@ import {
   fetchWithoutModel,
 } from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/protocol-version";
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 
 vi.mock("ai", () => ({
@@ -25,10 +26,13 @@ afterEach(() => {
 });
 
 const initParams = {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: { name: "test", version: "1.0.0" },
+  logLevel: "off",
   model: { modelName: "openai/gpt-5" },
   apiKey: "bb-api-key",
   browser: { sessionId: "session-123", region: "eu-central-1" },
-} as StagehandInitParams;
+} satisfies StagehandInitParams;
 
 describe("buildGatewayContext", () => {
   it("builds the context from the Browserbase API key, session, and region", () => {

@@ -150,7 +150,7 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
 }
 
 export function normalizePiModel(model: string): string {
-  return model === "pi/default" ? "openai/gpt-5.4-mini" : model;
+  return model === "pi/default" ? "openai/gpt-6-luna" : model;
 }
 
 export async function runPiSession(input: {
