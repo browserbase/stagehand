@@ -169,7 +169,21 @@ describe("gateway inference end to end", () => {
   });
 
   it("forwards tools and tool choice in Responses format", async () => {
-    await llmService.generate(
+    respondWith = () => ({
+      ...completion(""),
+      output: [
+        {
+          type: "function_call",
+          id: "fc_1",
+          call_id: "call_1",
+          name: "get_weather",
+          arguments: JSON.stringify({ city: "Zurich" }),
+          status: "completed",
+        },
+      ],
+    });
+
+    const result = await llmService.generate(
       { modelName: "openai/gpt-5" },
       {
         messages: [{ role: "user", content: { type: "text", text: "Check the weather" } }],
@@ -203,8 +217,15 @@ describe("gateway inference end to end", () => {
           properties: { city: { type: "string" } },
           required: ["city"],
         },
+        strict: false,
       },
     ]);
     expect(request.body.tool_choice).toBe("required");
+    expect(result.content).toContainEqual({
+      type: "tool_use",
+      id: "call_1",
+      name: "get_weather",
+      input: { city: "Zurich" },
+    });
   });
 });

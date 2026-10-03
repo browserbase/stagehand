@@ -1,4 +1,4 @@
-import type { LanguageModel, LanguageModelMiddleware } from "ai";
+import type { LanguageModelMiddleware } from "ai";
 import type {
   ClientOptions,
   ModelName,
@@ -7,21 +7,8 @@ import type {
 import { ClientOptionsSchema, ModelNameSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { AISdkClient } from "./aisdk.js";
 import { LLMClient } from "./LLMClient.js";
-import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { wrapLanguageModel } from "ai";
-
-// Compile-only bridge: current AI SDK providers return mixed v2/v3/v4 model
-// types, while copied V3 code assumed a single provider model type.
-type AISDKProvider = (modelName: string) => LanguageModel;
-type AISDKProviderFactory = (options: Record<string, unknown>) => AISDKProvider;
-
-const AISDKProviderFactories: Record<ModelProvider, AISDKProviderFactory> = {
-  openai: createOpenAI as AISDKProviderFactory,
-  anthropic: createAnthropic as AISDKProviderFactory,
-  google: createGoogleGenerativeAI as AISDKProviderFactory,
-};
+import { createProviderLanguageModel } from "./providerRegistry.js";
 
 type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;
 
@@ -53,20 +40,10 @@ export function getAISDKLanguageModel(
   middleware?: LanguageModelMiddleware,
 ) {
   const aiSdkClientOptions = toAISDKClientOptions(subProvider, clientOptions);
-  const creator = AISDKProviderFactories[subProvider];
-  if (!creator) {
-    throw new TypeError(
-      `${subProvider} is not currently supported for aiSDK. Please use one of the supported model providers: ${Object.keys(AISDKProviderFactories).join(", ")}`,
-    );
-  }
-  const provider = creator(aiSdkClientOptions ?? {});
-  const model =
-    subProvider === "openai"
-      ? (provider as ReturnType<typeof createOpenAI>).responses(subModelName)
-      : provider(subModelName);
+  const model = createProviderLanguageModel(subProvider, subModelName, aiSdkClientOptions);
 
   if (middleware) {
-    return wrapLanguageModel({ model: model as never, middleware });
+    return wrapLanguageModel({ model, middleware });
   }
   return model;
 }

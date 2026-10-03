@@ -1,11 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  AnthropicModelIdSchema,
-  GoogleModelIdSchema,
-  ModelConfigSchema,
-  ModelNameSchema,
-  OpenAIModelIdSchema,
-} from "@browserbasehq/stagehand-protocol/schemas";
+import { ModelConfigSchema, ModelNameSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   StagehandInitParams,
   StagehandResultMetadata,
@@ -57,19 +51,14 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
 }
 
 describe("model configuration", () => {
-  describe("supported models", () => {
-    it("accepts every explicitly supported model", () => {
-      const providers = [
-        ["openai", OpenAIModelIdSchema.options],
-        ["anthropic", AnthropicModelIdSchema.options],
-        ["google", GoogleModelIdSchema.options],
-      ] as const;
-
-      for (const [provider, modelIds] of providers) {
-        for (const modelId of modelIds) {
-          expect(ModelNameSchema.safeParse(`${provider}/${modelId}`).success).toBe(true);
-        }
-      }
+  describe("provider model names", () => {
+    it.each([
+      "openai/gpt-6-astra",
+      "anthropic/claude-sonnet-5",
+      "google/gemini-3.8-flash",
+      "openai/team/custom/model",
+    ])("accepts an opaque model ID under a registered provider: %s", (modelName) => {
+      expect(ModelNameSchema.safeParse(modelName).success).toBe(true);
     });
 
     it("rejects a model from an unsupported provider", () => {
@@ -83,12 +72,19 @@ describe("model configuration", () => {
       },
     );
 
-    it("rejects an unsupported model from a supported provider", () => {
-      expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(false);
+    it("accepts unknown IDs under registered providers", () => {
+      expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(true);
     });
 
-    it("rejects a model under the wrong provider prefix", () => {
-      expect(ModelNameSchema.safeParse("openai/claude-sonnet-4-6").success).toBe(false);
+    it.each(["openai/", "google/ ", "openai/a b", "/gpt-5", "gpt-5"])(
+      "rejects a malformed model name: %s",
+      (modelName) => {
+        expect(ModelNameSchema.safeParse(modelName).success).toBe(false);
+      },
+    );
+
+    it("leaves model availability to the provider", () => {
+      expect(ModelNameSchema.safeParse("openai/claude-sonnet-4-6").success).toBe(true);
     });
 
     it("accepts a known model with provider credentials and headers", () => {

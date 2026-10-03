@@ -1,24 +1,20 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, jsonSchema, Output } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { z } from "zod/v4";
 import {
-  AnthropicModelIdSchema,
   createLLMGenerateResultSchema,
-  GoogleModelIdSchema,
   LLMGenerateParamsSchema,
   LLMMessageSchema,
   LLMGenerateResultSchema,
   ModelProviderSchema,
-  OpenAIModelIdSchema,
+  ModelNameSchema,
 } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   LLMGenerateParams,
   LLMGenerateResult,
   ModelConfig,
 } from "@browserbasehq/stagehand-protocol/types";
+import { createProviderLanguageModel } from "./providerRegistry.js";
 
 const AiSdkMessagesSchema = z.array(LLMMessageSchema).transform((messages): ModelMessage[] => {
   const toolNames = new Map<string, string>();
@@ -128,38 +124,19 @@ export function createAiSdkLanguageModel(
   config: ModelConfig,
   params?: Pick<LLMGenerateParams, "stopSequences">,
 ): LanguageModel {
-  const separator = config.modelName.indexOf("/");
-  const provider = ModelProviderSchema.parse(config.modelName.slice(0, separator));
-  const modelId = config.modelName.slice(separator + 1);
-  const connection = {
-    apiKey: config.apiKey,
-    headers: config.headers,
-  };
-
-  switch (provider) {
-    case "openai": {
-      const openai = createOpenAI(connection);
-      const openAiModelId = OpenAIModelIdSchema.parse(modelId);
-      return params?.stopSequences?.length
-        ? openai.chat(openAiModelId)
-        : openai.responses(openAiModelId);
-    }
-    case "anthropic":
-      // The server runs inside the browser extension, so this request is
-      // browser-origin. Anthropic rejects CORS requests without this explicit
-      // opt-in header ("CORS requests must set
-      // 'anthropic-dangerous-direct-browser-access' header"); OpenAI and
-      // Google allow browser-origin calls without one.
-      return createAnthropic({
-        ...connection,
-        headers: {
-          ...connection.headers,
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-      })(AnthropicModelIdSchema.parse(modelId));
-    case "google":
-      return createGoogleGenerativeAI(connection)(GoogleModelIdSchema.parse(modelId));
-  }
+  const modelName = ModelNameSchema.parse(config.modelName);
+  const separator = modelName.indexOf("/");
+  const provider = ModelProviderSchema.parse(modelName.slice(0, separator));
+  const modelId = modelName.slice(separator + 1);
+  return createProviderLanguageModel(
+    provider,
+    modelId,
+    {
+      apiKey: config.apiKey,
+      headers: config.headers,
+    },
+    params,
+  );
 }
 
 /** Generates a Stagehand LLM response through a configured AI SDK language model. */

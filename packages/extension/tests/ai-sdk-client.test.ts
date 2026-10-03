@@ -1,6 +1,7 @@
 import { Output, generateText } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
+import { createProviderLanguageModel } from "../llm/providerRegistry.js";
 import * as llmService from "../services/llmService.js";
 
 vi.mock("ai", () => ({
@@ -35,6 +36,12 @@ describe("AI SDK language models", () => {
       modelId: "gemini-3-flash-preview",
       provider: "google.generative-ai",
     },
+    {
+      name: "new OpenAI ID",
+      modelName: "openai/gpt-6-astra" as const,
+      modelId: "gpt-6-astra",
+      provider: "openai.responses",
+    },
   ])("creates a direct $name model from its validated configuration", (testCase) => {
     const model = createAiSdkLanguageModel({
       modelName: testCase.modelName,
@@ -61,6 +68,41 @@ describe("AI SDK language models", () => {
       provider: "openai.chat",
       modelId: "gpt-5.4-mini",
     });
+  });
+
+  it("keeps Anthropic's browser header after provider construction", async () => {
+    const fetch = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+        throw new Error("request intercepted");
+      },
+    );
+    const model = createProviderLanguageModel("anthropic", "claude-sonnet-5", {
+      apiKey: "provider-secret",
+      headers: { "x-tenant-id": "tenant-123" },
+      fetch,
+    });
+
+    await expect(
+      model.doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "Hi" }] }] }),
+    ).rejects.toThrow("request intercepted");
+
+    const init = fetch.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get("anthropic-dangerous-direct-browser-access")).toBe("true");
+    expect(headers.get("x-tenant-id")).toBe("tenant-123");
+  });
+
+  it("returns an upstream unknown-model error without replacing it", async () => {
+    const upstreamError = new Error("OpenAI: model private-model was not found");
+    vi.mocked(generateText).mockRejectedValue(upstreamError);
+
+    await expect(
+      llmService.generate(
+        { modelName: "openai/private-model", apiKey: "provider-secret" },
+        { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] },
+        vi.fn(),
+      ),
+    ).rejects.toBe(upstreamError);
   });
 
   it("routes a configured provider model through the AI SDK client", async () => {
