@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
+import { type Progress, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
@@ -27,6 +28,8 @@ import type {
   PageToolsRemovedNotification,
   WebMCPToolIdentity,
   PageSnapshotOptions,
+  PagePDFOptions,
+  PagePDFResult,
   SnapshotResult,
   WebMCPAnnotation,
   WebMCPInvocationDescriptor,
@@ -55,7 +58,6 @@ import {
   runScreenshotCleanups,
   setTransparentBackground,
   withScreenshotLock,
-  waitForScreenshot,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
@@ -1504,7 +1506,10 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  async screenshot(options?: UnderstudyScreenshotOptions): Promise<Uint8Array> {
+  async screenshot(
+    options?: UnderstudyScreenshotOptions,
+    parentProgress?: Progress,
+  ): Promise<Uint8Array> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
@@ -1530,61 +1535,108 @@ export class Page {
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
-    const exec = async (signal: AbortSignal): Promise<Uint8Array> => {
+    let failure: { error: unknown } | undefined;
+    const exec = async (progress: Progress): Promise<Uint8Array> => {
       try {
-        const captureScale = await waitForScreenshot(
-          computeScreenshotScale(this, scaleMode),
-          signal,
-        );
+        const captureScale = await computeScreenshotScale(this, scaleMode, progress);
         if (opts.omitBackground) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await setTransparentBackground(this.mainSession));
+          await setTransparentBackground(this.mainSession, progress, cleanupTasks);
         }
 
         if (animationsMode === "disabled") {
-          signal.throwIfAborted();
-          cleanupTasks.push(await disableAnimations(frames));
+          await disableAnimations(frames, progress, cleanupTasks);
         }
 
         if (caretMode === "hide") {
-          signal.throwIfAborted();
-          cleanupTasks.push(await hideCaret(frames));
+          await hideCaret(frames, progress, cleanupTasks);
         }
 
         if (opts.style && opts.style.trim()) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await applyStyleToFrames(frames, opts.style, "custom"));
+          await applyStyleToFrames(frames, opts.style, "custom", progress, cleanupTasks);
         }
 
         if (maskLocators.length > 0) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await applyMaskOverlays(maskLocators, opts.maskColor ?? "#FF00FF"));
+          await applyMaskOverlays(
+            maskLocators,
+            opts.maskColor ?? "#FF00FF",
+            progress,
+            cleanupTasks,
+          );
         }
 
         // Setup and cleanup mutate this page only. Hold the browser-wide lock solely
-        // while activating and capturing, so a stalled page cannot block other tabs.
-        return await waitForScreenshot(
-          withScreenshotLock(
-            this.conn,
-            () =>
-              this.mainFrameWrapper.screenshot({
+        // while activating and capturing, so stalled preparation cannot block other tabs.
+        return await withScreenshotLock(
+          this.conn,
+          () =>
+            this.mainFrameWrapper.screenshot(
+              {
                 fullPage: opts.fullPage,
                 clip,
                 type,
                 quality: type === "jpeg" ? opts.quality : undefined,
                 scale: captureScale,
-                signal,
-              }),
-            undefined,
-          ),
-          signal,
+              },
+              progress,
+            ),
+          progress,
         );
+      } catch (error) {
+        progress.throwIfStopped();
+        failure = { error };
+        throw error;
       } finally {
         await runScreenshotCleanups(cleanupTasks);
       }
     };
 
-    return await withScreenshotLock(this, exec, opts.timeout);
+    try {
+      return await runWithProgress(
+        parentProgress ?? { name: "screenshot", timeout: opts.timeout ?? 0 },
+        (progress) => withScreenshotLock(this, () => exec(progress), progress),
+      );
+    } catch (error) {
+      // Cleanup may outlast the deadline; preserve a capture error already received.
+      throw failure ? failure.error : error;
+    }
+  }
+
+  /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
+  async pdf(options?: PagePDFOptions, parentProgress?: Progress): Promise<PagePDFResult> {
+    const {
+      timeout = 30_000,
+      width,
+      height,
+      margin,
+      tagged = false,
+      outline = false,
+      ...printOptions
+    } = options ?? {};
+    return await runWithProgress(parentProgress ?? { name: "pdf", timeout }, (progress) =>
+      withScreenshotLock(
+        this,
+        async () => {
+          // Keep the print promise in the queue even if progress stops the caller's wait.
+          const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
+            "Page.printToPDF",
+            {
+              ...printOptions,
+              paperWidth: width,
+              paperHeight: height,
+              marginTop: margin?.top ?? 0,
+              marginBottom: margin?.bottom ?? 0,
+              marginLeft: margin?.left ?? 0,
+              marginRight: margin?.right ?? 0,
+              generateTaggedPDF: tagged,
+              generateDocumentOutline: outline,
+              transferMode: "ReturnAsBase64",
+            },
+          );
+          return { data };
+        },
+        progress,
+      ),
+    );
   }
 
   /**
@@ -2187,21 +2239,29 @@ export class Page {
       throw error;
     }
   }
-  async captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot> {
-    return await captureHybridSnapshot(this, options, this.logger);
+  async captureSnapshot(
+    options?: SnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<HybridSnapshot> {
+    return await runWithProgress(parentProgress ?? { name: "snapshot", timeout: 0 }, (progress) =>
+      captureHybridSnapshot(this, options, progress, this.logger),
+    );
   }
 
-  async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
-    const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot({
-      pierceShadow: true,
-      includeIframes: options?.includeIframes,
-    });
-
-    return {
-      formattedTree: combinedTree,
-      xpathMap: combinedXpathMap,
-      urlMap: combinedUrlMap,
-    };
+  async snapshot(
+    options?: PageSnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<SnapshotResult> {
+    return await runWithProgress(
+      parentProgress ?? { name: "snapshot", timeout: options?.timeout ?? 20_000 },
+      async (progress) => {
+        const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot(
+          { pierceShadow: true, includeIframes: options?.includeIframes },
+          progress,
+        );
+        return { formattedTree: combinedTree, xpathMap: combinedXpathMap, urlMap: combinedUrlMap };
+      },
+    );
   }
 
   // Track pressed modifier keys

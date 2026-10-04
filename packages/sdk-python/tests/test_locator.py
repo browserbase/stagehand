@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import cast
@@ -10,9 +11,9 @@ from stagehand._generated.models import (
     LocatorClickParams,
     LocatorClickResult,
     LocatorCountResult,
-    LocatorDescriptor,
     LocatorInputValueResult,
     LocatorIsCheckedResult,
+    LocatorParams,
     LocatorSetInputFilesParams,
     LocatorSetInputFilesResult,
 )
@@ -53,7 +54,7 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
     assert result_model is LocatorClickResult
     assert recording.calls[1] == (
         "locator.count",
-        LocatorDescriptor(page_id="page-1", selector="select", nth=1),
+        LocatorParams(page_id="page-1", selector="select", nth=1),
         LocatorCountResult,
     )
 
@@ -72,7 +73,7 @@ async def test_locator_boolean_and_string_getters_return_scalars() -> None:
 
     assert await locator.is_checked() is True
     assert await locator.input_value() == "selected"
-    descriptor = LocatorDescriptor(page_id="page-1", selector="select")
+    descriptor = LocatorParams(page_id="page-1", selector="select")
     assert recording.calls == [
         ("locator.is_checked", descriptor, LocatorIsCheckedResult),
         ("locator.input_value", descriptor, LocatorInputValueResult),
@@ -187,3 +188,80 @@ def test_set_input_files_rejects_named_pipes_without_blocking(tmp_path: Path) ->
 
     with pytest.raises(ValueError, match="expected a readable file"):
         normalize_file_input(pipe_path)
+
+
+LOCATOR_CASES = [
+    ("click", (), {"button": "right", "click_count": 2}, {"clicked": True}),
+    ("hover", (), {}, {"hovered": True}),
+    ("fill", ("hello",), {}, {"filled": True}),
+    ("count", (), {}, 2),
+    ("is_checked", (), {}, True),
+    ("input_value", (), {}, "hello"),
+    ("is_visible", (), {}, True),
+    ("inner_text", (), {}, "hello"),
+    ("inner_html", (), {}, "<b>hello</b>"),
+    ("text_content", (), {}, "hello"),
+    ("scroll_to", (50,), {}, {"scrolled": True}),
+    ("centroid", (), {}, {"x": 1, "y": 2}),
+    (
+        "highlight",
+        (),
+        {"duration_ms": 0, "border_color": {"r": 255, "g": 0, "b": 0}},
+        {"highlighted": True},
+    ),
+    ("send_click_event", (), {"bubbles": False, "detail": 2}, {"clicked": True}),
+    ("type", ("hello",), {"delay": 25}, {"typed": True}),
+    ("select_option", (["a", "b"],), {}, ["a", "b"]),
+    ("set_input_files", ([],), {}, {"set": True}),
+]
+
+
+def test_timeout_cases_cover_every_protocol_locator_method() -> None:
+    protocol = json.loads(
+        (Path(__file__).resolve().parents[2] / "protocol" / "stagehand.v4.json").read_text()
+    )
+    methods = protocol["properties"]["methods"]["properties"]
+    assert {f"locator.{case[0]}" for case in LOCATOR_CASES} == {
+        method for method in methods if method.startswith("locator.")
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("method", "args", "options", "result"), LOCATOR_CASES)
+@pytest.mark.parametrize("timeout", [None, 0, 0.5, 5000])
+async def test_locator_timeouts_preserve_options_and_omission(
+    method: str,
+    args: tuple[object, ...],
+    options: dict[str, object],
+    result: object,
+    timeout: float | None,
+) -> None:
+    recording = RecordingRPCClient({f"locator.{method}": result})
+    locator = Locator(cast(RPCClient, recording), page_id="page-1", selector="button").first()
+    await getattr(locator, method)(*args, **options, timeout=timeout)
+    wire_method, params, _ = recording.calls[0]
+    assert wire_method == f"locator.{method}"
+    payload = params.model_dump(by_alias=True, exclude_unset=True)
+    assert payload["page_id"] == "page-1"
+    assert payload["selector"] == "button"
+    assert payload["nth"] == 0
+    expected_options = {**options, **({"timeout": timeout} if timeout is not None else {})}
+    if expected_options:
+        assert payload["options"] == expected_options
+    else:
+        assert "options" not in payload
+    assert locator.descriptor.model_dump(exclude_unset=True) == {
+        "page_id": "page-1",
+        "selector": "button",
+        "nth": 0,
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [-1, float("nan"), float("inf"), -float("inf"), True])
+async def test_locator_rejects_invalid_timeout_before_sending(timeout: float) -> None:
+    recording = RecordingRPCClient()
+    locator = Locator(cast(RPCClient, recording), page_id="page-1", selector="button")
+    with pytest.raises(ValueError):
+        await locator.count(timeout=timeout)
+    assert recording.calls == []
