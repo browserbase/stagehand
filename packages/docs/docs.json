@@ -71,6 +71,7 @@
                   "v4/integrations/cli-agents/overview",
                   "v4/integrations/cli-agents/claude-code",
                   "v4/integrations/cli-agents/codex",
+                  "v4/integrations/cli-agents/cursor",
                   "v4/integrations/cli-agents/fx",
                   "v4/integrations/cli-agents/pi"
                 ]
