@@ -5,11 +5,16 @@ import { ChromeDevtoolsMcpTool } from "./chrome_devtools_mcp.js";
 import { PlaywrightCodeTool } from "./playwright_code.js";
 import { PlaywrightMcpTool } from "./playwright_mcp.js";
 import { StagehandCodeTool } from "./stagehand_code.js";
-import { StagehandFacadeTool, StagehandFacadeLegacyTool } from "./stagehand_facade.js";
+import {
+  StagehandFacadeTool,
+  StagehandFacadeLegacyTool,
+  AnthropicBrowserToolsetTool,
+} from "./stagehand_facade.js";
 import { UnderstudyCodeTool } from "./understudy_code.js";
 
 /** Surfaces that exist only as an agent MCP mount; they have no runner-driven CoreSession (activePage() throws). */
 export const AGENT_MOUNT_ONLY_TOOL_SURFACES: ReadonlySet<ToolSurface> = new Set<ToolSurface>([
+  "anthropic_browser_toolset",
   "stagehand_facade",
   "stagehand_facade_legacy",
 ]);
@@ -28,6 +33,7 @@ export function listCoreTools(): ToolSurface[] {
     "chrome_devtools_mcp",
     // Listed here as part of the full enumeration, but agent-mount-only:
     // core-tier selection must use listCoreRunnableTools, which filters it.
+    "anthropic_browser_toolset",
     "stagehand_facade",
     "stagehand_facade_legacy",
     "browse_cli",
@@ -53,6 +59,8 @@ export function getCoreTool(toolSurface: ToolSurface): CoreTool {
       return new PlaywrightMcpTool();
     case "chrome_devtools_mcp":
       return new ChromeDevtoolsMcpTool();
+    case "anthropic_browser_toolset":
+      return new AnthropicBrowserToolsetTool();
     case "stagehand_facade":
       return new StagehandFacadeTool();
     case "stagehand_facade_legacy":

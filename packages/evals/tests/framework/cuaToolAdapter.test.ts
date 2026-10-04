@@ -1,3 +1,4 @@
+import { StagehandCuaExecutor } from "@browserbasehq/stagehand-integrations-claude-cua-sdk";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -153,7 +154,7 @@ describe("shared CUA facade boundary", () => {
 import { StagehandFacadeTools } from ${JSON.stringify(compiledFacade)};
 let url = 'https://fixture.test', clicks = 0;
 const page = {
-  pageId:'fixture', url:async()=>url, title:async()=>'Fixture',
+  pageId:'fixture', url:async()=>url, title:async()=>'Fixture', waitForTimeout:async()=>{},
   goto:async(value)=>{url=value;}, screenshot:async()=>Buffer.from('png'),
   evaluate:async(expression)=>{if(expression==='({ width: innerWidth, height: innerHeight })')return {width:1288,height:711};throw new Error('Unexpected fixture evaluate: '+String(expression));},
   snapshot:async()=>({formattedTree:'[0-1] button "Submit"',xpathMap:{'0-1':'/button'}}),
@@ -212,6 +213,27 @@ process.stdin.on('end',()=>process.exit(0));
         completed: 1,
         url: "https://fixture.test/next",
       });
+      const claude = new StagehandCuaExecutor({
+        tools,
+        logger: { log() {}, warn() {}, error() {} },
+      });
+      const navigated = await claude.execute(
+        "navigate",
+        { url: "https://fixture.test/claude" },
+        { toolUseId: "claude-nav" },
+      );
+      expect(navigated.isError).not.toBe(true);
+      expect(JSON.stringify(navigated.content)).toContain("https://fixture.test/claude");
+      await claude.execute("read_page", {}, { toolUseId: "claude-read" });
+      expect(
+        (
+          await claude.execute(
+            "left_click",
+            { target: { type: "ref", ref: "0-1" } },
+            { toolUseId: "claude-click" },
+          )
+        ).isError,
+      ).not.toBe(true);
       expect(await tools.screenshot()).toMatchObject({
         data: Buffer.from("png").toString("base64"),
         mimeType: "image/png",
