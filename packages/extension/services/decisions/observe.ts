@@ -29,16 +29,16 @@ import {
   type OutlineNode,
   type ViewKind,
 } from "./tree.js";
-import { choiceAnswer, noulAnswer, type JevConfig } from "./typesafeClient.js";
+import { choiceAnswer, noulAnswer, type DecisionModelConfig } from "./typesafeClient.js";
 
 /**
- * Experimental observe() on Jev. observe() answers "which element(s), and how
+ * Experimental observe() on the decision model. observe() answers "which element(s), and how
  * would you act on them" — the same decisions act() makes, minus the action —
  * so it reuses the act tree: intent → candidates → pick. "Find all …"
  * instructions become one yes/no per candidate, asked in a single request.
  */
 
-export type JevObserveDeps = {
+export type DecisionsObserveDeps = {
   page: Pick<Page, "captureSnapshot">;
   logger: StagehandLogger;
   /** Undefined means "everything a user could act on". */
@@ -48,7 +48,7 @@ export type JevObserveDeps = {
   ensureTimeRemaining: () => void;
 };
 
-export type JevObserveOutcome =
+export type DecisionsObserveOutcome =
   | { kind: "done"; actions: Action[] }
   | { kind: "fallback"; reason: string };
 
@@ -63,16 +63,16 @@ const RELEVANCE_BATCH = 60;
 const RELEVANCE_MAX = 600;
 const RELEVANT_ABOVE = 0.6;
 
-export async function runJevObserve(
-  config: JevConfig & { actConfidence?: number },
-  deps: JevObserveDeps,
-): Promise<JevObserveOutcome> {
+export async function runDecisionsObserve(
+  config: DecisionModelConfig & { actConfidence?: number },
+  deps: DecisionsObserveDeps,
+): Promise<DecisionsObserveOutcome> {
   const trace: TraceEntry[] = [];
-  const finish = (outcome: JevObserveOutcome): JevObserveOutcome => {
+  const finish = (outcome: DecisionsObserveOutcome): DecisionsObserveOutcome => {
     // A result assembled after the deadline is still a timeout.
     deps.ensureTimeRemaining();
-    deps.logger.info("Jev observe pipeline finished", {
-      category: "jev",
+    deps.logger.info("Decisions observe pipeline finished", {
+      category: "decisions",
       instruction: deps.instruction ?? "",
       outcome: outcome.kind,
       reason: outcome.kind === "fallback" ? outcome.reason : "",
@@ -192,7 +192,7 @@ export async function runJevObserve(
   // requests as fit. Lexical scoring only orders the list when it must be cut.
   const candidates = uniqueById(kinds.flatMap((kind) => buildView(snap.nodes, kind)));
   if (candidates.length === 0) return finish({ kind: "fallback", reason: "no_candidates" });
-  // "All" means all: every candidate gets its yes/no, or Jev does not answer.
+  // "All" means all: every candidate gets its yes/no, or the decision model does not answer.
   if (candidates.length > RELEVANCE_MAX) {
     return finish({ kind: "fallback", reason: `too_many_candidates:${candidates.length}` });
   }
@@ -247,7 +247,7 @@ function toActions(
   snap: Snapshot,
   nodes: OutlineNode[],
   family: string | undefined,
-  deps: JevObserveDeps,
+  deps: DecisionsObserveDeps,
 ): Action[] {
   const actions: Action[] = [];
   for (const node of nodes) {
@@ -299,7 +299,7 @@ function uniqueById(nodes: OutlineNode[]): OutlineNode[] {
   return nodes.filter((node) => (seen.has(node.id) ? false : (seen.add(node.id), true)));
 }
 
-async function snapshot(deps: JevObserveDeps): Promise<Snapshot> {
+async function snapshot(deps: DecisionsObserveDeps): Promise<Snapshot> {
   deps.ensureTimeRemaining();
   const { combinedTree, combinedXpathMap, combinedEditableIds } = await deps.page.captureSnapshot(
     deps.snapshotOptions,

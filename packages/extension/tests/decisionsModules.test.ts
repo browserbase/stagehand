@@ -9,10 +9,10 @@ import {
   parsePercent,
   redactor,
   redactDeep,
-} from "../services/jevAct/args.js";
-import { blockingSignal, readPageState } from "../services/jevAct/pageState.js";
-import type { AskContext } from "../services/jevAct/pick.js";
-import { systemOne } from "../services/jevAct/typesafeClient.js";
+} from "../services/decisions/args.js";
+import { blockingSignal, readPageState } from "../services/decisions/pageState.js";
+import type { AskContext } from "../services/decisions/pick.js";
+import { systemOne } from "../services/decisions/typesafeClient.js";
 import {
   describeCandidate,
   exactNameMatches,
@@ -20,7 +20,7 @@ import {
   pageDigest,
   parseOutline,
   scoreCandidates,
-} from "../services/jevAct/tree.js";
+} from "../services/decisions/tree.js";
 
 const PAGE = [
   "[0-1] RootWebArea: Shop",
@@ -39,7 +39,7 @@ function context(): AskContext {
     instruction: "click Add to cart for the red toaster",
     trace: [],
     threshold: 0.7,
-    logger: new StagehandLogger({ tracer: trace.getTracer("jev-modules-test") }, () => {}),
+    logger: new StagehandLogger({ tracer: trace.getTracer("decisions-modules-test") }, () => {}),
     ensureTimeRemaining: () => {},
   };
 }
@@ -71,7 +71,7 @@ function stubNouls(values: Record<string, number>) {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("jev act candidate helpers", () => {
+describe("decisions act candidate helpers", () => {
   it("scores by shared words, with surrounding context breaking ties between twins", () => {
     const nodes = parseOutline(PAGE);
     const buttons = nodes.filter((node) => node.role === "button");
@@ -175,7 +175,7 @@ describe("jev act candidate helpers", () => {
   });
 });
 
-describe("jev act argument helpers", () => {
+describe("decisions act argument helpers", () => {
   it("does not read apostrophes as quotes", () => {
     expect(fillValueCandidates("fill the user's name 'John' into the form")).toEqual(["John"]);
   });
@@ -206,14 +206,14 @@ describe("jev act argument helpers", () => {
     expect(
       matchOption(options, "pick the northern one in 'Select a Country'", "Select a Country"),
     ).toBeUndefined();
-    // Unquoted mentions go to Jev: short options occur in instructions as ordinary words.
+    // Unquoted mentions go to the decision model: short options occur in instructions as ordinary words.
     expect(
       matchOption(["In", "Out"], "choose Out in the direction dropdown", "Direction"),
     ).toBeUndefined();
   });
 });
 
-describe("jev page state", () => {
+describe("decisions page state", () => {
   it("reads every signal in one request and names the blocking one", async () => {
     const bodies = stubNouls({ captcha: 0.95, cookie_banner: 0.8 });
     const state = await readPageState(context(), parseOutline(PAGE), "https://example.com");

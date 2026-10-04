@@ -560,7 +560,7 @@ class EmptyParams(WireModel):
     )
 
 
-class ExperimentalJevAct(WireModel):
+class ExperimentalDecisions(WireModel):
     """Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline"""
 
     model_config = ConfigDict(
@@ -2281,7 +2281,7 @@ class StagehandInitParams(WireModel):
     ] = None
     cache: Optional[Caching] = None
     """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
-    experimental_jev_act: Optional[ExperimentalJevAct] = None
+    experimental_decisions: Optional[ExperimentalDecisions] = None
     """Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline"""
 
 

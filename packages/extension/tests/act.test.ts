@@ -590,7 +590,7 @@ describe("act service", () => {
     ];
     const get = vi.fn().mockResolvedValue({ hit: true, value: cachedActions, cacheKey: "key" });
     const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
-    const jevFetch = vi.fn(async (_url: string, init: RequestInit) => {
+    const decisionsFetch = vi.fn(async (_url: string, init: RequestInit) => {
       const questions = Object.keys(JSON.parse(String(init.body)).questions);
       const answers = Object.fromEntries(
         questions.map((key) => [
@@ -601,10 +601,14 @@ describe("act service", () => {
         ]),
       );
       return new Response(
-        JSON.stringify({ model: "jev", answers, usage: { input_tokens: 1, output_tokens: 1 } }),
+        JSON.stringify({
+          model: "decision-model",
+          answers,
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
       );
     });
-    vi.stubGlobal("fetch", jevFetch);
+    vi.stubGlobal("fetch", decisionsFetch);
     const clientLLMGenerate = vi.fn(
       async (): Promise<LLMGenerateResult> =>
         actGeneration({
@@ -627,7 +631,7 @@ describe("act service", () => {
           client: { get, set } as unknown as CacheClient,
           defaultCaching: true as const,
         },
-        jevAct: { apiKey: "test", cacheCheck: true },
+        decisions: { apiKey: "test", cacheCheck: true },
       });
 
       expect(result.metadata.cache.status).toBe("MISS");

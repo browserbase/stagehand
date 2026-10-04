@@ -39,7 +39,7 @@ describe("extract inference", () => {
     const recovered = await extract({
       ...base,
       judgeCompleted: async () => {
-        throw new Error("jev unavailable");
+        throw new Error("decisions unavailable");
       },
     });
     expect(recovered.metadata.completed).toBe(true);

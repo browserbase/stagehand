@@ -1,5 +1,5 @@
-import { runJevObserve } from "./jevAct/observe.js";
-import type { JevActConfig } from "./jevAct/pipeline.js";
+import { runDecisionsObserve } from "./decisions/observe.js";
+import type { DecisionsConfig } from "./decisions/pipeline.js";
 import type {
   Action,
   ClientModelReference,
@@ -33,7 +33,7 @@ export async function observe({
   systemPrompt = "",
   cache,
   gateway,
-  jev,
+  decisions,
 }: {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
@@ -43,8 +43,8 @@ export async function observe({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-  /** Experimental: resolve observe() through Jev first (needs `observe: true`). */
-  jev?: JevActConfig & { observe?: boolean };
+  /** Experimental: resolve observe() through the decision model first (needs `observe: true`). */
+  decisions?: DecisionsConfig & { observe?: boolean };
 }): Promise<ObserveResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -79,9 +79,9 @@ export async function observe({
   });
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
-    // `enabled: false` is the shared kill switch for every Jev feature.
-    if (jev?.observe && jev.enabled !== false) {
-      const outcome = await runJevObserve(jev, {
+    // `enabled: false` is the shared kill switch for every decision-model feature.
+    if (decisions?.observe && decisions.enabled !== false) {
+      const outcome = await runDecisionsObserve(decisions, {
         page,
         logger,
         instruction,
@@ -94,7 +94,7 @@ export async function observe({
       }).catch((error: unknown) => {
         if (error instanceof TimeoutError) throw error;
         const message = error instanceof Error ? error.message : String(error);
-        return { kind: "fallback" as const, reason: `jev_error:${message}` };
+        return { kind: "fallback" as const, reason: `decision_error:${message}` };
       });
       if (outcome.kind === "done") {
         return {
@@ -106,11 +106,14 @@ export async function observe({
           llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
         };
       }
-      logger.info("Jev observe fell back to the LLM", { category: "jev", reason: outcome.reason });
-      if (jev.llmFallback === false) {
+      logger.info("Decisions observe fell back to the LLM", {
+        category: "decisions",
+        reason: outcome.reason,
+      });
+      if (decisions.llmFallback === false) {
         // Like act(): an abstention with the fallback off is a failure the
         // caller can see, not an empty "nothing on the page" success.
-        throw new Error(`Jev observe abstained (${outcome.reason.slice(0, 160)})`);
+        throw new Error(`Decisions observe abstained (${outcome.reason.slice(0, 160)})`);
       }
     }
 

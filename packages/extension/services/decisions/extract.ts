@@ -12,14 +12,19 @@ import {
   type TraceEntry,
 } from "./pick.js";
 import { buildView, pageDigest, textOf, type OutlineNode } from "./tree.js";
-import { choiceAnswer, noulAnswer, type JevConfig, type JsonValue } from "./typesafeClient.js";
+import {
+  choiceAnswer,
+  noulAnswer,
+  type DecisionModelConfig,
+  type JsonValue,
+} from "./typesafeClient.js";
 
 /**
- * Experimental extract() on Jev: pick-and-copy. Jev cannot write text, but an
+ * Experimental extract() on the decision model: pick-and-copy. The decision model cannot write text, but an
  * extraction rarely needs writing: the values are on the page. For every
- * field of the schema Jev picks the element that holds the value and code
+ * field of the schema the decision model picks the element that holds the value and code
  * copies that element's text (or link URL), parsing numbers. Lists are
- * induced from one exemplar item: Jev picks each field in the FIRST item, code
+ * induced from one exemplar item: the decision model picks each field in the FIRST item, code
  * finds the repeating container and reads the same relative position in every
  * sibling. Booleans and enums, which are judgments rather than copies, are
  * asked directly. Anything the schema or the page does not fit goes to the LLM.
@@ -37,7 +42,7 @@ export type JsonSchema = {
   oneOf?: JsonSchema[];
 };
 
-export type JevExtractDeps = {
+export type DecisionsExtractDeps = {
   logger: StagehandLogger;
   instruction: string;
   schema: JsonSchema;
@@ -48,7 +53,7 @@ export type JevExtractDeps = {
   gate: boolean;
 };
 
-export type JevExtractOutcome =
+export type DecisionsExtractOutcome =
   | { kind: "done"; data: JsonValue; completed: boolean }
   | { kind: "fallback"; reason: string };
 
@@ -69,14 +74,14 @@ const MAX_ITEMS = 200;
 const MIN_ITEM_RESOLUTION = 0.7;
 const EXTRACT_CONFIDENCE = 0.45;
 
-export async function runJevExtract(
-  config: JevConfig & { actConfidence?: number },
-  deps: JevExtractDeps,
-): Promise<JevExtractOutcome> {
+export async function runDecisionsExtract(
+  config: DecisionModelConfig & { actConfidence?: number },
+  deps: DecisionsExtractDeps,
+): Promise<DecisionsExtractOutcome> {
   const trace: TraceEntry[] = [];
-  const finish = (outcome: JevExtractOutcome): JevExtractOutcome => {
-    deps.logger.info("Jev extract pipeline finished", {
-      category: "jev",
+  const finish = (outcome: DecisionsExtractOutcome): DecisionsExtractOutcome => {
+    deps.logger.info("Decisions extract pipeline finished", {
+      category: "decisions",
       instruction: deps.instruction,
       outcome: outcome.kind,
       reason: outcome.kind === "fallback" ? outcome.reason : "",
@@ -109,7 +114,7 @@ export async function runJevExtract(
     ensureTimeRemaining: deps.ensureTimeRemaining,
   };
   // Each field is its own question; the field's name and description steer
-  // both the lexical pruning and Jev.
+  // both the lexical pruning and the decision model.
   const forField = (leaf: Leaf, note = ""): AskContext => ({
     ...base,
     instruction: `${deps.instruction}\nField to find: ${leaf.path.join(".")}${leaf.description ? ` (${leaf.description})` : ""}${note}`,
@@ -160,7 +165,7 @@ export async function runJevExtract(
 
 async function readLeaf(
   ctx: AskContext,
-  deps: JevExtractDeps,
+  deps: DecisionsExtractDeps,
   leaf: Leaf,
 ): Promise<JsonValue | undefined> {
   if (leaf.kind === "boolean" || leaf.kind === "enum") return await judgeLeaf(ctx, deps, leaf);
@@ -170,7 +175,7 @@ async function readLeaf(
 
 async function pickValueNode(
   ctx: AskContext,
-  deps: JevExtractDeps,
+  deps: DecisionsExtractDeps,
   leaf: Leaf,
   label: string,
 ): Promise<OutlineNode | undefined> {
@@ -213,10 +218,10 @@ async function pickValueNode(
 /**
  * Only candidates that can yield a value of the field's type (a number field
  * cannot be copied from the label "Stars"), and one node per distinct value:
- * copies of the same text would only split Jev's vote over an identical result.
+ * copies of the same text would only split the decision model's vote over an identical result.
  */
 function usableCandidates(
-  deps: JevExtractDeps,
+  deps: DecisionsExtractDeps,
   leaf: Leaf,
   candidates: OutlineNode[],
 ): Set<string> {
@@ -247,7 +252,7 @@ function sameValue(a: JsonValue | undefined, b: JsonValue | undefined): boolean 
 /** Booleans and enums are judgments about the page, not text to copy. */
 async function judgeLeaf(
   ctx: AskContext,
-  deps: JevExtractDeps,
+  deps: DecisionsExtractDeps,
   leaf: Leaf,
 ): Promise<JsonValue | undefined> {
   const state = { instruction: ctx.instruction, page: pageDigest(deps.snap.nodes, 80) };
@@ -281,14 +286,14 @@ async function judgeLeaf(
 
 /**
  * Lists, item-first. Code finds the groups of repeated siblings on the page
- * (rows, cards, list items, and flat heading/text/paragraph runs), Jev says
+ * (rows, cards, list items, and flat heading/text/paragraph runs), the decision model says
  * which group is the list, then picks each field inside the FIRST item only:
  * a handful of candidates that are guaranteed to belong together. The same
  * relative positions are then read from every other item.
  */
 async function readList(
   list: ListPlan,
-  deps: JevExtractDeps,
+  deps: DecisionsExtractDeps,
   forField: (leaf: Leaf, note?: string) => AskContext,
   trace: TraceEntry[],
 ): Promise<JsonValue[] | undefined> {
@@ -441,7 +446,7 @@ async function readList(
 }
 
 const ITEM_BATCH = 60;
-/** With section headers present, an item Jev doubts belongs to the asked-for section is left out. */
+/** With section headers present, an item the decision model doubts belongs to the asked-for section is left out. */
 const ITEM_NOT_WANTED = 0.5;
 
 async function itemsAskedFor(
@@ -492,7 +497,7 @@ const MAX_GROUPS = 24;
 
 async function pickGroup(
   ctx: AskContext,
-  deps: JevExtractDeps,
+  deps: DecisionsExtractDeps,
   label: string,
   list: ListPlan,
 ): Promise<Group | undefined> {
@@ -622,7 +627,7 @@ function isHeaderRow(nodes: OutlineNode[], node: OutlineNode): boolean {
 
 async function pickInItem(
   ctx: AskContext,
-  deps: JevExtractDeps,
+  deps: DecisionsExtractDeps,
   leaf: Leaf,
   inside: OutlineNode[],
   label: string,
@@ -754,7 +759,7 @@ function clip(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-function valueOf(deps: JevExtractDeps, leaf: Leaf, node: OutlineNode): JsonValue | undefined {
+function valueOf(deps: DecisionsExtractDeps, leaf: Leaf, node: OutlineNode): JsonValue | undefined {
   if (leaf.kind === "url") {
     const direct = deps.urlMap[node.id];
     if (direct) return direct;
