@@ -3,6 +3,7 @@ import type { AvailableModel } from "stagehand-v3";
 import type { GrokBuildProcessRunner } from "@browserbasehq/stagehand-integrations-grok-build-sdk";
 import { buildGrokBuildPrompt, runGrokBuildAgent } from "../../framework/grokBuildRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 import { EvalLogger } from "../../logger.js";
 
 const plan: ExternalHarnessTaskPlan = {
@@ -20,38 +21,46 @@ describe("Grok Build runner", () => {
     expect(prompt).toContain("Use stagehand__run.");
     expect(prompt).toContain("Your only browser access is the MCP server");
     expect(prompt).toContain("EVAL_RESULT:");
+    expect(prompt).not.toContain(EVAL_SYSTEM_PROMPT);
   });
 
   it("runs the native stream and reports Grok Build metrics", async () => {
+    let capturedArgs: string[] = [];
     const result = await runGrokBuildAgent({
       plan,
       model: "grok-build/auto" as AvailableModel,
       logger: new EvalLogger(false),
-      runProcess: scriptedRunner([
-        {
-          type: "tool_call",
-          toolCallId: "1",
-          toolName: "stagehand__run",
-          rawInput: { code: "return 1" },
+      runProcess: scriptedRunner(
+        [
+          {
+            type: "tool_call",
+            toolCallId: "1",
+            toolName: "stagehand__run",
+            rawInput: { code: "return 1" },
+          },
+          {
+            type: "tool_call_update",
+            toolCallId: "1",
+            status: "completed",
+            rawOutput: "done",
+          },
+          {
+            type: "text",
+            data: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+          },
+          {
+            type: "end",
+            stopReason: "end_turn",
+            num_turns: 2,
+            usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+            total_cost_usd: 0.02,
+          },
+        ],
+        0,
+        (args) => {
+          capturedArgs = args;
         },
-        {
-          type: "tool_call_update",
-          toolCallId: "1",
-          status: "completed",
-          rawOutput: "done",
-        },
-        {
-          type: "text",
-          data: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
-        },
-        {
-          type: "end",
-          stopReason: "end_turn",
-          num_turns: 2,
-          usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
-          total_cost_usd: 0.02,
-        },
-      ]),
+      ),
     });
     const metrics = result.metrics as Record<string, { value: number; count: number }>;
     expect(result._success).toBe(true);
@@ -62,6 +71,11 @@ describe("Grok Build runner", () => {
     expect(metrics.grok_build_num_turns.value).toBe(2);
     expect(metrics.harness_total_tokens.value).toBe(15);
     expect(metrics.harness_cost_usd.value).toBe(0.02);
+    expect(metrics.step_budget.value).toBe(50);
+    expect(result.harnessImplementation).toMatchObject({ name: "cli", version: 1 });
+    expect(capturedArgs).toContain("--rules");
+    expect(capturedArgs).toContain(EVAL_SYSTEM_PROMPT);
+    expect(capturedArgs).toContain("--max-turns");
   });
 
   it("returns a failed result for a non-zero exit without an end event", async () => {
@@ -80,8 +94,10 @@ describe("Grok Build runner", () => {
 function scriptedRunner(
   events: Array<Record<string, unknown>>,
   exitCode = 0,
+  onArgs?: (args: string[]) => void,
 ): GrokBuildProcessRunner {
   return async (input) => {
+    onArgs?.(input.args);
     for (const event of events) await input.onStdoutLine(JSON.stringify(event));
     return { exitCode, signal: null };
   };

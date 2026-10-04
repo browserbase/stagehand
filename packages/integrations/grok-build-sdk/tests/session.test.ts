@@ -24,7 +24,7 @@ describe("Grok Build CLI session", () => {
       buildGrokBuildArgs({
         prompt: "do it",
         model: "grok-build",
-        session: { cwd: "/workspace", maxTurns: 12, sandbox: "off" },
+        session: { cwd: "/workspace", maxTurns: 12, sandbox: "off", rules: "Do not ask for clarification." },
       }),
     ).toEqual([
       "-p",
@@ -47,6 +47,8 @@ describe("Grok Build CLI session", () => {
       "12",
       "--sandbox",
       "off",
+      "--rules",
+      "Do not ask for clarification.",
     ]);
   });
 

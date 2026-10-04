@@ -32,6 +32,7 @@ export class GrokBuildTrajectoryAdapter implements TrajectoryAdapter<GrokBuildRu
       if (!view) continue;
       if (view.subtype === "started") {
         const call: NormalizedToolCall = {
+          ...(view.callId && { id: view.callId }),
           name: view.name ?? "tool",
           args: view.args,
           result: undefined,
@@ -52,6 +53,7 @@ export class GrokBuildTrajectoryAdapter implements TrajectoryAdapter<GrokBuildRu
         openCalls.delete(view.callId);
       } else {
         toolCalls.push({
+          ...(view.callId && { id: view.callId }),
           name: view.name ?? "tool",
           args: view.args,
           result: normalizeToolResult(view.result),
@@ -96,7 +98,17 @@ function normalizeToolResult(result: unknown): unknown {
 }
 
 function attachStepObservations(toolCalls: NormalizedToolCall[], result: GrokBuildRunResult): void {
-  const observations = result.stepObservations ?? [];
+  const keyed = new Map(
+    (result.stepObservations ?? [])
+      .filter((observation) => observation.toolCallId)
+      .map((observation) => [observation.toolCallId, observation.evidence]),
+  );
+  for (const call of toolCalls) {
+    if (call.id && keyed.has(call.id)) call.probeEvidence = keyed.get(call.id);
+  }
+  const observations = (result.stepObservations ?? []).filter(
+    (observation) => !observation.toolCallId,
+  );
   if (observations.length === 0) return;
   const isObservedTool =
     result.observedToolName ?? ((name: string) => name.startsWith("mcp") || name.includes("."));
@@ -109,6 +121,7 @@ function attachStepObservations(toolCalls: NormalizedToolCall[], result: GrokBui
     observations.map((observation) => [observation.runIndex, observation.evidence]),
   );
   observedCalls.forEach((call, ordinal) => {
+    if (call.probeEvidence) return;
     const observation = byRunIndex.get(ordinal);
     if (observation) call.probeEvidence = observation;
   });

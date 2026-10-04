@@ -37,7 +37,9 @@ describe("Grok Build trajectory adapter", () => {
           },
         ],
         observedToolName: (name) => name.startsWith("stagehand__"),
-        stepObservations: [{ runIndex: 0, evidence: { url: "https://example.com/recipe" } }],
+        stepObservations: [
+          { runIndex: 0, toolCallId: "call-1", evidence: { url: "https://example.com/recipe" } },
+        ],
       },
       taskSpec,
     );

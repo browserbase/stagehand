@@ -20,6 +20,7 @@ import {
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -80,17 +81,28 @@ export async function runGrokBuildAgent({
     captureEvidence: toolAdapter?.captureEvidence,
     drainStepObservations: toolAdapter?.drainStepObservations,
     observedToolMatcher: toolAdapter?.observedToolMatcher,
+    browserSessionLoss: toolAdapter?.browserSessionLoss,
   };
+  const maxTurns = resolveStepBudget({
+    harnessEnvKey: "EVAL_GROK_BUILD_MAX_TURNS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "grok_build",
     plan,
+    model,
     logger,
+    systemPromptMode: "native",
+    implementation: { name: "cli", version: 1 },
     toolAdapter: adapterLike,
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "Grok Build did not report success",
+    stepBudget: maxTurns,
+    stepBudgetUnit: "turns",
     parseResult: parseGrokBuildResult,
-    runSession: async (prompt) => {
+    runSession: async (prompt, systemPrompt) => {
       const sessionResult = await runGrokBuildSession({
         prompt,
         model,
@@ -103,13 +115,14 @@ export async function runGrokBuildAgent({
           ...(process.env.EVAL_GROK_BUILD_PATH && {
             binaryPath: process.env.EVAL_GROK_BUILD_PATH,
           }),
-          maxTurns: readGrokBuildMaxTurns(),
+          maxTurns,
+          ...(systemPrompt && { rules: systemPrompt }),
           ...(process.env.EVAL_GROK_BUILD_SANDBOX && {
             sandbox: process.env.EVAL_GROK_BUILD_SANDBOX,
           }),
         },
         onToolResult: toolAdapter?.onToolResult
-          ? (name) => toolAdapter.onToolResult!(name)
+          ? (name, view) => toolAdapter.onToolResult!(name, view)
           : undefined,
       });
       const usage = sessionResult.tokenUsage;
@@ -125,14 +138,13 @@ export async function runGrokBuildAgent({
             ? stringifyError(sessionResult.iterationError) || undefined
             : undefined),
         usage: {
+          reported: usage.reported,
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           totalTokens: usage.totalTokens,
-          ...(usage.reported && {
-            cachedInputTokens: usage.cachedInputTokens,
-            cacheCreationInputTokens: usage.cacheCreationInputTokens,
-            reasoningOutputTokens: usage.reasoningOutputTokens,
-          }),
+          cachedInputTokens: usage.cachedInputTokens,
+          cacheCreationInputTokens: usage.cacheCreationInputTokens,
+          reasoningOutputTokens: usage.reasoningOutputTokens,
         },
         costUsd: sessionResult.costUsd,
         metrics: buildGrokBuildMetrics(usage, sessionResult.endEvent, sessionResult.events),
@@ -160,14 +172,6 @@ export async function runGrokBuildAgent({
         taskSpec,
       ),
   });
-}
-
-export function readGrokBuildMaxTurns(): number {
-  for (const key of ["EVAL_GROK_BUILD_MAX_TURNS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
 }
 
 function buildGrokBuildMetrics(

@@ -55,7 +55,7 @@ grok -p \
 
 ## Eval harness
 
-The registered `grok_build` harness follows the same CLI pattern as the Cursor harness. It creates an isolated temporary home and workspace, copies cached Grok authentication only when no API key is present, writes the selected Stagehand MCP mount to the temporary Grok home configuration, runs `grok -p --output-format streaming-json`, and maps native tool and usage events into the shared verifier trajectory.
+The registered `grok_build` harness creates an isolated home and workspace, copies cached Grok authentication only when no API key is present, writes the selected Stagehand MCP mount into that home, and runs `grok -p --output-format streaming-json`. Eval policy is appended with `--rules`. Turn budget comes from `EVAL_GROK_BUILD_MAX_TURNS` (then `AGENT_EVAL_MAX_STEPS`). Tool, usage, and cost events map into the shared verifier trajectory.
 
 ```bash
 evals run b:webvoyager \

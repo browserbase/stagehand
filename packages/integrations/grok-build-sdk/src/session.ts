@@ -28,6 +28,8 @@ export type GrokBuildSessionConfig = {
   binaryPath?: string;
   maxTurns?: number;
   sandbox?: string;
+  /** Appended with `grok --rules` (`--append-system-prompt`). */
+  rules?: string;
   extraArgs?: string[];
 };
 
@@ -99,6 +101,7 @@ export function buildGrokBuildArgs(input: {
     ...(input.model ? ["--model", input.model] : []),
     ...(session.maxTurns ? ["--max-turns", String(session.maxTurns)] : []),
     ...(session.sandbox ? ["--sandbox", session.sandbox] : []),
+    ...(session.rules ? ["--rules", session.rules] : []),
     ...(session.extraArgs ?? []),
   ];
 }
