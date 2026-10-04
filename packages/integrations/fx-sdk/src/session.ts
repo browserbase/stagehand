@@ -23,11 +23,19 @@ export type FxToolResultRecord = {
   status?: string;
   output?: string;
   truncated?: boolean;
+  /** fx >= 0.0.11 stores the full output in `<session>/tool-results/<output_handle>`. */
+  output_handle?: string;
+  /** Screenshot results keep their image blocks in a separate artifact. */
+  tool_image_handle?: string;
+  preview?: string;
   [key: string]: unknown;
 };
 
 export type FxAskOutput = {
+  /** Every assistant message of the turn joined together (narration included). */
   output?: string;
+  /** fx >= 0.0.11: only the completed final response, or "" when absent. */
+  final_output?: string;
   exit_code?: number;
   model?: string;
   session_id?: string;
@@ -114,6 +122,19 @@ export type FxSessionStore = {
     offset: number,
   ): Promise<{ text: string; nextOffset: number }>;
   readUsageSnapshot?(sessionDir: string): Promise<Record<string, unknown> | undefined>;
+  /**
+   * fx >= 0.0.11 keeps the in-flight turn in `recovery.json` and only writes
+   * events.jsonl once the turn completes (the file is removed on commit).
+   */
+  readRecoveryCheckpoint?(sessionDir: string): Promise<Record<string, unknown> | undefined>;
+  /** Read a `tool-results/` artifact referenced by a tool result, capped at maxBytes. */
+  readToolResultArtifact?(
+    sessionDir: string,
+    ref: string,
+    maxBytes: number,
+  ): Promise<string | undefined>;
+  /** Merge session defaults into `$HOME/.fx/settings.json` so session.json records them. */
+  mergeSettings?(home: string, patch: Record<string, unknown>): Promise<void>;
 };
 
 export const FX_BIN_ENV = "EVAL_FX_PATH";
@@ -122,9 +143,55 @@ export function resolveFxBin(override?: string): string {
   return override ?? process.env[FX_BIN_ENV] ?? "fx";
 }
 
+/**
+ * Map an eval model id onto the id fx resolves against the AI Gateway catalog.
+ * fx looks the model up in the catalog to decide whether to send `reasoning`
+ * and `maxOutputTokens`: an id the catalog lacks (`anthropic/claude-sonnet-5-5`
+ * instead of `anthropic/claude-sonnet-5.5`) still routes, but fx silently drops
+ * the requested effort and the output-token ceiling.
+ */
 export function normalizeFxModel(model: string): string | undefined {
-  return model === "fx/default" ? undefined : model;
+  if (model === "fx/default") return undefined;
+  const dashedAnthropic = /^(anthropic\/claude-[a-z]+-\d+)-(\d)$/u.exec(model);
+  return dashedAnthropic ? `${dashedAnthropic[1]}.${dashedAnthropic[2]}` : model;
 }
+
+/**
+ * Reasoning efforts fx understands. fx accepts any string for `--effort` and
+ * silently sends no reasoning parameter for one it does not know, so reject
+ * unknown values before spending a run on them. Per-model availability is
+ * still decided by fx (e.g. Sonnet 5.5 offers low..max).
+ */
+export const FX_REASONING_EFFORTS = [
+  "auto",
+  "none",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+] as const;
+
+export type FxReasoningEffort = (typeof FX_REASONING_EFFORTS)[number];
+
+/** Validate a requested fx reasoning effort; empty/undefined means fx's default. */
+export function parseFxReasoningEffort(
+  raw: string | undefined,
+  source = "fx reasoning effort",
+): FxReasoningEffort | undefined {
+  const value = raw?.trim().toLowerCase();
+  if (!value) return undefined;
+  if ((FX_REASONING_EFFORTS as readonly string[]).includes(value)) {
+    return value as FxReasoningEffort;
+  }
+  throw new HarnessAdapterError(`${source} must be one of ${FX_REASONING_EFFORTS.join(", ")}.`);
+}
+
+/** Largest tool-result artifact inlined into a step; larger outputs are clipped. */
+export const FX_TOOL_RESULT_MAX_BYTES = 512 * 1024;
+// Screenshots need more room than text output; keep the artifact read bounded.
+const FX_IMAGE_RESULT_MAX_BYTES = 20 * 1024 * 1024;
 
 const liveFxChildren = new Set<ChildProcess>();
 
@@ -316,6 +383,45 @@ const defaultSessionStore: FxSessionStore = {
       return undefined;
     }
   },
+  async readRecoveryCheckpoint(sessionDir) {
+    try {
+      const text = await fsp.readFile(path.join(sessionDir, "recovery.json"), "utf8");
+      const parsed: unknown = JSON.parse(text);
+      return isRecord(parsed) ? parsed : undefined;
+    } catch {
+      // Missing (turn committed) or caught mid-rewrite; the next poll retries.
+      return undefined;
+    }
+  },
+  async readToolResultArtifact(sessionDir, ref, maxBytes) {
+    // Artifact refs are bare file names; never follow one out of tool-results/.
+    if (!ref || ref !== path.basename(ref)) return undefined;
+    let file: fsp.FileHandle | undefined;
+    try {
+      file = await fsp.open(path.join(sessionDir, "tool-results", ref), "r");
+      const { size } = await file.stat();
+      const buffer = Buffer.alloc(Math.min(size, maxBytes));
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+      const text = buffer.subarray(0, bytesRead).toString("utf8");
+      return size > maxBytes ? `${text}\n[fx tool output truncated: ${size} bytes]` : text;
+    } catch {
+      return undefined;
+    } finally {
+      await file?.close().catch((): undefined => undefined);
+    }
+  },
+  async mergeSettings(home, patch) {
+    const settingsPath = path.join(home, ".fx", "settings.json");
+    let current: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(await fsp.readFile(settingsPath, "utf8"));
+      if (isRecord(parsed)) current = parsed;
+    } catch {
+      // No settings yet.
+    }
+    await fsp.mkdir(path.dirname(settingsPath), { recursive: true });
+    await fsp.writeFile(settingsPath, `${JSON.stringify({ ...current, ...patch }, null, 2)}\n`);
+  },
 };
 
 export async function runFxSession(input: {
@@ -326,6 +432,8 @@ export async function runFxSession(input: {
   home: string;
   env: Record<string, string>;
   permissionMode?: "auto" | "yolo";
+  /** Passed as `fx ask --effort`; undefined leaves fx's per-model default. */
+  reasoningEffort?: FxReasoningEffort;
   maxAgentSteps?: number;
   signal?: AbortSignal;
   logger: HarnessLogger;
@@ -340,8 +448,17 @@ export async function runFxSession(input: {
 
   const events: FxEvent[] = [];
   const permissionMode = input.permissionMode ?? "auto";
-  const args = ["ask", "--json", permissionMode === "yolo" ? "--yolo" : "--auto"];
   const model = input.model ? normalizeFxModel(input.model) : undefined;
+  const reasoningEffort = parseFxReasoningEffort(input.reasoningEffort);
+  // FX_MODEL alone is not recorded in session.json and does not reach fx's
+  // catalog lookup for request options; pass the per-request flags explicitly.
+  const args = [
+    "ask",
+    "--json",
+    permissionMode === "yolo" ? "--yolo" : "--auto",
+    ...(model ? ["--model", model] : []),
+    ...(reasoningEffort ? ["--effort", reasoningEffort] : []),
+  ];
   const env: Record<string, string> = {
     ...input.env,
     HOME: input.home,
@@ -363,6 +480,22 @@ export async function runFxSession(input: {
   }
 
   const store = input.store ?? defaultSessionStore;
+  if (store.mergeSettings && (model || reasoningEffort)) {
+    // Per-request flags are not persisted; session defaults make session.json
+    // record the model and effort the run actually used.
+    await store
+      .mergeSettings(input.home, {
+        ...(model && { model }),
+        ...(reasoningEffort && { effort: reasoningEffort }),
+      })
+      .catch((error: unknown) => {
+        input.logger.warn({
+          category: "fx",
+          message: `could not record fx session defaults: ${sanitizeErrorMessage(stringifyError(error))}`,
+          level: 1,
+        });
+      });
+  }
   const seenToolCalls = new Set<string>();
   const observedToolCallKeys: string[] = [];
   const observedTool = input.observedTool ?? ((name: string) => name.startsWith("mcp_"));
@@ -370,6 +503,7 @@ export async function runFxSession(input: {
   let eventsReadOffset = 0;
   let eventsLineRemainder = "";
   const incrementalLogEvents: FxLogEvent[] = [];
+  let lastRecoverySteps: FxToolStep[] = [];
   let processSettled = false;
   let processResult: Awaited<ReturnType<FxProcessRunner>>;
 
@@ -414,6 +548,16 @@ export async function runFxSession(input: {
     return parsed;
   };
 
+  const readRecoverySteps = async (): Promise<FxToolStep[]> => {
+    if (!sessionDir || !store.readRecoveryCheckpoint) return [];
+    const recovery = await store.readRecoveryCheckpoint(sessionDir).catch(() => undefined);
+    const steps = extractFxRecoverySteps(recovery);
+    // recovery.json disappears when the turn commits; keep the last one seen
+    // so a run killed mid-turn still reports the steps it took.
+    if (steps.length >= lastRecoverySteps.length && steps.length > 0) lastRecoverySteps = steps;
+    return steps;
+  };
+
   try {
     const processPromise = (input.runProcess ?? defaultProcessRunner)({
       bin: resolveFxBin(input.bin),
@@ -440,6 +584,7 @@ export async function runFxSession(input: {
           .catch(() => undefined);
         if (sessionDir) {
           await notifyCalls(extractFxToolSteps(await readNewLogEvents()));
+          await notifyCalls(await readRecoverySteps());
         }
         if (!processSettled) {
           await delay(input.pollIntervalMs ?? 500, controller.signal);
@@ -465,9 +610,21 @@ export async function runFxSession(input: {
   sessionDir ??= await store
     .waitForSessionDir(input.home, controller.signal)
     .catch(() => undefined);
-  if (sessionDir) await readNewLogEvents(true);
+  if (sessionDir) {
+    await readNewLogEvents(true);
+    await readRecoverySteps();
+  }
   const logEvents = incrementalLogEvents;
-  const toolSteps = extractFxToolSteps(logEvents);
+  // events.jsonl carries the committed turn. When it is empty (fx >= 0.0.11
+  // killed or timed out mid-turn), the last recovery checkpoint is the only
+  // record of the steps the agent took.
+  let toolSteps = extractFxToolSteps(logEvents);
+  if (toolSteps.length === 0) toolSteps = lastRecoverySteps;
+  if (sessionDir && store.readToolResultArtifact) {
+    toolSteps = await hydrateFxToolResults(toolSteps, (ref, maxBytes) =>
+      store.readToolResultArtifact!(sessionDir!, ref, maxBytes),
+    );
+  }
   for (const step of toolSteps) {
     const event: FxEvent = { type: "tool_step", ...step };
     events.push(event);
@@ -476,10 +633,23 @@ export async function runFxSession(input: {
 
   const committed = findLastCommittedTurn(logEvents);
   const turn = committed?.turn;
-  const turnAssistant = typeof turn?.assistant === "string" ? turn.assistant : undefined;
-  const finalMessage = typeof ask?.output === "string" ? ask.output : (turnAssistant ?? "");
-  if (turnAssistant || finalMessage) {
-    const event: FxEvent = { type: "assistant", text: turnAssistant ?? finalMessage };
+  const turnAssistant =
+    typeof turn?.assistant === "string" ? turn.assistant : extractFxFinalAssistant(logEvents);
+  // `ask.output` is every assistant message of the turn joined together —
+  // opening narration, interstitial commentary and the conclusion — while
+  // `ask.final_output` (fx >= 0.0.11) and the committed turn's final assistant
+  // message are the conclusion alone. The narration belongs to the tool steps
+  // that carry it, so the final message must be the latter.
+  const finalOutput = typeof ask?.final_output === "string" ? ask.final_output : undefined;
+  const finalMessage = finalOutput?.trim()
+    ? finalOutput
+    : turnAssistant?.trim()
+      ? turnAssistant
+      : typeof ask?.output === "string"
+        ? ask.output
+        : "";
+  if (finalMessage) {
+    const event: FxEvent = { type: "assistant", text: finalMessage };
     events.push(event);
     logFxEvent(input.logger, event);
   }
@@ -489,7 +659,8 @@ export async function runFxSession(input: {
       : typeof ask?.terminal_reason === "string"
         ? ask.terminal_reason
         : undefined;
-  if (committed) {
+  const turnCompleted = committed !== undefined || hasFxTurnCompleted(logEvents);
+  if (turnCompleted) {
     const event: FxEvent = {
       type: "turn_committed",
       ...(terminalReason && { terminal_reason: terminalReason }),
@@ -578,6 +749,7 @@ export function parseFxEventsJsonl(text: string): FxLogEvent[] {
 }
 
 export function extractFxToolSteps(events: FxLogEvent[]): FxToolStep[] {
+  if (events.some(isFxStreamEvent)) return extractFxStreamToolSteps(events);
   let checkpointSteps: FxToolStep[] = [];
   let committedSteps: FxToolStep[] | undefined;
   for (const event of events) {
@@ -593,6 +765,168 @@ export function extractFxToolSteps(events: FxLogEvent[]): FxToolStep[] {
     }
   }
   return committedSteps ?? checkpointSteps;
+}
+
+/**
+ * fx >= 0.0.11 writes events.jsonl as a flat stream (schema_version 3):
+ * `{seq, timestamp_ms, event: {user|assistant|tool_call|tool_result|turn_completed: {...}}}`.
+ * Older fx wrote `{kind, payload}` records with whole checkpoints.
+ */
+function isFxStreamEvent(event: FxLogEvent): boolean {
+  return isRecord(event.event) && event.kind === undefined;
+}
+
+function fxStreamPayload(
+  event: FxLogEvent,
+): { type: string; body: Record<string, unknown> } | undefined {
+  if (!isRecord(event.event)) return undefined;
+  const [type] = Object.keys(event.event);
+  const body = type ? event.event[type] : undefined;
+  return type && isRecord(body) ? { type, body } : undefined;
+}
+
+function extractFxStreamToolSteps(events: FxLogEvent[]): FxToolStep[] {
+  const steps: FxToolStep[] = [];
+  const stepByCallId = new Map<string, FxToolStep>();
+  let pendingAssistant = "";
+  let current: FxToolStep | undefined;
+  for (const event of events) {
+    const payload = fxStreamPayload(event);
+    if (!payload) continue;
+    const { type, body } = payload;
+    if (type === "user" || type === "turn_completed") {
+      pendingAssistant = "";
+      current = undefined;
+    } else if (type === "assistant") {
+      pendingAssistant = typeof body.text === "string" ? body.text : "";
+      current = undefined;
+    } else if (type === "tool_call") {
+      if (!current) {
+        current = { assistant: pendingAssistant, tool_calls: [], tool_results: [] };
+        steps.push(current);
+        pendingAssistant = "";
+      }
+      const id = typeof body.call_id === "string" ? body.call_id : undefined;
+      current.tool_calls.push({
+        ...(id && { id }),
+        ...(typeof body.tool_name === "string" && { name: body.tool_name }),
+        ...(typeof body.arguments_json === "string" && { arguments_json: body.arguments_json }),
+        ...(body.provider_result !== undefined && { provider_result: body.provider_result }),
+      });
+      if (id) stepByCallId.set(id, current);
+    } else if (type === "tool_result") {
+      const id = typeof body.call_id === "string" ? body.call_id : undefined;
+      const step = (id && stepByCallId.get(id)) || current || steps.at(-1);
+      if (!step) continue;
+      step.tool_results.push({
+        ...(id && { tool_call_id: id }),
+        ...(typeof body.tool_name === "string" && { tool_name: body.tool_name }),
+        ...(typeof body.status === "string" && { status: body.status }),
+        output: typeof body.output === "string" ? body.output : "",
+        ...(typeof body.artifact_ref === "string" && { output_handle: body.artifact_ref }),
+        ...(typeof body.tool_image_handle === "string" && {
+          tool_image_handle: body.tool_image_handle,
+        }),
+        ...(typeof body.preview === "string" && { preview: body.preview }),
+        truncated: typeof body.completeness === "string" && body.completeness !== "complete",
+      });
+    }
+  }
+  return steps;
+}
+
+/** The last assistant message of the stream that no tool call followed: the turn's conclusion. */
+export function extractFxFinalAssistant(events: FxLogEvent[]): string | undefined {
+  let final: string | undefined;
+  for (const event of events) {
+    const payload = fxStreamPayload(event);
+    if (!payload) continue;
+    if (payload.type === "assistant") {
+      final = typeof payload.body.text === "string" ? payload.body.text : undefined;
+    } else if (payload.type === "tool_call" || payload.type === "user") {
+      final = undefined;
+    }
+  }
+  return final;
+}
+
+function hasFxTurnCompleted(events: FxLogEvent[]): boolean {
+  return events.some((event) => fxStreamPayload(event)?.type === "turn_completed");
+}
+
+/** Tool steps of the in-flight turn from fx >= 0.0.11 `recovery.json`. */
+export function extractFxRecoverySteps(
+  recovery: Record<string, unknown> | undefined,
+): FxToolStep[] {
+  const checkpoint = isRecord(recovery?.checkpoint) ? recovery.checkpoint : undefined;
+  const execution = isRecord(checkpoint?.execution) ? checkpoint.execution : undefined;
+  return readToolSteps(execution?.tool_steps);
+}
+
+/**
+ * fx >= 0.0.11 leaves `output` empty and stores the full text in a
+ * `tool-results/` artifact, with screenshot image blocks in a second artifact.
+ * Inline both so the trajectory carries the evidence the agent saw.
+ */
+export async function hydrateFxToolResults(
+  steps: FxToolStep[],
+  readArtifact: (ref: string, maxBytes: number) => Promise<string | undefined>,
+  maxBytes = FX_TOOL_RESULT_MAX_BYTES,
+): Promise<FxToolStep[]> {
+  const read = (ref: string) => readArtifact(ref, maxBytes).catch((): undefined => undefined);
+  return Promise.all(
+    steps.map(async (step) => ({
+      ...step,
+      tool_results: await Promise.all(
+        step.tool_results.map(async (result) => {
+          let output = typeof result.output === "string" ? result.output : "";
+          if (!output && typeof result.output_handle === "string") {
+            output = (await read(result.output_handle)) ?? "";
+          }
+          if (!output && typeof result.preview === "string") output = result.preview;
+          if (typeof result.tool_image_handle === "string") {
+            output = mergeFxImageBlocks(
+              output,
+              await readArtifact(result.tool_image_handle, FX_IMAGE_RESULT_MAX_BYTES).catch(
+                () => undefined,
+              ),
+            );
+          }
+          return { ...result, output };
+        }),
+      ),
+    })),
+  );
+}
+
+/** Fill the data-less image placeholders of an MCP result with the stored image blocks. */
+function mergeFxImageBlocks(output: string, imagesText: string | undefined): string {
+  if (!imagesText) return output;
+  let images: unknown;
+  let parsedOutput: unknown;
+  try {
+    images = JSON.parse(imagesText);
+    parsedOutput = JSON.parse(output);
+  } catch {
+    return output;
+  }
+  if (!Array.isArray(images)) return output;
+  const queue = images.filter(
+    (block): block is Record<string, unknown> =>
+      isRecord(block) && block.type === "image" && typeof block.data === "string",
+  );
+  if (queue.length === 0) return output;
+  const fill = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(fill);
+    if (!isRecord(value)) return value;
+    if (value.type === "image" && typeof value.data !== "string") {
+      const block = queue.shift();
+      if (!block) return value;
+      return { type: "image", mimeType: block.mimeType ?? value.mimeType, data: block.data };
+    }
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, fill(item)]));
+  };
+  return safeJson(fill(parsedOutput)) ?? output;
 }
 
 export function extractFxTokenUsage(
