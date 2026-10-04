@@ -245,7 +245,13 @@ export class StagehandFacadeTools {
     this.snapshotsByPage.delete(page.pageId);
     const { snapshot, url } = await withDeadline(
       (async () => {
-        const snapshot = await page.snapshot({ includeIframes: options.includeIframes ?? true });
+        // `page.snapshot` defaults to a 20s timeout. Disable it so the capture
+        // deadline below owns the wait; otherwise a slow snapshot fails as an
+        // ordinary tool error and never counts toward terminal session loss.
+        const snapshot = await page.snapshot({
+          includeIframes: options.includeIframes ?? true,
+          timeout: 0,
+        });
         return { snapshot, url: await page.url() };
       })(),
       PAGE_CAPTURE_DEADLINE_MS,
