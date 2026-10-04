@@ -1,3 +1,5 @@
+import { runGeminiCuaAgent, GEMINI_CUA_DEFAULT_MODELS } from "./geminiCuaRunner.js";
+import { GEMINI_CUA_TOOL_SURFACES, prepareGeminiCuaToolAdapter } from "./geminiCuaToolAdapter.js";
 import { runClaudeCuaAgent, CLAUDE_CUA_DEFAULT_MODELS } from "./claudeCuaRunner.js";
 import { CLAUDE_CUA_TOOL_SURFACES, prepareClaudeCuaToolAdapter } from "./claudeCuaToolAdapter.js";
 import { V3, normalizeRubric, type AvailableModel, type TaskSpec } from "stagehand-v3";
@@ -389,6 +391,14 @@ export const claudeCuaHarness = defineExternalHarness({
   runAgent: runClaudeCuaAgent,
 });
 
+export const geminiCuaHarness = defineExternalHarness({
+  harness: "gemini_cua",
+  supportedToolSurfaces: GEMINI_CUA_TOOL_SURFACES,
+  defaultModels: GEMINI_CUA_DEFAULT_MODELS,
+  prepareToolAdapter: prepareGeminiCuaToolAdapter,
+  runAgent: runGeminiCuaAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -400,6 +410,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["fx", fxHarness],
   ["cursor", cursorHarness],
   ["claude_cua", claudeCuaHarness],
+  ["gemini_cua", geminiCuaHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {
