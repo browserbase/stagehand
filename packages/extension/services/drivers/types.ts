@@ -35,9 +35,9 @@ export type InferenceUsage = {
 
 /** The configured language model, as a driver sees it. */
 export type LlmPort = {
-  generate(params: LLMGenerateParams): Promise<LLMGenerateResult>;
+  generate: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
   /** Adds one inference to the operation's reported usage. */
-  record(usage: InferenceUsage): void;
+  record: (usage: InferenceUsage) => void;
   /** The caller's system prompt, empty when none was given. */
   systemPrompt: string;
 };
@@ -64,14 +64,14 @@ export type ActRequest = {
    */
   settled: Promise<void>;
   /** Throws once the caller's timeout has passed. */
-  ensureTimeRemaining(): void;
+  ensureTimeRemaining: () => void;
   logger: StagehandLogger;
   llm: LlmPort;
   /**
    * Performs one action on the page. `selfHeal` defaults to the instance setting; a driver
    * that has its own recovery passes `false`.
    */
-  runAction(action: Action, options?: { selfHeal?: boolean }): Promise<ActResultData>;
+  runAction: (action: Action, options?: { selfHeal?: boolean }) => Promise<ActResultData>;
   /** Open tab count, so a driver can see an action that opened a new tab. */
   openPageCount?: () => number;
 };
@@ -136,7 +136,7 @@ export type ObserveRequest = {
   variables?: Variables;
   page: Pick<Page, "captureSnapshot">;
   snapshotOptions: SnapshotOptions;
-  ensureTimeRemaining(): void;
+  ensureTimeRemaining: () => void;
   logger: StagehandLogger;
   llm: LlmPort;
 };
@@ -161,7 +161,7 @@ export type ExtractRequest = {
   snapshot: { tree: string; urlMap: Record<string, string> };
   /** Present for screenshot-assisted extraction. */
   screenshot?: Uint8Array;
-  ensureTimeRemaining(): void;
+  ensureTimeRemaining: () => void;
   logger: StagehandLogger;
   llm: LlmPort;
 };

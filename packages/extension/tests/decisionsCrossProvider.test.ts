@@ -9,11 +9,8 @@ import { StagehandLogger } from "../logger.js";
 import { DECISION_PROVIDERS, type DecisionProviderName } from "../services/decisions/client.js";
 import { runDecisionsExtract } from "../services/decisions/extract.js";
 import { runDecisionsObserve } from "../services/decisions/observe.js";
-import {
-  runDecisionsAct,
-  type DecisionsActDeps,
-  type DecisionsConfig,
-} from "../services/decisions/pipeline.js";
+import { runDecisionsAct, type DecisionsActDeps } from "../services/decisions/act/index.js";
+import type { DecisionsConfig } from "../services/decisions/config.js";
 import { parseOutline } from "../services/decisions/tree.js";
 import type { Page } from "../understudy/page.js";
 import {

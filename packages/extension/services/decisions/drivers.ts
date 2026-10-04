@@ -15,7 +15,8 @@ import { runDecisionsExtract, type JsonSchema } from "./extract.js";
 import { extractionCompleted } from "./extractCheck.js";
 import { runDecisionsObserve } from "./observe.js";
 import type { TraceEntry } from "./pick.js";
-import { runDecisionsAct, type DecisionsActOutcome, type DecisionsConfig } from "./pipeline.js";
+import { runDecisionsAct, type DecisionsActOutcome } from "./act/index.js";
+import type { DecisionsConfig } from "./config.js";
 import type { DecisionsToolDeps, ToolInput } from "./toolAct.js";
 import { focusOutline, parseOutline } from "./tree.js";
 

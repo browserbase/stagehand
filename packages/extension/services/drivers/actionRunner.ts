@@ -17,7 +17,7 @@ export type ActionRunnerEnvironment = {
   /** Whether a failed action is re-inferred once and retried, unless the caller says otherwise. */
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
-  ensureTimeRemaining(): void;
+  ensureTimeRemaining: () => void;
 };
 
 /**

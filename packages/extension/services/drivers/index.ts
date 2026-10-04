@@ -5,7 +5,7 @@ import {
   decisionsExtractDriver,
   decisionsObserveDriver,
 } from "../decisions/drivers.js";
-import type { DecisionsConfig } from "../decisions/pipeline.js";
+import type { DecisionsConfig } from "../decisions/config.js";
 import {
   actOrFail,
   actWithFallback,
