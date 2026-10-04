@@ -140,3 +140,40 @@ This establishes source → recording → failing Stagehand assertion → existi
 model reasoning quality or preservation of every browser observation. In
 particular, this bug is schema transport related, so it is a baseline validation
 of the workflow rather than proof for layout, shadow DOM, or dynamic `act()` bugs.
+
+## DOM-sensitive observation fidelity
+
+`tests/integration/fixtureObservation.test.ts` validates a synthetic checkout page
+in `examples/checkout.html` through real `stagehand.observe()` calls. It tests
+capture fidelity directly, independently of the schema-transport regression above.
+
+An external stylesheet hides a misleading cancel control. Setup edits an input
+value, checks a checkbox, selects shipping, expands native `<details>`, and changes
+the submit button's accessible name through a hidden `aria-labelledby` target.
+The recorder captures this settled state. The test then disables the original
+page and stylesheet endpoints before replaying the saved HTML.
+
+Assertions verify that:
+
+- Source and recorded observation prompts match after normalizing element IDs.
+- The dynamically named submit button remains observable, while the CSS-hidden
+  control stays absent from the model input.
+- The returned XPath resolves to the intended, visible submit button.
+- Edited input, checkbox, selected option, and expanded details state survive.
+- Replay requests only the fixture document, with no source or stylesheet fetch.
+
+The deterministic model adapter chooses an element ID from Stagehand's actual
+observation and returns it through the normal inference pipeline. It does not
+substitute for browser capture or selector resolution, and needs no API key.
+
+A negative control deliberately removes the captured visibility style. This
+exposes the hidden control in Stagehand's model input, and the observation check
+rejects the lossy fixture. It proves the validation detects this specific capture
+loss. This is a synthetic capture-fidelity regression, not a claim to reproduce a
+historical Stagehand bug or prove general model reasoning quality.
+
+Run all recorder validations from `packages/evals`:
+
+```sh
+pnpm exec vitest run --config vitest.integration.config.ts tests/integration/fixture*.test.ts
+```
