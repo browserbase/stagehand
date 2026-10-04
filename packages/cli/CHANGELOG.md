@@ -1,5 +1,48 @@
 # browse
 
+## 0.11.1
+
+### Patch Changes
+
+- [#3055](https://github.com/browserbase/stagehand/pull/3055) [`8308d8d`](https://github.com/browserbase/stagehand/commit/8308d8dc0b61d7e6f7da7de61fa8692109ca0443) Thanks [@akeimach](https://github.com/akeimach)! - `functions init` now scaffolds a Stagehand project. It installs `@browserbasehq/stagehand` instead of `playwright-core`, installs the zod version that Stagehand uses, and writes a Stagehand starter function.
+
+- [#3055](https://github.com/browserbase/stagehand/pull/3055) [`8308d8d`](https://github.com/browserbase/stagehand/commit/8308d8dc0b61d7e6f7da7de61fa8692109ca0443) Thanks [@akeimach](https://github.com/akeimach)! - Fix Functions builds that failed because of how `functions publish` generated `package-lock.json` or how `functions init` set up pnpm:
+
+  - `functions publish` now generates `package-lock.json` without registry URLs, so private npm registries work.
+  - `functions publish` now resolves local `file:` dependencies by building `package-lock.json` from the uploaded files rather than just `package.json`.
+  - `functions publish` now prints npm's error output when it can't generate `package-lock.json`.
+  - `functions init` now writes a `pnpm-workspace.yaml` that allows the esbuild build script, required by pnpm 11+.
+
+- [#2542](https://github.com/browserbase/stagehand/pull/2542) [`514970e`](https://github.com/browserbase/stagehand/commit/514970e13f2ffe7528407dd2e57e41a77b61e785) Thanks [@shrey150](https://github.com/shrey150)! - Fix local browser discovery (`--auto-connect`, `browse doctor`) trusting a stale cached debugging port after a different Chrome process later reuses that same port.
+
+## 0.11.0
+
+### Minor Changes
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse functions secrets attach` to attach an existing project secret to a function by ID.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse cloud secrets create` with public-key lookup, local encryption, and secret input from stdin, a named environment variable, or a hidden prompt.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse functions secrets detach` to remove a function-secret attachment without deleting the project secret.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add commands to retrieve project secret metadata and delete a project secret by ID.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse functions secrets list` to list attached secret metadata with cursor pagination and creation-time filters.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse cloud secrets list` to list project secret metadata with pagination and date filters.
+
+- [#3021](https://github.com/browserbase/stagehand/pull/3021) [`2c098f4`](https://github.com/browserbase/stagehand/commit/2c098f44857665045dbed31168ac36af920774d9) Thanks [@AzamAbdul](https://github.com/AzamAbdul)! - Add `browse cloud secrets update` to replace a secret value by ID with local encryption and stdin, environment variable, or hidden prompt input.
+
+### Patch Changes
+
+- [#2799](https://github.com/browserbase/stagehand/pull/2799) [`21f4443`](https://github.com/browserbase/stagehand/commit/21f444358cef39dd0c2d928720d9311c11276cdb) Thanks [@shrey150](https://github.com/shrey150)! - Use catalog source paths when cloning templates and print setup commands that match the generated project's package manager and Python environment.
+
+## 0.10.0
+
+### Minor Changes
+
+- [#2835](https://github.com/browserbase/stagehand/pull/2835) [`38e3a20`](https://github.com/browserbase/stagehand/commit/38e3a2045f1f92951e2e01b636f120eac90cdf81) Thanks [@shrey150](https://github.com/shrey150)! - migrate the Browse CLI runtime to Stagehand V4 and remove the `--return-xpath` option from coordinate actions
+
 ## 0.9.6
 
 ### Patch Changes

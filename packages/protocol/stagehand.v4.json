@@ -578,6 +578,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.pdf": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PagePDFParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PagePDFResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.snapshot": {
           "type": "object",
           "properties": {
@@ -725,7 +738,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorHoverResult"
@@ -738,7 +751,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorCountResult"
@@ -751,7 +764,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorIsCheckedResult"
@@ -764,7 +777,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorInputValueResult"
@@ -777,7 +790,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorIsVisibleResult"
@@ -790,7 +803,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorInnerTextResult"
@@ -803,7 +816,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorInnerHtmlResult"
@@ -816,7 +829,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorTextContentResult"
@@ -842,7 +855,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "result": {
               "$ref": "#/$defs/LocatorCentroidResult"
@@ -1040,6 +1053,7 @@
         "page.off",
         "page.set_extra_http_headers",
         "page.screenshot",
+        "page.pdf",
         "page.snapshot",
         "page.set_viewport_size",
         "page.wait_for_load_state",
@@ -1187,12 +1201,6 @@
           ]
         },
         "telemetry": {
-          "default": {
-            "traces": {
-              "endpoint": "https://example.com/v1/traces",
-              "headers": {}
-            }
-          },
           "$ref": "#/$defs/TelemetryConfig"
         },
         "log_level": {
@@ -3854,6 +3862,108 @@
       "required": ["data"],
       "additionalProperties": false
     },
+    "PagePDFParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/PagePDFOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "PagePDFOptions": {
+      "type": "object",
+      "properties": {
+        "landscape": {
+          "type": "boolean"
+        },
+        "display_header_footer": {
+          "type": "boolean"
+        },
+        "print_background": {
+          "type": "boolean"
+        },
+        "scale": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 2
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "margin": {
+          "$ref": "#/$defs/PagePDFMargin"
+        },
+        "page_ranges": {
+          "type": "string"
+        },
+        "header_template": {
+          "type": "string"
+        },
+        "footer_template": {
+          "type": "string"
+        },
+        "prefer_css_page_size": {
+          "type": "boolean"
+        },
+        "tagged": {
+          "type": "boolean"
+        },
+        "outline": {
+          "type": "boolean"
+        },
+        "timeout": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2147473647
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePDFMargin": {
+      "type": "object",
+      "properties": {
+        "top": {
+          "type": "number",
+          "minimum": 0
+        },
+        "bottom": {
+          "type": "number",
+          "minimum": 0
+        },
+        "left": {
+          "type": "number",
+          "minimum": 0
+        },
+        "right": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PagePDFResult": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string",
+          "format": "byte",
+          "contentEncoding": "base64",
+          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+        }
+      },
+      "required": ["data"],
+      "additionalProperties": false
+    },
     "PageSnapshotParams": {
       "type": "object",
       "properties": {
@@ -3870,6 +3980,11 @@
     "PageSnapshotOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "description": "Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        },
         "include_iframes": {
           "type": "boolean"
         }
@@ -4294,6 +4409,11 @@
     "LocatorClickOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "description": "Milliseconds for the whole locator call. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        },
         "button": {
           "$ref": "#/$defs/MouseButton"
         },
@@ -4331,11 +4451,25 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "options": {
+          "$ref": "#/$defs/LocatorOptions"
+        },
         "value": {
           "type": "string"
         }
       },
       "required": ["page_id", "selector", "value"],
+      "additionalProperties": false
+    },
+    "LocatorOptions": {
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "description": "Milliseconds for the whole locator call. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        }
+      },
       "additionalProperties": false
     },
     "LocatorFillResult": {
@@ -4347,6 +4481,28 @@
         }
       },
       "required": ["filled"],
+      "additionalProperties": false
+    },
+    "LocatorParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "options": {
+          "$ref": "#/$defs/LocatorOptions"
+        }
+      },
+      "required": ["page_id", "selector"],
       "additionalProperties": false
     },
     "LocatorHoverResult": {
@@ -4397,6 +4553,9 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "options": {
+          "$ref": "#/$defs/LocatorOptions"
         },
         "percent": {
           "anyOf": [
@@ -4461,6 +4620,11 @@
     "LocatorHighlightOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "description": "Milliseconds for the whole locator call. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        },
         "duration_ms": {
           "type": "integer",
           "minimum": 0,
@@ -4530,6 +4694,11 @@
     "LocatorSendClickEventOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "description": "Milliseconds for the whole locator call. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        },
         "bubbles": {
           "type": "boolean"
         },
@@ -4571,11 +4740,11 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
-        "text": {
-          "type": "string"
-        },
         "options": {
           "$ref": "#/$defs/LocatorTypeOptions"
+        },
+        "text": {
+          "type": "string"
         }
       },
       "required": ["page_id", "selector", "text"],
@@ -4584,6 +4753,11 @@
     "LocatorTypeOptions": {
       "type": "object",
       "properties": {
+        "timeout": {
+          "description": "Milliseconds for the whole locator call. Zero disables the timeout.",
+          "type": "number",
+          "minimum": 0
+        },
         "delay": {
           "type": "number",
           "minimum": 0
@@ -4616,6 +4790,9 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "options": {
+          "$ref": "#/$defs/LocatorOptions"
         },
         "values": {
           "anyOf": [
@@ -4654,6 +4831,9 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "options": {
+          "$ref": "#/$defs/LocatorOptions"
         },
         "files": {
           "type": "array",
@@ -6542,6 +6722,33 @@
             },
             "method": {
               "type": "string",
+              "const": "page.pdf"
+            },
+            "params": {
+              "$ref": "#/$defs/PagePDFParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "page.snapshot"
             },
             "params": {
@@ -6842,7 +7049,7 @@
               "const": "locator.hover"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -6869,7 +7076,7 @@
               "const": "locator.count"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -6896,7 +7103,7 @@
               "const": "locator.is_checked"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -6923,7 +7130,7 @@
               "const": "locator.input_value"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -6950,7 +7157,7 @@
               "const": "locator.is_visible"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -6977,7 +7184,7 @@
               "const": "locator.inner_text"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -7004,7 +7211,7 @@
               "const": "locator.inner_html"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -7031,7 +7238,7 @@
               "const": "locator.text_content"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
@@ -7085,7 +7292,7 @@
               "const": "locator.centroid"
             },
             "params": {
-              "$ref": "#/$defs/LocatorDescriptor"
+              "$ref": "#/$defs/LocatorParams"
             },
             "traceparent": {
               "type": "string"
