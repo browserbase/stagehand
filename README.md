@@ -510,6 +510,7 @@ We'd like to thank the following people for their major contributions to Stageha
 - [Shrey Pandya](https://github.com/shrey150)
 - [Shriya Lolabattu](https://github.com/shriyatheunicorn)
 - [Alyssa Maruyama](https://github.com/akeimach)
+- [Amel Bajramovic](https://github.com/bosniankicks)
 
 ## License
 

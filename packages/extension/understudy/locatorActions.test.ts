@@ -161,6 +161,7 @@ describe("counting progress forwarding", () => {
         frame.frameId,
         1000,
         progress,
+        {},
       );
       if (method === "countCss")
         expect(evaluate).toHaveBeenCalledExactlyOnceWith(expect.any(String), 1, progress);
