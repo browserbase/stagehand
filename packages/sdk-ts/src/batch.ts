@@ -15,15 +15,14 @@ import type { Page } from "./page.js";
 export type ExperimentalBatchOptions = {
   /** Page exposed as `batch.page`. AI operations still default to the active page. */
   page?: Page;
-  /** Overall callback deadline in milliseconds, enforced by the browser-side executor. */
-  timeout?: number;
   /**
-   * Local deadline for the whole round trip in milliseconds. Defaults to
-   * `timeout + CALLBACK_BATCH_CLIENT_GRACE_MS`. It fires when the executor never
-   * answers at all (stalled navigation, hung service worker), which the
-   * browser-side `timeout` cannot cover.
+   * Overall callback deadline in milliseconds, enforced by the browser-side
+   * executor. The client waits `CALLBACK_BATCH_CLIENT_GRACE_MS` beyond it for
+   * the response. That local deadline fires when the executor never answers
+   * at all (stalled navigation, hung service worker), which the browser-side
+   * `timeout` cannot cover.
    */
-  clientTimeout?: number;
+  timeout?: number;
 };
 
 /** Slack the client grants the executor to report its own `timeout` before giving up locally. */
