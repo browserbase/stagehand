@@ -2,9 +2,9 @@ import type { Variables } from "@browserbasehq/stagehand-protocol/types";
 import { resolveVariableValue } from "../../handlers/handlerUtils/variables.js";
 
 /**
- * Deterministic argument parsing for the Jev act pipeline. Jev cannot generate
+ * Deterministic argument parsing for the Decisions act pipeline. The decision model cannot generate
  * text, so every argument is either parsed from the instruction here or chosen
- * by Jev from a closed set these helpers produce.
+ * by the decision model from a closed set these helpers produce.
  */
 
 const VARIABLE = /^%[^%\s]+%$/;
@@ -83,7 +83,7 @@ export function matchOption(
   controlName: string,
 ): string | undefined {
   // Quoted only. Short options ("In", "All", "On") occur in instructions as
-  // ordinary words; an unquoted mention goes to Jev instead.
+  // ordinary words; an unquoted mention goes to the decision model instead.
   const quoted = quotedStrings(instruction).map((value) => value.trim().toLowerCase());
   const mentioned = options.filter(
     (option) =>
@@ -144,7 +144,7 @@ export function groundedSpan(
  */
 export function redactor(variables: Variables | undefined): ((text: string) => string) | undefined {
   // Values under three characters are not redacted on purpose: replacing every
-  // "a" or "no" in a page's text would destroy the candidate descriptions Jev
+  // "a" or "no" in a page's text would destroy the candidate descriptions the decision model
   // reads, and such values are not secrets. Documented with the flag.
   const secrets = Object.entries(variables ?? {})
     .map(([name, value]) => [name, resolveVariableValue(value)] as const)

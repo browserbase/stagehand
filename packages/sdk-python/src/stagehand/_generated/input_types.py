@@ -224,7 +224,7 @@ class EmptyParams(TypedDict):
     pass
 
 
-class ExperimentalJevAct(TypedDict):
+class ExperimentalDecisions(TypedDict):
     api_key: str
     model: NotRequired[str]
     api_url: NotRequired[str]
@@ -1176,7 +1176,7 @@ class StagehandInitParams(TypedDict):
     self_heal: NotRequired[bool]
     dom_settle_timeout_ms: NotRequired[int]
     cache: NotRequired[Caching]
-    experimental_jev_act: NotRequired[ExperimentalJevAct]
+    experimental_decisions: NotRequired[ExperimentalDecisions]
 
 
 VariablePrimitive: TypeAlias = str | float | bool

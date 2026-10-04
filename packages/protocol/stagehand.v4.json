@@ -1223,7 +1223,7 @@
           "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
           "$ref": "#/$defs/Caching"
         },
-        "experimental_jev_act": {
+        "experimental_decisions": {
           "description": "Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline",
           "type": "object",
           "properties": {

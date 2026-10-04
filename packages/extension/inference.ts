@@ -269,7 +269,7 @@ const ActTextArgumentSchema = z
   .strict();
 
 /**
- * Argument-only inference for the experimental Jev act path: no page content,
+ * Argument-only inference for the experimental decisions act path: no page content,
  * just the instruction, returning the literal text to type. The element is
  * chosen elsewhere.
  */
