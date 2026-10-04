@@ -6,7 +6,7 @@ import { noulAnswer } from "./typesafeClient.js";
 
 /**
  * Cached actions replay blind: a selector that still resolves, but now points
- * at a different control, is acted on without any model in the loop. One the decision model
+ * at a different control, is acted on without any model in the loop. One decision-model
  * yes/no over the element the cached selector resolves to catches that before
  * the replay instead of after.
  */
