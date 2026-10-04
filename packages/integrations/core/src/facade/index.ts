@@ -40,6 +40,7 @@ export {
   StagehandFacadeExecutionError,
   StagehandFacadeInputError,
   StagehandFacadeTools,
+  StagehandFacadeSessionLostError,
   type StagehandFacadeRunReport,
   type StagehandFacadeToolsOptions,
 } from "./tools.js";
