@@ -27,8 +27,8 @@ Python: `experimental_decisions=` and `stagehand.experimental_decisions.act(...)
 `CreateOptions.ExperimentalDecisions`, `client.ExperimentalDecisions().Act(...)` and
 `stagehand.ExperimentalDecisionsExtract[T](ctx, decisions, ...)`. Each method is its own RPC
 (`stagehand.experimental_decisions_act` / `_observe` / `_extract`) with the params and result of
-its plain counterpart; the controller decides which config the shared services receive, and a
-namespace call without a config is an error. Evals send their tasks' calls to the namespace with
+its plain counterpart; the controller hands the shared services decision-first drivers instead of
+the language-model ones, and a namespace call without a config is an error. Evals send their tasks' calls to the namespace with
 `EVAL_DECISIONS=1` and the other `EVAL_DECISIONS_*` switches in `packages/evals/initStagehand.ts`.
 
 ## Providers
@@ -91,11 +91,30 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 
 ## Files
 
-- `pipeline.ts` — orchestration per family (`press`, pointer, `fill`, `select`, scroll, `drag`).
+The decision model reaches the services through the driver contracts in
+[`../drivers`](../drivers/README.md); nothing in `actService`, `observeService` or
+`extractService` refers to this folder.
+
+- `drivers.ts` — the adapters: act, observe and extract drivers, the extraction completion judge
+  and the cached-action guard. The only file here the composition root imports.
+- `config.ts` — `DecisionsConfig`.
+- `act/` — the act pipeline.
+  - `index.ts` — intent fan-out, WebMCP tool decision, dispatch to a family.
+  - `families/` — `press`, `pointer`, `scroll`, `fill`, `select`, `drag`.
+  - `readiness.ts` — target readiness and the pre-act guard.
+  - `perform.ts` — performing the action, deterministic checks, the no-effect probe, no-target handling.
+  - `choices.ts` — options that appear after an opening action.
+  - `domHints.ts`, `page.ts`, `outcomes.ts`, `vocabulary.ts`, `types.ts`.
+- `extract/` — pick-and-copy extraction.
+  - `index.ts` — runs the plan and applies the completion gate.
+  - `plan.ts` — the schema as scalar leaves and lists; `leaves.ts`, `lists.ts`, `groups.ts`,
+    `values.ts`, `types.ts`.
+- `observe.ts`, `extractCheck.ts`, `cacheCheck.ts` — observe, the completion yes/no, the cached-action check.
 - `pick.ts` — tiers, pruning, shards, best/strict acceptance.
 - `tree.ts` — outline parsing, views, candidate descriptions, focus outline, page digest.
 - `args.ts` — deterministic argument parsing and grounding.
-- `pageState.ts`, `cacheCheck.ts`, `client.ts`, `providers.ts`.
+- `tools.ts`, `toolAct.ts`, `pageState.ts` — WebMCP tool questions and invocation, page-state signals.
+- `client.ts`, `providers.ts` — the provider-agnostic client and the four wire formats.
 
 ## Configuration (`experimentalDecisions`)
 

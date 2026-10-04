@@ -169,22 +169,19 @@ export class RPCRouter {
           context,
         );
       case "stagehand.experimental_decisions_act":
-        return this.stagehandController.act(
+        return this.stagehandController.experimentalDecisions.act(
           parseParams(StagehandMethods.stagehandExperimentalDecisionsAct, request.params),
           context,
-          "decisions",
         );
       case "stagehand.experimental_decisions_observe":
-        return this.stagehandController.observe(
+        return this.stagehandController.experimentalDecisions.observe(
           parseParams(StagehandMethods.stagehandExperimentalDecisionsObserve, request.params),
           context,
-          "decisions",
         );
       case "stagehand.experimental_decisions_extract":
-        return this.stagehandController.extract(
+        return this.stagehandController.experimentalDecisions.extract(
           parseParams(StagehandMethods.stagehandExperimentalDecisionsExtract, request.params),
           context,
-          "decisions",
         );
       case "stagehand.metrics":
         return this.stagehandController.metrics(

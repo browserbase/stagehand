@@ -2,15 +2,13 @@ import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StagehandLogger } from "../logger.js";
 import { realisticAnswer } from "./decisionsTestUtils.js";
+import { findGroups } from "../services/decisions/extract/groups.js";
 import {
-  compactForJudge,
-  findGroups,
-  parseNumberText,
-  planSchema,
   runDecisionsExtract,
   type DecisionsExtractDeps,
-  type JsonSchema,
-} from "../services/decisions/extract.js";
+} from "../services/decisions/extract/index.js";
+import { planSchema, type JsonSchema } from "../services/decisions/extract/plan.js";
+import { compactForJudge, parseNumberText } from "../services/decisions/extract/values.js";
 import { parseOutline } from "../services/decisions/tree.js";
 
 const PAGE = [

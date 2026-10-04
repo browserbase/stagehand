@@ -3,14 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Action, ActResultData } from "@browserbasehq/stagehand-protocol/types";
 import { StagehandLogger } from "../logger.js";
 import { realisticAnswer } from "./decisionsTestUtils.js";
-import {
-  fillValueCandidates,
-  parseKey,
-  parsePercent,
-  runDecisionsAct,
-  type DecisionsActDeps,
-  resolveFamily,
-} from "../services/decisions/pipeline.js";
+import { runDecisionsAct, type DecisionsActDeps } from "../services/decisions/act/index.js";
+import { resolveFamily } from "../services/decisions/act/vocabulary.js";
+import { fillValueCandidates, parseKey, parsePercent } from "../services/decisions/args.js";
 import { resolveLocatorWithHops } from "../understudy/deepLocator.js";
 import type { Page } from "../understudy/page.js";
 

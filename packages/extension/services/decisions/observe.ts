@@ -19,7 +19,13 @@ import {
   type Snapshot,
   type TraceEntry,
 } from "./pick.js";
-import { FAMILIES, KEYS, POINTER_METHODS, SCROLL_METHODS, resolveFamily } from "./pipeline.js";
+import {
+  FAMILIES,
+  KEYS,
+  POINTER_METHODS,
+  SCROLL_METHODS,
+  resolveFamily,
+} from "./act/vocabulary.js";
 import {
   buildView,
   describeCandidate,

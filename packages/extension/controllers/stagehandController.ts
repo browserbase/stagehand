@@ -17,7 +17,7 @@ import * as actService from "../services/actService.js";
 import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
 import { buildGatewayContext } from "../llm/gatewayClient.js";
-import type { DecisionsConfig } from "../services/decisions/pipeline.js";
+import { decisionDrivers, llmDrivers, type Drivers } from "../services/drivers/index.js";
 import * as observeService from "../services/observeService.js";
 
 export type StagehandControllerOptions = {
@@ -63,131 +63,124 @@ export function createStagehandController(
   }
 
   /**
-   * `stagehand.act()` and friends never touch the decision model; only the
-   * `stagehand.experimentalDecisions.*` methods do. With a config present the
-   * plain methods still log their per-call timing, so the two can be compared.
+   * act, observe and extract under one set of drivers. The services are the same for every
+   * set; which drivers they are handed is the whole difference between `stagehand.act()` and
+   * `stagehand.experimentalDecisions.act()`.
    */
-  type Via = "llm" | "decisions";
-
-  function decisionsFor(via: Via, operation: string): DecisionsConfig | undefined {
-    const state = runtime.state.getState();
-    const configured =
-      state.status === "initialized" ? state.initParams.experimentalDecisions : undefined;
-    if (via === "llm") return configured ? { ...configured, enabled: false } : undefined;
-    if (!configured) {
-      throw new Error(
-        `stagehand.experimentalDecisions.${operation}() needs experimentalDecisions to be configured when Stagehand is created`,
-      );
+  function aiOperations(
+    names: { act: string; observe: string; extract: string },
+    driversFor: (initParams: StagehandInitParams, method: "act" | "observe" | "extract") => Drivers,
+  ) {
+    function configured(action: string) {
+      const state = runtime.state.getState();
+      if (state.status !== "initialized") {
+        throw new Error(`Stagehand must be initialized before ${action}`);
+      }
+      const { initParams } = state;
+      const gateway = buildGatewayContext(initParams);
+      return { initParams, gateway };
     }
-    return { ...configured, enabled: true, observe: true, extract: configured.extract ?? "pick" };
-  }
 
-  async function act(params: StagehandActParams, context: HandlerContext, via: Via = "llm") {
-    const operation = via === "llm" ? "stagehand.act" : "stagehand.experimental_decisions_act";
-    return await runOperation(operation, context, async (logger) => {
-      logger.debug(operation, {});
-      const state = runtime.state.getState();
-      if (state.status !== "initialized") {
-        throw new Error("Stagehand must be initialized before acting");
-      }
-
-      const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
+    function serviceEnvironment(
+      initParams: StagehandInitParams,
+      gateway: ReturnType<typeof buildGatewayContext>,
+      override: StagehandInitParams["model"],
+    ) {
+      const model = override ?? initParams.model;
       if (!model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }
-
-      const result = await actService.act({
-        params,
-        page: runtime.resolveUnderstudyPage(params.pageId),
+      return {
         model,
         clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-        logger,
-        systemPrompt: state.initParams.systemPrompt,
-        selfHeal: state.initParams.selfHeal,
-        domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
-        cache: cacheService.buildCacheContext(state.initParams),
+        systemPrompt: initParams.systemPrompt,
+        cache: cacheService.buildCacheContext(initParams),
         gateway,
-        decisions: decisionsFor(via, "act"),
-        openPageCount: () => runtime.requireBrowserSession().pages().length,
+      };
+    }
+
+    async function act(params: StagehandActParams, context: HandlerContext) {
+      return await runOperation(names.act, context, async (logger) => {
+        logger.debug(names.act, {});
+        const { initParams, gateway } = configured("acting");
+        const environment = serviceEnvironment(initParams, gateway, params.options?.model);
+        const drivers = driversFor(initParams, "act");
+        const result = await actService.act({
+          params,
+          page: runtime.resolveUnderstudyPage(params.pageId),
+          ...environment,
+          logger,
+          selfHeal: initParams.selfHeal,
+          domSettleTimeoutMs: initParams.domSettleTimeoutMs,
+          openPageCount: () => runtime.requireBrowserSession().pages().length,
+          driver: drivers.act,
+          cachedActionGuard: drivers.cachedActionGuard,
+          logTiming: drivers.logActTiming,
+        });
+        runtime.metrics.record("act", result.metadata.usage);
+        return result;
       });
-      runtime.metrics.record("act", result.metadata.usage);
-      return result;
-    });
+    }
+
+    async function observe(params: StagehandObserveParams, context: HandlerContext) {
+      return await runOperation(names.observe, context, async (logger) => {
+        logger.debug(names.observe, {});
+        const { initParams, gateway } = configured("observing");
+        const environment = serviceEnvironment(initParams, gateway, params.options?.model);
+        const result = await observeService.observe({
+          params,
+          page: runtime.resolvePage(params.pageId),
+          ...environment,
+          logger,
+          driver: driversFor(initParams, "observe").observe,
+        });
+        runtime.metrics.record("observe", result.metadata.usage);
+        return result;
+      });
+    }
+
+    async function extract(params: StagehandExtractParams, context: HandlerContext) {
+      return await runOperation(names.extract, context, async (logger) => {
+        logger.debug(names.extract, {});
+        const { initParams, gateway } = configured("extracting");
+        const environment = serviceEnvironment(initParams, gateway, params.options?.model);
+        const result = await extractService.extract({
+          params,
+          page: runtime.resolvePage(params.pageId),
+          ...environment,
+          logger,
+          driver: driversFor(initParams, "extract").extract,
+        });
+        runtime.metrics.record("extract", result.metadata.usage);
+        return result;
+      });
+    }
+
+    return { act, observe, extract };
   }
 
-  async function observe(
-    params: StagehandObserveParams,
-    context: HandlerContext,
-    via: Via = "llm",
-  ) {
-    const operation =
-      via === "llm" ? "stagehand.observe" : "stagehand.experimental_decisions_observe";
-    return await runOperation(operation, context, async (logger) => {
-      logger.debug(operation, {});
-      const state = runtime.state.getState();
-      if (state.status !== "initialized") {
-        throw new Error("Stagehand must be initialized before observing");
+  // The plain methods never ask a decision model. When one is configured they log each act's
+  // timing, so the two paths can be compared.
+  const llmOperations = aiOperations(
+    { act: "stagehand.act", observe: "stagehand.observe", extract: "stagehand.extract" },
+    (initParams) => llmDrivers({ logActTiming: initParams.experimentalDecisions !== undefined }),
+  );
+
+  const decisionOperations = aiOperations(
+    {
+      act: "stagehand.experimental_decisions_act",
+      observe: "stagehand.experimental_decisions_observe",
+      extract: "stagehand.experimental_decisions_extract",
+    },
+    (initParams, method) => {
+      if (!initParams.experimentalDecisions) {
+        throw new Error(
+          `stagehand.experimentalDecisions.${method}() needs experimentalDecisions to be configured when Stagehand is created`,
+        );
       }
-
-      const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
-      if (!model && !gateway) {
-        throw new Error("An LLM was not configured during Stagehand initialization");
-      }
-
-      const result = await observeService.observe({
-        params,
-        page: runtime.resolvePage(params.pageId),
-        model,
-        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-        logger,
-        systemPrompt: state.initParams.systemPrompt,
-        cache: cacheService.buildCacheContext(state.initParams),
-        gateway,
-        decisions: via === "decisions" ? decisionsFor(via, "observe") : undefined,
-      });
-      runtime.metrics.record("observe", result.metadata.usage);
-      return result;
-    });
-  }
-
-  async function extract(
-    params: StagehandExtractParams,
-    context: HandlerContext,
-    via: Via = "llm",
-  ) {
-    const operation =
-      via === "llm" ? "stagehand.extract" : "stagehand.experimental_decisions_extract";
-    return await runOperation(operation, context, async (logger) => {
-      logger.debug(operation, {});
-      const state = runtime.state.getState();
-      if (state.status !== "initialized") {
-        throw new Error("Stagehand must be initialized before extracting");
-      }
-
-      const model = params.options?.model ?? state.initParams.model;
-      const gateway = buildGatewayContext(state.initParams);
-      if (!model && !gateway) {
-        throw new Error("An LLM was not configured during Stagehand initialization");
-      }
-
-      const result = await extractService.extract({
-        params,
-        page: runtime.resolvePage(params.pageId),
-        model,
-        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-        logger,
-        systemPrompt: state.initParams.systemPrompt,
-        cache: cacheService.buildCacheContext(state.initParams),
-        gateway,
-        // Only the explicit method sends page or extracted content to the decision provider.
-        decisions: via === "decisions" ? decisionsFor(via, "extract") : undefined,
-      });
-      runtime.metrics.record("extract", result.metadata.usage);
-      return result;
-    });
-  }
+      return decisionDrivers(initParams.experimentalDecisions);
+    },
+  );
 
   async function metrics(_params: EmptyParams, { logger }: HandlerContext) {
     logger.debug("stagehand.metrics", {});
@@ -197,9 +190,8 @@ export function createStagehandController(
   return {
     init,
     close,
-    act,
-    observe,
-    extract,
+    ...llmOperations,
+    experimentalDecisions: decisionOperations,
     metrics,
   };
 }

@@ -9,7 +9,7 @@ import { toolArguments } from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import { realisticAnswer } from "./decisionsTestUtils.js";
 import type { Variables } from "@browserbasehq/stagehand-protocol/types";
-import { runDecisionsAct, type DecisionsActDeps } from "../services/decisions/pipeline.js";
+import { runDecisionsAct, type DecisionsActDeps } from "../services/decisions/act/index.js";
 import type { DecisionsToolDeps } from "../services/decisions/toolAct.js";
 import { instructionSpans } from "../services/decisions/tools.js";
 
