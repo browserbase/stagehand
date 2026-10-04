@@ -6,11 +6,11 @@ import {
   findGroups,
   parseNumberText,
   planSchema,
-  runJevExtract,
-  type JevExtractDeps,
+  runDecisionsExtract,
+  type DecisionsExtractDeps,
   type JsonSchema,
-} from "../services/jevAct/extract.js";
-import { parseOutline } from "../services/jevAct/tree.js";
+} from "../services/decisions/extract.js";
+import { parseOutline } from "../services/decisions/tree.js";
 
 const PAGE = [
   "[0-1] RootWebArea: Acme store",
@@ -31,9 +31,12 @@ const PAGE = [
   "      [0-16] StaticText: 4 stars",
 ].join("\n");
 
-function deps(schema: JsonSchema, overrides: Partial<JevExtractDeps> = {}): JevExtractDeps {
+function deps(
+  schema: JsonSchema,
+  overrides: Partial<DecisionsExtractDeps> = {},
+): DecisionsExtractDeps {
   return {
-    logger: new StagehandLogger({ tracer: trace.getTracer("jev-extract-test") }, () => {}),
+    logger: new StagehandLogger({ tracer: trace.getTracer("decisions-extract-test") }, () => {}),
     instruction: "extract the product and its reviews",
     schema,
     snap: { tree: PAGE, xpathMap: {}, nodes: parseOutline(PAGE) },
@@ -80,7 +83,11 @@ function stubByField(picks: Record<string, string>, completed = 0.9) {
         ),
       );
       return new Response(
-        JSON.stringify({ model: "jev", answers, usage: { input_tokens: 1, output_tokens: 1 } }),
+        JSON.stringify({
+          model: "decision-model",
+          answers,
+          usage: { input_tokens: 1, output_tokens: 1 },
+        }),
       );
     }),
   );
@@ -89,10 +96,10 @@ function stubByField(picks: Record<string, string>, completed = 0.9) {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("jev extract (pick-and-copy)", () => {
+describe("decisions extract (pick-and-copy)", () => {
   it("copies scalars from the picked elements: text, parsed number, link URL", async () => {
     stubByField({ name: "0-2", price: "0-3", manual: "0-6" });
-    const outcome = await runJevExtract(
+    const outcome = await runDecisionsExtract(
       { apiKey: "test" },
       deps({
         type: "object",
@@ -114,7 +121,7 @@ describe("jev extract (pick-and-copy)", () => {
 
   it("induces a list from the first item and reads the same position in every sibling", async () => {
     stubByField({ author: "0-9", rating: "0-10" });
-    const outcome = await runJevExtract(
+    const outcome = await runDecisionsExtract(
       { apiKey: "test" },
       deps({
         type: "object",
@@ -152,20 +159,20 @@ describe("jev extract (pick-and-copy)", () => {
     };
     stubByField({ value: "0-9" });
     expect(
-      await runJevExtract(
+      await runDecisionsExtract(
         { apiKey: "test" },
         deps(schema, { instruction: "extract the top 2 review authors" }),
       ),
     ).toMatchObject({ kind: "done", data: { authors: ["Alice Doe", "Bob Roe"] } });
 
     stubByField({ authors: "no_group" });
-    expect(await runJevExtract({ apiKey: "test" }, deps(schema))).toMatchObject({
+    expect(await runDecisionsExtract({ apiKey: "test" }, deps(schema))).toMatchObject({
       kind: "fallback",
       reason: "unresolved:authors",
     });
 
     stubByField({ value: "0-9" }, 0.1);
-    expect(await runJevExtract({ apiKey: "test" }, deps(schema))).toMatchObject({
+    expect(await runDecisionsExtract({ apiKey: "test" }, deps(schema))).toMatchObject({
       kind: "fallback",
       reason: expect.stringContaining("incomplete"),
     });
@@ -218,11 +225,15 @@ describe("jev extract (pick-and-copy)", () => {
           }),
         );
         return new Response(
-          JSON.stringify({ model: "jev", answers, usage: { input_tokens: 1, output_tokens: 1 } }),
+          JSON.stringify({
+            model: "decision-model",
+            answers,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
         );
       }),
     );
-    const outcome = await runJevExtract(
+    const outcome = await runDecisionsExtract(
       { apiKey: "test" },
       deps(
         {

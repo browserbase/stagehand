@@ -330,18 +330,18 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
 }
 
 /**
- * The experimental Jev path is switched on from the environment, as JSON
+ * The experimental decisions path is switched on from the environment, as JSON
  * (`{"apiKey":"…"}`), so it never becomes a field of the public create config
  * that the Python and Go SDKs would have to mirror.
  */
-function experimentalJevActFromEnv(): unknown {
+function experimentalDecisionsFromEnv(): unknown {
   const raw =
-    typeof process === "undefined" ? undefined : process.env?.STAGEHAND_EXPERIMENTAL_JEV_ACT;
+    typeof process === "undefined" ? undefined : process.env?.STAGEHAND_EXPERIMENTAL_DECISIONS;
   if (!raw) return undefined;
   try {
     return JSON.parse(raw);
   } catch {
-    throw new Error("STAGEHAND_EXPERIMENTAL_JEV_ACT must be a JSON object");
+    throw new Error("STAGEHAND_EXPERIMENTAL_DECISIONS must be a JSON object");
   }
 }
 
@@ -352,9 +352,9 @@ function stagehandCreateParamsForWorker(
   const { logging, model, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
-  const experimentalJevAct = experimentalJevActFromEnv();
+  const experimentalDecisions = experimentalDecisionsFromEnv();
   return StagehandInitParamsSchema.parse({
-    ...(experimentalJevAct === undefined ? {} : { experimentalJevAct }),
+    ...(experimentalDecisions === undefined ? {} : { experimentalDecisions }),
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
     browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,

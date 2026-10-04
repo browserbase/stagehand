@@ -13,9 +13,9 @@ import {
   choiceAnswer,
   noulAnswer,
   systemOne,
-  type JevConfig,
-  type JevQuestion,
-  type JevResponse,
+  type DecisionModelConfig,
+  type DecisionQuestion,
+  type DecisionResponse,
   type JsonValue,
 } from "./typesafeClient.js";
 
@@ -28,7 +28,7 @@ export type Snapshot = {
 };
 
 export type AskContext = {
-  config: JevConfig;
+  config: DecisionModelConfig;
   instruction: string;
   trace: TraceEntry[];
   threshold: number;
@@ -36,7 +36,7 @@ export type AskContext = {
   ensureTimeRemaining: () => void;
   /** DOM attribute hints for nameless candidates, keyed by node id. */
   domHints?: Map<string, string>;
-  /** Called once per tier right before Jev is asked, e.g. to fetch DOM hints only when needed. */
+  /** Called once per tier right before the decision model is asked, e.g. to fetch DOM hints only when needed. */
   prepare?: (candidates: OutlineNode[]) => Promise<void>;
   /**
    * Applied to everything sent to TypeSafe and to the trace. Values an earlier
@@ -53,7 +53,7 @@ export type Pick = {
   choice: string;
   /** Candidates by descending probability; feeds retries and the focused LLM fallback. */
   ranked: Array<{ id: string; p: number }>;
-  via: "shortcut" | "jev";
+  via: "shortcut" | "decisions";
 };
 
 export type TargetResult = {
@@ -72,7 +72,7 @@ const NONE_DESCRIPTION = "None of these elements matches the instruction";
 const NONE_VETO = 0.9;
 const SHARD_SIZE = 254;
 const FINALISTS_PER_SHARD = 3;
-/** ~4 chars/token against Jev's ~32K-token request limit, with headroom. */
+/** ~4 chars/token against the decision model's ~32K-token request limit, with headroom. */
 const SHARD_CHAR_BUDGET = 60_000;
 /** Parallel shard requests per pick; pages needing more go to the LLM. */
 const MAX_SHARDS = 8;
@@ -93,8 +93,8 @@ export async function ask(
   ctx: AskContext,
   node: string,
   state: JsonValue,
-  questions: Record<string, JevQuestion>,
-): Promise<JevResponse> {
+  questions: Record<string, DecisionQuestion>,
+): Promise<DecisionResponse> {
   ctx.ensureTimeRemaining();
   if (ctx.redact) {
     state = redactDeep(state, ctx.redact);
@@ -120,7 +120,7 @@ export function annotate(trace: TraceEntry[], data: TraceEntry): void {
  * first, then a broad view of every named node (custom widgets built from
  * plain divs only show up there). Within a tier, large lists are first cut to
  * the candidates that share words with the instruction, so the common case is
- * one Jev request; the full list is only asked when that pruned pick is rejected.
+ * one decision-model request; the full list is only asked when that pruned pick is rejected.
  */
 export async function pickTarget(
   ctx: AskContext,
@@ -161,7 +161,7 @@ export async function pickTarget(
 
     // Exactly one quoted target and exactly one candidate carrying that exact
     // name: no ranking needed, but the quote may only be an anchor ("the link
-    // below 'Pricing'"), so Jev still confirms that one candidate (a ~400-token
+    // below 'Pricing'"), so the decision model still confirms that one candidate (a ~400-token
     // request instead of the full list).
     const quoted = options.quotedTargets ?? quotedStrings(ctx.instruction);
     if (quoted.length === 1) {
@@ -195,7 +195,7 @@ export async function pickTarget(
     for (const [index, attempt] of attempts.entries()) {
       const label = `${node}:${kind}${attempts.length > 1 && index === 0 ? ":pruned" : ""}`;
       // The broad tier is a last look, not worth a multi-request fan-out: one
-      // such act spent 169K Jev tokens to conclude nothing matched.
+      // such act spent 169K decision-model tokens to conclude nothing matched.
       const pick = await pickCandidate(ctx, label, snap, attempt, instructions, kind !== "broad");
       lastNone = pick.none;
       if (pick.ranked.length > 0) ranked = pick.ranked;
@@ -207,7 +207,7 @@ export async function pickTarget(
         break;
       }
       reason = `${kind}:${pick.choice}@best=${pick.best},none=${pick.none}`;
-      // Jev saw plausible targets and could not choose between them. A wider
+      // The decision model saw plausible targets and could not choose between them. A wider
       // list will not make that easier; stop here and hand over the shortlist.
       if (pick.picked && pick.none < NONE_UNEASY) return result(undefined);
     }
@@ -239,7 +239,7 @@ export async function pickCandidate(
     none: 1,
     choice,
     ranked: [],
-    via: "jev",
+    via: "decisions",
   });
 
   let finalists = candidates;
@@ -358,7 +358,7 @@ export async function pickCandidate(
       return JSON.stringify(rest);
     };
     // Same item only: identical "Delete" buttons in different rows look the
-    // same to Jev too, and those are not interchangeable.
+    // same to the decision model too, and those are not interchangeable.
     const sameItem = nearbyTwins(snap.nodes, byId.get(first.id)!).some(
       (twin) => twin.id === second.id,
     );
@@ -378,7 +378,7 @@ export async function pickCandidate(
     strict: strict.choice,
     accepted,
     runner_up: ranked[1] ? `${ranked[1].id}@${ranked[1].p}` : null,
-    // What Jev saw, so misses can be attributed to descriptions vs. the model.
+    // What the decision model saw, so misses can be attributed to descriptions vs. the model.
     candidates: finalists
       .slice(0, 12)
       .map((option) =>
@@ -387,7 +387,7 @@ export async function pickCandidate(
         ),
       ),
   });
-  return { picked: byId.get(choice), accepted, best, none, choice, ranked, via: "jev" };
+  return { picked: byId.get(choice), accepted, best, none, choice, ranked, via: "decisions" };
 }
 
 function shardByBudget<T>(items: T[], size: (item: T) => number): T[][] {

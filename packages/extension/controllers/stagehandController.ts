@@ -86,7 +86,7 @@ export function createStagehandController(
         domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
-        jevAct: state.initParams.experimentalJevAct,
+        decisions: state.initParams.experimentalDecisions,
         openPageCount: () => runtime.requireBrowserSession().pages().length,
       });
       runtime.metrics.record("act", result.metadata.usage);
@@ -117,7 +117,7 @@ export function createStagehandController(
         systemPrompt: state.initParams.systemPrompt,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
-        jev: state.initParams.experimentalJevAct,
+        decisions: state.initParams.experimentalDecisions,
       });
       runtime.metrics.record("observe", result.metadata.usage);
       return result;
@@ -148,11 +148,11 @@ export function createStagehandController(
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
         // Separate opt-in: this sends the extracted data to TypeSafe.
-        jev:
-          state.initParams.experimentalJevAct?.extract &&
-          state.initParams.experimentalJevAct.extract !== "off" &&
-          state.initParams.experimentalJevAct.enabled !== false
-            ? state.initParams.experimentalJevAct
+        decisions:
+          state.initParams.experimentalDecisions?.extract &&
+          state.initParams.experimentalDecisions.extract !== "off" &&
+          state.initParams.experimentalDecisions.enabled !== false
+            ? state.initParams.experimentalDecisions
             : undefined,
       });
       runtime.metrics.record("extract", result.metadata.usage);

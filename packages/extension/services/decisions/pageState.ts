@@ -3,7 +3,7 @@ import { pageDigest, type OutlineNode } from "./tree.js";
 import { noulAnswer } from "./typesafeClient.js";
 
 /**
- * Page-state signals from one Jev request over a compact page digest. Used to
+ * Page-state signals from one decision-model request over a compact page digest. Used to
  * explain why a target could not be found (the page is a bot wall, not a
  * decision-tree miss) and to stop paying for an LLM fallback that cannot help.
  */

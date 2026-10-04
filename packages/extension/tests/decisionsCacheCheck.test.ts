@@ -1,9 +1,9 @@
 import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StagehandLogger } from "../logger.js";
-import { checkCachedAction } from "../services/jevAct/cacheCheck.js";
-import type { AskContext, Snapshot } from "../services/jevAct/pick.js";
-import { parseOutline } from "../services/jevAct/tree.js";
+import { checkCachedAction } from "../services/decisions/cacheCheck.js";
+import type { AskContext, Snapshot } from "../services/decisions/pick.js";
+import { parseOutline } from "../services/decisions/tree.js";
 
 const PAGE = [
   "[0-1] RootWebArea: Shop",
@@ -22,7 +22,10 @@ function context(): AskContext {
     instruction: "click Add to cart for the red toaster",
     trace: [],
     threshold: 0.7,
-    logger: new StagehandLogger({ tracer: trace.getTracer("jev-cache-check-test") }, () => {}),
+    logger: new StagehandLogger(
+      { tracer: trace.getTracer("decisions-cache-check-test") },
+      () => {},
+    ),
     ensureTimeRemaining: () => {},
   };
 }
@@ -54,7 +57,7 @@ function stubNouls(values: Record<string, number>) {
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("jev cache check", () => {
+describe("decisions cache check", () => {
   const snap = (tree: string, xpathMap: Record<string, string>): Snapshot => ({
     tree,
     xpathMap,
@@ -104,7 +107,7 @@ describe("jev cache check", () => {
   });
 });
 
-describe("jev cache check boundaries", () => {
+describe("decisions cache check boundaries", () => {
   const cached = {
     selector: "xpath=/html/body/main/button[2]",
     description: "button: Add to cart",

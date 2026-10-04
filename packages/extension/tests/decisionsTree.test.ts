@@ -5,7 +5,7 @@ import {
   nativeSelectOptions,
   selectedNativeOptions,
   parseOutline,
-} from "../services/jevAct/tree.js";
+} from "../services/decisions/tree.js";
 
 const OUTLINE = [
   "[0-1] RootWebArea: Contact",
@@ -23,7 +23,7 @@ const OUTLINE = [
   "  [0-13] link: Opens: 10:30",
 ].join("\n");
 
-describe("jev act outline parsing", () => {
+describe("decisions act outline parsing", () => {
   it("recovers depth, parents, names, and state flags", () => {
     const nodes = parseOutline(OUTLINE);
 
