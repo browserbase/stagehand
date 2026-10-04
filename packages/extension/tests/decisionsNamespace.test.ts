@@ -8,7 +8,7 @@ import * as actService from "../services/actService.ts";
 import * as extractService from "../services/extractService.ts";
 import * as observeService from "../services/observeService.ts";
 import { createStagehandTracingRuntime } from "../tracing.ts";
-import type { Page as UnderstudyPage } from "../understudy/page.ts";
+import type { Page } from "../understudy/page.ts";
 
 // stagehand.experimentalDecisions.* and the plain methods share services; what differs is the
 // decision config each one hands over. These tests pin that hand-over at the RPC boundary.
@@ -145,7 +145,7 @@ async function setup(experimentalDecisions: StagehandInitParams["experimentalDec
     model: { modelName: "openai/gpt-5.4-mini", apiKey: "test" },
     ...(experimentalDecisions ? { experimentalDecisions } : {}),
   });
-  vi.spyOn(runtime, "resolveUnderstudyPage").mockReturnValue({} as UnderstudyPage);
+  vi.spyOn(runtime, "resolveUnderstudyPage").mockReturnValue({} as Page);
   vi.spyOn(runtime, "resolvePage").mockReturnValue({} as ReturnType<typeof runtime.resolvePage>);
   const services = {
     act: vi.spyOn(actService, "act").mockResolvedValue({
