@@ -225,10 +225,14 @@ describe("pi tool adapter", () => {
 
   it("prepares, observes, and idempotently cleans an MCP runtime", async () => {
     let cleanupCount = 0;
+    let completeCapture: (evidence: { url: string }) => void = () => {};
+    const capture = new Promise<{ url: string }>((resolve) => {
+      completeCapture = resolve;
+    });
     runtimeMock.mockResolvedValue({
       running: {
         agentMount: mcpMount(),
-        captureEvidence: async () => ({ url: "https://after" }),
+        captureEvidence: () => capture,
       },
       cleanup: async () => {
         cleanupCount += 1;
@@ -242,7 +246,10 @@ describe("pi tool adapter", () => {
     });
     expect(adapter.cwd.startsWith(os.tmpdir())).toBe(true);
     await expect(fsp.stat(adapter.cwd)).resolves.toBeDefined();
-    adapter.onToolResult?.("mcp__stagehand__run");
+    const observation = adapter.onToolResult?.("mcp__stagehand__run");
+    expect(observation).toBeInstanceOf(Promise);
+    completeCapture({ url: "https://after" });
+    await observation;
     const observations = await adapter.drainStepObservations?.();
     expect(observations).toEqual([{ runIndex: 0, evidence: { url: "https://after" } }]);
     await adapter.cleanup();

@@ -12,7 +12,6 @@ import {
   AGENT_RUN_TOOL_NAME,
   type BrowserSessionLoss,
   type AgentMount,
-  type AgentRunToolSpec,
   type StartupProfile,
   type ToolSurface,
 } from "../core/contracts/tool.js";
@@ -46,7 +45,6 @@ export interface PreparedPiToolAdapter {
   toolSurface: ToolSurface;
   startupProfile: StartupProfile;
   cwd: string;
-  env: Record<string, string>;
   promptInstructions: string;
   /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
@@ -58,7 +56,7 @@ export interface PreparedPiToolAdapter {
   /** Set once the mounted browser is gone for the rest of the run. */
   browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
-  onToolResult?: (toolName: string) => void;
+  onToolResult?: (toolName: string) => void | Promise<void>;
   observedToolMatcher?: (toolName: string) => boolean;
   cleanup: () => Promise<void>;
 }
@@ -104,7 +102,6 @@ export function buildPiMountConfig(input: {
         const snippet = executeCodeExposureSnippet({
           code,
           handles: mount.handles,
-          runToolSpec: mount.runTool,
           plan: input.plan,
           logger: input.logger,
         });
@@ -200,7 +197,6 @@ export async function preparePiToolAdapter(
       toolSurface,
       startupProfile,
       cwd,
-      env: { ...process.env } as Record<string, string>,
       promptInstructions: config.promptInstructions,
       browserSession: runtime.browserSession,
       ...(config.mcpServers && { mcpServers: config.mcpServers }),
@@ -220,7 +216,7 @@ export async function preparePiToolAdapter(
       ...(mount.via === "mcp" &&
         recorder && {
           onToolResult: (name: string) => {
-            if (config.observedToolMatcher(name)) void recorder.record();
+            if (config.observedToolMatcher(name)) return recorder.record();
           },
         }),
       observedToolMatcher: config.observedToolMatcher,
@@ -269,7 +265,6 @@ function boundedCaptureEvidence(
 async function executeCodeExposureSnippet(input: {
   code: string;
   handles: Record<string, unknown>;
-  runToolSpec: AgentRunToolSpec;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<unknown> {

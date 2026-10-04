@@ -38,6 +38,7 @@ it("loads only native MCP tools and closes the stdio child on disposal", async (
       },
     });
     const agent = session.agent as AgentSession["agent"];
+    expect(agent.toolExecution).toBe("sequential");
     await vi.waitFor(
       () => {
         expect(agent.state.tools.map((tool) => tool.name)).toEqual(["mcp__stage_hand__take_shot"]);

@@ -32,7 +32,6 @@ export type PiAgentSessionLike = {
   prompt(text: string): Promise<void>;
   abort(): Promise<void>;
   dispose(): void | Promise<void>;
-  bindExtensions?(bindings?: Record<string, unknown>): Promise<void>;
   agent: {
     shouldStopAfterTurn?: (...args: any[]) => boolean | Promise<boolean>;
     state: { errorMessage?: string };
@@ -186,6 +185,8 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
           // MCP and custom tools stay enabled; Pi's `codemode` tool is not loaded.
           noTools: "builtin",
         });
+        // All mounted tools share one browser, including native MCP tools.
+        session.agent.toolExecution = "sequential";
         // MCP connects on session_start; SDK sessions do not bind extensions by default.
         let closePromise: Promise<void> | undefined;
         const dispose = (): Promise<void> => {
@@ -244,7 +245,6 @@ export async function runPiSession(input: {
   let stopReason: string | undefined;
   let piSession: PiAgentSessionLike | undefined;
   let unsubscribe: (() => void) | undefined;
-  let disposed = false;
   let turns = 0;
   let notifications = Promise.resolve();
   const maxTurns = positiveInteger(input.session.maxTurns, 50);
@@ -320,10 +320,7 @@ export async function runPiSession(input: {
   } finally {
     input.signal?.removeEventListener("abort", forwardAbort);
     unsubscribe?.();
-    if (piSession && !disposed) {
-      disposed = true;
-      await piSession.dispose();
-    }
+    await piSession?.dispose();
   }
 
   const lastAssistant = findLastAssistantMessage(events);

@@ -9,6 +9,7 @@ like a built-in tool. Built-in file tools (`read`, `bash`, `edit`, `write`) are
 disabled with `noTools: "builtin"`, matching the other eval harnesses that
 allowlist only the mounted browser tools. Pi's own `codemode` tool is not loaded:
 Stagehand already exposes browser code execution through `run` / handle mounts.
+Tool calls run sequentially because the mounted tools share one browser.
 
 The session retains screenshot evidence up to 8 MiB per image and 64 MiB across
 one run. It checks the encoded size before allocating a decoded buffer. Images

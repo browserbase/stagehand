@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   extractPiTokenUsage,
-  buildPiMcpToolName,
   buildPiTranscript,
   definePiCodeRunTool,
-  isPiMcpToolName,
-  mcpCallResultToPiToolResult,
   normalizePiModel,
   resolvePiStatus,
   runPiSession,
@@ -403,23 +400,9 @@ describe("pi SDK session", () => {
     expect(result.status).toBe("completed");
   });
 
-  it("normalizes models, MCP names/results, code tools, and statuses", async () => {
+  it("normalizes models, code tools, and statuses", async () => {
     expect(normalizePiModel("pi/default")).toBe("openai/gpt-5.4-mini");
     expect(normalizePiModel("google/gemini-2.5-pro")).toBe("google/gemini-2.5-pro");
-    expect(buildPiMcpToolName("stage.hand", "take shot")).toBe("mcp__stage_hand__take_shot");
-    expect(isPiMcpToolName("mcp__stage_hand__run", "stage.hand")).toBe(true);
-    expect(isPiMcpToolName("other")).toBe(false);
-    const mapped = mcpCallResultToPiToolResult({
-      content: [
-        { type: "text", text: "hello" },
-        { type: "image", data: "YWJj", mimeType: "image/png" },
-      ],
-      structuredContent: { ok: false },
-      isError: true,
-    });
-    expect(mapped).toMatchObject({ isError: true, details: { ok: false } });
-    expect(mapped.content).toHaveLength(2);
-
     const execute = vi.fn(async (code: string) => `ran ${code}`);
     const tool = definePiCodeRunTool({
       name: "run",
