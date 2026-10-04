@@ -19,6 +19,8 @@ import {
   type ExternalHarnessUsage,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { isOpenAiModel, readReasoningSummary } from "./reasoningSummary.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -57,7 +59,7 @@ valid only for the latest snapshot of the active page. Snapshot again after navi
 `;
 
 export function buildPydanticAiSystemPrompt(toolSurface?: ToolSurface): string {
-  if (toolSurface === "stagehand_facade") {
+  if (toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy") {
     return `${PYDANTIC_AI_SHARED_SYSTEM_PROMPT}\n${PYDANTIC_AI_FACADE_SYSTEM_PROMPT}`;
   }
   const toolGuidance =
@@ -93,15 +95,24 @@ export async function runPydanticAiAgent({
   spawn,
   verifier,
 }: PydanticAiRunnerInput): Promise<TaskResult> {
-  return runExternalHarnessTask({
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_PYDANTIC_AI_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
+  const result = await runExternalHarnessTask({
     harness: "pydantic_ai",
     plan,
+    model,
     logger,
     toolAdapter,
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "Pydantic AI did not report success",
-    runSession: async (prompt) => {
+    stepBudget: maxToolSteps,
+    stepBudgetUnit: "tool_calls",
+    systemPromptMode: "native",
+    runSession: async (prompt, systemPrompt) => {
       const sessionResult = await runPydanticAiSession({
         prompt,
         model,
@@ -112,9 +123,10 @@ export async function runPydanticAiAgent({
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
           ...(toolAdapter?.env && { env: toolAdapter.env }),
           ...(toolAdapter?.mcpServers && { mcpServers: toolAdapter.mcpServers }),
-          systemPrompt: buildPydanticAiSystemPrompt(toolAdapter?.toolSurface),
-          recursionLimit: readPydanticAiRecursionLimit(),
-          maxToolSteps: readPydanticAiMaxToolSteps(),
+          systemPrompt: `${systemPrompt}\n\n${buildPydanticAiSystemPrompt(toolAdapter?.toolSurface)}`,
+          ...(isOpenAiModel(model) && { reasoningSummary: readReasoningSummary() }),
+          recursionLimit: readPydanticAiRecursionLimit(maxToolSteps),
+          maxToolSteps,
         },
         onToolResult: (_name: string, server?: string) => {
           if (server && toolAdapter?.recordObservation) toolAdapter.recordObservation();
@@ -167,22 +179,23 @@ export async function runPydanticAiAgent({
   return result;
 }
 
-function readPydanticAiMaxToolSteps(): number {
-  for (const key of ["EVAL_PYDANTIC_AI_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
-}
-
-function readPydanticAiRecursionLimit(): number {
-  const parsed = Number.parseInt(process.env.EVAL_PYDANTIC_AI_RECURSION_LIMIT ?? "", 10);
+/**
+ * Pydantic AI counts model requests separately from tool calls. Keep enough
+ * request budget to reach the tool-step cap; 4× leaves room for structured
+ * output retries and the harness's own bookkeeping turns.
+ */
+export function readPydanticAiRecursionLimit(
+  maxToolSteps: number,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const parsed = Number.parseInt(env.EVAL_PYDANTIC_AI_RECURSION_LIMIT ?? "", 10);
   if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  return Math.max(100, readPydanticAiMaxToolSteps() * 4);
+  return Math.max(100, maxToolSteps * 4);
 }
 
 function normalizePydanticAiUsage(usage: PydanticAiTokenUsage): ExternalHarnessUsage {
   return {
+    reported: usage.reported,
     inputTokens: toFiniteNumber(usage.inputTokens),
     outputTokens: toFiniteNumber(usage.outputTokens),
     cachedInputTokens: toFiniteNumber(usage.cacheReadInputTokens),

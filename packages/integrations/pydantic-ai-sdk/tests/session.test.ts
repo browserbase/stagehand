@@ -81,6 +81,7 @@ describe("Pydantic AI session", () => {
         mcpServers: { stagehand: { command: "node", args: ["server.js"] } },
         recursionLimit: 80,
         maxToolSteps: 12,
+        reasoningSummary: "detailed",
       },
       onToolResult,
     });
@@ -95,6 +96,7 @@ describe("Pydantic AI session", () => {
       mcp_servers: { stagehand: { command: "node", args: ["server.js"] } },
       recursion_limit: 80,
       max_tool_steps: 12,
+      reasoning_summary: "detailed",
     });
     expect(result.events).toHaveLength(4);
     expect(result.finalMessage).toBe("complete");

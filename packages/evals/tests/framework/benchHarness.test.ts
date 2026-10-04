@@ -183,6 +183,7 @@ describe("bench harness registry", () => {
     expect(harness.supportedToolSurfaces).toEqual(PYDANTIC_AI_TOOL_SURFACES);
     expect(harness.supportedToolSurfaces).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
     ]);

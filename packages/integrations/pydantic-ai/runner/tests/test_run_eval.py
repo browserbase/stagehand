@@ -14,6 +14,7 @@ from run_eval import (
     parse_config,
     run,
     sanitize_error,
+    thinking_text,
 )
 
 
@@ -104,3 +105,49 @@ def test_sanitize_error_redacts_keys() -> None:
 
 def test_aggregate_usage_without_telemetry() -> None:
     assert aggregate_usage(None)["reported"] is False
+
+
+def test_parse_config_accepts_reasoning_summary() -> None:
+    parsed = parse_config(
+        {
+            "prompt": "task",
+            "system_prompt": "sys",
+            "model": "openai:gpt-6-sol",
+            "mcp_servers": {},
+            "recursion_limit": 10,
+            "max_tool_steps": 4,
+            "reasoning_summary": "detailed",
+        }
+    )
+    assert parsed.reasoning_summary == "detailed"
+
+
+def test_parse_config_rejects_invalid_reasoning_summary() -> None:
+    with pytest.raises(ValueError, match="reasoning_summary"):
+        parse_config(
+            {
+                "prompt": "task",
+                "system_prompt": "sys",
+                "model": "openai:gpt-6-sol",
+                "mcp_servers": {},
+                "recursion_limit": 10,
+                "max_tool_steps": 4,
+                "reasoning_summary": "loud",
+            }
+        )
+
+
+def test_thinking_text_prefers_visible_content() -> None:
+    class Part:
+        content = "visible"
+        provider_details = {"raw_content": "hidden"}
+
+    assert thinking_text(Part()) == "visible"
+
+
+def test_thinking_text_falls_back_to_raw_provider_content() -> None:
+    class Part:
+        content = ""
+        provider_details = {"raw_content": "hidden-chain"}
+
+    assert thinking_text(Part()) == "hidden-chain"

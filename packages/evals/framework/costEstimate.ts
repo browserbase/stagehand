@@ -51,6 +51,7 @@ export interface BilledCost {
  * | codex       | never (turn.completed has tokens only)  | —                     | OpenAI API with our key → computed openai_api         |
  * | mastra      | never (AI SDK usage has no dollars)     | —                     | provider SDK with our key → computed <provider>_api   |
  * | deepagents  | never (LangChain usage_metadata)        | —                     | provider SDK with our key → computed <provider>_api   |
+ * | pydantic_ai | never (Pydantic AI usage has no dollars)| —                     | provider SDK with our key → computed <provider>_api   |
  * | cursor      | never                                   | —                     | subscription → unavailable                            |
  */
 const REPORTED_CHANNEL: Readonly<Record<string, string>> = {
@@ -69,6 +70,7 @@ const DIRECT_PROVIDER_HARNESSES: ReadonlySet<string> = new Set([
   "gemini_cua",
   "mastra",
   "deepagents",
+  "pydantic_ai",
   "eve",
   "pi",
 ]);

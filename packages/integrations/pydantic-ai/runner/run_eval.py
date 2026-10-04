@@ -22,7 +22,8 @@ from pydantic_ai import (
 )
 from pydantic_ai.exceptions import RunCancelled, UsageLimitExceeded
 from pydantic_ai.mcp import MCPToolset, StdioTransport
-from pydantic_ai.messages import TextPart
+from pydantic_ai.messages import TextPart, ThinkingPart
+from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from pydantic_ai.usage import UsageLimits
 
 Event = dict[str, Any]
@@ -84,6 +85,10 @@ class RunnerConfig:
     mcp_servers: dict[str, McpServerConfig]
     recursion_limit: int
     max_tool_steps: int
+    reasoning_summary: str | None = None
+
+
+_REASONING_SUMMARY_MODES = frozenset({"auto", "concise", "detailed"})
 
 
 def _require_string(value: object, name: str, *, nullable: bool = False) -> str | None:
@@ -137,6 +142,11 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
             dict(env) if env is not None else None,
             cwd,
         )
+    reasoning_summary = _require_string(
+        raw.get("reasoning_summary"), "reasoning_summary", nullable=True
+    )
+    if reasoning_summary is not None and reasoning_summary not in _REASONING_SUMMARY_MODES:
+        raise ValueError("reasoning_summary must be one of auto, concise, detailed or null")
     return RunnerConfig(
         prompt=str(_require_string(raw.get("prompt"), "prompt")),
         system_prompt=_require_string(raw.get("system_prompt"), "system_prompt", nullable=True),
@@ -144,10 +154,12 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
         mcp_servers=servers,
         recursion_limit=_require_positive_int(raw.get("recursion_limit"), "recursion_limit"),
         max_tool_steps=_require_positive_int(raw.get("max_tool_steps"), "max_tool_steps"),
+        reasoning_summary=reasoning_summary,
     )
 
 
 def flatten_text(content: object) -> str:
+    """The model's visible text; thinking blocks are reported separately."""
     if isinstance(content, str):
         return content
     if content is None:
@@ -319,21 +331,34 @@ def print_line(event: Event) -> None:
     sys.stdout.flush()
 
 
-def build_eval_model(config: RunnerConfig) -> str:
-    return config.model
+def thinking_text(part: object) -> str:
+    """Visible reasoning for a ThinkingPart; raw provider content stays hidden."""
+    content = getattr(part, "content", None)
+    if isinstance(content, str) and content:
+        return content
+    details = getattr(part, "provider_details", None)
+    if isinstance(details, Mapping):
+        raw = details.get("raw_content")
+        if isinstance(raw, str):
+            return raw
+    return ""
 
 
-def _tool_args(part: object) -> dict[str, Any]:
-    args = getattr(part, "args", None)
-    if isinstance(args, dict):
-        return args
-    if isinstance(args, str):
-        try:
-            parsed = json.loads(args)
-        except (TypeError, ValueError, json.JSONDecodeError):
-            return {"raw": args}
-        return parsed if isinstance(parsed, dict) else {"raw": parsed}
-    return {}
+def build_eval_model(config: RunnerConfig) -> str | OpenAIResponsesModel:
+    """The agent model; OpenAI models are asked for reasoning summaries.
+
+    The Responses API only returns reasoning text when `openai_reasoning_summary`
+    is requested. String model IDs otherwise keep Pydantic AI's default routing.
+    """
+    if config.reasoning_summary is None or not config.model.startswith("openai:"):
+        return config.model
+    return OpenAIResponsesModel(config.model.split(":", 1)[1])
+
+
+def build_eval_model_settings(config: RunnerConfig) -> OpenAIResponsesModelSettings | None:
+    if config.reasoning_summary is None or not config.model.startswith("openai:"):
+        return None
+    return OpenAIResponsesModelSettings(openai_reasoning_summary=config.reasoning_summary)
 
 
 def _default_build_agent(
@@ -348,7 +373,21 @@ def _default_build_agent(
         instructions=config.system_prompt or "",
         output_type=EvalResult,
         toolsets=toolsets,  # type: ignore[arg-type]
+        model_settings=build_eval_model_settings(config),
     )
+
+
+def _tool_args(part: object) -> dict[str, Any]:
+    args = getattr(part, "args", None)
+    if isinstance(args, dict):
+        return args
+    if isinstance(args, str):
+        try:
+            parsed = json.loads(args)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {"raw": args}
+        return parsed if isinstance(parsed, dict) else {"raw": parsed}
+    return {}
 
 
 async def run(
@@ -574,6 +613,19 @@ def _map_event(event: object, tool_servers: Mapping[str, str]) -> list[Event]:
                 "text": flatten_text(content),
                 "images": extract_images(content),
                 "structured": None,
+            }
+        ]
+    if isinstance(event, PartEndEvent) and isinstance(event.part, ThinkingPart):
+        text = thinking_text(event.part)
+        if not text:
+            return []
+        return [
+            {
+                "type": "assistant",
+                "text": "",
+                "reasoning": text,
+                "tool_calls": [],
+                "usage": None,
             }
         ]
     if isinstance(event, PartEndEvent) and isinstance(event.part, TextPart):

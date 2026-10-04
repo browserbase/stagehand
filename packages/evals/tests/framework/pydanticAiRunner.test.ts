@@ -1,5 +1,6 @@
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 import type { AvailableModel } from "stagehand-v3";
 import {
   PYDANTIC_AI_SYSTEM_PROMPT,
@@ -96,6 +97,7 @@ describe("Pydantic AI runner", () => {
         env: {},
         promptInstructions: "Use mounted tools.",
         mcpServers: {},
+        browserSession: { provider: "local" },
         observedToolMatcher: () => false,
         cleanup: async () => {},
       }) satisfies PreparedPydanticAiToolAdapter;
@@ -112,6 +114,12 @@ describe("Pydantic AI runner", () => {
 
     expect(payloads[0]?.system_prompt).not.toContain("snapshot");
     expect(payloads[1]?.system_prompt).toContain("snapshot");
+    for (const payload of payloads) {
+      expect(String(payload.system_prompt).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+      expect(payload.prompt).toContain(plan.instruction);
+      expect(payload.prompt).not.toContain(EVAL_SYSTEM_PROMPT);
+      expect(payload.reasoning_summary).toBe("detailed");
+    }
   });
 
   it("parses direct and marker JSON results", () => {
@@ -155,6 +163,7 @@ describe("Pydantic AI runner", () => {
     expect(metrics.harness_reasoning_output_tokens?.value).toBe(5);
     expect(metrics.harness_total_tokens?.value).toBe(125);
     expect(metrics.harness_cost_usd).toBeUndefined();
+    expect(metrics.step_budget.value).toBe(50);
     expect(metrics.pydanticAi_input_tokens).toBeUndefined();
   });
 
@@ -175,3 +184,24 @@ describe("Pydantic AI runner", () => {
     expect(result.error).toContain("recursion");
   });
 });
+
+it.each([false, true])(
+  "preserves token usage presence through pydantic_ai grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = '{"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runPydanticAiAgent({
+      plan,
+      model: "openai/gpt-6-sol" as AvailableModel,
+      logger: new EvalLogger(false),
+      spawn: eventSpawner([
+        { type: "final", text: finalAnswer },
+        { type: "usage", reported, input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+      ]),
+    });
+    expect(result.usageConvention).toBe(reported ? "openai_cached_subset" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);
