@@ -12,7 +12,7 @@ import {
 } from "../services/decisions/args.js";
 import { blockingSignal, readPageState } from "../services/decisions/pageState.js";
 import type { AskContext } from "../services/decisions/pick.js";
-import { systemOne } from "../services/decisions/typesafeClient.js";
+import { decide } from "../services/decisions/client.js";
 import {
   describeCandidate,
   exactNameMatches,
@@ -260,7 +260,10 @@ describe("argument parsing edge cases", () => {
   });
 });
 
-describe("typesafe client errors", () => {
+const ONE_QUESTION = { q: { type: "noul" as const, instructions: "Is it?" } };
+const ONE_ANSWER = { answers: { q: { type: "noul", noul: 0.5 } } };
+
+describe("decision client errors", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("names the timeout budget and rejects a malformed success payload", async () => {
@@ -272,7 +275,7 @@ describe("typesafe client errors", () => {
         throw error;
       }),
     );
-    await expect(systemOne({ apiKey: `k-${Math.random()}` }, {}, {})).rejects.toThrow(
+    await expect(decide({ apiKey: `k-${Math.random()}` }, {}, ONE_QUESTION)).rejects.toThrow(
       /timed out after \d+ ms/,
     );
 
@@ -280,8 +283,8 @@ describe("typesafe client errors", () => {
       "fetch",
       vi.fn(async () => new Response("<html>gateway</html>", { status: 200 })),
     );
-    await expect(systemOne({ apiKey: `k-${Math.random()}` }, {}, {})).rejects.toThrow(
-      /not a systemone payload/,
+    await expect(decide({ apiKey: `k-${Math.random()}` }, {}, ONE_QUESTION)).rejects.toThrow(
+      /not a decision payload/,
     );
   });
 
@@ -292,18 +295,18 @@ describe("typesafe client errors", () => {
       vi.fn(async () => new Response("{}", { status: statuses.shift() ?? 200 })),
     );
     const config = { apiKey: `k-${Math.random()}` };
-    for (let i = 0; i < 4; i++) await systemOne(config, {}, {}).catch(() => undefined);
+    for (let i = 0; i < 4; i++) await decide(config, {}, ONE_QUESTION).catch(() => undefined);
     // Failures were 500, 400 (reset), 500, 500: two consecutive outage failures,
     // not three, so the breaker is still closed and the next call is attempted.
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ answers: {} }), { status: 200 })),
+      vi.fn(async () => new Response(JSON.stringify(ONE_ANSWER), { status: 200 })),
     );
-    await expect(systemOne(config, {}, {})).resolves.toMatchObject({ answers: {} });
+    await expect(decide(config, {}, ONE_QUESTION)).resolves.toMatchObject(ONE_ANSWER);
   });
 });
 
-describe("typesafe client breakers", () => {
+describe("decision client breakers", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("opens the auth breaker on a 401 and rejects the next call while it is open", async () => {
@@ -312,12 +315,10 @@ describe("typesafe client breakers", () => {
       "fetch",
       vi.fn(async () => new Response("{}", { status: 401 })),
     );
-    await expect(systemOne(config, {}, {})).rejects.toThrow(/401/);
-    const fetchAfter = vi.fn(
-      async () => new Response(JSON.stringify({ answers: {} }), { status: 200 }),
-    );
+    await expect(decide(config, {}, ONE_QUESTION)).rejects.toThrow(/401/);
+    const fetchAfter = vi.fn(async () => new Response(JSON.stringify(ONE_ANSWER), { status: 200 }));
     vi.stubGlobal("fetch", fetchAfter);
-    await expect(systemOne(config, {}, {})).rejects.toThrow(/paused/);
+    await expect(decide(config, {}, ONE_QUESTION)).rejects.toThrow(/paused/);
     expect(fetchAfter).not.toHaveBeenCalled();
   });
 
@@ -329,17 +330,15 @@ describe("typesafe client breakers", () => {
       "fetch",
       vi.fn(async () => new Response(bodies.shift() ?? "{}", { status: statuses.shift() ?? 500 })),
     );
-    for (let i = 0; i < 3; i++) await systemOne(config, {}, {}).catch(() => undefined);
-    const fetchAfter = vi.fn(
-      async () => new Response(JSON.stringify({ answers: {} }), { status: 200 }),
-    );
+    for (let i = 0; i < 3; i++) await decide(config, {}, ONE_QUESTION).catch(() => undefined);
+    const fetchAfter = vi.fn(async () => new Response(JSON.stringify(ONE_ANSWER), { status: 200 }));
     vi.stubGlobal("fetch", fetchAfter);
-    await expect(systemOne(config, {}, {})).rejects.toThrow(/paused/);
+    await expect(decide(config, {}, ONE_QUESTION)).rejects.toThrow(/paused/);
     expect(fetchAfter).not.toHaveBeenCalled();
   });
 });
 
-describe("typesafe client breaker recovery", () => {
+describe("decision client breaker recovery", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -353,14 +352,14 @@ describe("typesafe client breaker recovery", () => {
       "fetch",
       vi.fn(async () => new Response("{}", { status: 500 })),
     );
-    for (let i = 0; i < 3; i++) await systemOne(config, {}, {}).catch(() => undefined);
-    await expect(systemOne(config, {}, {})).rejects.toThrow(/paused/);
+    for (let i = 0; i < 3; i++) await decide(config, {}, ONE_QUESTION).catch(() => undefined);
+    await expect(decide(config, {}, ONE_QUESTION)).rejects.toThrow(/paused/);
 
     // 30 s later the breaker lets a request through again.
     now += 30_001;
-    const ok = vi.fn(async () => new Response(JSON.stringify({ answers: {} }), { status: 200 }));
+    const ok = vi.fn(async () => new Response(JSON.stringify(ONE_ANSWER), { status: 200 }));
     vi.stubGlobal("fetch", ok);
-    await expect(systemOne(config, {}, {})).resolves.toMatchObject({ answers: {} });
+    await expect(decide(config, {}, ONE_QUESTION)).resolves.toMatchObject(ONE_ANSWER);
     expect(ok).toHaveBeenCalledTimes(1);
 
     // The success reset the counter: two failures do not re-open it.
@@ -368,9 +367,9 @@ describe("typesafe client breaker recovery", () => {
       "fetch",
       vi.fn(async () => new Response("{}", { status: 500 })),
     );
-    for (let i = 0; i < 2; i++) await systemOne(config, {}, {}).catch(() => undefined);
+    for (let i = 0; i < 2; i++) await decide(config, {}, ONE_QUESTION).catch(() => undefined);
     vi.stubGlobal("fetch", ok);
-    await expect(systemOne(config, {}, {})).resolves.toMatchObject({ answers: {} });
+    await expect(decide(config, {}, ONE_QUESTION)).resolves.toMatchObject(ONE_ANSWER);
   });
 });
 

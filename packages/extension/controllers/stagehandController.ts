@@ -147,7 +147,7 @@ export function createStagehandController(
         systemPrompt: state.initParams.systemPrompt,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
-        // Separate opt-in: this sends the extracted data to TypeSafe.
+        // Separate opt-in: this sends the extracted data to the decision provider.
         decisions:
           state.initParams.experimentalDecisions?.extract &&
           state.initParams.experimentalDecisions.extract !== "off" &&

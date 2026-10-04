@@ -1998,8 +1998,9 @@ type StagehandInitParams struct {
 	// "dom_settle_timeout_ms".
 	DOMSettleTimeoutMs *int `json:"dom_settle_timeout_ms,omitempty,omitzero"`
 
-	// Experimental: resolve act() through TypeSafe Jev decisions before falling back
-	// to the LLM pipeline
+	// Experimental: resolve act(), observe() and extract() through a decision model
+	// (typed questions answered with probabilities) before falling back to the LLM
+	// pipeline
 	ExperimentalDecisions *StagehandInitParamsExperimentalDecisions `json:"experimental_decisions,omitempty,omitzero"`
 
 	// LogLevel corresponds to the JSON schema field "log_level".
@@ -2021,9 +2022,13 @@ type StagehandInitParams struct {
 	Telemetry *TelemetryConfig `json:"telemetry,omitempty,omitzero"`
 }
 
-// Experimental: resolve act() through TypeSafe Jev decisions before falling back
-// to the LLM pipeline
+// Experimental: resolve act(), observe() and extract() through a decision model
+// (typed questions answered with probabilities) before falling back to the LLM
+// pipeline
 type StagehandInitParamsExperimentalDecisions struct {
+	// Cloudflare account id; required for provider "cloudflare"
+	AccountID *string `json:"account_id,omitempty,omitzero"`
+
 	// ActConfidence corresponds to the JSON schema field "act_confidence".
 	ActConfidence *float64 `json:"act_confidence,omitempty,omitzero"`
 
@@ -2060,6 +2065,10 @@ type StagehandInitParamsExperimentalDecisions struct {
 	// PageState corresponds to the JSON schema field "page_state".
 	PageState *bool `json:"page_state,omitempty,omitzero"`
 
+	// Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity
+	// Decider, or OpenAI's Decisions API
+	Provider *StagehandInitParamsExperimentalDecisionsProvider `json:"provider,omitempty,omitzero"`
+
 	// RetryNoEffect corresponds to the JSON schema field "retry_no_effect".
 	RetryNoEffect *bool `json:"retry_no_effect,omitempty,omitzero"`
 
@@ -2078,6 +2087,13 @@ type StagehandInitParamsExperimentalDecisionsExtract string
 const StagehandInitParamsExperimentalDecisionsExtractJudge StagehandInitParamsExperimentalDecisionsExtract = "judge"
 const StagehandInitParamsExperimentalDecisionsExtractOff StagehandInitParamsExperimentalDecisionsExtract = "off"
 const StagehandInitParamsExperimentalDecisionsExtractPick StagehandInitParamsExperimentalDecisionsExtract = "pick"
+
+type StagehandInitParamsExperimentalDecisionsProvider string
+
+const StagehandInitParamsExperimentalDecisionsProviderCloudflare StagehandInitParamsExperimentalDecisionsProvider = "cloudflare"
+const StagehandInitParamsExperimentalDecisionsProviderOpenai StagehandInitParamsExperimentalDecisionsProvider = "openai"
+const StagehandInitParamsExperimentalDecisionsProviderPerplexity StagehandInitParamsExperimentalDecisionsProvider = "perplexity"
+const StagehandInitParamsExperimentalDecisionsProviderTypesafe StagehandInitParamsExperimentalDecisionsProvider = "typesafe"
 
 type StagehandInitParamsExperimentalDecisionsVerify string
 

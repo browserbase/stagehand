@@ -2,6 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Action, ActResultData } from "@browserbasehq/stagehand-protocol/types";
 import { StagehandLogger } from "../logger.js";
+import { realisticAnswer } from "./decisionsTestUtils.js";
 import {
   fillValueCandidates,
   parseKey,
@@ -78,9 +79,12 @@ function stubDecisions(table: Answers) {
           const answer = (table[key] ?? DEFAULT_ANSWERS[key]) as Answer;
           return [
             key,
-            typeof answer === "function"
-              ? answer(question)
-              : (answer ?? { type: "noul", noul: 0.9 }),
+            realisticAnswer(
+              question as never,
+              typeof answer === "function"
+                ? answer(question as never)
+                : (answer ?? { type: "noul", noul: 0.9 }),
+            ),
           ];
         }),
       );

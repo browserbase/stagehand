@@ -29,7 +29,7 @@ import {
   type OutlineNode,
   type ViewKind,
 } from "./tree.js";
-import { choiceAnswer, noulAnswer, type DecisionModelConfig } from "./typesafeClient.js";
+import { choiceAnswer, noulAnswer, type DecisionModelConfig } from "./client.js";
 
 /**
  * Experimental observe() on the decision model. observe() answers "which element(s), and how

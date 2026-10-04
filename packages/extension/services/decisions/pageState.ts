@@ -1,6 +1,6 @@
 import { ask, round, type AskContext } from "./pick.js";
 import { pageDigest, type OutlineNode } from "./tree.js";
-import { noulAnswer } from "./typesafeClient.js";
+import { noulAnswer } from "./client.js";
 
 /**
  * Page-state signals from one decision-model request over a compact page digest. Used to

@@ -7,6 +7,7 @@ import type {
 } from "@browserbasehq/stagehand-protocol/types";
 import { toolArguments } from "../inference.js";
 import { StagehandLogger } from "../logger.js";
+import { realisticAnswer } from "./decisionsTestUtils.js";
 import type { Variables } from "@browserbasehq/stagehand-protocol/types";
 import { runDecisionsAct, type DecisionsActDeps } from "../services/decisions/pipeline.js";
 import type { DecisionsToolDeps } from "../services/decisions/toolAct.js";
@@ -97,8 +98,24 @@ function stubDecisions(script: Scripted) {
             )?.[0] ?? "unset";
           confidence = p;
         }
-        probabilities[choice] = confidence;
-        answers[key] = { type: "choice", choice, confidence, probabilities };
+        if (key === "tool_strict") {
+          // One distribution: what "none" takes, the tool cannot also have.
+          const none = script.none ?? 0;
+          confidence = Math.min(confidence, 1 - none);
+          probabilities[choice] = confidence;
+          if (none > confidence) {
+            choice = "none_of_these";
+            confidence = none;
+          }
+        } else {
+          probabilities[choice] = confidence;
+        }
+        answers[key] = realisticAnswer(question, {
+          type: "choice",
+          choice,
+          confidence,
+          probabilities,
+        });
       }
       return new Response(JSON.stringify({ answers, usage: { input_tokens: 10 } }), {
         status: 200,
@@ -161,7 +178,7 @@ function harness(
 
 const config = { apiKey: "test", tools: true };
 
-describe("the decision model WebMCP tool act", () => {
+describe("decisions WebMCP tool act", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("invokes a tool that takes no input inside the intent request", async () => {
@@ -280,7 +297,7 @@ describe("the decision model WebMCP tool act", () => {
     expect(h.skipReason()).toBe("arguments_not_filled");
   });
 
-  it("never sends a variable's value to TypeSafe and resolves it only for the page", async () => {
+  it("never sends a variable's value to the provider and resolves it only for the page", async () => {
     const requests = stubDecisions({ tool: "add_to_cart", args: { product_id: ["%sku%", 0.96] } });
     const h = harness("add product %sku% to my cart", {}, { sku: "secret-sku-9" });
     const outcome = await runDecisionsAct(config, h.deps);

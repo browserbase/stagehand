@@ -1,4 +1,4 @@
-import type { JsonValue } from "./typesafeClient.js";
+import type { JsonValue } from "./client.js";
 
 /**
  * Parses the hybrid snapshot outline back into nodes so the Decisions act pipeline

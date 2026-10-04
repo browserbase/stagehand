@@ -88,13 +88,29 @@ export async function initStagehand({
     experimentalDecisions = { apiKey: "instrument-only", enabled: false };
   }
   if (process.env.EVAL_DECISIONS === "1") {
-    const typesafeApiKey = resolveKey("TYPESAFE_API_KEY").value;
-    if (!typesafeApiKey) {
-      throw new Error("Stagehand init: EVAL_DECISIONS=1 requires TYPESAFE_API_KEY");
+    // EVAL_DECISIONS_PROVIDER: typesafe (default) | cloudflare | perplexity | openai
+    const provider = process.env.EVAL_DECISIONS_PROVIDER ?? "typesafe";
+    const keyName = {
+      typesafe: "TYPESAFE_API_KEY",
+      cloudflare: "CLOUDFLARE_API_TOKEN",
+      perplexity: "PERPLEXITY_API_KEY",
+      openai: "OPENAI_API_KEY",
+    }[provider];
+    if (!keyName) throw new Error(`Stagehand init: unknown EVAL_DECISIONS_PROVIDER "${provider}"`);
+    const decisionsApiKey = resolveKey(keyName).value;
+    if (!decisionsApiKey) {
+      throw new Error(
+        `Stagehand init: EVAL_DECISIONS=1 with provider "${provider}" requires ${keyName}`,
+      );
+    }
+    if (provider === "cloudflare" && !process.env.CLOUDFLARE_ACCOUNT_ID) {
+      throw new Error('Stagehand init: provider "cloudflare" requires CLOUDFLARE_ACCOUNT_ID');
     }
     const actConfidence = Number(process.env.EVAL_DECISIONS_CONFIDENCE);
     experimentalDecisions = {
-      apiKey: typesafeApiKey,
+      ...(provider === "typesafe" ? {} : { provider }),
+      apiKey: decisionsApiKey,
+      ...(provider === "cloudflare" ? { accountId: process.env.CLOUDFLARE_ACCOUNT_ID } : {}),
       ...(process.env.EVAL_DECISIONS_MODEL ? { model: process.env.EVAL_DECISIONS_MODEL } : {}),
       ...(Number.isFinite(actConfidence) && process.env.EVAL_DECISIONS_CONFIDENCE
         ? { actConfidence }

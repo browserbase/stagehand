@@ -49,7 +49,7 @@ import {
   noulAnswer,
   type DecisionModelConfig,
   type DecisionResponse,
-} from "./typesafeClient.js";
+} from "./client.js";
 
 export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
 
@@ -69,7 +69,7 @@ export type DecisionsConfig = DecisionModelConfig & {
   actConfidence?: number;
   /**
    * `"checks"` (default): deterministic checks only — fill read-back and the
-   * native-select flag. `"full"` adds a logged-only the decision model yes/no over the page
+   * native-select flag. `"full"` adds a logged-only decision-model yes/no over the page
    * diff. `"off"` disables every check.
    */
   verify?: "off" | "checks" | "full";
@@ -98,7 +98,7 @@ export type DecisionsConfig = DecisionModelConfig & {
    * extract() on the decision model. `"judge"`: only the completion yes/no replaces the second
    * LLM call. `"pick"`: the decision model picks the elements holding each field's value and
    * code copies their text; the LLM extracts only when that does not fit.
-   * Both send page or extracted content to TypeSafe. Default `"off"`.
+   * Both send page or extracted content to the decision provider. Default `"off"`.
    */
   extract?: "off" | "judge" | "pick";
   /** Resolve observe() through the decision model first. Default false. */
@@ -114,7 +114,7 @@ export type DecisionsConfig = DecisionModelConfig & {
    * Let act() invoke a WebMCP tool the page registered when the decision model is sure the
    * tool is the request. Sends tool names and descriptions, and for the likely
    * tools their parameter names, descriptions, types and enum values, to
-   * TypeSafe. Default false.
+   * the decision provider. Default false.
    */
   tools?: boolean;
 };
