@@ -1,48 +1,31 @@
-import { extractionCompleted } from "./decisions/extractCheck.js";
-import { runDecisionsExtract, type JsonSchema } from "./decisions/extract.js";
-import type { DecisionsConfig } from "./decisions/pipeline.js";
-import { parseOutline } from "./decisions/tree.js";
-import { z } from "zod/v4";
 import type {
   ClientModelReference,
   ExtractResult,
-  LLMImageContent,
   ModelConfig,
   StagehandExtractParams,
 } from "@browserbasehq/stagehand-protocol/types";
+import { z } from "zod/v4";
 import { TimeoutError } from "../errors.js";
-import * as inference from "../inference.js";
+import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
-import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
-import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
-import { injectUrls, transformSchema } from "../utils.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as cacheService from "./cacheService.js";
-import * as llmService from "./llmService.js";
+import { llmExtractDriver } from "./drivers/llm/index.js";
+import { createLlmPort } from "./drivers/llmPort.js";
+import type { ExtractDriver } from "./drivers/types.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
-/** Replaces URL strings with numeric DOM IDs until extraction has resolved the page's URL map. */
-export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
-  schema: Schema,
-): [z.ZodType, ZodPathSegments[]] {
-  const [finalSchema, urlPaths] = transformSchema(schema, []);
-  return [finalSchema, urlPaths];
-}
+export { transformUrlStringsToNumericIds } from "./drivers/llm/extract.js";
 
-interface ExtractionResponseBase {
-  metadata: { completed: boolean };
-  prompt_tokens: number;
-  completion_tokens: number;
-  reasoning_tokens: number;
-  cached_input_tokens: number;
-  inference_time_ms: number;
-}
-
-type ExtractionResponse<Schema extends z.ZodObject> = ExtractionResponseBase & z.infer<Schema>;
-
+/**
+ * extract(): read structured data off the page.
+ *
+ * This service owns the timeout, the page capture, the cache and the result envelope, and asks
+ * `driver` for the values. The driver defaults to the language model; see `drivers/` for the
+ * contract.
+ */
 export async function extract({
   params,
   page,
@@ -52,7 +35,7 @@ export async function extract({
   systemPrompt = "",
   cache,
   gateway,
-  decisions,
+  driver = llmExtractDriver(),
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
@@ -62,8 +45,8 @@ export async function extract({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-  /** Experimental: the decision model judges completion ("judge") or picks the values itself ("pick"). */
-  decisions?: DecisionsConfig;
+  /** Produces the values for the schema. */
+  driver?: ExtractDriver;
 }): Promise<ExtractResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -100,175 +83,52 @@ export async function extract({
     });
     ensureTimeRemaining();
 
-    const screenshot = options?.screenshot
-      ? await (async () => {
-          ensureTimeRemaining();
-          const image = await page.screenshot({
-            fullPage: false,
-            type: "png",
-          });
-          ensureTimeRemaining();
-          return image;
-        })()
-      : undefined;
+    let screenshot: Uint8Array | undefined;
+    if (options?.screenshot) {
+      screenshot = await page.screenshot({ fullPage: false, type: "png" });
+      ensureTimeRemaining();
+    }
 
     logger.info(
       screenshot
         ? "Starting extraction using an accessibility snapshot and viewport screenshot"
         : "Starting extraction using an accessibility snapshot",
-      {
-        category: "extraction",
-        instruction,
-      },
+      { category: "extraction", instruction },
     );
 
-    const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
-
-    // Pick-and-copy: the decision model chooses the elements that hold the values, code copies
-    // their text. Screenshot-based extraction stays with the LLM.
-    if (decisions?.extract === "pick" && instruction && !screenshot) {
-      const outcome = await runDecisionsExtract(decisions, {
-        logger,
-        instruction,
-        schema: params.schema as JsonSchema,
-        snap: { tree: combinedTree, xpathMap: {}, nodes: parseOutline(combinedTree) },
+    const { llm, usage } = createLlmPort({ model, clientLLMGenerate, gateway, systemPrompt });
+    const resolution = await driver.resolve({
+      instruction,
+      jsonSchema: params.schema,
+      schema: z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]),
+      snapshot: {
+        tree: combinedTree,
         urlMap: (combinedUrlMap ?? {}) as Record<string, string>,
-        ensureTimeRemaining,
-        gate: decisions.llmFallback !== false,
-      }).catch((error: unknown) => {
-        if (error instanceof TimeoutError) throw error;
-        const message = error instanceof Error ? error.message : String(error);
-        return { kind: "fallback" as const, reason: `decision_error:${message}` };
-      });
-      const valid = outcome.kind === "done" ? schema.safeParse(outcome.data) : undefined;
-      if (outcome.kind === "done" && valid?.success) {
-        return {
-          result: {
-            data: z.json().parse(valid.data),
-            metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
-          },
-          cacheValue: valid.data,
-          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
-        };
-      }
-      const reason = outcome.kind === "fallback" ? outcome.reason : "schema_mismatch";
-      logger.info("Decisions extract fell back to the LLM", {
-        category: "decisions",
-        instruction,
-        reason,
-      });
-      if (decisions.llmFallback === false) {
-        throw new Error(`Decisions extract abstained (${reason})`);
-      }
-    }
-    const isObjectSchema = schema instanceof z.ZodObject;
-    const wrapKey = "value" as const;
-    const objectSchema: z.ZodObject = isObjectSchema
-      ? schema
-      : z.object({
-          [wrapKey]: schema,
-        });
-    const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
-
-    const screenshotContent: LLMImageContent | undefined = screenshot
-      ? {
-          type: "image",
-          data: bytesToBase64(screenshot),
-          mimeType: "image/png",
-        }
-      : undefined;
-
-    ensureTimeRemaining();
-    const extractionResponse: ExtractionResponse<z.ZodObject> =
-      await inference.extract<z.ZodObject>({
-        instruction,
-        domElements: combinedTree,
-        schema: transformedSchema as z.ZodObject,
-        generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
-        userProvidedInstructions: systemPrompt,
-        screenshot: screenshotContent,
-        ...(decisions && instruction
-          ? {
-              judgeCompleted: async (extracted: unknown) => {
-                const trace: Record<string, unknown>[] = [];
-                const verdict = await extractionCompleted(
-                  {
-                    config: decisions,
-                    instruction,
-                    trace: trace as never,
-                    threshold: 0.5,
-                    logger,
-                    ensureTimeRemaining,
-                  },
-                  extracted,
-                );
-                logger.info("Decisions extract completion", {
-                  category: "decisions",
-                  instruction,
-                  score: verdict.score,
-                  trace: JSON.stringify(trace),
-                });
-                return verdict.completed;
-              },
-            }
-          : {}),
-      });
-    ensureTimeRemaining();
-
-    const {
-      metadata: { completed },
-      prompt_tokens,
-      completion_tokens,
-      reasoning_tokens,
-      cached_input_tokens,
-      inference_time_ms,
-      ...rest
-    } = extractionResponse;
-    let output = rest as z.infer<z.ZodObject>;
-
-    const idToUrl: Record<EncodedId, string> = (combinedUrlMap ?? {}) as Record<EncodedId, string>;
-    for (const { segments } of urlFieldPaths) {
-      injectUrls(
-        output as Record<string, unknown>,
-        segments,
-        idToUrl as unknown as Record<string, string>,
+      },
+      ...(screenshot ? { screenshot } : {}),
+      ensureTimeRemaining,
+      logger,
+      llm,
+    });
+    if (resolution.kind === "abstained") {
+      // A lone driver that abstains has nothing behind it; chains and `extractOrFail` never
+      // reach here.
+      throw new Error(
+        `extract() failed: no driver resolved the instruction (${resolution.reason})`,
       );
     }
-    if (!isObjectSchema && output && typeof output === "object") {
-      output = (output as Record<string, unknown>)[wrapKey] as z.infer<z.ZodObject>;
-    }
 
-    logger.info(
-      completed
-        ? "Extraction completed successfully"
-        : "Extraction incomplete after processing all data",
-      {
-        category: "extraction",
-        promptTokens: prompt_tokens,
-        completionTokens: completion_tokens,
-        inferenceTimeMs: inference_time_ms,
-      },
-    );
-
+    const spent = usage();
     return {
       result: {
-        data: z.json().parse(output),
-        metadata: {
-          usage: {
-            inputTokens: prompt_tokens,
-            outputTokens: completion_tokens,
-            reasoningTokens: reasoning_tokens,
-            cachedInputTokens: cached_input_tokens,
-            inferenceTimeMs: inference_time_ms,
-          },
-          cache: disabledCacheMetadata(),
-        },
+        data: z.json().parse(resolution.data),
+        metadata: { usage: spent, cache: disabledCacheMetadata() },
       },
-      cacheValue: output,
+      cacheValue: resolution.data,
       llmUsage: {
-        inputTokens: prompt_tokens,
-        outputTokens: completion_tokens,
-        llmDurationMs: inference_time_ms,
+        inputTokens: spent.inputTokens,
+        outputTokens: spent.outputTokens,
+        llmDurationMs: spent.inferenceTimeMs,
       },
     };
   }

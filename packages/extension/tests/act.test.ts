@@ -10,6 +10,7 @@ import {
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as actService from "../services/actService.js";
+import { decisionsCachedActionGuard } from "../services/decisions/drivers.js";
 import type { Page } from "../understudy/page.js";
 
 vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
@@ -631,7 +632,7 @@ describe("act service", () => {
           client: { get, set } as unknown as CacheClient,
           defaultCaching: true as const,
         },
-        decisions: { apiKey: "test", cacheCheck: true },
+        cachedActionGuard: decisionsCachedActionGuard({ apiKey: "test" }),
       });
 
       expect(result.metadata.cache.status).toBe("MISS");

@@ -60,8 +60,8 @@ export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
  *   intent fan-out → family-specific candidate view (pruned in code) →
  *   best/strict pick → bounded arguments → deterministic action → checks
  *
- * Any low-confidence node returns `fallback` so actService runs the existing
- * LLM pipeline; the reason is logged so eval runs can attribute every miss.
+ * Any low-confidence node returns `fallback`, which the act driver reports as an abstention;
+ * the reason is logged so eval runs can attribute every miss.
  */
 
 export type DecisionsConfig = DecisionModelConfig & {
@@ -82,8 +82,6 @@ export type DecisionsConfig = DecisionModelConfig & {
   argumentLlm?: boolean;
   /** Ask the decision model what kind of page this is when no target is found. Default true. */
   pageState?: boolean;
-  /** False keeps only the per-act instrumentation log (eval baselines). Default true. */
-  enabled?: boolean;
   /**
    * Click the runner-up when an ambiguous click provably changed nothing. Off
    * by default: effects the outline cannot show (aria-pressed, copy, play)
@@ -95,14 +93,12 @@ export type DecisionsConfig = DecisionModelConfig & {
   /** Check cached actions against the page before replaying them. Default false. */
   cacheCheck?: boolean;
   /**
-   * extract() on the decision model. `"judge"`: only the completion yes/no replaces the second
-   * LLM call. `"pick"`: the decision model picks the elements holding each field's value and
-   * code copies their text; the LLM extracts only when that does not fit.
-   * Both send page or extracted content to the decision provider. Default `"off"`.
+   * How extract() uses the decision model. `"pick"` (default): it picks the elements holding
+   * each field's value and code copies their text; the LLM extracts only when that does not
+   * fit. `"judge"`: the LLM extracts and only the completion yes/no is the decision model's.
+   * Both send page or extracted content to the decision provider.
    */
-  extract?: "off" | "judge" | "pick";
-  /** Resolve observe() through the decision model first. Default false. */
-  observe?: boolean;
+  extract?: "judge" | "pick";
   /**
    * Act as soon as the target is there instead of waiting out the DOM-settle
    * heuristic: pick on an early snapshot, and go when the decision model finds the target,
