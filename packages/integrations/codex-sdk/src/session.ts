@@ -1,6 +1,7 @@
 import type { Dirent } from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import type { ModelReasoningEffort } from "@openai/codex-sdk";
 import {
   HarnessAdapterError,
   harnessEventLogLevel,
@@ -9,6 +10,7 @@ import {
 } from "@browserbasehq/stagehand-integrations/harness";
 
 export type CodexEvent = Record<string, unknown>;
+export type { ModelReasoningEffort } from "@openai/codex-sdk";
 
 export type CodexThread = {
   runStreamed: (
@@ -27,6 +29,7 @@ export type CodexThreadConfig = {
   approvalPolicy?: "never" | "on-request" | "on-failure" | "untrusted";
   networkAccessEnabled?: boolean;
   webSearchMode?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
   skipGitRepoCheck?: boolean;
 };
 
@@ -179,6 +182,9 @@ export async function runCodexSession(input: {
       approvalPolicy: validateCodexApprovalPolicy(input.thread.approvalPolicy),
       networkAccessEnabled: input.thread.networkAccessEnabled ?? true,
       webSearchMode: input.thread.webSearchMode ?? "disabled",
+      ...(input.thread.modelReasoningEffort !== undefined && {
+        modelReasoningEffort: input.thread.modelReasoningEffort,
+      }),
       skipGitRepoCheck: input.thread.skipGitRepoCheck ?? true,
     });
     const streamed = await thread.runStreamed(input.prompt, {
