@@ -1,3 +1,4 @@
+import { RPCResponseTimeoutError } from "../src/rpcErrors.js";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import {
@@ -420,8 +421,8 @@ describe("RPCClient", () => {
         await vi.advanceTimersByTimeAsync(1);
         await rejection;
         await expect(request).rejects.toMatchObject({
-          constructor: Error,
-          name: "Error",
+          constructor: RPCResponseTimeoutError,
+          name: "RPCResponseTimeoutError",
           message: `RPC response timed out after ${timeoutMs}ms: ${method}`,
           cause: { method, timeoutMs },
         });
