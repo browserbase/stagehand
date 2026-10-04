@@ -13,7 +13,10 @@ pnpm install
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-opencode-sdk
 ```
 
-Export a supported provider API key for the SDK example. Install the [OpenCode v2 CLI](https://opencode.ai/v2/docs) separately and use `opencode auth login` for the interactive workflow. Configure
+Export a supported provider API key for the SDK example. The example embeds
+[`@opencode/sdk`](https://opencode.ai/v2/docs/build/sdk) from this workspace's `node_modules`;
+it does not spawn a globally installed `opencode` binary. Install the
+[OpenCode v2 CLI](https://opencode.ai/v2/docs) separately only for the optional interactive workflow. Configure
 Browserbase when you do not want to use local Chrome:
 
 ```bash
@@ -39,10 +42,10 @@ pnpm --dir packages/integrations/opencode start -- \
 | `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods called inside `run`.                                 |
 | `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`.                                                       |
 
-The SDK host runs with an isolated config directory, exactly one direct Stagehand MCP server, and
-all non-Stagehand tools denied. The facade launches through a wrapper that forwards only
-`STAGEHAND_*` and `BROWSERBASE_*` variables plus basic process variables. MCP image results stay
-inside OpenCode's tool loop, so `screenshot` remains multimodal.
+The SDK host runs `@opencode/sdk` with an isolated config directory and private `HOME`, exactly one
+direct Stagehand MCP server, and all non-Stagehand tools denied. The facade launches through a
+wrapper that forwards only `STAGEHAND_*` and `BROWSERBASE_*` variables plus basic process variables.
+MCP image results stay inside OpenCode's tool loop, so `screenshot` remains multimodal.
 
 ## Connecting a running OpenCode CLI instead
 

@@ -5,6 +5,7 @@ import {
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
+import { isolatedOpenCodeEnv } from "./isolation.js";
 
 export type OpenCodePart = Record<string, unknown>;
 export interface OpenCodeMessage {
@@ -201,7 +202,10 @@ export async function startOpenCodeRuntime(options: {
     mkdir(options.session.directory, { recursive: true }),
     mkdir(options.session.configRoot, { recursive: true }),
   ]);
+  const env = await isolatedOpenCodeEnv(options.session.configRoot);
   const child = fork(new URL("./worker.mjs", import.meta.url), [], {
+    cwd: options.session.directory,
+    env,
     stdio: ["ignore", "ignore", "inherit", "ipc"],
     execArgv: [],
   });
