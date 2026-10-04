@@ -84,7 +84,7 @@ export async function initStagehand({
   // falling back to the configured model when the decision model abstains.
   let experimentalDecisions: Record<string, unknown> | undefined;
   if (process.env.EVAL_DECISIONS !== "1" && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
-    // Baseline arm: no the decision model, only the per-act timing log the report parses.
+    // Baseline arm: no decision model, only the per-act timing log the report parses.
     experimentalDecisions = { apiKey: "instrument-only", enabled: false };
   }
   if (process.env.EVAL_DECISIONS === "1") {
