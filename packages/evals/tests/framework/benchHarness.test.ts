@@ -1,3 +1,4 @@
+import { Evaluator } from "@browserbasehq/stagehand-evaluator";
 import { describe, expect, it, vi } from "vitest";
 import { V3, type AvailableModel } from "stagehand-v3";
 import {
@@ -27,6 +28,16 @@ import type { DiscoveredTask } from "../../framework/types.js";
 import type { EvalInput } from "../../types/evals.js";
 import { EvalLogger } from "../../logger.js";
 import { runInRowContext } from "../../framework/rowContext.js";
+
+vi.mock("@browserbasehq/stagehand-evaluator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@browserbasehq/stagehand-evaluator")>();
+  return {
+    ...actual,
+    Evaluator: class {
+      async validate() {}
+    },
+  };
+});
 
 describe("bench harness registry", () => {
   it("lists registered harnesses in registration order", () => {
@@ -311,6 +322,21 @@ describe("bench harness registry", () => {
 
       expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
       expect(harness.supportsApi).toBe(false);
+      const validate = vi
+        .spyOn(Evaluator.prototype, "validate")
+        .mockRejectedValueOnce(new Error("judge unavailable"));
+      await expect(
+        harness.execute?.({
+          task,
+          input,
+          row,
+          logger: new EvalLogger(false),
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow("judge unavailable");
+      expect(preparedInput).toBeUndefined();
+      expect(receivedAdapter).toBeUndefined();
+      validate.mockRestore();
       await expect(
         runInRowContext({ reportPhase: (phase) => phases.push(phase) }, async () =>
           harness.execute?.({
@@ -342,7 +368,7 @@ describe("bench harness registry", () => {
     },
   );
 
-  it("closes the verifier carrier when adapter cleanup rejects", async () => {
+  it("propagates adapter cleanup failure without creating a verifier browser", async () => {
     const close = vi.spyOn(V3.prototype, "close").mockResolvedValue(undefined);
     const harness = defineExternalHarness({
       harness: "cleanup_rejects_external",
@@ -394,7 +420,7 @@ describe("bench harness registry", () => {
       await expect(
         harness.execute?.({ task, input, row, logger: new EvalLogger(false) }),
       ).rejects.toThrow("cleanup failed");
-      expect(close).toHaveBeenCalledOnce();
+      expect(close).not.toHaveBeenCalled();
     } finally {
       close.mockRestore();
     }

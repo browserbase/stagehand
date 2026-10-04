@@ -12,15 +12,15 @@ const state = vi.hoisted(() => ({
   error: undefined as Error | undefined,
 }));
 
-vi.mock("stagehand-v3", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("stagehand-v3")>();
+vi.mock("@browserbasehq/stagehand-evaluator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@browserbasehq/stagehand-evaluator")>();
   return {
     ...actual,
-    V3: class {},
-    V3Evaluator: class {
-      constructor(_v3: unknown, options: Record<string, unknown>) {
+    Evaluator: class {
+      constructor(options: Record<string, unknown>) {
         state.options.push(options);
       }
+      async validate() {}
       async verify() {
         if (state.error) throw state.error;
         return state.result;
@@ -78,9 +78,7 @@ describe("offline verifier command", () => {
   ])("uses shared model policy: $expected", async ({ env, args, expected }) => {
     vi.stubEnv("EVAL_VERIFIER_MODEL", env);
     await handleVerify([dir, ...args, "--json"]);
-    expect(state.options).toEqual([
-      { backend: "verifier", modelName: expected, modelClientOptions: { apiKey: "fixture-key" } },
-    ]);
+    expect(state.options).toEqual([{ modelName: expected }]);
   });
 
   it("rejects an explicit CLI model without its provider key", async () => {

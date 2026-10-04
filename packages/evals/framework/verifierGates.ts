@@ -1,3 +1,4 @@
+import { detectBrowserUse } from "@browserbasehq/stagehand-evaluator";
 /**
  * Deterministic diagnostics and evidence gates over the current V3 verifier.
  * Preserve the judge's verdict for auditing. Execution status and blocker
@@ -9,9 +10,14 @@ import type {
   ProbeEvidence,
   Trajectory,
   TrajectoryStep,
-} from "stagehand-v3";
+} from "@browserbasehq/stagehand-evaluator";
 
-export type OutcomeGate = "no_final_answer" | "no_browser_use" | "ungrounded_answer";
+export type OutcomeGate =
+  | "unresolved_evaluation"
+  | "no_final_answer"
+  | "trajectory_error"
+  | "no_browser_use"
+  | "ungrounded_answer";
 
 export type GroundingDatumKind = "currency" | "percent" | "time" | "decimal" | "integer" | "entity";
 
@@ -108,10 +114,23 @@ export function applyVerdictGates({
   const finalAnswer = (trajectory.finalAnswer ?? "").trim();
   const outcomeGates: OutcomeGate[] = [];
 
-  if (!finalAnswer) outcomeGates.push("no_final_answer");
-  // A disconnect after the required actions does not erase their evidence.
-  // Execution status is retained separately; the judge must assess completion.
-  if (isFacadeTool && !trajectory.steps.some((step) => isFacadeTool(step.actionName))) {
+  // "Supported" completion: the structured outcome state when the evaluator emits one, otherwise
+  // (v3-style verdicts without outcomeState) the judge's own pass. Health, when present, must be healthy.
+  const healthy = !evaluation.health || evaluation.health.status === "healthy";
+  const supported =
+    healthy &&
+    (evaluation.outcomeState ? evaluation.outcomeState === "supported" : judgeOutcomeSuccess);
+  // A structured "supported" state can establish a browser-state completion without narration;
+  // v3-style verdicts (no outcomeState) still require a final answer.
+  if (!finalAnswer && evaluation.outcomeState !== "supported") outcomeGates.push("no_final_answer");
+  // A disconnect or error after a proven completion does not erase it (owner disconnect ruling).
+  if (trajectory.status === "error" && !supported) outcomeGates.push("trajectory_error");
+  if (
+    evaluation.outcomeState === "unresolved" ||
+    (evaluation.health && evaluation.health.status !== "healthy")
+  )
+    outcomeGates.push("unresolved_evaluation");
+  if (isFacadeTool && !detectBrowserUse(trajectory.steps).used) {
     outcomeGates.push("no_browser_use");
   }
 

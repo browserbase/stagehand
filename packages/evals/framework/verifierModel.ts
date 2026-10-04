@@ -9,11 +9,11 @@
 export const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 
 /**
- * V3Evaluator's built-in default (google/gemini-2.5-flash) was retired
- * 2026-07-09; leaving it in place fails every rubric criterion silently
- * ("Fused judgment call failed"), which scores whole runs as unscored.
+ * Mirrors DEFAULT_VERIFIER_MODEL in @browserbasehq/stagehand-evaluator, the
+ * judge the evaluator was calibrated on. Kept as a literal so this module stays
+ * dependency-free; verifierModel.test.ts pins the two together.
  */
-export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.5-flash";
+export const DEFAULT_VERIFIER_MODEL = "google/gemini-3.8-flash";
 
 export function resolveVerifierModel(env: NodeJS.ProcessEnv = process.env): {
   modelName: string;
