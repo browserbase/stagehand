@@ -503,41 +503,24 @@ describe("driver commands", () => {
     ).rejects.toBe(actionError);
   });
 
-  it("fails explicitly for the V4 coordinate XPath capability", async () => {
-    const manager = {} as Parameters<
-      NonNullable<(typeof mouseHandlers)["mouse.click"]>
-    >[0];
-
-    for (const [command, params] of [
-      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
-      ["mouse.hover", { returnXPath: true, x: 1, y: 2 }],
-      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
-      ["mouse.drag", { fromX: 1, fromY: 2, returnXPath: true, toX: 3, toY: 4 }],
-    ] as const) {
-      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
-        "Coordinate XPath lookup is not exposed by Stagehand V4",
-      );
-    }
-  });
-
-  it("reports the isolated V4 network-capture gap", async () => {
+  it("enables sidecar network capture", async () => {
     const page = {};
     const network = {
-      enable: vi.fn(async () => {
-        throw new Error("Network capture is not available");
-      }),
+      enable: vi.fn(async () => ({ enabled: true, path: "/tmp/network" })),
     };
     const manager = {
       activePage: vi.fn(async () => page),
       network,
+      networkWebSocketDebuggerUrl: vi.fn(async () => "ws://sidecar.test"),
     } as unknown as Parameters<
       NonNullable<(typeof networkHandlers)["network.on"]>
     >[0];
 
-    await expect(networkHandlers["network.on"]!(manager, {})).rejects.toThrow(
-      "Network capture is not available",
-    );
-    expect(network.enable).toHaveBeenCalledWith(page);
+    await expect(networkHandlers["network.on"]!(manager, {})).resolves.toEqual({
+      enabled: true,
+      path: "/tmp/network",
+    });
+    expect(network.enable).toHaveBeenCalledWith(page, "ws://sidecar.test");
   });
 
   it("installs the CLI-owned cursor overlay", async () => {

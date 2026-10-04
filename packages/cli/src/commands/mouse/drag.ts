@@ -15,7 +15,6 @@ export default class MouseDrag extends BrowseCommand {
   static override examples = [
     "browse mouse drag 100 100 400 400",
     "browse mouse drag 100 100 400 400 --steps 20 --delay 10",
-    "browse mouse drag 100 100 400 400 --return-xpath",
   ];
 
   static override args = {
@@ -45,10 +44,6 @@ export default class MouseDrag extends BrowseCommand {
       description: "Delay between drag steps in milliseconds.",
       helpValue: "<ms>",
     }),
-    "return-xpath": Flags.boolean({
-      description:
-        "Include the XPath under the start/end coordinates when the driver can return it.",
-    }),
     steps: Flags.integer({
       default: 10,
       description: "Number of intermediate drag steps.",
@@ -65,7 +60,6 @@ export default class MouseDrag extends BrowseCommand {
         delay: flags.delay,
         fromX: parseNumber(args.fromX, "fromX"),
         fromY: parseNumber(args.fromY, "fromY"),
-        returnXPath: flags["return-xpath"],
         steps: flags.steps,
         toX: parseNumber(args.toX, "toX"),
         toY: parseNumber(args.toY, "toY"),
