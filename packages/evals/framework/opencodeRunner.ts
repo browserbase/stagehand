@@ -1,5 +1,6 @@
 import {
   buildOpenCodeTranscript,
+  OPENCODE_SDK_VERSION,
   runOpenCodeSession,
   type OpenCodeTokenUsage,
   type StartOpenCodeRuntime,
@@ -18,6 +19,7 @@ import {
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
 import type { PreparedOpenCodeToolAdapter } from "./opencodeToolAdapter.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -73,17 +75,28 @@ export async function runOpenCodeAgent({
     captureEvidence: toolAdapter?.captureEvidence,
     drainStepObservations: toolAdapter?.drainStepObservations,
     observedToolMatcher: toolAdapter?.observedToolMatcher,
+    browserSessionLoss: toolAdapter?.browserSessionLoss,
   };
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_OPENCODE_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "opencode",
     plan,
+    model,
     logger,
+    systemPromptMode: "native",
+    implementation: { name: "sdk", version: 1, sdkVersion: OPENCODE_SDK_VERSION },
     toolAdapter: adapterLike,
     verifier,
     resultContract: "marker",
     fallbackErrorMessage: "OpenCode did not report success",
+    stepBudget: maxToolSteps,
+    stepBudgetUnit: "tool_calls",
     parseResult: parseOpenCodeResult,
-    runSession: async (prompt) => {
+    runSession: async (prompt, systemPrompt) => {
       if (!toolAdapter) throw new Error("OpenCode requires a prepared tool adapter.");
       const sessionResult = await runOpenCodeSession({
         prompt,
@@ -91,13 +104,15 @@ export async function runOpenCodeAgent({
         logger,
         signal,
         startRuntime,
+        systemPrompt,
+        maxToolSteps,
         session: {
           config: toolAdapter.config,
           directory: toolAdapter.cwd,
           configRoot: toolAdapter.configRoot,
         },
         onToolResult: toolAdapter.onToolResult
-          ? (name) => toolAdapter.onToolResult!(name)
+          ? (name, part) => toolAdapter.onToolResult!(name, part)
           : undefined,
       });
       return {
@@ -108,6 +123,7 @@ export async function runOpenCodeAgent({
         status: sessionResult.status,
         stopReason: sessionResult.stopReason,
         usage: {
+          reported: sessionResult.tokenUsage.reported,
           inputTokens: sessionResult.tokenUsage.inputTokens,
           outputTokens: sessionResult.tokenUsage.outputTokens,
           cachedInputTokens: sessionResult.tokenUsage.cachedInputTokens,

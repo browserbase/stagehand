@@ -15,6 +15,8 @@ export interface OpenCodeMessage {
   error?: { message?: string };
 }
 export interface OpenCodeTokenUsage {
+  /** False when the SDK exposed no token object, so zeros are unknown rather than free. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens: number;
@@ -25,7 +27,7 @@ export interface OpenCodeTokenUsage {
 export interface OpenCodeSessionResult {
   messages: OpenCodeMessage[];
   finalMessage: string;
-  status: "completed" | "sdk_error";
+  status: "completed" | "max_turns" | "sdk_error";
   stopReason?: string;
   tokenUsage: OpenCodeTokenUsage;
   costUsd?: number;
@@ -61,6 +63,7 @@ export interface OpenCodeRuntime {
     prompt: string;
     model: string;
     signal?: AbortSignal;
+    maxToolSteps?: number;
   }): Promise<OpenCodeSessionResult>;
   close(): Promise<void>;
 }
@@ -68,6 +71,25 @@ export type StartOpenCodeRuntime = (options: {
   session: OpenCodeSessionConfig;
   onToolResult?: (toolName: string, part: OpenCodePart) => void | Promise<void>;
 }) => Promise<OpenCodeRuntime>;
+
+/** Prefixed onto `agents.build.system` so eval policy uses OpenCode's native channel. */
+export function withOpenCodeSystemPrompt(
+  session: OpenCodeSessionConfig,
+  systemPrompt?: string,
+): OpenCodeSessionConfig {
+  if (!systemPrompt) return session;
+  const existing = session.config.agents?.build?.system;
+  return {
+    ...session,
+    config: {
+      ...session.config,
+      agents: {
+        ...session.config.agents,
+        build: { system: existing ? `${systemPrompt}\n\n${existing}` : systemPrompt },
+      },
+    },
+  };
+}
 
 export function normalizeOpenCodeModel(
   model: string,
@@ -116,6 +138,7 @@ export function normalizeOpenCodeUsage(tokens: unknown): OpenCodeTokenUsage {
   const outputTokens = finite(value?.output);
   const reasoningOutputTokens = finite(value?.reasoning);
   return {
+    reported: value !== undefined,
     inputTokens,
     outputTokens,
     reasoningOutputTokens,
@@ -131,16 +154,23 @@ export async function runOpenCodeSession(input: {
   logger: HarnessLogger;
   signal?: AbortSignal;
   session: OpenCodeSessionConfig;
+  systemPrompt?: string;
+  maxToolSteps?: number;
   startRuntime?: StartOpenCodeRuntime;
   onToolResult?: (toolName: string, part: OpenCodePart) => void | Promise<void>;
 }): Promise<OpenCodeSessionResult> {
   let runtime: OpenCodeRuntime | undefined;
   try {
     runtime = await (input.startRuntime ?? startOpenCodeRuntime)({
-      session: input.session,
+      session: withOpenCodeSystemPrompt(input.session, input.systemPrompt),
       onToolResult: input.onToolResult,
     });
-    return await runtime.run({ prompt: input.prompt, model: input.model, signal: input.signal });
+    return await runtime.run({
+      prompt: input.prompt,
+      model: input.model,
+      signal: input.signal,
+      ...(input.maxToolSteps !== undefined && { maxToolSteps: input.maxToolSteps }),
+    });
   } catch (error) {
     const stopReason = sanitizeErrorMessage(
       stringifyError(input.signal?.aborted ? input.signal.reason : error),
@@ -203,14 +233,20 @@ export async function startOpenCodeRuntime(options: {
     if (!settled) rejectRun?.(new Error(`OpenCode worker exited (${signal ?? code}).`));
   });
   return {
-    run: ({ prompt, model, signal }) => {
+    run: ({ prompt, model, signal, maxToolSteps }) => {
       const onAbort = () => child.send({ kind: "abort" });
       return new Promise<OpenCodeSessionResult>((resolve, reject) => {
         resolveRun = resolve;
         rejectRun = reject;
         if (signal?.aborted) onAbort();
         else signal?.addEventListener("abort", onAbort, { once: true });
-        child.send({ kind: "run", prompt, model, session: options.session });
+        child.send({
+          kind: "run",
+          prompt,
+          model,
+          session: options.session,
+          ...(maxToolSteps !== undefined && { maxToolSteps }),
+        });
       }).finally(() => {
         signal?.removeEventListener("abort", onAbort);
       });

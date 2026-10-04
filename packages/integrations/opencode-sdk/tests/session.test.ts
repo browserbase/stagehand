@@ -74,7 +74,8 @@ describe("OpenCode v2 SDK session", () => {
     expect(runtime.run).toBeDefined();
     expect(
       normalizeOpenCodeUsage({ input: 10, output: 4, reasoning: 2, cache: { read: 3, write: 1 } }),
-    ).toMatchObject({ totalTokens: 16, cachedInputTokens: 3 });
+    ).toMatchObject({ totalTokens: 16, cachedInputTokens: 3, reported: true });
+    expect(normalizeOpenCodeUsage(undefined).reported).toBe(false);
   });
 
   it("returns the run result and closes the worker", async () => {
@@ -94,6 +95,28 @@ describe("OpenCode v2 SDK session", () => {
       signal: undefined,
     });
     expect(runtime.close).toHaveBeenCalledOnce();
+  });
+
+  it("injects the native system prompt into the isolated session config", async () => {
+    const runtime = fakeRuntime();
+    await runOpenCodeSession({
+      prompt: "browse",
+      model: "openai/gpt-5.4-mini",
+      logger,
+      session,
+      systemPrompt: "Do not ask for clarification.",
+      maxToolSteps: 12,
+      startRuntime: async (options) => {
+        expect(options.session.config.agents?.build?.system).toBe("Do not ask for clarification.");
+        return runtime;
+      },
+    });
+    expect(runtime.run).toHaveBeenCalledWith({
+      prompt: "browse",
+      model: "openai/gpt-5.4-mini",
+      signal: undefined,
+      maxToolSteps: 12,
+    });
   });
 
   it("sanitizes failures and closes the worker", async () => {

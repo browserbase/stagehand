@@ -18,6 +18,7 @@ let sequence = 0;
 let activeHost: Awaited<ReturnType<typeof OpenCode.create>> | undefined;
 let activeSessionID: string | undefined;
 let interrupted = false;
+let budgetExhausted = false;
 let readinessAbort: AbortController | undefined;
 
 export function interruptOpenCodeSession(): void {
@@ -32,12 +33,25 @@ function send(message: Record<string, unknown>): void {
   process.send?.(message);
 }
 
-async function toolResult(name: string): Promise<void> {
+async function toolResult(name: string, callId?: string): Promise<void> {
   const id = ++sequence;
   await new Promise<void>((resolve, reject) => {
     acknowledgements.set(id, { resolve, reject });
-    send({ kind: "tool", id, name, part: { type: "tool", name } });
+    send({
+      kind: "tool",
+      id,
+      name,
+      part: { type: "tool", name, ...(callId && { id: callId }) },
+    });
   });
+}
+
+function toolCallId(event: Record<string, unknown>): string | undefined {
+  for (const key of ["id", "callID", "callId"]) {
+    const value = event[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
 }
 
 async function wrapMcpServers(session: OpenCodeSessionConfig): Promise<OpenCodeConfig> {
@@ -66,11 +80,15 @@ export async function executeOpenCodeSession(input: {
   prompt: string;
   model: string;
   session: OpenCodeSessionConfig;
+  maxToolSteps?: number;
 }): Promise<OpenCodeSessionResult> {
+  interrupted = false;
+  budgetExhausted = false;
   let messages: OpenCodeMessage[] = [];
   let outcome: string | undefined;
   let costUsd: number | undefined;
   let tokens: unknown;
+  let toolCount = 0;
   const expectedServers = Object.entries(input.session.config.mcp.servers)
     .filter(([, server]) => !server.disabled)
     .map(([name]) => name.replace(/[^a-zA-Z0-9_-]/g, "_"));
@@ -92,7 +110,13 @@ export async function executeOpenCodeSession(input: {
           ready?.();
       });
       await ctx.tool.hook("execute.after", async (event) => {
-        if (event.status === "completed" || event.status === "error") await toolResult(event.tool);
+        if (event.status !== "completed" && event.status !== "error") return;
+        await toolResult(String(event.tool), toolCallId(event as Record<string, unknown>));
+        toolCount += 1;
+        if (input.maxToolSteps !== undefined && toolCount >= input.maxToolSteps) {
+          budgetExhausted = true;
+          interruptOpenCodeSession();
+        }
       });
     },
   });
@@ -134,18 +158,28 @@ export async function executeOpenCodeSession(input: {
         ...(cursor ? { cursor } : { order: "asc" }),
       });
       messages.push(
-        ...page.data.filter((item): item is OpenCodeMessage => item.type === "assistant"),
+        ...page.data.filter(
+          (item: { type?: string }): item is OpenCodeMessage => item.type === "assistant",
+        ),
       );
       cursor = page.cursor.next ?? undefined;
     } while (cursor);
     const error = messages.find((message) => message.error)?.error?.message;
     const finalMessage = extractOpenCodeAssistantText(messages.at(-1));
+    const status = budgetExhausted
+      ? "max_turns"
+      : outcome === "succeeded" && !error
+        ? "completed"
+        : "sdk_error";
     return {
       messages,
       finalMessage,
-      status: outcome === "succeeded" && !error ? "completed" : "sdk_error",
-      ...(outcome !== "succeeded" && { stopReason: outcome ?? "OpenCode did not finish." }),
-      ...(error && { stopReason: error }),
+      status,
+      ...(status !== "completed" && {
+        stopReason: budgetExhausted
+          ? "step_budget"
+          : (error ?? outcome ?? "OpenCode did not finish."),
+      }),
       tokenUsage: normalizeOpenCodeUsage(tokens),
       ...(costUsd !== undefined && { costUsd }),
     };
@@ -209,6 +243,7 @@ if (process.send) {
         prompt: String(message.prompt),
         model: String(message.model),
         session: message.session as OpenCodeSessionConfig,
+        ...(typeof message.maxToolSteps === "number" && { maxToolSteps: message.maxToolSteps }),
       }).then(
         (result) => send({ kind: "result", result }),
         (error) =>

@@ -20,7 +20,7 @@ export interface OpenCodeRunResult {
 export class OpenCodeTrajectoryAdapter implements TrajectoryAdapter<OpenCodeRunResult> {
   fromHarnessResult(result: OpenCodeRunResult, taskSpec: TaskSpec): Trajectory {
     const toolCalls: NormalizedToolCall[] = [];
-    const seenToolIDs = new Set<string>();
+    const callsById = new Map<string, NormalizedToolCall>();
     let pendingReasoning = "";
     let trailingText = "";
     for (const message of result.messages) {
@@ -36,21 +36,30 @@ export class OpenCodeTrajectoryAdapter implements TrajectoryAdapter<OpenCodeRunR
         if (part.type !== "tool") continue;
         const state = isRecord(part.state) ? part.state : {};
         const status = typeof state.status === "string" ? state.status : "pending";
-        if (status !== "completed" && status !== "error") continue;
-        if (typeof part.id === "string") {
-          if (seenToolIDs.has(part.id)) continue;
-          seenToolIDs.add(part.id);
-        }
+        const completed = status === "completed";
+        const errored = status === "error";
+        const unfinished = status === "pending" || status === "running";
+        if (!completed && !errored && !unfinished) continue;
         const images = readImages(state.content);
-        toolCalls.push({
+        const next: NormalizedToolCall = {
+          ...(typeof part.id === "string" && { id: part.id }),
           name: typeof part.name === "string" ? part.name : "tool",
           args: isRecord(state.input) ? state.input : {},
-          result: status === "completed" ? state.content : undefined,
-          ok: status === "completed",
-          ...(status === "error" && { error: readError(state.error) }),
+          result: completed ? state.content : unfinished ? "no tool result" : undefined,
+          ok: completed,
+          ...((errored || unfinished) && {
+            error: errored ? readError(state.error) : "no tool result",
+          }),
           ...(images.length > 0 && { images }),
           reasoning: pendingReasoning.trim() || undefined,
-        });
+        };
+        const existing = typeof part.id === "string" ? callsById.get(part.id) : undefined;
+        if (existing) {
+          if (!existing.ok && existing.error === "no tool result") Object.assign(existing, next);
+          continue;
+        }
+        toolCalls.push(next);
+        if (typeof part.id === "string") callsById.set(part.id, next);
         pendingReasoning = "";
         trailingText = "";
       }
@@ -80,7 +89,17 @@ function readImages(value: unknown): Array<{ bytes: Buffer; mediaType: string }>
 export const opencodeAdapter = new OpenCodeTrajectoryAdapter();
 
 function attachStepObservations(toolCalls: NormalizedToolCall[], result: OpenCodeRunResult): void {
-  const observations = result.stepObservations ?? [];
+  const keyed = new Map(
+    (result.stepObservations ?? [])
+      .filter((observation) => observation.toolCallId)
+      .map((observation) => [observation.toolCallId, observation.evidence]),
+  );
+  for (const call of toolCalls) {
+    if (call.id && keyed.has(call.id)) call.probeEvidence = keyed.get(call.id);
+  }
+  const observations = (result.stepObservations ?? []).filter(
+    (observation) => !observation.toolCallId,
+  );
   if (observations.length === 0) return;
   const observed = toolCalls.filter((call) => result.observedToolName?.(call.name) ?? true);
   const totalRuns = Math.max(...observations.map((entry) => entry.runIndex)) + 1;

@@ -51,6 +51,29 @@ describe("Deep Agents trajectory adapter", () => {
     expect(trajectory.finalAnswer).toBe("final answer");
   });
 
+  it("joins the runner's reasoning summary and visible text into step reasoning", () => {
+    const trajectory = deepagentsAdapter.fromHarnessResult(
+      {
+        events: [
+          {
+            type: "assistant",
+            reasoning: "**Finding the price**\n\nThe listing page has it.",
+            text: "Opening the listing.",
+          },
+          { type: "tool_call", id: "1", name: "run", server: "stagehand", args: {} },
+          { type: "tool_result", id: "1", name: "run", server: "stagehand", ok: true, text: "ok" },
+          { type: "assistant", reasoning: "Done reasoning.", text: "$42" },
+          { type: "final", text: "$42" },
+        ],
+      },
+      taskSpec,
+    );
+    expect(trajectory.steps[0]?.reasoning).toBe(
+      "**Finding the price**\n\nThe listing page has it.\nOpening the listing.",
+    );
+    expect(trajectory.finalAnswer).toBe("$42");
+  });
+
   it("surfaces unmatched results, unfinished calls, and errors", () => {
     const trajectory = deepagentsAdapter.fromHarnessResult(
       {
