@@ -9,8 +9,8 @@ import { runEveAgent } from "../../framework/eveRunner.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import { EvalLogger } from "../../logger.js";
 
-vi.mock("stagehand-v3", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("stagehand-v3")>();
+vi.mock("@browserbasehq/stagehand-evaluator", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@browserbasehq/stagehand-evaluator")>();
   class FakeV3Evaluator {
     async verify() {
       // A judge that credits narration, so the test isolates the gates.
@@ -20,7 +20,7 @@ vi.mock("stagehand-v3", async (importOriginal) => {
       throw new Error("rubric is precomputed");
     }
   }
-  return { ...mod, V3Evaluator: FakeV3Evaluator as unknown as typeof mod.V3Evaluator };
+  return { ...mod, Evaluator: FakeV3Evaluator as unknown as typeof mod.Evaluator };
 });
 
 const plan: ExternalHarnessTaskPlan = {

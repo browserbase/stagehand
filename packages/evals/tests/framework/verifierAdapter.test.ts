@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EvaluationResult } from "stagehand-v3";
+import type { EvaluationResult } from "@browserbasehq/stagehand-evaluator";
 
 import {
   evaluationResultToSuccess,
@@ -37,3 +37,22 @@ describe("evaluationResultToSuccess", () => {
     expect(evaluationResultToSuccess(outcomeOnly, "both")).toBe(false);
   });
 });
+
+it.each(["outcome", "process", "both"])(
+  "never passes unhealthy or unresolved evaluations in %s mode",
+  (mode) => {
+    const result: EvaluationResult = {
+      outcomeSuccess: true,
+      processScore: 1,
+      health: {
+        schemaVersion: 1,
+        status: "error",
+        errors: [{ stage: "judge", message: "unavailable" }],
+      },
+    };
+    expect(evaluationResultToSuccess(result, mode)).toBe(false);
+    expect(
+      evaluationResultToSuccess({ ...result, health: undefined, outcomeState: "unresolved" }, mode),
+    ).toBe(false);
+  },
+);

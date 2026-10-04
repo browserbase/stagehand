@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { LogLine } from "stagehand-v3";
+import type { LogLine } from "@browserbasehq/stagehand-evaluator";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 
 type TraceLine = LogLine & { parsedAuxiliary?: unknown };
