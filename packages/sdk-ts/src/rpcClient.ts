@@ -1,3 +1,4 @@
+import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   ROOT_CONTEXT,
   context,
@@ -67,6 +68,8 @@ const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
   [StagehandMethods.pageGoForward.name, 15_000],
   [StagehandMethods.pageWaitForLoadState.name, 15_000],
   [StagehandMethods.pageWaitForSelector.name, 30_000],
+  [StagehandMethods.pagePDF.name, 30_000],
+  [StagehandMethods.pageSnapshot.name, 20_000],
   [StagehandMethods.pageWebMCPTools.name, 1_000],
 ]);
 const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
@@ -92,7 +95,6 @@ const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
   StagehandMethods.pageClose.name,
   StagehandMethods.pageEvaluate.name,
   StagehandMethods.pageScreenshot.name,
-  StagehandMethods.pageSnapshot.name,
   StagehandMethods.pageWebMCPInvocationResult.name,
 ]);
 
@@ -197,16 +199,23 @@ export class RPCClient {
           options.signal && timeoutController
             ? AbortSignal.any([options.signal, timeoutController.signal])
             : (options.signal ?? timeoutController?.signal);
-        const timeoutId =
-          timeoutController && responseTimeoutMs !== undefined
-            ? setTimeout(() => {
-                timeoutController.abort(
-                  new Error(`RPC response timed out: ${method.name}`, {
-                    cause: { method: method.name, timeoutMs: responseTimeoutMs },
-                  }),
-                );
-              }, responseTimeoutMs)
-            : undefined;
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        if (timeoutController && responseTimeoutMs !== undefined) {
+          const deadline = performance.now() + responseTimeoutMs;
+          const tick = () => {
+            const remaining = deadline - performance.now();
+            if (remaining > 0) {
+              timeoutId = setTimeout(tick, Math.min(2_147_483_647, Math.ceil(remaining)));
+            } else {
+              timeoutController.abort(
+                new Error(`RPC response timed out after ${responseTimeoutMs}ms: ${method.name}`, {
+                  cause: { method: method.name, timeoutMs: responseTimeoutMs },
+                }),
+              );
+            }
+          };
+          tick();
+        }
 
         try {
           const response = this.waitForResponse(request.id, method, signal);
@@ -424,7 +433,11 @@ export class RPCClient {
     pending.removeAbortListener?.();
 
     if ("error" in response) {
-      pending.reject(new Error(response.error.message, { cause: response.error }));
+      const error = new Error(response.error.message, { cause: response.error });
+      if (recordProperty(response.error.data, "name") === "TimeoutError") {
+        error.name = "TimeoutError";
+      }
+      pending.reject(error);
       return;
     }
 
@@ -510,6 +523,12 @@ function asError(error: unknown): Error {
 }
 
 export function rpcResponseTimeoutMs(method: string, params: unknown): number | undefined {
+  if (method.startsWith("locator.")) {
+    const timeout =
+      numericProperty(recordProperty(params, "options"), "timeout") ?? DEFAULT_LOCATOR_TIMEOUT_MS;
+    return timeout === 0 ? undefined : timeout + RPC_RESPONSE_GRACE_MS;
+  }
+
   let operationTimeoutMs: number | undefined;
   switch (method) {
     case StagehandMethods.stagehandAct.name:
@@ -521,6 +540,8 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.pageGoBack.name:
     case StagehandMethods.pageGoForward.name:
     case StagehandMethods.pageScreenshot.name:
+    case StagehandMethods.pagePDF.name:
+    case StagehandMethods.pageSnapshot.name:
     case StagehandMethods.pageWaitForSelector.name:
     case StagehandMethods.pageWebMCPTools.name:
     case StagehandMethods.pageWebMCPInvocationResult.name:
@@ -535,6 +556,11 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
   }
 
   if (operationTimeoutMs !== undefined) {
+    if (
+      (method === StagehandMethods.pagePDF.name || method === StagehandMethods.pageSnapshot.name) &&
+      operationTimeoutMs === 0
+    )
+      return undefined;
     return RPC_RESPONSE_GRACE_MS + Math.max(0, operationTimeoutMs);
   }
 
@@ -545,7 +571,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
 
   // These operations had no v3 deadline. Keep the server as the owner of their
   // lifetime instead of turning the transport grace period into a 10s ceiling.
-  if (UNBOUNDED_BY_DEFAULT_METHODS.has(method) || method.startsWith("locator.")) {
+  if (UNBOUNDED_BY_DEFAULT_METHODS.has(method)) {
     return undefined;
   }
 
