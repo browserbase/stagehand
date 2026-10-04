@@ -12,32 +12,32 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-export type JevQuestion =
+export type DecisionQuestion =
   | { type: "choice"; instructions: JsonValue; criteria: Record<string, JsonValue> }
   | { type: "noul"; instructions: JsonValue; criteria?: { true: JsonValue; false: JsonValue } };
 
-export type JevChoiceAnswer = {
+export type DecisionChoiceAnswer = {
   type: "choice";
   choice: string;
   probabilities: Record<string, number>;
   confidence: number;
 };
 
-export type JevNoulAnswer = { type: "noul"; noul: number };
+export type DecisionNoulAnswer = { type: "noul"; noul: number };
 
-export type JevAnswer = JevChoiceAnswer | JevNoulAnswer;
+export type DecisionAnswer = DecisionChoiceAnswer | DecisionNoulAnswer;
 
-export type JevConfig = { apiKey: string; model?: string; apiUrl?: string };
+export type DecisionModelConfig = { apiKey: string; model?: string; apiUrl?: string };
 
-export type JevResponse = {
+export type DecisionResponse = {
   model: string;
-  answers: Record<string, JevAnswer>;
+  answers: Record<string, DecisionAnswer>;
   usage: { inputTokens: number; outputTokens: number };
   durationMs: number;
 };
 
-export const JEV_DEFAULT_API_URL = "https://api.typesafe.ai";
-export const JEV_DEFAULT_MODEL = "jev-latest";
+export const TYPESAFE_DEFAULT_API_URL = "https://api.typesafe.ai";
+export const TYPESAFE_DEFAULT_MODEL = "jev-latest";
 
 const RETRY_STATUSES = new Set([429, 529]);
 const MAX_ATTEMPTS = 3;
@@ -49,39 +49,39 @@ const FAILURES_TO_OPEN = 3;
 const OUTAGE_BREAKER_MS = 30_000;
 
 // A bad key, exhausted quota, or a TypeSafe outage fails every act the same
-// way; skip Jev for a while instead of paying a doomed (up to 8 s) round trip
+// way; skip the decision model for a while instead of paying a doomed (up to 8 s) round trip
 // before each LLM fallback. Keyed by endpoint + key so one tenant's bad key
 // does not pause another's in a shared worker.
 const breakers = new Map<string, { openUntil: number; failures: number }>();
 
-function breakerFor(config: JevConfig) {
-  const key = `${config.apiUrl ?? JEV_DEFAULT_API_URL}\u0000${config.apiKey}`;
+function breakerFor(config: DecisionModelConfig) {
+  const key = `${config.apiUrl ?? TYPESAFE_DEFAULT_API_URL}\u0000${config.apiKey}`;
   let breaker = breakers.get(key);
   if (!breaker) breakers.set(key, (breaker = { openUntil: 0, failures: 0 }));
   return breaker;
 }
 
-export class JevRequestError extends Error {
+export class DecisionRequestError extends Error {
   constructor(
     message: string,
     readonly status?: number,
   ) {
     super(message);
-    this.name = "JevRequestError";
+    this.name = "DecisionRequestError";
   }
 }
 
 export async function systemOne(
-  config: JevConfig,
+  config: DecisionModelConfig,
   state: JsonValue,
-  questions: Record<string, JevQuestion>,
-): Promise<JevResponse> {
-  const url = `${(config.apiUrl ?? JEV_DEFAULT_API_URL).replace(/\/+$/, "")}/v1/systemone`;
-  const body = JSON.stringify({ state, model: config.model ?? JEV_DEFAULT_MODEL, questions });
+  questions: Record<string, DecisionQuestion>,
+): Promise<DecisionResponse> {
+  const url = `${(config.apiUrl ?? TYPESAFE_DEFAULT_API_URL).replace(/\/+$/, "")}/v1/systemone`;
+  const body = JSON.stringify({ state, model: config.model ?? TYPESAFE_DEFAULT_MODEL, questions });
   const startedAt = Date.now();
   const breaker = breakerFor(config);
   if (startedAt < breaker.openUntil) {
-    throw new JevRequestError("TypeSafe requests are paused after repeated failures");
+    throw new DecisionRequestError("TypeSafe requests are paused after repeated failures");
   }
   const failed = () => {
     if (++breaker.failures >= FAILURES_TO_OPEN) {
@@ -105,7 +105,7 @@ export async function systemOne(
     } catch (error) {
       failed();
       const cause = error instanceof Error ? error.name : "network";
-      throw new JevRequestError(
+      throw new DecisionRequestError(
         cause === "TimeoutError"
           ? `TypeSafe systemone request timed out after ${REQUEST_TIMEOUT_MS} ms`
           : `TypeSafe systemone request failed (${cause})`,
@@ -119,7 +119,7 @@ export async function systemOne(
       const payload = (await response.json().catch(() => undefined)) as
         | {
             model?: string;
-            answers?: Record<string, JevAnswer>;
+            answers?: Record<string, DecisionAnswer>;
             usage?: { input_tokens?: number; output_tokens?: number };
           }
         | undefined;
@@ -130,7 +130,7 @@ export async function systemOne(
         typeof payload.answers !== "object"
       ) {
         failed();
-        throw new JevRequestError(
+        throw new DecisionRequestError(
           "TypeSafe systemone response was not a systemone payload",
           response.status,
         );
@@ -166,25 +166,25 @@ export async function systemOne(
     const detail = (await response.text().catch(() => "")).match(
       /"error_type"\s*:\s*"([\w-]{1,64})"/,
     );
-    throw new JevRequestError(
+    throw new DecisionRequestError(
       `TypeSafe systemone request failed (${response.status}${detail ? `: ${detail[1]}` : ""})`,
       response.status,
     );
   }
 }
 
-export function choiceAnswer(response: JevResponse, key: string): JevChoiceAnswer {
+export function choiceAnswer(response: DecisionResponse, key: string): DecisionChoiceAnswer {
   const answer = response.answers[key];
   if (!answer || !("choice" in answer)) {
-    throw new JevRequestError(`TypeSafe response is missing choice answer "${key}"`);
+    throw new DecisionRequestError(`TypeSafe response is missing choice answer "${key}"`);
   }
   return answer;
 }
 
-export function noulAnswer(response: JevResponse, key: string): JevNoulAnswer {
+export function noulAnswer(response: DecisionResponse, key: string): DecisionNoulAnswer {
   const answer = response.answers[key];
   if (!answer || !("noul" in answer)) {
-    throw new JevRequestError(`TypeSafe response is missing noul answer "${key}"`);
+    throw new DecisionRequestError(`TypeSafe response is missing noul answer "${key}"`);
   }
   return answer;
 }

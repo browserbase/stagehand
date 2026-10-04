@@ -26,9 +26,13 @@ import { diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
-import { runJevActPipeline, type JevActConfig, type JevActOutcome } from "./jevAct/pipeline.js";
-import { redactor } from "./jevAct/args.js";
-import { focusOutline, parseOutline } from "./jevAct/tree.js";
+import {
+  runDecisionsAct,
+  type DecisionsConfig,
+  type DecisionsActOutcome,
+} from "./decisions/pipeline.js";
+import { redactor } from "./decisions/args.js";
+import { focusOutline, parseOutline } from "./decisions/tree.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
@@ -50,7 +54,7 @@ type ActContext = {
   domSettleTimeoutMs?: number;
   ensureTimeRemaining: () => void;
   gateway?: GatewayContext;
-  jevAct?: JevActConfig;
+  decisions?: DecisionsConfig;
   recordUsage: (response: ActInferenceResponse) => void;
 };
 
@@ -65,7 +69,7 @@ export async function act({
   domSettleTimeoutMs,
   cache,
   gateway,
-  jevAct,
+  decisions,
   openPageCount,
 }: {
   params: StagehandActParams;
@@ -78,7 +82,7 @@ export async function act({
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-  jevAct?: JevActConfig;
+  decisions?: DecisionsConfig;
   openPageCount?: () => number;
 }): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
@@ -99,7 +103,7 @@ export async function act({
     domSettleTimeoutMs,
     ensureTimeRemaining,
     gateway,
-    jevAct,
+    decisions,
     recordUsage,
   };
 
@@ -122,13 +126,13 @@ export async function act({
   };
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
-  let actPath: "llm" | "jev" | "jev+arg-llm" | "jev+llm" = "llm";
+  let actPath: "llm" | "decisions" | "decisions+arg-llm" | "decisions+llm" = "llm";
   let usedArgumentLlm = false;
-  // Jev's shortlist when it narrowed the choice but could not commit.
-  let jevFocusIds: string[] = [];
-  let jevNoCache = false;
-  // Actions Jev already performed before abstaining (e.g. expanding a dropdown).
-  let jevPriorActions: ActResultData["actions"] = [];
+  // The decision model's shortlist when it narrowed the choice but could not commit.
+  let decisionsFocusIds: string[] = [];
+  let decisionsNoCache = false;
+  // Actions the decision model already performed before abstaining (e.g. expanding a dropdown).
+  let decisionsPriorActions: ActResultData["actions"] = [];
 
   return await cacheService.withCache<ActResult>({
     method: "act",
@@ -143,17 +147,17 @@ export async function act({
       // performance.now(): tests script Date.now() for inference timing.
       const startedAt = performance.now();
       const result = await runActPipeline();
-      // Whatever Jev already did changed the page, whether or not the act
+      // Whatever the decision model already did changed the page, whether or not the act
       // then succeeded: it belongs in the result either way.
-      if (jevPriorActions.length > 0) {
-        result.data.actions = [...jevPriorActions, ...result.data.actions];
+      if (decisionsPriorActions.length > 0) {
+        result.data.actions = [...decisionsPriorActions, ...result.data.actions];
       }
-      // Experiment instrumentation: one line per act so baseline and Jev arms
+      // Experiment instrumentation: one line per act so baseline and decision-model arms
       // can be compared on latency and LLM usage from the run log alone. Only
       // with the experimental flag present: the instruction is user content.
-      if (jevAct)
+      if (decisions)
         logger.info("Act pipeline finished", {
-          category: "jev-eval",
+          category: "decisions-eval",
           instruction,
           path: actPath,
           success: result.data.success,
@@ -169,7 +173,7 @@ export async function act({
       return {
         result,
         cacheValue:
-          result.data.success && result.data.actions.length > 0 && !jevNoCache
+          result.data.success && result.data.actions.length > 0 && !decisionsNoCache
             ? result.data.actions
             : undefined,
         llmUsage: {
@@ -182,9 +186,9 @@ export async function act({
   });
 
   async function runActPipeline(): Promise<ActResult> {
-    if (jevAct && jevAct.enabled !== false) {
-      actPath = "jev";
-      const outcome = await runJevActPipeline(jevAct, {
+    if (decisions && decisions.enabled !== false) {
+      actPath = "decisions";
+      const outcome = await runDecisionsAct(decisions, {
         page,
         logger,
         instruction,
@@ -204,7 +208,7 @@ export async function act({
           usedArgumentLlm = true;
           return response.text;
         },
-        // Self-heal re-enters LLM inference; a failed Jev action falls back to
+        // Self-heal re-enters LLM inference; a failed decision-model action falls back to
         // the full LLM pipeline below instead.
         takeAction: (action) =>
           takeDeterministicAction({ action, variables, context: { ...context, selfHeal: false } }),
@@ -213,30 +217,30 @@ export async function act({
         const message = error instanceof Error ? error.message : String(error);
         return {
           kind: "fallback",
-          reason: `jev_error:${message}`,
-        } satisfies JevActOutcome as JevActOutcome;
+          reason: `decision_error:${message}`,
+        } satisfies DecisionsActOutcome as DecisionsActOutcome;
       });
       if (outcome.kind === "done") {
-        jevNoCache = outcome.noCache === true;
-        if (usedArgumentLlm) actPath = "jev+arg-llm";
+        decisionsNoCache = outcome.noCache === true;
+        if (usedArgumentLlm) actPath = "decisions+arg-llm";
         return actResult(outcome.result, operationUsage);
       }
-      actPath = "jev+llm";
-      jevPriorActions = outcome.priorActions ?? [];
-      if (outcome.noCache) jevNoCache = true;
-      jevFocusIds = jevAct.focusFallback ? (outcome.focusIds ?? []) : [];
-      logger.info("Jev act fell back to the LLM pipeline", {
-        category: "jev",
+      actPath = "decisions+llm";
+      decisionsPriorActions = outcome.priorActions ?? [];
+      if (outcome.noCache) decisionsNoCache = true;
+      decisionsFocusIds = decisions.focusFallback ? (outcome.focusIds ?? []) : [];
+      logger.info("Decisions act fell back to the LLM pipeline", {
+        category: "decisions",
         instruction,
         reason: outcome.reason,
       });
-      if (jevAct.llmFallback === false) {
-        actPath = "jev";
+      if (decisions.llmFallback === false) {
+        actPath = "decisions";
         return actResult(
           {
             success: false,
             // Reasons can carry error text; redact typed values and keep it short.
-            message: `Failed to perform act: Jev abstained (${(redactor(variables) ?? ((text: string) => text))(outcome.reason).slice(0, 160)})`,
+            message: `Failed to perform act: the decision model abstained (${(redactor(variables) ?? ((text: string) => text))(outcome.reason).slice(0, 160)})`,
             actionDescription: instruction,
             actions: [],
           },
@@ -253,12 +257,12 @@ export async function act({
       variables,
     );
 
-    // Jev shortlisted a handful of elements on a big page: show the LLM those
+    // The decision model shortlisted a handful of elements on a big page: show the LLM those
     // (with ancestors and subtrees) first, and only pay for the whole tree if
     // it finds nothing there.
     let firstInference: Awaited<ReturnType<typeof getActionFromLLM>> | undefined;
-    if (jevFocusIds.length > 0 && combinedTree.length > FOCUS_MIN_TREE_CHARS) {
-      const focused = focusOutline(parseOutline(combinedTree), jevFocusIds);
+    if (decisionsFocusIds.length > 0 && combinedTree.length > FOCUS_MIN_TREE_CHARS) {
+      const focused = focusOutline(parseOutline(combinedTree), decisionsFocusIds);
       if (focused.trim() && focused.length < combinedTree.length / 2) {
         ensureTimeRemaining();
         const attempt = await getActionFromLLM({
@@ -267,10 +271,10 @@ export async function act({
           xpathMap: combinedXpathMap,
           context,
         });
-        logger.info("Jev focused LLM fallback", {
-          category: "jev",
+        logger.info("the decision model focused LLM fallback", {
+          category: "decisions",
           instruction,
-          focusIds: jevFocusIds.length,
+          focusIds: decisionsFocusIds.length,
           focusedChars: focused.length,
           fullChars: combinedTree.length,
           found: Boolean(attempt.action),
