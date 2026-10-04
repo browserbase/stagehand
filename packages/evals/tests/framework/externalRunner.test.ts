@@ -21,9 +21,10 @@ const verifierState = vi.hoisted(() => ({
   result: undefined as Record<string, unknown> | undefined,
 }));
 
-vi.mock("stagehand-v3", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("stagehand-v3")>();
-  class FakeV3Evaluator {
+vi.mock("@browserbasehq/stagehand-evaluator", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@browserbasehq/stagehand-evaluator")>();
+  class FakeEvaluator {
+    async validate() {}
     async verify() {
       if (verifierState.result) return verifierState.result;
       throw new Error("fake verifier unavailable");
@@ -31,7 +32,7 @@ vi.mock("stagehand-v3", async (importOriginal) => {
   }
   return {
     ...mod,
-    V3Evaluator: FakeV3Evaluator as unknown as typeof mod.V3Evaluator,
+    Evaluator: FakeEvaluator as unknown as typeof mod.Evaluator,
   };
 });
 
