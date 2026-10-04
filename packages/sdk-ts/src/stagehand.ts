@@ -163,14 +163,7 @@ export class Stagehand {
     if (nativeFunctionSourcePattern.test(callbackSource)) {
       throw new TypeError("stagehand.experimentalBatch() callback must be serializable JavaScript");
     }
-    const clientTimeout =
-      options.clientTimeout ??
-      Math.min(timeout + CALLBACK_BATCH_CLIENT_GRACE_MS, MAX_TIMER_DELAY_MS);
-    if (!Number.isInteger(clientTimeout) || clientTimeout <= 0 || clientTimeout > 2_147_483_647) {
-      throw new RangeError(
-        "stagehand.experimentalBatch() clientTimeout must be an integer between 1 and 2147483647",
-      );
-    }
+    const clientTimeout = Math.min(timeout + CALLBACK_BATCH_CLIENT_GRACE_MS, MAX_TIMER_DELAY_MS);
 
     let result: CallbackBatchResult;
     try {

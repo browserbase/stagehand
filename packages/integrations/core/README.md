@@ -41,11 +41,10 @@ follow-up; the configured remote session expiry remains the fallback.
 ## Deadlines and disconnect diagnostics
 
 Facade `run` has a 60-second executor deadline and a 75-second client deadline.
-The SDK's `experimentalBatch` option `clientTimeout` controls the entire round
-trip: by default it is the executor `timeout` plus 15000 ms, capped at 2147483647 ms.
-An explicit value must be an integer from `1` through `2147483647`. A client
-deadline raises `StagehandBatchTimeoutError`; it does not cancel or replay the
-callback. Executor-reported timeouts are ordinary tool errors.
+The SDK bounds the entire `experimentalBatch` round trip at the executor `timeout`
+plus 15000 ms, capped at 2147483647 ms. A client deadline raises
+`StagehandBatchTimeoutError`; it does not cancel or replay the callback.
+Executor-reported timeouts are ordinary tool errors.
 
 Snapshot and screenshot captures have a 120-second local deadline. The first two
 consecutive capture deadlines return tool errors; the third latches terminal loss.
