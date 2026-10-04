@@ -3,7 +3,7 @@ title: "OpenCode"
 description: "Give an OpenCode v2 session persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The OpenCode integration embeds an OpenCode v2 host through the `@opencode/sdk` package installed in this repository's `node_modules`. It mounts the Stagehand facade as one MCP/stdio server. One OpenCode session and one facade process own the browser across `run`, `snapshot`, and `screenshot` calls. The host is in-process ([OpenCode SDK](https://opencode.ai/v2/docs/build/sdk)); it does not open an HTTP listener or require `opencode` on `PATH`.
+The OpenCode integration uses `@opencode/sdk` and mounts the Stagehand facade as one MCP/stdio server. One OpenCode session and one facade process own the browser across `run`, `snapshot`, and `screenshot` calls.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
@@ -13,11 +13,8 @@ Stagehand ships this experimental integration from the repository rather than pu
 
 - Node.js 24 or newer
 - pnpm 11.10.0
-- Repository dependencies installed with `pnpm install` (this pulls `@opencode/sdk` from the workspace catalog into `node_modules`; evals and the example embed that package and do not spawn a global `opencode` CLI)
 - An OpenCode provider login or supported provider API key
 - A current Google Chrome installation for local browser mode
-
-The interactive CLI workflow is optional and separate. Install an [OpenCode v2 CLI](https://opencode.ai/v2/docs) only if you want to drive the project `opencode.json` from a terminal instead of the SDK example.
 
 ## Quickstart
 
@@ -32,13 +29,13 @@ pnpm exec turbo run build \
 ```
   </Step>
   <Step title="Authenticate OpenCode">
-The SDK example uses provider credentials from the environment, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. Set `OPENCODE_MODEL` to a `provider/model` value only when you want to override OpenCode's default. You do not need `opencode auth login` for this path.
-
-The optional CLI workflow can use OpenCode v2's provider login:
+The SDK example uses provider credentials from the environment:
 
 ```bash
-opencode auth login
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
 ```
+
+Set `OPENCODE_MODEL` to a `provider/model` value only when you want to override OpenCode's default.
   </Step>
   <Step title="Choose the browser">
 The example defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise it uses local Chrome:
@@ -70,15 +67,15 @@ pnpm --dir packages/integrations/opencode start -- \
 
 ## SDK and session lifecycle
 
-The example uses `@opencode/sdk` from `node_modules` in an isolated child process. That child gets a private `HOME`/`XDG_CONFIG_HOME` so it does not load `~/.config/opencode` or a globally installed CLI profile ([config search order](https://opencode.ai/v2/docs/config)). It creates one session, sends one prompt, waits for completion, reads the full message timeline, deletes the session, and closes the host. The Stagehand facade MCP server stays alive for the full prompt, preserving page state and snapshot IDs. MCP image blocks remain in OpenCode's tool loop, so `screenshot` stays multimodal.
+The example creates an isolated temporary workspace and config directory so the host does not pick up ambient OpenCode settings. It creates one session, sends one prompt, waits for completion, reads the full message timeline, deletes the session, and closes the host. The Stagehand facade MCP server stays alive for the full prompt, preserving page state and snapshot IDs. MCP image blocks remain in OpenCode's tool loop, so `screenshot` stays multimodal.
 
-The embedded host uses temporary config and workspace directories. Its config supplies one direct `stagehand` MCP server and denies permission to all other tools. The MCP server launches through a wrapper that forwards only the Stagehand and Browserbase variables selected for the browser process.
+The embedded host's config supplies one direct `stagehand` MCP server and denies permission to all other tools. The MCP server launches through a wrapper that forwards only the Stagehand and Browserbase variables selected for the browser process.
 
 The facade child receives only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables, plus basic process variables needed to start it. Provider credentials remain in the OpenCode host.
 
 ## Connect a running OpenCode CLI
 
-The package ships a project-scoped v2 `opencode.json` that mounts the Stagehand facade as a direct MCP server and allows only its three tools. Install the v2 CLI separately. Its command path is relative to the package, so start the CLI from that directory:
+The package ships a project-scoped v2 `opencode.json` that mounts the Stagehand facade as a direct MCP server and allows only its three tools. The command path is relative to the package, so start the CLI from that directory:
 
 ```bash
 cd packages/integrations/opencode

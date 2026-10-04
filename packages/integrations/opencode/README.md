@@ -1,7 +1,7 @@
 # OpenCode SDK + Stagehand facade over MCP/stdio
 
-A runnable example that embeds OpenCode v2 through `@opencode/sdk` in an isolated child process
-and mounts the Stagehand facade (`run` / `snapshot` / `screenshot`) as its only permitted MCP server.
+A runnable example using `@opencode/sdk` with the Stagehand facade
+(`run` / `snapshot` / `screenshot`) mounted as the session's only MCP server.
 
 ## Setup
 
@@ -13,11 +13,8 @@ pnpm install
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations-opencode-sdk
 ```
 
-Export a supported provider API key for the SDK example. The example embeds
-[`@opencode/sdk`](https://opencode.ai/v2/docs/build/sdk) from this workspace's `node_modules`;
-it does not spawn a globally installed `opencode` binary. Install the
-[OpenCode v2 CLI](https://opencode.ai/v2/docs) separately only for the optional interactive workflow. Configure
-Browserbase when you do not want to use local Chrome:
+Export a supported provider API key. Browserbase is the recommended browser backend for untrusted
+tasks:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
@@ -42,15 +39,15 @@ pnpm --dir packages/integrations/opencode start -- \
 | `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods called inside `run`.                                 |
 | `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`.                                                       |
 
-The SDK host runs `@opencode/sdk` with an isolated config directory and private `HOME`, exactly one
-direct Stagehand MCP server, and all non-Stagehand tools denied. The facade launches through a
-wrapper that forwards only `STAGEHAND_*` and `BROWSERBASE_*` variables plus basic process variables.
-MCP image results stay inside OpenCode's tool loop, so `screenshot` remains multimodal.
+The SDK host uses an isolated config directory, exactly one direct Stagehand MCP server, and all
+non-Stagehand tools denied. The facade launches through a wrapper that forwards only `STAGEHAND_*`
+and `BROWSERBASE_*` variables plus basic process variables. MCP image results stay inside
+OpenCode's tool loop, so `screenshot` remains multimodal.
 
 ## Connecting a running OpenCode CLI instead
 
 To use the facade from the interactive `opencode` CLI rather than the SDK, the project-scoped
-`opencode.json` in this directory is all that's needed after installing the v2 CLI. It allows only the three Stagehand tools
+`opencode.json` in this directory is all that's needed. It allows only the three Stagehand tools
 and inherits your shell environment, including the Stagehand and Browserbase exports above.
 Unlike the isolated SDK example, OpenCode also passes provider credentials that you export in
 that shell to the facade process. If JavaScript passed to `run` uses `act`, `extract`, or

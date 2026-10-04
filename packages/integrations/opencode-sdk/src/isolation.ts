@@ -1,8 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-/** Operator OpenCode paths that would load a global CLI profile or extra plugins. */
-const OPERATOR_OPENCODE_PATH_KEYS = new Set([
+const OPENCODE_DIRECTORY_ENV = new Set([
   "OPENCODE_CONFIG",
   "OPENCODE_CONFIG_CONTENT",
   "OPENCODE_CONFIG_DIR",
@@ -12,12 +11,7 @@ const OPERATOR_OPENCODE_PATH_KEYS = new Set([
   "OPENCODE_STATE_DIR",
 ]);
 
-/**
- * Run the embedded `@opencode/sdk` host without inheriting the operator's
- * OpenCode CLI config. v2 still walks from cwd to `/` and `~/.config/opencode`
- * (https://opencode.ai/v2/docs/config); a private HOME/XDG plus config dir
- * keeps that search inside the eval workspace. Provider API keys stay.
- */
+/** Private HOME/XDG and config dir so the host does not inherit ambient OpenCode settings. */
 export async function isolatedOpenCodeEnv(
   configRoot: string,
   source: NodeJS.ProcessEnv = process.env,
@@ -26,7 +20,7 @@ export async function isolatedOpenCodeEnv(
   await mkdir(join(home, ".config"), { recursive: true, mode: 0o700 });
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(source)) {
-    if (!value || OPERATOR_OPENCODE_PATH_KEYS.has(key)) continue;
+    if (!value || OPENCODE_DIRECTORY_ENV.has(key)) continue;
     env[key] = value;
   }
   return {
