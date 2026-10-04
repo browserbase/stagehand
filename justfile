@@ -49,6 +49,17 @@ example name="act":
     pnpm --filter ./packages/sdk-ts build
     pnpm exec tsx "packages/sdk-ts/examples/{{name}}.ts"
 
+showcase slug *args:
+    pnpm --filter ./packages/extension build
+    pnpm --filter ./packages/sdk-ts build
+    pnpm --filter ./packages/integrations/core build
+    pnpm exec tsx packages/examples/_harness/run.ts {{slug}} {{args}}
+
+cookbook slug:
+    pnpm --filter ./packages/extension build
+    pnpm --filter ./packages/sdk-ts build
+    pnpm exec tsx packages/examples/{{slug}}/index.ts
+
 go-example name="act":
     go -C {{go_dir}} run "./examples/{{name}}"
 
@@ -88,6 +99,7 @@ _preview commit:
 
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
+    pnpm --filter @browserbasehq/eve build
     pnpm exec tsx scripts/release/scoped-release.ts publish sdk
 
 # Publishes a commit-addressed alpha of the TypeScript SDK (`<next>-alpha-<sha>`)

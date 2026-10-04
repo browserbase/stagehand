@@ -9,6 +9,7 @@ import {
 } from "../src/facade/contract.js";
 import {
   StagehandFacadeSessionLostError,
+  StagehandFacadeCleanupError,
   StagehandFacadeTools,
   type StagehandFacadeRunReport,
 } from "../src/facade/tools.js";
@@ -261,9 +262,10 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     const { stagehand } = createFakeStagehand(createFakePage());
     vi.mocked(stagehand.close).mockRejectedValue(new Error("apiKey=private-key"));
     const tools = new StagehandFacadeTools(stagehand);
-    await expect(tools.run(`await browser.close();`)).rejects.toThrow(
-      "Failed to close the Stagehand facade browser.",
-    );
+    const error = await tools.run(`await browser.close();`).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(StagehandFacadeCleanupError);
+    expect((error as Error).cause).toBeUndefined();
+    expect(String(error)).not.toContain("private-key");
     expect(stagehand.browser.close).toHaveBeenCalledOnce();
     await expect(tools.run("return 1")).rejects.toThrow("browser is closed");
   });
@@ -276,6 +278,26 @@ describe("StagehandFacadeTools.run (Playwright batch surface)", () => {
     ).rejects.toThrow("agent failure");
     expect(stagehand.browser.close).toHaveBeenCalledOnce();
   });
+
+  it.each([false, true])(
+    "sanitizes default browser cleanup errors (execution failure: %s)",
+    async (executionFails) => {
+      const { stagehand } = createFakeStagehand(createFakePage());
+      vi.mocked(stagehand.browser.close).mockRejectedValue(new Error("provider-private-detail"));
+      const tools = new StagehandFacadeTools(stagehand);
+      const code = `await browser.close(); ${executionFails ? 'throw new Error("agent failure");' : ""}`;
+      const error = await tools.run(code).catch((error: unknown) => error);
+      const cleanupError = error instanceof AggregateError ? error.errors[1] : error;
+
+      expect(cleanupError).toBeInstanceOf(StagehandFacadeCleanupError);
+      expect(cleanupError.cause).toBeUndefined();
+      expect(String(cleanupError)).not.toContain("provider-private-detail");
+      if (executionFails) {
+        expect(error).toBeInstanceOf(AggregateError);
+        expect((error as AggregateError).errors[0]).toMatchObject({ message: "agent failure" });
+      }
+    },
+  );
 
   it("confines artifacts across traversal, absolute paths, and symlinks", async () => {
     const root = await fsp.mkdtemp(path.join(os.tmpdir(), "facade-paths-"));
@@ -447,9 +469,9 @@ describe("StagehandFacadeTools session loss", () => {
   });
 
   function batchTimeoutError() {
-    const error = new Error("stagehand.experimentalBatch() received no response within 75000ms");
+    const error = new Error("stagehand.experimentalBatch() received no response within 70000ms");
     error.name = "StagehandBatchTimeoutError";
-    Object.assign(error, { timeout: 60_000, clientTimeout: 75_000 });
+    Object.assign(error, { timeout: 60_000, clientTimeout: 70_000 });
     return error;
   }
 
@@ -465,10 +487,10 @@ describe("StagehandFacadeTools session loss", () => {
     const first = tools.run("await page.getByRole('button', { name: 'Search now' }).click();");
     await expect(first).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
     await expect(first).rejects.toThrow(
-      "Browser session lost (batch received no response within 75000ms). The task cannot continue; report your final result now.",
+      "Browser session lost (batch received no response within 70000ms). The task cannot continue; report your final result now.",
     );
     expect(losses).toEqual([
-      { cause: "batch received no response within 75000ms", tool: "run", at: expect.any(String) },
+      { cause: "batch received no response within 70000ms", tool: "run", at: expect.any(String) },
     ]);
     expect(tools.sessionLoss).toBe(losses[0]);
 
@@ -762,7 +784,7 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     const clicked = world.locators.find((l) => l.selector.endsWith("button.background"));
     expect(clicked?.click).toHaveBeenCalledTimes(1);
     const filled = world.locators.find((l) => l.selector.includes("placeholder"));
-    expect(filled?.fill).toHaveBeenCalledWith("frog");
+    expect(filled?.fill).toHaveBeenCalledWith("frog", { timeout: expect.any(Number) });
   });
 
   it("chains nested frameLocator hops and descendant selectors", async () => {
@@ -942,12 +964,29 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     world.clickErrors["#editor >> .hidden"] = new Error(
       "-32000 Node does not have a layout object",
     );
-    const { tools } = setup(world);
-    const result = tools.run(
-      `await page.frameLocator("#editor").locator(".hidden").click({ timeout: 300 });`,
-    );
-    await expect(result).rejects.toThrow(/not rendered \(no layout box/u);
-    await expect(result).rejects.not.toThrow(/-32000|Original:/u);
+    const { page, tools } = setup(world);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(0);
+    try {
+      const raw = page.locator("#editor >> .hidden");
+      page.locator.mockReturnValue(raw);
+      page.waitForTimeout.mockImplementation(async () => {
+        vi.setSystemTime(250);
+      });
+      raw.count.mockResolvedValueOnce(1).mockImplementation(async () => {
+        // The retry finds the element just as the remaining budget expires.
+        vi.setSystemTime(300);
+        return 1;
+      });
+      const result = tools.run(
+        `await page.frameLocator("#editor").locator(".hidden").click({ timeout: 300 });`,
+      );
+      await expect(result).rejects.toThrow(/not rendered \(no layout box/u);
+      await expect(result).rejects.not.toThrow(/-32000|Original:/u);
+      expect(raw.click).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rejects operations that cannot cross the frame boundary with guidance", async () => {
@@ -968,5 +1007,64 @@ describe("StagehandFacadeTools.run frameLocator", () => {
     await expect(tools.run(`page.frameLocator("#editor").nth(2);`)).rejects.toThrow(
       /nth is not supported inside frameLocator/u,
     );
+  });
+});
+
+describe("host-owned facade cleanup", () => {
+  it("awaits the host once and leaves browser ownership with it", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    let finishCleanup!: () => void;
+    const cleanup = new Promise<void>((resolve) => {
+      finishCleanup = resolve;
+    });
+    const onCloseRequested = vi.fn(() => cleanup);
+    const tools = new StagehandFacadeTools(stagehand, { onCloseRequested });
+    let finished = false;
+    const run = tools.run('await browser.close(); return "closed";').then((result) => {
+      finished = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(onCloseRequested).toHaveBeenCalledOnce());
+    expect(finished).toBe(false);
+    expect(stagehand.close).not.toHaveBeenCalled();
+    expect(stagehand.browser.close).not.toHaveBeenCalled();
+    finishCleanup();
+    await expect(run).resolves.toBe("closed");
+    await tools.close();
+    expect(onCloseRequested).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the model error and a sanitized cleanup failure", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand, {
+      onCloseRequested: async () => {
+        throw new Error("release bb_live_1234secret failed");
+      },
+    });
+    const error = await tools
+      .run('await browser.close(); throw new TypeError("model sk-123456secret failed");')
+      .catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(AggregateError);
+    if (!(error instanceof AggregateError)) throw new Error("Expected aggregate failure");
+    expect(error.errors[0]).toMatchObject({
+      name: "TypeError",
+      message: "model sk-123456[redacted] failed",
+      facadeExecutionError: true,
+      stack: undefined,
+    });
+    expect(error.errors[1]).toBeInstanceOf(StagehandFacadeCleanupError);
+    expect(error.errors.map(String).join(" ")).not.toContain("secret");
+  });
+
+  it("sanitizes a model-authored error name without treating it as session loss", async () => {
+    const { stagehand } = createFakeStagehand(createFakePage());
+    const tools = new StagehandFacadeTools(stagehand);
+    const error = await tools
+      .run(
+        'const error = new Error("model failure"); error.name = "Bearer abcdefghijkl"; throw error;',
+      )
+      .catch((error: unknown) => error);
+    expect(error).toMatchObject({ name: "Error", facadeExecutionError: true, stack: undefined });
+    expect(stagehand.browser.close).not.toHaveBeenCalled();
   });
 });
