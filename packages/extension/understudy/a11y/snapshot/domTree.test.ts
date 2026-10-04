@@ -1,9 +1,48 @@
 import type { Protocol } from "devtools-protocol";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../../cdp.js";
+import { Progress } from "../../progress.js";
 import { buildSessionDomIndex, getDomTreeWithFallback, hydrateDomTree } from "./domTree.js";
 
 describe("DOM tree adaptive retries", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(["DOM.getDocument", "DOM.describeNode"])(
+    "stops waiting for %s and ignores its late retryable error",
+    async (command) => {
+      vi.useFakeTimers();
+      const progress = new Progress("snapshot", 10);
+      let reject!: (error: Error) => void;
+      const pending = new Promise<never>((_, fail) => {
+        reject = fail;
+      });
+      const send = vi.fn(() => pending);
+      const session = { send } as unknown as CDPSessionLike;
+      const read =
+        command === "DOM.getDocument"
+          ? getDomTreeWithFallback(session, true, progress)
+          : hydrateDomTree(
+              session,
+              { nodeId: 1, childNodeCount: 1 } as Protocol.DOM.Node,
+              true,
+              progress,
+            );
+      const timedOut = expect(read).rejects.toThrow(/snapshot timed out/);
+      try {
+        await vi.advanceTimersByTimeAsync(10);
+        await timedOut;
+        reject(new Error("CBOR: stack limit exceeded"));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(send).toHaveBeenCalledOnce();
+      } finally {
+        reject(new Error("test cleanup"));
+        progress.dispose();
+      }
+    },
+  );
+
   it("throws the last original DOM.getDocument retry error", async () => {
     const errors = Array.from(
       { length: 10 },

@@ -268,7 +268,7 @@ Request structs contain a `.SetExtraFields(map[string]any)` method which can sen
 fields in the request body. Extra fields overwrite any struct fields with a matching
 key. For security reasons, only use `SetExtraFields` with trusted data.
 
-To send a custom value instead of a struct, use `param.Override[T](https://github.com/browserbase/stagehand-go/blob/main/value)`.
+To send a custom value instead of a struct, use `param.Override[T](value)`.
 
 ```go
 // In cases where the API specifies a given type,
@@ -278,7 +278,7 @@ p.SetExtraFields(map[string]any{
 })
 
 // Send a number instead of an object
-custom := param.Override[stagehand.FooParams](https://github.com/browserbase/stagehand-go/blob/main/12)
+custom := param.Override[stagehand.FooParams](12)
 ```
 
 ### Request unions

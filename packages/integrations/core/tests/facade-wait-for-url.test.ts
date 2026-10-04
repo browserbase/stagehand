@@ -3,7 +3,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPlaywrightCompatRuntime } from "../src/facade/runtime.js";
 
-const playwrightRequire = createRequire(import.meta.url);
+const playwrightRequire = createRequire(
+  createRequire(import.meta.url).resolve("playwright/package.json"),
+);
 const playwrightCore = path.dirname(playwrightRequire.resolve("playwright-core/package.json"));
 const { urlMatches } = playwrightRequire(
   path.join(playwrightCore, "lib/utils/isomorphic/urlMatch.js"),

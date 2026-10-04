@@ -14,6 +14,7 @@ from pydantic import JsonValue, TypeAdapter
 from ._generated.input_types import (
     PageDragAndDropRoutePoint,
     PageEventName,
+    PagePDFMargin,
     PageScreenshotClip,
     PageSubscriptionEventName,
 )
@@ -44,6 +45,9 @@ from ._generated.models import (
     PageNavigationResult,
     PageOffParams,
     PageOnParams,
+    PagePDFOptions,
+    PagePDFParams,
+    PagePDFResult,
     PageRef,
     PageReloadOptions,
     PageReloadParams,
@@ -613,10 +617,65 @@ class Page:
             Path(path).write_bytes(data)
         return data
 
-    async def snapshot(self, *, include_iframes: bool | None = None) -> SnapshotResult:
+    async def pdf(
+        self,
+        *,
+        landscape: bool | None = None,
+        display_header_footer: bool | None = None,
+        print_background: bool | None = None,
+        scale: float | None = None,
+        width: float | None = None,
+        height: float | None = None,
+        margin: PagePDFMargin | None = None,
+        page_ranges: str | None = None,
+        header_template: str | None = None,
+        footer_template: str | None = None,
+        prefer_css_page_size: bool | None = None,
+        tagged: bool | None = None,
+        outline: bool | None = None,
+        timeout: float | None = None,
+        path: str | Path | None = None,
+    ) -> bytes:
+        params = PagePDFParams(page_id=self.page_id)
+        options = PagePDFOptions.model_validate({
+            name: value
+            for name, value in (
+                ("landscape", landscape),
+                ("display_header_footer", display_header_footer),
+                ("print_background", print_background),
+                ("scale", scale),
+                ("width", width),
+                ("height", height),
+                ("margin", margin),
+                ("page_ranges", page_ranges),
+                ("header_template", header_template),
+                ("footer_template", footer_template),
+                ("prefer_css_page_size", prefer_css_page_size),
+                ("tagged", tagged),
+                ("outline", outline),
+                ("timeout", timeout),
+            )
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        result = await self._rpc_client.send("page.pdf", params, PagePDFResult)
+        data = base64.b64decode(result.data, validate=True)
+        if path is not None:
+            Path(path).write_bytes(data)
+        return data
+
+    async def snapshot(
+        self, *, include_iframes: bool | None = None, timeout: float | None = None
+    ) -> SnapshotResult:
         params = PageSnapshotParams(page_id=self.page_id)
-        if include_iframes is not None:
-            params.options = PageSnapshotOptions(include_iframes=include_iframes)
+        options = PageSnapshotOptions.model_validate({
+            key: value
+            for key, value in {"include_iframes": include_iframes, "timeout": timeout}.items()
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:

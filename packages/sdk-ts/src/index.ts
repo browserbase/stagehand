@@ -12,6 +12,7 @@ export {
 } from "./browserClipboard.js";
 export {
   Locator,
+  type LocatorOptions,
   type LocatorClickOptions,
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,
@@ -28,6 +29,7 @@ export {
   type ToolsRemovedListener,
   type PageKeyPressOptions,
   type PageReloadOptions,
+  type PDFOptions,
   type PageSetViewportSizeOptions,
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
@@ -90,6 +92,8 @@ export type {
   PageDragAndDropRoutePoint,
   PageEventName,
   PageNavigationOptions,
+  PagePDFMargin,
+  PagePDFOptions,
   PageScreenshotClip,
   PageSnapshotOptions,
   RgbaColor,
