@@ -22,8 +22,8 @@ describe("claude code tool adapter resolution", () => {
     delete process.env.EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL;
   });
 
-  it("defaults Claude Code to browse_cli", () => {
-    expect(resolveToolSurface(claudeCodeHarness)).toBe("browse_cli");
+  it("defaults Claude Code to the shared facade", () => {
+    expect(resolveToolSurface(claudeCodeHarness)).toBe("stagehand_facade");
   });
 
   it("defaults browse_cli startup by environment", () => {
@@ -68,7 +68,7 @@ describe("claude code tool adapter resolution", () => {
   });
 
   it("supports browse_cli and the code surfaces on Codex", () => {
-    expect(resolveToolSurface(codexHarness)).toBe("browse_cli");
+    expect(resolveToolSurface(codexHarness)).toBe("stagehand_facade");
     expect(resolveToolSurface(codexHarness, "browse_cli")).toBe("browse_cli");
     expect(resolveToolSurface(codexHarness, "stagehand_code")).toBe("stagehand_code");
     expect(resolveToolSurface(codexHarness, "playwright_code")).toBe("playwright_code");
