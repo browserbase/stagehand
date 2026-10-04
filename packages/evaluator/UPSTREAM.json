@@ -1,0 +1,75 @@
+{
+  "package": "@browserbasehq/stagehand",
+  "version": "3.7.1",
+  "source": "installed npm package source maps",
+  "files": {
+    "errorTaxonomy.ts": {
+      "originalSource": "../../../../../lib/v3/verifier/errorTaxonomy.ts",
+      "sha256": "cfe0e92d8a99d2d2e75e74e0294d613d757e22c9d53845b7d034bc15704b3a2e"
+    },
+    "evidence.ts": {
+      "originalSource": "../../../../../lib/v3/verifier/evidence.ts",
+      "sha256": "e51d5eb488b5d82dd62f9dc1b9a24cd7255fbb7c7c6863195671914bf6c5313b"
+    },
+    "evidenceNormalization.ts": {
+      "originalSource": "../../../../../lib/v3/verifier/evidenceNormalization.ts",
+      "sha256": "a6d1f311972802575a61dfde0e3fb44747c466b4b6c3c6f2b08111533d27d6b6"
+    },
+    "index.ts": {
+      "originalSource": "../../../../../lib/v3/verifier/index.ts",
+      "sha256": "1592cd265f2702a9de968a1a88735bf9f637f5aa0979043669a68061b02610cd"
+    },
+    "prompts/batchedRelevance.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/batchedRelevance.ts",
+      "sha256": "9de0fe3eec37685c8dff6df01db03430aa720b89b6993c7f62556fb9780a108e"
+    },
+    "prompts/firstPointOfFailure.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/firstPointOfFailure.ts",
+      "sha256": "306dc79fff353be80be8def5d0748f314dd455b3526101e6f9a58e7d53b57c1e"
+    },
+    "prompts/fusedJudgment.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/fusedJudgment.ts",
+      "sha256": "230ec89eeee101fb744242cdbdbe4fd4ad75cb8b4d0c6309f296b7fed4c6d552"
+    },
+    "prompts/fusedOutcome.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/fusedOutcome.ts",
+      "sha256": "8247dc3952e88a0810c29233ac26dbc97d0c560f1598be1fb7c91d51fc510ffd"
+    },
+    "prompts/index.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/index.ts",
+      "sha256": "9ffe9b2e541ecaa6e8bf892e987800898845bb32869a1fe35d69a4d4fc42fb0c"
+    },
+    "prompts/perCriterionScore.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/perCriterionScore.ts",
+      "sha256": "995f4c36a8c8ee483188d7b095bb91e731cf65c36e67a317f17c4ad478066714"
+    },
+    "prompts/render.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/render.ts",
+      "sha256": "6e005c4e68cf3e795e7071097a696ee833b75dbcc118e3e606a856c16bb50946"
+    },
+    "prompts/rubricGeneration.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/rubricGeneration.ts",
+      "sha256": "499d7a506c92fa40396a772d44d448a25cf8331bf4e248a07aa7ef74ace817de"
+    },
+    "prompts/taskValidity.ts": {
+      "originalSource": "../../../../../../lib/v3/verifier/prompts/taskValidity.ts",
+      "sha256": "ce393ec017ff3631cd54f37db8d3931fe7ff65b33af8041c1fa018d69ee76591"
+    },
+    "rubricVerifier.ts": {
+      "originalSource": "../../../../../lib/v3/verifier/rubricVerifier.ts",
+      "sha256": "98af5072337622054c55a03ea2ae678ecf5623ca66a0097b3a1d13a5a942872c"
+    },
+    "trajectory.ts": {
+      "originalSource": "../../../../../lib/v3/verifier/trajectory.ts",
+      "sha256": "9b111dc02c8439d7eba79cde165d3e182dd39bf78d0c930f30e8fce4d8ae274f"
+    },
+    "types.ts": {
+      "originalSource": "../../../../../lib/v3/verifier/types.ts",
+      "sha256": "bbf39919773066401e85d121054b4f4ebbddfd6886912e73532007328a420f97"
+    },
+    "agentEvidenceEvents.ts": {
+      "originalSource": "../../../../../../lib/v3/types/public/agentEvidenceEvents.ts",
+      "sha256": "3b4ac0e9efbdb333a6ecca2fff157370053538253007d815009dd7d748d9adce"
+    }
+  }
+}
