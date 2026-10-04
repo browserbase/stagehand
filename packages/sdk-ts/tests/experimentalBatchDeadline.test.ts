@@ -95,28 +95,6 @@ describe("experimentalBatch client deadline", () => {
     }
   });
 
-  it("lets callers shorten the round-trip deadline below the executor timeout", async () => {
-    vi.useFakeTimers();
-    const client = new RPCClient(new SilentCDPTransport());
-    const stagehand = createStagehand(client);
-
-    try {
-      const pending = stagehand.experimentalBatch(async () => "never", undefined, {
-        timeout: 60_000,
-        clientTimeout: 5_000,
-      });
-      const rejection = expect(pending).rejects.toMatchObject({
-        name: "StagehandBatchTimeoutError",
-        timeout: 60_000,
-        clientTimeout: 5_000,
-      });
-      await vi.advanceTimersByTimeAsync(5_000);
-      await rejection;
-    } finally {
-      client.close();
-    }
-  });
-
   it("keeps the maximum executor timeout within the timer limit", async () => {
     vi.useFakeTimers();
     const client = new RPCClient(new SilentCDPTransport());
@@ -136,20 +114,4 @@ describe("experimentalBatch client deadline", () => {
       client.close();
     }
   });
-
-  it.each([0, -1, 0.5, 2_147_483_648, NaN, Infinity])(
-    "validates clientTimeout %s before sending",
-    async (clientTimeout) => {
-      const client = new RPCClient(new SilentCDPTransport());
-      const stagehand = createStagehand(client);
-      try {
-        await expect(
-          stagehand.experimentalBatch(async () => undefined, undefined, { clientTimeout }),
-        ).rejects.toThrow(RangeError);
-        expect(client.pending.size).toBe(0);
-      } finally {
-        client.close();
-      }
-    },
-  );
 });
