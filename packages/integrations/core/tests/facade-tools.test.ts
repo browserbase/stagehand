@@ -567,6 +567,16 @@ describe("StagehandFacadeTools session loss", () => {
     await expect(tools.run("return 2;")).resolves.toBe(2);
   });
 
+  it("disables the snapshot's own timeout so the capture deadline owns the wait", async () => {
+    const page = createFakePage();
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    // page.snapshot defaults to 20s; a timeout it raised itself would not be a
+    // capture deadline and would never count toward terminal session loss.
+    expect(page.snapshot).toHaveBeenLastCalledWith({ includeIframes: true, timeout: 0 });
+  });
+
   it("resets capture timeout count after a successful operation", async () => {
     vi.useFakeTimers();
     const page = createFakePage();
