@@ -14,6 +14,100 @@ import {
 const logger = { log: () => {}, warn: () => {}, error: () => {} };
 
 describe("Codex SDK session", () => {
+  it("does not mask an SDK failure when diagnostics cannot be written", async () => {
+    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "codex-diagnostic-failure-"));
+    const blocked = path.join(directory, "file");
+    const original = new Error("original SDK error");
+    await fsp.writeFile(blocked, "not a directory");
+    try {
+      const result = await runCodexSession({
+        prompt: "task",
+        model: "",
+        logger,
+        thread: {},
+        diagnosticDirectory: blocked,
+        sdk: {
+          startThread: () => {
+            throw original;
+          },
+        },
+      });
+      expect(result.iterationError).toBe(original);
+      expect(result.diagnosticPath).toBeUndefined();
+      expect(result.status).toBe("sdk_error");
+    } finally {
+      await fsp.rm(directory, { recursive: true, force: true });
+    }
+  });
+  it("aborts unexpected MCP servers and saves a diagnostic", async () => {
+    const directory = await fsp.mkdtemp(path.join(os.tmpdir(), "codex-policy-"));
+    let signal: AbortSignal | undefined;
+    const sdk: CodexSdk = {
+      startThread: () => ({
+        runStreamed: async (_prompt, options) => {
+          signal = options?.signal as AbortSignal;
+          return {
+            events: (async function* () {
+              yield {
+                type: "item.started",
+                item: { id: "bad", type: "mcp_tool_call", server: "node_repl" },
+              };
+              yield { type: "turn.completed" };
+            })(),
+          };
+        },
+      }),
+    };
+    try {
+      const result = await runCodexSession({
+        prompt: "task",
+        model: "",
+        sdk,
+        logger,
+        thread: {},
+        allowedMcpServers: ["stagehand"],
+        diagnosticDirectory: directory,
+      });
+      expect(result.status).toBe("sdk_error");
+      expect(signal?.aborted).toBe(true);
+      expect(result.events).toHaveLength(1);
+      expect(JSON.parse(await fsp.readFile(result.diagnosticPath!, "utf8"))).toMatchObject({
+        message: "Unexpected MCP server: node_repl",
+        eventCount: 1,
+      });
+    } finally {
+      await fsp.rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("awaits observation callbacks with the completed tool item", async () => {
+    const item = { id: "step-1", type: "mcp_tool_call", server: "stagehand" };
+    let observed = false;
+    const sdk: CodexSdk = {
+      startThread: () => ({
+        runStreamed: async () => ({
+          events: (async function* () {
+            yield { type: "item.completed", item };
+            expect(observed).toBe(true);
+            yield { type: "turn.completed" };
+          })(),
+        }),
+      }),
+    };
+    const result = await runCodexSession({
+      prompt: "task",
+      model: "",
+      sdk,
+      logger,
+      thread: {},
+      onToolStep: async (event) => {
+        await Promise.resolve();
+        expect(event).toEqual(item);
+        observed = true;
+      },
+    });
+    expect(result.status).toBe("completed");
+  });
   it("normalizes provider-prefixed and default models", () => {
     expect(normalizeCodexModel("openai/gpt-5.4-mini")).toBe("gpt-5.4-mini");
     expect(normalizeCodexModel("gpt-5.4")).toBe("gpt-5.4");
