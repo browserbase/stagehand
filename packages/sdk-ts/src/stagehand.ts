@@ -46,20 +46,14 @@ import {
 import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
 import type { ExperimentalBatchCallback, ExperimentalBatchOptions } from "./batch.js";
+import { ExperimentalDecisions } from "./experimentalDecisions.js";
+import { isZodSchema } from "./zodSchema.js";
 
 type ProtocolExtractResult = import("@browserbasehq/stagehand-protocol/types").ExtractResult;
 
 export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
   data: z.output<Schema>;
 };
-
-const isZodSchema = (value: unknown): value is z.ZodType =>
-  typeof value === "object" &&
-  value !== null &&
-  "parse" in value &&
-  typeof value.parse === "function" &&
-  "safeParse" in value &&
-  typeof value.safeParse === "function";
 
 const nativeFunctionSourcePattern =
   /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
@@ -71,6 +65,7 @@ export class Stagehand {
   removeClientLLMHandler: (() => void) | undefined;
   closePromise: Promise<void> | undefined;
   initRequestStarted = false;
+  private decisions: ExperimentalDecisions | undefined;
 
   private constructor(
     private readonly browserHandle: StagehandBrowser,
@@ -111,6 +106,18 @@ export class Stagehand {
 
   get browser(): StagehandBrowser {
     return this.browserHandle;
+  }
+
+  /**
+   * Experimental: act, observe and extract resolved by a decision model
+   * instead of an LLM call. Requires `experimentalDecisions` in `create()`.
+   */
+  get experimentalDecisions(): ExperimentalDecisions {
+    this.decisions ??= new ExperimentalDecisions({
+      rpcClient: () => this.connectedRpcClient,
+      activePage: () => this.browser.context.activePage(),
+    });
+    return this.decisions;
   }
 
   get initialized(): boolean {
@@ -329,22 +336,6 @@ function isDefinitiveRPCErrorResponse(error: unknown): boolean {
   return error instanceof Error && JSONRPCErrorObjectSchema.safeParse(error.cause).success;
 }
 
-/**
- * The experimental decisions path is switched on from the environment, as JSON
- * (`{"apiKey":"…"}`), so it never becomes a field of the public create config
- * that the Python and Go SDKs would have to mirror.
- */
-function experimentalDecisionsFromEnv(): unknown {
-  const raw =
-    typeof process === "undefined" ? undefined : process.env?.STAGEHAND_EXPERIMENTAL_DECISIONS;
-  if (!raw) return undefined;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error("STAGEHAND_EXPERIMENTAL_DECISIONS must be a JSON object");
-  }
-}
-
 function stagehandCreateParamsForWorker(
   createConfig: ResolvedStagehandClientCreateConfig,
   browser: ClaimedStagehandBrowser,
@@ -352,9 +343,7 @@ function stagehandCreateParamsForWorker(
   const { logging, model, ...protocolParams } = createConfig;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
-  const experimentalDecisions = experimentalDecisionsFromEnv();
   return StagehandInitParamsSchema.parse({
-    ...(experimentalDecisions === undefined ? {} : { experimentalDecisions }),
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
     browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,

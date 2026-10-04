@@ -71,6 +71,45 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "stagehand.experimental_decisions_act": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/StagehandActParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ActResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "stagehand.experimental_decisions_observe": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/StagehandObserveParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ObserveResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "stagehand.experimental_decisions_extract": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/StagehandExtractParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ExtractResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "stagehand.metrics": {
           "type": "object",
           "properties": {
@@ -1014,6 +1053,9 @@
         "stagehand.act",
         "stagehand.observe",
         "stagehand.extract",
+        "stagehand.experimental_decisions_act",
+        "stagehand.experimental_decisions_observe",
+        "stagehand.experimental_decisions_extract",
         "stagehand.metrics",
         "stagehand.callback_batch",
         "llm.generate",
@@ -1224,77 +1266,7 @@
           "$ref": "#/$defs/Caching"
         },
         "experimental_decisions": {
-          "description": "Experimental: resolve act(), observe() and extract() through a decision model (typed questions answered with probabilities) before falling back to the LLM pipeline",
-          "type": "object",
-          "properties": {
-            "provider": {
-              "description": "Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity Decider, or OpenAI's Decisions API",
-              "type": "string",
-              "enum": ["typesafe", "cloudflare", "perplexity", "openai"]
-            },
-            "api_key": {
-              "type": "string",
-              "minLength": 1
-            },
-            "model": {
-              "type": "string",
-              "minLength": 1
-            },
-            "api_url": {
-              "type": "string",
-              "pattern": "^https:\\/\\/[^\\s?#]+$"
-            },
-            "account_id": {
-              "description": "Cloudflare account id; required for provider \"cloudflare\"",
-              "type": "string",
-              "pattern": "^[A-Za-z0-9_-]{1,64}$"
-            },
-            "enabled": {
-              "type": "boolean"
-            },
-            "retry_no_effect": {
-              "type": "boolean"
-            },
-            "focus_fallback": {
-              "type": "boolean"
-            },
-            "cache_check": {
-              "type": "boolean"
-            },
-            "extract": {
-              "type": "string",
-              "enum": ["off", "judge", "pick"]
-            },
-            "act_confidence": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            },
-            "verify": {
-              "type": "string",
-              "enum": ["off", "checks", "full"]
-            },
-            "llm_fallback": {
-              "type": "boolean"
-            },
-            "argument_llm": {
-              "type": "boolean"
-            },
-            "page_state": {
-              "type": "boolean"
-            },
-            "observe": {
-              "type": "boolean"
-            },
-            "tools": {
-              "type": "boolean"
-            },
-            "target_readiness": {
-              "type": "boolean"
-            }
-          },
-          "required": ["api_key"],
-          "additionalProperties": false
+          "$ref": "#/$defs/ExperimentalDecisionsConfig"
         }
       },
       "required": ["protocol_version", "client_info"],
@@ -1459,6 +1431,73 @@
           "additionalProperties": false
         }
       ]
+    },
+    "ExperimentalDecisionsConfig": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "description": "Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity Decider, or OpenAI's Decisions API",
+          "type": "string",
+          "enum": ["typesafe", "cloudflare", "perplexity", "openai"]
+        },
+        "api_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "api_url": {
+          "type": "string",
+          "pattern": "^https:\\/\\/[^\\s?#]+$"
+        },
+        "account_id": {
+          "description": "Cloudflare account id; required for provider \"cloudflare\"",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "retry_no_effect": {
+          "type": "boolean"
+        },
+        "focus_fallback": {
+          "type": "boolean"
+        },
+        "cache_check": {
+          "type": "boolean"
+        },
+        "extract": {
+          "type": "string",
+          "enum": ["judge", "pick"]
+        },
+        "act_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "verify": {
+          "type": "string",
+          "enum": ["off", "checks", "full"]
+        },
+        "llm_fallback": {
+          "type": "boolean"
+        },
+        "argument_llm": {
+          "type": "boolean"
+        },
+        "page_state": {
+          "type": "boolean"
+        },
+        "tools": {
+          "type": "boolean"
+        },
+        "target_readiness": {
+          "type": "boolean"
+        }
+      },
+      "required": ["api_key"],
+      "additionalProperties": false,
+      "description": "Experimental: configures stagehand.experimentalDecisions, whose act(), observe() and extract() are resolved by a decision model (typed questions answered with probabilities) and fall back to the LLM pipeline when it is not confident"
     },
     "StagehandInitResult": {
       "type": "object",
@@ -5659,6 +5698,87 @@
             "method": {
               "type": "string",
               "const": "stagehand.extract"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandExtractParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.experimental_decisions_act"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandActParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.experimental_decisions_observe"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandObserveParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.experimental_decisions_extract"
             },
             "params": {
               "$ref": "#/$defs/StagehandExtractParams"

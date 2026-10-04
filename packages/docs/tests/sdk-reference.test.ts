@@ -1,5 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { extname, relative, resolve, sep } from "node:path";
+import { basename, extname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import python from "@ast-grep/lang-python";
 import { Lang, parse, registerDynamicLanguage, type SgNode } from "@ast-grep/napi";
@@ -160,6 +160,13 @@ const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-t
 const UNRELEASED_REFERENCE_METHODS = new Set(["page/on-tools-added", "page/on-tools-removed"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
+// Objects that expose act/observe/extract: Stagehand, and the experimentalDecisions namespace,
+// whose methods take the same inputs and return the same results.
+const AI_METHOD_CLASS_SLUGS = new Set(["stagehand", "experimental-decisions"]);
+const EXTRACT_OPERATIONS = new Set([
+  "stagehand.extract",
+  "stagehand.experimental_decisions_extract",
+]);
 
 // Handwritten SDK wrappers intentionally expose narrower or friendlier types than the wire
 // schema. Keep these exceptions explicit so the reference is checked against the public API.
@@ -183,6 +190,13 @@ const SDK_OBJECTS = [
     goClassName: "Stagehand",
     typescriptFile: "stagehand.ts",
     pythonFile: "stagehand.py",
+  },
+  {
+    className: "ExperimentalDecisions",
+    classSlug: "experimental-decisions",
+    goClassName: "ExperimentalDecisions",
+    typescriptFile: "experimentalDecisions.ts",
+    pythonFile: "experimental_decisions.py",
   },
   {
     className: "BrowserContext",
@@ -1137,7 +1151,7 @@ describe("SDK reference surface", () => {
         // extract's implementation accepts either a schema or options so it can support both
         // public overloads; the documented return type reflects the schema-bearing overload.
         const returnType =
-          language === "TypeScript" && method.operationName === "stagehand.extract"
+          language === "TypeScript" && EXTRACT_OPERATIONS.has(method.operationName ?? "")
             ? "Promise<ExtractResult<Schema>>"
             : method.returnType;
         const expected = publicTypeCandidates(
@@ -1224,7 +1238,7 @@ describe("SDK reference surface", () => {
           if (!actual) continue;
           const expectedType =
             publicReferenceFieldType(method, language, field.key) ??
-            (method.operationName === "stagehand.extract" && field.key === "result.data"
+            (EXTRACT_OPERATIONS.has(method.operationName ?? "") && field.key === "result.data"
               ? language === "TypeScript"
                 ? "z.output<Schema>"
                 : "ResultModel"
@@ -1819,16 +1833,21 @@ async function readGoMethods(): Promise<SdkMethod[]> {
       // parameter. Object handles taken by package-level callables such as
       // Extract are documented like any other parameter.
       const parameters = declaration.parameters.filter(({ type }) => type !== "context.Context");
-      methods.push(
-        sdkMethod(
-          sdkObject.classSlug,
-          declaration.name,
-          parameters.map(({ name }) => name),
-          undefined,
-          declaration.returnType,
-          Object.fromEntries(parameters.map(({ name, type }) => [name, type])),
-        ),
+      const method = sdkMethod(
+        sdkObject.classSlug,
+        declaration.name,
+        parameters.map(({ name }) => name),
+        undefined,
+        declaration.returnType,
+        Object.fromEntries(parameters.map(({ name, type }) => [name, type])),
       );
+      methods.push({
+        ...method,
+        methodSlug:
+          declaration.receiverType === undefined
+            ? goMethodSlug(declaration.name, sdkObject.goClassName)
+            : method.methodSlug,
+      });
     }
   }
   return deduplicateMethods(methods, "Go");
@@ -2409,8 +2428,21 @@ async function readReferencePages(): Promise<ReferencePage[]> {
 // they carry no signature to check against the SDK.
 const NON_METHOD_SECTIONS = new Set(["Quick start", "Properties"]);
 
+// Go methods cannot take type parameters, so an object's generic callable is a package-level
+// function named <Object><Method>, such as ExperimentalDecisionsExtract. It is that object's
+// <method>; its reference heading keeps the full Go name.
+function goMethodSlug(name: string, goClassName: string | undefined): string {
+  const method =
+    goClassName && name.length > goClassName.length && name.startsWith(goClassName)
+      ? name.slice(goClassName.length)
+      : name;
+  return snakeCase(method).replaceAll("_", "-");
+}
+
 function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[] {
   const children = view.children ?? [];
+  const classSlug = basename(filePath, ".mdx");
+  const goClassName = SDK_OBJECTS.find((object) => object.classSlug === classSlug)?.goClassName;
   return children.flatMap((child, index): ReferenceMethod[] => {
     if (child.type !== "heading" || child.depth !== 2) return [];
     const heading = mdxText(child).trim();
@@ -2446,7 +2478,7 @@ function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[
     return [
       {
         methodName,
-        methodSlug: snakeCase(methodName).replaceAll("_", "-"),
+        methodSlug: goMethodSlug(methodName, goClassName),
         paramFields,
         paramPaths: paramFields.map(({ key }) => key),
         responseFields,
@@ -2893,7 +2925,7 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
   ) {
     return true;
   }
-  if (method.classSlug !== "stagehand") return false;
+  if (!AI_METHOD_CLASS_SLUGS.has(method.classSlug)) return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
   return new Set([
     "options.locator.selector",

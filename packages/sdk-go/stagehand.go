@@ -26,6 +26,7 @@ type Stagehand struct {
 	initialized               bool
 	closed                    bool
 	closeResult               error
+	decisions                 *ExperimentalDecisions
 	removeLLMHandler          func()
 	removeNotificationHandler func()
 }
@@ -84,8 +85,8 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	}
 	initParams := workerInitParams(workerInitOptions{
 		apiKey: apiKey, apiURL: options.APIURL, browser: claimed.workerBrowser, cache: options.Cache,
-		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
-		generate: options.Generate, logLevel: logging.level,
+		domSettleTimeoutMs: options.DOMSettleTimeoutMs, experimentalDecisions: options.ExperimentalDecisions,
+		model: options.Model, generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
 		telemetry: optionalTelemetry(options.Telemetry), browserCDPURL: rpc.browserWebSocketDebuggerURL(),
 	})
@@ -139,6 +140,18 @@ func (s *Stagehand) Browser() *Browser {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.browser
+}
+
+// ExperimentalDecisions returns the experimental namespace whose Act, Observe
+// and extract operations are resolved by a decision model instead of an LLM
+// call. It requires CreateOptions.ExperimentalDecisions.
+func (s *Stagehand) ExperimentalDecisions() *ExperimentalDecisions {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.decisions == nil {
+		s.decisions = &ExperimentalDecisions{client: s}
+	}
+	return s.decisions
 }
 
 // Initialized reports whether Create completed successfully and the client remains open.
@@ -345,18 +358,19 @@ func (s *Stagehand) connectedProtocol() (protocolClient, error) {
 }
 
 type workerInitOptions struct {
-	apiKey             *string
-	apiURL             *string
-	browser            *BrowserSessionMetadata
-	cache              *Caching
-	domSettleTimeoutMs *int
-	model              *ModelConfig
-	generate           LLMGenerateFunc
-	logLevel           StagehandClientLogLevel
-	selfHeal           *bool
-	systemPrompt       *string
-	telemetry          *TelemetryConfig
-	browserCDPURL      string
+	apiKey                *string
+	apiURL                *string
+	browser               *BrowserSessionMetadata
+	cache                 *Caching
+	domSettleTimeoutMs    *int
+	experimentalDecisions *ExperimentalDecisionsConfig
+	model                 *ModelConfig
+	generate              LLMGenerateFunc
+	logLevel              StagehandClientLogLevel
+	selfHeal              *bool
+	systemPrompt          *string
+	telemetry             *TelemetryConfig
+	browserCDPURL         string
 }
 
 func optionalTelemetry(telemetry TelemetryConfig) *TelemetryConfig {
@@ -377,12 +391,13 @@ func workerInitParams(options workerInitOptions) StagehandInitParams {
 			Name:    stagehandSDKClientName,
 			Version: stagehandSDKVersion,
 		},
-		DOMSettleTimeoutMs: options.domSettleTimeoutMs,
-		LogLevel:           StagehandInitParamsLogLevel(options.logLevel),
-		ProtocolVersion:    stagehandProtocolVersion,
-		SelfHeal:           options.selfHeal,
-		SystemPrompt:       options.systemPrompt,
-		Telemetry:          options.telemetry,
+		DOMSettleTimeoutMs:    options.domSettleTimeoutMs,
+		ExperimentalDecisions: options.experimentalDecisions,
+		LogLevel:              StagehandInitParamsLogLevel(options.logLevel),
+		ProtocolVersion:       stagehandProtocolVersion,
+		SelfHeal:              options.selfHeal,
+		SystemPrompt:          options.systemPrompt,
+		Telemetry:             options.telemetry,
 	}
 	if options.generate != nil {
 		model := ClientModel()

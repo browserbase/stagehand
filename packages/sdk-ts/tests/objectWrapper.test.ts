@@ -1697,6 +1697,97 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("sends experimentalDecisions calls to their own methods with the regular params", async () => {
+    const client = new FakeProtocolClient();
+    const actResult = {
+      data: { success: true, message: "", actionDescription: "Click", actions: [] },
+      metadata: { cache: { status: "DISABLED" as const }, usage: zeroUsage },
+    };
+    const observeResult = {
+      data: [],
+      metadata: { usage: zeroUsage, cache: { status: "MISS" as const } },
+    };
+    client.queueResponse(StagehandMethods.stagehandExperimentalDecisionsAct, actResult);
+    client.queueResponse(StagehandMethods.stagehandExperimentalDecisionsObserve, observeResult);
+    client.queueResponse(StagehandMethods.stagehandExperimentalDecisionsExtract, {
+      data: { heading: "Example Domain" },
+      metadata: { cache: { status: "DISABLED" }, usage: zeroUsage },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-1" });
+    const schema = z.object({ heading: z.string() });
+    const decisions = stagehand.experimentalDecisions;
+
+    expect(stagehand.experimentalDecisions).toBe(decisions);
+    await expect(
+      decisions.act("Click the submit button", {
+        page,
+        locator: page.locator("main"),
+        variables: { accountEmail: "user@example.com" },
+      }),
+    ).resolves.toStrictEqual(actResult);
+    await expect(
+      decisions.observe("Find the submit button", { page, ignoreLocators: [page.locator("nav")] }),
+    ).resolves.toStrictEqual(observeResult);
+    const extracted = await decisions.extract("Extract the page heading", schema, { page });
+
+    expect(extracted.data.heading).toBe("Example Domain");
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandExperimentalDecisionsAct, {
+        pageId: "page-1",
+        instruction: "Click the submit button",
+        options: {
+          locator: { selector: "main" },
+          variables: { accountEmail: "user@example.com" },
+        },
+      }),
+      requestCall(StagehandMethods.stagehandExperimentalDecisionsObserve, {
+        pageId: "page-1",
+        instruction: "Find the submit button",
+        options: { ignoreLocators: [{ selector: "nav" }] },
+      }),
+      requestCall(StagehandMethods.stagehandExperimentalDecisionsExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page heading",
+        schema: z.json().parse(z.toJSONSchema(schema)),
+        options: {},
+      }),
+    ]);
+  });
+
+  it("gives experimentalDecisions the active page, default schema, and page checks", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
+    client.queueResponse(StagehandMethods.stagehandExperimentalDecisionsExtract, {
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "DISABLED" }, usage: zeroUsage },
+    });
+    client.queueResponse(StagehandMethods.contextActivePage, null);
+    const stagehand = createStagehandWithClientForTest(client);
+    const otherPage = new Page(client, { pageId: "page-2" });
+
+    const result = await stagehand.experimentalDecisions.extract("Extract the page text");
+    await expect(stagehand.experimentalDecisions.act("Click the submit button")).rejects.toThrow(
+      "Stagehand has no active page",
+    );
+    await expect(
+      stagehand.experimentalDecisions.observe("Find it", {
+        page: new Page(client, { pageId: "page-1" }),
+        locator: otherPage.locator("main"),
+      }),
+    ).rejects.toThrow();
+
+    expect(result.data.extraction).toBe("Example Domain");
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.contextActivePage, {}),
+      requestCall(StagehandMethods.stagehandExperimentalDecisionsExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+      }),
+      requestCall(StagehandMethods.contextActivePage, {}),
+    ]);
+  });
+
   it("rejects act, observe, and extract locators from a different page", async () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);

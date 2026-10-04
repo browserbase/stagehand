@@ -156,6 +156,25 @@ export const StagehandMethods = {
     paramsWire: { opaqueKeys: ["schema"] },
     resultWire: { opaqueKeys: ["data"] },
   },
+  stagehandExperimentalDecisionsAct: {
+    name: "stagehand.experimental_decisions_act",
+    params: StagehandActParamsSchema,
+    result: ActResultSchema,
+    resultWire: { transformKeys: ["data"] },
+  },
+  stagehandExperimentalDecisionsObserve: {
+    name: "stagehand.experimental_decisions_observe",
+    params: StagehandObserveParamsSchema,
+    result: ObserveResultSchema,
+    resultWire: { transformKeys: ["data"] },
+  },
+  stagehandExperimentalDecisionsExtract: {
+    name: "stagehand.experimental_decisions_extract",
+    params: StagehandExtractParamsSchema,
+    result: ExtractResultSchema,
+    paramsWire: { opaqueKeys: ["schema"] },
+    resultWire: { opaqueKeys: ["data"] },
+  },
   stagehandMetrics: {
     name: "stagehand.metrics",
     params: EmptyParamsSchema,

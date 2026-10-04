@@ -176,6 +176,20 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		t.Fatalf("stagehand.act timeout = %v, %t; want 40s, true", actTimeout, ok)
 	}
 
+	for _, method := range []string{
+		"stagehand.experimental_decisions_act",
+		"stagehand.experimental_decisions_extract",
+		"stagehand.experimental_decisions_observe",
+	} {
+		decisionsTimeout, ok := rpcResponseTimeout(
+			method,
+			json.RawMessage(`{"page_id":"page-1","options":{"timeout":30000}}`),
+		)
+		if !ok || decisionsTimeout != 40*time.Second {
+			t.Fatalf("%s timeout = %v, %t; want 40s, true", method, decisionsTimeout, ok)
+		}
+	}
+
 	batchTimeout, ok := rpcResponseTimeout(
 		"stagehand.callback_batch",
 		json.RawMessage(`{"options":{"timeout":30000}}`),
@@ -226,6 +240,9 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"stagehand.act",
 		"stagehand.extract",
 		"stagehand.observe",
+		"stagehand.experimental_decisions_act",
+		"stagehand.experimental_decisions_extract",
+		"stagehand.experimental_decisions_observe",
 		"context.new_page",
 		"context.add_init_script",
 		"context.set_extra_http_headers",

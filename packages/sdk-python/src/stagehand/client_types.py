@@ -4,6 +4,7 @@ from collections.abc import Awaitable, Callable
 from typing import Literal, NotRequired, TypedDict
 
 from ._generated.input_types import (
+    ExperimentalDecisionsConfig,
     ModelConfig,
     TelemetryConfig,
 )
@@ -92,6 +93,7 @@ class StagehandClientCreateConfig(TypedDict, total=False):
     self_heal: bool
     dom_settle_timeout_ms: int
     cache: Cache
+    experimental_decisions: ExperimentalDecisionsConfig
     logging: StagehandClientLoggingConfig
 
 

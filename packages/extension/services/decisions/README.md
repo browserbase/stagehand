@@ -6,9 +6,29 @@ not confident. A decision model answers "which of these options" (Choice) and "y
 with probabilities; it cannot generate text, and answers in roughly 100–300 ms for a few thousand
 input tokens per request.
 
-Off unless `experimentalDecisions` is present in the init params. The TypeScript SDK sets it from the
-`STAGEHAND_EXPERIMENTAL_DECISIONS` environment variable (the config below, as JSON); it is
-deliberately not a field of the public create config. Evals build that variable from
+Opt-in twice. `experimentalDecisions` (the config below) is a create option in all three SDKs, and
+only the methods of the `stagehand.experimentalDecisions` namespace use it:
+
+```ts
+const stagehand = await Stagehand.create({
+  browser,
+  model,
+  experimentalDecisions: { provider: "typesafe", apiKey },
+});
+
+await stagehand.experimentalDecisions.act("click the sign in button");
+await stagehand.experimentalDecisions.observe("find the search field");
+await stagehand.experimentalDecisions.extract("the product", ProductSchema);
+
+await stagehand.act("click the sign in button"); // the LLM pipeline, as always
+```
+
+Python: `experimental_decisions=` and `stagehand.experimental_decisions.act(...)`. Go:
+`CreateOptions.ExperimentalDecisions`, `client.ExperimentalDecisions().Act(...)` and
+`stagehand.ExperimentalDecisionsExtract[T](ctx, decisions, ...)`. Each method is its own RPC
+(`stagehand.experimental_decisions_act` / `_observe` / `_extract`) with the params and result of
+its plain counterpart; the controller decides which config the shared services receive, and a
+namespace call without a config is an error. Evals send their tasks' calls to the namespace with
 `EVAL_DECISIONS=1` and the other `EVAL_DECISIONS_*` switches in `packages/evals/initStagehand.ts`.
 
 ## Providers
@@ -79,23 +99,25 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 
 ## Configuration (`experimentalDecisions`)
 
-| Field             | Default      | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ----------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `provider`        | `"typesafe"` | `"typesafe"`, `"cloudflare"`, `"perplexity"` or `"openai"` (see Providers).                                                                                                                                                                                                                                                                                                                                                                    |
-| `apiKey`          | required     | The provider's key. `model` and `apiUrl` (https only) are optional; `accountId` is required for Cloudflare.                                                                                                                                                                                                                                                                                                                                    |
-| `enabled`         | `true`       | `false` keeps only the per-act timing log (eval baselines).                                                                                                                                                                                                                                                                                                                                                                                    |
-| `actConfidence`   | `0.7`        | Minimum confidence to act on a node's answer.                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `verify`          | `"checks"`   | `"checks"`: fill read-back + native-select flag. `"full"` adds a logged-only decision-model yes/no. `"off"`: none.                                                                                                                                                                                                                                                                                                                             |
-| `llmFallback`     | `true`       | `false` fails the act when the decision model abstains: the fastest way to see what the decision model alone gets wrong.                                                                                                                                                                                                                                                                                                                       |
-| `argumentLlm`     | `true`       | The argument-only LLM call for unquoted text. Independent of `llmFallback`; turn both off for an LLM-free run. The typed text is always the instruction's own characters, never the model's re-cased copy.                                                                                                                                                                                                                                     |
-| `pageState`       | `true`       | Page-state request when the decision model leans toward "not on this page".                                                                                                                                                                                                                                                                                                                                                                    |
-| `cacheCheck`      | `false`      | Before each cached action is replayed, one decision-model yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it.                                                                                                                                                                                             |
-| `extract`         | `"off"`      | `"judge"`: the decision model's yes/no replaces extract()'s completion LLM call. `"pick"`: the decision model picks the elements holding each scalar or list field's value and code copies their text; booleans and enums are judged directly; schemas the planner cannot map, unresolved required fields, or a failed completion gate send the whole extraction to the LLM. **Both send page or extracted content to the decision provider.** |
-| `observe`         | `false`      | Resolve `observe()` through the decision model first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                                                                                                                                                                                                                  |
-| `targetReadiness` | `false`      | Act as soon as the target is found and staying put, instead of waiting out the DOM-settle heuristic (see below). The settle wait remains the upper bound.                                                                                                                                                                                                                                                                                      |
-| `tools`           | `false`      | Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request (see below). Sends tool names and descriptions to the decision provider, and for the two tools sharing most words with the instruction also their parameter names, descriptions, types and enum values.                                                                                                                           |
-| `retryNoEffect`   | `false`      | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                                                                                                                                                                                                                       |
-| `focusFallback`   | `false`      | On trees over 120K chars, show the LLM the decision model's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                                                                                                                                                                                                            |
+`experimentalDecisions.observe()` answers "find all" exhaustively or hands it to the LLM (over 600
+candidates; over 400 elements with no instruction), never truncated. `stagehand.act()` with a
+config present only adds the per-act timing log, which is what eval baselines compare against.
+
+| Field             | Default      | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`        | `"typesafe"` | `"typesafe"`, `"cloudflare"`, `"perplexity"` or `"openai"` (see Providers).                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `apiKey`          | required     | The provider's key. `model` and `apiUrl` (https only) are optional; `accountId` is required for Cloudflare.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `actConfidence`   | `0.7`        | Minimum confidence to act on a node's answer.                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `verify`          | `"checks"`   | `"checks"`: fill read-back + native-select flag. `"full"` adds a logged-only decision-model yes/no. `"off"`: none.                                                                                                                                                                                                                                                                                                                                                                                            |
+| `llmFallback`     | `true`       | `false` fails the act when the decision model abstains: the fastest way to see what the decision model alone gets wrong.                                                                                                                                                                                                                                                                                                                                                                                      |
+| `argumentLlm`     | `true`       | The argument-only LLM call for unquoted text. Independent of `llmFallback`; turn both off for an LLM-free run. The typed text is always the instruction's own characters, never the model's re-cased copy.                                                                                                                                                                                                                                                                                                    |
+| `pageState`       | `true`       | Page-state request when the decision model leans toward "not on this page".                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `cacheCheck`      | `false`      | Before each cached action is replayed, one decision-model yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it.                                                                                                                                                                                                                                                            |
+| `extract`         | `"pick"`     | How `experimentalDecisions.extract()` works. `"pick"`: the decision model picks the elements holding each scalar or list field's value and code copies their text; booleans and enums are judged directly; schemas the planner cannot map, unresolved required fields, or a failed completion gate send the whole extraction to the LLM. `"judge"`: the LLM extracts and the decision model's yes/no replaces only the completion LLM call. **Both send page or extracted content to the decision provider.** |
+| `targetReadiness` | `false`      | Act as soon as the target is found and staying put, instead of waiting out the DOM-settle heuristic (see below). The settle wait remains the upper bound.                                                                                                                                                                                                                                                                                                                                                     |
+| `tools`           | `false`      | Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request (see below). Sends tool names and descriptions to the decision provider, and for the two tools sharing most words with the instruction also their parameter names, descriptions, types and enum values.                                                                                                                                                                                          |
+| `retryNoEffect`   | `false`      | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                                                                                                                                                                                                                                                                                      |
+| `focusFallback`   | `false`      | On trees over 120K chars, show the LLM the decision model's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                                                                                                                                                                                                                                                                           |
 
 ## Target readiness (`targetReadiness: true`)
 
@@ -152,15 +174,18 @@ success or error: it never also clicks through the UI. Tool acts are not cached.
 
 ```ts
 // TypeScript SDK; Chrome needs its WebMCP features on, which localBrowser.launch() does.
-process.env.STAGEHAND_EXPERIMENTAL_DECISIONS = JSON.stringify({ apiKey, tools: true });
-const stagehand = await Stagehand.create({ browser, model });
+const stagehand = await Stagehand.create({
+  browser,
+  model,
+  experimentalDecisions: { apiKey, tools: true },
+});
 await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/");
 
-await stagehand.act("add 19 and 23 together");
+await stagehand.experimentalDecisions.act("add 19 and 23 together");
 // → { method: "webmcp", selector: "webmcp:calculateSum", arguments: ['{"a":19,"b":23}'] }
 //   message: 'Invoked WebMCP tool calculateSum: {"a":19,"b":23,"sum":42}'   (one decision-model request, no LLM call)
 
-await stagehand.act("click the Calculate button");
+await stagehand.experimentalDecisions.act("click the Calculate button");
 // → names a control, so the ordinary element path runs
 ```
 

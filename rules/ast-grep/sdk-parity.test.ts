@@ -9,6 +9,13 @@ registerDynamicLanguage({ go, python });
 const sdkObjects = [
   ["Stagehand", "stagehand.ts", "stagehand.py", "stagehand.go", "Stagehand"],
   [
+    "ExperimentalDecisions",
+    "experimentalDecisions.ts",
+    "experimental_decisions.py",
+    "experimental_decisions.go",
+    "ExperimentalDecisions",
+  ],
+  [
     "BrowserContext",
     "browserContext.ts",
     "browser_context.py",
@@ -38,6 +45,7 @@ const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import
 const pythonWireResultModels: Readonly<Record<string, string>> = {
   "page.webmcp_invocation_result": "WireWebMCPToolResponse",
   "stagehand.extract": "_ExtractWireResult",
+  "stagehand.experimental_decisions_extract": "_ExtractWireResult",
 };
 
 type SdkLanguage = "go" | "typescript" | "python";
@@ -86,8 +94,16 @@ type PythonRpcCall = {
 
 type GoRpcCall = PythonRpcCall;
 
+// Go methods cannot declare type parameters, so each object's generic extract is a package-level
+// function that takes the object as an argument. It counts as that object's `extract` method.
+const goExtractFunctions: Readonly<Record<string, readonly [file: string, name: string]>> = {
+  Stagehand: ["extract.go", "Extract"],
+  ExperimentalDecisions: ["experimental_decisions.go", "ExperimentalDecisionsExtract"],
+};
+
 const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
-  Stagehand: new Set(["Browser", "Initialized"]),
+  Stagehand: new Set(["Browser", "ExperimentalDecisions", "Initialized"]),
+  ExperimentalDecisions: new Set(),
   BrowserContext: new Set(["Clipboard"]),
   BrowserClipboard: new Set(),
   Page: new Set(["PageID", "Ref"]),
@@ -657,8 +673,8 @@ async function publicOperations(
         };
       });
     });
-  if (language === "go" && className === "Stagehand") {
-    const extract = await goExtractFunction();
+  if (language === "go") {
+    const extract = await goExtractFunction(className);
     if (extract) {
       operations.push(
         ...protocolCalls(extract, "go").flatMap((call) => {
@@ -708,19 +724,22 @@ async function publicCallableMethods(
         }),
     ),
   ];
-  if (language === "go" && className === "Stagehand" && (await goExtractFunction())) {
+  if (language === "go" && (await goExtractFunction(className))) {
     methods.push("extract");
   }
   return [...new Set(methods)].sort();
 }
 
-async function goExtractFunction(): Promise<SgNode | undefined> {
-  const root = parse("go", await readFile(new URL("extract.go", goSource), "utf8")).root();
+async function goExtractFunction(className = "Stagehand"): Promise<SgNode | undefined> {
+  const declared = goExtractFunctions[className];
+  if (!declared) return undefined;
+  const [file, name] = declared;
+  const root = parse("go", await readFile(new URL(file, goSource), "utf8")).root();
   return root
     .findAll({ rule: { kind: "function_declaration" } })
     .find((function_) =>
       namedChildren(function_).some(
-        (child) => child.kind() === "identifier" && child.text() === "Extract",
+        (child) => child.kind() === "identifier" && child.text() === name,
       ),
     );
 }
@@ -975,8 +994,9 @@ async function publicRpcMethods(
   }
 
   if (language === "go") {
-    const extract = await goExtractFunction();
-    if (extract) {
+    for (const className of Object.keys(goExtractFunctions)) {
+      const extract = await goExtractFunction(className);
+      if (!extract) continue;
       for (const call of protocolCalls(extract, "go")) {
         const methodNode = protocolMethodNode(call, "go");
         if (!methodNode) continue;

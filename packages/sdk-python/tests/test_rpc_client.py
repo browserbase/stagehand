@@ -662,6 +662,22 @@ def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() 
     assert rpc_client._rpc_response_timeout_seconds("stagehand.act", act_params) == 40
     assert rpc_client._rpc_response_timeout_seconds("stagehand.observe", observe_params) == 30
     assert rpc_client._rpc_response_timeout_seconds("stagehand.extract", extract_params) == 25
+    assert (
+        rpc_client._rpc_response_timeout_seconds("stagehand.experimental_decisions_act", act_params)
+        == 40
+    )
+    assert (
+        rpc_client._rpc_response_timeout_seconds(
+            "stagehand.experimental_decisions_observe", observe_params
+        )
+        == 30
+    )
+    assert (
+        rpc_client._rpc_response_timeout_seconds(
+            "stagehand.experimental_decisions_extract", extract_params
+        )
+        == 25
+    )
     assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
 
 
@@ -706,6 +722,9 @@ def test_response_deadline_preserves_v3_unbounded_operations() -> None:
         "stagehand.act",
         "stagehand.extract",
         "stagehand.observe",
+        "stagehand.experimental_decisions_act",
+        "stagehand.experimental_decisions_extract",
+        "stagehand.experimental_decisions_observe",
         "context.new_page",
         "context.add_init_script",
         "context.set_extra_http_headers",

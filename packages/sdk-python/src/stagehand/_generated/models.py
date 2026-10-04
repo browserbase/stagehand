@@ -560,8 +560,8 @@ class EmptyParams(WireModel):
     )
 
 
-class ExperimentalDecisions(WireModel):
-    """Experimental: resolve act(), observe() and extract() through a decision model (typed questions answered with probabilities) before falling back to the LLM pipeline"""
+class ExperimentalDecisionsConfig(WireModel):
+    """Experimental: configures stagehand.experimentalDecisions, whose act(), observe() and extract() are resolved by a decision model (typed questions answered with probabilities) and fall back to the LLM pipeline when it is not confident"""
 
     model_config = ConfigDict(
         extra="forbid",
@@ -578,7 +578,6 @@ class ExperimentalDecisions(WireModel):
         None
     )
     """Cloudflare account id; required for provider "cloudflare\""""
-    enabled: Optional[StrictBool] = None
     retry_no_effect: Optional[StrictBool] = None
     focus_fallback: Optional[StrictBool] = None
     cache_check: Optional[StrictBool] = None
@@ -588,7 +587,6 @@ class ExperimentalDecisions(WireModel):
     llm_fallback: Optional[StrictBool] = None
     argument_llm: Optional[StrictBool] = None
     page_state: Optional[StrictBool] = None
-    observe: Optional[StrictBool] = None
     tools: Optional[StrictBool] = None
     target_readiness: Optional[StrictBool] = None
 
@@ -606,7 +604,6 @@ class ExternalProxyConfig(WireModel):
 
 
 class Extract(StrEnum):
-    off = "off"
     judge = "judge"
     pick = "pick"
 
@@ -2299,8 +2296,7 @@ class StagehandInitParams(WireModel):
     ] = None
     cache: Optional[Caching] = None
     """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
-    experimental_decisions: Optional[ExperimentalDecisions] = None
-    """Experimental: resolve act(), observe() and extract() through a decision model (typed questions answered with probabilities) before falling back to the LLM pipeline"""
+    experimental_decisions: Optional[ExperimentalDecisionsConfig] = None
 
 
 class StagehandInitResult(WireModel):
