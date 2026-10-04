@@ -429,9 +429,9 @@ describe("StagehandFacadeTools session loss", () => {
   });
 
   function batchTimeoutError() {
-    const error = new Error("stagehand.experimentalBatch() received no response within 75000ms");
+    const error = new Error("stagehand.experimentalBatch() received no response within 70000ms");
     error.name = "StagehandBatchTimeoutError";
-    Object.assign(error, { timeout: 60_000, clientTimeout: 75_000 });
+    Object.assign(error, { timeout: 60_000, clientTimeout: 70_000 });
     return error;
   }
 
@@ -447,10 +447,10 @@ describe("StagehandFacadeTools session loss", () => {
     const first = tools.run("await page.getByRole('button', { name: 'Search now' }).click();");
     await expect(first).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
     await expect(first).rejects.toThrow(
-      "Browser session lost (batch received no response within 75000ms). The task cannot continue; report your final result now.",
+      "Browser session lost (batch received no response within 70000ms). The task cannot continue; report your final result now.",
     );
     expect(losses).toEqual([
-      { cause: "batch received no response within 75000ms", tool: "run", at: expect.any(String) },
+      { cause: "batch received no response within 70000ms", tool: "run", at: expect.any(String) },
     ]);
     expect(tools.sessionLoss).toBe(losses[0]);
 
