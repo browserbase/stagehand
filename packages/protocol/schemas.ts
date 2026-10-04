@@ -1650,13 +1650,22 @@ export const StagehandInitParamsSchema = z
     }),
     experimentalDecisions: z
       .strictObject({
+        provider: z.enum(["typesafe", "cloudflare", "perplexity", "openai"]).optional().meta({
+          description:
+            "Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity Decider, or OpenAI's Decisions API",
+        }),
         apiKey: z.string().min(1),
         model: z.string().min(1).optional(),
         apiUrl: z
           .string()
           // A regex (not a refine) so the constraint reaches the generated JSON schema and SDK types.
-          .regex(/^https:\/\/[^\s?#]+$/, "TypeSafe apiUrl must be https, without query or fragment")
+          .regex(/^https:\/\/[^\s?#]+$/, "apiUrl must be https, without query or fragment")
           .optional(),
+        accountId: z
+          .string()
+          .regex(/^[A-Za-z0-9_-]{1,64}$/)
+          .optional()
+          .meta({ description: 'Cloudflare account id; required for provider "cloudflare"' }),
         enabled: z.boolean().optional(),
         retryNoEffect: z.boolean().optional(),
         focusFallback: z.boolean().optional(),
@@ -1674,7 +1683,7 @@ export const StagehandInitParamsSchema = z
       .optional()
       .meta({
         description:
-          "Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline",
+          "Experimental: resolve act(), observe() and extract() through a decision model (typed questions answered with probabilities) before falling back to the LLM pipeline",
       }),
   })
   .meta({ id: "StagehandInitParams" });

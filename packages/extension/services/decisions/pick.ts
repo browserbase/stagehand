@@ -12,12 +12,12 @@ import {
 import {
   choiceAnswer,
   noulAnswer,
-  systemOne,
+  decide,
   type DecisionModelConfig,
   type DecisionQuestion,
   type DecisionResponse,
   type JsonValue,
-} from "./typesafeClient.js";
+} from "./client.js";
 
 export type TraceEntry = Record<string, JsonValue>;
 
@@ -39,7 +39,7 @@ export type AskContext = {
   /** Called once per tier right before the decision model is asked, e.g. to fetch DOM hints only when needed. */
   prepare?: (candidates: OutlineNode[]) => Promise<void>;
   /**
-   * Applied to everything sent to TypeSafe and to the trace. Values an earlier
+   * Applied to everything sent to the decision provider and to the trace. Values an earlier
    * act typed from %variables% are on the page by now; they must not leave it.
    */
   redact?: (text: string) => string;
@@ -100,7 +100,7 @@ export async function ask(
     state = redactDeep(state, ctx.redact);
     questions = redactDeep(questions, ctx.redact);
   }
-  const response = await systemOne(ctx.config, state, questions);
+  const response = await decide(ctx.config, state, questions);
   ctx.trace.push({
     node,
     ms: response.durationMs,

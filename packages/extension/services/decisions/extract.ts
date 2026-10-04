@@ -12,12 +12,7 @@ import {
   type TraceEntry,
 } from "./pick.js";
 import { buildView, pageDigest, textOf, type OutlineNode } from "./tree.js";
-import {
-  choiceAnswer,
-  noulAnswer,
-  type DecisionModelConfig,
-  type JsonValue,
-} from "./typesafeClient.js";
+import { choiceAnswer, noulAnswer, type DecisionModelConfig, type JsonValue } from "./client.js";
 
 /**
  * Experimental extract() on the decision model: pick-and-copy. The decision model cannot write text, but an

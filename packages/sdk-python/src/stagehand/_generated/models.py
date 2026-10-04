@@ -561,17 +561,23 @@ class EmptyParams(WireModel):
 
 
 class ExperimentalDecisions(WireModel):
-    """Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline"""
+    """Experimental: resolve act(), observe() and extract() through a decision model (typed questions answered with probabilities) before falling back to the LLM pipeline"""
 
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
+    provider: Optional[Provider] = None
+    """Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity Decider, or OpenAI's Decisions API"""
     api_key: Annotated[StrictStr, Field(min_length=1)]
     model: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_url: Annotated[Optional[StrictStr], Field(pattern="^https:\\/\\/[^\\s?#]+$")] = (
         None
     )
+    account_id: Annotated[Optional[StrictStr], Field(pattern="^[A-Za-z0-9_-]{1,64}$")] = (
+        None
+    )
+    """Cloudflare account id; required for provider "cloudflare\""""
     enabled: Optional[StrictBool] = None
     retry_no_effect: Optional[StrictBool] = None
     focus_fallback: Optional[StrictBool] = None
@@ -2115,6 +2121,17 @@ class PageWebMCPToolsResult(WireModel):
     tools: list[WebMCPToolDescriptor]
 
 
+class Provider(StrEnum):
+    """
+    Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity Decider, or OpenAI's Decisions API
+    """
+
+    typesafe = "typesafe"
+    cloudflare = "cloudflare"
+    perplexity = "perplexity"
+    openai = "openai"
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
@@ -2283,7 +2300,7 @@ class StagehandInitParams(WireModel):
     cache: Optional[Caching] = None
     """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
     experimental_decisions: Optional[ExperimentalDecisions] = None
-    """Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline"""
+    """Experimental: resolve act(), observe() and extract() through a decision model (typed questions answered with probabilities) before falling back to the LLM pipeline"""
 
 
 class StagehandInitResult(WireModel):

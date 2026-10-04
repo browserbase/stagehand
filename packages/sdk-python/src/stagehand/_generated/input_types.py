@@ -225,9 +225,11 @@ class EmptyParams(TypedDict):
 
 
 class ExperimentalDecisions(TypedDict):
+    provider: NotRequired[Literal["typesafe", "cloudflare", "perplexity", "openai"]]
     api_key: str
     model: NotRequired[str]
     api_url: NotRequired[str]
+    account_id: NotRequired[str]
     enabled: NotRequired[bool]
     retry_no_effect: NotRequired[bool]
     focus_fallback: NotRequired[bool]

@@ -1224,9 +1224,14 @@
           "$ref": "#/$defs/Caching"
         },
         "experimental_decisions": {
-          "description": "Experimental: resolve act() through TypeSafe Jev decisions before falling back to the LLM pipeline",
+          "description": "Experimental: resolve act(), observe() and extract() through a decision model (typed questions answered with probabilities) before falling back to the LLM pipeline",
           "type": "object",
           "properties": {
+            "provider": {
+              "description": "Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity Decider, or OpenAI's Decisions API",
+              "type": "string",
+              "enum": ["typesafe", "cloudflare", "perplexity", "openai"]
+            },
             "api_key": {
               "type": "string",
               "minLength": 1
@@ -1238,6 +1243,11 @@
             "api_url": {
               "type": "string",
               "pattern": "^https:\\/\\/[^\\s?#]+$"
+            },
+            "account_id": {
+              "description": "Cloudflare account id; required for provider \"cloudflare\"",
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
             },
             "enabled": {
               "type": "boolean"

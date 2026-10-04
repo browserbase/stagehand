@@ -1,6 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StagehandLogger } from "../logger.js";
+import { realisticAnswer } from "./decisionsTestUtils.js";
 import { runDecisionsObserve, type DecisionsObserveDeps } from "../services/decisions/observe.js";
 
 const PAGE = [
@@ -38,7 +39,7 @@ function stub(answer: (key: string, question: { criteria?: Record<string, unknow
       questions: Record<string, { criteria?: Record<string, unknown> }>;
     };
     const answers = Object.fromEntries(
-      Object.entries(body.questions).map(([key, q]) => [key, answer(key, q)]),
+      Object.entries(body.questions).map(([key, q]) => [key, realisticAnswer(q, answer(key, q))]),
     );
     return new Response(
       JSON.stringify({

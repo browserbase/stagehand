@@ -1,6 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StagehandLogger } from "../logger.js";
+import { realisticAnswer } from "./decisionsTestUtils.js";
 import {
   compactForJudge,
   findGroups,
@@ -77,7 +78,12 @@ function stubByField(picks: Record<string, string>, completed = 0.9) {
                   : (picks[field] ?? "none_match");
             return [
               key,
-              { type: "choice", choice, confidence: 0.95, probabilities: { [choice]: 0.95 } },
+              realisticAnswer(question, {
+                type: "choice",
+                choice,
+                confidence: 0.95,
+                probabilities: { [choice]: 0.95 },
+              }),
             ];
           },
         ),
@@ -120,7 +126,9 @@ describe("decisions extract (pick-and-copy)", () => {
   });
 
   it("induces a list from the first item and reads the same position in every sibling", async () => {
-    stubByField({ author: "0-9", rating: "0-10" });
+    // The rating candidate is the list item itself: "5 stars" inside it yields
+    // the same value, and one candidate per distinct value is offered.
+    stubByField({ author: "0-9", rating: "0-8" });
     const outcome = await runDecisionsExtract(
       { apiKey: "test" },
       deps({
@@ -220,7 +228,12 @@ describe("decisions extract (pick-and-copy)", () => {
               "none_match";
             return [
               key,
-              { type: "choice", choice: pick, confidence: 0.95, probabilities: { [pick]: 0.95 } },
+              realisticAnswer(question, {
+                type: "choice",
+                choice: pick,
+                confidence: 0.95,
+                probabilities: { [pick]: 0.95 },
+              }),
             ];
           }),
         );

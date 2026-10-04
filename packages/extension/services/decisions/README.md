@@ -1,15 +1,51 @@
 # Decisions (experimental)
 
-Resolves `act("…")` through a decision tree of [TypeSafe Jev](https://docs.typesafe.ai) questions
-instead of one LLM call, and hands the act to the existing LLM pipeline whenever the decision model is not
-confident. The decision model is a System One model: it answers typed questions (Choice / Noul) with
-probabilities, cannot generate text, and costs roughly 100–300 ms and a few thousand input tokens
-per request.
+Resolves `act()`, `observe()` and `extract()` through small typed questions to a **decision
+model** instead of one LLM call, and hands over to the existing LLM pipeline whenever the model is
+not confident. A decision model answers "which of these options" (Choice) and "yes or no" (Noul)
+with probabilities; it cannot generate text, and answers in roughly 100–300 ms for a few thousand
+input tokens per request.
 
 Off unless `experimentalDecisions` is present in the init params. The TypeScript SDK sets it from the
 `STAGEHAND_EXPERIMENTAL_DECISIONS` environment variable (the config below, as JSON); it is
 deliberately not a field of the public create config. Evals build that variable from
 `EVAL_DECISIONS=1` and the other `EVAL_DECISIONS_*` switches in `packages/evals/initStagehand.ts`.
+
+## Providers
+
+`provider` selects the service; everything above the client (`client.ts`) is provider-agnostic.
+
+| `provider`             | Model (default)                 | Needs                 | Wire format                                                                  | Verified                                                        |
+| ---------------------- | ------------------------------- | --------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `"typesafe"` (default) | Jev (`jev-latest`)              | `apiKey`              | System One: `{ state, questions }` → `{ answers }`                           | Live, and by every eval in this stack                           |
+| `"cloudflare"`         | Clef (`clef`, or `clef-flash`)  | `apiKey`, `accountId` | System One body on Workers AI `/ai/run/@cf/cloudflare/<model>`, `{ result }` | Against the documented format                                   |
+| `"perplexity"`         | Decider (`pplx-decider-v1-27b`) | `apiKey`              | System One body on `/v1/decisions`                                           | Against the documented format                                   |
+| `"openai"`             | Decisions API (`gpt-6-luna`)    | `apiKey` with preview | `{ input, questions: [...] }` → `{ answers: [...] }`                         | Against a response recorded by a preview user; no public schema |
+
+What `client.ts` does for all of them, so the pipeline sees one behaviour:
+
+- **Validation.** An answer is used only if its choice is one of the offered options, every
+  probability is in range, the distribution is consistent (does not exceed 1; sums to 1 when all
+  options are listed) and the choice is its most likely option. Anything else is a typed error and
+  the act falls back.
+- **Ids and text.** TypeSafe takes JSON instructions and any ids. The others take text and a
+  restricted id alphabet: question keys and option ids outside it are sent under an alias (the
+  description keeps the original), and JSON is serialised. Answers always come back under the
+  caller's own ids.
+- **Limits.** A request with more questions than the provider takes (64 Cloudflare and OpenAI, 128
+  Perplexity) is split over the same state and merged. A choice among one option is answered
+  locally as certain and never sent.
+- **Failure handling.** Per-provider timeout (8 s TypeSafe, 15 s others), retry on 429/529 honouring
+  `Retry-After`, and a circuit breaker per provider + endpoint + key (60 s after an auth failure,
+  30 s after three consecutive failures, malformed payloads included).
+
+Thresholds (0.7 accept, 0.9 "none" veto, …) were tuned on Jev. Another model's probabilities are
+not calibrated the same way: treat them as starting points and re-run the evals per provider.
+
+`tests/decisionsProviders.test.ts` runs one request through all four wire formats;
+`tests/decisionsCrossProvider.test.ts` runs act, observe, extract and tool scenarios through each;
+`DECISIONS_LIVE=1` with any provider key runs `tests/decisionsProvidersLive.test.ts` against the
+real services.
 
 ## Flow
 
@@ -21,7 +57,7 @@ deliberately not a field of the public create config. Evals build that variable 
 | Candidates     | code                                                          | Role view per family, then every named element. Described with name, ancestors, heading, card/row text for twins, `n of m`, iframe flag, DOM attributes for nameless controls. Lists over 40 are first cut to the 30 sharing words with the instruction; one exact quoted-name match skips the decision model. |
 | Pick           | the decision model, 1 request (parallel shards on huge lists) | One exact quoted-name match is confirmed with a single small request instead of ranking the list. `best` (no none option) + `strict` (none vetoes above 0.9). A pick strict is uneasy about is held while the next tier tries. Indistinguishable twins share their vote.                                       |
 | Act            | code                                                          | Same `Action` shape as the LLM path, so caching and replay are unchanged. Detached fill targets are re-picked once.                                                                                                                                                                                            |
-| Checks         | code                                                          | Fill read-back, native `<select>` `[selected]` flag, no-effect retry on a credible runner-up. `verify: "full"` adds a logged-only the decision model yes/no.                                                                                                                                                   |
+| Checks         | code                                                          | Fill read-back, native `<select>` `[selected]` flag, no-effect retry on a credible runner-up. `verify: "full"` adds a logged-only decision-model yes/no.                                                                                                                                                       |
 | No target      | the decision model, 1 request                                 | Page-state signals; access-denied / captcha fail fast. Otherwise the LLM gets the decision model's shortlist (with each item's card/row) before the whole tree.                                                                                                                                                |
 
 Steps that do not depend on each other overlap: the intent request needs no page, so it is asked
@@ -39,26 +75,27 @@ replayed, so a selector that now resolves to a different control is re-inferred 
 - `pick.ts` — tiers, pruning, shards, best/strict acceptance.
 - `tree.ts` — outline parsing, views, candidate descriptions, focus outline, page digest.
 - `args.ts` — deterministic argument parsing and grounding.
-- `pageState.ts`, `cacheCheck.ts`, `typesafeClient.ts`.
+- `pageState.ts`, `cacheCheck.ts`, `client.ts`, `providers.ts`.
 
 ## Configuration (`experimentalDecisions`)
 
-| Field             | Default    | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ----------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apiKey`          | required   | TypeSafe key. `apiUrl` (https only) and `model` are optional.                                                                                                                                                                                                                                                                                                                                                                     |
-| `enabled`         | `true`     | `false` keeps only the per-act timing log (eval baselines).                                                                                                                                                                                                                                                                                                                                                                       |
-| `actConfidence`   | `0.7`      | Minimum confidence to act on a node's answer.                                                                                                                                                                                                                                                                                                                                                                                     |
-| `verify`          | `"checks"` | `"checks"`: fill read-back + native-select flag. `"full"` adds a logged-only the decision model yes/no. `"off"`: none.                                                                                                                                                                                                                                                                                                            |
-| `llmFallback`     | `true`     | `false` fails the act when the decision model abstains: the fastest way to see what the decision model alone gets wrong.                                                                                                                                                                                                                                                                                                          |
-| `argumentLlm`     | `true`     | The argument-only LLM call for unquoted text. Independent of `llmFallback`; turn both off for an LLM-free run. The typed text is always the instruction's own characters, never the model's re-cased copy.                                                                                                                                                                                                                        |
-| `pageState`       | `true`     | Page-state request when the decision model leans toward "not on this page".                                                                                                                                                                                                                                                                                                                                                       |
-| `cacheCheck`      | `false`    | Before each cached action is replayed, one the decision model yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it.                                                                                                                                                                            |
-| `extract`         | `"off"`    | `"judge"`: the decision model's yes/no replaces extract()'s completion LLM call. `"pick"`: the decision model picks the elements holding each scalar or list field's value and code copies their text; booleans and enums are judged directly; schemas the planner cannot map, unresolved required fields, or a failed completion gate send the whole extraction to the LLM. **Both send page or extracted content to TypeSafe.** |
-| `observe`         | `false`    | Resolve `observe()` through the decision model first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                                                                                                                                                                                                     |
-| `targetReadiness` | `false`    | Act as soon as the target is found and staying put, instead of waiting out the DOM-settle heuristic (see below). The settle wait remains the upper bound.                                                                                                                                                                                                                                                                         |
-| `tools`           | `false`    | Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request (see below). Sends tool names and descriptions to TypeSafe, and for the two tools sharing most words with the instruction also their parameter names, descriptions, types and enum values.                                                                                                                           |
-| `retryNoEffect`   | `false`    | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                                                                                                                                                                                                          |
-| `focusFallback`   | `false`    | On trees over 120K chars, show the LLM the decision model's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                                                                                                                                                                                               |
+| Field             | Default      | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ----------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `provider`        | `"typesafe"` | `"typesafe"`, `"cloudflare"`, `"perplexity"` or `"openai"` (see Providers).                                                                                                                                                                                                                                                                                                                                                                    |
+| `apiKey`          | required     | The provider's key. `model` and `apiUrl` (https only) are optional; `accountId` is required for Cloudflare.                                                                                                                                                                                                                                                                                                                                    |
+| `enabled`         | `true`       | `false` keeps only the per-act timing log (eval baselines).                                                                                                                                                                                                                                                                                                                                                                                    |
+| `actConfidence`   | `0.7`        | Minimum confidence to act on a node's answer.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `verify`          | `"checks"`   | `"checks"`: fill read-back + native-select flag. `"full"` adds a logged-only decision-model yes/no. `"off"`: none.                                                                                                                                                                                                                                                                                                                             |
+| `llmFallback`     | `true`       | `false` fails the act when the decision model abstains: the fastest way to see what the decision model alone gets wrong.                                                                                                                                                                                                                                                                                                                       |
+| `argumentLlm`     | `true`       | The argument-only LLM call for unquoted text. Independent of `llmFallback`; turn both off for an LLM-free run. The typed text is always the instruction's own characters, never the model's re-cased copy.                                                                                                                                                                                                                                     |
+| `pageState`       | `true`       | Page-state request when the decision model leans toward "not on this page".                                                                                                                                                                                                                                                                                                                                                                    |
+| `cacheCheck`      | `false`      | Before each cached action is replayed, one the decision model yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it.                                                                                                                                                                                         |
+| `extract`         | `"off"`      | `"judge"`: the decision model's yes/no replaces extract()'s completion LLM call. `"pick"`: the decision model picks the elements holding each scalar or list field's value and code copies their text; booleans and enums are judged directly; schemas the planner cannot map, unresolved required fields, or a failed completion gate send the whole extraction to the LLM. **Both send page or extracted content to the decision provider.** |
+| `observe`         | `false`      | Resolve `observe()` through the decision model first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                                                                                                                                                                                                                  |
+| `targetReadiness` | `false`      | Act as soon as the target is found and staying put, instead of waiting out the DOM-settle heuristic (see below). The settle wait remains the upper bound.                                                                                                                                                                                                                                                                                      |
+| `tools`           | `false`      | Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request (see below). Sends tool names and descriptions to TypeSafe, and for the two tools sharing most words with the instruction also their parameter names, descriptions, types and enum values.                                                                                                                                        |
+| `retryNoEffect`   | `false`      | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                                                                                                                                                                                                                       |
+| `focusFallback`   | `false`      | On trees over 120K chars, show the LLM the decision model's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                                                                                                                                                                                                            |
 
 ## Target readiness (`targetReadiness: true`)
 
@@ -134,7 +171,7 @@ The decision model for 79% of requests at 99% precision; arguments filled by the
 
 ## What leaves the process
 
-Sent to TypeSafe: the instruction, candidate descriptions built from the accessibility outline
+Sent to the decision provider: the instruction, candidate descriptions built from the accessibility outline
 (names, nearby text, card/row text, DOM attributes of nameless controls), the page URL without
 query string or fragment, a digest of the first visible content (page state), and — only with
 their own opt-ins — extracted data (`extract`) and cached action descriptions (`cacheCheck`).

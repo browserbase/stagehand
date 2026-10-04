@@ -6,7 +6,7 @@ import {
   type DecisionQuestion,
   type DecisionResponse,
   type JsonValue,
-} from "./typesafeClient.js";
+} from "./client.js";
 
 /**
  * WebMCP tool selection on the decision model. A page that registers tools has already said

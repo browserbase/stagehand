@@ -6,7 +6,7 @@ import type {
 import type { Page } from "../../understudy/page.js";
 import { redactor, substituteVariables } from "./args.js";
 import type { TraceEntry } from "./pick.js";
-import type { JsonValue } from "./typesafeClient.js";
+import type { JsonValue } from "./client.js";
 
 /**
  * act() through a WebMCP tool: when the page registers tools and the decision model is sure
