@@ -54,7 +54,6 @@ export type {
   RuntimeRequirement,
 } from "./runtimeCompatibility.js";
 export {
-  CALLBACK_BATCH_CLIENT_GRACE_MS,
   StagehandBatchTimeoutError,
   type ExperimentalBatchCallback,
   type ExperimentalBatchBrowserContext,
