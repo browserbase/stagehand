@@ -12,6 +12,8 @@ describe("pi MCP name and result helpers", () => {
     expect(isPiMcpToolName("mcp__stage_hand__run", "stage.hand")).toBe(true);
     expect(isPiMcpToolName("mcp__other__run", "stagehand")).toBe(false);
     expect(isPiMcpToolName("other")).toBe(false);
+    expect(buildPiMcpToolName("stage-hand", "take-shot")).toBe("mcp__stage_hand__take_shot");
+    expect(isPiMcpToolName("mcp__stage_hand__run", "stage-hand")).toBe(true);
   });
 
   it("maps MCP call results, including images and structured errors", () => {

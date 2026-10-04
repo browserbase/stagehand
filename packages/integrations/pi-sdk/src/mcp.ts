@@ -53,5 +53,5 @@ export function piToolResultText(result: { content: unknown }): string {
 }
 
 function sanitizeName(value: string): string {
-  return value.replace(/[^A-Za-z0-9_-]/g, "_");
+  return value.replace(/[^A-Za-z0-9_]/g, "_");
 }

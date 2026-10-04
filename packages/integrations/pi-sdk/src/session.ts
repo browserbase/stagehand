@@ -31,7 +31,7 @@ export type PiAgentSessionLike = {
   subscribe(listener: (event: PiEvent) => void): () => void;
   prompt(text: string): Promise<void>;
   abort(): Promise<void>;
-  dispose(): void;
+  dispose(): void | Promise<void>;
   bindExtensions?(bindings?: Record<string, unknown>): Promise<void>;
   agent: {
     shouldStopAfterTurn?: (...args: any[]) => boolean | Promise<boolean>;
@@ -187,8 +187,32 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
           noTools: "builtin",
         });
         // MCP connects on session_start; SDK sessions do not bind extensions by default.
-        await session.bindExtensions({});
-        return session as unknown as PiAgentSessionLike;
+        let closePromise: Promise<void> | undefined;
+        const dispose = (): Promise<void> => {
+          closePromise ??= (async () => {
+            try {
+              // Pi's dispose only detaches listeners; MCP closes on session_shutdown.
+              await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+            } finally {
+              session.dispose();
+            }
+          })();
+          return closePromise;
+        };
+        try {
+          await session.bindExtensions({});
+        } catch (error) {
+          await dispose();
+          throw error;
+        }
+        return {
+          agent: session.agent,
+          subscribe: (listener) =>
+            session.subscribe(listener as Parameters<typeof session.subscribe>[0]),
+          prompt: (text) => session.prompt(text),
+          abort: () => session.abort(),
+          dispose,
+        } as PiAgentSessionLike;
       } catch (error) {
         if (error instanceof HarnessAdapterError) throw error;
         throw new HarnessAdapterError(
@@ -298,7 +322,7 @@ export async function runPiSession(input: {
     unsubscribe?.();
     if (piSession && !disposed) {
       disposed = true;
-      piSession.dispose();
+      await piSession.dispose();
     }
   }
 
@@ -418,7 +442,15 @@ export function compactPiEvent(
   imageBudget: { remainingBytes: number } = { remainingBytes: MAX_PI_SESSION_IMAGE_BYTES },
 ): PiEvent {
   if (event.type === "tool_execution_end") {
-    return { ...event, result: decodeImageBlocks(event.result, imageBudget) };
+    const result = decodeImageBlocks(event.result, imageBudget);
+    // Native MCP also includes the original wire result in structuredContent.
+    return {
+      ...event,
+      result:
+        isRecord(result) && result.structuredContent !== undefined
+          ? { ...result, structuredContent: withoutImageData(result.structuredContent) }
+          : result,
+    };
   }
   if (
     event.type === "message_end" &&

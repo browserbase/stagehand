@@ -5,7 +5,7 @@ description: "Give the Pi coding agent persistent Stagehand browser tools over M
 
 The Pi integration gives a Pi agent `run`, `snapshot`, and `screenshot` tools backed by one persistent Stagehand browser per session. Pi 1.0's built-in MCP mounts the Stagehand facade over stdio.
 
-The tool descriptions, runtime validators, and system prompt come from the shared facade contract, so the tools behave the same as the other MCP-based integrations.
+The tool descriptions and runtime validators come from the shared facade contract. The CLI MCP mount does not add the facade's agent instructions to Pi's system prompt.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
@@ -98,7 +98,7 @@ pi mcp add stagehand --exposure direct --description "Persistent Stagehand brows
 
 One MCP connection owns the browser for the session. Navigation, authentication, and page state remain available across `run`, `snapshot`, and `screenshot`. Starting a new server for each call creates a new browser and loses the previous session's page state.
 
-The MCP child receives the process environment. Keep Pi's model credential in the Pi process; only `STAGEHAND_*` and `BROWSERBASE_*` configure the browser.
+The MCP child inherits the process environment, including Pi's model credentials. The deterministic browser tools do not need those model credentials.
 
 SDK evals use the same native MCP with `exposure: "direct"` and disable Pi's built-in file tools (`read`, `bash`, `edit`, `write`). They do not load Pi's `codemode` tool; browser code execution is already the Stagehand `run` tool.
 

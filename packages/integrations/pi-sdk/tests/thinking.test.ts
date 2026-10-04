@@ -14,6 +14,8 @@ const pi = vi.hoisted(() => ({
     return () => {};
   }),
   bindExtensions: vi.fn(async () => {}),
+  emit: vi.fn(async () => {}),
+  dispose: vi.fn(),
   resourceLoaderOptions: undefined as Record<string, unknown> | undefined,
 }));
 
@@ -43,7 +45,8 @@ describe("pi thinking precedence through the SDK loader", () => {
         subscribe: () => () => {},
         prompt: async () => {},
         abort: async () => {},
-        dispose: () => {},
+        dispose: pi.dispose,
+        extensionRunner: { emit: pi.emit },
         bindExtensions: pi.bindExtensions,
       },
     });
@@ -83,6 +86,11 @@ describe("pi thinking precedence through the SDK loader", () => {
       expect(pi.createAgentSession.mock.calls[0][0]).not.toHaveProperty("excludeTools");
       expect(pi.createMcpExtension).not.toHaveBeenCalled();
       expect(pi.bindExtensions).toHaveBeenCalledWith({});
+      expect(pi.emit).toHaveBeenCalledWith({ type: "session_shutdown", reason: "quit" });
+      expect(pi.dispose).toHaveBeenCalledOnce();
+      expect(pi.emit.mock.invocationCallOrder[0]).toBeLessThan(
+        pi.dispose.mock.invocationCallOrder[0],
+      );
       expect(pi.resourceLoaderOptions).toMatchObject({
         noExtensions: true,
         noSkills: true,
@@ -93,6 +101,20 @@ describe("pi thinking precedence through the SDK loader", () => {
       });
     },
   );
+
+  it("shuts down extensions when binding fails", async () => {
+    pi.resolveCliModel.mockReturnValue({ model: { id: "fixture", provider: "openai" } });
+    pi.bindExtensions.mockRejectedValueOnce(new Error("binding failed"));
+    const result = await runPiSession({
+      model: "openai/fixture",
+      prompt: "Fixture task",
+      session: {},
+      logger: { log: () => {}, warn: () => {}, error: () => {} },
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(pi.emit).toHaveBeenCalledWith({ type: "session_shutdown", reason: "quit" });
+    expect(pi.dispose).toHaveBeenCalledOnce();
+  });
 
   it("registers eval MCP servers with direct exposure and skips Pi's codemode tool", async () => {
     const model = { id: "fixture", provider: "openai" };

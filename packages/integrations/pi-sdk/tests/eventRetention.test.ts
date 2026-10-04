@@ -4,6 +4,22 @@ import { compactPiEvent, runPiSession, summarizePiEvent, type PiEvent } from "..
 afterEach(() => vi.restoreAllMocks());
 
 describe("Pi retained event limits", () => {
+  it("keeps one decoded image from native MCP without retaining its wire copy", () => {
+    const data = Buffer.from("native screenshot").toString("base64");
+    const event = imageEvent(data);
+    const original = event.result as Record<string, unknown>;
+    original.structuredContent = {
+      content: original.content,
+      structuredContent: { snapshotId: "shot" },
+    };
+    const retained = compactPiEvent(event);
+    expect(retained.result).toMatchObject({
+      content: [{ bytes: Buffer.from("native screenshot") }],
+      structuredContent: { structuredContent: { snapshotId: "shot" } },
+    });
+    expect(JSON.stringify(retained)).not.toContain(data);
+    expect(JSON.stringify(event)).toContain(data);
+  });
   it.each(["assistant", "tool", "unknown"])("redacts before clipping %s details", (kind) => {
     const secret = `AIza${"A".repeat(35)}`;
     const makeEvent = (text: string): PiEvent =>
