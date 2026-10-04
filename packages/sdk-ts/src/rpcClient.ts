@@ -56,6 +56,8 @@ type RegisteredRequestHandler = {
 
 type RPCSendOptions = {
   signal?: AbortSignal;
+  /** Replaces the method's derived response deadline for this one request. */
+  responseTimeoutMs?: number;
 };
 
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
@@ -193,7 +195,8 @@ export class RPCClient {
           ...getTraceContextFields(requestContext),
         });
         span.setAttribute("jsonrpc.request.id", String(request.id));
-        const responseTimeoutMs = rpcResponseTimeoutMs(method.name, parsedParams);
+        const responseTimeoutMs =
+          options.responseTimeoutMs ?? rpcResponseTimeoutMs(method.name, parsedParams);
         const timeoutController =
           responseTimeoutMs === undefined ? undefined : new AbortController();
         const signal =
