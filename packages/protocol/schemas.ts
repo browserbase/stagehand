@@ -1648,7 +1648,7 @@ export const StagehandInitParamsSchema = z
       description:
         "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
     }),
-    experimentalJevAct: z
+    experimentalDecisions: z
       .strictObject({
         apiKey: z.string().min(1),
         model: z.string().min(1).optional(),

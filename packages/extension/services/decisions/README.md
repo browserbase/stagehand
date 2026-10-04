@@ -1,0 +1,72 @@
+# Decisions (experimental)
+
+Resolves `act("…")` through a decision tree of [TypeSafe Jev](https://docs.typesafe.ai) questions
+instead of one LLM call, and hands the act to the existing LLM pipeline whenever the decision model is not
+confident. The decision model is a System One model: it answers typed questions (Choice / Noul) with
+probabilities, cannot generate text, and costs roughly 100–300 ms and a few thousand input tokens
+per request.
+
+Off unless `experimentalDecisions` is present in the init params. The TypeScript SDK sets it from the
+`STAGEHAND_EXPERIMENTAL_DECISIONS` environment variable (the config below, as JSON); it is
+deliberately not a field of the public create config. Evals build that variable from
+`EVAL_DECISIONS=1` and the other `EVAL_DECISIONS_*` switches in `packages/evals/initStagehand.ts`.
+
+## Flow
+
+| Step           | Who                                                           | Notes                                                                                                                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Modifier check | code                                                          | `ctrl+a`, `shift+click` go straight to the LLM.                                                                                                                                                                                                                                                                |
+| Intent         | the decision model, 1 request, no snapshot                    | Action family, key, scroll scope, mouse button, checkbox end state, which quoted string is the text to type, whether a suggestion must be picked after typing. `click`/`select` and `click`/`double_click` splits are merged.                                                                                  |
+| Arguments      | code, else argument-only LLM                                  | Quoted strings, `%variables%`, percentages and keys are parsed. Unquoted text comes from a tiny LLM call that must return text lifted from the instruction.                                                                                                                                                    |
+| Candidates     | code                                                          | Role view per family, then every named element. Described with name, ancestors, heading, card/row text for twins, `n of m`, iframe flag, DOM attributes for nameless controls. Lists over 40 are first cut to the 30 sharing words with the instruction; one exact quoted-name match skips the decision model. |
+| Pick           | the decision model, 1 request (parallel shards on huge lists) | One exact quoted-name match is confirmed with a single small request instead of ranking the list. `best` (no none option) + `strict` (none vetoes above 0.9). A pick strict is uneasy about is held while the next tier tries. Indistinguishable twins share their vote.                                       |
+| Act            | code                                                          | Same `Action` shape as the LLM path, so caching and replay are unchanged. Detached fill targets are re-picked once.                                                                                                                                                                                            |
+| Checks         | code                                                          | Fill read-back, native `<select>` `[selected]` flag, no-effect retry on a credible runner-up. `verify: "full"` adds a logged-only the decision model yes/no.                                                                                                                                                   |
+| No target      | the decision model, 1 request                                 | Page-state signals; access-denied / captcha fail fast. Otherwise the LLM gets the decision model's shortlist (with each item's card/row) before the whole tree.                                                                                                                                                |
+
+Also reused outside `act` inference: `cacheCheck.ts` asks one yes/no before a cached action is
+replayed, so a selector that now resolves to a different control is re-inferred instead of clicked.
+
+## Files
+
+- `pipeline.ts` — orchestration per family (`press`, pointer, `fill`, `select`, scroll, `drag`).
+- `pick.ts` — tiers, pruning, shards, best/strict acceptance.
+- `tree.ts` — outline parsing, views, candidate descriptions, focus outline, page digest.
+- `args.ts` — deterministic argument parsing and grounding.
+- `pageState.ts`, `cacheCheck.ts`, `typesafeClient.ts`.
+
+## Configuration (`experimentalDecisions`)
+
+| Field           | Default    | Meaning                                                                                                                                                                                                                                                |
+| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apiKey`        | required   | TypeSafe key. `apiUrl` (https only) and `model` are optional.                                                                                                                                                                                          |
+| `enabled`       | `true`     | `false` keeps only the per-act timing log (eval baselines).                                                                                                                                                                                            |
+| `actConfidence` | `0.7`      | Minimum confidence to act on a node's answer.                                                                                                                                                                                                          |
+| `verify`        | `"checks"` | `"checks"`: fill read-back + native-select flag. `"full"` adds a logged-only the decision model yes/no. `"off"`: none.                                                                                                                                 |
+| `llmFallback`   | `true`     | `false` fails the act when the decision model abstains: the fastest way to see what the decision model alone gets wrong.                                                                                                                               |
+| `argumentLlm`   | `true`     | The argument-only LLM call for unquoted text. Independent of `llmFallback`; turn both off for an LLM-free run. The typed text is always the instruction's own characters, never the model's re-cased copy.                                             |
+| `pageState`     | `true`     | Page-state request when the decision model leans toward "not on this page".                                                                                                                                                                            |
+| `cacheCheck`    | `false`    | Before each cached action is replayed, one the decision model yes/no checks that its selector still points at a matching element; stale ones are re-inferred. Adds a snapshot per cached action, and a request when the selector still resolves in it. |
+| `observe`       | `false`    | Resolve `observe()` through the decision model first. "Find all" is answered exhaustively or handed to the LLM (over 600 candidates; over 400 elements with no instruction), never truncated.                                                          |
+| `retryNoEffect` | `false`    | Click the runner-up when an ambiguous click provably changed nothing. Off: effects the outline cannot show (aria-pressed, copy, play) look like "nothing". Never cached.                                                                               |
+| `focusFallback` | `false`    | On trees over 120K chars, show the LLM the decision model's shortlist first. Off: it found the target in a minority of firings and cost accuracy on ordinary pages.                                                                                    |
+
+## What leaves the process
+
+Sent to TypeSafe: the instruction, candidate descriptions built from the accessibility outline
+(names, nearby text, card/row text, DOM attributes of nameless controls), the page URL without
+query string or fragment, a digest of the first visible content (page state), and — only with
+its own opt-in — cached action descriptions (`cacheCheck`).
+Resolved `%variable%` values of three or more characters are replaced by their placeholder in every
+request and in the trace
+log, including when an earlier act already typed them into the page. With the flag on, each act
+logs its instruction and a trace of candidate descriptions at info level.
+
+## Known limits
+
+- Decision-model usage is logged but not part of `result.metadata.usage`.
+- Thresholds (0.7 accept, 0.9 none veto, 0.7 held-pick cap) were set on the act and breadth suites.
+  The cache-check threshold (0.35) comes from direct API probes; no eval exercises the cache path.
+- No eval exercises page-state fail-fast or `retryNoEffect` end to end; both have unit tests only.
+- Modifier chords, file upload and unquoted `<select>` options on selects with more than 254
+  options go to the LLM.

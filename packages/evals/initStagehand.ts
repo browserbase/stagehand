@@ -62,7 +62,7 @@ function createStagehandOnLog(logger: EvalLogger): (event: StagehandLogEvent) =>
   };
 }
 
-let jevBridgeSetByEvals = false;
+let decisionsBridgeSetByEvals = false;
 
 export async function initStagehand({
   logger,
@@ -80,47 +80,47 @@ export async function initStagehand({
     );
   }
 
-  // EVAL_JEV_ACT=1 routes act() through the experimental Jev decision tree,
-  // falling back to the configured model when Jev abstains.
-  let experimentalJevAct: Record<string, unknown> | undefined;
-  if (process.env.EVAL_JEV_ACT !== "1" && process.env.EVAL_JEV_INSTRUMENT === "1") {
-    // Baseline arm: no Jev, only the per-act timing log the report parses.
-    experimentalJevAct = { apiKey: "instrument-only", enabled: false };
+  // EVAL_DECISIONS=1 routes act() through the experimental decision tree,
+  // falling back to the configured model when the decision model abstains.
+  let experimentalDecisions: Record<string, unknown> | undefined;
+  if (process.env.EVAL_DECISIONS !== "1" && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
+    // Baseline arm: no the decision model, only the per-act timing log the report parses.
+    experimentalDecisions = { apiKey: "instrument-only", enabled: false };
   }
-  if (process.env.EVAL_JEV_ACT === "1") {
+  if (process.env.EVAL_DECISIONS === "1") {
     const typesafeApiKey = resolveKey("TYPESAFE_API_KEY").value;
     if (!typesafeApiKey) {
-      throw new Error("Stagehand init: EVAL_JEV_ACT=1 requires TYPESAFE_API_KEY");
+      throw new Error("Stagehand init: EVAL_DECISIONS=1 requires TYPESAFE_API_KEY");
     }
-    const actConfidence = Number(process.env.EVAL_JEV_ACT_CONFIDENCE);
-    experimentalJevAct = {
+    const actConfidence = Number(process.env.EVAL_DECISIONS_CONFIDENCE);
+    experimentalDecisions = {
       apiKey: typesafeApiKey,
-      ...(process.env.EVAL_JEV_MODEL ? { model: process.env.EVAL_JEV_MODEL } : {}),
-      ...(Number.isFinite(actConfidence) && process.env.EVAL_JEV_ACT_CONFIDENCE
+      ...(process.env.EVAL_DECISIONS_MODEL ? { model: process.env.EVAL_DECISIONS_MODEL } : {}),
+      ...(Number.isFinite(actConfidence) && process.env.EVAL_DECISIONS_CONFIDENCE
         ? { actConfidence }
         : {}),
-      ...(process.env.EVAL_JEV_ACT_VERIFY === "0"
+      ...(process.env.EVAL_DECISIONS_VERIFY === "0"
         ? { verify: "off" }
-        : process.env.EVAL_JEV_ACT_VERIFY === "full"
+        : process.env.EVAL_DECISIONS_VERIFY === "full"
           ? { verify: "full" }
           : {}),
-      ...(process.env.EVAL_JEV_ACT_LLM_FALLBACK === "0" ? { llmFallback: false } : {}),
-      ...(process.env.EVAL_JEV_ARG_LLM === "0" ? { argumentLlm: false } : {}),
-      ...(process.env.EVAL_JEV_OBSERVE === "1" ? { observe: true } : {}),
-      ...(process.env.EVAL_JEV_CACHE_CHECK === "1" ? { cacheCheck: true } : {}),
-      ...(process.env.EVAL_JEV_RETRY === "1" ? { retryNoEffect: true } : {}),
-      ...(process.env.EVAL_JEV_FOCUS === "1" ? { focusFallback: true } : {}),
+      ...(process.env.EVAL_DECISIONS_LLM_FALLBACK === "0" ? { llmFallback: false } : {}),
+      ...(process.env.EVAL_DECISIONS_ARG_LLM === "0" ? { argumentLlm: false } : {}),
+      ...(process.env.EVAL_DECISIONS_OBSERVE === "1" ? { observe: true } : {}),
+      ...(process.env.EVAL_DECISIONS_CACHE_CHECK === "1" ? { cacheCheck: true } : {}),
+      ...(process.env.EVAL_DECISIONS_RETRY === "1" ? { retryNoEffect: true } : {}),
+      ...(process.env.EVAL_DECISIONS_FOCUS === "1" ? { focusFallback: true } : {}),
     };
   }
 
   // Read by the TS SDK when it builds init params; not part of the public create config.
   // Only values this initializer set are cleared: a caller's own bridge config stays.
-  if (experimentalJevAct) {
-    process.env.STAGEHAND_EXPERIMENTAL_JEV_ACT = JSON.stringify(experimentalJevAct);
-    jevBridgeSetByEvals = true;
-  } else if (jevBridgeSetByEvals) {
-    delete process.env.STAGEHAND_EXPERIMENTAL_JEV_ACT;
-    jevBridgeSetByEvals = false;
+  if (experimentalDecisions) {
+    process.env.STAGEHAND_EXPERIMENTAL_DECISIONS = JSON.stringify(experimentalDecisions);
+    decisionsBridgeSetByEvals = true;
+  } else if (decisionsBridgeSetByEvals) {
+    delete process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
+    decisionsBridgeSetByEvals = false;
   }
 
   // `browser` is a factory-built handle rather than a config object:

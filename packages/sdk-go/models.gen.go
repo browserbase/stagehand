@@ -2000,7 +2000,7 @@ type StagehandInitParams struct {
 
 	// Experimental: resolve act() through TypeSafe Jev decisions before falling back
 	// to the LLM pipeline
-	ExperimentalJevAct *StagehandInitParamsExperimentalJevAct `json:"experimental_jev_act,omitempty,omitzero"`
+	ExperimentalDecisions *StagehandInitParamsExperimentalDecisions `json:"experimental_decisions,omitempty,omitzero"`
 
 	// LogLevel corresponds to the JSON schema field "log_level".
 	LogLevel StagehandInitParamsLogLevel `json:"log_level,omitempty,omitzero"`
@@ -2023,7 +2023,7 @@ type StagehandInitParams struct {
 
 // Experimental: resolve act() through TypeSafe Jev decisions before falling back
 // to the LLM pipeline
-type StagehandInitParamsExperimentalJevAct struct {
+type StagehandInitParamsExperimentalDecisions struct {
 	// ActConfidence corresponds to the JSON schema field "act_confidence".
 	ActConfidence *float64 `json:"act_confidence,omitempty,omitzero"`
 
@@ -2061,14 +2061,14 @@ type StagehandInitParamsExperimentalJevAct struct {
 	RetryNoEffect *bool `json:"retry_no_effect,omitempty,omitzero"`
 
 	// Verify corresponds to the JSON schema field "verify".
-	Verify *StagehandInitParamsExperimentalJevActVerify `json:"verify,omitempty,omitzero"`
+	Verify *StagehandInitParamsExperimentalDecisionsVerify `json:"verify,omitempty,omitzero"`
 }
 
-type StagehandInitParamsExperimentalJevActVerify string
+type StagehandInitParamsExperimentalDecisionsVerify string
 
-const StagehandInitParamsExperimentalJevActVerifyChecks StagehandInitParamsExperimentalJevActVerify = "checks"
-const StagehandInitParamsExperimentalJevActVerifyFull StagehandInitParamsExperimentalJevActVerify = "full"
-const StagehandInitParamsExperimentalJevActVerifyOff StagehandInitParamsExperimentalJevActVerify = "off"
+const StagehandInitParamsExperimentalDecisionsVerifyChecks StagehandInitParamsExperimentalDecisionsVerify = "checks"
+const StagehandInitParamsExperimentalDecisionsVerifyFull StagehandInitParamsExperimentalDecisionsVerify = "full"
+const StagehandInitParamsExperimentalDecisionsVerifyOff StagehandInitParamsExperimentalDecisionsVerify = "off"
 
 type StagehandInitParamsLogLevel string
 

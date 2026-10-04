@@ -86,7 +86,7 @@ export function createStagehandController(
         domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
-        jevAct: state.initParams.experimentalJevAct,
+        decisions: state.initParams.experimentalDecisions,
         openPageCount: () => runtime.requireBrowserSession().pages().length,
       });
       runtime.metrics.record("act", result.metadata.usage);
@@ -117,7 +117,7 @@ export function createStagehandController(
         systemPrompt: state.initParams.systemPrompt,
         cache: cacheService.buildCacheContext(state.initParams),
         gateway,
-        jev: state.initParams.experimentalJevAct,
+        decisions: state.initParams.experimentalDecisions,
       });
       runtime.metrics.record("observe", result.metadata.usage);
       return result;

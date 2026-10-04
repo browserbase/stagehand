@@ -1,7 +1,7 @@
 import type { JsonValue } from "./typesafeClient.js";
 
 /**
- * Parses the hybrid snapshot outline back into nodes so the Jev act pipeline
+ * Parses the hybrid snapshot outline back into nodes so the Decisions act pipeline
  * can build role-filtered candidate views. Lines follow `formatTreeLine`:
  * `[frame-node] role: name [selected] [checked]`, two spaces per depth.
  */
@@ -622,7 +622,7 @@ function tokens(text: string): string[] {
 
 /**
  * Lexical relevance of each candidate to the instruction, used to cut large
- * candidate lists down to one Jev request. Own name counts most, then inner
+ * candidate lists down to one decision-model request. Own name counts most, then inner
  * text, then surrounding context. Zero means no shared word at all.
  */
 export function scoreCandidates(
@@ -653,7 +653,7 @@ export function scoreCandidates(
   return scores;
 }
 
-/** Other nodes Jev cannot tell from this one: same description apart from the "n of m" ordinal. */
+/** Other nodes the decision model cannot tell from this one: same description apart from the "n of m" ordinal. */
 export function indistinguishableTwins(nodes: OutlineNode[], node: OutlineNode): OutlineNode[] {
   const key = (candidate: OutlineNode) => {
     const { occurrence: _occurrence, ...rest } = describeCandidate(nodes, candidate);
@@ -696,7 +696,7 @@ export function exactNameMatches(candidates: OutlineNode[], quoted: string): Out
 /**
  * The outline reduced to the given nodes, their ancestors and their subtrees,
  * in the original line format. Handed to the LLM fallback in place of the
- * whole page when Jev narrowed the choice but could not commit.
+ * whole page when the decision model narrowed the choice but could not commit.
  */
 export function focusOutline(nodes: OutlineNode[], ids: Iterable<string>): string {
   const wanted = new Set(ids);
