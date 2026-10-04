@@ -9,7 +9,7 @@ import type { TraceEntry } from "./pick.js";
 import type { JsonValue } from "./typesafeClient.js";
 
 /**
- * act() through a WebMCP tool: when the page registers tools and Jev is sure
+ * act() through a WebMCP tool: when the page registers tools and the decision model is sure
  * one of them IS the request, the tool is invoked instead of finding something
  * to click. The choice itself rides in the act pipeline's intent request.
  */
@@ -19,7 +19,7 @@ const RESULT_MESSAGE_CHARS = 2_000;
 
 export type ToolInput = Record<string, JsonValue>;
 
-export type JevToolDeps = {
+export type DecisionsToolDeps = {
   page: Pick<Page, "invokeWebMCPTool" | "waitForWebMCPInvocationResult">;
   /**
    * The page's tools. A promise, so the listing overlaps whatever the caller
@@ -31,7 +31,7 @@ export type JevToolDeps = {
 };
 
 export async function invokeTool(
-  deps: JevToolDeps,
+  deps: DecisionsToolDeps,
   instruction: string,
   variables: Variables | undefined,
   tool: WebMCPToolDescriptor,

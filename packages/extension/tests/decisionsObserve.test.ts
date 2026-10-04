@@ -1,7 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StagehandLogger } from "../logger.js";
-import { runJevObserve, type JevObserveDeps } from "../services/jevAct/observe.js";
+import { runDecisionsObserve, type DecisionsObserveDeps } from "../services/decisions/observe.js";
 
 const PAGE = [
   "[0-1] RootWebArea: Sign up",
@@ -16,7 +16,7 @@ const PAGE = [
 ].join("\n");
 const XPATHS = Object.fromEntries([2, 3, 4, 5, 8, 9].map((n) => [`0-${n}`, `/html/body/*[${n}]`]));
 
-function deps(instruction?: string): JevObserveDeps {
+function deps(instruction?: string): DecisionsObserveDeps {
   return {
     page: {
       captureSnapshot: vi.fn(async () => ({
@@ -25,7 +25,7 @@ function deps(instruction?: string): JevObserveDeps {
         combinedUrlMap: {},
       })),
     } as never,
-    logger: new StagehandLogger({ tracer: trace.getTracer("jev-observe-test") }, () => {}),
+    logger: new StagehandLogger({ tracer: trace.getTracer("decisions-observe-test") }, () => {}),
     instruction,
     snapshotOptions: {},
     ensureTimeRemaining: () => {},
@@ -41,7 +41,11 @@ function stub(answer: (key: string, question: { criteria?: Record<string, unknow
       Object.entries(body.questions).map(([key, q]) => [key, answer(key, q)]),
     );
     return new Response(
-      JSON.stringify({ model: "jev", answers, usage: { input_tokens: 1, output_tokens: 1 } }),
+      JSON.stringify({
+        model: "decision-model",
+        answers,
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }),
     );
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -56,10 +60,10 @@ const choice = (value: string, confidence = 0.95) => ({
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("jev observe", () => {
+describe("decisions observe", () => {
   it("lists every interactive element without a model when there is no instruction", async () => {
     const fetchMock = stub(() => choice("unused"));
-    const outcome = await runJevObserve({ apiKey: "test" }, deps());
+    const outcome = await runDecisionsObserve({ apiKey: "test" }, deps());
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(
@@ -85,7 +89,7 @@ describe("jev observe", () => {
             ? choice("other")
             : { type: "noul", noul: ["0-3", "0-4"].includes(key) ? 0.93 : 0.05, question },
     );
-    const outcome = await runJevObserve(
+    const outcome = await runDecisionsObserve(
       { apiKey: "test" },
       deps("find all the text fields in the form"),
     );
@@ -109,7 +113,7 @@ describe("jev observe", () => {
               ? choice("0-5")
               : { type: "noul", noul: 0.95 },
     );
-    const outcome = await runJevObserve(
+    const outcome = await runDecisionsObserve(
       { apiKey: "test" },
       deps("choose 'Peru' in the country dropdown"),
     );
@@ -151,7 +155,7 @@ describe("jev observe", () => {
       combinedUrlMap: {},
     });
 
-    expect((await runJevObserve({ apiKey: "test" }, harness)).kind).toBe("done");
+    expect((await runDecisionsObserve({ apiKey: "test" }, harness)).kind).toBe("done");
     expect(
       JSON.stringify(fetchMock.mock.calls.map(([, init]) => (init as RequestInit).body)),
     ).not.toContain("FAKE_BOUND_SECRET");
@@ -170,7 +174,7 @@ describe("jev observe", () => {
               : { type: "noul", noul: 0.95 },
     );
     expect(
-      await runJevObserve({ apiKey: "test" }, deps("hover over the Country dropdown")),
+      await runDecisionsObserve({ apiKey: "test" }, deps("hover over the Country dropdown")),
     ).toMatchObject({
       kind: "done",
       actions: [{ selector: "xpath=/html/body/*[5]", method: "hover", arguments: [] }],
@@ -200,25 +204,27 @@ describe("jev observe", () => {
     stub(answer);
     const all = deps("find all the buy buttons");
     (all.page.captureSnapshot as ReturnType<typeof vi.fn>).mockResolvedValue(many(181));
-    const outcome = await runJevObserve({ apiKey: "test" }, all);
+    const outcome = await runDecisionsObserve({ apiKey: "test" }, all);
     expect(outcome.kind === "done" && outcome.actions).toHaveLength(181);
 
     stub(answer);
     const tooMany = deps("find all the buy buttons");
     (tooMany.page.captureSnapshot as ReturnType<typeof vi.fn>).mockResolvedValue(many(601));
-    expect(await runJevObserve({ apiKey: "test" }, tooMany)).toMatchObject({
+    expect(await runDecisionsObserve({ apiKey: "test" }, tooMany)).toMatchObject({
       kind: "fallback",
       reason: "too_many_candidates:601",
     });
 
     const everything = deps();
     (everything.page.captureSnapshot as ReturnType<typeof vi.fn>).mockResolvedValue(many(401));
-    expect(await runJevObserve({ apiKey: "test" }, everything)).toMatchObject({ kind: "fallback" });
+    expect(await runDecisionsObserve({ apiKey: "test" }, everything)).toMatchObject({
+      kind: "fallback",
+    });
   });
 
   it("hands locate-nothing and low-confidence intents to the LLM", async () => {
     stub((key) => (key === "family" ? choice("click", 0.3) : choice("one")));
-    expect(await runJevObserve({ apiKey: "test" }, deps("hmm"))).toMatchObject({
+    expect(await runDecisionsObserve({ apiKey: "test" }, deps("hmm"))).toMatchObject({
       kind: "fallback",
     });
   });

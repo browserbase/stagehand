@@ -5,4 +5,4 @@
 "@browserbasehq/stagehand-python": patch
 ---
 
-experimental Jev path: opt-in `tools` lets `act()` invoke a WebMCP tool the page registered when Jev is confident the tool fulfils the instruction
+experimental decisions path: opt-in `targetReadiness` lets `act()` proceed as soon as its target is found and stable instead of waiting out the DOM-settle heuristic

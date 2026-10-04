@@ -3,15 +3,15 @@ import { ask, round, type AskContext, type TraceEntry } from "./pick.js";
 import {
   choiceAnswer,
   noulAnswer,
-  type JevQuestion,
-  type JevResponse,
+  type DecisionQuestion,
+  type DecisionResponse,
   type JsonValue,
 } from "./typesafeClient.js";
 
 /**
- * WebMCP tool selection on Jev. A page that registers tools has already said
+ * WebMCP tool selection on the decision model. A page that registers tools has already said
  * what it can do, so "which tool fulfils this request" is a closed-set choice,
- * and most arguments are words of the instruction (a span Jev can point at) or
+ * and most arguments are words of the instruction (a span the decision model can point at) or
  * an enum/boolean. Anything else is left to the caller: an argument-only LLM
  * call for the chosen tool, or the ordinary element path.
  */
@@ -50,9 +50,9 @@ const STOPWORDS = new Set([
 type ToolInput = Record<string, JsonValue>;
 
 export type ToolOutcome =
-  /** `input` is absent when Jev chose the tool but could not fill its arguments with confidence. */
+  /** `input` is absent when the decision model chose the tool but could not fill its arguments with confidence. */
   | { kind: "tool"; tool: WebMCPToolDescriptor; input?: ToolInput }
-  /** The request is not a tool call (or Jev is unsure): carry on with the element path. */
+  /** The request is not a tool call (or the decision model is unsure): carry on with the element path. */
   | { kind: "skip"; reason: string };
 
 type Property = { type?: JsonValue; enum?: JsonValue[]; description?: JsonValue };
@@ -73,10 +73,10 @@ function requiredOf(tool: WebMCPToolDescriptor): string[] {
 
 export type ToolQuestions = {
   offered: WebMCPToolDescriptor[];
-  questions: Record<string, JevQuestion>;
+  questions: Record<string, DecisionQuestion>;
   /** Tools whose argument questions are already in `questions`. */
   withArguments: WebMCPToolDescriptor[];
-  /** Best lexical match when it needs an argument LLM whatever Jev says about spans. */
+  /** Best lexical match when it needs an argument LLM whatever the decision model says about spans. */
   needsArgumentLlm?: WebMCPToolDescriptor;
   spanIds: Map<string, string>;
 };
@@ -109,7 +109,7 @@ export function toolQuestions(
     }),
   );
   const instructions = { task: "Which tool fulfils the user's request?", request: instruction };
-  const questions: Record<string, JevQuestion> = {
+  const questions: Record<string, DecisionQuestion> = {
     tool_best: { type: "choice", instructions, criteria },
     tool_strict: {
       type: "choice",
@@ -165,7 +165,7 @@ export function toolQuestions(
 /** Reads the tool decision out of the response the questions rode in. */
 export async function readToolDecision(
   ctx: AskContext,
-  response: JevResponse,
+  response: DecisionResponse,
   asked: ToolQuestions,
   entry: TraceEntry,
 ): Promise<ToolOutcome> {
@@ -269,10 +269,10 @@ function argumentQuestions(
   tool: WebMCPToolDescriptor,
   instruction: string,
   spanIds: Map<string, string>,
-): Record<string, JevQuestion> | undefined {
+): Record<string, DecisionQuestion> | undefined {
   const properties = propertiesOf(tool);
   const unset = "The request does not state a value for this parameter";
-  const questions: Record<string, JevQuestion> = {};
+  const questions: Record<string, DecisionQuestion> = {};
   for (const [name, property] of Object.entries(properties)) {
     const instructions = {
       task: `What value does the request give for the parameter '${name}' of the tool '${tool.name}'?`,
@@ -327,9 +327,9 @@ function argumentQuestions(
   return questions;
 }
 
-/** Undefined unless Jev is sure about every parameter, stated or not, and none required is missing. */
+/** Undefined unless the decision model is sure about every parameter, stated or not, and none required is missing. */
 function readArguments(
-  response: JevResponse,
+  response: DecisionResponse,
   tool: WebMCPToolDescriptor,
   spanIds: Map<string, string>,
   keyOf: (name: string) => string,

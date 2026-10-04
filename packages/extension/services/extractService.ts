@@ -1,7 +1,7 @@
-import { extractionCompleted } from "./jevAct/extractCheck.js";
-import { runJevExtract, type JsonSchema } from "./jevAct/extract.js";
-import type { JevActConfig } from "./jevAct/pipeline.js";
-import { parseOutline } from "./jevAct/tree.js";
+import { extractionCompleted } from "./decisions/extractCheck.js";
+import { runDecisionsExtract, type JsonSchema } from "./decisions/extract.js";
+import type { DecisionsConfig } from "./decisions/pipeline.js";
+import { parseOutline } from "./decisions/tree.js";
 import { z } from "zod/v4";
 import type {
   ClientModelReference,
@@ -52,7 +52,7 @@ export async function extract({
   systemPrompt = "",
   cache,
   gateway,
-  jev,
+  decisions,
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
@@ -62,8 +62,8 @@ export async function extract({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-  /** Experimental: Jev judges completion ("judge") or picks the values itself ("pick"). */
-  jev?: JevActConfig;
+  /** Experimental: the decision model judges completion ("judge") or picks the values itself ("pick"). */
+  decisions?: DecisionsConfig;
 }): Promise<ExtractResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -124,21 +124,21 @@ export async function extract({
 
     const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
 
-    // Pick-and-copy: Jev chooses the elements that hold the values, code copies
+    // Pick-and-copy: the decision model chooses the elements that hold the values, code copies
     // their text. Screenshot-based extraction stays with the LLM.
-    if (jev?.extract === "pick" && instruction && !screenshot) {
-      const outcome = await runJevExtract(jev, {
+    if (decisions?.extract === "pick" && instruction && !screenshot) {
+      const outcome = await runDecisionsExtract(decisions, {
         logger,
         instruction,
         schema: params.schema as JsonSchema,
         snap: { tree: combinedTree, xpathMap: {}, nodes: parseOutline(combinedTree) },
         urlMap: (combinedUrlMap ?? {}) as Record<string, string>,
         ensureTimeRemaining,
-        gate: jev.llmFallback !== false,
+        gate: decisions.llmFallback !== false,
       }).catch((error: unknown) => {
         if (error instanceof TimeoutError) throw error;
         const message = error instanceof Error ? error.message : String(error);
-        return { kind: "fallback" as const, reason: `jev_error:${message}` };
+        return { kind: "fallback" as const, reason: `decision_error:${message}` };
       });
       const valid = outcome.kind === "done" ? schema.safeParse(outcome.data) : undefined;
       if (outcome.kind === "done" && valid?.success) {
@@ -152,9 +152,13 @@ export async function extract({
         };
       }
       const reason = outcome.kind === "fallback" ? outcome.reason : "schema_mismatch";
-      logger.info("Jev extract fell back to the LLM", { category: "jev", instruction, reason });
-      if (jev.llmFallback === false) {
-        throw new Error(`Jev extract abstained (${reason})`);
+      logger.info("Decisions extract fell back to the LLM", {
+        category: "decisions",
+        instruction,
+        reason,
+      });
+      if (decisions.llmFallback === false) {
+        throw new Error(`Decisions extract abstained (${reason})`);
       }
     }
     const isObjectSchema = schema instanceof z.ZodObject;
@@ -183,13 +187,13 @@ export async function extract({
         generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
         userProvidedInstructions: systemPrompt,
         screenshot: screenshotContent,
-        ...(jev && instruction
+        ...(decisions && instruction
           ? {
               judgeCompleted: async (extracted: unknown) => {
                 const trace: Record<string, unknown>[] = [];
                 const verdict = await extractionCompleted(
                   {
-                    config: jev,
+                    config: decisions,
                     instruction,
                     trace: trace as never,
                     threshold: 0.5,
@@ -198,8 +202,8 @@ export async function extract({
                   },
                   extracted,
                 );
-                logger.info("Jev extract completion", {
-                  category: "jev",
+                logger.info("Decisions extract completion", {
+                  category: "decisions",
                   instruction,
                   score: verdict.score,
                   trace: JSON.stringify(trace),

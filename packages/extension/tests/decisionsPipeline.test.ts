@@ -6,10 +6,10 @@ import {
   fillValueCandidates,
   parseKey,
   parsePercent,
-  runJevActPipeline,
-  type JevActDeps,
+  runDecisionsAct,
+  type DecisionsActDeps,
   resolveFamily,
-} from "../services/jevAct/pipeline.js";
+} from "../services/decisions/pipeline.js";
 import { resolveLocatorWithHops } from "../understudy/deepLocator.js";
 import type { Page } from "../understudy/page.js";
 
@@ -63,7 +63,7 @@ const DEFAULT_ANSWERS: Record<string, unknown> = {
 /** Answers keyed by question name; a function receives the question for per-request answers. */
 type Answer = unknown | ((question: { criteria?: Record<string, unknown> }) => unknown);
 
-function stubJev(table: Answers) {
+function stubDecisions(table: Answers) {
   const calls: Array<{ state: unknown; questions: Record<string, unknown> }> = [];
   vi.stubGlobal(
     "fetch",
@@ -97,7 +97,11 @@ function stubJev(table: Answers) {
   return calls;
 }
 
-function deps(tree: string, xpathMap: Record<string, string>, overrides: Partial<JevActDeps> = {}) {
+function deps(
+  tree: string,
+  xpathMap: Record<string, string>,
+  overrides: Partial<DecisionsActDeps> = {},
+) {
   const captureSnapshot = vi.fn(async () => ({
     combinedTree: tree,
     combinedXpathMap: xpathMap,
@@ -111,13 +115,13 @@ function deps(tree: string, xpathMap: Record<string, string>, overrides: Partial
       actions: [action],
     }),
   );
-  const value: JevActDeps = {
+  const value: DecisionsActDeps = {
     page: {
       captureSnapshot,
       mainFrame: () => ({}),
       url: () => "https://example.com",
     } as unknown as Page,
-    logger: new StagehandLogger({ tracer: trace.getTracer("jev-act-test") }, () => {}),
+    logger: new StagehandLogger({ tracer: trace.getTracer("decisions-act-test") }, () => {}),
     instruction: "",
     snapshotOptions: {},
     ensureTimeRemaining: () => {},
@@ -133,9 +137,9 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("jev act pipeline", () => {
+describe("decisions act pipeline", () => {
   it("fills a variable placeholder into the chosen field and verifies by read-back", async () => {
-    const calls = stubJev({
+    const calls = stubDecisions({
       family: choice("fill"),
       key: choice("other"),
       strict: choice("0-5"),
@@ -150,7 +154,7 @@ describe("jev act pipeline", () => {
       },
     );
 
-    const outcome = await runJevActPipeline(config, value);
+    const outcome = await runDecisionsAct(config, value);
 
     expect(outcome.kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith({
@@ -164,10 +168,10 @@ describe("jev act pipeline", () => {
   });
 
   it("falls back without a snapshot when intent confidence is low", async () => {
-    stubJev({ family: choice("click", 0.4), key: choice("other") });
+    stubDecisions({ family: choice("click", 0.4), key: choice("other") });
     const { value, captureSnapshot, takeAction } = deps(FORM, {}, { instruction: "do the thing" });
 
-    const outcome = await runJevActPipeline(config, value);
+    const outcome = await runDecisionsAct(config, value);
 
     expect(outcome).toMatchObject({
       kind: "fallback",
@@ -178,10 +182,10 @@ describe("jev act pipeline", () => {
   });
 
   it("presses a key without capturing a snapshot", async () => {
-    stubJev({ family: choice("press"), key: choice("Enter") });
+    stubDecisions({ family: choice("press"), key: choice("Enter") });
     const { value, captureSnapshot, takeAction } = deps(FORM, {}, { instruction: "press enter" });
 
-    const outcome = await runJevActPipeline(config, value);
+    const outcome = await runDecisionsAct(config, value);
 
     expect(outcome.kind).toBe("done");
     expect(captureSnapshot).not.toHaveBeenCalled();
@@ -191,7 +195,7 @@ describe("jev act pipeline", () => {
   });
 
   it("selects a quoted native option deterministically", async () => {
-    const calls = stubJev({
+    const calls = stubDecisions({
       family: choice("select"),
       key: choice("other"),
       strict: choice("0-7"),
@@ -206,7 +210,7 @@ describe("jev act pipeline", () => {
     );
 
     // Read-back needs a changed snapshot; the static fixture cannot provide one.
-    const outcome = await runJevActPipeline({ ...config, verify: "off" as const }, value);
+    const outcome = await runDecisionsAct({ ...config, verify: "off" as const }, value);
 
     expect(outcome.kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
@@ -225,7 +229,7 @@ describe("jev act pipeline", () => {
       confidence: 0.55,
       probabilities: { none_match: 0.6, "0-5": 0.4 },
     };
-    stubJev({
+    stubDecisions({
       family: choice("fill"),
       key: choice("other"),
       strict: hedged,
@@ -236,10 +240,10 @@ describe("jev act pipeline", () => {
       { "0-5": "/html/body/form/input" },
       { instruction: "type 'business' into the input" },
     );
-    expect((await runJevActPipeline(config, loose.value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, loose.value)).kind).toBe("done");
 
     const certain = { ...hedged, confidence: 0.99, probabilities: { none_match: 1, "0-5": 0 } };
-    stubJev({
+    stubDecisions({
       family: choice("fill"),
       key: choice("other"),
       strict: certain,
@@ -250,7 +254,7 @@ describe("jev act pipeline", () => {
       { "0-5": "/html/body/form/input" },
       { instruction: "type 'business' into the fax field" },
     );
-    const outcome = await runJevActPipeline(config, absent.value);
+    const outcome = await runDecisionsAct(config, absent.value);
     expect(outcome.kind).toBe("fallback");
     expect(absent.takeAction).not.toHaveBeenCalled();
   });
@@ -261,7 +265,7 @@ describe("jev act pipeline", () => {
       "  [0-2] generic",
       "    [0-3] StaticText: Select a country",
     ].join("\n");
-    stubJev({
+    stubDecisions({
       family: choice("click"),
       key: choice("other"),
       strict: choice("0-3"),
@@ -275,7 +279,7 @@ describe("jev act pipeline", () => {
       },
     );
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ selector: "xpath=/html/body/div/div", method: "click" }),
     );
@@ -289,7 +293,7 @@ describe("jev act pipeline", () => {
       "      [1-1] RootWebArea: Inner",
       "        [1-2] scrollable, html",
     ].join("\n");
-    const calls = stubJev({
+    const calls = stubDecisions({
       family: choice("scroll"),
       key: choice("other"),
       scroll_scope: choice("whole_page"),
@@ -302,7 +306,7 @@ describe("jev act pipeline", () => {
       },
     );
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ selector: "xpath=/html", method: "scrollTo", arguments: ["75%"] }),
     );
@@ -310,7 +314,7 @@ describe("jev act pipeline", () => {
   });
 
   it("falls back when the only quoted string is the field's label, not the value", async () => {
-    stubJev({ family: choice("fill"), fill_value: choice("none_match", 0.99) });
+    stubDecisions({ family: choice("fill"), fill_value: choice("none_match", 0.99) });
     const { value, captureSnapshot, takeAction } = deps(
       FORM,
       {},
@@ -319,21 +323,21 @@ describe("jev act pipeline", () => {
       },
     );
 
-    const outcome = await runJevActPipeline(config, value);
+    const outcome = await runDecisionsAct(config, value);
 
     expect(outcome).toMatchObject({ kind: "fallback", reason: "fill_no_value" });
     expect(captureSnapshot).not.toHaveBeenCalled();
     expect(takeAction).not.toHaveBeenCalled();
   });
 
-  it("asks Jev for the option when the quoted text names the dropdown placeholder", async () => {
+  it("asks the decision model for the option when the quoted text names the dropdown placeholder", async () => {
     const tree = [
       "[0-1] select: Select a Country",
       "  [0-2] option: Select a Country [selected]",
       "  [0-3] option: United States",
       "  [0-4] option: Canada",
     ].join("\n");
-    stubJev({
+    stubDecisions({
       family: choice("select"),
       strict: choice("0-1"),
       best: best("unused", 0.95),
@@ -347,7 +351,7 @@ describe("jev act pipeline", () => {
       },
     );
 
-    await runJevActPipeline({ ...config, verify: "off" as const }, value);
+    await runDecisionsAct({ ...config, verify: "off" as const }, value);
 
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ method: "selectOptionFromDropdown", arguments: ["Canada"] }),
@@ -356,18 +360,18 @@ describe("jev act pipeline", () => {
 
   it("clicks once when the select target is itself a choice, and keeps the expand click on fallback", async () => {
     const radio = ["[0-1] radiogroup: Contact", "  [0-2] radio: Phone"].join("\n");
-    stubJev({ family: choice("select"), strict: choice("0-2"), best: best("unused", 0.95) });
+    stubDecisions({ family: choice("select"), strict: choice("0-2"), best: best("unused", 0.95) });
     const leaf = deps(
       radio,
       { "0-2": "/html/body/input" },
       { instruction: "select phone as the contact method" },
     );
-    expect((await runJevActPipeline(config, leaf.value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, leaf.value)).kind).toBe("done");
     expect(leaf.takeAction).toHaveBeenCalledTimes(1);
 
     const custom = ["[0-1] div", "  [0-3] StaticText: Select a country"].join("\n");
     const opened = [custom, "  [0-4] listitem: Mexico", "  [0-5] listitem: Peru"].join("\n");
-    stubJev({
+    stubDecisions({
       family: choice("select"),
       // The trigger is accepted; none of the options that open is Canada.
       strict: (question: { criteria?: Record<string, unknown> }) =>
@@ -393,7 +397,7 @@ describe("jev act pipeline", () => {
         combinedXpathMap: { "0-3": "/html/body/div/div/text()", "0-4": "/li[1]", "0-5": "/li[2]" },
         combinedUrlMap: {},
       });
-    const outcome = await runJevActPipeline(config, expandOnly.value);
+    const outcome = await runDecisionsAct(config, expandOnly.value);
     expect(outcome).toMatchObject({
       kind: "fallback",
       priorActions: [expect.objectContaining({ method: "click" })],
@@ -401,13 +405,13 @@ describe("jev act pipeline", () => {
 
     // Nothing opens after clicking something that should have opened a list:
     // the option was not chosen, so the LLM path continues from the click.
-    stubJev({ family: choice("select"), strict: choice("0-3"), best: noul(0.95) });
+    stubDecisions({ family: choice("select"), strict: choice("0-3"), best: noul(0.95) });
     const stuck = deps(
       custom,
       { "0-3": "/html/body/div/div/text()" },
       { instruction: "choose Canada in the country list" },
     );
-    expect(await runJevActPipeline(config, stuck.value)).toMatchObject({
+    expect(await runDecisionsAct(config, stuck.value)).toMatchObject({
       kind: "fallback",
       reason: "option_none_appeared",
       priorActions: [expect.objectContaining({ method: "click" })],
@@ -415,19 +419,19 @@ describe("jev act pipeline", () => {
 
     // A calendar day is the choice itself: one click, done.
     const calendar = ["[0-1] grid: March", "  [0-2] gridcell: 15"].join("\n");
-    stubJev({ family: choice("select"), strict: choice("0-2"), best: best("0-2") });
+    stubDecisions({ family: choice("select"), strict: choice("0-2"), best: best("0-2") });
     const day = deps(
       calendar,
       { "0-2": "/html/body/table/td" },
       { instruction: "pick the 15th in the calendar" },
     );
-    expect((await runJevActPipeline(config, day.value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, day.value)).kind).toBe("done");
   });
 
   it("sends modifier chords and unsure mouse buttons to the LLM", async () => {
-    stubJev({ family: choice("press") });
+    stubDecisions({ family: choice("press") });
     const chord = deps(FORM, {}, { instruction: "press ctrl+a" });
-    expect(await runJevActPipeline(config, chord.value)).toEqual({
+    expect(await runDecisionsAct(config, chord.value)).toEqual({
       kind: "fallback",
       reason: "modifier_chord",
     });
@@ -437,13 +441,13 @@ describe("jev act pipeline", () => {
       { "0-5": "/html/body/form/input" },
       { instruction: "right click the username box" },
     );
-    stubJev({
+    stubDecisions({
       family: choice("click"),
       mouse_button: choice("right"),
       strict: choice("0-5"),
       best: best("0-5", 0.9),
     });
-    await runJevActPipeline(config, right.value);
+    await runDecisionsAct(config, right.value);
     expect(right.takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ method: "click", arguments: ["right"] }),
     );
@@ -456,7 +460,11 @@ describe("jev act pipeline", () => {
       "[0-3] button: Sign in",
       "[0-4] button: Sign up",
     ].join("\n");
-    const calls = stubJev({ family: choice("click"), strict: choice("0-3"), best: best("0-3") });
+    const calls = stubDecisions({
+      family: choice("click"),
+      strict: choice("0-3"),
+      best: best("0-3"),
+    });
     const { value } = deps(
       tree,
       { "0-3": "/html/body/button[1]" },
@@ -466,7 +474,7 @@ describe("jev act pipeline", () => {
       },
     );
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(JSON.stringify(calls)).not.toContain("hunter2-secret");
   });
 
@@ -476,7 +484,11 @@ describe("jev act pipeline", () => {
       "[0-2] paragraph",
       "  [0-3] StaticText: Editable note",
     ].join("\n");
-    const calls = stubJev({ family: choice("fill"), strict: choice("0-2"), best: best("0-2") });
+    const calls = stubDecisions({
+      family: choice("fill"),
+      strict: choice("0-2"),
+      best: best("0-2"),
+    });
     const harness = deps(
       tree,
       { "0-1": "/html/body/textarea", "0-2": "/html/body/p" },
@@ -494,7 +506,7 @@ describe("jev act pipeline", () => {
       inputValue: async () => "Moved to Thursday",
     } as never);
 
-    expect((await runJevActPipeline(config, harness.value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, harness.value)).kind).toBe("done");
     expect(Object.keys((calls[1]!.questions.strict as { criteria: object }).criteria)).toEqual([
       "0-1",
       "0-2",
@@ -505,7 +517,7 @@ describe("jev act pipeline", () => {
     );
   });
 
-  it("keeps an action that already ran when Jev errors afterwards", async () => {
+  it("keeps an action that already ran when decision-model errors afterwards", async () => {
     const custom = ["[0-1] div", "  [0-3] StaticText: Select a country"].join("\n");
     let requests = 0;
     vi.stubGlobal(
@@ -527,7 +539,11 @@ describe("jev act pipeline", () => {
           ]),
         );
         return new Response(
-          JSON.stringify({ model: "jev", answers, usage: { input_tokens: 1, output_tokens: 1 } }),
+          JSON.stringify({
+            model: "decision-model",
+            answers,
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
         );
       }),
     );
@@ -548,22 +564,22 @@ describe("jev act pipeline", () => {
         combinedUrlMap: {},
       });
 
-    expect(await runJevActPipeline(config, harness.value)).toMatchObject({
+    expect(await runDecisionsAct(config, harness.value)).toMatchObject({
       kind: "fallback",
-      reason: expect.stringContaining("jev_error"),
+      reason: expect.stringContaining("decision_error"),
       priorActions: [expect.objectContaining({ method: "click" })],
     });
   });
 
   it("answers not-an-action without a snapshot or an LLM fallback", async () => {
-    stubJev({ family: choice("not_an_action", 1), key: choice("other") });
+    stubDecisions({ family: choice("not_an_action", 1), key: choice("other") });
     const { value, captureSnapshot } = deps(
       FORM,
       {},
       { instruction: "what is the capital of the moon?" },
     );
 
-    const outcome = await runJevActPipeline(config, value);
+    const outcome = await runDecisionsAct(config, value);
 
     expect(outcome).toMatchObject({ kind: "done", result: { success: false, actions: [] } });
     expect(captureSnapshot).not.toHaveBeenCalled();
@@ -581,14 +597,14 @@ describe("jev act pipeline", () => {
   );
 
   it("prunes a large view to lexical matches so the pick is one request", async () => {
-    const calls = stubJev({
+    const calls = stubDecisions({
       family: choice("click"),
       strict: choice("0-280"),
       best: best("0-280"),
     });
     const { value, takeAction } = deps(MANY, MANY_XPATHS, { instruction: "click item 280" });
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ selector: "xpath=/html/body/button[280]", method: "click" }),
     );
@@ -599,7 +615,7 @@ describe("jev act pipeline", () => {
   });
 
   it("shards the full view when nothing matches lexically, then picks among finalists", async () => {
-    const calls = stubJev({
+    const calls = stubDecisions({
       family: choice("click"),
       shard: (question: { criteria?: Record<string, unknown> }) =>
         choice("0-280" in (question.criteria ?? {}) ? "0-280" : "0-3", 0.6),
@@ -610,7 +626,7 @@ describe("jev act pipeline", () => {
       instruction: "click the penultimate widget",
     });
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ selector: "xpath=/html/body/button[280]" }),
     );
@@ -622,12 +638,16 @@ describe("jev act pipeline", () => {
   });
 
   it("only confirms, not ranks, when exactly one candidate carries the quoted name", async () => {
-    const calls = stubJev({ family: choice("click"), strict: choice("0-17"), best: noul(0.95) });
+    const calls = stubDecisions({
+      family: choice("click"),
+      strict: choice("0-17"),
+      best: noul(0.95),
+    });
     const { value, takeAction } = deps(MANY, MANY_XPATHS, {
       instruction: "click the 'Item 17' button",
     });
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ selector: "xpath=/html/body/button[17]" }),
     );
@@ -637,8 +657,8 @@ describe("jev act pipeline", () => {
       "none_match",
     ]);
 
-    // The quote was only an anchor: Jev says no, and the normal pick runs.
-    stubJev({
+    // The quote was only an anchor: the decision model says no, and the normal pick runs.
+    stubDecisions({
       family: choice("click"),
       strict: (question: { criteria?: Record<string, unknown> }) =>
         "0-18" in (question.criteria ?? {}) ? choice("0-18") : choice("none_match", 0.99),
@@ -652,7 +672,7 @@ describe("jev act pipeline", () => {
     const anchored = deps(MANY, MANY_XPATHS, {
       instruction: "click the button right after 'Item 17'",
     });
-    const anchoredOutcome = await runJevActPipeline(config, anchored.value).catch(
+    const anchoredOutcome = await runDecisionsAct(config, anchored.value).catch(
       (error: unknown) => error,
     );
     expect(anchoredOutcome).toMatchObject({ kind: "done" });
@@ -663,7 +683,7 @@ describe("jev act pipeline", () => {
 
   it("leaves an already-checked box alone when the instruction asks for checked", async () => {
     const tree = ["[0-1] checkbox: Subscribe [checked]", "[0-2] checkbox: Terms"].join("\n");
-    stubJev({
+    stubDecisions({
       family: choice("click"),
       toggle_state: choice("on"),
       strict: choice("0-1"),
@@ -677,14 +697,14 @@ describe("jev act pipeline", () => {
       },
     );
 
-    const outcome = await runJevActPipeline(config, value);
+    const outcome = await runDecisionsAct(config, value);
 
     expect(outcome).toMatchObject({ kind: "done", result: { success: true, actions: [] } });
     expect(takeAction).not.toHaveBeenCalled();
   });
 
-  it("uses the argument-only LLM for unquoted text while Jev picks the field", async () => {
-    stubJev({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
+  it("uses the argument-only LLM for unquoted text while the decision model picks the field", async () => {
+    stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
     const extractText = vi.fn(async () => "linear algebra");
     const { value, takeAction } = deps(
       FORM,
@@ -698,13 +718,13 @@ describe("jev act pipeline", () => {
       inputValue: async () => "linear algebra",
     } as never);
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({ method: "fill", arguments: ["linear algebra"] }),
     );
 
     // With the argument LLM switched off the run is LLM-free: the helper is never called.
-    stubJev({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
+    stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
     const spy = vi.fn(async () => "business");
     const pure = deps(
       FORM,
@@ -714,14 +734,14 @@ describe("jev act pipeline", () => {
         extractText: spy,
       },
     );
-    expect(await runJevActPipeline({ ...config, argumentLlm: false }, pure.value)).toMatchObject({
+    expect(await runDecisionsAct({ ...config, argumentLlm: false }, pure.value)).toMatchObject({
       kind: "fallback",
       reason: "fill_no_value",
     });
     expect(spy).not.toHaveBeenCalled();
 
     // Invented text is rejected: it must be lifted from the instruction.
-    stubJev({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
+    stubDecisions({ family: choice("fill"), strict: choice("0-5"), best: best("0-5") });
     const invented = deps(
       FORM,
       { "0-5": "/html/body/form/input" },
@@ -730,7 +750,7 @@ describe("jev act pipeline", () => {
         extractText: vi.fn(async () => "calculus"),
       },
     );
-    expect(await runJevActPipeline(config, invented.value)).toMatchObject({
+    expect(await runDecisionsAct(config, invented.value)).toMatchObject({
       kind: "fallback",
       reason: "fill_value_not_extracted",
     });
@@ -746,7 +766,7 @@ describe("jev act pipeline", () => {
     ].join("\n");
     const prefer = (question: { criteria?: Record<string, unknown> }) =>
       question.criteria ? choice("0-4" in question.criteria ? "0-4" : "0-1") : noul(0.95);
-    stubJev({
+    stubDecisions({
       family: choice("fill"),
       after_typing: choice("pick_suggestion"),
       strict: prefer,
@@ -774,7 +794,7 @@ describe("jev act pipeline", () => {
       inputValue: async () => "Ala",
     } as never);
 
-    const outcome = await runJevActPipeline(config, harness.value);
+    const outcome = await runDecisionsAct(config, harness.value);
 
     expect(outcome.kind).toBe("done");
     expect(
@@ -792,7 +812,7 @@ describe("jev act pipeline", () => {
       "[0-3] div",
       "  [0-4] StaticText: Box B",
     ].join("\n");
-    stubJev({
+    stubDecisions({
       family: choice("drag"),
       strict: choice("0-2"),
       best: (question: { instructions?: { question?: string } }) =>
@@ -806,7 +826,7 @@ describe("jev act pipeline", () => {
       },
     );
 
-    expect((await runJevActPipeline(config, value)).kind).toBe("done");
+    expect((await runDecisionsAct(config, value)).kind).toBe("done");
     expect(takeAction).toHaveBeenCalledWith(
       expect.objectContaining({
         method: "dragAndDrop",
@@ -818,7 +838,7 @@ describe("jev act pipeline", () => {
 
   it("retries the runner-up when an ambiguous click changes nothing", async () => {
     const tree = ["[0-1] button: Save", "[0-2] button: Save draft"].join("\n");
-    stubJev({
+    stubDecisions({
       family: choice("click"),
       strict: choice("0-1"),
       best: () => ({
@@ -837,11 +857,11 @@ describe("jev act pipeline", () => {
     );
 
     // Off by default: a second click is a second side effect.
-    await runJevActPipeline(config, value);
+    await runDecisionsAct(config, value);
     expect(takeAction).toHaveBeenCalledTimes(1);
 
     takeAction.mockClear();
-    const outcome = await runJevActPipeline({ ...config, retryNoEffect: true }, value);
+    const outcome = await runDecisionsAct({ ...config, retryNoEffect: true }, value);
 
     expect(outcome).toMatchObject({ kind: "done", noCache: true });
     expect(takeAction.mock.calls.map(([action]) => action.selector)).toEqual([
@@ -855,7 +875,7 @@ describe("jev act pipeline", () => {
       "[0-1] RootWebArea: Access Denied",
       "  [0-2] StaticText: You don't have permission to access this server",
     ].join("\n");
-    stubJev({
+    stubDecisions({
       family: choice("click"),
       strict: choice("none_match", 0.99),
       best: best("0-2", 0.1),
@@ -866,26 +886,30 @@ describe("jev act pipeline", () => {
       { "0-2": "/html/body/text()" },
       { instruction: "click on the all filters button" },
     );
-    expect(await runJevActPipeline(config, blocked.value)).toMatchObject({
+    expect(await runDecisionsAct(config, blocked.value)).toMatchObject({
       kind: "done",
       result: { success: false, message: expect.stringContaining("access denied") },
     });
 
-    // Vetoed by strict, but Jev's shortlist is credible: it rides along for the LLM.
-    stubJev({ family: choice("fill"), strict: choice("none_match", 0.99), best: best("0-5", 0.9) });
+    // Vetoed by strict, but the decision model's shortlist is credible: it rides along for the LLM.
+    stubDecisions({
+      family: choice("fill"),
+      strict: choice("none_match", 0.99),
+      best: best("0-5", 0.9),
+    });
     const unsure = deps(
       FORM,
       { "0-5": "/html/body/form/input" },
       { instruction: "type 'x' into the fax field" },
     );
-    expect(await runJevActPipeline(config, unsure.value)).toMatchObject({
+    expect(await runDecisionsAct(config, unsure.value)).toMatchObject({
       kind: "fallback",
       focusIds: expect.arrayContaining(["0-5"]),
     });
   });
 });
 
-describe("jev act argument parsing", () => {
+describe("decisions act argument parsing", () => {
   it("collects quoted spans and known variable placeholders", () => {
     expect(fillValueCandidates("type 'nunya' into the 'first name' field")).toEqual([
       "nunya",
@@ -919,7 +943,7 @@ describe("resolveFamily merges", () => {
   });
 });
 
-describe("jev act pipeline and DOM settle", () => {
+describe("decisions act pipeline and DOM settle", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("asks intent while the DOM settles, and touches the page only afterwards", async () => {
@@ -932,7 +956,7 @@ describe("jev act pipeline and DOM settle", () => {
       "fetch",
       vi.fn(async () => {
         order.push("intent");
-        // The page settles only after Jev has answered.
+        // The page settles only after the decision model has answered.
         setTimeout(() => {
           order.push("settled");
           settle();
@@ -959,11 +983,11 @@ describe("jev act pipeline and DOM settle", () => {
         );
       }),
     );
-    const outcome = await runJevActPipeline(
+    const outcome = await runDecisionsAct(
       { apiKey: "test" },
       {
         page: { url: () => "https://example.com" } as never,
-        logger: new StagehandLogger({ tracer: trace.getTracer("jev-settle-test") }, () => {}),
+        logger: new StagehandLogger({ tracer: trace.getTracer("decisions-settle-test") }, () => {}),
         instruction: "press Enter",
         snapshotOptions: {},
         ensureTimeRemaining: () => {},
@@ -979,7 +1003,7 @@ describe("jev act pipeline and DOM settle", () => {
   });
 });
 
-describe("jev act pipeline target readiness", () => {
+describe("decisions act pipeline target readiness", () => {
   const tree = ["[0-1] RootWebArea: Shop", "  [0-7] button: Checkout"].join("\n");
   const xpaths = { "0-7": "/html/body/button" };
   const never = new Promise<void>(() => {});
@@ -1005,10 +1029,10 @@ describe("jev act pipeline target readiness", () => {
   }
 
   it("acts before the DOM-settle wait is over when the target is found and stays put", async () => {
-    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     vi.mocked(resolveLocatorWithHops).mockResolvedValueOnce(locator(["ok"]));
     const d = deps(tree, xpaths, { instruction: "click Checkout", settled: never });
-    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
     // The settle promise never resolves: only readiness let this act through.
@@ -1016,14 +1040,14 @@ describe("jev act pipeline target readiness", () => {
   });
 
   it("waits for the settle heuristic while the target is moving or covered", async () => {
-    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["moving", "covered", "moving"]));
     let settle!: () => void;
     const settled = new Promise<void>((resolve) => {
       settle = resolve;
     });
     const d = deps(tree, xpaths, { instruction: "click Checkout", settled });
-    const running = runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const running = runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     await new Promise((resolve) => setTimeout(resolve, 900));
     expect(d.takeAction).not.toHaveBeenCalled();
     settle();
@@ -1036,7 +1060,7 @@ describe("jev act pipeline target readiness", () => {
   });
 
   it("treats a failed snapshot during readiness as not-ready and keeps looking", async () => {
-    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"]));
     let captures = 0;
     const d = deps(tree, xpaths, { instruction: "click Checkout", settled: never });
@@ -1044,7 +1068,7 @@ describe("jev act pipeline target readiness", () => {
       if (++captures <= 2) throw new Error("Frame with the given id was not found");
       return { combinedTree: tree, combinedXpathMap: xpaths, combinedUrlMap: {} };
     });
-    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
     expect(captures).toBe(3);
@@ -1055,11 +1079,14 @@ describe("jev act pipeline target readiness", () => {
   });
 
   it("redacts %variable% values from the cover the guard names", async () => {
-    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     const lines: string[] = [];
-    const logger = new StagehandLogger({ tracer: trace.getTracer("jev-cover-test") }, (line) => {
-      lines.push(JSON.stringify(line));
-    });
+    const logger = new StagehandLogger(
+      { tracer: trace.getTracer("decisions-cover-test") },
+      (line) => {
+        lines.push(JSON.stringify(line));
+      },
+    );
     vi.mocked(resolveLocatorWithHops).mockResolvedValue({
       backendNodeId: async () => 7,
       resolveNode: async () => ({ objectId: "obj-1" }),
@@ -1079,7 +1106,7 @@ describe("jev act pipeline target readiness", () => {
       settled: Promise.resolve(),
       logger,
     });
-    await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     const logged = lines.join("\n");
     expect(logged).toContain("%email%");
     expect(logged).not.toContain("jane@corp.com");
@@ -1090,7 +1117,7 @@ describe("jev act pipeline target readiness", () => {
   });
 
   it("keeps looking while the settle wait runs and acts the moment a late target lands", async () => {
-    const calls = stubJev({
+    const calls = stubDecisions({
       family: choice("click"),
       strict: choice("0-7"),
       best: best("0-7", 0.95),
@@ -1105,12 +1132,12 @@ describe("jev act pipeline target readiness", () => {
       combinedXpathMap: xpaths,
       combinedUrlMap: {},
     }));
-    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
     expect(snapshots).toBe(4);
     // Intent, then one pick when the candidates first appeared: unchanged empty
-    // snapshots did not cost a Jev request each.
+    // snapshots did not cost a decision-model request each.
     const picks = calls.filter((call) => "best" in call.questions && !("family" in call.questions));
     expect(picks.length).toBeLessThanOrEqual(2);
     vi.mocked(resolveLocatorWithHops).mockReset();
@@ -1120,14 +1147,14 @@ describe("jev act pipeline target readiness", () => {
   });
 
   it("after the settle wait, holds a click while the target is covered and clicks once it clears", async () => {
-    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     // Readiness attempt: covered. Pre-act guard: covered, covered, then clear.
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(
       locator(["covered", "covered", "covered", "ok"]),
     );
     const d = deps(tree, xpaths, { instruction: "click Checkout", settled: Promise.resolve() });
     const started = Date.now();
-    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
     // Two polls of 150 ms before the cover cleared.
@@ -1139,11 +1166,11 @@ describe("jev act pipeline target readiness", () => {
   });
 
   it("after the settle wait, still clicks a target that stays covered past the guard cap", async () => {
-    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["covered"]));
     const d = deps(tree, xpaths, { instruction: "click Checkout", settled: Promise.resolve() });
     const started = Date.now();
-    const outcome = await runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const outcome = await runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     expect(outcome.kind).toBe("done");
     expect(d.takeAction).toHaveBeenCalledTimes(1);
     expect(Date.now() - started).toBeGreaterThanOrEqual(1400);
@@ -1154,14 +1181,14 @@ describe("jev act pipeline target readiness", () => {
   });
 
   it("does not trust a selector that now resolves to a different node", async () => {
-    stubJev({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
+    stubDecisions({ family: choice("click"), strict: choice("0-7"), best: best("0-7", 0.95) });
     vi.mocked(resolveLocatorWithHops).mockResolvedValue(locator(["ok"], 99));
     let settle!: () => void;
     const settled = new Promise<void>((resolve) => {
       settle = resolve;
     });
     const d = deps(tree, xpaths, { instruction: "click Checkout", settled });
-    const running = runJevActPipeline({ ...config, targetReadiness: true }, d.value);
+    const running = runDecisionsAct({ ...config, targetReadiness: true }, d.value);
     await new Promise((resolve) => setTimeout(resolve, 700));
     expect(d.takeAction).not.toHaveBeenCalled();
     settle();

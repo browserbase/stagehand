@@ -269,7 +269,7 @@ const ActTextArgumentSchema = z
   .strict();
 
 /**
- * Argument-only inference for the experimental Jev act path: no page content,
+ * Argument-only inference for the experimental decisions act path: no page content,
  * just the instruction, returning the literal text to type. The element is
  * chosen elsewhere.
  */
@@ -308,7 +308,7 @@ export async function actTextArgument(params: {
 }
 
 /**
- * Argument-only inference for a WebMCP tool Jev already chose: the prompt is
+ * Argument-only inference for a WebMCP tool the decision model already chose: the prompt is
  * one tool, not the catalog, and the tool's own input schema shapes the answer.
  */
 export async function toolArguments(params: {

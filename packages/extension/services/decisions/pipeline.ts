@@ -18,7 +18,7 @@ import {
   redactor,
   substituteVariables,
 } from "./args.js";
-import { invokeTool, type JevToolDeps } from "./toolAct.js";
+import { invokeTool, type DecisionsToolDeps } from "./toolAct.js";
 import { readToolDecision, toolQuestions } from "./tools.js";
 import { blockingSignal, readPageState } from "./pageState.js";
 import {
@@ -44,13 +44,18 @@ import {
   type OutlineNode,
   type ViewKind,
 } from "./tree.js";
-import { choiceAnswer, noulAnswer, type JevConfig, type JevResponse } from "./typesafeClient.js";
+import {
+  choiceAnswer,
+  noulAnswer,
+  type DecisionModelConfig,
+  type DecisionResponse,
+} from "./typesafeClient.js";
 
 export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
 
 /**
  * Experimental act pipeline that resolves an instruction through a decision
- * tree of Jev (TypeSafe System One) questions instead of one LLM call:
+ * tree of decision-model questions instead of one LLM call:
  *
  *   intent fan-out → family-specific candidate view (pruned in code) →
  *   best/strict pick → bounded arguments → deterministic action → checks
@@ -59,23 +64,23 @@ export { fillValueCandidates, parseKey, parsePercent } from "./args.js";
  * LLM pipeline; the reason is logged so eval runs can attribute every miss.
  */
 
-export type JevActConfig = JevConfig & {
+export type DecisionsConfig = DecisionModelConfig & {
   /** Minimum confidence before acting on a node's answer. */
   actConfidence?: number;
   /**
    * `"checks"` (default): deterministic checks only — fill read-back and the
-   * native-select flag. `"full"` adds a logged-only Jev yes/no over the page
+   * native-select flag. `"full"` adds a logged-only the decision model yes/no over the page
    * diff. `"off"` disables every check.
    */
   verify?: "off" | "checks" | "full";
-  /** When false, a Jev abstention fails the act instead of running the LLM pipeline. */
+  /** When false, a decision-model abstention fails the act instead of running the LLM pipeline. */
   llmFallback?: boolean;
   /**
    * The argument-only LLM call for unquoted text. Independent of `llmFallback`:
    * turn both off for a run with no LLM at all. Default true.
    */
   argumentLlm?: boolean;
-  /** Ask Jev what kind of page this is when no target is found. Default true. */
+  /** Ask the decision model what kind of page this is when no target is found. Default true. */
   pageState?: boolean;
   /** False keeps only the per-act instrumentation log (eval baselines). Default true. */
   enabled?: boolean;
@@ -85,28 +90,28 @@ export type JevActConfig = JevConfig & {
    * look like "nothing", and a second click is a second side effect.
    */
   retryNoEffect?: boolean;
-  /** Show the LLM fallback Jev's shortlist before the whole tree on huge pages. Default false. */
+  /** Show the LLM fallback the decision model's shortlist before the whole tree on huge pages. Default false. */
   focusFallback?: boolean;
   /** Check cached actions against the page before replaying them. Default false. */
   cacheCheck?: boolean;
   /**
-   * extract() on Jev. `"judge"`: only the completion yes/no replaces the second
-   * LLM call. `"pick"`: Jev picks the elements holding each field's value and
+   * extract() on the decision model. `"judge"`: only the completion yes/no replaces the second
+   * LLM call. `"pick"`: the decision model picks the elements holding each field's value and
    * code copies their text; the LLM extracts only when that does not fit.
    * Both send page or extracted content to TypeSafe. Default `"off"`.
    */
   extract?: "off" | "judge" | "pick";
-  /** Resolve observe() through Jev first. Default false. */
+  /** Resolve observe() through the decision model first. Default false. */
   observe?: boolean;
   /**
    * Act as soon as the target is there instead of waiting out the DOM-settle
-   * heuristic: pick on an early snapshot, and go when Jev finds the target,
+   * heuristic: pick on an early snapshot, and go when the decision model finds the target,
    * does not think the page is still loading, and the target is unchanged a
    * moment later. The settle wait remains the upper bound. Default false.
    */
   targetReadiness?: boolean;
   /**
-   * Let act() invoke a WebMCP tool the page registered when Jev is sure the
+   * Let act() invoke a WebMCP tool the page registered when the decision model is sure the
    * tool is the request. Sends tool names and descriptions, and for the likely
    * tools their parameter names, descriptions, types and enum values, to
    * TypeSafe. Default false.
@@ -114,7 +119,7 @@ export type JevActConfig = JevConfig & {
   tools?: boolean;
 };
 
-export type JevActDeps = {
+export type DecisionsActDeps = {
   page: Page;
   logger: StagehandLogger;
   instruction: string;
@@ -125,7 +130,7 @@ export type JevActDeps = {
   openPageCount?: () => number;
   /**
    * Argument-only LLM call: returns the literal text the instruction wants
-   * typed (or null). Jev still chooses the element.
+   * typed (or null). The decision model still chooses the element.
    */
   extractText?: (instruction: string) => Promise<string | null>;
   takeAction: (action: Action) => Promise<ActResultData>;
@@ -135,10 +140,10 @@ export type JevActDeps = {
    */
   settled?: Promise<void>;
   /** Present when `tools` is on and the act is not scoped to a locator. */
-  webmcp?: JevToolDeps;
+  webmcp?: DecisionsToolDeps;
 };
 
-export type JevActOutcome =
+export type DecisionsActOutcome =
   | {
       kind: "done";
       result: ActResultData;
@@ -153,16 +158,16 @@ export type JevActOutcome =
       noCache?: boolean;
       /** Already ran and must be kept in the final result. */
       priorActions?: ActResultData["actions"];
-      /** Jev's shortlist; the LLM fallback can look at these instead of the whole page. */
+      /** The decision model's shortlist; the LLM fallback can look at these instead of the whole page. */
       focusIds?: string[];
     };
 
-type Done = Extract<JevActOutcome, { kind: "done" }>;
-type Fallback = Extract<JevActOutcome, { kind: "fallback" }>;
+type Done = Extract<DecisionsActOutcome, { kind: "done" }>;
+type Fallback = Extract<DecisionsActOutcome, { kind: "fallback" }>;
 
 type PipelineContext = AskContext & {
-  config: JevActConfig;
-  deps: JevActDeps;
+  config: DecisionsConfig;
+  deps: DecisionsActDeps;
   /** Every action that already ran, so an error or abstention later never loses one. */
   performed: ActResultData["actions"];
   /** Target readiness already vouched for the page; do not also wait for the settle heuristic. */
@@ -239,20 +244,20 @@ export const SCROLL_METHODS: Record<string, string> = {
   prev_chunk: "prevChunk",
 };
 
-export async function runJevActPipeline(
-  config: JevActConfig,
-  deps: JevActDeps,
-): Promise<JevActOutcome> {
+export async function runDecisionsAct(
+  config: DecisionsConfig,
+  deps: DecisionsActDeps,
+): Promise<DecisionsActOutcome> {
   const trace: TraceEntry[] = [];
   const performed: ActResultData["actions"] = [];
   try {
     const outcome = await decideAndAct(config, deps, trace, performed);
-    // Whatever Jev already did stays in the final result when it hands off.
+    // Whatever the decision model already did stays in the final result when it hands off.
     if (outcome.kind === "fallback" && !outcome.priorActions && performed.length > 0) {
       outcome.priorActions = [...performed];
     }
-    deps.logger.info("Jev act pipeline finished", {
-      category: "jev",
+    deps.logger.info("Decisions act pipeline finished", {
+      category: "decisions",
       instruction: deps.instruction,
       outcome: outcome.kind,
       reason: outcome.kind === "fallback" ? outcome.reason : "",
@@ -260,31 +265,31 @@ export async function runJevActPipeline(
     });
     return outcome;
   } catch (error) {
-    deps.logger.info("Jev act pipeline errored", {
-      category: "jev",
+    deps.logger.info("Decisions act pipeline errored", {
+      category: "decisions",
       instruction: deps.instruction,
       outcome: "error",
       error: error instanceof Error ? error.message : String(error),
       trace: JSON.stringify(trace),
     });
-    // A Jev error after an action already ran must not drop that action from
+    // A decision-model error after an action already ran must not drop that action from
     // the final result (and from the cache entry built out of it).
     if (performed.length > 0 && !(error instanceof TimeoutError)) {
       // Error text can quote selectors or typed values: same redaction as requests.
       const raw = error instanceof Error ? error.message : String(error);
       const message = (redactor(deps.variables) ?? ((text: string) => text))(raw).slice(0, 200);
-      return fallback(`jev_error:${message}`, performed);
+      return fallback(`decision_error:${message}`, performed);
     }
     throw error;
   }
 }
 
 async function decideAndAct(
-  config: JevActConfig,
-  deps: JevActDeps,
+  config: DecisionsConfig,
+  deps: DecisionsActDeps,
   trace: TraceEntry[],
   performed: ActResultData["actions"],
-): Promise<JevActOutcome> {
+): Promise<DecisionsActOutcome> {
   // Chords and modifier clicks have no representation in the tree yet.
   if (MODIFIER_CHORD.test(deps.instruction)) return fallback("modifier_chord");
 
@@ -465,7 +470,7 @@ async function decideAndAct(
 }
 
 /**
- * "Pick the Chicory suggestion" splits Jev between click and select, and
+ * "Pick the Chicory suggestion" splits the decision model between click and select, and
  * "open the folder" between click and double-click. Those pairs lead to the
  * same first step, so their combined weight decides, not the split.
  */
@@ -498,7 +503,10 @@ export function resolveFamily(
   return { choice: answer.choice, confidence: answer.confidence, top };
 }
 
-async function runPress(ctx: PipelineContext, intent: JevResponse): Promise<JevActOutcome> {
+async function runPress(
+  ctx: PipelineContext,
+  intent: DecisionResponse,
+): Promise<DecisionsActOutcome> {
   const keyAnswer = choiceAnswer(intent, "key");
   const key =
     keyAnswer.choice !== "other" && keyAnswer.confidence >= ctx.threshold
@@ -517,8 +525,8 @@ async function runPress(ctx: PipelineContext, intent: JevResponse): Promise<JevA
 async function runPointer(
   ctx: PipelineContext,
   method: string,
-  intent: JevResponse,
-): Promise<JevActOutcome> {
+  intent: DecisionResponse,
+): Promise<DecisionsActOutcome> {
   const button = choiceAnswer(intent, "mouse_button");
   if (button.confidence < ctx.threshold) return fallback(`mouse_button_unsure:${button.choice}`);
   const buttonArgs = method === "click" && button.choice !== "left" ? [button.choice] : [];
@@ -526,7 +534,7 @@ async function runPointer(
   const { snap, picked } = await pickWhenReady(
     ctx,
     (candidate) => {
-      // DOM hints cost a CDP round trip per nameless control: only when Jev is
+      // DOM hints cost a CDP round trip per nameless control: only when the decision model is
       // actually about to be asked about them.
       ctx.prepare = () => addDomHints(ctx, candidate);
       return pickTarget(
@@ -579,8 +587,8 @@ async function runPointer(
     return await act(ctx, action, { before: snap, target });
   }
 
-  // Opt-in (retryNoEffect): when the click provably changed nothing and Jev had
-  // a credible second choice, try that one. Jev's pre-visibility pick is a copy
+  // Opt-in (retryNoEffect): when the click provably changed nothing and the decision model had
+  // a credible second choice, try that one. The decision model's pre-visibility pick is a copy
   // of the same control, never a "runner-up".
   const runnerUp = picked.ranked.find(
     (entry) =>
@@ -625,8 +633,8 @@ async function runPointer(
 async function runScroll(
   ctx: PipelineContext,
   method: string,
-  intent: JevResponse,
-): Promise<JevActOutcome> {
+  intent: DecisionResponse,
+): Promise<DecisionsActOutcome> {
   let args: string[] = [];
   if (method === "scrollTo") {
     const percent = parsePercent(ctx.instruction);
@@ -635,7 +643,7 @@ async function runScroll(
   }
 
   const snap = await snapshot(ctx.deps);
-  // "Scroll the page" names no element, so asking Jev to match one only
+  // "Scroll the page" names no element, so asking the decision model to match one only
   // produces hedged answers; the scope decides the main document in code.
   const scope = choiceAnswer(intent, "scroll_scope");
   let target =
@@ -673,10 +681,10 @@ async function runScroll(
 
 async function runFill(
   ctx: PipelineContext,
-  intent: JevResponse,
+  intent: DecisionResponse,
   values: string[],
-): Promise<JevActOutcome> {
-  // The text to type: a lone declared %variable% (never a label), else Jev's
+): Promise<DecisionsActOutcome> {
+  // The text to type: a lone declared %variable% (never a label), else the decision model's
   // choice among quoted strings, else an argument-only LLM call for unquoted text.
   let value: string | undefined;
   if (isLoneVariable(values)) {
@@ -781,7 +789,7 @@ async function runFill(
   return merge(filled, chosen);
 }
 
-async function runSelect(ctx: PipelineContext): Promise<JevActOutcome> {
+async function runSelect(ctx: PipelineContext): Promise<DecisionsActOutcome> {
   const snap = await snapshot(ctx.deps);
   const picked = await pickTarget(
     ctx,
@@ -850,7 +858,7 @@ async function runSelect(ctx: PipelineContext): Promise<JevActOutcome> {
     return matched === false ? fallback("select_readback_mismatch") : selected;
   }
 
-  // The "dropdown" Jev matched is already the thing to choose (a radio, a
+  // The "dropdown" the decision model matched is already the thing to choose (a radio, a
   // menu item, an open listbox option): one click, no expand step.
   if (LEAF_CHOICE_ROLES.test(target.role)) {
     return await act(
@@ -906,7 +914,7 @@ async function runSelect(ctx: PipelineContext): Promise<JevActOutcome> {
   return merge(done, chosen);
 }
 
-async function runDrag(ctx: PipelineContext): Promise<JevActOutcome> {
+async function runDrag(ctx: PipelineContext): Promise<DecisionsActOutcome> {
   const snap = await snapshot(ctx.deps);
   await addDomHints(ctx, snap);
   // Source and destination are independent questions over the same page.
@@ -952,7 +960,7 @@ async function runDrag(ctx: PipelineContext): Promise<JevActOutcome> {
 
 /**
  * Second step of two-step widgets: re-snapshot, keep only what the previous
- * action made appear, and let Jev choose among that.
+ * action made appear, and let the decision model choose among that.
  */
 async function chooseFromAppeared(
   ctx: PipelineContext,
@@ -1004,7 +1012,7 @@ const CHOICES_CAP_MS = 400;
 
 /** In the main frame only; anything it misses is still caught by the snapshot polling below. */
 async function waitForChoices(
-  deps: JevActDeps,
+  deps: DecisionsActDeps,
   expectChoices: boolean,
 ): Promise<number | undefined> {
   const startedAt = performance.now();
@@ -1093,9 +1101,9 @@ async function rejected(
   snap: Snapshot,
   label: string,
   picked: TargetResult,
-): Promise<JevActOutcome> {
+): Promise<DecisionsActOutcome> {
   let suffix = "";
-  // Only when Jev leaned toward "not on this page". A split between plausible
+  // Only when the decision model leaned toward "not on this page". A split between plausible
   // candidates is not a page problem, and the LLM should not wait for this.
   if (ctx.config.pageState !== false && picked.none >= PAGE_STATE_NONE) {
     try {
@@ -1122,7 +1130,7 @@ async function rejected(
   return fallback(`${label}:${picked.reason}${suffix}`, undefined, focusIds(picked));
 }
 
-/** Only a shortlist Jev actually believed in; a flat guess would just mislead the LLM. */
+/** Only a shortlist the decision model actually believed in; a flat guess would just mislead the LLM. */
 function isDetached(outcome: Done | Fallback): boolean {
   return (
     outcome.kind === "fallback" &&
@@ -1327,7 +1335,7 @@ function domHintOf(this: Element): string {
 
 /**
  * Pages render the same control twice (desktop and mobile navs, hover
- * overlays) and only one copy is really there for the user. Jev cannot tell
+ * overlays) and only one copy is really there for the user. The decision model cannot tell
  * identical descriptions apart, so the DOM decides.
  */
 async function preferVisibleTwin(
@@ -1387,7 +1395,7 @@ function shownInPage(this: Element): boolean {
   return true;
 }
 
-async function isShown(deps: JevActDeps, selector: string): Promise<boolean> {
+async function isShown(deps: DecisionsActDeps, selector: string): Promise<boolean> {
   try {
     const locator = await resolveLocatorWithHops(deps.page, deps.page.mainFrame(), selector);
     const session = locator.getFrame().session;
@@ -1402,12 +1410,12 @@ async function isShown(deps: JevActDeps, selector: string): Promise<boolean> {
       await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
     }
   } catch {
-    // Unknown is not hidden: keep Jev's pick.
+    // Unknown is not hidden: keep the decision model's pick.
     return true;
   }
 }
 
-async function readDomHint(deps: JevActDeps, selector: string): Promise<string | undefined> {
+async function readDomHint(deps: DecisionsActDeps, selector: string): Promise<string | undefined> {
   try {
     const locator = await resolveLocatorWithHops(deps.page, deps.page.mainFrame(), selector);
     const session = locator.getFrame().session;
@@ -1427,7 +1435,10 @@ async function readDomHint(deps: JevActDeps, selector: string): Promise<string |
   }
 }
 
-async function readInputValue(deps: JevActDeps, selector: string): Promise<string | undefined> {
+async function readInputValue(
+  deps: DecisionsActDeps,
+  selector: string,
+): Promise<string | undefined> {
   try {
     const locator = await resolveLocatorWithHops(deps.page, deps.page.mainFrame(), selector);
     return await locator.inputValue();
@@ -1439,7 +1450,7 @@ async function readInputValue(deps: JevActDeps, selector: string): Promise<strin
 const READY_POLL_MS = 150;
 
 /**
- * "Is the page loaded" has no answer a snapshot can give: on 40 sites Jev
+ * "Is the page loaded" has no answer a snapshot can give: on 40 sites the decision model
  * rated a 1%-complete page as finished as the final one, under four phrasings,
  * because a half-loaded page reads as a smaller complete page. The settle
  * heuristic is right more often (network quiet for 500 ms) and pays for it
@@ -1447,10 +1458,10 @@ const READY_POLL_MS = 150;
  *
  * What an act needs is narrower, and answerable: is the thing it is about to
  * use there, and is it staying put. With `targetReadiness` the pick runs on a
- * snapshot taken while intent is asked, and the act goes ahead the moment Jev
+ * snapshot taken while intent is asked, and the act goes ahead the moment the decision model
  * accepts a target and the guard finds it in place and hittable. Until then
  * it keeps looking, for as long as the settle wait itself is still running:
- * a fresh snapshot each round, but Jev is only asked again when the
+ * a fresh snapshot each round, but the decision model is only asked again when the
  * candidates it would see have changed; otherwise only the guard reruns on
  * the earlier pick. When the settle wait ends first, it decides as before.
  */
@@ -1492,7 +1503,7 @@ async function pickWhenReady(
         await Promise.race([deps.settled.catch(() => {}), sleep(READY_POLL_MS)]);
         continue;
       }
-      // Jev looks at the role view and then at every named node: a change in
+      // The decision model looks at the role view and then at every named node: a change in
       // either is a reason to ask again.
       const signature = [...buildView(snap.nodes, view), ...buildView(snap.nodes, "broad")]
         .map((node) => `${node.id}:${node.name}`)
@@ -1504,7 +1515,7 @@ async function pickWhenReady(
         asked = true;
         lastSignature = signature;
       } else {
-        // Same candidates as last time: Jev would say the same thing.
+        // Same candidates as last time: the decision model would say the same thing.
         picked = last.picked;
       }
       last = { snap, picked };
@@ -1537,13 +1548,13 @@ async function pickWhenReady(
 
 /**
  * One in-page call right before the act goes early: the selector must still
- * resolve to the node Jev picked, which must be connected, enabled, in the
+ * resolve to the node the decision model picked, which must be connected, enabled, in the
  * same place two animation frames later, and (for pointer actions) be what a
  * click at its centre would actually hit. An overlay that is still fading in
  * or a layout that is still moving fails here, and the act waits instead.
  */
 async function staysPut(
-  deps: JevActDeps,
+  deps: DecisionsActDeps,
   snap: Snapshot,
   target: OutlineNode,
   pointer: boolean,
@@ -1685,12 +1696,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function snapshot(deps: JevActDeps): Promise<Snapshot> {
+async function snapshot(deps: DecisionsActDeps): Promise<Snapshot> {
   await deps.settled;
   return await capture(deps);
 }
 
-async function capture(deps: JevActDeps, trace?: TraceEntry[]): Promise<Snapshot> {
+async function capture(deps: DecisionsActDeps, trace?: TraceEntry[]): Promise<Snapshot> {
   deps.ensureTimeRemaining();
   const startedAt = performance.now();
   const { combinedTree, combinedXpathMap, combinedEditableIds } = await deps.page.captureSnapshot(
