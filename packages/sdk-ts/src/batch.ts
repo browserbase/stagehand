@@ -15,22 +15,18 @@ import type { Page } from "./page.js";
 export type ExperimentalBatchOptions = {
   /** Page exposed as `batch.page`. AI operations still default to the active page. */
   page?: Page;
-  /** Overall callback deadline in milliseconds, enforced by the browser-side executor. */
-  timeout?: number;
   /**
-   * Local deadline for the whole round trip in milliseconds. Defaults to
-   * `timeout + CALLBACK_BATCH_CLIENT_GRACE_MS`. It fires when the executor never
-   * answers at all (stalled navigation, hung service worker), which the
-   * browser-side `timeout` cannot cover.
+   * Overall callback deadline in milliseconds, enforced by the browser-side
+   * executor. The client waits the usual RPC response grace period beyond it;
+   * if the executor never answers at all (stalled navigation, hung service
+   * worker), the call rejects with `StagehandBatchTimeoutError`.
    */
-  clientTimeoutMs?: number;
+  timeout?: number;
 };
 
-/** Slack the client grants the executor to report its own `timeout` before giving up locally. */
-export const CALLBACK_BATCH_CLIENT_GRACE_MS = 15_000;
-
 /**
- * The batch round trip exceeded its client-side deadline. The executor may
+ * The batch round trip exceeded its client-side deadline (`clientTimeout`, the
+ * callback `timeout` plus the RPC response grace period). The executor may
  * still be running the callback; the browser session should be treated as
  * unresponsive rather than retried blindly.
  */
