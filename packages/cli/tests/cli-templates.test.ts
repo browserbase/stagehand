@@ -11,6 +11,7 @@ import {
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
 import { itPosix } from "./helpers/platform.js";
+import { buildNextSteps } from "../src/lib/templates/scaffold.js";
 
 interface TemplateFixture {
   category: string[];
@@ -19,6 +20,7 @@ interface TemplateFixture {
   shortDescription: string;
   slug: string;
   source: string;
+  sourcePath?: string;
   steps: string[];
   tags: string[];
   title: string;
@@ -28,12 +30,13 @@ const templates: TemplateFixture[] = [
   {
     category: ["Web Automation", "E-commerce"],
     commands: [
-      "npx create-browser-app --template amazon-product-scraping",
-      "uvx create-browser-app --template amazon-product-scraping",
+      "npx create-browser-app --template amazon-product-scraping-starter",
+      "uvx create-browser-app --template amazon-product-scraping-starter",
     ],
     description: "Automatically scrape Amazon search results.",
     shortDescription: "Extract product data from Amazon search results.",
     slug: "amazon-product-scraping",
+    sourcePath: "commerce/amazon-product-scraping-starter",
     source: "Browserbase",
     steps: ["Open Amazon", "Extract product data"],
     tags: ["TypeScript", "Python", "Stagehand"],
@@ -78,6 +81,40 @@ afterEach(async () => {
 });
 
 describe("templates commands", () => {
+  it.each([
+    [undefined, "dev", "npm install", "npm run dev"],
+    ["npm@10.0.0", "start", "npm install", "npm run start"],
+    ["pnpm@10.0.0", "dev", "pnpm install", "pnpm dev"],
+    ["yarn@4.0.0", "start", "yarn install", "yarn start"],
+    ["bun@1.0.0", "dev", "bun install", "bun run dev"],
+  ] as const)(
+    "prints runnable %s setup instructions",
+    async (packageManager, script, install, run) => {
+      const dest = await createTempDir("browse-templates-manager-");
+      await writeFile(
+        join(dest, "package.json"),
+        JSON.stringify({
+          packageManager,
+          scripts: { [script]: "node index.js" },
+        }),
+      );
+      await expect(
+        buildNextSteps(dest, "my-app", "typescript"),
+      ).resolves.toEqual(["cd my-app", install, run]);
+    },
+  );
+
+  it("installs and runs requirements-based Python in the same uv environment", async () => {
+    const dest = await createTempDir("browse-templates-requirements-");
+    await writeFile(join(dest, "requirements.txt"), "requests\n");
+    await writeFile(join(dest, "main.py"), "print('hello')\n");
+    await expect(buildNextSteps(dest, "my-app", "python")).resolves.toEqual([
+      "cd my-app",
+      "uv venv && uv pip install -r requirements.txt",
+      "uv run python main.py",
+    ]);
+  });
+
   it("lists templates from the templates API", async () => {
     await withTemplatesApi(async ({ baseUrl, requests }) => {
       const result = await runCli(["templates", "list", "--format", "table"], {
@@ -257,7 +294,7 @@ describe("templates commands", () => {
           'printf \'npx %s\\n\' "$*" >> "$BB_STUB_LOG"',
           'project="$2"',
           'mkdir -p "$project"',
-          'printf \'{"name":"stub-app","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
+          'printf \'{"name":"stub-app","packageManager":"pnpm@10.24.0","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
           "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
         ].join("\n"),
       );
@@ -281,16 +318,16 @@ describe("templates commands", () => {
           "/amazon-product-scraping",
         ]);
         expect(await readFile(logPath, "utf8")).toContain(
-          "npx create-browser-app@latest my-scraper --template amazon-product-scraping",
+          "npx create-browser-app@latest my-scraper --template amazon-product-scraping-starter",
         );
         expect(result.stdout).toContain(
           `Scaffolding typescript/amazon-product-scraping into ${dest}...`,
         );
         expect(result.stdout).toContain(`Template scaffolded to ${dest}`);
         expect(result.stdout).toContain(`cd ${dest}`);
-        expect(result.stdout).toContain("npm install");
+        expect(result.stdout).toContain("pnpm install");
         expect(result.stdout).toContain("cp .env.example .env");
-        expect(result.stdout).toContain("npm run dev");
+        expect(result.stdout).toContain("pnpm dev");
         expect(await readFile(join(dest, "package.json"), "utf8")).toContain(
           "stub-app",
         );
@@ -342,14 +379,14 @@ describe("templates commands", () => {
 
         expect(result.exitCode).toBe(0);
         expect(await readFile(logPath, "utf8")).toContain(
-          "uvx create-browser-app py-scraper --template amazon-product-scraping",
+          "uvx create-browser-app py-scraper --template amazon-product-scraping-starter",
         );
         expect(result.stdout).toContain(
           `Scaffolding python/amazon-product-scraping into ${dest}...`,
         );
         expect(result.stdout).toContain("uv sync");
         expect(result.stdout).toContain("cp .env.example .env");
-        expect(result.stdout).toContain("python main.py");
+        expect(result.stdout).toContain("uv run python main.py");
         expect(await readFile(join(dest, "main.py"), "utf8")).toContain(
           "hello",
         );
@@ -366,6 +403,7 @@ describe("templates commands", () => {
         'if [ "$1" = "--version" ]; then',
         "  exit 0",
         "fi",
+        '[ "$4" = "google-trends-keywords" ] || exit 1',
         'project="$2"',
         'mkdir -p "$project"',
         'printf \'{"name":"json-app"}\\n\' > "$project/package.json"',
@@ -376,7 +414,7 @@ describe("templates commands", () => {
       const cwd = await createTempDir("browse-templates-json-project-");
       const dest = join(cwd, "json-scraper");
       const result = await runCli(
-        ["templates", "clone", "amazon-product-scraping", dest, "--json"],
+        ["templates", "clone", "google-trends-keywords", dest, "--json"],
         {
           env: {
             BROWSERBASE_TEMPLATES_API: baseUrl,
@@ -396,7 +434,7 @@ describe("templates commands", () => {
         destination: dest,
         language: "typescript",
         ok: true,
-        slug: "amazon-product-scraping",
+        slug: "google-trends-keywords",
       });
     });
   });
