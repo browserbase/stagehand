@@ -1,11 +1,12 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
 import { matchingSelector } from "../../../framework/observeSelectors.js";
+import { gotoRecordedTask } from "../../replay.js";
 
 export default defineBenchTask(
   { name: "observe_file_uploads" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-3/");
+      await gotoRecordedTask(page, "file-uploads-3");
 
       const { data: observations } = await stagehand.observe("find the file upload element");
 

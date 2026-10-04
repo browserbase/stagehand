@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "observation",
+  "sourceUrl": "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+  "recordedAt": "2026-10-04T15:44:29.712Z",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "limitations": [
+    "No application scripts or remote assets",
+    "No post-click behavior",
+    "No frames or shadow DOM",
+    "No pseudo-element content or canvas pixels"
+  ],
+  "htmlSha256": "1f76c7c9f7466bd33c7647e44c72718f175ef4a8fe3a767e0fd7bd791d4ffce2"
+}

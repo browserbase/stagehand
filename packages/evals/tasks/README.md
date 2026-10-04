@@ -19,9 +19,9 @@ This is an observation task on-ramp, not an arbitrary application recorder.
 It supports manually authored `extract()` / `observe()` regressions against a
 frozen observation. It does not generate assertions or replay click handlers,
 fetches, navigation, authentication, or state transitions. Network response
-recording and bug-report automation are future work. The issue's old
-`tasks/extract` and `tasks/observe` live-site tasks are absent from current v4
-`main`, so migrating those tasks is not part of this change.
+recording and bug-report automation are future work. Current extraction and
+observation benchmarks live under `tasks/bench/extract` and `tasks/bench/observe`.
+The existing-eval validation below covers three tasks migrated to saved pages.
 
 ## Record
 
@@ -177,3 +177,60 @@ Run all recorder validations from `packages/evals`:
 ```sh
 pnpm exec vitest run --config vitest.integration.config.ts tests/integration/task*.test.ts
 ```
+
+## Existing-eval migrations
+
+Three current benchmarks now use recordings in `assets/observation-tasks`:
+
+| Existing task                | Preserved check                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
+| `extract_aigrant_targeted`   | The original XPath exposes the Coframe company link and extraction returns Coframe |
+| `extract_aigrant_targeted_2` | Neighboring OpusClip stays outside the targeted extraction input                   |
+| `observe_file_uploads`       | The observed selector resolves to the exact input required by the existing task    |
+
+The instructions, schemas, selectors, and scoring assertions are unchanged.
+The two extraction tasks share the AI Grant page; file upload uses a second page.
+`tasks/replay.ts` loads each recording into a blank browser document at the
+recorded viewport. It works through the normal SDK page API and does not need a
+recording web server accessible to a remote browser. The HTML is stored as gzip
+because repeated computed styles make the AI Grant capture approximately 4 MB;
+compressed, both pages together are approximately 51 KB. Capture metadata and
+SHA-256 digests accompany the assets. The existing eval build copies these assets
+into `dist/esm/assets`.
+
+`tests/integration/taskExistingEvals.test.ts` runs the actual migrated task
+functions. Its default offline tests use a deterministic model adapter that reads
+company text and control IDs from real Stagehand prompts. External browser DNS is
+blocked as well as the recording CSP's remote-asset restrictions. A negative control
+replaces the company link text and requires validation to reject the altered page.
+The tests also check the saved bytes against their manifest hashes.
+
+After building the SDK and extension and installing Playwright Chromium, run from
+`packages/evals`:
+
+```sh
+# Offline replay: no provider credentials or original websites needed.
+pnpm exec vitest run --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts
+
+# Also compare the committed recordings with the current public source pages.
+VALIDATE_EXISTING_EVAL_TASKS=1 pnpm exec vitest run \
+  --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts
+
+# Paid real-model validation: three source/recording pairs per task.
+# Set OPENAI_API_KEY in the environment first; use any supported OpenAI model.
+TASK_VALIDATION_MODEL=openai/gpt-5.4-mini pnpm exec vitest run \
+  --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts -t real-model
+```
+
+Live source comparisons are opt-in because mirror changes and availability can
+legitimately fail them. For the three supported tasks, source and saved observation
+prompts match after normalizing session-local element IDs. The real-model suite
+uses Stagehand's normal provider integration and each task's original pass/fail
+assertions. It repeats each pair three times; this checks practical behavior but
+is not a statistical guarantee for every model or future SDK version.
+
+`extract_single_link` stays live: the Geniusee mirror has unsupported frames and
+capture rejects it explicitly. Tasks such as `observe_simple_google_search` and
+`observe_main_frame_element_ids` assert post-action behavior and keep their
+executable pages. See the [asset notes](../assets/observation-tasks/README.md)
+for provenance, refresh instructions, and validation results.
