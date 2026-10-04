@@ -453,7 +453,7 @@ describe("decisions act pipeline", () => {
     );
   });
 
-  it("never sends a resolved variable value to TypeSafe, even once it is on the page", async () => {
+  it("never sends a resolved variable value to the decision provider, even once it is on the page", async () => {
     const tree = [
       "[0-1] textbox: Password",
       "  [0-2] StaticText: hunter2-secret",
