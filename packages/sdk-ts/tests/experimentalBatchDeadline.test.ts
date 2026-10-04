@@ -4,7 +4,6 @@ import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-regis
 import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   BrowserContext,
-  CALLBACK_BATCH_CLIENT_GRACE_MS,
   RPCResponseTimeoutError,
   Stagehand,
   StagehandBatchTimeoutError,
@@ -15,6 +14,9 @@ import {
   claimStagehandBrowserHandle,
   createStagehandBrowserHandle,
 } from "../src/browser/index.js";
+
+/** The RPC client's response grace period, added to the callback timeout. */
+const RPC_RESPONSE_GRACE_MS = 10_000;
 
 /** A transport that accepts requests and never answers them. */
 class SilentCDPTransport implements CDPTransport {
@@ -71,17 +73,17 @@ describe("experimentalBatch client deadline", () => {
         expect(error).toBeInstanceOf(StagehandBatchTimeoutError);
         const typed = error as StagehandBatchTimeoutError;
         expect(typed.timeout).toBe(60_000);
-        expect(typed.clientTimeout).toBe(60_000 + CALLBACK_BATCH_CLIENT_GRACE_MS);
+        expect(typed.clientTimeout).toBe(60_000 + RPC_RESPONSE_GRACE_MS);
         expect(typed.cause).toBeInstanceOf(RPCResponseTimeoutError);
         expect(typed.cause).toMatchObject({
-          message: `RPC response timed out after 75000ms: ${StagehandMethods.stagehandCallbackBatch.name}`,
+          message: `RPC response timed out after 70000ms: ${StagehandMethods.stagehandCallbackBatch.name}`,
           method: StagehandMethods.stagehandCallbackBatch.name,
-          timeoutMs: 75_000,
+          timeoutMs: 70_000,
         });
         return true;
       });
 
-      await vi.advanceTimersByTimeAsync(60_000 + CALLBACK_BATCH_CLIENT_GRACE_MS - 1);
+      await vi.advanceTimersByTimeAsync(60_000 + RPC_RESPONSE_GRACE_MS - 1);
       expect(client.pending.size).toBe(1);
       await vi.advanceTimersByTimeAsync(1);
       await rejection;
@@ -95,22 +97,19 @@ describe("experimentalBatch client deadline", () => {
     }
   });
 
-  it("lets callers shorten the round-trip deadline below the executor timeout", async () => {
+  it("derives the client deadline from the default callback timeout", async () => {
     vi.useFakeTimers();
     const client = new RPCClient(new SilentCDPTransport());
     const stagehand = createStagehand(client);
 
     try {
-      const pending = stagehand.experimentalBatch(async () => "never", undefined, {
-        timeout: 60_000,
-        clientTimeoutMs: 5_000,
-      });
+      const pending = stagehand.experimentalBatch(async () => "never");
       const rejection = expect(pending).rejects.toMatchObject({
         name: "StagehandBatchTimeoutError",
-        timeout: 60_000,
-        clientTimeout: 5_000,
+        timeout: 30_000,
+        clientTimeout: 30_000 + RPC_RESPONSE_GRACE_MS,
       });
-      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.advanceTimersByTimeAsync(30_000 + RPC_RESPONSE_GRACE_MS);
       await rejection;
     } finally {
       client.close();
@@ -137,19 +136,23 @@ describe("experimentalBatch client deadline", () => {
     }
   });
 
-  it.each([0, -1, 0.5, 2_147_483_648, NaN, Infinity])(
-    "validates clientTimeoutMs %s before sending",
-    async (clientTimeoutMs) => {
-      const client = new RPCClient(new SilentCDPTransport());
-      const stagehand = createStagehand(client);
-      try {
-        await expect(
-          stagehand.experimentalBatch(async () => undefined, undefined, { clientTimeoutMs }),
-        ).rejects.toThrow(RangeError);
-        expect(client.pending.size).toBe(0);
-      } finally {
-        client.close();
-      }
-    },
-  );
+  it("ignores the removed clientTimeoutMs option", async () => {
+    vi.useFakeTimers();
+    const client = new RPCClient(new SilentCDPTransport());
+    const stagehand = createStagehand(client);
+
+    try {
+      const options = { timeout: 60_000, clientTimeoutMs: 5_000 } as { timeout: number };
+      const pending = stagehand.experimentalBatch(async () => "never", undefined, options);
+      const rejection = expect(pending).rejects.toMatchObject({
+        clientTimeout: 60_000 + RPC_RESPONSE_GRACE_MS,
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(client.pending.size).toBe(1);
+      await vi.advanceTimersByTimeAsync(55_000 + RPC_RESPONSE_GRACE_MS);
+      await rejection;
+    } finally {
+      client.close();
+    }
+  });
 });
