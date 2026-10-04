@@ -384,7 +384,7 @@ async function replayCachedActions(
   }
 
   // Replay is blind: a selector that still resolves but now points at another
-  // control gets acted on with no model in the loop. With `cacheCheck`, one the decision model
+  // control gets acted on with no model in the loop. With `cacheCheck`, one decision-model
   // yes/no runs before each action, against the page as it is right then
   // (earlier actions of the same entry may have changed it); a stale verdict
   // throws, which sends the act through full inference.
