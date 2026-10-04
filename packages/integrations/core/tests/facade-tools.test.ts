@@ -429,9 +429,9 @@ describe("StagehandFacadeTools session loss", () => {
   });
 
   function batchTimeoutError() {
-    const error = new Error("stagehand.experimentalBatch() received no response within 70000ms");
+    const error = new Error("stagehand.experimentalBatch() received no response within 75000ms");
     error.name = "StagehandBatchTimeoutError";
-    Object.assign(error, { timeout: 60_000, clientTimeout: 70_000 });
+    Object.assign(error, { timeout: 60_000, clientTimeout: 75_000 });
     return error;
   }
 
@@ -447,10 +447,10 @@ describe("StagehandFacadeTools session loss", () => {
     const first = tools.run("await page.getByRole('button', { name: 'Search now' }).click();");
     await expect(first).rejects.toBeInstanceOf(StagehandFacadeSessionLostError);
     await expect(first).rejects.toThrow(
-      "Browser session lost (batch received no response within 70000ms). The task cannot continue; report your final result now.",
+      "Browser session lost (batch received no response within 75000ms). The task cannot continue; report your final result now.",
     );
     expect(losses).toEqual([
-      { cause: "batch received no response within 70000ms", tool: "run", at: expect.any(String) },
+      { cause: "batch received no response within 75000ms", tool: "run", at: expect.any(String) },
     ]);
     expect(tools.sessionLoss).toBe(losses[0]);
 
@@ -565,6 +565,16 @@ describe("StagehandFacadeTools session loss", () => {
     );
     expect(tools.sessionLoss).toBeUndefined();
     await expect(tools.run("return 2;")).resolves.toBe(2);
+  });
+
+  it("disables the snapshot's own timeout so the capture deadline owns the wait", async () => {
+    const page = createFakePage();
+    const { stagehand } = createFakeStagehand(page);
+    const tools = new StagehandFacadeTools(stagehand);
+    await tools.snapshot();
+    // page.snapshot defaults to 20s; a timeout it raised itself would not be a
+    // capture deadline and would never count toward terminal session loss.
+    expect(page.snapshot).toHaveBeenLastCalledWith({ includeIframes: true, timeout: 0 });
   });
 
   it("resets capture timeout count after a successful operation", async () => {
