@@ -1,0 +1,36 @@
+{
+  "name": "@browserbasehq/stagehand-evaluator",
+  "version": "4.0.0",
+  "private": true,
+  "bin": {
+    "stagehand-evaluator": "./dist/cli.js"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "test:unit": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^2.0.53",
+    "@ai-sdk/openai": "^2.0.53",
+    "ai": "^5.0.185",
+    "sharp": "^0.34.5",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
