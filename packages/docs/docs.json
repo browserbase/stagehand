@@ -101,6 +101,7 @@
             "group": "SDK reference",
             "pages": [
               "v4/reference/stagehand",
+              "v4/reference/experimental-decisions",
               "v4/reference/context",
               "v4/reference/clipboard",
               "v4/reference/page",

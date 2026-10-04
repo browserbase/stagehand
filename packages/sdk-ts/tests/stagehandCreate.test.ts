@@ -334,6 +334,72 @@ describe("Stagehand.create", () => {
     await browser.close();
   });
 
+  it("sends experimentalDecisions with initialization and validates it at the boundary", async () => {
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+
+    expect(() =>
+      StagehandCreateOptionsSchema.parse({
+        browser,
+        experimentalDecisions: { apiKey: "key", provider: "someone-else" },
+      }),
+    ).toThrow();
+    expect(() =>
+      StagehandCreateOptionsSchema.parse({
+        browser,
+        experimentalDecisions: { apiKey: "key", apiUrl: "http://insecure.example.com" },
+      }),
+    ).toThrow("apiUrl must be https");
+    expect(() =>
+      StagehandCreateOptionsSchema.parse({ browser, experimentalDecisions: { enabled: true } }),
+    ).toThrow();
+
+    const stagehand = await Stagehand.create({
+      browser,
+      experimentalDecisions: {
+        provider: "cloudflare",
+        apiKey: "token",
+        accountId: "account-1",
+        targetReadiness: true,
+      },
+    });
+
+    expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
+      params: {
+        experimental_decisions: {
+          provider: "cloudflare",
+          api_key: "token",
+          account_id: "account-1",
+          target_readiness: true,
+        },
+      },
+    });
+
+    await stagehand.close();
+    await browser.close();
+  });
+
+  it("leaves experimentalDecisions out of initialization unless configured", async () => {
+    vi.stubEnv("STAGEHAND_EXPERIMENTAL_DECISIONS", JSON.stringify({ apiKey: "from-env" }));
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+
+    const stagehand = await Stagehand.create({ browser });
+
+    const init = cdp.requestsFor("stagehand.init")[0] as { params: Record<string, unknown> };
+    expect(init.params).not.toHaveProperty("experimental_decisions");
+
+    await stagehand.close();
+    await browser.close();
+    vi.unstubAllEnvs();
+  });
+
   it("registers a client LLM handler and sends its serializable model reference", async () => {
     const cdp = new FakeCDPClient();
     const generate = vi.fn(

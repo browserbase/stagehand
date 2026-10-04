@@ -210,6 +210,7 @@ class StagehandClientCreateConfig(WireModel):
         int | None, Field(gt=0, le=9_007_199_254_740_991, strict=True)
     ] = None
     cache: _models.Caching | None = None
+    experimental_decisions: _models.ExperimentalDecisionsConfig | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
 
 

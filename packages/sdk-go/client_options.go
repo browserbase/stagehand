@@ -56,17 +56,18 @@ const (
 
 // CreateOptions configures Stagehand over a factory-created Browser handle.
 type CreateOptions struct {
-	Browser            *Browser
-	APIKey             *string
-	APIURL             *string
-	Cache              *Caching
-	DOMSettleTimeoutMs *int
-	Model              *ModelConfig
-	Generate           LLMGenerateFunc
-	Logging            *StagehandClientLoggingConfig
-	SelfHeal           *bool
-	SystemPrompt       *string
-	Telemetry          TelemetryConfig
+	Browser               *Browser
+	APIKey                *string
+	APIURL                *string
+	Cache                 *Caching
+	DOMSettleTimeoutMs    *int
+	ExperimentalDecisions *ExperimentalDecisionsConfig
+	Model                 *ModelConfig
+	Generate              LLMGenerateFunc
+	Logging               *StagehandClientLoggingConfig
+	SelfHeal              *bool
+	SystemPrompt          *string
+	Telemetry             TelemetryConfig
 }
 
 // StagehandClientActOptions configures act calls. Page and PageLocator

@@ -507,6 +507,78 @@ type DomainPolicy struct {
 	BlockedDomains []string `json:"blocked_domains,omitempty,omitzero"`
 }
 
+// Experimental: configures stagehand.experimentalDecisions, whose act(), observe()
+// and extract() are resolved by a decision model (typed questions answered with
+// probabilities) and fall back to the LLM pipeline when it is not confident
+type ExperimentalDecisionsConfig struct {
+	// Cloudflare account id; required for provider "cloudflare"
+	AccountID *string `json:"account_id,omitempty,omitzero"`
+
+	// ActConfidence corresponds to the JSON schema field "act_confidence".
+	ActConfidence *float64 `json:"act_confidence,omitempty,omitzero"`
+
+	// APIKey corresponds to the JSON schema field "api_key".
+	APIKey string `json:"api_key"`
+
+	// APIURL corresponds to the JSON schema field "api_url".
+	APIURL *string `json:"api_url,omitempty,omitzero"`
+
+	// ArgumentLLM corresponds to the JSON schema field "argument_llm".
+	ArgumentLLM *bool `json:"argument_llm,omitempty,omitzero"`
+
+	// CacheCheck corresponds to the JSON schema field "cache_check".
+	CacheCheck *bool `json:"cache_check,omitempty,omitzero"`
+
+	// Extract corresponds to the JSON schema field "extract".
+	Extract *ExperimentalDecisionsConfigExtract `json:"extract,omitempty,omitzero"`
+
+	// FocusFallback corresponds to the JSON schema field "focus_fallback".
+	FocusFallback *bool `json:"focus_fallback,omitempty,omitzero"`
+
+	// LLMFallback corresponds to the JSON schema field "llm_fallback".
+	LLMFallback *bool `json:"llm_fallback,omitempty,omitzero"`
+
+	// Model corresponds to the JSON schema field "model".
+	Model *string `json:"model,omitempty,omitzero"`
+
+	// PageState corresponds to the JSON schema field "page_state".
+	PageState *bool `json:"page_state,omitempty,omitzero"`
+
+	// Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity
+	// Decider, or OpenAI's Decisions API
+	Provider *ExperimentalDecisionsConfigProvider `json:"provider,omitempty,omitzero"`
+
+	// RetryNoEffect corresponds to the JSON schema field "retry_no_effect".
+	RetryNoEffect *bool `json:"retry_no_effect,omitempty,omitzero"`
+
+	// TargetReadiness corresponds to the JSON schema field "target_readiness".
+	TargetReadiness *bool `json:"target_readiness,omitempty,omitzero"`
+
+	// Tools corresponds to the JSON schema field "tools".
+	Tools *bool `json:"tools,omitempty,omitzero"`
+
+	// Verify corresponds to the JSON schema field "verify".
+	Verify *ExperimentalDecisionsConfigVerify `json:"verify,omitempty,omitzero"`
+}
+
+type ExperimentalDecisionsConfigExtract string
+
+const ExperimentalDecisionsConfigExtractJudge ExperimentalDecisionsConfigExtract = "judge"
+const ExperimentalDecisionsConfigExtractPick ExperimentalDecisionsConfigExtract = "pick"
+
+type ExperimentalDecisionsConfigProvider string
+
+const ExperimentalDecisionsConfigProviderCloudflare ExperimentalDecisionsConfigProvider = "cloudflare"
+const ExperimentalDecisionsConfigProviderOpenai ExperimentalDecisionsConfigProvider = "openai"
+const ExperimentalDecisionsConfigProviderPerplexity ExperimentalDecisionsConfigProvider = "perplexity"
+const ExperimentalDecisionsConfigProviderTypesafe ExperimentalDecisionsConfigProvider = "typesafe"
+
+type ExperimentalDecisionsConfigVerify string
+
+const ExperimentalDecisionsConfigVerifyChecks ExperimentalDecisionsConfigVerify = "checks"
+const ExperimentalDecisionsConfigVerifyFull ExperimentalDecisionsConfigVerify = "full"
+const ExperimentalDecisionsConfigVerifyOff ExperimentalDecisionsConfigVerify = "off"
+
 type ExternalProxyConfig struct {
 	// DomainPattern corresponds to the JSON schema field "domain_pattern".
 	DomainPattern *string `json:"domain_pattern,omitempty,omitzero"`
@@ -1998,10 +2070,9 @@ type StagehandInitParams struct {
 	// "dom_settle_timeout_ms".
 	DOMSettleTimeoutMs *int `json:"dom_settle_timeout_ms,omitempty,omitzero"`
 
-	// Experimental: resolve act(), observe() and extract() through a decision model
-	// (typed questions answered with probabilities) before falling back to the LLM
-	// pipeline
-	ExperimentalDecisions *StagehandInitParamsExperimentalDecisions `json:"experimental_decisions,omitempty,omitzero"`
+	// ExperimentalDecisions corresponds to the JSON schema field
+	// "experimental_decisions".
+	ExperimentalDecisions *ExperimentalDecisionsConfig `json:"experimental_decisions,omitempty,omitzero"`
 
 	// LogLevel corresponds to the JSON schema field "log_level".
 	LogLevel StagehandInitParamsLogLevel `json:"log_level,omitempty,omitzero"`
@@ -2021,85 +2092,6 @@ type StagehandInitParams struct {
 	// Telemetry corresponds to the JSON schema field "telemetry".
 	Telemetry *TelemetryConfig `json:"telemetry,omitempty,omitzero"`
 }
-
-// Experimental: resolve act(), observe() and extract() through a decision model
-// (typed questions answered with probabilities) before falling back to the LLM
-// pipeline
-type StagehandInitParamsExperimentalDecisions struct {
-	// Cloudflare account id; required for provider "cloudflare"
-	AccountID *string `json:"account_id,omitempty,omitzero"`
-
-	// ActConfidence corresponds to the JSON schema field "act_confidence".
-	ActConfidence *float64 `json:"act_confidence,omitempty,omitzero"`
-
-	// APIKey corresponds to the JSON schema field "api_key".
-	APIKey string `json:"api_key"`
-
-	// APIURL corresponds to the JSON schema field "api_url".
-	APIURL *string `json:"api_url,omitempty,omitzero"`
-
-	// ArgumentLLM corresponds to the JSON schema field "argument_llm".
-	ArgumentLLM *bool `json:"argument_llm,omitempty,omitzero"`
-
-	// CacheCheck corresponds to the JSON schema field "cache_check".
-	CacheCheck *bool `json:"cache_check,omitempty,omitzero"`
-
-	// Enabled corresponds to the JSON schema field "enabled".
-	Enabled *bool `json:"enabled,omitempty,omitzero"`
-
-	// Extract corresponds to the JSON schema field "extract".
-	Extract *StagehandInitParamsExperimentalDecisionsExtract `json:"extract,omitempty,omitzero"`
-
-	// FocusFallback corresponds to the JSON schema field "focus_fallback".
-	FocusFallback *bool `json:"focus_fallback,omitempty,omitzero"`
-
-	// LLMFallback corresponds to the JSON schema field "llm_fallback".
-	LLMFallback *bool `json:"llm_fallback,omitempty,omitzero"`
-
-	// Model corresponds to the JSON schema field "model".
-	Model *string `json:"model,omitempty,omitzero"`
-
-	// Observe corresponds to the JSON schema field "observe".
-	Observe *bool `json:"observe,omitempty,omitzero"`
-
-	// PageState corresponds to the JSON schema field "page_state".
-	PageState *bool `json:"page_state,omitempty,omitzero"`
-
-	// Decision-model provider: TypeSafe Jev (default), Cloudflare Clef, Perplexity
-	// Decider, or OpenAI's Decisions API
-	Provider *StagehandInitParamsExperimentalDecisionsProvider `json:"provider,omitempty,omitzero"`
-
-	// RetryNoEffect corresponds to the JSON schema field "retry_no_effect".
-	RetryNoEffect *bool `json:"retry_no_effect,omitempty,omitzero"`
-
-	// TargetReadiness corresponds to the JSON schema field "target_readiness".
-	TargetReadiness *bool `json:"target_readiness,omitempty,omitzero"`
-
-	// Tools corresponds to the JSON schema field "tools".
-	Tools *bool `json:"tools,omitempty,omitzero"`
-
-	// Verify corresponds to the JSON schema field "verify".
-	Verify *StagehandInitParamsExperimentalDecisionsVerify `json:"verify,omitempty,omitzero"`
-}
-
-type StagehandInitParamsExperimentalDecisionsExtract string
-
-const StagehandInitParamsExperimentalDecisionsExtractJudge StagehandInitParamsExperimentalDecisionsExtract = "judge"
-const StagehandInitParamsExperimentalDecisionsExtractOff StagehandInitParamsExperimentalDecisionsExtract = "off"
-const StagehandInitParamsExperimentalDecisionsExtractPick StagehandInitParamsExperimentalDecisionsExtract = "pick"
-
-type StagehandInitParamsExperimentalDecisionsProvider string
-
-const StagehandInitParamsExperimentalDecisionsProviderCloudflare StagehandInitParamsExperimentalDecisionsProvider = "cloudflare"
-const StagehandInitParamsExperimentalDecisionsProviderOpenai StagehandInitParamsExperimentalDecisionsProvider = "openai"
-const StagehandInitParamsExperimentalDecisionsProviderPerplexity StagehandInitParamsExperimentalDecisionsProvider = "perplexity"
-const StagehandInitParamsExperimentalDecisionsProviderTypesafe StagehandInitParamsExperimentalDecisionsProvider = "typesafe"
-
-type StagehandInitParamsExperimentalDecisionsVerify string
-
-const StagehandInitParamsExperimentalDecisionsVerifyChecks StagehandInitParamsExperimentalDecisionsVerify = "checks"
-const StagehandInitParamsExperimentalDecisionsVerifyFull StagehandInitParamsExperimentalDecisionsVerify = "full"
-const StagehandInitParamsExperimentalDecisionsVerifyOff StagehandInitParamsExperimentalDecisionsVerify = "off"
 
 type StagehandInitParamsLogLevel string
 
@@ -2539,6 +2531,10 @@ type generatedModelCatalog struct {
 
 	// EmptyParams corresponds to the JSON schema field "EmptyParams".
 	EmptyParams *EmptyParams `json:"EmptyParams,omitempty,omitzero"`
+
+	// ExperimentalDecisionsConfig corresponds to the JSON schema field
+	// "ExperimentalDecisionsConfig".
+	ExperimentalDecisionsConfig *ExperimentalDecisionsConfig `json:"ExperimentalDecisionsConfig,omitempty,omitzero"`
 
 	// ExternalProxyConfig corresponds to the JSON schema field "ExternalProxyConfig".
 	ExternalProxyConfig *ExternalProxyConfig `json:"ExternalProxyConfig,omitempty,omitzero"`

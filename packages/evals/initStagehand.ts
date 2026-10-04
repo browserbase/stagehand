@@ -62,8 +62,6 @@ function createStagehandOnLog(logger: EvalLogger): (event: StagehandLogEvent) =>
   };
 }
 
-let decisionsBridgeSetByEvals = false;
-
 export async function initStagehand({
   logger,
   modelName,
@@ -80,23 +78,35 @@ export async function initStagehand({
     );
   }
 
-  // EVAL_DECISIONS=1 routes act() through the experimental decision tree,
-  // falling back to the configured model when the decision model abstains.
-  let experimentalDecisions: Record<string, unknown> | undefined;
-  if (process.env.EVAL_DECISIONS !== "1" && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
-    // Baseline arm: no the decision model, only the per-act timing log the report parses.
-    experimentalDecisions = { apiKey: "instrument-only", enabled: false };
+  // EVAL_DECISIONS=1 sends the tasks' act() calls (and observe()/extract() with their own
+  // switches) to stagehand.experimentalDecisions, which falls back to the configured model
+  // when the decision model abstains.
+  const useDecisions = process.env.EVAL_DECISIONS === "1";
+  let experimentalDecisions: StagehandCreateOptions["experimentalDecisions"];
+  if (!useDecisions && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
+    // Baseline arm: stagehand.act() never asks the decision model; being configured only
+    // turns on the per-act timing log the report parses.
+    experimentalDecisions = { apiKey: "instrument-only" };
   }
-  if (process.env.EVAL_DECISIONS === "1") {
+  const decisionsObserve = useDecisions && process.env.EVAL_DECISIONS_OBSERVE === "1";
+  const decisionsExtract =
+    useDecisions &&
+    (process.env.EVAL_DECISIONS_EXTRACT === "pick" ||
+      process.env.EVAL_DECISIONS_EXTRACT === "judge");
+  if (useDecisions) {
     // EVAL_DECISIONS_PROVIDER: typesafe (default) | cloudflare | perplexity | openai
-    const provider = process.env.EVAL_DECISIONS_PROVIDER ?? "typesafe";
-    const keyName = {
+    const keyNames = {
       typesafe: "TYPESAFE_API_KEY",
       cloudflare: "CLOUDFLARE_API_TOKEN",
       perplexity: "PERPLEXITY_API_KEY",
       openai: "OPENAI_API_KEY",
-    }[provider];
-    if (!keyName) throw new Error(`Stagehand init: unknown EVAL_DECISIONS_PROVIDER "${provider}"`);
+    } as const;
+    const requested = process.env.EVAL_DECISIONS_PROVIDER ?? "typesafe";
+    if (!(requested in keyNames)) {
+      throw new Error(`Stagehand init: unknown EVAL_DECISIONS_PROVIDER "${requested}"`);
+    }
+    const provider = requested as keyof typeof keyNames;
+    const keyName = keyNames[provider];
     const decisionsApiKey = resolveKey(keyName).value;
     if (!decisionsApiKey) {
       throw new Error(
@@ -122,27 +132,15 @@ export async function initStagehand({
           : {}),
       ...(process.env.EVAL_DECISIONS_LLM_FALLBACK === "0" ? { llmFallback: false } : {}),
       ...(process.env.EVAL_DECISIONS_ARG_LLM === "0" ? { argumentLlm: false } : {}),
-      ...(process.env.EVAL_DECISIONS_OBSERVE === "1" ? { observe: true } : {}),
       ...(process.env.EVAL_DECISIONS_TOOLS === "1" ? { tools: true } : {}),
       ...(process.env.EVAL_DECISIONS_READINESS === "1" ? { targetReadiness: true } : {}),
-      ...(process.env.EVAL_DECISIONS_EXTRACT === "pick" ||
-      process.env.EVAL_DECISIONS_EXTRACT === "judge"
-        ? { extract: process.env.EVAL_DECISIONS_EXTRACT }
+      ...(decisionsExtract
+        ? { extract: process.env.EVAL_DECISIONS_EXTRACT as "pick" | "judge" }
         : {}),
       ...(process.env.EVAL_DECISIONS_CACHE_CHECK === "1" ? { cacheCheck: true } : {}),
       ...(process.env.EVAL_DECISIONS_RETRY === "1" ? { retryNoEffect: true } : {}),
       ...(process.env.EVAL_DECISIONS_FOCUS === "1" ? { focusFallback: true } : {}),
     };
-  }
-
-  // Read by the TS SDK when it builds init params; not part of the public create config.
-  // Only values this initializer set are cleared: a caller's own bridge config stays.
-  if (experimentalDecisions) {
-    process.env.STAGEHAND_EXPERIMENTAL_DECISIONS = JSON.stringify(experimentalDecisions);
-    decisionsBridgeSetByEvals = true;
-  } else if (decisionsBridgeSetByEvals) {
-    delete process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
-    decisionsBridgeSetByEvals = false;
   }
 
   // `browser` is a factory-built handle rather than a config object:
@@ -208,7 +206,16 @@ export async function initStagehand({
       selfHeal: true,
       model: { modelName, apiKey } as NonNullable<StagehandCreateOptions["model"]>,
       logging: { onLog: createStagehandOnLog(logger) },
+      ...(experimentalDecisions ? { experimentalDecisions } : {}),
     });
+    if (useDecisions) {
+      // Tasks call stagehand.act()/observe()/extract(); in this arm those calls are the
+      // namespace's, so the same task files measure both paths.
+      const decisions = stagehand.experimentalDecisions;
+      stagehand.act = decisions.act.bind(decisions);
+      if (decisionsObserve) stagehand.observe = decisions.observe.bind(decisions);
+      if (decisionsExtract) stagehand.extract = decisions.extract.bind(decisions);
+    }
   } catch (error) {
     await cleanup();
     throw error;

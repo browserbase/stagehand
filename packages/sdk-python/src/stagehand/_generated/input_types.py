@@ -224,23 +224,21 @@ class EmptyParams(TypedDict):
     pass
 
 
-class ExperimentalDecisions(TypedDict):
+class ExperimentalDecisionsConfig(TypedDict):
     provider: NotRequired[Literal["typesafe", "cloudflare", "perplexity", "openai"]]
     api_key: str
     model: NotRequired[str]
     api_url: NotRequired[str]
     account_id: NotRequired[str]
-    enabled: NotRequired[bool]
     retry_no_effect: NotRequired[bool]
     focus_fallback: NotRequired[bool]
     cache_check: NotRequired[bool]
-    extract: NotRequired[Literal["off", "judge", "pick"]]
+    extract: NotRequired[Literal["judge", "pick"]]
     act_confidence: NotRequired[float]
     verify: NotRequired[Literal["off", "checks", "full"]]
     llm_fallback: NotRequired[bool]
     argument_llm: NotRequired[bool]
     page_state: NotRequired[bool]
-    observe: NotRequired[bool]
     tools: NotRequired[bool]
     target_readiness: NotRequired[bool]
 
@@ -1180,7 +1178,7 @@ class StagehandInitParams(TypedDict):
     self_heal: NotRequired[bool]
     dom_settle_timeout_ms: NotRequired[int]
     cache: NotRequired[Caching]
-    experimental_decisions: NotRequired[ExperimentalDecisions]
+    experimental_decisions: NotRequired[ExperimentalDecisionsConfig]
 
 
 VariablePrimitive: TypeAlias = str | float | bool

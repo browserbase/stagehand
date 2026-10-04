@@ -1,0 +1,485 @@
+---
+title: "experimentalDecisions"
+description: "act(), observe(), and extract() resolved by a decision model"
+icon: "flask"
+---
+
+<Warning>
+  Experimental. The surface, its configuration, and its behavior may change between releases.
+</Warning>
+
+A decision model answers small typed questions ("which of these options", "yes or no") with
+probabilities. It does not generate text, and it answers in a few hundred milliseconds. The
+`experimentalDecisions` namespace runs `act()`, `observe()`, and `extract()` through such questions
+and hands over to the ordinary LLM pipeline whenever the model is not confident, so results have the
+same shape as the regular methods and are usually faster.
+
+The namespace is opt-in twice: configure a provider when you create Stagehand, then call the methods
+on the namespace. `act()`, `observe()`, and `extract()` on the Stagehand instance itself never use
+the decision model. Calling a namespace method without the configuration fails with an error.
+
+## Providers
+
+| `provider` | Model (default) | Needs |
+| --- | --- | --- |
+| `"typesafe"` (default) | TypeSafe Jev (`jev-latest`) | `apiKey` |
+| `"cloudflare"` | Cloudflare Clef (`clef`, or `clef-flash`) | `apiKey`, `accountId` |
+| `"perplexity"` | Perplexity Decider (`pplx-decider-v1-27b`) | `apiKey` |
+| `"openai"` | OpenAI Decisions API (`gpt-6-luna`) | `apiKey` with access to the Decisions preview |
+
+Acceptance thresholds were tuned on TypeSafe Jev. Other providers answer the same questions through
+the same validation, but their probabilities are not calibrated identically; measure on your own
+pages before relying on them.
+
+The instruction, descriptions of candidate elements built from the accessibility tree, and the page
+URL without query string or fragment are sent to the provider. `extract()` also sends page or
+extracted content. Values of `%variables%` are replaced by their placeholders.
+
+<Tabs>
+<Tab title="TypeScript">
+
+## Quick start
+
+```typescript
+const stagehand = await Stagehand.create({
+  browser,
+  model: "openai/gpt-5.4-mini",
+  experimentalDecisions: { provider: "typesafe", apiKey: process.env.TYPESAFE_API_KEY! },
+});
+
+await stagehand.experimentalDecisions.act("Click the sign in button");
+const actions = await stagehand.experimentalDecisions.observe("Find the search field");
+const product = await stagehand.experimentalDecisions.extract("Extract the product", ProductSchema);
+```
+
+## Configuration
+
+Pass `experimentalDecisions` to `Stagehand.create()`.
+
+<ParamField path="experimentalDecisions.provider" type='"typesafe" | "cloudflare" | "perplexity" | "openai"' optional>
+  The decision-model provider. Defaults to `"typesafe"`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.apiKey" type="string">
+  The provider's API key.
+</ParamField>
+
+<ParamField path="experimentalDecisions.model" type="string" optional>
+  The provider's model name. Defaults to the provider's default model.
+</ParamField>
+
+<ParamField path="experimentalDecisions.apiUrl" type="string" optional>
+  An `https` endpoint that replaces the provider's default one.
+</ParamField>
+
+<ParamField path="experimentalDecisions.accountId" type="string" optional>
+  The Cloudflare account id. Required for `"cloudflare"`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.actConfidence" type="number" optional>
+  Minimum confidence, from 0 to 1, to act on an answer. Defaults to `0.7`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.llmFallback" type="boolean" optional>
+  Whether to hand over to the LLM pipeline when the decision model is not confident. Defaults to `true`; with `false` the call fails instead.
+</ParamField>
+
+<ParamField path="experimentalDecisions.argumentLlm" type="boolean" optional>
+  Whether a small LLM call may lift unquoted text to type from the instruction. Defaults to `true`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.extract" type='"judge" | "pick"' optional>
+  How `extract()` uses the decision model. `"pick"` (default) picks the elements holding each value and copies their text; `"judge"` keeps the LLM extraction and replaces only its completion check.
+</ParamField>
+
+<ParamField path="experimentalDecisions.targetReadiness" type="boolean" optional>
+  Act as soon as the target is found and stable instead of waiting out the DOM-settle window. Defaults to `false`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.tools" type="boolean" optional>
+  Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request. Defaults to `false`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.cacheCheck" type="boolean" optional>
+  Ask the decision model whether a cached action's selector still points at a matching element before replaying it. Defaults to `false`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.pageState" type="boolean" optional>
+  Check for captchas, access-denied pages, and similar states when no target is found. Defaults to `true`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.verify" type='"off" | "checks" | "full"' optional>
+  Post-action checks. Defaults to `"checks"`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.retryNoEffect" type="boolean" optional>
+  Click the runner-up when an ambiguous click provably changed nothing. Defaults to `false`.
+</ParamField>
+
+<ParamField path="experimentalDecisions.focusFallback" type="boolean" optional>
+  On very large pages, show the LLM the decision model's shortlist first. Defaults to `false`.
+</ParamField>
+
+## act()
+
+Perform an action described in natural language. Takes the same arguments and returns the same result as [`stagehand.act()`](/v4/reference/stagehand).
+
+```typescript
+const result = await stagehand.experimentalDecisions.act("Click the sign in button");
+```
+
+<ParamField path="instruction" type="string | Action">
+  A natural-language action to perform, or an action returned by `observe()`.
+</ParamField>
+
+<ParamField path="options" type="ActOptions" optional>
+  The options of `stagehand.act()`.
+</ParamField>
+
+<ResponseField name="result" type="Promise<ActResult>">
+  The action result.
+</ResponseField>
+
+## observe()
+
+Find actions on the page. Takes the same arguments and returns the same result as [`stagehand.observe()`](/v4/reference/stagehand).
+
+```typescript
+const actions = await stagehand.experimentalDecisions.observe("Find the search field");
+```
+
+<ParamField path="instruction" type="string" optional>
+  What to look for. Omit it to list the page's interactive elements.
+</ParamField>
+
+<ParamField path="options" type="ObserveOptions" optional>
+  The options of `stagehand.observe()`.
+</ParamField>
+
+<ResponseField name="result" type="Promise<ObserveResult>">
+  The observed actions.
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page. Takes the same arguments and returns the same result as [`stagehand.extract()`](/v4/reference/stagehand).
+
+```typescript
+const product = await stagehand.experimentalDecisions.extract("Extract the product", ProductSchema);
+```
+
+<ParamField path="instruction" type="string">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="Schema" optional>
+  The schema used to validate extracted data. Defaults to an object with a string `extraction` field.
+</ParamField>
+
+<ParamField path="options" type="ExtractOptions" optional>
+  The options of `stagehand.extract()`.
+</ParamField>
+
+<ResponseField name="result" type="Promise<ExtractResult>">
+  The extracted data.
+</ResponseField>
+
+</Tab>
+<Tab title="Python">
+
+## Quick start
+
+```python
+stagehand = await Stagehand.create(
+    browser=browser,
+    model="openai/gpt-5.4-mini",
+    experimental_decisions={"provider": "typesafe", "api_key": os.environ["TYPESAFE_API_KEY"]},
+)
+
+await stagehand.experimental_decisions.act("Click the sign in button")
+actions = await stagehand.experimental_decisions.observe("Find the search field")
+product = await stagehand.experimental_decisions.extract("Extract the product", Product)
+```
+
+## Configuration
+
+Pass `experimental_decisions` to `Stagehand.create()`.
+
+<ParamField path="experimental_decisions.provider" type='"typesafe" | "cloudflare" | "perplexity" | "openai"' optional>
+  The decision-model provider. Defaults to `"typesafe"`.
+</ParamField>
+
+<ParamField path="experimental_decisions.api_key" type="str">
+  The provider's API key.
+</ParamField>
+
+<ParamField path="experimental_decisions.model" type="str" optional>
+  The provider's model name. Defaults to the provider's default model.
+</ParamField>
+
+<ParamField path="experimental_decisions.api_url" type="str" optional>
+  An `https` endpoint that replaces the provider's default one.
+</ParamField>
+
+<ParamField path="experimental_decisions.account_id" type="str" optional>
+  The Cloudflare account id. Required for `"cloudflare"`.
+</ParamField>
+
+<ParamField path="experimental_decisions.act_confidence" type="float" optional>
+  Minimum confidence, from 0 to 1, to act on an answer. Defaults to `0.7`.
+</ParamField>
+
+<ParamField path="experimental_decisions.llm_fallback" type="bool" optional>
+  Whether to hand over to the LLM pipeline when the decision model is not confident. Defaults to `True`; with `False` the call fails instead.
+</ParamField>
+
+<ParamField path="experimental_decisions.argument_llm" type="bool" optional>
+  Whether a small LLM call may lift unquoted text to type from the instruction. Defaults to `True`.
+</ParamField>
+
+<ParamField path="experimental_decisions.extract" type='"judge" | "pick"' optional>
+  How `extract()` uses the decision model. `"pick"` (default) picks the elements holding each value and copies their text; `"judge"` keeps the LLM extraction and replaces only its completion check.
+</ParamField>
+
+<ParamField path="experimental_decisions.target_readiness" type="bool" optional>
+  Act as soon as the target is found and stable instead of waiting out the DOM-settle window. Defaults to `False`.
+</ParamField>
+
+<ParamField path="experimental_decisions.tools" type="bool" optional>
+  Let `act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request. Defaults to `False`.
+</ParamField>
+
+<ParamField path="experimental_decisions.cache_check" type="bool" optional>
+  Ask the decision model whether a cached action's selector still points at a matching element before replaying it. Defaults to `False`.
+</ParamField>
+
+<ParamField path="experimental_decisions.page_state" type="bool" optional>
+  Check for captchas, access-denied pages, and similar states when no target is found. Defaults to `True`.
+</ParamField>
+
+<ParamField path="experimental_decisions.verify" type='"off" | "checks" | "full"' optional>
+  Post-action checks. Defaults to `"checks"`.
+</ParamField>
+
+<ParamField path="experimental_decisions.retry_no_effect" type="bool" optional>
+  Click the runner-up when an ambiguous click provably changed nothing. Defaults to `False`.
+</ParamField>
+
+<ParamField path="experimental_decisions.focus_fallback" type="bool" optional>
+  On very large pages, show the LLM the decision model's shortlist first. Defaults to `False`.
+</ParamField>
+
+## act()
+
+Perform an action described in natural language. Takes the same arguments and returns the same result as [`stagehand.act()`](/v4/reference/stagehand).
+
+```python
+result = await stagehand.experimental_decisions.act("Click the sign in button")
+```
+
+<ParamField path="instruction" type="str | Action">
+  A natural-language action to perform, or an action returned by `observe()`.
+</ParamField>
+
+<ResponseField name="result" type="ActResult">
+  The action result.
+</ResponseField>
+
+## observe()
+
+Find actions on the page. Takes the same arguments and returns the same result as [`stagehand.observe()`](/v4/reference/stagehand).
+
+```python
+actions = await stagehand.experimental_decisions.observe("Find the search field")
+```
+
+<ParamField path="instruction" type="str | None" optional>
+  What to look for. Omit it to list the page's interactive elements.
+</ParamField>
+
+<ResponseField name="result" type="ObserveResult">
+  The observed actions.
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page. Takes the same arguments and returns the same result as [`stagehand.extract()`](/v4/reference/stagehand).
+
+```python
+product = await stagehand.experimental_decisions.extract("Extract the product", Product)
+```
+
+<ParamField path="instruction" type="str">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="type[ResultModel]" optional>
+  The schema used to validate extracted data. Defaults to a model with a string `extraction` field.
+</ParamField>
+
+<ResponseField name="result" type="ExtractResult[ResultModel]">
+  The extracted data.
+</ResponseField>
+
+</Tab>
+<Tab title="Go">
+
+## Quick start
+
+```go
+client, err := stagehand.Create(ctx, &stagehand.CreateOptions{
+	Browser: browser,
+	Model:   model,
+	ExperimentalDecisions: &stagehand.ExperimentalDecisionsConfig{
+		APIKey: os.Getenv("TYPESAFE_API_KEY"),
+	},
+})
+if err != nil {
+	return err
+}
+
+decisions := client.ExperimentalDecisions()
+if _, err := decisions.Act(ctx, stagehand.ActInstruction("Click the sign in button"), nil); err != nil {
+	return err
+}
+product, err := stagehand.ExperimentalDecisionsExtract[Product](ctx, decisions, "Extract the product", nil)
+if err != nil {
+	return err
+}
+fmt.Println(product.Data)
+```
+
+## Configuration
+
+Set `ExperimentalDecisions` on `CreateOptions`.
+
+<ParamField path="ExperimentalDecisions.Provider" type="*ExperimentalDecisionsConfigProvider" optional>
+  The decision-model provider: `"typesafe"` (default), `"cloudflare"`, `"perplexity"`, or `"openai"`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.APIKey" type="string">
+  The provider's API key.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.Model" type="*string" optional>
+  The provider's model name. Defaults to the provider's default model.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.APIURL" type="*string" optional>
+  An `https` endpoint that replaces the provider's default one.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.AccountID" type="*string" optional>
+  The Cloudflare account id. Required for `"cloudflare"`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.ActConfidence" type="*float64" optional>
+  Minimum confidence, from 0 to 1, to act on an answer. Defaults to `0.7`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.LLMFallback" type="*bool" optional>
+  Whether to hand over to the LLM pipeline when the decision model is not confident. Defaults to `true`; with `false` the call fails instead.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.ArgumentLLM" type="*bool" optional>
+  Whether a small LLM call may lift unquoted text to type from the instruction. Defaults to `true`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.Extract" type="*ExperimentalDecisionsConfigExtract" optional>
+  How extraction uses the decision model. `"pick"` (default) picks the elements holding each value and copies their text; `"judge"` keeps the LLM extraction and replaces only its completion check.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.TargetReadiness" type="*bool" optional>
+  Act as soon as the target is found and stable instead of waiting out the DOM-settle window. Defaults to `false`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.Tools" type="*bool" optional>
+  Let `Act()` invoke a WebMCP tool the page registered when the decision model is sure the tool is the request. Defaults to `false`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.CacheCheck" type="*bool" optional>
+  Ask the decision model whether a cached action's selector still points at a matching element before replaying it. Defaults to `false`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.PageState" type="*bool" optional>
+  Check for captchas, access-denied pages, and similar states when no target is found. Defaults to `true`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.Verify" type="*ExperimentalDecisionsConfigVerify" optional>
+  Post-action checks: `"off"`, `"checks"` (default), or `"full"`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.RetryNoEffect" type="*bool" optional>
+  Click the runner-up when an ambiguous click provably changed nothing. Defaults to `false`.
+</ParamField>
+
+<ParamField path="ExperimentalDecisions.FocusFallback" type="*bool" optional>
+  On very large pages, show the LLM the decision model's shortlist first. Defaults to `false`.
+</ParamField>
+
+## Act()
+
+Perform an action described in natural language. Takes the same arguments and returns the same result as [`client.Act()`](/v4/reference/stagehand).
+
+```go
+func (d *ExperimentalDecisions) Act(ctx context.Context, instruction ActInstructionValue, options *StagehandClientActOptions) (ActResult, error)
+```
+
+<ParamField path="instruction" type="ActInstructionValue">
+  A natural-language action to perform, or an action returned by `Observe()`.
+</ParamField>
+
+<ParamField path="options" type="*StagehandClientActOptions" optional>
+  The options of `client.Act()`.
+</ParamField>
+
+<ResponseField name="result" type="(ActResult, error)">
+  The action result.
+</ResponseField>
+
+## Observe()
+
+Find actions on the page. Takes the same arguments and returns the same result as [`client.Observe()`](/v4/reference/stagehand).
+
+```go
+func (d *ExperimentalDecisions) Observe(ctx context.Context, instruction *string, options *StagehandClientObserveOptions) (ObserveResult, error)
+```
+
+<ParamField path="instruction" type="*string" optional>
+  What to look for. Pass `nil` to list the page's interactive elements.
+</ParamField>
+
+<ParamField path="options" type="*StagehandClientObserveOptions" optional>
+  The options of `client.Observe()`.
+</ParamField>
+
+<ResponseField name="result" type="(ObserveResult, error)">
+  The observed actions.
+</ResponseField>
+
+## ExperimentalDecisionsExtract()
+
+Extract structured data from the page. Like `Extract`, it is a package-level generic function: the type parameter is the schema, and it takes the namespace as an argument.
+
+```go
+func ExperimentalDecisionsExtract[T any](ctx context.Context, decisions *ExperimentalDecisions, instruction string, options *StagehandClientExtractOptions) (TypedExtractResult[T], error)
+```
+
+<ParamField path="decisions" type="*ExperimentalDecisions">
+  The namespace returned by `client.ExperimentalDecisions()`.
+</ParamField>
+
+<ParamField path="instruction" type="string">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="options" type="*StagehandClientExtractOptions" optional>
+  The options of `Extract()`.
+</ParamField>
+
+<ResponseField name="result" type="(TypedExtractResult[T], error)">
+  The extracted data, decoded into `T`.
+</ResponseField>
+
+</Tab>
+</Tabs>

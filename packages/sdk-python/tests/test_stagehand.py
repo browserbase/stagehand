@@ -13,6 +13,8 @@ from typing_extensions import override
 
 from stagehand import (
     DefaultExtract,
+    ExperimentalDecisions,
+    ExperimentalDecisionsConfig,
     ExtractResult,
     LLMGenerateInput,
     LLMGenerateOutput,
@@ -1126,6 +1128,260 @@ async def test_stagehand_ai_methods_require_an_active_page(
         await stagehand.act("Click the link")
 
 
+def _calls(recording: RecordingRPCClient, method: str) -> list[tuple[BaseModel, object]]:
+    return [
+        (params, result_model)
+        for called, params, result_model in recording.calls
+        if called == method
+    ]
+
+
+@pytest.mark.asyncio
+async def test_experimental_decisions_accessor_is_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    decisions = stagehand.experimental_decisions
+
+    assert isinstance(decisions, ExperimentalDecisions)
+    assert stagehand.experimental_decisions is decisions
+
+
+@pytest.mark.asyncio
+async def test_create_forwards_experimental_decisions_to_init_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    experimental_decisions: ExperimentalDecisionsConfig = {
+        "provider": "cloudflare",
+        "api_key": "decisions-key",
+        "model": "clef-1",
+        "api_url": "https://decisions.example/v1",
+        "account_id": "account-1",
+        "act_confidence": 0.8,
+        "verify": "checks",
+        "llm_fallback": False,
+    }
+
+    await Stagehand.create(browser=browser, experimental_decisions=experimental_decisions)
+
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    assert params.experimental_decisions is not None
+    assert (
+        params.experimental_decisions.model_dump(mode="json", exclude_unset=True)
+        == experimental_decisions
+    )
+    wire = json.loads(params.model_dump_json(by_alias=True, exclude_unset=True, warnings="none"))
+    assert wire["experimental_decisions"] == experimental_decisions
+
+
+@pytest.mark.asyncio
+async def test_create_omits_unset_experimental_decisions_and_rejects_invalid_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+
+    with pytest.raises(ValueError, match="experimental_decisions"):
+        await Stagehand.create(
+            browser=browser,
+            experimental_decisions=cast(ExperimentalDecisionsConfig, {"provider": "typesafe"}),
+        )
+    assert recording.calls == []
+
+    await Stagehand.create(browser=browser)
+
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    assert "experimental_decisions" not in params.model_fields_set
+    wire = json.loads(params.model_dump_json(by_alias=True, exclude_unset=True, warnings="none"))
+    assert "experimental_decisions" not in wire
+
+
+@pytest.mark.asyncio
+async def test_experimental_decisions_routes_ai_methods_like_stagehand(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    action = Action(selector="a", description="More information")
+    usage = StagehandResultUsage(input_tokens=11, output_tokens=7, reasoning_tokens=3)
+    act_response = ActResult.model_validate({
+        "data": ActResultData(
+            success=True,
+            message="Clicked the link",
+            action_description="Clicked the more information link",
+            actions=[action],
+        ),
+        "metadata": {"cache": {"status": "HIT"}, "usage": usage},
+    })
+    observe_response = ObserveResult.model_validate({
+        "data": [action],
+        "metadata": {"cache": {"status": "MISS"}, "usage": usage},
+    })
+    extract_response = {
+        "data": {"heading": "Example Domain", "count": 1},
+        "metadata": StagehandResultMetadata(
+            cache=CacheMetadata(status=CacheStatus.hit), usage=usage
+        ),
+    }
+    recording = _recording({
+        "context.active_page": PageRef(page_id="active-page"),
+        "stagehand.act": act_response,
+        "stagehand.observe": observe_response,
+        "stagehand.extract": extract_response,
+        "stagehand.experimental_decisions_act": act_response,
+        "stagehand.experimental_decisions_observe": observe_response,
+        "stagehand.experimental_decisions_extract": extract_response,
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(
+        browser=browser,
+        experimental_decisions={"api_key": "decisions-key"},
+    )
+    decisions = stagehand.experimental_decisions
+    page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
+    model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
+
+    for target in (stagehand, decisions):
+        act_result = await target.act(
+            "Click the link",
+            page=page,
+            model=model,
+            variables={"name": "Ada"},
+            timeout=30_000,
+            locator=page.locator("main").nth(2),
+            ignore_locators=[page.locator(".promo")],
+            cache={"threshold": 1},
+        )
+        observed = await target.observe(
+            "Find the link",
+            page=page,
+            model=model,
+            timeout=20_000,
+            locator=page.locator("main").nth(1),
+            ignore_locators=[page.locator("nav")],
+            cache=False,
+        )
+        extracted = await target.extract(
+            "Extract the heading",
+            PageInfo,
+            page=page,
+            model=model,
+            timeout=15_000,
+            screenshot=True,
+            locator=page.locator("main").nth(1),
+            ignore_locators=[page.locator("nav")],
+            cache=True,
+        )
+        assert_type(extracted, ExtractResult[PageInfo])
+        assert act_result == act_response
+        assert observed == observe_response
+        assert extracted.data == PageInfo(heading="Example Domain", count=1)
+        assert extracted.metadata.cache.status is CacheStatus.hit
+
+        # Without options both surfaces fall back to the active page.
+        await target.act(action)
+        await target.observe()
+        await target.extract("Extract the heading", PageInfo)
+
+    for method, params_model in (
+        ("act", StagehandActParams),
+        ("observe", StagehandObserveParams),
+        ("extract", StagehandExtractParams),
+    ):
+        plain = _calls(recording, f"stagehand.{method}")
+        experimental = _calls(recording, f"stagehand.experimental_decisions_{method}")
+        assert len(plain) == 2
+        assert experimental == plain
+        explicit, active = (params for params, _ in experimental)
+        assert isinstance(explicit, params_model)
+        assert explicit.page_id == "explicit-page"
+        assert explicit.options is not None
+        assert explicit.options.locator is not None
+        assert explicit.options.locator.selector == "main"
+        assert isinstance(active, params_model)
+        assert active.page_id == "active-page"
+        assert "options" not in active.model_fields_set
+
+
+@pytest.mark.asyncio
+async def test_experimental_decisions_extract_uses_default_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({
+        "stagehand.experimental_decisions_extract": {
+            "data": {"extraction": "Example Domain"},
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.disabled),
+                usage=StagehandResultUsage(
+                    input_tokens=0,
+                    output_tokens=0,
+                    reasoning_tokens=0,
+                ),
+            ),
+        },
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
+
+    extracted = await stagehand.experimental_decisions.extract(
+        instruction="Extract the page text", page=page
+    )
+
+    assert_type(extracted, ExtractResult[DefaultExtract])
+    assert extracted.data.extraction == "Example Domain"
+    ((extract_params, _),) = _calls(recording, "stagehand.experimental_decisions_extract")
+    assert isinstance(extract_params, StagehandExtractParams)
+    assert extract_params.schema_ is not None
+    schema = extract_params.schema_.model_dump()
+    assert schema["properties"] == {"extraction": {"type": "string"}}
+    assert schema["required"] == ["extraction"]
+
+
+@pytest.mark.asyncio
+async def test_experimental_decisions_validates_like_stagehand(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"context.active_page": None})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    decisions = stagehand.experimental_decisions
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    other_page = Page(cast(RPCClient, recording), PageRef(page_id="page-2"))
+
+    with pytest.raises(RuntimeError, match="no active page"):
+        await decisions.act("Click the link")
+    with pytest.raises(RuntimeError, match="no active page"):
+        await decisions.observe()
+    with pytest.raises(RuntimeError, match="no active page"):
+        await decisions.extract("Extract the page text")
+
+    with pytest.raises(TypeError, match=r"act\(\) locator must belong to the target page"):
+        await decisions.act("Click the link", page=page, locator=other_page.locator("a"))
+    with pytest.raises(TypeError, match=r"observe\(\) locator must belong to the target page"):
+        await decisions.observe("Find the link", page=page, locator=other_page.locator("a"))
+    with pytest.raises(TypeError, match=r"extract\(\) locator must belong to the target page"):
+        await decisions.extract(
+            "Extract the page text",
+            page=page,
+            ignore_locators=[other_page.locator("nav")],
+        )
+
+    await stagehand.close()
+
+    with pytest.raises(RuntimeError, match="Stagehand is unavailable"):
+        await decisions.act("Click the link", page=page)
+
+
 @pytest.mark.parametrize(
     ("method", "positional"),
     [
@@ -1136,6 +1392,9 @@ async def test_stagehand_ai_methods_require_an_active_page(
 )
 def test_semantic_arguments_stay_positional(method: str, positional: list[str]) -> None:
     """TS and Go take these positionally; Python must match, with options keyword-only."""
+    assert inspect.signature(getattr(ExperimentalDecisions, method)) == inspect.signature(
+        getattr(Stagehand, method)
+    )
     parameters = list(inspect.signature(getattr(Stagehand, method)).parameters.values())
     assert [
         parameter.name

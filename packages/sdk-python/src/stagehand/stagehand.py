@@ -11,24 +11,26 @@ from typing import TypeVar, cast, overload
 from pydantic import BaseModel
 
 from . import client_models as _client_models
+from ._ai_options import _act_options, _extract_options, _observe_options
 from ._generated import models as _models
 from ._generated.input_types import Action as ActionInput
-from ._generated.input_types import Locator as ProtocolLocator
-from ._generated.input_types import ModelConfig, TelemetryConfig, Variables
+from ._generated.input_types import (
+    ExperimentalDecisionsConfig,
+    ModelConfig,
+    TelemetryConfig,
+    Variables,
+)
 from ._generated.models import (
     Action,
-    ActOptions,
     ActResult,
     CallbackBatchOptions,
     CallbackBatchParams,
     CallbackBatchResult,
     ClientModelReference,
     EmptyParams,
-    ExtractOptions,
     FieldSchema0,
     LLMGenerateParams,
     LLMGenerateResult,
-    ObserveOptions,
     ObserveResult,
     StagehandActParams,
     StagehandCloseResult,
@@ -60,6 +62,7 @@ from .client_models import (
     _model_config,
 )
 from .client_types import Cache, LLMGenerateCallback, StagehandClientLoggingConfig
+from .experimental_decisions import ExperimentalDecisions
 from .locator import Locator
 from .page import Page
 from .rpc_client import RPCClient, RPCError
@@ -72,24 +75,6 @@ _MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000
 _UNAVAILABLE_MESSAGE = (
     "Stagehand is unavailable. Create a new instance with await Stagehand.create()."
 )
-
-
-def _serialize_locator(locator: Locator, page_id: str, method: str) -> ProtocolLocator:
-    if locator.page_id != page_id:
-        raise TypeError(f"{method}() locator must belong to the target page")
-    if locator.nth_index is not None:
-        return ProtocolLocator(selector=locator.selector, nth=locator.nth_index)
-    return ProtocolLocator(selector=locator.selector)
-
-
-def _serialize_locators(
-    locators: list[Locator] | None,
-    page_id: str,
-    method: str,
-) -> list[ProtocolLocator] | None:
-    if locators is None:
-        return None
-    return [_serialize_locator(locator, page_id, method) for locator in locators]
 
 
 class Stagehand:
@@ -112,6 +97,7 @@ class Stagehand:
         self._initialized = False
         self._init_request_started = False
         self._close_task: asyncio.Task[None] | None = None
+        self._decisions: ExperimentalDecisions | None = None
 
     @classmethod
     async def create(
@@ -128,6 +114,7 @@ class Stagehand:
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
         cache: Cache | None = None,
+        experimental_decisions: ExperimentalDecisionsConfig | None = None,
         logging: StagehandClientLoggingConfig | None = None,
     ) -> Stagehand:
         if not isinstance(browser, StagehandBrowser):
@@ -159,6 +146,7 @@ class Stagehand:
                 ("self_heal", self_heal),
                 ("dom_settle_timeout_ms", dom_settle_timeout_ms),
                 ("cache", _cache_config(cache) if cache is not None else None),
+                ("experimental_decisions", experimental_decisions),
                 ("logging", logging),
             )
             if value is not None
@@ -185,6 +173,18 @@ class Stagehand:
     @property
     def browser(self) -> StagehandBrowser:
         return self._browser_handle
+
+    @property
+    def experimental_decisions(self) -> ExperimentalDecisions:
+        """Experimental: act, observe and extract resolved by a decision model
+        instead of an LLM call. Requires `experimental_decisions` in `create()`.
+        """
+        if self._decisions is None:
+            self._decisions = ExperimentalDecisions(
+                rpc_client=lambda: self._connected_rpc_client,
+                active_page=lambda: self.browser.context.active_page(),
+            )
+        return self._decisions
 
     @property
     def initialized(self) -> bool:
@@ -300,26 +300,15 @@ class Stagehand:
         target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        options = ActOptions.model_validate({
-            name: value
-            for name, value in (
-                ("model", model),
-                ("variables", variables),
-                ("timeout", timeout),
-                (
-                    "locator",
-                    _serialize_locator(locator, target_page.page_id, "act")
-                    if locator is not None
-                    else None,
-                ),
-                (
-                    "ignore_locators",
-                    _serialize_locators(ignore_locators, target_page.page_id, "act"),
-                ),
-                ("cache", _cache_config(cache) if cache is not None else None),
-            )
-            if value is not None
-        })
+        options = _act_options(
+            target_page.page_id,
+            model=model,
+            variables=variables,
+            timeout=timeout,
+            locator=locator,
+            ignore_locators=ignore_locators,
+            cache=cache,
+        )
         params = StagehandActParams.model_validate({
             "page_id": target_page.page_id,
             "instruction": instruction,
@@ -344,26 +333,15 @@ class Stagehand:
         target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        options = ObserveOptions.model_validate({
-            name: value
-            for name, value in (
-                ("model", model),
-                ("variables", variables),
-                ("timeout", timeout),
-                (
-                    "locator",
-                    _serialize_locator(locator, target_page.page_id, "observe")
-                    if locator is not None
-                    else None,
-                ),
-                (
-                    "ignore_locators",
-                    _serialize_locators(ignore_locators, target_page.page_id, "observe"),
-                ),
-                ("cache", _cache_config(cache) if cache is not None else None),
-            )
-            if value is not None
-        })
+        options = _observe_options(
+            target_page.page_id,
+            model=model,
+            variables=variables,
+            timeout=timeout,
+            locator=locator,
+            ignore_locators=ignore_locators,
+            cache=cache,
+        )
         params = StagehandObserveParams(page_id=target_page.page_id, instruction=instruction)
         if options.model_fields_set:
             params.options = options
@@ -416,26 +394,15 @@ class Stagehand:
         target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        options = ExtractOptions.model_validate({
-            name: value
-            for name, value in (
-                ("model", model),
-                ("timeout", timeout),
-                ("screenshot", screenshot),
-                (
-                    "locator",
-                    _serialize_locator(locator, target_page.page_id, "extract")
-                    if locator is not None
-                    else None,
-                ),
-                (
-                    "ignore_locators",
-                    _serialize_locators(ignore_locators, target_page.page_id, "extract"),
-                ),
-                ("cache", _cache_config(cache) if cache is not None else None),
-            )
-            if value is not None
-        })
+        options = _extract_options(
+            target_page.page_id,
+            model=model,
+            timeout=timeout,
+            screenshot=screenshot,
+            locator=locator,
+            ignore_locators=ignore_locators,
+            cache=cache,
+        )
         params = StagehandExtractParams(
             page_id=target_page.page_id,
             instruction=instruction,
