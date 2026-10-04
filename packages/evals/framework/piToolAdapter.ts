@@ -50,7 +50,7 @@ export interface PreparedPiToolAdapter {
   promptInstructions: string;
   /** Browser behind the mounted surface, resolved before the agent starts. */
   browserSession: BrowserSessionInfo;
-  /** via:"mcp" mounts — bridged in-process by pi-sdk. */
+  /** via:"mcp" mounts — connected by Pi's built-in MCP extension. */
   mcpServers?: Record<string, PiMcpServerSpec>;
   /** via:"handles" mounts — the harness run tool hosted in-process by pi. */
   customTools?: PiToolDefinition[];

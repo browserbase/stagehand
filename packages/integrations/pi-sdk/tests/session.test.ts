@@ -152,6 +152,19 @@ describe("pi SDK session", () => {
     expect(fake.disposeCount).toBe(1);
   });
 
+  it("forwards native MCP server specs instead of bridging them as custom tools", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    const mcpServers = { stagehand: { command: "node", args: ["server.mjs"] } };
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { mcpServers },
+    });
+    expect(fake.createOptions).toMatchObject({ mcpServers, customTools: [] });
+  });
+
   it("keeps pi's stock system prompt and appends evaluation guidance by default", async () => {
     const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
     await runPiSession({

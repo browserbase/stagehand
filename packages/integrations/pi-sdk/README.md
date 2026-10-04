@@ -1,4 +1,14 @@
-# Pi SDK event retention
+# Pi SDK harness
+
+The eval harness embeds Pi 1.0's TypeScript SDK. SDK sessions do not load the CLI's
+built-in extensions, so MCP mounts add `createMcpExtension()` and call
+`session.bindExtensions()` so registered servers connect on `session_start`.
+
+Eval MCP mounts use `exposure: "direct"` so the model calls `mcp__<server>__<tool>`
+like a built-in tool. Built-in file tools (`read`, `bash`, `edit`, `write`) are
+disabled with `noTools: "builtin"`, matching the other eval harnesses that
+allowlist only the mounted browser tools. Pi's own `codemode` tool is not loaded:
+Stagehand already exposes browser code execution through `run` / handle mounts.
 
 The session retains screenshot evidence up to 8 MiB per image and 64 MiB across
 one run. It checks the encoded size before allocating a decoded buffer. Images
