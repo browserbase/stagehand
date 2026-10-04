@@ -105,7 +105,11 @@ The decision model reaches the services through the driver contracts in
   - `perform.ts` — performing the action, deterministic checks, the no-effect probe, no-target handling.
   - `choices.ts` — options that appear after an opening action.
   - `domHints.ts`, `page.ts`, `outcomes.ts`, `vocabulary.ts`, `types.ts`.
-- `observe.ts`, `extract.ts`, `extractCheck.ts`, `cacheCheck.ts` — the other pipelines.
+- `extract/` — pick-and-copy extraction.
+  - `index.ts` — runs the plan and applies the completion gate.
+  - `plan.ts` — the schema as scalar leaves and lists; `leaves.ts`, `lists.ts`, `groups.ts`,
+    `values.ts`, `types.ts`.
+- `observe.ts`, `extractCheck.ts`, `cacheCheck.ts` — observe, the completion yes/no, the cached-action check.
 - `pick.ts` — tiers, pruning, shards, best/strict acceptance.
 - `tree.ts` — outline parsing, views, candidate descriptions, focus outline, page digest.
 - `args.ts` — deterministic argument parsing and grounding.

@@ -11,7 +11,8 @@ import type {
 } from "../drivers/types.js";
 import { redactor } from "./args.js";
 import { checkCachedAction } from "./cacheCheck.js";
-import { runDecisionsExtract, type JsonSchema } from "./extract.js";
+import { runDecisionsExtract } from "./extract/index.js";
+import type { JsonSchema } from "./extract/plan.js";
 import { extractionCompleted } from "./extractCheck.js";
 import { runDecisionsObserve } from "./observe.js";
 import type { TraceEntry } from "./pick.js";
