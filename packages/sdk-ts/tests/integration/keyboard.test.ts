@@ -307,6 +307,40 @@ describe("v4 keyboard shortcuts and typing", () => {
     expect(value).toBe("+");
   });
 
+  it("keyPress reports key/code on keydown and inserts punctuation at the caret", async () => {
+    const page = await firstPage(stagehand);
+    const press = async (key: string) => {
+      await page.goto(
+        dataUrl(`<!doctype html><input id="t" value="abcdef">
+          <script>window.downs=[];document.addEventListener('keydown', e => downs.push([e.key, e.code]));</script>`),
+      );
+      await page.evaluate(() => {
+        const el = document.getElementById("t") as HTMLInputElement;
+        el.focus();
+        el.setSelectionRange(3, 3);
+      });
+      await page.keyPress(key);
+      return page.evaluate(() => ({
+        value: (document.getElementById("t") as HTMLInputElement).value,
+        downs: (window as unknown as { downs: unknown }).downs,
+      }));
+    };
+
+    await expect(press("w")).resolves.toEqual({ value: "abcwdef", downs: [["w", "KeyW"]] });
+    await expect(press("W")).resolves.toEqual({ value: "abcWdef", downs: [["W", "KeyW"]] });
+    // ASCII-derived VKs would turn these into Delete, ArrowDown, ArrowLeft, Home, and End.
+    for (const [key, code] of [
+      [".", "Period"],
+      ["(", "Digit9"],
+      ["%", "Digit5"],
+      ["$", "Digit4"],
+      ["#", "Digit3"],
+      ["'", "Quote"],
+    ]) {
+      await expect(press(key)).resolves.toEqual({ value: `abc${key}def`, downs: [[key, code]] });
+    }
+  });
+
   it("invalid key chords do not leave modifier state stuck", async () => {
     const html = `<!doctype html>
       <input id="t" />`;
