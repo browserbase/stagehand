@@ -356,30 +356,47 @@ describe("act downstream work", () => {
     },
   );
 
-  it("stops a drag between moves & releases the mouse after expiry", async () => {
-    const send = vi.fn(async (_method: string, _event: { type: string }) => ({}));
-    const page = { mainSession: { send }, updateCursor: async () => {} } as unknown as Page;
-    const progress = new Progress("act()", 20);
-    const result = Page.prototype.dragAndDrop.call(
-      page,
-      0,
-      0,
-      100,
-      100,
-      { steps: 5, delay: 50 },
-      progress,
-    );
-    const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
-    await vi.advanceTimersByTimeAsync(100);
-    await rejected;
-    expect(send.mock.calls.map(([, event]) => event.type)).toEqual([
-      "mouseMoved",
-      "mousePressed",
-      "mouseMoved",
-      "mouseReleased",
-    ]);
-    progress.dispose();
-  });
+  it.each([
+    { phase: "movement", steps: 5, delay: 50, releasedAt: 20 },
+    { phase: "release", steps: 1, delay: 0, releasedAt: 100 },
+    { phase: "cursor update", steps: 2, delay: 0, releasedAt: 50 },
+  ])(
+    "releases the mouse once at its last position when a drag expires during $phase",
+    async ({ phase, steps, delay, releasedAt }) => {
+      const send = vi.fn((_method: string, event: { type: string }) =>
+        delayed(phase === "release" && event.type === "mouseReleased" ? 50 : 0, {}),
+      );
+      const page = {
+        mainSession: { send },
+        updateCursor: (x: number) =>
+          delayed(phase === "cursor update" && x === 100 ? 50 : 0, undefined),
+      } as unknown as Page;
+      const progress = new Progress("act()", 20);
+      const result = Page.prototype.dragAndDrop.call(
+        page,
+        0,
+        0,
+        100,
+        100,
+        { steps, delay },
+        progress,
+      );
+      const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(send.mock.calls.map(([, event]) => event.type)).toEqual([
+        "mouseMoved",
+        "mousePressed",
+        "mouseMoved",
+        "mouseReleased",
+      ]);
+      expect(send).toHaveBeenLastCalledWith(
+        "Input.dispatchMouseEvent",
+        expect.objectContaining({ type: "mouseReleased", x: releasedAt, y: releasedAt }),
+      );
+      progress.dispose();
+    },
+  );
 
   it.each(["before", "during"])(
     "releases each key once when expiry occurs %s key release",

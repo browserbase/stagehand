@@ -2075,18 +2075,20 @@ export class Page {
 
       for (const point of movementPoints) {
         progress?.throwIfStopped();
-        x = point.x;
-        y = point.y;
-        await runLocatorStep(progress, "updating cursor", () => this.updateCursor(x, y, progress));
-        await runLocatorStep(progress, "dragging mouse", () =>
-          this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        await runLocatorStep(progress, "updating cursor", () =>
+          this.updateCursor(point.x, point.y, progress),
+        );
+        await runLocatorStep(progress, "dragging mouse", () => {
+          x = point.x;
+          y = point.y;
+          return this.mainSession.send<never>("Input.dispatchMouseEvent", {
             type: "mouseMoved",
             x,
             y,
             button,
             buttons: buttonMask(button),
-          } as Protocol.Input.DispatchMouseEventRequest),
-        );
+          } as Protocol.Input.DispatchMouseEventRequest);
+        });
         if (delay) await sleep(delay);
       }
 
@@ -2094,8 +2096,11 @@ export class Page {
       await runLocatorStep(progress, "updating cursor", () =>
         this.updateCursor(toX, toY, progress),
       );
-      await runLocatorStep(progress, "releasing mouse", release);
-      pressed = false;
+      await runLocatorStep(progress, "releasing mouse", () => {
+        // Cleanup must not repeat a release whose response is still pending.
+        pressed = false;
+        return release();
+      });
     } finally {
       if (pressed) {
         if (progress) await progress.cleanup(release);
