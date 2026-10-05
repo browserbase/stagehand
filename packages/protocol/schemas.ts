@@ -2033,6 +2033,13 @@ export const LocatorClickParamsSchema = LocatorParamsSchema.extend({
   options: LocatorOptionsSchema.extend({
     button: MouseButtonSchema.optional(),
     clickCount: z.number().int().positive().optional(),
+    position: z
+      .strictObject({
+        x: z.number(),
+        y: z.number(),
+      })
+      .meta({ id: "LocatorClickPosition" })
+      .optional(),
   })
     .meta({ id: "LocatorClickOptions" })
     .optional(),

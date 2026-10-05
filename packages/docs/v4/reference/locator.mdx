@@ -54,6 +54,10 @@ await locator.click();
   <ParamField path="options.clickCount" type="number" optional>
     The number of clicks to dispatch.
   </ParamField>
+
+  <ParamField path="options.position" type="{ x: number; y: number }" optional>
+    The point to click, in CSS pixels from the top-left corner of the element's padding box. Defaults to the element's center.
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">

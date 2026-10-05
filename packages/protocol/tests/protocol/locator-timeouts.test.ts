@@ -34,7 +34,10 @@ describe.each(locatorMethods)("$name timeout options", ({ name, params }) => {
 
 describe("locator timeout compatibility", () => {
   it.each([
-    { method: StagehandMethods.locatorClick, options: { button: "right", clickCount: 2 } },
+    {
+      method: StagehandMethods.locatorClick,
+      options: { button: "right", clickCount: 2, position: { x: 12, y: 8 } },
+    },
     { method: StagehandMethods.locatorType, options: { delay: 25 } },
     {
       method: StagehandMethods.locatorHighlight,

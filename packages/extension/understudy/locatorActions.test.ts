@@ -40,7 +40,10 @@ type Action = (typeof actions)[number][0];
 
 function createLocator(selector = "button") {
   const send = vi.fn(async (method: string, params?: object): Promise<unknown> => {
-    if (method === "DOM.getBoxModel") return { model: { content: [0, 0, 10, 0, 10, 10, 0, 10] } };
+    if (method === "DOM.getBoxModel")
+      return {
+        model: { content: [0, 0, 10, 0, 10, 10, 0, 10], padding: [-4, -2, 14, -2, 14, 12, -4, 12] },
+      };
     if (method === "DOM.describeNode") return { node: { backendNodeId: 1 } };
     if (method === "Runtime.evaluate")
       return { result: { value: selector.startsWith("text=") ? { count: 2 } : 2 } };
@@ -315,6 +318,18 @@ describe("locator action deadlines", () => {
     ]);
     gate.resolve({});
     await pending;
+  });
+
+  it("clicks at a position relative to the padding box", async () => {
+    const { locator, send } = createLocator();
+    await locator.click({ position: { x: 37, y: 19 } }, createProgress());
+
+    const events = send.mock.calls.filter(([name]) => name === "Input.dispatchMouseEvent");
+    expect(events.map(([, params]) => params)).toEqual([
+      { type: "mouseMoved", x: 33, y: 17, button: "none" },
+      { type: "mousePressed", x: 33, y: 17, button: "left", clickCount: 1 },
+      { type: "mouseReleased", x: 33, y: 17, button: "left", clickCount: 1 },
+    ]);
   });
 
   it("stops dispatching a click burst once the deadline passes", async () => {

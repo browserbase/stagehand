@@ -27,6 +27,12 @@ import type { NormalizedFilePayload } from "../types/private/locator.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
 
+type ClickOptions = {
+  button?: MouseButton;
+  clickCount?: number;
+  position?: { x: number; y: number };
+};
+
 /**
  * Locator
  *
@@ -383,17 +389,14 @@ export class Locator {
   }
 
   /**
-   * Click the element at its visual center.
+   * Click the element at its visual center, or at an element-relative point.
    * Steps:
    *  1) Resolve selector to { objectId } in the frame world.
    *  2) Scroll into view via `DOM.scrollIntoViewIfNeeded({ objectId })`.
    *  3) Read geometry via `DOM.getBoxModel({ objectId })` → compute a center point.
    *  4) Synthesize mouse press + release via `Input.dispatchMouseEvent`.
    */
-  async click(
-    options?: { button?: MouseButton; clickCount?: number },
-    progress?: Progress,
-  ): Promise<void> {
+  async click(options?: ClickOptions, progress?: Progress): Promise<void> {
     const session = this.frame.session;
     const { objectId } = await this.resolveNode(progress);
 
@@ -413,7 +416,10 @@ export class Locator {
         }),
       );
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
-      const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      // Playwright measures `position` from the padding box, matching MouseEvent.offsetX/Y.
+      const { cx, cy } = options?.position
+        ? this.pointFromBoxQuad(box.model.padding, options.position)
+        : this.centerFromBoxContent(box.model.content);
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
       // from network/CPU jitter between round trips.
@@ -989,5 +995,30 @@ export class Locator {
     const cx = (xs[0] + xs[1] + xs[2] + xs[3]) / 4;
     const cy = (ys[0] + ys[1] + ys[2] + ys[3]) / 4;
     return { cx, cy };
+  }
+
+  pointFromBoxQuad(quad: number[], position: { x: number; y: number }): { cx: number; cy: number } {
+    if (!quad || quad.length < 8) {
+      throw new Error("Invalid box model content quad");
+    }
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      throw new Error("locator().click() position must contain finite x and y values");
+    }
+
+    const [x1, y1, x2, y2, , , x4, y4] = quad;
+    const topX = x2 - x1;
+    const topY = y2 - y1;
+    const leftX = x4 - x1;
+    const leftY = y4 - y1;
+    const width = Math.hypot(topX, topY);
+    const height = Math.hypot(leftX, leftY);
+    if (width === 0 || height === 0) {
+      throw new Error(`Element not visible (empty box model): ${this.selector}`);
+    }
+
+    return {
+      cx: x1 + (topX / width) * position.x + (leftX / height) * position.y,
+      cy: y1 + (topY / width) * position.x + (leftY / height) * position.y,
+    };
   }
 }
