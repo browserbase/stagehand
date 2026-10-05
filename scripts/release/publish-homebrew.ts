@@ -171,7 +171,10 @@ if (
   import.meta.url === pathToFileURL(path.resolve(invokedPath)).href
 ) {
   if (process.argv[2] === "--status") {
-    const packageJson = await readFile(path.join(process.cwd(), "packages/cli/package.json"), "utf8");
+    const packageJson = await readFile(
+      path.join(process.cwd(), "packages/cli/package.json"),
+      "utf8",
+    );
     process.stdout.write(`version=${browseVersionFromCliPackageJson(packageJson) ?? ""}\n`);
   } else {
     const version = process.argv[2];
