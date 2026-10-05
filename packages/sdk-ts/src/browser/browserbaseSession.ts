@@ -102,7 +102,11 @@ export function createBrowserbaseSessionClient(
 
       let sessionReleased = false;
       let extensionCleaned = extension === undefined;
-      const connection = BrowserbaseSessionConnectionSchema.parse({ sessionId, cdpUrl });
+      const connection = BrowserbaseSessionConnectionSchema.parse({
+        sessionId,
+        cdpUrl,
+        ...(session.signingKey ? { signingKey: session.signingKey } : {}),
+      });
       return {
         ...connection,
         async close() {

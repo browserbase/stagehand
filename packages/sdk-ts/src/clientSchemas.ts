@@ -58,6 +58,8 @@ export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
     extensionId: z.string().min(1).optional(),
+    preloadedExtension: z.literal(true).optional(),
+    relayExtensionCdp: z.literal(true).optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
@@ -94,6 +96,7 @@ export const BrowserbaseConnectOptionsSchema = z
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     sessionId: z.string().min(1),
+    signingKey: z.string().min(1).optional(),
     extensionId: z.string().min(1).optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });
@@ -165,6 +168,7 @@ export const BrowserbaseSessionCreateResultSchema = z
   .object({
     id: z.string(),
     connectUrl: z.string(),
+    signingKey: z.string().optional(),
   })
   .meta({ id: "BrowserbaseSessionCreateResult" });
 
@@ -182,6 +186,7 @@ export const BrowserbaseSessionConnectionSchema = z
   .strictObject({
     sessionId: z.string().trim().min(1),
     cdpUrl: z.string().trim().min(1),
+    signingKey: z.string().min(1).optional(),
     region: BrowserbaseRegionSchema.optional(),
   })
   .meta({ id: "BrowserbaseSessionConnection" });

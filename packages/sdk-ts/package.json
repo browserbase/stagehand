@@ -46,11 +46,13 @@
     "@browserbasehq/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
+    "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@browserbasehq/stagehand-protocol": "workspace:*",
     "@types/node": "catalog:",
+    "@types/ws": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

@@ -6,6 +6,7 @@ import {
   StagehandSendToHostBindingSchema,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { z } from "zod/v4";
+import NodeWebSocket from "ws";
 import type { ImplementationInfo } from "@browserbasehq/stagehand-protocol/types";
 import {
   DEFAULT_RUNTIME_REQUIREMENT,
@@ -34,6 +35,8 @@ export type ServiceWorkerInfo = {
 
 export type CDPClientOptions = {
   cdpUrl: string;
+  signingKey?: string;
+  relayExtensionCdp?: true;
   extensionDir?: string;
   extensionId?: string;
   preloadedExtension?: true;
@@ -181,6 +184,32 @@ const RuntimeBindingCalledSchema = z.looseObject({
   executionContextId: z.int(),
 });
 
+const HostRelayMessageSchema = z.discriminatedUnion("type", [
+  z.strictObject({ kind: z.literal("stagehand.host_cdp_relay"), type: z.literal("open"), id: z.uuid() }),
+  z.strictObject({
+    kind: z.literal("stagehand.host_cdp_relay"),
+    type: z.literal("send"),
+    id: z.uuid(),
+    data: z.string(),
+  }),
+  z.strictObject({ kind: z.literal("stagehand.host_cdp_relay"), type: z.literal("close"), id: z.uuid() }),
+]);
+type HostRelayMessage = z.infer<typeof HostRelayMessageSchema>;
+type HostRelayEvent =
+  | { type: "open" }
+  | { type: "message"; data: string }
+  | { type: "error" }
+  | { type: "close"; code: number; reason: string };
+
+function parseHostRelayMessage(payload: string): HostRelayMessage | undefined {
+  try {
+    const parsed = HostRelayMessageSchema.safeParse(JSON.parse(payload));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const RuntimeReadinessEnvelopeSchema = z.looseObject({
   marker: z.unknown(),
   hasReceiver: z.boolean(),
@@ -216,6 +245,9 @@ export class CDPClient {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   readonly webSocketDebuggerUrl: string;
+  readonly signingKey?: string;
+  readonly relayExtensionCdp: boolean;
+  readonly hostRelaySockets = new Map<string, NodeWebSocket>();
   nextId = 1;
   pending = new Map<number, PendingCDPRequest>();
   sessionId: string | undefined;
@@ -232,8 +264,12 @@ export class CDPClient {
   constructor(
     readonly socket: WebSocket,
     webSocketDebuggerUrl: string,
+    signingKey?: string,
+    relayExtensionCdp = false,
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
+    this.signingKey = signingKey;
+    this.relayExtensionCdp = relayExtensionCdp;
     this.socket.addEventListener("message", (event) => {
       if (this.closed) return;
       this.lastMsgAt = Date.now();
@@ -290,6 +326,7 @@ export class CDPClient {
     this.logDrop(reason, kind, code);
     this.stopHeartbeat();
     this.rejectPending(reason);
+    this.closeHostRelays();
     if (kind === "error") {
       try {
         this.socket.close();
@@ -336,9 +373,23 @@ export class CDPClient {
     const signal = options.signal;
     const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, { signal });
     throwIfAborted(signal);
-    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal);
+    const socket = await openCDPWebSocket(
+      webSocketDebuggerUrl,
+      signal,
+      options.signingKey
+        ? (url) =>
+            new NodeWebSocket(url, {
+              headers: { Authorization: `Bearer ${options.signingKey}` },
+            }) as unknown as WebSocket
+        : undefined,
+    );
 
-    const client = new CDPClient(socket, webSocketDebuggerUrl);
+    const client = new CDPClient(
+      socket,
+      webSocketDebuggerUrl,
+      options.signingKey,
+      Boolean(options.signingKey || options.relayExtensionCdp),
+    );
 
     try {
       let extensionId: string;
@@ -485,7 +536,13 @@ export class CDPClient {
     this.onclose = undefined;
     this.onerror = undefined;
     this.rejectPending(new Error("CDP client closed"));
+    this.closeHostRelays();
     this.socket.close();
+  }
+
+  closeHostRelays(): void {
+    for (const relay of this.hostRelaySockets.values()) relay.terminate();
+    this.hostRelaySockets.clear();
   }
 
   async handleMessage(data: unknown): Promise<void> {
@@ -503,9 +560,53 @@ export class CDPClient {
 
     const binding = RuntimeBindingCalledSchema.safeParse(event.params);
     if (!binding.success) return;
+    const relayMessage = parseHostRelayMessage(binding.data.payload);
+    if (relayMessage) {
+      this.handleHostRelayMessage(relayMessage);
+      return;
+    }
     void Promise.resolve(this.onmessage?.(binding.data.payload)).catch((error: unknown) => {
       this.onerror?.(asError(error));
     });
+  }
+
+  handleHostRelayMessage(message: HostRelayMessage): void {
+    if (!this.relayExtensionCdp || !this.sessionId || this.closed) return;
+    if (message.type === "open") {
+      if (this.hostRelaySockets.has(message.id)) return;
+      // The worker never selects an upstream URL. It can use only this session's CDP URL.
+      const relay = this.signingKey
+        ? new NodeWebSocket(this.webSocketDebuggerUrl, {
+            headers: { Authorization: `Bearer ${this.signingKey}` },
+          })
+        : new NodeWebSocket(this.webSocketDebuggerUrl);
+      this.hostRelaySockets.set(message.id, relay);
+      relay.on("open", () => this.sendHostRelayEvent(message.id, { type: "open" }));
+      relay.on("message", (data) =>
+        this.sendHostRelayEvent(message.id, { type: "message", data: data.toString() }),
+      );
+      relay.on("error", () => this.sendHostRelayEvent(message.id, { type: "error" }));
+      relay.on("close", (code, reason) => {
+        this.hostRelaySockets.delete(message.id);
+        this.sendHostRelayEvent(message.id, {
+          type: "close",
+          code,
+          reason: reason.toString(),
+        });
+      });
+    } else if (message.type === "send") {
+      const relay = this.hostRelaySockets.get(message.id);
+      if (relay?.readyState === NodeWebSocket.OPEN) relay.send(message.data);
+    } else {
+      this.hostRelaySockets.get(message.id)?.close();
+    }
+  }
+
+  sendHostRelayEvent(id: string, event: HostRelayEvent): void {
+    if (this.closed || !this.sessionId) return;
+    const expression = `globalThis.__stagehandHostRelayReceive(${JSON.stringify({ id, ...event })}); true`;
+    void this.sendCommand("Runtime.evaluate", { expression, awaitPromise: false }, this.sessionId)
+      .catch(() => undefined);
   }
 
   handleResponse(message: z.output<typeof CDPResponseEnvelopeSchema>): void {

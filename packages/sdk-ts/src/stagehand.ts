@@ -8,6 +8,7 @@ import {
 } from "@browserbasehq/stagehand-protocol/schemas";
 import { JSONRPCErrorObjectSchema } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import {
+  STAGEHAND_HOST_CDP_RELAY_URL,
   StagehandMethods,
   StagehandNotifications,
 } from "@browserbasehq/stagehand-protocol/schema-registry";
@@ -358,7 +359,9 @@ function stagehandCreateParamsForWorker(
   return StagehandInitParamsSchema.parse({
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-    browserCdpUrl: browser.cdpClient.webSocketDebuggerUrl,
+    browserCdpUrl: browser.cdpClient.relayExtensionCdp
+      ? STAGEHAND_HOST_CDP_RELAY_URL
+      : browser.cdpClient.webSocketDebuggerUrl,
     logLevel: logging.level,
     ...protocolParams,
     ...browser.workerInitMetadata,
