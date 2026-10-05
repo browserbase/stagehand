@@ -376,7 +376,7 @@ async function collectCdpTree(
       frames.push({
         frameId: frame.frameId,
         axNodes: await runLocatorStep(progress, "reading cache accessibility tree", () =>
-          frame.getAccessibilityTree(false, progress),
+          frame.getAccessibilityTree(progress),
         ),
       });
     }

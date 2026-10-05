@@ -91,11 +91,8 @@ export class Frame implements FrameManager {
     return { x, y, width, height };
   }
 
-  /** Accessibility.getFullAXTree (+ recurse into child frames if requested) */
-  async getAccessibilityTree(
-    withFrames = false,
-    progress?: Progress,
-  ): Promise<Protocol.Accessibility.AXNode[]> {
+  /** Read this frame's accessibility tree. */
+  async getAccessibilityTree(progress?: Progress): Promise<Protocol.Accessibility.AXNode[]> {
     await runLocatorStep(progress, "enabling accessibility", () =>
       this.session.send("Accessibility.enable"),
     );
@@ -122,13 +119,6 @@ export class Frame implements FrameManager {
       ));
     }
 
-    if (!withFrames) return nodes;
-
-    const children = await this.childFrames();
-    for (const child of children) {
-      const childNodes = await child.getAccessibilityTree(false, progress);
-      nodes.push(...childNodes);
-    }
     return nodes;
   }
 
@@ -303,26 +293,6 @@ export class Frame implements FrameManager {
     );
     progress.throwIfStopped();
     return base64ToBytes(data);
-  }
-
-  /** Child frames via Page.getFrameTree */
-  async childFrames(): Promise<Frame[]> {
-    const { frameTree } = await this.session.send<{
-      frameTree: Protocol.Page.FrameTree;
-    }>("Page.getFrameTree");
-    const frames: Frame[] = [];
-
-    const collect = (tree: Protocol.Page.FrameTree) => {
-      if (tree.frame.parentId === this.frameId) {
-        frames.push(
-          new Frame(this.session, tree.frame.id, this.pageId, this.remoteBrowser, this.logger),
-        );
-      }
-      tree.childFrames?.forEach(collect);
-    };
-
-    collect(frameTree);
-    return frames;
   }
 
   /** Wait for a lifecycle state (load/domcontentloaded/networkidle) */
