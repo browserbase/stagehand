@@ -1,0 +1,15 @@
+{"v":1,"type":"ready","mastracodeVersion":"0.41.0","codeSdkVersion":"1.8.0","mcpTools":["stagehand_run","stagehand_snapshot","stagehand_screenshot"]}
+{"v":1,"type":"request","index":1,"role":"agent","provider":"anthropic","model":"claude-sonnet-4-6","toolNames":["stagehand_run","stagehand_snapshot","stagehand_screenshot"],"cacheBreakpoints":2}
+{"v":1,"type":"tool_start","toolCallId":"toolu_1","toolName":"stagehand_snapshot","args":{},"reasoning":"Checking the page."}
+{"v":1,"type":"request_usage","index":1,"role":"agent","model":"claude-sonnet-4-6","usage":{"inputTokens":4050,"cachedInputTokens":0,"cacheCreationInputTokens":4000,"outputTokens":20}}
+{"v":1,"type":"tool_end","toolCallId":"toolu_1","result":{"content":[{"type":"text","text":"snapshot ok: url=https://example.com/"}]},"isError":false,"denied":false}
+{"v":1,"type":"step","index":1,"usage":{"promptTokens":4050,"completionTokens":20,"totalTokens":4070,"cachedInputTokens":0,"cacheCreationInputTokens":4000},"hadToolCalls":true,"text":"Checking the page."}
+{"v":1,"type":"request","index":2,"role":"agent","provider":"anthropic","model":"claude-sonnet-4-6","toolNames":["stagehand_run","stagehand_snapshot","stagehand_screenshot"],"cacheBreakpoints":2}
+{"v":1,"type":"tool_start","toolCallId":"toolu_2","toolName":"stagehand_screenshot","args":{},"reasoning":"Checking the page."}
+{"v":1,"type":"request_usage","index":2,"role":"agent","model":"claude-sonnet-4-6","usage":{"inputTokens":4360,"cachedInputTokens":4000,"cacheCreationInputTokens":300,"outputTokens":20}}
+{"v":1,"type":"tool_end","toolCallId":"toolu_2","result":{"content":[{"type":"image","data":"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=","mimeType":"image/png"}]},"isError":false,"denied":false}
+{"v":1,"type":"step","index":2,"usage":{"promptTokens":4360,"completionTokens":20,"totalTokens":4380,"cachedInputTokens":4000,"cacheCreationInputTokens":300},"hadToolCalls":true,"text":"Checking the page."}
+{"v":1,"type":"request","index":3,"role":"agent","provider":"anthropic","model":"claude-sonnet-4-6","toolNames":["stagehand_run","stagehand_snapshot","stagehand_screenshot"],"cacheBreakpoints":2}
+{"v":1,"type":"request_usage","index":3,"role":"agent","model":"claude-sonnet-4-6","usage":{"inputTokens":4570,"cachedInputTokens":4300,"cacheCreationInputTokens":200,"outputTokens":30}}
+{"v":1,"type":"step","index":3,"usage":{"promptTokens":4570,"completionTokens":30,"totalTokens":4600,"cachedInputTokens":4300,"cacheCreationInputTokens":200},"hadToolCalls":false,"text":"{\"success\":true,\"summary\":\"done\",\"finalAnswer\":\"42\"}"}
+{"v":1,"type":"done","status":"completed","finalText":"{\"success\":true,\"summary\":\"done\",\"finalAnswer\":\"42\"}","steps":3,"usageSum":{"promptTokens":12980,"completionTokens":70,"totalTokens":13050,"cachedInputTokens":8300,"cacheCreationInputTokens":4500},"sessionTokenUsage":{"promptTokens":12980,"completionTokens":70,"totalTokens":13050,"cachedInputTokens":8300,"cacheCreationInputTokens":4500}}

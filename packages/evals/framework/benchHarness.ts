@@ -17,6 +17,8 @@ import { runCodexAgent } from "./codexRunner.js";
 import { CODEX_TOOL_SURFACES, prepareCodexToolAdapter } from "./codexToolAdapter.js";
 import { runMastraAgent } from "./mastraRunner.js";
 import { MASTRA_TOOL_SURFACES, prepareMastraToolAdapter } from "./mastraToolAdapter.js";
+import { MASTRACODE_DEFAULT_MODELS, runMastracodeAgent } from "./mastracodeRunner.js";
+import { MASTRACODE_TOOL_SURFACES, prepareMastracodeToolAdapter } from "./mastracodeToolAdapter.js";
 import { runPiAgent } from "./piRunner.js";
 import { PI_TOOL_SURFACES, preparePiToolAdapter } from "./piToolAdapter.js";
 import { runEveAgent } from "./eveRunner.js";
@@ -343,6 +345,20 @@ export const mastraHarness = defineExternalHarness({
   runAgent: runMastraAgent,
 });
 
+/**
+ * mastracode, Mastra's coding-agent CLI (npm `mastracode`), driven through its
+ * own SDK in a per-task driver subprocess. Distinct from `mastra` (the Mastra
+ * agent SDK): mastracode adds Anthropic prompt-cache breakpoints on the direct
+ * anthropic/* route and keeps its coding-agent system prompt and memory.
+ */
+export const mastracodeHarness = defineExternalHarness({
+  harness: "mastracode",
+  supportedToolSurfaces: MASTRACODE_TOOL_SURFACES,
+  defaultModels: MASTRACODE_DEFAULT_MODELS,
+  prepareToolAdapter: prepareMastracodeToolAdapter,
+  runAgent: runMastracodeAgent,
+});
+
 export const piHarness = defineExternalHarness({
   harness: "pi",
   supportedToolSurfaces: PI_TOOL_SURFACES,
@@ -404,6 +420,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["claude_code", claudeCodeHarness],
   ["codex", codexHarness],
   ["mastra", mastraHarness],
+  ["mastracode", mastracodeHarness],
   ["pi", piHarness],
   ["eve", eveHarness],
   ["deepagents", deepagentsHarness],

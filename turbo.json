@@ -89,6 +89,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "@browserbasehq/stagehand-integrations-mastracode-sdk#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-integrations-cursor-sdk#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -237,6 +242,16 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
+    "@browserbasehq/stagehand-integrations-mastracode-sdk#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-mastracode-sdk#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
     "@browserbasehq/stagehand-integrations-cursor-sdk#test:unit": {
       "dependsOn": ["^build", "@browserbasehq/stagehand-integrations-cursor-sdk#build"],
       "inputs": [
@@ -298,6 +313,9 @@
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-fx-sdk#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-mastracode-sdk#typecheck": {
       "dependsOn": ["^build"]
     },
     "@browserbasehq/stagehand-integrations-cursor-sdk#typecheck": {
