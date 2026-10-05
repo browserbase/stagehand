@@ -36,7 +36,12 @@ class HostRelayTransport implements CdpWebSocketTransport {
       transports.delete(this.id);
       throw error;
     }
-    await opened;
+    try {
+      await opened;
+    } catch (error) {
+      transports.delete(this.id);
+      throw error;
+    }
   }
 
   send(payload: string): void {
@@ -71,6 +76,8 @@ class HostRelayTransport implements CdpWebSocketTransport {
     } else if (event.type === "message") {
       for (const handler of this.messageHandlers) handler(event.data);
     } else if (event.type === "error") {
+      this.connected = false;
+      transports.delete(this.id);
       const error = new Error("Host CDP relay failed");
       this.openReject?.(error);
       this.openReject = undefined;

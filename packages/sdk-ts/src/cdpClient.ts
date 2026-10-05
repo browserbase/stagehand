@@ -185,14 +185,22 @@ const RuntimeBindingCalledSchema = z.looseObject({
 });
 
 const HostRelayMessageSchema = z.discriminatedUnion("type", [
-  z.strictObject({ kind: z.literal("stagehand.host_cdp_relay"), type: z.literal("open"), id: z.uuid() }),
+  z.strictObject({
+    kind: z.literal("stagehand.host_cdp_relay"),
+    type: z.literal("open"),
+    id: z.uuid(),
+  }),
   z.strictObject({
     kind: z.literal("stagehand.host_cdp_relay"),
     type: z.literal("send"),
     id: z.uuid(),
     data: z.string(),
   }),
-  z.strictObject({ kind: z.literal("stagehand.host_cdp_relay"), type: z.literal("close"), id: z.uuid() }),
+  z.strictObject({
+    kind: z.literal("stagehand.host_cdp_relay"),
+    type: z.literal("close"),
+    id: z.uuid(),
+  }),
 ]);
 type HostRelayMessage = z.infer<typeof HostRelayMessageSchema>;
 type HostRelayEvent =
@@ -582,9 +590,14 @@ export class CDPClient {
         : new NodeWebSocket(this.webSocketDebuggerUrl);
       this.hostRelaySockets.set(message.id, relay);
       relay.on("open", () => this.sendHostRelayEvent(message.id, { type: "open" }));
-      relay.on("message", (data) =>
-        this.sendHostRelayEvent(message.id, { type: "message", data: data.toString() }),
-      );
+      relay.on("message", (data) => {
+        const text = Array.isArray(data)
+          ? Buffer.concat(data).toString("utf8")
+          : data instanceof ArrayBuffer
+            ? Buffer.from(data).toString("utf8")
+            : data.toString("utf8");
+        this.sendHostRelayEvent(message.id, { type: "message", data: text });
+      });
       relay.on("error", () => this.sendHostRelayEvent(message.id, { type: "error" }));
       relay.on("close", (code, reason) => {
         this.hostRelaySockets.delete(message.id);
@@ -605,8 +618,11 @@ export class CDPClient {
   sendHostRelayEvent(id: string, event: HostRelayEvent): void {
     if (this.closed || !this.sessionId) return;
     const expression = `globalThis.__stagehandHostRelayReceive(${JSON.stringify({ id, ...event })}); true`;
-    void this.sendCommand("Runtime.evaluate", { expression, awaitPromise: false }, this.sessionId)
-      .catch(() => undefined);
+    void this.sendCommand(
+      "Runtime.evaluate",
+      { expression, awaitPromise: false },
+      this.sessionId,
+    ).catch(() => undefined);
   }
 
   handleResponse(message: z.output<typeof CDPResponseEnvelopeSchema>): void {
