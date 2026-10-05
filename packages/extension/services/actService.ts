@@ -161,7 +161,17 @@ export async function act({
           },
         }
       : undefined;
-  await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
+  // With the decision model on, the intent request (which needs no page) runs while the DOM
+  // settles; everything that reads or touches the page still waits for it.
+  // performance.now(): tests script Date.now() for inference timing.
+  const actStartedAt = performance.now();
+  const settled = waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
+  // The cache lookup keys on the page's tree and URL, so when a cache is in
+  // play the page must have settled before it; only cache-less acts overlap.
+  const cacheLookup = cache !== undefined && options?.cache !== false;
+  const overlapSettle = decisions !== undefined && decisions.enabled !== false && !cacheLookup;
+  if (overlapSettle) settled.catch(() => {});
+  else await settled;
   ensureTimeRemaining();
   let actPath:
     | "llm"
@@ -185,9 +195,11 @@ export async function act({
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
-    onHit: (value) => replayCachedActions(value, instruction, variables, context),
+    onHit: async (value) => {
+      await settled;
+      return await replayCachedActions(value, instruction, variables, context);
+    },
     execute: async () => {
-      // performance.now(): tests script Date.now() for inference timing.
       const startedAt = performance.now();
       const result = await runActPipeline();
       // Whatever the decision model already did changed the page, whether or not the act
@@ -205,6 +217,8 @@ export async function act({
           path: actPath,
           success: result.data.success,
           durationMs: Math.round(performance.now() - startedAt),
+          // From the start of act(), DOM settle included: what the caller waits for.
+          totalMs: Math.round(performance.now() - actStartedAt),
           llmInputTokens: result.metadata.usage.inputTokens,
           llmOutputTokens: result.metadata.usage.outputTokens,
           llmMs: result.metadata.usage.inferenceTimeMs,
@@ -239,6 +253,7 @@ export async function act({
         snapshotOptions,
         ensureTimeRemaining,
         openPageCount,
+        settled,
         ...(webmcp ? { webmcp } : {}),
         extractText: async (text) => {
           const response = await inference.actTextArgument({
@@ -295,6 +310,7 @@ export async function act({
       }
     }
 
+    await settled;
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot(snapshotOptions);
 
     const actPrompt = buildActPrompt(

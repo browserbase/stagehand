@@ -306,6 +306,21 @@ describe("the decision model WebMCP tool act", () => {
     expect(outcome.kind === "done" && outcome.result.message).not.toContain("SFO");
   });
 
+  it("invokes the tool only once the DOM-settle wait is over", async () => {
+    stubDecisions({ tool: "clear_cart" });
+    let settle!: () => void;
+    const settled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    const h = harness("empty my cart");
+    const running = runDecisionsAct(config, { ...h.deps, settled });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(h.invoked).toEqual([]);
+    settle();
+    expect((await running).kind).toBe("done");
+    expect(h.invoked).toHaveLength(1);
+  });
+
   it("reports a tool error as a failed act instead of falling through to the UI", async () => {
     stubDecisions({ tool: "clear_cart" });
     const h = harness("empty my cart");

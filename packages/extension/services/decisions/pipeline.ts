@@ -126,6 +126,11 @@ export type DecisionsActDeps = {
    */
   extractText?: (instruction: string) => Promise<string | null>;
   takeAction: (action: Action) => Promise<ActResultData>;
+  /**
+   * Resolves when the DOM has settled. The intent request needs no page, so
+   * it runs while this is pending; nothing reads or touches the page before it.
+   */
+  settled?: Promise<void>;
   /** Present when `tools` is on and the act is not scoped to a locator. */
   webmcp?: DecisionsToolDeps;
 };
@@ -401,6 +406,8 @@ async function decideAndAct(
         });
       }
       if (input) {
+        // A tool runs page code: not before the document has settled.
+        await deps.settled;
         deps.ensureTimeRemaining();
         const result = await invokeTool(
           deps.webmcp,
@@ -1083,6 +1090,8 @@ async function act(
   action: Action,
   options: { before?: Snapshot; expectedValue?: string } = {},
 ): Promise<Done | Fallback> {
+  // Press and whole-page scroll get here without ever taking a snapshot.
+  await ctx.deps.settled;
   const urlBefore = ctx.deps.page.url();
   const pagesBefore = ctx.deps.openPageCount?.();
   ctx.deps.ensureTimeRemaining();
@@ -1374,6 +1383,7 @@ async function readInputValue(
 }
 
 async function snapshot(deps: DecisionsActDeps): Promise<Snapshot> {
+  await deps.settled;
   deps.ensureTimeRemaining();
   const { combinedTree, combinedXpathMap, combinedEditableIds } = await deps.page.captureSnapshot(
     deps.snapshotOptions,
