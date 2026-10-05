@@ -71,6 +71,7 @@ catalogs:
     ai: ^7.0.105
     eve: 0.71.2
 overrides:
+  axios: 1.20.0
   vite: "catalog:"
 allowBuilds:
   "@ast-grep/lang-go": true
