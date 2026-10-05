@@ -63,6 +63,8 @@ function createStagehandOnLog(logger: EvalLogger): (event: StagehandLogEvent) =>
   };
 }
 
+let decisionsBridgeSetByEvals = false;
+
 export async function initStagehand({
   logger,
   modelName,
@@ -77,6 +79,47 @@ export async function initStagehand({
         `Stagehand requires an explicit model API key ` +
         `(checked: ${keyEnvVars.join(", ") || "no known provider prefix"}).`,
     );
+  }
+
+  // EVAL_DECISIONS=1 routes act() through the experimental decision tree,
+  // falling back to the configured model when the decision model abstains.
+  let experimentalDecisions: Record<string, unknown> | undefined;
+  if (process.env.EVAL_DECISIONS !== "1" && process.env.EVAL_DECISIONS_INSTRUMENT === "1") {
+    // Baseline arm: no decision model, only the per-act timing log the report parses.
+    experimentalDecisions = { apiKey: "instrument-only", enabled: false };
+  }
+  if (process.env.EVAL_DECISIONS === "1") {
+    const typesafeApiKey = resolveKey("TYPESAFE_API_KEY").value;
+    if (!typesafeApiKey) {
+      throw new Error("Stagehand init: EVAL_DECISIONS=1 requires TYPESAFE_API_KEY");
+    }
+    const actConfidence = Number(process.env.EVAL_DECISIONS_CONFIDENCE);
+    experimentalDecisions = {
+      apiKey: typesafeApiKey,
+      ...(process.env.EVAL_DECISIONS_MODEL ? { model: process.env.EVAL_DECISIONS_MODEL } : {}),
+      ...(Number.isFinite(actConfidence) && process.env.EVAL_DECISIONS_CONFIDENCE
+        ? { actConfidence }
+        : {}),
+      ...(process.env.EVAL_DECISIONS_VERIFY === "0"
+        ? { verify: "off" }
+        : process.env.EVAL_DECISIONS_VERIFY === "full"
+          ? { verify: "full" }
+          : {}),
+      ...(process.env.EVAL_DECISIONS_LLM_FALLBACK === "0" ? { llmFallback: false } : {}),
+      ...(process.env.EVAL_DECISIONS_ARG_LLM === "0" ? { argumentLlm: false } : {}),
+      ...(process.env.EVAL_DECISIONS_RETRY === "1" ? { retryNoEffect: true } : {}),
+      ...(process.env.EVAL_DECISIONS_FOCUS === "1" ? { focusFallback: true } : {}),
+    };
+  }
+
+  // Read by the TS SDK when it builds init params; not part of the public create config.
+  // Only values this initializer set are cleared: a caller's own bridge config stays.
+  if (experimentalDecisions) {
+    process.env.STAGEHAND_EXPERIMENTAL_DECISIONS = JSON.stringify(experimentalDecisions);
+    decisionsBridgeSetByEvals = true;
+  } else if (decisionsBridgeSetByEvals) {
+    delete process.env.STAGEHAND_EXPERIMENTAL_DECISIONS;
+    decisionsBridgeSetByEvals = false;
   }
 
   // `browser` is a factory-built handle rather than a config object:
