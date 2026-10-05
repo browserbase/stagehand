@@ -108,6 +108,10 @@ export async function initStagehand({
       ...(process.env.EVAL_DECISIONS_LLM_FALLBACK === "0" ? { llmFallback: false } : {}),
       ...(process.env.EVAL_DECISIONS_ARG_LLM === "0" ? { argumentLlm: false } : {}),
       ...(process.env.EVAL_DECISIONS_OBSERVE === "1" ? { observe: true } : {}),
+      ...(process.env.EVAL_DECISIONS_EXTRACT === "pick" ||
+      process.env.EVAL_DECISIONS_EXTRACT === "judge"
+        ? { extract: process.env.EVAL_DECISIONS_EXTRACT }
+        : {}),
       ...(process.env.EVAL_DECISIONS_CACHE_CHECK === "1" ? { cacheCheck: true } : {}),
       ...(process.env.EVAL_DECISIONS_RETRY === "1" ? { retryNoEffect: true } : {}),
       ...(process.env.EVAL_DECISIONS_FOCUS === "1" ? { focusFallback: true } : {}),

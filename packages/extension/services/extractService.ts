@@ -1,3 +1,7 @@
+import { extractionCompleted } from "./decisions/extractCheck.js";
+import { runDecisionsExtract, type JsonSchema } from "./decisions/extract.js";
+import type { DecisionsConfig } from "./decisions/pipeline.js";
+import { parseOutline } from "./decisions/tree.js";
 import { z } from "zod/v4";
 import type {
   ClientModelReference,
@@ -48,6 +52,7 @@ export async function extract({
   systemPrompt = "",
   cache,
   gateway,
+  decisions,
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
@@ -57,6 +62,8 @@ export async function extract({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
+  /** Experimental: the decision model judges completion ("judge") or picks the values itself ("pick"). */
+  decisions?: DecisionsConfig;
 }): Promise<ExtractResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -116,6 +123,44 @@ export async function extract({
     );
 
     const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
+
+    // Pick-and-copy: the decision model chooses the elements that hold the values, code copies
+    // their text. Screenshot-based extraction stays with the LLM.
+    if (decisions?.extract === "pick" && instruction && !screenshot) {
+      const outcome = await runDecisionsExtract(decisions, {
+        logger,
+        instruction,
+        schema: params.schema as JsonSchema,
+        snap: { tree: combinedTree, xpathMap: {}, nodes: parseOutline(combinedTree) },
+        urlMap: (combinedUrlMap ?? {}) as Record<string, string>,
+        ensureTimeRemaining,
+        gate: decisions.llmFallback !== false,
+      }).catch((error: unknown) => {
+        if (error instanceof TimeoutError) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        return { kind: "fallback" as const, reason: `decision_error:${message}` };
+      });
+      const valid = outcome.kind === "done" ? schema.safeParse(outcome.data) : undefined;
+      if (outcome.kind === "done" && valid?.success) {
+        return {
+          result: {
+            data: z.json().parse(valid.data),
+            metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+          },
+          cacheValue: valid.data,
+          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+        };
+      }
+      const reason = outcome.kind === "fallback" ? outcome.reason : "schema_mismatch";
+      logger.info("Decisions extract fell back to the LLM", {
+        category: "decisions",
+        instruction,
+        reason,
+      });
+      if (decisions.llmFallback === false) {
+        throw new Error(`Decisions extract abstained (${reason})`);
+      }
+    }
     const isObjectSchema = schema instanceof z.ZodObject;
     const wrapKey = "value" as const;
     const objectSchema: z.ZodObject = isObjectSchema
@@ -142,6 +187,31 @@ export async function extract({
         generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
         userProvidedInstructions: systemPrompt,
         screenshot: screenshotContent,
+        ...(decisions && instruction
+          ? {
+              judgeCompleted: async (extracted: unknown) => {
+                const trace: Record<string, unknown>[] = [];
+                const verdict = await extractionCompleted(
+                  {
+                    config: decisions,
+                    instruction,
+                    trace: trace as never,
+                    threshold: 0.5,
+                    logger,
+                    ensureTimeRemaining,
+                  },
+                  extracted,
+                );
+                logger.info("Decisions extract completion", {
+                  category: "decisions",
+                  instruction,
+                  score: verdict.score,
+                  trace: JSON.stringify(trace),
+                });
+                return verdict.completed;
+              },
+            }
+          : {}),
       });
     ensureTimeRemaining();
 

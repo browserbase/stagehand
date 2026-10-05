@@ -1661,6 +1661,7 @@ export const StagehandInitParamsSchema = z
         retryNoEffect: z.boolean().optional(),
         focusFallback: z.boolean().optional(),
         cacheCheck: z.boolean().optional(),
+        extract: z.enum(["off", "judge", "pick"]).optional(),
         actConfidence: z.number().min(0).max(1).optional(),
         verify: z.enum(["off", "checks", "full"]).optional(),
         llmFallback: z.boolean().optional(),
