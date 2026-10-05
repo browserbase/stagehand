@@ -2275,8 +2275,11 @@ export class Page {
       }
       if (delay) await sleep(delay);
       for (const key of [mainKey, ...modifierKeys.toReversed()]) {
-        await runLocatorStep(progress, "releasing key", () => this.keyUp(key));
-        heldKeys.delete(key);
+        await runLocatorStep(progress, "releasing key", () => {
+          // Cleanup must not repeat a release whose response is still pending.
+          heldKeys.delete(key);
+          return this.keyUp(key);
+        });
       }
     } catch (error) {
       // Release keys already dispatched without allowing more key presses.

@@ -381,6 +381,30 @@ describe("act downstream work", () => {
     progress.dispose();
   });
 
+  it.each(["before", "during"])(
+    "releases each key once when expiry occurs %s key release",
+    async (phase) => {
+      const keyDown = vi.fn(async () => {});
+      const keyUp = vi.fn((key: string) =>
+        delayed(phase === "during" && key === "A" ? 50 : 0, undefined),
+      );
+      const page = { keyDown, keyUp, _pressedModifiers: new Set() } as unknown as Page;
+      const progress = new Progress("act()", 20);
+      const result = Page.prototype.keyPress.call(
+        page,
+        "Control+A",
+        { delay: phase === "before" ? 50 : 0 },
+        progress,
+      );
+      const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(keyDown.mock.calls).toEqual([["Control"], ["A"]]);
+      expect(keyUp.mock.calls).toEqual([["A"], ["Control"]]);
+      progress.dispose();
+    },
+  );
+
   it("does not press the next key when a modifier response arrives after expiry", async () => {
     const keyDown = vi.fn(() => delayed(50, undefined));
     const keyUp = vi.fn(async () => {});
