@@ -27,7 +27,7 @@ describe("published TypeScript SDK", () => {
           {
             private: true,
             type: "module",
-            packageManager: "pnpm@11.10.0",
+            packageManager: "pnpm@11.11.0",
             dependencies: {
               "@browserbasehq/stagehand": "file:../stagehand-sdk.tgz",
             },
