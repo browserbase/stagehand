@@ -83,6 +83,30 @@ describe("Page.screenshot options", () => {
     await expect(page.screenshot({ type: "png", quality: 50 })).rejects.toThrow(/quality/i);
   });
 
+  it('scale: "css" captures one pixel per CSS pixel on high-DPI viewports', async () => {
+    const page = await firstPage(stagehand);
+    await page.setViewportSize(400, 300, { deviceScaleFactor: 2 });
+    await page.goto(
+      `data:text/html,${encodeURIComponent(`<style>body{margin:0}div{height:500px}</style><div style="background:#f00"></div><div style="background:#0f0"></div><div style="background:#00f"></div>`)}`,
+    );
+    await page.evaluate(() => window.scrollTo(0, 600));
+    const size = (bytes: Uint8Array) => {
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      return { width: view.getUint32(16), height: view.getUint32(20) };
+    };
+
+    const viewport = await page.screenshot({ scale: "css" });
+    expect(size(viewport)).toEqual({ width: 400, height: 300 });
+    // The capture must follow the scroll position: y=600 is inside the green band.
+    const green = await inspectScreenshotPixels(page, viewport, [{ x: 5, y: 5 }], [0, 255, 0]);
+    expect(green.pointMatches).toEqual([true]);
+    expect(size(await page.screenshot({ scale: "css", fullPage: true }))).toEqual({
+      width: 400,
+      height: 1500,
+    });
+    expect(size(await page.screenshot({ scale: "device" }))).toEqual({ width: 800, height: 600 });
+  });
+
   it("writes advanced screenshots and removes temporary overlays", async () => {
     const page = await firstPage(stagehand);
     const outputPath = path.join(os.tmpdir(), `stagehand-screenshot-${Date.now()}.jpeg`);
