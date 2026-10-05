@@ -1,5 +1,6 @@
+import { EventEmitter } from "node:events";
 import { trace } from "@opentelemetry/api";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import type { CacheClient } from "../clients/cacheClient.js";
@@ -10,7 +11,10 @@ import {
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as actService from "../services/actService.js";
-import type { Page } from "../understudy/page.js";
+import { Page } from "../understudy/page.js";
+import { Frame } from "../understudy/frame.js";
+import { Locator } from "../understudy/locator.js";
+import { Progress } from "../understudy/progress.js";
 
 vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
   performUnderstudyMethod: vi.fn(),
@@ -130,7 +134,7 @@ describe("act service", () => {
       domSettleTimeoutMs: 2_000,
     });
 
-    expect(waitForQuiet).toHaveBeenCalledWith(frame, logger, 2_000);
+    expect(waitForQuiet).toHaveBeenCalledWith(frame, logger, 2_000, expect.any(Progress));
     expect(captureSnapshot).toHaveBeenCalledTimes(1);
     expect(performAction).toHaveBeenCalledWith(
       page,
@@ -139,6 +143,7 @@ describe("act service", () => {
       "xpath=/html/body/input",
       ["user@example.com"],
       logger,
+      expect.any(Progress),
       2_000,
     );
     expect(result).toStrictEqual({
@@ -197,10 +202,13 @@ describe("act service", () => {
       logger: testLogger(),
     });
 
-    expect(captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "main", nth: 1 },
-      ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
-    });
+    expect(captureSnapshot).toHaveBeenCalledWith(
+      {
+        focusLocator: { selector: "main", nth: 1 },
+        ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
+      },
+      expect.any(Progress),
+    );
   });
 
   it("plans actions from the locator-filtered snapshot context", async () => {
@@ -333,6 +341,7 @@ describe("act service", () => {
       "xpath=/html/body/button[1]",
       [],
       expect.any(StagehandLogger),
+      expect.any(Progress),
       undefined,
     );
     expect(performAction).toHaveBeenNthCalledWith(
@@ -343,6 +352,7 @@ describe("act service", () => {
       "xpath=/html/body/button[2]",
       [],
       expect.any(StagehandLogger),
+      expect.any(Progress),
       undefined,
     );
     expect(result.data).toMatchObject({
@@ -461,6 +471,7 @@ describe("act service", () => {
       "xpath=/html/body/button[2]",
       [],
       expect.any(StagehandLogger),
+      expect.any(Progress),
       undefined,
     );
     expect(result.data).toMatchObject({
@@ -612,52 +623,273 @@ describe("act service", () => {
     });
 
     expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
-    expect(captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "main", nth: 1 },
-      ignoreLocators: [{ selector: ".promo", nth: 0 }],
-    });
+    expect(captureSnapshot).toHaveBeenCalledWith(
+      {
+        focusLocator: { selector: "main", nth: 1 },
+        ignoreLocators: [{ selector: ".promo", nth: 0 }],
+      },
+      expect.any(Progress),
+    );
     expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
     expect(get).not.toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
     expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
   });
 
-  it("respects the act timeout across page preparation", async () => {
-    const now = vi
-      .spyOn(Date, "now")
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
-      .mockReturnValue(6);
-    const page = actPage(
-      {},
-      vi.fn(async () => snapshot("0-12", "/html/body/button")),
+  describe("shared deadline", () => {
+    beforeEach(() =>
+      vi.useFakeTimers({
+        toFake: [
+          "setTimeout",
+          "clearTimeout",
+          "setInterval",
+          "clearInterval",
+          "performance",
+          "Date",
+        ],
+      }),
     );
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
-    );
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
 
-    await expect(
-      actService.act({
+    const action = { selector: "button", method: "click", description: "Submit", arguments: [] };
+    const inferredAction = {
+      elementId: "0-12",
+      method: action.method,
+      description: action.description,
+      arguments: action.arguments,
+    };
+    const generation = () => actGeneration(inferredAction);
+    const delay = async <T>(value: T) => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return value;
+    };
+
+    function fixture() {
+      const captureSnapshot = vi.fn(async (_options?: unknown, _progress?: Progress) =>
+        snapshot("0-12", "/html/body/button"),
+      );
+      const frame = { frameId: "main", getAccessibilityTree: vi.fn(async () => []) };
+      const page = Object.assign(actPage(frame, captureSnapshot), {
+        url: () => "https://example.com",
+        frames: () => [frame],
+      });
+      const generate = vi.fn(async () => generation());
+      const get = vi.fn().mockResolvedValue({ hit: false });
+      const set = vi.fn().mockResolvedValue({ written: true });
+      const options = {
+        page,
+        model: { source: "client" as const },
+        clientLLMGenerate: generate,
+        logger: testLogger(),
+        cache: {
+          sessionId: "session",
+          client: { get, set } as unknown as CacheClient,
+          defaultCaching: true as const,
+        },
+      };
+      return { captureSnapshot, generate, get, set, options };
+    }
+
+    it.each([
+      "settling",
+      "snapshot",
+      "inference",
+      "cache read",
+      "cache write",
+      "cached replay",
+      "self-heal",
+    ])("rejects during %s & does not resume work after a late response", async (phase) => {
+      const { captureSnapshot, generate, get, set, options } = fixture();
+      if (phase === "settling") waitForQuiet.mockImplementation(() => delay(undefined));
+      if (phase === "snapshot")
+        captureSnapshot.mockImplementation(() => delay(snapshot("0-12", "/html/body/button")));
+      if (phase === "inference" || phase === "self-heal")
+        generate.mockImplementation(() => delay(generation()));
+      if (phase === "cache read")
+        get.mockImplementation(() => delay({ hit: true, value: [action] }));
+      if (phase === "cache write") set.mockImplementation(() => delay({ written: true }));
+      if (phase === "cached replay") {
+        get.mockResolvedValue({ hit: true, value: [action, action] });
+        performAction.mockImplementation(() => delay(undefined));
+      }
+      if (phase === "self-heal") performAction.mockRejectedValueOnce(new Error("stale selector"));
+      const result = actService.act({
+        ...options,
+        selfHeal: true,
         params: {
           pageId: "page-1",
-          instruction: "Click the submit button",
-          options: { timeout: 5 },
+          instruction: phase === "self-heal" ? action : "Submit",
+          options: { timeout: 20 },
         },
-        page,
-        model: { source: "client" },
-        clientLLMGenerate,
-        logger: testLogger(),
-      }),
-    ).rejects.toThrow("act() timed out after 5ms");
+      });
+      const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(20);
+      await rejected;
+      const calls = () =>
+        [captureSnapshot, generate, performAction, get, set].map((mock) => mock.mock.calls.length);
+      const callsAtDeadline = calls();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(calls()).toEqual(callsAtDeadline);
+      expect(performAction).toHaveBeenCalledTimes(
+        ["cached replay", "self-heal", "cache write"].includes(phase) ? 1 : 0,
+      );
+    });
 
-    expect(clientLLMGenerate).not.toHaveBeenCalled();
-    now.mockRestore();
+    it("shares the remaining budget across both snapshots of a two-step act", async () => {
+      const { captureSnapshot, generate, options } = fixture();
+      captureSnapshot.mockImplementation(async (_options, progress) => {
+        await progress!.delay(15);
+        return snapshot("0-12", "/html/body/button");
+      });
+      generate.mockResolvedValue(actGeneration(inferredAction, true));
+      const result = actService.act({
+        ...options,
+        params: { pageId: "page-1", instruction: "Submit", options: { timeout: 20 } },
+      });
+      const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(20);
+      await rejected;
+      expect(captureSnapshot).toHaveBeenCalledTimes(2);
+      expect(generate).toHaveBeenCalledTimes(1);
+      expect(performAction).toHaveBeenCalledTimes(1);
+    });
+
+    it("reuses an existing deadline instead of starting the requested timeout", async () => {
+      const { generate, options } = fixture();
+      const progress = new Progress("parent", 20);
+      generate.mockImplementation(() => delay(generation()));
+      await vi.advanceTimersByTimeAsync(10);
+      const result = actService.act({
+        ...options,
+        progress,
+        params: { pageId: "page-1", instruction: "Submit", options: { timeout: 100 } },
+      });
+      const rejected = expect(result).rejects.toThrow("parent timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(10);
+      await rejected;
+      expect(performAction).not.toHaveBeenCalled();
+      progress.dispose();
+    });
+
+    it("interrupts a deterministic fill without self-healing or refilling after expiry", async () => {
+      const real = await vi.importActual<
+        typeof import("../handlers/handlerUtils/actHandlerUtils.js")
+      >("../handlers/handlerUtils/actHandlerUtils.js");
+      performAction.mockImplementation(real.performUnderstudyMethod);
+      const fill = vi
+        .spyOn(Locator.prototype, "fill")
+        .mockImplementation(async (_value, progress) => {
+          await progress!.delay(50);
+        });
+      const { captureSnapshot, generate, options } = fixture();
+      const page = actPage({ evaluate: async () => "https://example.com" }, captureSnapshot);
+      const result = actService.act({
+        ...options,
+        page,
+        selfHeal: true,
+        params: {
+          pageId: "page-1",
+          instruction: { ...action, method: "fill", arguments: ["hello"] },
+          options: { timeout: 20 },
+        },
+      });
+      const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(fill).toHaveBeenCalledTimes(1);
+      expect(captureSnapshot).not.toHaveBeenCalled();
+      expect(generate).not.toHaveBeenCalled();
+    });
+
+    it.each(["loading", "complete"])(
+      "removes settling listeners & timers when act expires (%s)",
+      async (state) => {
+        const real = await vi.importActual<
+          typeof import("../handlers/handlerUtils/actHandlerUtils.js")
+        >("../handlers/handlerUtils/actHandlerUtils.js");
+        waitForQuiet.mockImplementation(real.waitForDomNetworkQuiet);
+        const session = Object.assign(new EventEmitter(), { send: vi.fn(async () => ({})) });
+        const frame = {
+          frameId: "main",
+          session,
+          evaluate: async () => state,
+          waitForLoadState(this: Frame, ...args: Parameters<Frame["waitForLoadState"]>) {
+            return Frame.prototype.waitForLoadState.apply(this, args);
+          },
+        } as unknown as Frame;
+        const { captureSnapshot, generate, options } = fixture();
+        const result = actService.act({
+          ...options,
+          page: actPage(frame, captureSnapshot),
+          params: { pageId: "page-1", instruction: "Submit", options: { timeout: 20 } },
+        });
+        const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+        await vi.advanceTimersByTimeAsync(0);
+        expect(session.eventNames().length).toBeGreaterThan(0);
+        await vi.advanceTimersByTimeAsync(20);
+        await rejected;
+        expect(session.eventNames()).toEqual([]);
+        expect(vi.getTimerCount()).toBe(0);
+        expect(captureSnapshot).not.toHaveBeenCalled();
+        expect(generate).not.toHaveBeenCalled();
+      },
+    );
+
+    it("stops a drag between moves & releases the mouse after expiry", async () => {
+      const send = vi.fn(async (_method: string, _event: { type: string }) => ({}));
+      const page = { mainSession: { send }, updateCursor: async () => {} } as unknown as Page;
+      const progress = new Progress("act()", 20);
+      const result = Page.prototype.dragAndDrop.call(
+        page,
+        0,
+        0,
+        100,
+        100,
+        { steps: 5, delay: 50 },
+        progress,
+      );
+      const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(send.mock.calls.map(([, event]) => event.type)).toEqual([
+        "mouseMoved",
+        "mousePressed",
+        "mouseMoved",
+        "mouseReleased",
+      ]);
+      progress.dispose();
+    });
+
+    it("does not press the next key when a modifier response arrives after expiry", async () => {
+      const keyDown = vi.fn(() => delay(undefined));
+      const keyUp = vi.fn(async () => {});
+      const page = { keyDown, keyUp, _pressedModifiers: new Set() } as unknown as Page;
+      const progress = new Progress("act()", 20);
+      const result = Page.prototype.keyPress.call(page, "Control+A", undefined, progress);
+      const rejected = expect(result).rejects.toThrow("act() timed out after 20ms");
+      await vi.advanceTimersByTimeAsync(100);
+      await rejected;
+      expect(keyDown.mock.calls).toEqual([["Control"]]);
+      expect(keyUp.mock.calls).toEqual([["Control"]]);
+      progress.dispose();
+    });
+
+    it.each([undefined, 0])("keeps timeout %s unlimited", async (timeout) => {
+      const { generate, options } = fixture();
+      generate.mockImplementation(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 60_000));
+        return generation();
+      });
+      const result = actService.act({
+        ...options,
+        params: { pageId: "page-1", instruction: "Submit", options: { timeout } },
+      });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect((await result).data.success).toBe(true);
+    });
   });
 });
 

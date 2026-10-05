@@ -92,14 +92,22 @@ export class Frame implements FrameManager {
   }
 
   /** Accessibility.getFullAXTree (+ recurse into child frames if requested) */
-  async getAccessibilityTree(withFrames = false): Promise<Protocol.Accessibility.AXNode[]> {
-    await this.session.send("Accessibility.enable");
+  async getAccessibilityTree(
+    withFrames = false,
+    progress?: Progress,
+  ): Promise<Protocol.Accessibility.AXNode[]> {
+    await runLocatorStep(progress, "enabling accessibility", () =>
+      this.session.send("Accessibility.enable"),
+    );
     let nodes: Protocol.Accessibility.AXNode[];
     try {
-      ({ nodes } = await this.session.send<{
-        nodes: Protocol.Accessibility.AXNode[];
-      }>("Accessibility.getFullAXTree", { frameId: this.frameId }));
+      ({ nodes } = await runLocatorStep(progress, "reading accessibility tree", () =>
+        this.session.send<{
+          nodes: Protocol.Accessibility.AXNode[];
+        }>("Accessibility.getFullAXTree", { frameId: this.frameId }),
+      ));
     } catch (e) {
+      progress?.throwIfStopped();
       const msg = String((e as Error)?.message ?? e ?? "");
       const isFrameScopeError =
         msg.includes("Frame with the given") ||
@@ -107,16 +115,18 @@ export class Frame implements FrameManager {
         msg.includes("is not found");
       if (!isFrameScopeError) throw e;
       // Retry unscoped: on OOPIF sessions, returns the child doc's AX tree.
-      ({ nodes } = await this.session.send<{
-        nodes: Protocol.Accessibility.AXNode[];
-      }>("Accessibility.getFullAXTree"));
+      ({ nodes } = await runLocatorStep(progress, "reading accessibility tree", () =>
+        this.session.send<{
+          nodes: Protocol.Accessibility.AXNode[];
+        }>("Accessibility.getFullAXTree"),
+      ));
     }
 
     if (!withFrames) return nodes;
 
     const children = await this.childFrames();
     for (const child of children) {
-      const childNodes = await child.getAccessibilityTree(false);
+      const childNodes = await child.getAccessibilityTree(false, progress);
       nodes.push(...childNodes);
     }
     return nodes;
@@ -319,10 +329,12 @@ export class Frame implements FrameManager {
   async waitForLoadState(
     state: "load" | "domcontentloaded" | "networkidle" = "load",
     timeout: number = 15_000,
+    progress?: Progress,
   ): Promise<void> {
-    await this.session.send("Page.enable");
+    await runLocatorStep(progress, "enabling load events", () => this.session.send("Page.enable"));
     const targetState = state.toLowerCase();
     const effectiveTimeout = Math.max(0, timeout);
+    progress?.throwIfStopped();
     await new Promise<void>((resolve, reject) => {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -330,6 +342,7 @@ export class Frame implements FrameManager {
         if (done) return;
         done = true;
         this.session.off("Page.lifecycleEvent", handler);
+        progress?.signal.removeEventListener("abort", finish);
         if (timer) {
           clearTimeout(timer);
           timer = null;
@@ -346,11 +359,13 @@ export class Frame implements FrameManager {
         }
       };
       this.session.on("Page.lifecycleEvent", handler);
+      progress?.signal.addEventListener("abort", finish, { once: true });
 
       timer = setTimeout(() => {
         if (done) return;
         done = true;
         this.session.off("Page.lifecycleEvent", handler);
+        progress?.signal.removeEventListener("abort", finish);
         reject(
           new Error(
             `waitForLoadState(${state}) timed out after ${effectiveTimeout}ms for frame ${this.frameId}`,
@@ -358,6 +373,7 @@ export class Frame implements FrameManager {
         );
       }, effectiveTimeout);
     });
+    progress?.throwIfStopped();
   }
 
   /** Simple placeholder for your own locator abstraction */
