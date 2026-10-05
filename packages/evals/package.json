@@ -48,7 +48,7 @@
     "langsmith": "^0.5.16",
     "openai": "^4.104.0",
     "playwright": ">=1.55.1 <1.57.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.4",
     "stagehand-v3": "npm:@browserbasehq/stagehand@3.7.1",
     "tsx": "catalog:",
     "ws": "^8.21.0",

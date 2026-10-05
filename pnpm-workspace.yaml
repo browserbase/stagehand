@@ -71,6 +71,7 @@ catalogs:
     ai: ^7.0.105
     eve: 0.71.2
 overrides:
+  sharp: 0.35.4
   "@mintlify/previewing>express": 4.22.3
   axios: 1.20.0
   vite: "catalog:"
