@@ -35,6 +35,11 @@ export type HybridSnapshot = {
   combinedXpathMap: Record<string, string>;
   /** EncodedId -> URL extracted from AX properties. */
   combinedUrlMap: Record<string, string>;
+  /**
+   * EncodedIds the browser reports as editable (inputs, and contenteditable
+   * nodes whose role says nothing about it). Not part of the outline.
+   */
+  combinedEditableIds?: string[];
   /** Per-frame payloads expose the original relative data for debugging. */
   perFrame?: PerFrameSnapshot[];
 };
@@ -44,6 +49,7 @@ export type PerFrameSnapshot = {
   outline: string;
   xpathMap: Record<string, string>;
   urlMap: Record<string, string>;
+  editableIds?: string[];
 };
 
 /**
@@ -66,6 +72,7 @@ export type FrameDomMaps = {
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
   urlMap: Record<string, string>;
+  editableIds?: string[];
 };
 
 export type ResolvedLocation = {
@@ -120,6 +127,7 @@ export type A11yOptions = {
 export type AccessibilityTreeResult = {
   outline: string;
   urlMap: Record<string, string>;
+  editableIds?: string[];
   scopeApplied: boolean;
 };
 
