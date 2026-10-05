@@ -73,6 +73,7 @@ catalogs:
 overrides:
   axios: 1.20.0
   vite: "catalog:"
+  adm-zip: 0.6.1
 allowBuilds:
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
