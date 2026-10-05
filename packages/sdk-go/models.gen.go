@@ -2063,6 +2063,9 @@ type StagehandInitParamsExperimentalDecisions struct {
 	// RetryNoEffect corresponds to the JSON schema field "retry_no_effect".
 	RetryNoEffect *bool `json:"retry_no_effect,omitempty,omitzero"`
 
+	// Tools corresponds to the JSON schema field "tools".
+	Tools *bool `json:"tools,omitempty,omitzero"`
+
 	// Verify corresponds to the JSON schema field "verify".
 	Verify *StagehandInitParamsExperimentalDecisionsVerify `json:"verify,omitempty,omitzero"`
 }

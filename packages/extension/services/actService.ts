@@ -33,7 +33,9 @@ import {
   type DecisionsActOutcome,
 } from "./decisions/pipeline.js";
 import { redactor } from "./decisions/args.js";
+import type { DecisionsToolDeps } from "./decisions/toolAct.js";
 import { focusOutline, parseOutline } from "./decisions/tree.js";
+import type { JsonValue } from "./decisions/typesafeClient.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
@@ -41,6 +43,8 @@ import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.j
 // lost the context that disambiguates), so it is reserved for huge trees where
 // the full-page call is slow and expensive.
 const FOCUS_MIN_TREE_CHARS = 120_000;
+/** Tools registered at load are reported within the listing's quiet window. */
+const LIST_TOOLS_TIMEOUT_MS = 300;
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
@@ -125,9 +129,47 @@ export async function act({
     focusLocator: options?.locator,
     ignoreLocators: options?.ignoreLocators,
   };
+  // Listed while the DOM settles, so knowing the page's tools costs the act
+  // nothing. A scoped act is about that element; tools are page-level.
+  const webmcp: DecisionsToolDeps | undefined =
+    decisions?.tools && decisions.enabled !== false && !options?.locator
+      ? {
+          page,
+          // Browsers without the WebMCP domain reject the enable call.
+          tools: page.listWebMCPTools({ timeout: LIST_TOOLS_TIMEOUT_MS }).catch(() => []),
+          fillArguments: async (tool) => {
+            const response = await inference.toolArguments({
+              instruction,
+              tool,
+              variableNames: Object.keys(variables ?? {}),
+              generate: (input) =>
+                llmService.generate(
+                  context.model,
+                  input,
+                  context.clientLLMGenerate,
+                  context.gateway,
+                ),
+            });
+            recordUsage({ ...response, element: null, twoStep: false });
+            const required = Array.isArray(tool.inputSchema?.required)
+              ? tool.inputSchema.required
+              : [];
+            const input = response.input;
+            return input && required.every((name) => typeof name === "string" && name in input)
+              ? (input as Record<string, JsonValue>)
+              : null;
+          },
+        }
+      : undefined;
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
-  let actPath: "llm" | "decisions" | "decisions+arg-llm" | "decisions+llm" = "llm";
+  let actPath:
+    | "llm"
+    | "decisions"
+    | "decisions+arg-llm"
+    | "decisions+llm"
+    | "decisions-tool"
+    | "decisions-tool+arg-llm" = "llm";
   let usedArgumentLlm = false;
   // The decision model's shortlist when it narrowed the choice but could not commit.
   let decisionsFocusIds: string[] = [];
@@ -197,6 +239,7 @@ export async function act({
         snapshotOptions,
         ensureTimeRemaining,
         openPageCount,
+        ...(webmcp ? { webmcp } : {}),
         extractText: async (text) => {
           const response = await inference.actTextArgument({
             instruction: text,
@@ -224,6 +267,8 @@ export async function act({
       if (outcome.kind === "done") {
         decisionsNoCache = outcome.noCache === true;
         if (usedArgumentLlm) actPath = "decisions+arg-llm";
+        if (outcome.viaTool)
+          actPath = outcome.viaTool.argumentLlm ? "decisions-tool+arg-llm" : "decisions-tool";
         return actResult(outcome.result, operationUsage);
       }
       actPath = "decisions+llm";
