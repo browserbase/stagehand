@@ -53,9 +53,9 @@ to dos.md
 /packages/integrations/*/CHANGELOG.md
 
 # Showcase run artifacts (recordings, results) synced to stagehand.dev
-packages/examples/*/.out/
+packages/examples/showcase/*/.out/
 # Playwright MCP writes run output here during showcase benchmarks
 .playwright-mcp/
 
 # Cookbook output
-packages/cookbooks/*/*/out/
+packages/examples/cookbooks/*/*/out/

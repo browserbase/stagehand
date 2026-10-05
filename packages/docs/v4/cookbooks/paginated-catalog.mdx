@@ -18,7 +18,7 @@ Export the [Books to Scrape](https://books.toscrape.com/) catalog into `out/cata
 ## Agent prompt
 
 <Prompt description="Export a complete paginated catalog with Stagehand." icon="robot" actions={["copy"]}>
-Adapt `packages/cookbooks/paginated-catalog` to my catalog. Read the README, environment template, and source for my chosen language first. Reuse the existing dependencies and OpenAI setup. Keep configuration simple.
+Adapt `packages/examples/cookbooks/paginated-catalog` to my catalog. Read the README, environment template, and source for my chosen language first. Reuse the existing dependencies and OpenAI setup. Keep configuration simple.
 
 Change the URL, record schema, and Next marker together. Extract validated records. Check whether Next exists, then use `observe()` and pass its returned Action to `act()`. Verify the action and navigation. Stop on invalid records, repeated or unchanged URLs, off-origin navigation, or a page limit reached before completion.
 
@@ -37,12 +37,12 @@ Run local checks and verify completion, budget exhaustion, and resume through te
 
 ## Check out and run
 
-The source is [`packages/cookbooks/paginated-catalog`](https://github.com/browserbase/stagehand/tree/main/packages/cookbooks/paginated-catalog). Clone this folder with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then run one version:
+The source is [`packages/examples/cookbooks/paginated-catalog`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/paginated-catalog). Clone this folder with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then run one version:
 
 <Tabs>
 <Tab title="TypeScript">
 ```bash
-cd packages/cookbooks/paginated-catalog/typescript
+cd packages/examples/cookbooks/paginated-catalog/typescript
 cp .env.example .env
 pnpm install --frozen-lockfile
 pnpm start
@@ -50,7 +50,7 @@ pnpm start
 </Tab>
 <Tab title="Python">
 ```bash
-cd packages/cookbooks/paginated-catalog/python
+cd packages/examples/cookbooks/paginated-catalog/python
 cp .env.example .env
 uv sync --locked
 uv run --locked python main.py
@@ -58,7 +58,7 @@ uv run --locked python main.py
 </Tab>
 <Tab title="Go">
 ```bash
-cd packages/cookbooks/paginated-catalog/go
+cd packages/examples/cookbooks/paginated-catalog/go
 cp .env.example .env
 set -a; . ./.env; set +a
 go run .

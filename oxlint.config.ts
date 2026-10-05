@@ -23,11 +23,7 @@ export default defineConfig({
       },
     },
     {
-      files: [
-        "packages/sdk-ts/examples/**/*.ts",
-        "packages/examples/**/*.ts",
-        "packages/cookbooks/**/*.ts",
-      ],
+      files: ["packages/sdk-ts/examples/**/*.ts", "packages/examples/**/*.ts"],
       rules: {
         "no-console": "off",
       },

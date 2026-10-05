@@ -18,7 +18,7 @@ Log into the public [Internet test site](https://the-internet.herokuapp.com/logi
 ## Agent prompt
 
 <Prompt description="Adapt persisted login to an application I own." icon="robot" actions={["copy"]}>
-Adapt `packages/cookbooks/persisted-login` to my application. Read the README, environment template, and source for my chosen language first. Reuse the existing dependencies and OpenAI setup. Ask only for missing application details.
+Adapt `packages/examples/cookbooks/persisted-login` to my application. Read the README, environment template, and source for my chosen language first. Reuse the existing dependencies and OpenAI setup. Ask only for missing application details.
 
 Change the login URL, protected URL, and authenticated marker together. Wait for the page, then check protected access before logging in. Use a persisted Browserbase context and `%variable%` credentials. Attempt login once; stop if access cannot be verified. Do not automate MFA or retry failed credentials.
 
@@ -36,12 +36,12 @@ Run local checks. With test credentials, verify fresh login and then reuse seque
 
 ## Check out and run
 
-Check out [`packages/cookbooks/persisted-login`](https://github.com/browserbase/stagehand/tree/main/packages/cookbooks/persisted-login) using the [overview command](/v4/cookbooks/overview#run-a-cookbook).
+Check out [`packages/examples/cookbooks/persisted-login`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/persisted-login) using the [overview command](/v4/cookbooks/overview#run-a-cookbook).
 
 <Tabs>
 <Tab title="TypeScript">
 ```bash
-cd packages/cookbooks/persisted-login/typescript
+cd packages/examples/cookbooks/persisted-login/typescript
 cp .env.example .env
 pnpm install --frozen-lockfile
 # First run: authenticates and persists context
@@ -53,7 +53,7 @@ pnpm start
 </Tab>
 <Tab title="Python">
 ```bash
-cd packages/cookbooks/persisted-login/python
+cd packages/examples/cookbooks/persisted-login/python
 cp .env.example .env
 uv sync --locked
 # First run: authenticates and persists context
@@ -65,7 +65,7 @@ uv run --locked python main.py
 </Tab>
 <Tab title="Go">
 ```bash
-cd packages/cookbooks/persisted-login/go
+cd packages/examples/cookbooks/persisted-login/go
 cp .env.example .env
 set -a; . ./.env; set +a
 # First run: authenticates and persists context

@@ -18,7 +18,7 @@ Read the first page of [Books to Scrape](https://books.toscrape.com/) in a Brows
 ## Agent prompt
 
 <Prompt description="Connect Stagehand extraction to Files SDK storage." icon="robot" actions={["copy"]}>
-Adapt `packages/cookbooks/files-to-bucket/typescript` to my target page. Read the README, environment template, and source first. Reuse Stagehand, Files SDK, and the existing OpenAI setup.
+Adapt `packages/examples/cookbooks/files-to-bucket/typescript` to my target page. Read the README, environment template, and source first. Reuse Stagehand, Files SDK, and the existing OpenAI setup.
 
 Change the target, schema, image DOM selector, and download allowlist together. Extract validated records and get the image URL from the DOM. Download in Node, preserving HTTPS host checks, redirect rejection, the 15-second timeout, 5 MiB limit, and JPEG verification. Replace format checks explicitly if another file type is required.
 
@@ -35,10 +35,10 @@ Use Node.js 22.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `
 
 ## Check out and run
 
-The source is [`packages/cookbooks/files-to-bucket`](https://github.com/browserbase/stagehand/tree/main/packages/cookbooks/files-to-bucket). Clone it with the [overview command](/v4/cookbooks/overview#run-a-cookbook):
+The source is [`packages/examples/cookbooks/files-to-bucket`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/files-to-bucket). Clone it with the [overview command](/v4/cookbooks/overview#run-a-cookbook):
 
 ```bash
-cd packages/cookbooks/files-to-bucket/typescript
+cd packages/examples/cookbooks/files-to-bucket/typescript
 cp .env.example .env
 pnpm install --frozen-lockfile
 pnpm start

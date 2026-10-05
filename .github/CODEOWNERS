@@ -2,4 +2,4 @@
 /packages/docs/** @browserbase/gtm
 
 # Runnable docs projects
-/packages/cookbooks/** @browserbase/gtm
+/packages/examples/** @browserbase/gtm
