@@ -193,14 +193,17 @@ export class V3 {
   }
 
   /**
-   * Returns true if captcha auto-solving is enabled on Browserbase.
-   * Defaults to true when not explicitly set to false.
+   * Returns whether agents should wait for Browserbase CAPTCHA solve events.
+   * Local attachments can opt in without changing session lifecycle behavior.
    */
   public get isCaptchaAutoSolveEnabled(): boolean {
+    const solveCaptchas =
+      this.opts.browserbaseSessionCreateParams?.browserSettings?.solveCaptchas;
     return (
-      this.isBrowserbase &&
-      this.opts.browserbaseSessionCreateParams?.browserSettings
-        ?.solveCaptchas !== false
+      (this.opts.waitForCaptchaSolves ??
+        solveCaptchas ??
+        this.opts.env === "BROWSERBASE") &&
+      solveCaptchas !== false
     );
   }
 
@@ -1141,6 +1144,7 @@ export class V3 {
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,
               selfHeal: this.opts.selfHeal,
+              waitForCaptchaSolves: this.isCaptchaAutoSolveEnabled,
               useTouch: this.opts.useTouch,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,

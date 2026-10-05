@@ -236,6 +236,7 @@ export class InMemorySessionStore implements SessionStore {
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,
       selfHeal: params.selfHeal,
+      waitForCaptchaSolves: params.waitForCaptchaSolves,
       useTouch: params.useTouch,
       domSettleTimeout: params.domSettleTimeoutMs,
       experimental: params.experimental,

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { V3 } from "../../lib/v3/v3.js";
+import { StagehandAPIClient } from "../../lib/v3/api.js";
 import { V3Context } from "../../lib/v3/understudy/context.js";
 
 const MOCK_SESSION_ID = "session-123";
@@ -60,6 +61,53 @@ describe("browserbase accessors", () => {
     delete process.env.BROWSERBASE_PROJECT_ID;
     vi.clearAllMocks();
   });
+
+  it.each([
+    {
+      waitForCaptchaSolves: undefined,
+      solveCaptchas: undefined,
+      expected: true,
+    },
+    { waitForCaptchaSolves: true, solveCaptchas: true, expected: true },
+    { waitForCaptchaSolves: false, solveCaptchas: true, expected: false },
+    { waitForCaptchaSolves: true, solveCaptchas: false, expected: false },
+    { waitForCaptchaSolves: undefined, solveCaptchas: false, expected: false },
+  ])(
+    "forwards resolved CAPTCHA awareness before CDP initialization: %j",
+    async (options) => {
+      const init = vi
+        .spyOn(StagehandAPIClient.prototype, "init")
+        .mockResolvedValue({
+          sessionId: MOCK_SESSION_ID,
+          available: true,
+        });
+      const end = vi
+        .spyOn(StagehandAPIClient.prototype, "end")
+        .mockResolvedValue(undefined);
+      const stagehand = new V3({
+        env: "BROWSERBASE",
+        waitForCaptchaSolves: options.waitForCaptchaSolves,
+        browserbaseSessionCreateParams: {
+          browserSettings: { solveCaptchas: options.solveCaptchas },
+        },
+        disablePino: true,
+        verbose: 0,
+      });
+      try {
+        await stagehand.init();
+        expect(init).toHaveBeenCalledWith(
+          expect.objectContaining({
+            waitForCaptchaSolves: options.expected,
+          }),
+        );
+        expect(stagehand.isCaptchaAutoSolveEnabled).toBe(options.expected);
+      } finally {
+        await stagehand.close();
+        init.mockRestore();
+        end.mockRestore();
+      }
+    },
+  );
 
   it("exposes Browserbase session and debug URLs after init", async () => {
     const v3 = new V3({

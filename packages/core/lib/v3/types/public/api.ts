@@ -547,11 +547,12 @@ export const SessionStartRequestSchema = z
     }),
     // experimental is a V3 field but doesn't need to go over the wire - included because wire type imports options type
     experimental: z.boolean().optional(),
+    waitForCaptchaSolves: z.boolean().optional().meta({
+      description:
+        "Wait for Browserbase CAPTCHA solves before agent steps and actions. Defaults to browserSettings.solveCaptchas when provided, otherwise true on Browserbase and false locally; does not enable a solver itself.",
+    }),
     // V2 compatibility fields - only included because the server imports this type and supports V2
     // should never be used in v3 clients or v3-only server implementations
-    waitForCaptchaSolves: z.boolean().optional().meta({
-      description: "Wait for captcha solves (deprecated, v2 only)",
-    }),
     actTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
