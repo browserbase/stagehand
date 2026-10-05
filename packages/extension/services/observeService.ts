@@ -1,3 +1,5 @@
+import { runDecisionsObserve } from "./decisions/observe.js";
+import type { DecisionsConfig } from "./decisions/pipeline.js";
 import type {
   Action,
   ClientModelReference,
@@ -31,6 +33,7 @@ export async function observe({
   systemPrompt = "",
   cache,
   gateway,
+  decisions,
 }: {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
@@ -40,6 +43,8 @@ export async function observe({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
+  /** Experimental: resolve observe() through the decision model first (needs `observe: true`). */
+  decisions?: DecisionsConfig & { observe?: boolean };
 }): Promise<ObserveResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -74,6 +79,44 @@ export async function observe({
   });
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
+    // `enabled: false` is the shared kill switch for every decision-model feature.
+    if (decisions?.observe && decisions.enabled !== false) {
+      const outcome = await runDecisionsObserve(decisions, {
+        page,
+        logger,
+        instruction,
+        variables: options?.variables,
+        snapshotOptions: {
+          focusLocator: options?.locator,
+          ignoreLocators: options?.ignoreLocators,
+        },
+        ensureTimeRemaining,
+      }).catch((error: unknown) => {
+        if (error instanceof TimeoutError) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        return { kind: "fallback" as const, reason: `decision_error:${message}` };
+      });
+      if (outcome.kind === "done") {
+        return {
+          result: {
+            data: outcome.actions,
+            metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+          },
+          cacheValue: outcome.actions.length > 0 ? outcome.actions : undefined,
+          llmUsage: { inputTokens: 0, outputTokens: 0, llmDurationMs: 0 },
+        };
+      }
+      logger.info("Decisions observe fell back to the LLM", {
+        category: "decisions",
+        reason: outcome.reason,
+      });
+      if (decisions.llmFallback === false) {
+        // Like act(): an abstention with the fallback off is a failure the
+        // caller can see, not an empty "nothing on the page" success.
+        throw new Error(`Decisions observe abstained (${outcome.reason.slice(0, 160)})`);
+      }
+    }
+
     ensureTimeRemaining();
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot({
       focusLocator: options?.locator,

@@ -89,6 +89,10 @@ export type DecisionsConfig = DecisionModelConfig & {
   retryNoEffect?: boolean;
   /** Show the LLM fallback the decision model's shortlist before the whole tree on huge pages. Default false. */
   focusFallback?: boolean;
+  /** Check cached actions against the page before replaying them. Default false. */
+  cacheCheck?: boolean;
+  /** Resolve observe() through the decision model first. Default false. */
+  observe?: boolean;
 };
 
 export type DecisionsActDeps = {
