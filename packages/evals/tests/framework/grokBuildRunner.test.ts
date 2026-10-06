@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import type { GrokBuildProcessRunner } from "@browserbasehq/stagehand-integrations-grok-build-sdk";
 import { buildGrokBuildPrompt, runGrokBuildAgent } from "../../framework/grokBuildRunner.js";
@@ -14,6 +14,14 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("Grok Build runner", () => {
+  beforeEach(() => {
+    vi.stubEnv("EVAL_GROK_BUILD_ALWAYS_APPROVE", undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("builds an MCP-only browser prompt", () => {
     const prompt = buildGrokBuildPrompt(plan, "Use stagehand__run.");
     expect(prompt).toContain("Dataset: webvoyager");
@@ -76,7 +84,41 @@ describe("Grok Build runner", () => {
     expect(capturedArgs).toContain("--rules");
     expect(capturedArgs).toContain(EVAL_SYSTEM_PROMPT);
     expect(capturedArgs).toContain("--max-turns");
+    expect(capturedArgs).toContain("--always-approve");
+    expect(result.harnessConfiguration).toMatchObject({ alwaysApprove: true });
   });
+
+  it.each(["true", "false"])("respects the approval override %s", async (value) => {
+    vi.stubEnv("EVAL_GROK_BUILD_ALWAYS_APPROVE", value);
+    let capturedArgs: string[] = [];
+    const result = await runGrokBuildAgent({
+      plan,
+      model: "grok-build/auto" as AvailableModel,
+      logger: new EvalLogger(false),
+      runProcess: scriptedRunner([{ type: "end", stopReason: "end_turn" }], 0, (args) => {
+        capturedArgs = args;
+      }),
+    });
+    expect(capturedArgs.includes("--always-approve")).toBe(value === "true");
+    expect(result.harnessConfiguration).toMatchObject({ alwaysApprove: value === "true" });
+  });
+
+  it.each(["", "1", "TRUE", "invalid"])(
+    "rejects invalid approval override %j before launch",
+    async (value) => {
+      vi.stubEnv("EVAL_GROK_BUILD_ALWAYS_APPROVE", value);
+      const runProcess = vi.fn<GrokBuildProcessRunner>();
+      await expect(
+        runGrokBuildAgent({
+          plan,
+          model: "grok-build/auto" as AvailableModel,
+          logger: new EvalLogger(false),
+          runProcess,
+        }),
+      ).rejects.toThrow("EVAL_GROK_BUILD_ALWAYS_APPROVE must be true or false.");
+      expect(runProcess).not.toHaveBeenCalled();
+    },
+  );
 
   it("returns a failed result for a non-zero exit without an end event", async () => {
     const result = await runGrokBuildAgent({

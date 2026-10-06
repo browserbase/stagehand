@@ -27,7 +27,7 @@ Browserbase key placeholders. Grok merges project MCP configuration over its use
 Run from the configured project so Grok sees both `.grok/config.toml` and `AGENTS.md`:
 
 ```bash
-grok -p \
+grok \
   --output-format streaming-json \
   --always-approve \
   --tools search_tool,use_tool \
@@ -35,8 +35,16 @@ grok -p \
   --no-plan \
   --no-subagents \
   --disable-web-search \
-  "Use the stagehand MCP tools: open https://example.com, snapshot it, and report the heading citing the snapshot ID."
+  -p "Use the stagehand MCP tools: open https://example.com, snapshot it, and report the heading citing the snapshot ID."
 ```
+
+The example uses `--always-approve` to let Grok run tools without asking for approval.
+Remove this flag to use Grok's default permissions. This command runs without an interactive
+session, so it cannot accept approval responses. Tasks that require approval may fail.
+
+For programmatic runs, set `GrokBuildSessionConfig.alwaysApprove` to `true` to add the flag.
+When the option is `false` or unset, the adapter omits it. The adapter closes stdin and
+does not support interactive approval.
 
 The eval harness uses the same CLI path with configuration in an isolated temporary Grok home:
 
@@ -46,3 +54,13 @@ evals run b:webvoyager --harness grok_build --tool stagehand_facade -l 1 -t 1 -e
 
 Set `EVAL_GROK_BUILD_PATH` to override the binary, `EVAL_GROK_BUILD_MAX_TURNS` to change the
 50-turn default, or `EVAL_GROK_BUILD_SANDBOX` to pass a Grok sandbox profile.
+
+Evals enable auto-approval by default for unattended runs. Set
+`EVAL_GROK_BUILD_ALWAYS_APPROVE=false` to omit the flag and retain Grok's native permission
+policy. Only `true` and `false` are accepted. The effective setting is recorded in
+`harnessConfiguration.alwaysApprove`.
+
+The shared Browserbase runtime enables verified mode by default. If your project does not
+support it, set `EVAL_BROWSERBASE_VERIFIED=0`. The verifier defaults to direct Google API
+access; set `EVAL_VERIFIER_MODEL=gateway/google/gemini-3.5-flash` and `AI_GATEWAY_API_KEY` to
+use the same judge through AI Gateway when direct-provider quota is unavailable.

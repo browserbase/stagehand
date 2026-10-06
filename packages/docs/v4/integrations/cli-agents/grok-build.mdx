@@ -40,7 +40,7 @@ Copy `packages/integrations/grok-build/.grok/config.toml` into the project where
   <Step title="Run a browser task">
 ```bash
 cd packages/integrations/grok-build
-grok -p \
+grok \
   --output-format streaming-json \
   --always-approve \
   --tools search_tool,use_tool \
@@ -48,10 +48,12 @@ grok -p \
   --no-plan \
   --no-subagents \
   --disable-web-search \
-  "Open https://example.com, snapshot it, and report the heading."
+  -p "Open https://example.com, snapshot it, and report the heading."
 ```
   </Step>
 </Steps>
+
+The example uses `--always-approve` to let Grok run tools without asking for approval. Remove this flag to use Grok's default permissions. This command runs without an interactive session, so it cannot accept approval responses. Tasks that require approval may fail.
 
 ## Eval harness
 
@@ -71,6 +73,7 @@ evals run b:webvoyager \
 | `EVAL_GROK_BUILD_PATH` | Optional path to the `grok` binary for eval runs. |
 | `EVAL_GROK_BUILD_MAX_TURNS` | Grok turn limit. Defaults to 50. |
 | `EVAL_GROK_BUILD_SANDBOX` | Optional Grok sandbox profile. |
+| `EVAL_GROK_BUILD_ALWAYS_APPROVE` | `true` or `false`. Defaults to `true` for unattended evals; `false` omits `--always-approve`. The effective value is recorded in `harnessConfiguration.alwaysApprove`. |
 | `STAGEHAND_BROWSER` | `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 

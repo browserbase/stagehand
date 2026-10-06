@@ -26,6 +26,7 @@ export type GrokBuildSessionConfig = {
   cwd?: string;
   env?: Record<string, string>;
   binaryPath?: string;
+  alwaysApprove?: boolean;
   maxTurns?: number;
   sandbox?: string;
   /** Appended with `grok --rules` (`--append-system-prompt`). */
@@ -89,7 +90,7 @@ export function buildGrokBuildArgs(input: {
     input.prompt,
     "--output-format",
     "streaming-json",
-    "--always-approve",
+    ...(session.alwaysApprove === true ? ["--always-approve"] : []),
     "--tools",
     "search_tool,use_tool",
     "--disallowed-tools",

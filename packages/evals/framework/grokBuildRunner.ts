@@ -8,6 +8,7 @@ import {
 } from "@browserbasehq/stagehand-integrations-grok-build-sdk";
 import type { AvailableModel } from "stagehand-v3";
 import type { EvalLogger } from "../logger.js";
+import { EvalsError } from "../errors.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedGrokBuildToolAdapter } from "./grokBuildToolAdapter.js";
 import { grokBuildAdapter } from "./harnesses/grokBuildAdapter.js";
@@ -67,6 +68,13 @@ export function parseGrokBuildResult(raw: string): ParsedGrokBuildResult {
   return parseEvalResult(raw);
 }
 
+function resolveGrokBuildAlwaysApprove(): boolean {
+  const value = process.env.EVAL_GROK_BUILD_ALWAYS_APPROVE;
+  if (value === undefined || value === "true") return true;
+  if (value === "false") return false;
+  throw new EvalsError("EVAL_GROK_BUILD_ALWAYS_APPROVE must be true or false.");
+}
+
 export async function runGrokBuildAgent({
   plan,
   model,
@@ -76,6 +84,7 @@ export async function runGrokBuildAgent({
   runProcess,
   verifier,
 }: GrokBuildRunnerInput): Promise<TaskResult> {
+  const alwaysApprove = resolveGrokBuildAlwaysApprove();
   const adapterLike: ExternalHarnessToolAdapterLike = {
     promptInstructions: composeGrokBuildToolInstructions(toolAdapter?.promptInstructions),
     captureEvidence: toolAdapter?.captureEvidence,
@@ -95,6 +104,7 @@ export async function runGrokBuildAgent({
     logger,
     systemPromptMode: "native",
     implementation: { name: "cli", version: 1 },
+    configuration: { alwaysApprove },
     toolAdapter: adapterLike,
     verifier,
     resultContract: "marker",
@@ -110,6 +120,7 @@ export async function runGrokBuildAgent({
         signal,
         runProcess,
         session: {
+          alwaysApprove,
           ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
           ...(toolAdapter?.env && { env: toolAdapter.env }),
           ...(process.env.EVAL_GROK_BUILD_PATH && {

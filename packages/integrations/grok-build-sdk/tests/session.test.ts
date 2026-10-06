@@ -24,14 +24,18 @@ describe("Grok Build CLI session", () => {
       buildGrokBuildArgs({
         prompt: "do it",
         model: "grok-build",
-        session: { cwd: "/workspace", maxTurns: 12, sandbox: "off", rules: "Do not ask for clarification." },
+        session: {
+          cwd: "/workspace",
+          maxTurns: 12,
+          sandbox: "off",
+          rules: "Do not ask for clarification.",
+        },
       }),
     ).toEqual([
       "-p",
       "do it",
       "--output-format",
       "streaming-json",
-      "--always-approve",
       "--tools",
       "search_tool,use_tool",
       "--disallowed-tools",
@@ -50,6 +54,11 @@ describe("Grok Build CLI session", () => {
       "--rules",
       "Do not ask for clarification.",
     ]);
+  });
+
+  it.each([undefined, false, true])("respects alwaysApprove=%s", (alwaysApprove) => {
+    const args = buildGrokBuildArgs({ prompt: "do it", session: { alwaysApprove } });
+    expect(args.includes("--always-approve")).toBe(alwaysApprove === true);
   });
 
   it("resolves the binary and normalizes harness model ids", () => {
