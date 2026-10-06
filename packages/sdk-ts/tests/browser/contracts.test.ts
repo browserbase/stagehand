@@ -146,6 +146,7 @@ describe("browser API contracts", () => {
           timeout: 5_000,
           maxRetries: 1,
           defaultHeaders: { "X-Caller": "app" },
+          defaultQuery: { trace: "1" },
           fetch,
         },
       }),
@@ -157,6 +158,7 @@ describe("browser API contracts", () => {
         timeout: 5_000,
         maxRetries: 1,
         defaultHeaders: { "X-Caller": "app" },
+        defaultQuery: { trace: "1" },
         fetch,
       },
     });
@@ -166,6 +168,9 @@ describe("browser API contracts", () => {
       { timeout: -1 },
       { maxRetries: 1.5 },
       { fetch: "not-a-function" },
+      { defaultHeaders: { "X-Caller": 1 } },
+      { defaultQuery: { trace: 1 } },
+      { defaultQuery: { trace: null } },
     ]) {
       expect(() =>
         BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key", clientOptions }),
