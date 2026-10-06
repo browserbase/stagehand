@@ -473,21 +473,20 @@ async def test_official_api_routes_through_and_never_closes_a_caller_http_client
             return httpx.Response(204)
         return httpx.Response(200, json={"id": "session-id"})
 
-    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    client = browserbase_session._create_browserbase_session_client(
-        "api-key",
-        "https://api.browserbase.com",
-        {"http_client": http_client, "max_retries": 0},
-    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = browserbase_session._create_browserbase_session_client(
+            "api-key",
+            "https://api.browserbase.com",
+            {"http_client": http_client, "max_retries": 0},
+        )
 
-    session = await client.create_session(BrowserbaseSessionCreateParams())
-    await session.close()
+        session = await client.create_session(BrowserbaseSessionCreateParams())
+        await session.close()
 
-    assert not http_client.is_closed
-    assert requests == [
-        ("POST", "/v1/extensions"),
-        ("POST", "/v1/sessions"),
-        ("POST", "/v1/sessions/session-id"),
-        ("DELETE", "/v1/extensions/ext-owned"),
-    ]
-    await http_client.aclose()
+        assert not http_client.is_closed
+        assert requests == [
+            ("POST", "/v1/extensions"),
+            ("POST", "/v1/sessions"),
+            ("POST", "/v1/sessions/session-id"),
+            ("DELETE", "/v1/extensions/ext-owned"),
+        ]

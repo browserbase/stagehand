@@ -796,34 +796,37 @@ async def test_browserbase_launch_and_connect_pass_client_options(
     fake_cdp: type[FakeCDPClient],
 ) -> None:
     _, configurations = _install_browserbase_client(monkeypatch)
-    http_client = httpx.AsyncClient()
-    launched = await browserbase.launch(
-        api_key="api-key",
-        client_options={
-            "timeout": 5.0,
-            "default_headers": {"X-Caller": "app"},
-            "http_client": http_client,
-        },
-    )
-    await launched.close()
-    connected = await browserbase.connect(
-        api_key="api-key",
-        session_id="session",
-        client_options={"max_retries": 0},
-    )
-    await connected.close()
+    async with httpx.AsyncClient() as http_client:
+        launched = await browserbase.launch(
+            api_key="api-key",
+            client_options={
+                "timeout": 5.0,
+                "default_headers": {"X-Caller": "app"},
+                "http_client": http_client,
+            },
+        )
+        await launched.close()
+        connected = await browserbase.connect(
+            api_key="api-key",
+            session_id="session",
+            client_options={"max_retries": 0},
+        )
+        await connected.close()
 
-    assert configurations == [
-        (
-            "api-key",
-            "https://api.browserbase.com",
-            {"timeout": 5.0, "default_headers": {"X-Caller": "app"}, "http_client": http_client},
-        ),
-        ("api-key", "https://api.browserbase.com", {"max_retries": 0}),
-    ]
-    assert configurations[0][2] is not None
-    assert configurations[0][2]["http_client"] is http_client
-    await http_client.aclose()
+        assert configurations == [
+            (
+                "api-key",
+                "https://api.browserbase.com",
+                {
+                    "timeout": 5.0,
+                    "default_headers": {"X-Caller": "app"},
+                    "http_client": http_client,
+                },
+            ),
+            ("api-key", "https://api.browserbase.com", {"max_retries": 0}),
+        ]
+        assert configurations[0][2] is not None
+        assert configurations[0][2]["http_client"] is http_client
 
 
 async def test_browserbase_launch_connect_failure_closes_owned_session(
