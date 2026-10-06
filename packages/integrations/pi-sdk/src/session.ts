@@ -6,6 +6,7 @@ import {
 } from "@browserbasehq/stagehand-integrations/harness";
 import type {
   AgentToolResult,
+  AgentSession,
   CreateAgentSessionOptions,
   ExtensionAPI,
   McpExposure,
@@ -33,7 +34,7 @@ export type PiAgentSessionLike = {
   abort(): Promise<void>;
   dispose(): void | Promise<void>;
   agent: {
-    shouldStopAfterTurn?: (...args: any[]) => boolean | Promise<boolean>;
+    finishTurn?: AgentSession["agent"]["finishTurn"];
     state: { errorMessage?: string };
   };
 };
@@ -266,7 +267,12 @@ export async function runPiSession(input: {
       customTools: input.session.customTools ?? [],
       ...(input.session.mcpServers && { mcpServers: input.session.mcpServers }),
     });
-    piSession.agent.shouldStopAfterTurn = () => turns >= maxTurns;
+    const finishTurn = piSession.agent.finishTurn;
+    piSession.agent.finishTurn = async (turn, signal) => {
+      // Pi calls finishTurn before emitting turn_end for the current turn.
+      const decision = await finishTurn?.(turn, signal);
+      return turns + 1 >= maxTurns ? { action: "end" } : decision || undefined;
+    };
     unsubscribe = piSession.subscribe((event) => {
       if (event.type === "message_update") return;
       events.push(compactPiEvent(event, imageBudget));
