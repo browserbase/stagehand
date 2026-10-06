@@ -29,8 +29,6 @@ const intentionallyUndocumentedBrowserFields = new Set([
 
 // Go builds its Browserbase client without the official SDK; HTTP client options are TS/Python-only for now.
 const pendingGoBrowserFields = new Set(["BrowserbaseConnectOptions.client_options"]);
-// Python Browserbase client options land in a follow-up PR.
-const pendingPythonBrowserFields = new Set(["BrowserbaseConnectOptions.client_options"]);
 
 const concepts: readonly Concept[] = [
   {
@@ -109,12 +107,9 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
     for (const concept of concepts) {
       const expected = schemaFields(concept.typescript);
       const [pythonFields, goFields] = await Promise.all([concept.python(), concept.go()]);
-      const expectedPython = expected.filter(
-        (field) => !pendingPythonBrowserFields.has(`${concept.name}.${field}`),
-      );
-      if (!arraysEqual(pythonFields, expectedPython)) {
+      if (!arraysEqual(pythonFields, expected)) {
         differences.push(
-          `${concept.name} Python: expected [${expectedPython.join(", ")}], received [${pythonFields.join(", ")}]`,
+          `${concept.name} Python: expected [${expected.join(", ")}], received [${pythonFields.join(", ")}]`,
         );
       }
       const expectedGo = expected.filter(
@@ -138,6 +133,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
       "LocalBrowserLaunchOptions",
       "LocalBrowserConnectOptions",
       "BrowserbaseConnectOptions",
+      "BrowserbaseClientOptions",
       "StagehandClientLoggingConfig",
       "StagehandClientCreateConfig",
     ];
