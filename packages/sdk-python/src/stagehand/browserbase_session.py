@@ -3,14 +3,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 from ._generated.models import BrowserbaseRegion, BrowserbaseSessionCreateParams
 from ._sdk_identity import STAGEHAND_SESSION_METADATA
 from .extension_assets import build_extension_archive
-
-if TYPE_CHECKING:
-    from browserbase import AsyncBrowserbase
 
 DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com"
 
@@ -84,34 +81,21 @@ class _BrowserbaseAPI(Protocol):
 
 
 class _OfficialBrowserbaseAPI:
-    def __init__(
-        self,
-        api_key: str,
-        base_url: str,
-        client_options: Mapping[str, Any] | None = None,
-    ) -> None:
+    def __init__(self, api_key: str, base_url: str) -> None:
         self._api_key = api_key
         self._base_url = base_url
-        self._client_options = dict(client_options or {})
-
-    def _client(self) -> AsyncBrowserbase:
-        from browserbase import AsyncBrowserbase
-
-        return AsyncBrowserbase(
-            **self._client_options,
-            api_key=self._api_key,
-            base_url=self._base_url,
-        )
 
     async def upload_extension(self, archive: bytes) -> str:
-        async with self._client() as client:
+        from browserbase import AsyncBrowserbase
+
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             extension = await client.extensions.create(file=("stagehand-extension.zip", archive))
         return extension.id
 
     async def delete_extension(self, extension_id: str) -> None:
-        from browserbase import omit
+        from browserbase import AsyncBrowserbase, omit
 
-        async with self._client() as client:
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             await client.extensions.delete(extension_id, extra_headers={"Content-Type": omit})
 
     async def create_session(
@@ -121,12 +105,14 @@ class _OfficialBrowserbaseAPI:
         user_metadata: Mapping[str, Any],
         extension_id: str | None,
     ) -> tuple[str, str]:
+        from browserbase import AsyncBrowserbase
+
         kwargs = _session_create_kwargs(
             options,
             user_metadata=user_metadata,
             extension_id=extension_id,
         )
-        async with self._client() as client:
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             session = await client.sessions.create(**kwargs)
         return session.id, session.connect_url
 
@@ -134,7 +120,9 @@ class _OfficialBrowserbaseAPI:
         self,
         session_id: str,
     ) -> tuple[str, str | None, BrowserbaseRegion | None]:
-        async with self._client() as client:
+        from browserbase import AsyncBrowserbase
+
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             session = await client.sessions.retrieve(session_id)
         return (
             session.id,
@@ -143,7 +131,9 @@ class _OfficialBrowserbaseAPI:
         )
 
     async def release_session(self, session_id: str) -> None:
-        async with self._client() as client:
+        from browserbase import AsyncBrowserbase
+
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             await client.sessions.update(session_id, status="REQUEST_RELEASE")
 
 
@@ -308,9 +298,5 @@ class _BrowserbaseSessionClient:
         await self._delete_extension_best_effort(extension_id)
 
 
-def _create_browserbase_session_client(
-    api_key: str,
-    base_url: str,
-    client_options: Mapping[str, Any] | None = None,
-) -> _BrowserbaseSessionClient:
-    return _BrowserbaseSessionClient(_OfficialBrowserbaseAPI(api_key, base_url, client_options))
+def _create_browserbase_session_client(api_key: str, base_url: str) -> _BrowserbaseSessionClient:
+    return _BrowserbaseSessionClient(_OfficialBrowserbaseAPI(api_key, base_url))

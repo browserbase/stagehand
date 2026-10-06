@@ -180,10 +180,8 @@ The Browserbase URL controls extension, session, and connection requests that `b
 
 ### Browserbase client options
 
-`browserbase.launch()` and `browserbase.connect()` create a Browserbase SDK client for session and extension requests. Pass `clientOptions` (TypeScript) or `client_options` (Python) to tune that client's timeout, retries, default headers, and default query parameters. TypeScript also accepts a custom `fetch`. `apiKey` and `baseUrl` stay top-level, so one key authenticates both Browserbase and Stagehand.
+`browserbase.launch()` and `browserbase.connect()` create a Browserbase SDK client for session and extension requests. In TypeScript, pass `clientOptions` to tune that client's timeout (in milliseconds), retries, default headers, default query parameters, and `fetch` implementation. `apiKey` and `baseUrl` stay top-level, so one key authenticates both Browserbase and Stagehand.
 
-<Tabs>
-<Tab title="TypeScript">
 ```typescript
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
@@ -194,23 +192,8 @@ const browser = await browserbase.launch({
   },
 });
 ```
-</Tab>
 
-<Tab title="Python">
-```python
-browser = await browserbase.launch(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    client_options={
-        "timeout": 30.0,  # seconds
-        "max_retries": 1,
-        "default_headers": {"X-Request-Source": "my-app"},
-    },
-)
-```
-</Tab>
-</Tabs>
-
-Units follow each Browserbase SDK: TypeScript timeouts are in milliseconds and Python timeouts are in seconds. The Go SDK does not support client options yet.
+The Python and Go SDKs do not support client options yet.
 
 ### Environment variables
 

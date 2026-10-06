@@ -107,21 +107,11 @@ class LocalBrowserConnectOptions(WireModel):
     extension_id: Annotated[str | None, Field(min_length=1)] = None
 
 
-class BrowserbaseClientOptions(WireModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
-
-    timeout: Annotated[float | None, Field(ge=0)] = None
-    max_retries: Annotated[int | None, Field(ge=0)] = None
-    default_headers: dict[str, str] | None = None
-    default_query: dict[str, object] | None = None
-
-
 class BrowserbaseConnectOptions(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     api_key: Annotated[str, Field(min_length=1)]
     base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
-    client_options: BrowserbaseClientOptions | None = None
     session_id: Annotated[str, Field(min_length=1)]
     extension_id: Annotated[str | None, Field(min_length=1)] = None
 

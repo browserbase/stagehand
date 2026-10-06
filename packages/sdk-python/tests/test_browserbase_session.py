@@ -426,24 +426,3 @@ def test_build_extension_archive_ignores_file_mtime(
     second = build_extension_archive()
 
     assert first == second
-
-
-async def test_official_api_builds_client_from_client_options() -> None:
-    api = browserbase_session._OfficialBrowserbaseAPI(
-        "api-key",
-        "https://api.dev.browserbase.com",
-        {
-            "timeout": 5.0,
-            "max_retries": 0,
-            "default_headers": {"X-Caller": "app"},
-            "default_query": {"trace": "1"},
-        },
-    )
-
-    async with api._client() as client:
-        assert client.api_key == "api-key"
-        assert str(client.base_url).rstrip("/") == "https://api.dev.browserbase.com"
-        assert client.timeout == 5.0
-        assert client.max_retries == 0
-        assert client.default_headers["X-Caller"] == "app"
-        assert client.default_query == {"trace": "1"}
