@@ -61,6 +61,5 @@ policy. Only `true` and `false` are accepted. The effective setting is recorded 
 `harnessConfiguration.alwaysApprove`.
 
 The shared Browserbase runtime enables verified mode by default. If your project does not
-support it, set `EVAL_BROWSERBASE_VERIFIED=0`. The verifier defaults to direct Google API
-access; set `EVAL_VERIFIER_MODEL=gateway/google/gemini-3.5-flash` and `AI_GATEWAY_API_KEY` to
-use the same judge through AI Gateway when direct-provider quota is unavailable.
+support it, set `EVAL_BROWSERBASE_VERIFIED=0`. The verifier uses `google/gemini-3.5-flash`
+and a Google API key (`GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY`).
