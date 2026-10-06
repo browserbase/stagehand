@@ -35,7 +35,7 @@ func run(ctx context.Context) (err error) {
 	fmt.Printf("Session: https://www.browserbase.com/sessions/%s\n", browser.SessionID())
 	opts := stagehand.CreateOptions{
 		Browser: browser,
-		Model:   &stagehand.ModelConfig{ModelName: "openai/gpt-6-sol", APIKey: &modelKey},
+		Model:   &stagehand.ModelConfig{ModelName: "openai/gpt-5.6-sol", APIKey: &modelKey},
 	}
 	client, err := stagehand.Create(ctx, opts)
 	if err != nil {

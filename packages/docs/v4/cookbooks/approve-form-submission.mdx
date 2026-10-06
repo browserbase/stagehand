@@ -102,7 +102,7 @@ This recipe keeps approval inside one process. The receipt is an audit record, n
 <CodeGroup>
 ```typescript TypeScript approval
 const result = await generateText({
-  model: openai("gpt-6-sol"),
+  model: openai("gpt-5.6-sol"),
   tools,
   toolApproval: { submitForm: "user-approval" },
   prompt: "Fill the test form, then request approval before submit.",

@@ -41,7 +41,7 @@ func run(ctx context.Context) (err error) {
 	key := os.Getenv("OPENAI_API_KEY")
 	opts := stagehand.CreateOptions{
 		Browser: browser,
-		Model:   &stagehand.ModelConfig{ModelName: "openai/gpt-6-sol", APIKey: &key},
+		Model:   &stagehand.ModelConfig{ModelName: "openai/gpt-5.6-sol", APIKey: &key},
 	}
 	client, err := stagehand.Create(ctx, opts)
 	if err != nil {

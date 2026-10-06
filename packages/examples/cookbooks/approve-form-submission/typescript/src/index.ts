@@ -17,7 +17,7 @@ function requireEnv(name: string): string {
 async function main() {
   const browserbaseApiKey = requireEnv("BROWSERBASE_API_KEY");
   const openaiApiKey = requireEnv("OPENAI_API_KEY");
-  const agentModel = openai("gpt-6-sol");
+  const agentModel = openai("gpt-5.6-sol");
 
   const browser = await browserbase.launch({
     apiKey: browserbaseApiKey,
@@ -28,7 +28,7 @@ async function main() {
     console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);
     const stagehand = await Stagehand.create({
       browser,
-      model: { modelName: "openai/gpt-6-sol", apiKey: openaiApiKey },
+      model: { modelName: "openai/gpt-5.6-sol", apiKey: openaiApiKey },
     });
     try {
       const page = await browser.context.activePage();

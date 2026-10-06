@@ -58,7 +58,7 @@ async def main() -> None:
         print(f"Session: https://www.browserbase.com/sessions/{browser.session_id}")
         stagehand = await Stagehand.create(
             browser=browser,
-            model="openai/gpt-6-sol",
+            model="openai/gpt-5.6-sol",
             model_api_key=openai_key,
         )
         try:
