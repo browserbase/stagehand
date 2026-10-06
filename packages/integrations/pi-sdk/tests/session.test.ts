@@ -39,8 +39,14 @@ function scriptedSdk(
             });
           }
           for (const event of events) {
+            const decision =
+              event.type === "turn_end"
+                ? await session.agent.finishTurn?.(
+                    {} as Parameters<NonNullable<PiAgentSessionLike["agent"]["finishTurn"]>>[0],
+                  )
+                : undefined;
             for (const listener of listeners) listener(event);
-            if (event.type === "turn_end" && (await session.agent.shouldStopAfterTurn?.())) break;
+            if (decision && decision.action === "end") break;
           }
         },
         async abort() {

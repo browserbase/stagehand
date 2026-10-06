@@ -1,2 +1,5 @@
 # Docs changes
 /packages/docs/** @browserbase/gtm
+
+# Runnable docs projects
+/packages/examples/** @browserbase/gtm

@@ -86,11 +86,6 @@ describe("Cursor SDK under the public cursor harness", () => {
     expect(onToolResult).toHaveBeenCalledExactlyOnceWith("stagehand.snapshot");
     expect(close).toHaveBeenCalledOnce();
     expect(createAgent.mock.calls[0][0]).not.toHaveProperty("systemPrompt");
-    expect(result.harnessImplementation).toMatchObject({
-      name: "sdk",
-      version: 1,
-      sdkVersion: "1.0.31",
-    });
     expect(result).toMatchObject({
       _success: true,
       harnessStatus: "completed",

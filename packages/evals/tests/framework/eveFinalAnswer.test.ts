@@ -37,10 +37,10 @@ const rubric: Rubric = {
 function fakeClient(events: EveEvent[]): EveClientLike {
   return {
     health: async () => ({}),
-    session: () => ({
-      cancel: async () => ({}),
-      send: async () =>
-        Object.assign(
+    sessions: {
+      create: async () => ({
+        session: { cancel: async () => ({}) },
+        response: Object.assign(
           {
             async *[Symbol.asyncIterator]() {
               yield* events;
@@ -48,7 +48,8 @@ function fakeClient(events: EveEvent[]): EveClientLike {
           },
           { sessionId: "eve-session" },
         ),
-    }),
+      }),
+    },
   };
 }
 

@@ -95,6 +95,17 @@
             ]
           },
           {
+            "group": "Cookbooks",
+            "pages": [
+              "v4/cookbooks/overview",
+              "v4/cookbooks/persisted-login",
+              "v4/cookbooks/paginated-catalog",
+              "v4/cookbooks/files-to-bucket",
+              "v4/cookbooks/approve-form-submission",
+              "v4/cookbooks/ai-sdk-research-agent"
+            ]
+          },
+          {
             "group": "Migration guide",
             "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
           },
@@ -648,6 +659,42 @@
     {
       "source": "/migrations/:slug*",
       "destination": "/v3/migrations/:slug*"
+    },
+    {
+      "source": "/v4/examples/compare-pages-in-parallel",
+      "destination": "/v4/best-practices/using-multiple-tabs"
+    },
+    {
+      "source": "/v4/examples/model-gateway-extract",
+      "destination": "/v4/configuration/models#model-gateway"
+    },
+    {
+      "source": "/v4/examples/observe-then-act",
+      "destination": "/v4/cookbooks/paginated-catalog"
+    },
+    {
+      "source": "/v4/examples/tanstack-ai-extraction-tool",
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/overview",
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/approve-form-submission",
+      "destination": "/v4/cookbooks/approve-form-submission"
+    },
+    {
+      "source": "/v4/examples/paginated-catalog",
+      "destination": "/v4/cookbooks/paginated-catalog"
+    },
+    {
+      "source": "/v4/examples/files-to-bucket",
+      "destination": "/v4/cookbooks/files-to-bucket"
+    },
+    {
+      "source": "/v4/examples/ai-sdk-research-agent",
+      "destination": "/v4/cookbooks/ai-sdk-research-agent"
     }
   ]
 }

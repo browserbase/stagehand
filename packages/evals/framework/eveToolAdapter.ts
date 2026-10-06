@@ -77,13 +77,9 @@ export const EVE_DISABLED_FRAMEWORK_TOOLS = [
   "bash",
   "read_file",
   "write_file",
-  "glob",
-  "grep",
   "web_fetch",
   "web_search",
   "agent",
-  "ask_question",
-  "todo",
   "load_skill",
 ] as const;
 
@@ -210,7 +206,12 @@ export function buildEveAgentAppFiles(options: {
 }): Record<string, string> {
   const files: Record<string, string> = {
     "package.json": `${JSON.stringify(
-      { name: "stagehand-evals-eve-agent", private: true, type: "module" },
+      {
+        name: "stagehand-evals-eve-agent",
+        private: true,
+        type: "module",
+        dependencies: { eve: "^0.71.2" },
+      },
       null,
       2,
     )}\n`,

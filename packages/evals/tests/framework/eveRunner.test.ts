@@ -29,20 +29,22 @@ const plan: ExternalHarnessTaskPlan = {
 function fakeClient(events: EveEvent[], onPrompt?: (prompt: string) => void): EveClientLike {
   return {
     health: async () => ({}),
-    session: () => ({
-      cancel: async () => ({}),
-      send: async ({ message }) => {
+    sessions: {
+      create: async ({ message }) => {
         onPrompt?.(message);
-        return Object.assign(
-          {
-            async *[Symbol.asyncIterator]() {
-              yield* events;
+        return {
+          session: { cancel: async () => ({}) },
+          response: Object.assign(
+            {
+              async *[Symbol.asyncIterator]() {
+                yield* events;
+              },
             },
-          },
-          { sessionId: "eve-session" },
-        );
+            { sessionId: "eve-session" },
+          ),
+        };
       },
-    }),
+    },
   };
 }
 
@@ -291,12 +293,11 @@ describe("Eve runner helpers", () => {
   it("returns a failed task result when Eve send throws", async () => {
     const client: EveClientLike = {
       health: async () => ({}),
-      session: () => ({
-        cancel: async () => ({}),
-        send: async () => {
+      sessions: {
+        create: async () => {
           throw new Error("eve send failed with sk-abc123SUPERSECRET");
         },
-      }),
+      },
     };
     const result = await runEveAgent({
       plan,

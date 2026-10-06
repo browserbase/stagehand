@@ -61,7 +61,7 @@ export const integrationTestGroups = {
     "pageScreenshot",
     "pageScroll",
   ],
-  "local/snapshots-ai": ["observeElementIdFormat", "unicodeWellFormed"],
+  "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
   "local/waits-timeouts": ["waitForSelector", "waitForTimeout"],
   "local/webmcp": ["webmcpDiscovery", "webmcpIframes"],
 } as const;

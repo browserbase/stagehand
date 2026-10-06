@@ -6,6 +6,7 @@ import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harne
 import {
   extractEveTokenUsage,
   logEveEvent,
+  loadEveClient,
   parseEveDevServerUrl,
   runEveSession,
   startEveDevServer,
@@ -31,7 +32,7 @@ function clientFor(events: EveEvent[]) {
   const send = vi.fn(async (_input: { message: string; signal?: AbortSignal }) => response(events));
   const client: EveClientLike = {
     health: vi.fn(async () => ({})),
-    session: () => ({ send, cancel }),
+    sessions: { create: async (input) => ({ session: { cancel }, response: await send(input) }) },
   };
   return { client, send, cancel };
 }
@@ -55,6 +56,30 @@ function fakeChild() {
 }
 
 describe("Eve SDK session", () => {
+  it("creates a session with the installed Eve client", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ sessionId: "session-real-client" }, { status: 202 }));
+    try {
+      const client = await loadEveClient("http://localhost:12345");
+      const signal = new AbortController().signal;
+      const { session, response } = await client.sessions.create({ message: "task", signal });
+      expect(response.sessionId).toBe("session-real-client");
+      expect(typeof session.cancel).toBe("function");
+      expect(fetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ message: "task" }),
+          signal,
+        }),
+      );
+      expect(fetch.mock.calls[0]?.[0]).toBe("http://localhost:12345/eve/v1/session");
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+
   it("parses only the dev server ready line", () => {
     expect(parseEveDevServerUrl("☰eve  v0.29.4")).toBeUndefined();
     expect(parseEveDevServerUrl("[DEV] server listening at http://127.0.0.1:61439/")).toBe(
@@ -421,10 +446,10 @@ describe("Eve SDK session", () => {
     const cancel = vi.fn(async () => ({}));
     const client: EveClientLike = {
       health: vi.fn(async () => ({})),
-      session: () => ({
-        cancel,
-        send: vi.fn(async () =>
-          Object.assign(
+      sessions: {
+        create: vi.fn(async () => ({
+          session: { cancel },
+          response: Object.assign(
             {
               async *[Symbol.asyncIterator]() {
                 yield {
@@ -437,8 +462,8 @@ describe("Eve SDK session", () => {
             },
             { sessionId: "session-1" },
           ),
-        ),
-      }),
+        })),
+      },
     };
     const pending = runEveSession({
       prompt: "task",
@@ -482,10 +507,10 @@ describe("Eve SDK session", () => {
     const cancel = vi.fn(async () => ({}));
     const client: EveClientLike = {
       health: vi.fn(async () => ({})),
-      session: () => ({
-        cancel,
-        send: vi.fn(async () =>
-          Object.assign(
+      sessions: {
+        create: vi.fn(async () => ({
+          session: { cancel },
+          response: Object.assign(
             {
               async *[Symbol.asyncIterator]() {
                 streamStarted?.();
@@ -495,8 +520,8 @@ describe("Eve SDK session", () => {
             },
             { sessionId: "session-1" },
           ),
-        ),
-      }),
+        })),
+      },
     };
     const pending = runEveSession({
       prompt: "task",
@@ -586,7 +611,7 @@ describe("Eve SDK session", () => {
       health: vi.fn(async () => {
         throw new Error("health failed");
       }),
-      session: vi.fn(),
+      sessions: { create: vi.fn() },
     };
     const result = await runEveSession({
       prompt: "task",
