@@ -1,0 +1,277 @@
+import type { ToolContext } from "eve/tools";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { browserbaseWebFetch, browserbaseWebSearch } from "../src/tools/index.js";
+import {
+  browserbaseWebFetchInputSchema,
+  browserbaseWebFetchOutputSchema,
+} from "../src/tools/web-fetch.js";
+import { browserbaseWebSearchOutputSchema } from "../src/tools/web-search.js";
+
+const mocks = vi.hoisted(() => ({
+  createClient: vi.fn(),
+  fetch: vi.fn(),
+  search: vi.fn(),
+}));
+
+vi.mock("@browserbasehq/sdk", () => ({
+  default: class Browserbase {
+    readonly fetchAPI = { create: mocks.fetch };
+    readonly search = { web: mocks.search };
+
+    constructor(options: unknown) {
+      mocks.createClient(options);
+    }
+  },
+}));
+
+const abortSignal = new AbortController().signal;
+const toolContext = { abortSignal } as ToolContext;
+
+async function executeWebTool(operation: "fetch" | "search", context: ToolContext) {
+  if (operation === "fetch") {
+    return browserbaseWebFetch({ apiKey: "test-key" }).execute(
+      browserbaseWebFetchInputSchema.parse({ url: "https://example.com" }),
+      context,
+    );
+  }
+  return browserbaseWebSearch({ apiKey: "test-key" }).execute(
+    { query: "stagehand", numResults: 1 },
+    context,
+  );
+}
+
+describe("Browserbase Eve web tools", () => {
+  beforeEach(() => {
+    mocks.createClient.mockReset();
+    mocks.fetch.mockReset();
+    mocks.search.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("creates a reusable Browserbase web search tool", async () => {
+    const response = {
+      query: "stagehand",
+      requestId: "request-one",
+      results: [
+        {
+          id: "result-one",
+          title: "Stagehand",
+          url: "https://www.stagehand.dev",
+          author: null,
+          favicon: null,
+          image: null,
+          publishedDate: null,
+        },
+      ],
+    };
+    mocks.search.mockResolvedValueOnce(response);
+    const tool = browserbaseWebSearch({
+      apiKey: "test-key",
+      baseUrl: "https://api.example.test///",
+      maxRetries: 1,
+      timeoutMs: 5_000,
+    });
+
+    await expect(tool.execute({ query: "stagehand", numResults: 5 }, toolContext)).resolves.toBe(
+      response,
+    );
+    expect(mocks.createClient).toHaveBeenCalledWith({
+      apiKey: "test-key",
+      baseURL: "https://api.example.test",
+      maxRetries: 1,
+      timeout: 5_000,
+    });
+    expect(mocks.search).toHaveBeenCalledWith(
+      { query: "stagehand", numResults: 5 },
+      { signal: abortSignal },
+    );
+    expect(browserbaseWebSearchOutputSchema["~standard"].validate(response)).toEqual({
+      value: response,
+    });
+  });
+
+  it("creates a reusable Browserbase web fetch tool", async () => {
+    const response = {
+      id: "fetch-one",
+      content: "# Example",
+      contentType: "text/markdown",
+      encoding: "utf-8",
+      headers: {},
+      statusCode: 200,
+    };
+    mocks.fetch.mockResolvedValueOnce(response);
+    const tool = browserbaseWebFetch({ apiKey: "test-key" });
+
+    await expect(
+      tool.execute(
+        {
+          url: "https://example.com",
+          format: "markdown",
+          schema: undefined,
+          allowRedirects: true,
+          allowInsecureSsl: false,
+          proxies: false,
+        },
+        toolContext,
+      ),
+    ).resolves.toBe(response);
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      {
+        url: "https://example.com",
+        format: "markdown",
+        schema: undefined,
+        allowRedirects: true,
+        allowInsecureSsl: false,
+        proxies: false,
+      },
+      { signal: abortSignal },
+    );
+  });
+
+  it("accepts array-valued structured fetch results", async () => {
+    const response = {
+      id: "fetch-array",
+      content: [{ title: "Example" }, { title: "Domain" }],
+      contentType: "application/json",
+      encoding: "utf-8",
+      headers: {},
+      statusCode: 200,
+    };
+
+    expect(browserbaseWebFetchOutputSchema["~standard"].validate(response)).toEqual({
+      value: response,
+    });
+  });
+
+  it("resolves the default API key lazily from the runtime environment", async () => {
+    const response = { query: "stagehand", requestId: "request-two", results: [] };
+    mocks.search.mockResolvedValueOnce(response);
+    const tool = browserbaseWebSearch();
+
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    vi.stubEnv("BROWSERBASE_API_KEY", "runtime-key");
+
+    await expect(tool.execute({ query: "stagehand", numResults: 10 }, toolContext)).resolves.toBe(
+      response,
+    );
+    expect(mocks.createClient).toHaveBeenCalledWith({ apiKey: "runtime-key" });
+  });
+
+  it("validates structured fetch inputs and applies safe defaults", async () => {
+    const missingSchema = await browserbaseWebFetchInputSchema["~standard"].validate({
+      url: "https://example.com",
+      format: "json",
+    });
+    const misplacedSchema = await browserbaseWebFetchInputSchema["~standard"].validate({
+      url: "https://example.com",
+      format: "markdown",
+      schema: { type: "object" },
+    });
+    const missingTopLevelType = await browserbaseWebFetchInputSchema["~standard"].validate({
+      url: "https://example.com",
+      format: "json",
+      schema: { properties: { title: { type: "string" } } },
+    });
+    const structured = await browserbaseWebFetchInputSchema["~standard"].validate({
+      url: "https://example.com",
+      format: "json",
+      schema: { type: "object", properties: { title: { type: "string" } } },
+    });
+    const valid = await browserbaseWebFetchInputSchema["~standard"].validate({
+      url: "https://example.com",
+    });
+
+    expect("issues" in missingSchema).toBe(true);
+    expect("issues" in misplacedSchema).toBe(true);
+    expect(missingTopLevelType).toMatchObject({
+      issues: [{ message: "schema.type must declare a top-level JSON Schema type." }],
+    });
+    expect("issues" in structured).toBe(false);
+    expect(valid).toMatchObject({
+      value: {
+        url: "https://example.com",
+        format: "markdown",
+        allowRedirects: true,
+        allowInsecureSsl: false,
+        proxies: false,
+      },
+    });
+  });
+
+  it.each([
+    "ftp://example.com/file",
+    "file:///tmp/file",
+    "data:text/plain,hello",
+    "javascript:void(0)",
+  ])("rejects a non-HTTP fetch URL: %s", async (url) => {
+    const result = await browserbaseWebFetchInputSchema["~standard"].validate({ url });
+    expect("issues" in result).toBe(true);
+  });
+
+  it.each(["fetch", "search"] as const)("sanitizes remote %s failures", async (operation) => {
+    mocks[operation].mockRejectedValueOnce(
+      new Error("provider failure: Bearer secret-provider-value"),
+    );
+    const error = await executeWebTool(operation, toolContext).catch((error: unknown) => error);
+    expect(error).toMatchObject({
+      name: operation === "fetch" ? "BrowserbaseWebFetchError" : "BrowserbaseWebSearchError",
+      message: `Browserbase web ${operation} failed.`,
+    });
+    expect((error as Error).cause).toBeUndefined();
+    expect(String(error)).not.toContain("secret-provider-value");
+  });
+
+  it.each(["fetch", "search"] as const)(
+    "preserves cancellation for %s without exposing the abort reason",
+    async (operation) => {
+      const controller = new AbortController();
+      controller.abort(new Error("secret abort reason"));
+      mocks[operation].mockRejectedValueOnce(controller.signal.reason);
+      const error = await executeWebTool(operation, {
+        abortSignal: controller.signal,
+      } as ToolContext).catch((error: unknown) => error);
+      expect(error).toMatchObject({ name: "AbortError" });
+      expect(String(error)).not.toContain("secret abort reason");
+    },
+  );
+
+  it("rejects invalid client options on first execution", () => {
+    const search = browserbaseWebSearch({ apiKey: "" });
+    const retries = browserbaseWebFetch({ apiKey: "test-key", maxRetries: -1 });
+    const timeout = browserbaseWebFetch({ apiKey: "test-key", timeoutMs: 0 });
+
+    expect(() => search.execute({ query: "stagehand", numResults: 10 }, toolContext)).toThrow(
+      "Browserbase web tools require apiKey or the BROWSERBASE_API_KEY environment variable.",
+    );
+    expect(() =>
+      retries.execute(
+        {
+          url: "https://example.com",
+          format: "markdown",
+          schema: undefined,
+          allowRedirects: true,
+          allowInsecureSsl: false,
+          proxies: false,
+        },
+        toolContext,
+      ),
+    ).toThrow("Browserbase web tool maxRetries must be a non-negative integer.");
+    expect(() =>
+      timeout.execute(
+        {
+          url: "https://example.com",
+          format: "markdown",
+          schema: undefined,
+          allowRedirects: true,
+          allowInsecureSsl: false,
+          proxies: false,
+        },
+        toolContext,
+      ),
+    ).toThrow("Browserbase web tool timeoutMs must be a positive number.");
+  });
+});
