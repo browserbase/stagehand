@@ -141,6 +141,57 @@ jobs:
         if: always() && !cancelled() && steps.status.outcome == 'success' && steps.status.outputs.has-changesets == 'false'
         run: pnpm exec tsx scripts/release/push-cli-release-tag.ts
 
+  publish-cli-alpha:
+    name: Publish Browse alpha
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "12.6.0"
+          run_install: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install npm
+        run: npm install --global npm@11.16.0
+
+      - run: pnpm install --frozen-lockfile
+
+      # Independent of stable jobs: failed tag recovery must not block alphas.
+      # A push may contain several commits, so compare against its before SHA.
+      - name: Prepare Browse alpha
+        id: alpha
+        env:
+          CLI_ALPHA_BASE: ${{ github.event.before }}
+        run: pnpm exec tsx scripts/release/cli-alpha.ts >> "$GITHUB_OUTPUT"
+
+      - name: Wait for published SDK dependencies
+        if: steps.alpha.outputs.should-publish == 'true'
+        run: pnpm exec tsx scripts/release/scoped-release.ts wait-dependencies cli
+
+      - name: Build and smoke-test Browse alpha against the published SDK
+        if: steps.alpha.outputs.should-publish == 'true'
+        run: |
+          pnpm exec tsx scripts/release/smoke-cli-package.ts
+          pnpm --filter browse test:cli
+
+      - name: Publish Browse alpha
+        if: steps.alpha.outputs.should-publish == 'true'
+        run: pnpm exec tsx scripts/release/scoped-release.ts publish cli --alpha
+
   publish-typescript-alpha:
     name: Publish TypeScript SDK alpha
     needs: release-typescript
