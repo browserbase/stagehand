@@ -7,7 +7,7 @@
 
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
-import type { ClientOptions as BrowserbaseSdkClientOptions } from "@browserbasehq/sdk";
+import type { ClientOptions } from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import {
@@ -70,7 +70,7 @@ export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
  * the Stagehand runtime.
  */
 export type BrowserbaseClientOptions = Pick<
-  BrowserbaseSdkClientOptions,
+  ClientOptions,
   "timeout" | "maxRetries" | "defaultHeaders" | "defaultQuery" | "fetch"
 >;
 
@@ -83,10 +83,9 @@ const BrowserbaseClientOptionsSchema: z.ZodType<
   defaultHeaders: z.record(z.string(), z.string().nullable().optional()).optional(),
   defaultQuery: z.record(z.string(), z.string().optional()).optional(),
   fetch: z
-    .custom<NonNullable<BrowserbaseSdkClientOptions["fetch"]>>(
-      (value) => typeof value === "function",
-      { message: "fetch must be a function" },
-    )
+    .custom<NonNullable<ClientOptions["fetch"]>>((value) => typeof value === "function", {
+      message: "fetch must be a function",
+    })
     .optional(),
 });
 
