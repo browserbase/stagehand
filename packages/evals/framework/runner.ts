@@ -287,6 +287,49 @@ export interface RunEvalsResult {
   }>;
 }
 
+export type SummaryResult = RunEvalsResult["results"][number] & { categories?: string[] };
+
+/**
+ * Normalize one Braintrust Eval result row for the run summary. Braintrust
+ * leaves `output` undefined when the task function threw (or its span failed
+ * after the task returned) and reports the failure in `error`; that row must
+ * still count as a failure so the summary, experiment link, and per-model
+ * table are written for the rest of the run.
+ */
+export function toSummaryResult(result: {
+  input: EvalInput;
+  output?: unknown;
+  error?: unknown;
+  metadata?: Record<string, unknown>;
+}): SummaryResult {
+  const output: SummaryResult["output"] =
+    typeof result.output === "boolean"
+      ? { _success: result.output }
+      : result.output !== null && typeof result.output === "object"
+        ? (result.output as SummaryResult["output"])
+        : {
+            _success: false,
+            error:
+              formatProgressError(result.error) ??
+              (result.output === undefined
+                ? "Braintrust reported no output for this task"
+                : String(result.output)),
+          };
+  const categories = Array.isArray(result.metadata?.categories)
+    ? result.metadata.categories.filter(
+        (category): category is string => typeof category === "string",
+      )
+    : undefined;
+
+  return {
+    input: result.input,
+    output,
+    name: result.input.name,
+    score: output._success ? 1 : 0,
+    ...(categories && { categories }),
+  };
+}
+
 function formatProgressError(error: unknown): string | undefined {
   if (error === undefined || error === null) return undefined;
   if (typeof error === "string") return error;
@@ -297,6 +340,57 @@ function formatProgressError(error: unknown): string | undefined {
   } catch {
     return String(error);
   }
+}
+
+/**
+ * Experiment-level metadata for Braintrust/LangSmith filtering. Tool surface
+ * and model are always present (derived from the planned rows when not set
+ * globally) so cells can be grouped without opening a row; a single value
+ * is emitted as a scalar, several as a list.
+ */
+export function buildExperimentMetadata(input: {
+  environment: "LOCAL" | "BROWSERBASE";
+  tier: "core" | "bench";
+  coreToolSurface?: string;
+  coreStartupProfile?: string;
+  harness?: Harness;
+  modelOverride?: string;
+  useApi?: boolean;
+  testcases: Testcase[];
+}): Record<string, unknown> {
+  const distinct = (pick: (tc: Testcase) => unknown): string[] => {
+    const values = new Set<string>();
+    for (const tc of input.testcases) {
+      const value = pick(tc);
+      if (typeof value === "string" && value) values.add(value);
+    }
+    return [...values].sort();
+  };
+  const scalarOrList = (values: string[]): string | string[] | undefined =>
+    values.length === 0 ? undefined : values.length === 1 ? values[0] : values;
+
+  const toolSurface =
+    input.coreToolSurface ?? scalarOrList(distinct((tc) => tc.metadata?.toolSurface));
+  const startupProfile =
+    input.coreStartupProfile ?? scalarOrList(distinct((tc) => tc.metadata?.startupProfile));
+  const model =
+    input.modelOverride ??
+    scalarOrList(distinct((tc) => tc.metadata?.model).filter((m) => m !== "none"));
+  const provider = scalarOrList(distinct((tc) => tc.metadata?.provider));
+  const dataset = scalarOrList(distinct((tc) => tc.metadata?.dataset));
+
+  return {
+    environment: input.environment,
+    tier: input.tier,
+    ...(toolSurface && { tool_surface: toolSurface, toolSurface }),
+    ...(startupProfile && { startup_profile: startupProfile, startupProfile }),
+    ...(input.harness && { harness: input.harness }),
+    ...(model && { model }),
+    ...(provider && { provider }),
+    ...(dataset && { dataset }),
+    task_count: input.testcases.length,
+    ...(input.useApi && { api: true }),
+  };
 }
 
 const MAX_SPAN_PAYLOAD_BYTES = 2_000_000;
@@ -423,19 +517,16 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
         braintrustProjectName,
         {
           experimentName,
-          metadata: {
+          metadata: buildExperimentMetadata({
             environment,
             tier: hasCoreOnly ? "core" : "bench",
-            ...(effectiveCoreToolSurface && {
-              toolSurface: effectiveCoreToolSurface,
-            }),
-            ...(effectiveCoreStartupProfile && {
-              startupProfile: effectiveCoreStartupProfile,
-            }),
-            ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
-            ...(options.modelOverride && { model: options.modelOverride }),
-            ...(options.useApi && { api: true }),
-          },
+            coreToolSurface: effectiveCoreToolSurface,
+            coreStartupProfile: effectiveCoreStartupProfile,
+            harness: effectiveBenchHarness,
+            modelOverride: options.modelOverride,
+            useApi: options.useApi,
+            testcases,
+          }),
           data: () => testcases,
           task: async (input: EvalInput): Promise<TaskResult> => {
             // Cooperative abort: skip any testcase that hasn't started yet
@@ -482,6 +573,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                           _success: r._success,
                           ...(r.error === undefined ? {} : { error: r.error }),
                           ...(r.metrics === undefined ? {} : { metrics: r.metrics }),
+                          ...(r.sessionUrl === undefined ? {} : { sessionUrl: r.sessionUrl }),
                           ...(r.logs === undefined ? {} : { logs: r.logs }),
                         }),
                         metadata: {
@@ -489,6 +581,9 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                           thread_id: traceThreadId,
                           model: input.modelName,
                           task: input.name,
+                          ...(typeof r.browserbaseSessionId === "string"
+                            ? { browserbase_session_id: r.browserbaseSessionId }
+                            : {}),
                         },
                       });
                       return r;
@@ -526,23 +621,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       await flush();
     }
 
-    const summaryResults = evalResult.results.map((result) => {
-      const output =
-        typeof result.output === "boolean" ? { _success: result.output } : result.output;
-      const categories = Array.isArray(result.metadata?.categories)
-        ? result.metadata.categories.filter(
-            (category): category is string => typeof category === "string",
-          )
-        : undefined;
-
-      return {
-        input: result.input,
-        output,
-        name: result.input.name,
-        score: output._success ? 1 : 0,
-        ...(categories && { categories }),
-      };
-    });
+    const summaryResults = evalResult.results.map((result) => toSummaryResult(result));
 
     const resolvedExperimentName = evalResult.summary?.experimentName ?? experimentName;
     const resolvedExperimentUrl = evalResult.summary?.experimentUrl;

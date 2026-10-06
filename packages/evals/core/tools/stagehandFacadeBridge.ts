@@ -16,6 +16,13 @@ export class StagehandFacadeBridgeError extends EvalsError {
   }
 }
 
+export class StagehandFacadeTimeoutError extends StagehandFacadeBridgeError {
+  constructor(readonly timeoutMs: number) {
+    super(`Stagehand facade request timed out after ${timeoutMs}ms`);
+    this.name = "StagehandFacadeTimeoutError";
+  }
+}
+
 const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 10_000;
 const RUNNER_REQUEST_ID_PREFIX = "evals-facade-";
@@ -359,11 +366,7 @@ class RunnerRpcClient {
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(
-          new StagehandFacadeBridgeError(
-            `Stagehand facade request "${method}" timed out after ${timeoutMs}ms`,
-          ),
-        );
+        reject(new StagehandFacadeTimeoutError(timeoutMs));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
       const request = { jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) };

@@ -23,8 +23,8 @@ import type { Harness } from "../../framework/benchTypes.js";
 import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
 import {
   armsOverLimit,
-  armsWithUngradedRuns,
   armsWithPassesWithoutBrowserUse,
+  armsWithUngradedRuns,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
 } from "../../framework/verifierGate.js";

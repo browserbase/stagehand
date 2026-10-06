@@ -3,12 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { EvalsError } from "../../errors.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 import {
   EVE_DISABLED_FRAMEWORK_TOOLS,
   EVE_TOOL_SURFACES,
   buildEveAgentAppFiles,
   buildEveAgentDefinitionSource,
   eveToolSlug,
+  resolveEveModelContextWindowTokens,
   resolveEveModelProvider,
   writeEveAgentApp,
   writeEveAgentDefinition,
@@ -37,8 +39,62 @@ describe("Eve tool adapter helpers", () => {
       modelId: "gemini-2.5-pro",
     });
     expect(resolveEveModelProvider("gpt-5.4-mini").factory).toBe("openai");
-    expect(() => resolveEveModelProvider("mistral/x")).toThrow(EvalsError);
-    expect(() => resolveEveModelProvider("mistral/x")).toThrow(/openai\/, anthropic\/, google\//);
+  });
+
+  it("routes other creators through the Vercel AI Gateway with creator-prefixed ids", () => {
+    expect(resolveEveModelProvider("alibaba/qwen3.8-flash")).toEqual({
+      pkg: "ai",
+      factory: "gateway",
+      modelId: "alibaba/qwen3.8-flash",
+    });
+    expect(resolveEveModelProvider("zai/glm-5.3").modelId).toBe("zai/glm-5.3");
+    // Explicit gateway/ forces the gateway even for first-party creators.
+    expect(resolveEveModelProvider("gateway/openai/gpt-5.4-mini")).toEqual({
+      pkg: "ai",
+      factory: "gateway",
+      modelId: "openai/gpt-5.4-mini",
+    });
+    expect(() => resolveEveModelProvider("gateway/gpt-5.4-mini")).toThrow(EvalsError);
+    expect(() => resolveEveModelProvider("alibaba/")).toThrow(EvalsError);
+  });
+
+  it.each([
+    "gateway//",
+    "gateway/openai/",
+    "gateway//model",
+    "gateway/open ai/model",
+    "gateway/openai/model/extra",
+    "openai/",
+    "anthropic/",
+    "google/",
+    "/model",
+  ])("rejects incomplete provider identifiers (%s)", (model) => {
+    expect(() => resolveEveModelProvider(model)).toThrow(EvalsError);
+  });
+
+  it("builds a gateway agent definition without a first-party provider import", () => {
+    const source = buildEveAgentDefinitionSource("alibaba/qwen3.8-flash", {
+      modelContextWindowTokens: 128_000,
+    });
+    expect(source).toContain('import { gateway } from "ai";');
+    expect(source).toContain('gateway("alibaba/qwen3.8-flash")');
+    expect(source).toContain("modelContextWindowTokens: 128000,");
+    expect(source).not.toContain("@ai-sdk/");
+  });
+
+  it("pins a context window for gateway models eve's catalog may not know", () => {
+    expect(resolveEveModelContextWindowTokens("alibaba/qwen3.8-flash", {})).toBe(128_000);
+    expect(resolveEveModelContextWindowTokens("openai/gpt-5.4-mini", {})).toBeUndefined();
+    expect(
+      resolveEveModelContextWindowTokens("openai/gpt-5.4-mini", {
+        EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS: "200000",
+      }),
+    ).toBe(200_000);
+    expect(() =>
+      resolveEveModelContextWindowTokens("alibaba/qwen3.8-flash", {
+        EVAL_EVE_MODEL_CONTEXT_WINDOW_TOKENS: "lots",
+      }),
+    ).toThrow(EvalsError);
   });
 
   it("builds an agent definition with the selected model and uncapped token limits", () => {
@@ -47,6 +103,18 @@ describe("Eve tool adapter helpers", () => {
     expect(source).toContain('anthropic("claude-sonnet-4-6")');
     expect(source).toContain("maxInputTokensPerSession: false");
     expect(source).toContain("maxOutputTokensPerSession: false");
+  });
+
+  it("wraps the model in a reasoning-summary middleware when provider options are given", () => {
+    const source = buildEveAgentDefinitionSource("openai/gpt-5.6-luna", {
+      providerOptions: { openai: { reasoningSummary: "detailed" } },
+    });
+    expect(source).toContain('import { defaultSettingsMiddleware, wrapLanguageModel } from "ai";');
+    expect(source).toContain('model: openai("gpt-5.6-luna")');
+    expect(source).toContain(
+      'defaultSettingsMiddleware({ settings: { providerOptions: {"openai":{"reasoningSummary":"detailed"}} } })',
+    );
+    expect(buildEveAgentDefinitionSource("openai/gpt-5.6-luna")).not.toContain("wrapLanguageModel");
   });
 
   it("builds authored MCP tools, bridge, instructions, and disabled built-ins", () => {
@@ -75,7 +143,8 @@ describe("Eve tool adapter helpers", () => {
     }
     expect(files["agent/tools/load_skill.ts"]).toContain("disableTool");
     expect(files["agent/instructions.md"]).toContain("Use the mounted browser.");
-    expect(files["agent/instructions.md"]).toContain("Never ask the user questions");
+    expect(files["agent/instructions.md"].split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+    expect(files["agent/instructions.md"]).not.toContain("Never ask the user questions");
     expect(files["agent/instructions.md"]).toContain("requested compact JSON");
     expect(files["agent/lib/mcp-bridge.ts"]).toContain("STAGEHAND_EVE_MCP_SERVERS");
     expect(files["agent/lib/mcp-bridge.ts"]).toContain("@modelcontextprotocol/sdk/client/index.js");
@@ -155,6 +224,6 @@ describe("Eve tool adapter helpers", () => {
         { harness: "eve", supportedToolSurfaces: EVE_TOOL_SURFACES },
         "browse_cli",
       ),
-    ).toThrow(/stagehand_facade, playwright_mcp, or chrome_devtools_mcp/);
+    ).toThrow(/stagehand_facade, stagehand_facade_legacy, playwright_mcp, or chrome_devtools_mcp/);
   });
 });
