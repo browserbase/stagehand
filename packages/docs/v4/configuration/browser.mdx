@@ -228,7 +228,7 @@ if err != nil {
 </Tab>
 </Tabs>
 
-Units follow each SDK: TypeScript timeouts are in milliseconds, Python timeouts are in seconds, and Go uses a `time.Duration` that bounds each attempt. Stagehand never closes an `http_client` you pass; keep it open until `browser.close()` returns, because releasing the session uses it. Go never modifies an `HTTPClient` you pass, so its own `Timeout` and `Transport` still apply.
+Units follow each SDK: TypeScript timeouts are in milliseconds, Python timeouts are in seconds, and Go uses a `time.Duration` that bounds each attempt. Stagehand never closes an `http_client` you pass; keep it open until `browser.close()` returns, because releasing the session uses it. Go never modifies an `HTTPClient` you pass, so its own `Timeout` and `Transport` still apply. Header precedence differs: in TypeScript and Python, `defaultHeaders` / `default_headers` override the client's headers, including `X-BB-API-Key` and `User-Agent`; in Go, Stagehand's `X-BB-API-Key`, `User-Agent`, `Content-Type`, and `Accept` headers take precedence over `DefaultHeaders`, and Go rejects invalid header names or values before sending any request.
 
 ### Environment variables
 

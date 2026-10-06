@@ -179,8 +179,12 @@ func TestBrowserbaseClientOptionsTimeoutBoundsEachAttempt(t *testing.T) {
 		request *http.Request,
 	) {
 		if requests.Add(1) == 1 {
-			// Hang the first attempt until the client gives up on it.
-			<-request.Context().Done()
+			// Hang the first attempt until the client gives up on it. The fallback
+			// keeps a missing attempt deadline a test failure rather than a hang.
+			select {
+			case <-request.Context().Done():
+			case <-time.After(5 * time.Second):
+			}
 			return
 		}
 		writeBrowserbaseTestJSON(writer, browserbaseTestSessionResponse("session_123", "COMPLETED"))
@@ -198,7 +202,7 @@ func TestBrowserbaseClientOptionsTimeoutBoundsEachAttempt(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("retrieveSession() error = %v, want context.DeadlineExceeded", err)
 	}
-	if elapsed := time.Since(started); elapsed > 5*time.Second {
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
 		t.Fatalf("timed-out attempt took %s", elapsed)
 	}
 	if httpClient.Timeout != 0 {
@@ -218,6 +222,65 @@ func TestBrowserbaseClientOptionsTimeoutBoundsEachAttempt(t *testing.T) {
 	}
 	if requests.Load() != 2 {
 		t.Fatalf("requests = %d, want 2", requests.Load())
+	}
+}
+
+func TestBrowserbaseClientOptionsTimeoutCoversResponseBody(t *testing.T) {
+	tests := []struct {
+		name      string
+		bodyDelay time.Duration
+		timeout   time.Duration
+		wantErr   error
+	}{
+		{name: "slow body within timeout", bodyDelay: 100 * time.Millisecond, timeout: 5 * time.Second},
+		{
+			name:      "stalled body past timeout",
+			bodyDelay: 5 * time.Second,
+			timeout:   50 * time.Millisecond,
+			wantErr:   context.DeadlineExceeded,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(
+				writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				// Send the headers first, then delay the body.
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusOK)
+				writer.(http.Flusher).Flush()
+				select {
+				case <-request.Context().Done():
+					return
+				case <-time.After(test.bodyDelay):
+				}
+				_ = json.NewEncoder(writer).Encode(
+					browserbaseTestSessionResponse("session_123", "COMPLETED"),
+				)
+			}))
+			defer server.Close()
+
+			client := newBrowserbaseTestClientFromOptions(t, server.URL, &BrowserbaseClientOptions{
+				Timeout:    test.timeout,
+				MaxRetries: testPointer(0),
+				HTTPClient: server.Client(),
+			})
+			started := time.Now()
+			_, err := client.retrieveSession(context.Background(), "session_123")
+			if test.wantErr == nil {
+				if err != nil {
+					t.Fatalf("retrieveSession() error = %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("retrieveSession() error = %v, want %v", err, test.wantErr)
+			}
+			if elapsed := time.Since(started); elapsed > 2*time.Second {
+				t.Fatalf("stalled body took %s, want it bounded by the attempt timeout", elapsed)
+			}
+		})
 	}
 }
 
@@ -266,6 +329,21 @@ func TestBrowserbaseClientOptionsRejectInvalidValuesBeforeRequests(t *testing.T)
 	}{
 		{name: "negative timeout", options: BrowserbaseClientOptions{Timeout: -time.Second}, want: "timeout cannot be negative"},
 		{name: "negative retries", options: BrowserbaseClientOptions{MaxRetries: testPointer(-1)}, want: "max retries cannot be negative"},
+		{
+			name:    "header value with newline",
+			options: BrowserbaseClientOptions{DefaultHeaders: map[string]string{"X-Bad": "a\nb"}},
+			want:    `invalid Browserbase default header "X-Bad" value`,
+		},
+		{
+			name:    "empty header name",
+			options: BrowserbaseClientOptions{DefaultHeaders: map[string]string{"": "value"}},
+			want:    `invalid Browserbase default header name ""`,
+		},
+		{
+			name:    "header name with space",
+			options: BrowserbaseClientOptions{DefaultHeaders: map[string]string{"X Bad": "value"}},
+			want:    `invalid Browserbase default header name "X Bad"`,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

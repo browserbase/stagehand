@@ -141,6 +141,14 @@ func newBrowserbaseHTTPClient(
 	if maxRetries < 0 {
 		return nil, errors.New("stagehand Browserbase max retries cannot be negative")
 	}
+	for name, value := range options.defaultHeaders {
+		if !validBrowserbaseHeaderName(name) {
+			return nil, fmt.Errorf("invalid Browserbase default header name %q", name)
+		}
+		if !validBrowserbaseHeaderValue(value) {
+			return nil, fmt.Errorf("invalid Browserbase default header %q value", name)
+		}
+	}
 	sleep := options.sleep
 	if sleep == nil {
 		sleep = sleepWithContext
@@ -156,6 +164,38 @@ func newBrowserbaseHTTPClient(
 		defaultQuery:   maps.Clone(options.defaultQuery),
 		sleep:          sleep,
 	}, nil
+}
+
+// validBrowserbaseHeaderName reports whether name is a non-empty RFC 9110 token,
+// the same rule net/http applies when it sends a request.
+func validBrowserbaseHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for index := 0; index < len(name); index++ {
+		character := name[index]
+		switch {
+		case character >= 'a' && character <= 'z',
+			character >= 'A' && character <= 'Z',
+			character >= '0' && character <= '9',
+			strings.IndexByte("!#$%&'*+-.^_`|~", character) >= 0:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// validBrowserbaseHeaderValue reports whether value has no control characters
+// other than horizontal tab, the same rule net/http applies when it sends a request.
+func validBrowserbaseHeaderValue(value string) bool {
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if (character < ' ' && character != '\t') || character == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 func (client *browserbaseHTTPClient) uploadExtension(
