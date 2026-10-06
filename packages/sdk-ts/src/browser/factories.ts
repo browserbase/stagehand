@@ -52,6 +52,8 @@ type BrowserFactoryDependencies = {
 
 type BrowserConnectionSource = {
   cdpUrl: string;
+  signingKey?: string;
+  relayExtensionCdp?: true;
   keepAlive: boolean;
   close?: () => Promise<void> | void;
 };
@@ -123,6 +125,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
         const parsed = LocalBrowserConnectOptionsSchema.parse(options);
         const source: BrowserConnectionSource = {
           cdpUrl: parsed.cdpUrl,
+          ...(parsed.relayExtensionCdp ? { relayExtensionCdp: true } : {}),
           keepAlive: true,
         };
         return await withStagehandInitDeadline(async (signal) =>
@@ -132,9 +135,11 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             source,
             connectCdp,
             extension:
-              parsed.extensionId === undefined
-                ? { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }
-                : { extensionId: parsed.extensionId },
+              parsed.extensionId !== undefined
+                ? { extensionId: parsed.extensionId }
+                : parsed.preloadedExtension
+                  ? { preloadedExtension: true }
+                  : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
             signal,
             workerInitMetadata: {},
           }),
@@ -161,6 +166,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           }
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
+            signingKey: session.signingKey,
             keepAlive: sessionOptions.keepAlive ?? false,
             close: session.close,
           };
@@ -192,6 +198,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           const session = await abortable(client.connectSession!(options.sessionId), signal);
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
+            signingKey: options.signingKey,
             keepAlive: true,
             close: session.close,
           };
@@ -268,8 +275,15 @@ async function connectBrowser(options: {
   const ownsSource = options.origin === "launched" && !options.source.keepAlive;
   let cdpClient: CDPClient | undefined;
   try {
+    // Signed-URL sessions already carry their credential in the URL. Keep the
+    // bearer header for sessions whose connection URL is credential-free.
+    const signingKeyForHeader = new URL(options.source.cdpUrl).searchParams.has("signingKey")
+      ? undefined
+      : options.source.signingKey;
     const connectionPromise = options.connectCdp({
       cdpUrl: options.source.cdpUrl,
+      ...(signingKeyForHeader ? { signingKey: signingKeyForHeader } : {}),
+      ...(options.source.relayExtensionCdp ? { relayExtensionCdp: true } : {}),
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
       signal: options.signal,

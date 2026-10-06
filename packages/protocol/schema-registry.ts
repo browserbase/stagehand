@@ -122,6 +122,7 @@ import {
 } from "./schemas.ts";
 
 export const STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost";
+export const STAGEHAND_HOST_CDP_RELAY_URL = "stagehand-host-cdp-relay";
 export const StagehandSendToHostBindingSchema = z
   .literal(STAGEHAND_SEND_TO_HOST_BINDING)
   .meta({ id: "StagehandSendToHostBinding" });

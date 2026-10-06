@@ -267,6 +267,39 @@ describe("Stagehand browser factories", () => {
     expect(browser).toMatchObject({ provider: "browserbase", origin: "launched" });
   });
 
+  it.each([
+    {
+      mode: "signed URL",
+      cdpUrl: "wss://connect.browserbase.com/?signingKey=test-key",
+      expectedHeaderKey: undefined,
+    },
+    {
+      mode: "bearer header",
+      cdpUrl: "wss://connect.browserbase.com/",
+      expectedHeaderKey: "test-key",
+    },
+  ])("uses the $mode credential transport for Browserbase launch", async ({
+    cdpUrl,
+    expectedHeaderKey,
+  }) => {
+    const connectCdp = vi.fn(async (_options: CDPClientOptions) => fakeCdpClient());
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient: () => ({
+        createSession: async () => ({
+          cdpUrl,
+          signingKey: "test-key",
+          sessionId: "session_123",
+          close: async () => {},
+        }),
+      }),
+      connectCdp,
+    });
+
+    await browserbase.launch({ apiKey: "bb_key" });
+
+    expect(connectCdp.mock.calls[0]?.[0].signingKey).toBe(expectedHeaderKey);
+  });
+
   it("connects to an existing Browserbase session", async () => {
     const connectSession = vi.fn(async () => ({
       sessionId: "session_123",

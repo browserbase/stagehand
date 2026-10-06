@@ -1,5 +1,8 @@
 import { runInNewContext } from "node:vm";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
+import { WebSocketServer } from "ws";
 import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   CDPClient,
@@ -123,6 +126,43 @@ class FakeWebSocket extends EventTarget {
     this.dispatchEvent(new CloseEvent("close"));
   }
 }
+
+describe("host CDP relay", () => {
+  it("adds the bearer header to the extension's CDP socket", async () => {
+    const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    await once(server, "listening");
+    const address = server.address() as AddressInfo;
+    const url = `ws://127.0.0.1:${address.port}`;
+    const client = new CDPClient(new FakeWebSocket() as never, url, "unit-test-key", true);
+    client.sessionId = "worker-session";
+    const sendEvent = vi.spyOn(client, "sendHostRelayEvent").mockImplementation(() => {});
+
+    try {
+      const connected = once(server, "connection");
+      const relayId = crypto.randomUUID();
+      client.handleHostRelayMessage({
+        kind: "stagehand.host_cdp_relay",
+        type: "open",
+        id: relayId,
+      });
+
+      const [, request] = await connected;
+      expect(request.headers.authorization).toBe("Bearer unit-test-key");
+      await vi.waitFor(() => expect(sendEvent).toHaveBeenCalledWith(relayId, { type: "open" }));
+
+      client.handleHostRelayMessage({
+        kind: "stagehand.host_cdp_relay",
+        type: "close",
+        id: relayId,
+      });
+    } finally {
+      client.close();
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+});
 
 describe("CDP WebSocket transport", () => {
   it("opens the built-in WebSocket transport", async () => {
