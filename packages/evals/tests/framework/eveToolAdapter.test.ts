@@ -134,6 +134,7 @@ describe("Eve tool adapter helpers", () => {
         ],
       },
     });
+    expect(JSON.parse(files["package.json"]).dependencies.eve).toBe("^0.71.2");
     const tool = files["agent/tools/stagehand__run.ts"];
     expect(tool).toContain('"stagehand"');
     expect(tool).toContain('"run"');
@@ -142,6 +143,10 @@ describe("Eve tool adapter helpers", () => {
       expect(files[`agent/tools/${name}.ts`]).toContain("disableTool");
     }
     expect(files["agent/tools/load_skill.ts"]).toContain("disableTool");
+    expect(files["agent/tools/ask_question.ts"]).toBeUndefined();
+    expect(files["agent/tools/todo.ts"]).toBeUndefined();
+    expect(files["agent/tools/glob.ts"]).toBeUndefined();
+    expect(files["agent/tools/grep.ts"]).toBeUndefined();
     expect(files["agent/instructions.md"]).toContain("Use the mounted browser.");
     expect(files["agent/instructions.md"].split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
     expect(files["agent/instructions.md"]).not.toContain("Never ask the user questions");
