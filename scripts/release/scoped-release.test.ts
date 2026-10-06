@@ -116,10 +116,6 @@ describe("independent release scopes using the real Changesets engine", () => {
       expect(requests).toBe(2);
       status = 404;
       await expect(assertPublishedCliDependencies(root, registry, 20)).rejects.toThrow();
-      // A deadline abort can leave the HTTP request in flight. Drop it before
-      // counting the 503 probe, or that late hit inflates the next assertion.
-      server.closeAllConnections();
-      await new Promise<void>((resolve) => setImmediate(resolve));
       status = 503;
       const before = requests;
       await expect(assertPublishedCliDependencies(root, registry, 1000)).rejects.toThrow(
