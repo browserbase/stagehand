@@ -481,16 +481,17 @@ async def test_launch_configures_downloads_on_the_root_session(
         return source
 
     monkeypatch.setattr(browser, "_launch_local_browser", launch)
+    downloads_path = Path("/tmp/downloads")
     handle = await local_browser.launch(
-        downloads_path=Path("/tmp/downloads"),
+        downloads_path=downloads_path,
         accept_downloads=True,
     )
 
-    assert captured[-1].downloads_path == "/tmp/downloads"
+    assert captured[-1].downloads_path == str(downloads_path)
     assert fake_cdp.instances[-1].commands == [
         (
             "Browser.setDownloadBehavior",
-            {"behavior": "allow", "downloadPath": "/tmp/downloads"},
+            {"behavior": "allow", "downloadPath": str(downloads_path)},
         )
     ]
     await handle.close()
@@ -583,7 +584,9 @@ async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_so
     packaged = await local_browser.connect(cdp_url="http://browser")
     arguments = fake_cdp.connect_arguments[-1]
     assert arguments["extension_id"] is None
-    assert str(arguments["extension_dir"]).endswith(("stagehand/_extension", "extension/dist"))
+    assert Path(str(arguments["extension_dir"])).as_posix().endswith(
+        ("stagehand/_extension", "extension/dist")
+    )
     assert arguments["service_worker_url_includes"] == "service-worker.js"
     assert set(arguments) == {
         "cdp_url",
