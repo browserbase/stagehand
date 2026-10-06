@@ -1,0 +1,193 @@
+---
+title: "Claude Toolset"
+sidebarTitle: "Claude Toolset"
+description: "Give Claude browser tools through the Anthropic SDK, with Stagehand driving local Chrome or a Browserbase session."
+---
+
+Connect Claude to a browser with `StagehandBrowser`. The Anthropic SDK runs the model's tool loop, and Stagehand handles browser interactions such as navigation, screenshots, and form input.
+
+## Prerequisites
+
+- An Anthropic API key and access to a model that supports the browser toolset.
+- Google Chrome for the local example, or a Browserbase API key for a hosted session.
+- Node.js 22.18 or later and pnpm for TypeScript, or Python 3.11 or later and uv for Python.
+
+## Install the integration
+
+Clone the [Claude Toolset repository](https://github.com/browserbase/claude-cua-toolset):
+
+```bash
+git clone https://github.com/browserbase/claude-cua-toolset.git
+cd claude-cua-toolset
+```
+
+<Tabs>
+  <Tab title="TypeScript">
+    Install the Anthropic SDK and Stagehand from npm:
+
+```bash
+cd typescript
+pnpm add @anthropic-ai/sdk stagehand-claude-sdk
+```
+
+    Import the driver from the [`stagehand-claude-sdk` npm package](https://www.npmjs.com/package/stagehand-claude-sdk).
+  </Tab>
+  <Tab title="Python">
+    Create an environment and install the Anthropic SDK and Stagehand from PyPI:
+
+```bash
+cd python
+uv venv --python 3.11 .venv
+uv pip install --python .venv/bin/python anthropic stagehand-claude-sdk
+```
+
+    Import the driver as `stagehand_claude_sdk` from the [`stagehand-claude-sdk` Python package](https://pypi.org/project/stagehand-claude-sdk/).
+  </Tab>
+</Tabs>
+
+## Run a browser task
+
+Export your Anthropic API key:
+
+```bash
+export ANTHROPIC_API_KEY="your-anthropic-api-key"
+```
+
+Replace the repository's `example.ts` or `example.py` with the matching example below. Both launch headless Chrome, ask Claude to read the heading on `example.com`, and print the model's messages.
+
+<Tabs>
+  <Tab title="TypeScript">
+```typescript example.ts
+import Anthropic from "@anthropic-ai/sdk";
+import { StagehandBrowser } from "stagehand-claude-sdk";
+
+const browser = await StagehandBrowser.launch({
+  headless: true,
+  allowedDomains: ["example.com", "iana.org"],
+});
+
+try {
+  const runner = new Anthropic().beta.messages.toolRunner({
+    model: "claude-sonnet-5-5",
+    max_tokens: 1024,
+    tools: [browser],
+    messages: [
+      { role: "user", content: "Open example.com and tell me the page heading." },
+    ],
+  });
+
+  for await (const message of runner) {
+    console.log(JSON.stringify(message, null, 2));
+  }
+} finally {
+  await browser.close();
+}
+```
+
+    Run from the repository's `typescript` directory:
+
+```bash
+pnpm example
+```
+  </Tab>
+  <Tab title="Python">
+```python example.py
+import asyncio
+import os
+
+from anthropic import AsyncAnthropic
+from stagehand_claude_sdk import StagehandBrowser
+
+
+async def main() -> None:
+    browser = await StagehandBrowser.launch(
+        headless=True,
+        allowed_domains=["example.com", "iana.org"],
+    )
+
+    async with browser:
+        async with AsyncAnthropic() as client:
+            runner = client.beta.messages.tool_runner(
+                model="claude-sonnet-5-5",
+                max_tokens=1024,
+                tools=[browser],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "Open example.com and tell me the page heading.",
+                    }
+                ],
+            )
+
+            async for message in runner:
+                print(message)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+    Run from the repository's `python` directory:
+
+```bash
+.venv/bin/python example.py
+```
+  </Tab>
+</Tabs>
+
+Look for a response identifying the heading as **Example Domain**. Register the browser instance directly in `tools`; the Anthropic SDK dispatches its browser tool calls. Keep the same instance throughout the loop so tabs and page state remain available.
+
+The tool runner doesn't close the browser. Use `finally` in TypeScript or `async with browser` in Python to close it when the task finishes or fails.
+
+## Use Browserbase
+
+Export your Browserbase API key:
+
+```bash
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+
+Replace the `StagehandBrowser.launch` call with the matching factory below. Keep the tool loop and cleanup code from the previous example.
+
+<Tabs>
+  <Tab title="TypeScript">
+```typescript
+const apiKey = process.env.BROWSERBASE_API_KEY;
+if (!apiKey) throw new Error("Set BROWSERBASE_API_KEY before running this example.");
+
+const browser = await StagehandBrowser.browserbase({
+  apiKey,
+  allowedDomains: ["example.com", "iana.org"],
+});
+```
+  </Tab>
+  <Tab title="Python">
+```python
+browser = await StagehandBrowser.browserbase(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    allowed_domains=["example.com", "iana.org"],
+)
+```
+  </Tab>
+</Tabs>
+
+This creates a Browserbase session, so you don't need local Chrome. The toolset doesn't support downloads in Browserbase sessions.
+
+## Domain restrictions
+
+Set `allowedDomains` and `blockedDomains` in TypeScript, or `allowed_domains` and `blocked_domains` in Python, to restrict HTTP and HTTPS requests. Entries accept hosts, IP addresses, or CIDR ranges. A domain entry includes its subdomains, and blocked entries take precedence.
+
+<Warning>
+Domain restrictions don't cover WebSocket handshakes. A page on an allowed host can open a WebSocket connection to another host. Don't treat these lists as complete network isolation.
+</Warning>
+
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Missing browser toolset exports | Install an Anthropic SDK version that supports the browser toolset. |
+| Local Chrome doesn't launch | Install Google Chrome, or pass `chromePath` in TypeScript or `chrome_path` in Python to `launch`. |
+| Navigation is blocked | Add the task's required domains to the allow list and check the block list. |
+| The browser is no longer running | Close the toolset and create a new browser instance. |
+
+For additional configuration and examples, see the [Claude Toolset repository](https://github.com/browserbase/claude-cua-toolset).
