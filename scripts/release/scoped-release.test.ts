@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { scopedChangesets } from "./release-scope.ts";
 import {
   assertCliAlphaVersion,
@@ -100,29 +100,69 @@ describe("independent release scopes using the real Changesets engine", () => {
 
   it("waits for an in-flight SDK publication without waiting on unrelated SDK jobs", async () => {
     const root = await fixture("cli");
-    let requests = 0;
-    let status = 404;
-    const server = createServer((_request, response) => {
-      requests++;
-      response.writeHead(requests === 1 ? 404 : status).end("{}");
+    const requests: string[] = [];
+    const server = createServer((request, response) => {
+      requests.push(request.url ?? "");
+      response.writeHead(requests.length === 1 ? 404 : 200).end("{}");
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     if (!address || typeof address === "string") throw new Error("Missing HTTP server address");
     const registry = `http://127.0.0.1:${address.port}`;
     try {
-      status = 200;
-      await assertPublishedCliDependencies(root, registry, 1000, 10);
-      expect(requests).toBe(2);
-      status = 404;
-      await expect(assertPublishedCliDependencies(root, registry, 20)).rejects.toThrow();
-      status = 503;
-      const before = requests;
-      await expect(assertPublishedCliDependencies(root, registry, 1000)).rejects.toThrow(
-        "registry status 503",
-      );
-      expect(requests).toBe(before + 1);
+      await assertPublishedCliDependencies(root, registry, 10_000, 10);
+      expect(requests).toEqual(["/sdk/4.1.0", "/sdk/4.1.0"]);
     } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it("does not retry SDK registry failures while waiting for publication", async () => {
+    const root = await fixture("cli");
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests++;
+      response.writeHead(503).end("{}");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing HTTP server address");
+    try {
+      await expect(
+        assertPublishedCliDependencies(root, `http://127.0.0.1:${address.port}`, 10_000, 10),
+      ).rejects.toThrow("registry status 503");
+      expect(requests).toBe(1);
+    } finally {
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it("stops retrying a missing SDK version once the publication deadline expires", async () => {
+    const root = await fixture("cli");
+    const waitMs = 10_000;
+    let now = Date.now();
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests++;
+      if (requests === 2) now += waitMs;
+      response.writeHead(404).end("{}");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Missing HTTP server address");
+    // Advance the publication deadline after a real retry, leaving network timers real.
+    const clock = vi.spyOn(Date, "now").mockImplementation(() => now);
+    try {
+      await expect(
+        assertPublishedCliDependencies(root, `http://127.0.0.1:${address.port}`, waitMs, 10),
+      ).rejects.toThrow("registry status 404");
+      expect(requests).toBe(2);
+    } finally {
+      clock.mockRestore();
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );
