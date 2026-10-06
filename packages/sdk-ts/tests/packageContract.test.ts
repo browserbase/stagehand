@@ -96,6 +96,7 @@ describe("published TypeScript SDK", () => {
             LoadState,
             LocatorCentroidResult,
             LocatorClickOptions,
+            LocatorOptions,
             LocatorHighlightOptions,
             LocatorSendClickEventOptions,
             LocatorTypeOptions,
@@ -139,10 +140,11 @@ describe("published TypeScript SDK", () => {
           const pageKeyPress: PageKeyPressOptions = { delay: 0 };
           const pageReload: PageReloadOptions = navigation;
           const pageViewport: PageSetViewportSizeOptions = { deviceScaleFactor: 2 };
-          const pageSnapshot: PageSnapshotOptions = { includeIframes: true };
+          const pageSnapshot: PageSnapshotOptions = { includeIframes: true, timeout: 5_000 };
           const pageType: PageTypeOptions = { delay: 0, withMistakes: false };
           const pageWait: PageWaitForSelectorOptions = { state: "visible", timeout: 1_000 };
-          const locatorClick: LocatorClickOptions = pageClick;
+          const locatorOptions: LocatorOptions = { timeout: 0 };
+          const locatorClick: LocatorClickOptions = { ...pageClick, timeout: 50 };
           const locatorHighlight: LocatorHighlightOptions = { borderColor: color };
           const locatorSendClick: LocatorSendClickEventOptions = { bubbles: true };
           const locatorType: LocatorTypeOptions = { delay: 0 };
@@ -165,6 +167,7 @@ describe("published TypeScript SDK", () => {
             pageSnapshot,
             pageType,
             pageWait,
+            locatorOptions,
             locatorClick,
             locatorHighlight,
             locatorSendClick,

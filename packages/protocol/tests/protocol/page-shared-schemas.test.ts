@@ -49,6 +49,15 @@ describe("shared page protocol schemas", () => {
     expect(() => PageScreenshotClipSchema.parse({ x: 0, y: 0, width: 0, height: 480 })).toThrow();
   });
 
+  it.each([undefined, 0, 5_000, 0.5])("accepts snapshot timeout %s", (timeout) => {
+    const options = timeout === undefined ? {} : { timeout };
+    expect(PageSnapshotOptionsSchema.parse(options)).toStrictEqual(options);
+  });
+
+  it.each([-1, Infinity, NaN, "5000"])("rejects invalid snapshot timeout %s", (timeout) => {
+    expect(() => PageSnapshotOptionsSchema.parse({ timeout })).toThrow();
+  });
+
   it("parses snapshot options and results", () => {
     expect(PageSnapshotOptionsSchema.parse({ includeIframes: true })).toStrictEqual({
       includeIframes: true,

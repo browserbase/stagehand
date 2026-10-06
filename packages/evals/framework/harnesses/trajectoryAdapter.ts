@@ -43,6 +43,7 @@ export interface TrajectoryAdapter<THarnessResult> {
  * this shape before mapping to a TrajectoryStep.
  */
 export interface NormalizedToolCall {
+  id?: string;
   /** Tool name (e.g., "Bash", "mcp__stagehand_browser__run", "container.exec"). */
   name: string;
   /** Tool arguments. Empty object if the harness doesn't surface them. */

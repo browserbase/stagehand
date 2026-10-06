@@ -1,29 +1,25 @@
-import {
-  buildCursorTranscript,
-  extractCursorToolCall,
-  runCursorAgentSession,
-  stringifyError,
-  type CursorProcessRunner,
-  type CursorTokenUsage,
-} from "@browserbasehq/stagehand-integrations-cursor-sdk";
 import type { AvailableModel } from "stagehand-v3";
+import {
+  extractCursorToolCall,
+  CURSOR_SDK_VERSION,
+  runCursorSdkAgentSession,
+  type CursorSdkAgentFactory,
+} from "@browserbasehq/stagehand-integrations-cursor-sdk";
 import type { EvalLogger } from "../logger.js";
 import type { PreparedCursorToolAdapter } from "./cursorToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { cursorAdapter } from "./harnesses/cursorAdapter.js";
 import {
   buildExternalHarnessPrompt,
-  metricValue,
   parseEvalResult,
+  type ParsedEvalResult,
+  metricValue,
   runExternalHarnessTask,
   type ExternalHarnessToolAdapterLike,
-  type MetricValue,
-  type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
-
-export type { CursorProcessRunner } from "@browserbasehq/stagehand-integrations-cursor-sdk";
 
 export interface CursorRunnerInput {
   plan: ExternalHarnessTaskPlan;
@@ -31,7 +27,7 @@ export interface CursorRunnerInput {
   logger: EvalLogger;
   toolAdapter?: PreparedCursorToolAdapter;
   signal?: AbortSignal;
-  runProcess?: CursorProcessRunner;
+  createAgent?: CursorSdkAgentFactory;
   verifier?: ExternalHarnessVerifierConfig;
 }
 
@@ -71,7 +67,7 @@ export async function runCursorAgent({
   logger,
   toolAdapter,
   signal,
-  runProcess,
+  createAgent,
   verifier,
 }: CursorRunnerInput): Promise<TaskResult> {
   const adapterLike: ExternalHarnessToolAdapterLike = {
@@ -79,63 +75,68 @@ export async function runCursorAgent({
     captureEvidence: toolAdapter?.captureEvidence,
     drainStepObservations: toolAdapter?.drainStepObservations,
     observedToolMatcher: toolAdapter?.observedToolMatcher,
+    browserSessionLoss: toolAdapter?.browserSessionLoss,
   };
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_CURSOR_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "cursor",
     plan,
+    model,
     logger,
+    // SDK systemPrompt replaces the entire stock prompt and requires server entitlement.
+    systemPromptMode: "task_prefix",
+    implementation: { name: "sdk", version: 1, sdkVersion: CURSOR_SDK_VERSION },
     toolAdapter: adapterLike,
     verifier,
     resultContract: "marker",
-    fallbackErrorMessage: "Cursor did not report success",
-    // Cursor often emits the result as fenced/prose JSON without the marker;
-    // the lenient retry only runs after the strict parse fails.
+    fallbackErrorMessage: "Cursor SDK did not report success",
+    stepBudget: maxToolSteps,
+    stepBudgetUnit: "tool_calls",
     parseResult: parseCursorResult,
     runSession: async (prompt) => {
-      const sessionResult = await runCursorAgentSession({
+      const result = await runCursorSdkAgentSession({
         prompt,
         model,
+        cwd: toolAdapter?.cwd ?? process.cwd(),
+        mcpServers: toolAdapter?.mcpServers ?? {},
         logger,
         signal,
-        runProcess,
-        session: {
-          ...(toolAdapter?.cwd && { cwd: toolAdapter.cwd }),
-          ...(toolAdapter?.env && { env: toolAdapter.env }),
-          ...(process.env.EVAL_CURSOR_AGENT_PATH && {
-            binaryPath: process.env.EVAL_CURSOR_AGENT_PATH,
-          }),
-          // CURSOR_API_KEY reaches the CLI through the inherited environment;
-          // never pass it as --api-key, which would expose it in process listings.
-          ...(readCursorSandbox(process.env.EVAL_CURSOR_SANDBOX) && {
-            sandbox: readCursorSandbox(process.env.EVAL_CURSOR_SANDBOX),
-          }),
-          force: true,
-          trust: true,
-          approveMcps: true,
-        },
-        maxToolSteps: readCursorMaxToolSteps(),
+        createAgent,
+        maxToolSteps,
         onToolResult: toolAdapter?.onToolResult
           ? (name) => toolAdapter.onToolResult!(name)
           : undefined,
       });
-      const usage = sessionResult.tokenUsage;
       return {
-        raw: sessionResult,
-        resultText: sessionResult.resultText,
-        transcriptText: buildCursorTranscript(sessionResult.events),
-        iterationError: sessionResult.iterationError,
-        status: sessionResult.status,
-        stopReason:
-          sessionResult.stopReason ||
-          (sessionResult.status === "sdk_error"
-            ? stringifyError(sessionResult.iterationError) || undefined
-            : undefined),
+        raw: result,
+        resultText: result.resultText,
+        transcriptText: result.events.map((event) => JSON.stringify(event)).join("\n"),
+        iterationError: result.iterationError,
+        status: result.status,
+        stopReason: result.stopReason,
         usage: {
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          totalTokens: usage.totalTokens,
+          inputTokens: result.tokenUsage.inputTokens,
+          outputTokens: result.tokenUsage.outputTokens,
+          totalTokens: result.tokenUsage.totalTokens,
+          reported: result.tokenUsage.reported,
+          cachedInputTokens: result.tokenUsage.cachedInputTokens,
+          cacheCreationInputTokens: result.tokenUsage.cacheCreationInputTokens,
+          reasoningOutputTokens: result.tokenUsage.reasoningOutputTokens,
         },
-        metrics: buildCursorMetrics(usage, sessionResult.resultEvent, sessionResult.events),
+        costUsd: result.costUsd,
+        metrics: {
+          cursor_input_tokens: metricValue(result.tokenUsage.inputTokens),
+          cursor_output_tokens: metricValue(result.tokenUsage.outputTokens),
+          cursor_total_tokens: metricValue(result.tokenUsage.totalTokens),
+          cursor_tool_steps: metricValue(
+            result.events.filter((event) => extractCursorToolCall(event)?.subtype === "completed")
+              .length,
+          ),
+        },
       };
     },
     toTrajectory: (
@@ -145,47 +146,13 @@ export async function runCursorAgent({
       cursorAdapter.fromHarnessResult(
         {
           events: raw.events,
+          finalAnswer: parsed.finalAnswer ?? raw.resultText,
+          status,
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
-          finalAnswer: parsed.finalAnswer ?? raw.resultText,
-          status,
-          usage: {
-            input_tokens: 0,
-            output_tokens: 0,
-          },
         },
         taskSpec,
       ),
   });
-}
-
-export function readCursorSandbox(value: unknown): "enabled" | "disabled" | undefined {
-  return value === "enabled" || value === "disabled" ? value : undefined;
-}
-
-export function readCursorMaxToolSteps(): number {
-  for (const key of ["EVAL_CURSOR_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
-}
-
-function buildCursorMetrics(
-  usage: CursorTokenUsage,
-  resultEvent: Record<string, unknown> | undefined,
-  events: Array<Record<string, unknown>>,
-): Record<string, MetricValue> {
-  const toolSteps = events.filter((event) => {
-    const view = extractCursorToolCall(event);
-    return view?.subtype === "completed";
-  }).length;
-  return {
-    cursor_input_tokens: metricValue(usage.inputTokens),
-    cursor_output_tokens: metricValue(usage.outputTokens),
-    cursor_total_tokens: metricValue(usage.totalTokens),
-    cursor_duration_ms: metricValue(resultEvent?.duration_ms),
-    cursor_tool_steps: metricValue(toolSteps),
-  };
 }

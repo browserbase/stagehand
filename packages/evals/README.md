@@ -1,6 +1,6 @@
 # Stagehand Evals
 
-Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys).
+Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys, HardBench).
 
 Driven by an interactive TUI (`evals`) or single-shot CLI (`evals run …`). Tasks are auto-discovered from `tasks/bench/<category>/` — no registration step.
 
@@ -45,6 +45,12 @@ Inside the REPL (or as `evals <command>` from your shell):
 
 Use `Esc` to abort an in-flight run without exiting the REPL.
 
+### Onboarding
+
+`evals welcome` runs a guided first-run flow built on the agent benchmarks: an animated intro (the Stagehand mark, what evals measures, EVALS), then a deterministic replay of a real WebVoyager task — three models in lanes, named generically (Opus, Grok, Sol — the fastest and cheapest fails on a wrong condition filter; timings and costs are illustrative), a podium by accuracy · speed · cost, and a chat-style look inside the winning run. It ends on a real `run b:webvoyager -l 3 --harness claude_code -e local` (`--harness codex` when the key is OpenAI's; `-e browserbase` when that's the available browser) when an Anthropic or OpenAI key and a browser exist, or hands off to `evals setup`, a guided flow that asks only for what's missing (Anthropic/OpenAI key, browser), writes `packages/evals/.env`, and offers the first real run.
+
+Set `EVALS_WELCOME_WIZARD=1` to auto-run the flow on the first REPL launch; `EVALS_NO_WELCOME=1` suppresses the first-run welcome. Any key advances the intro, Esc skips ahead, Ctrl+C cancels.
+
 ## Run targets
 
 `evals run` accepts any of these shapes:
@@ -83,6 +89,12 @@ Defaults live in `evals.config.json` and can be edited via `evals config set …
 A live run paints an in-place progress table, then prints a final summary with a per-model breakdown:
 
 ![Live bench run](./assets/readme/run.gif)
+
+## Shared harness behavior
+
+See [the harness contract](docs/harness-contract.md) for tool surfaces, prompt policy,
+budget units, session diagnostics, verification, and usage accounting.
+See [HardBench](datasets/hardbenchmark/README.md) for corpus selection and rubric v1.2.
 
 ## Adding a bench task
 

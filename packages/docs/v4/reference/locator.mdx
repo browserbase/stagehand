@@ -24,6 +24,14 @@ const locator = page.locator("button[type=submit]");
 await locator.click();
 ```
 
+Each locator call has a 20-second timeout covering frame readiness, element lookup, & the action itself. Typing delays & highlight duration count toward the same budget. File reading in the SDK & request delivery happen before that budget starts. A timeout stops further steps; it cannot undo browser commands already sent.
+
+```typescript
+await locator.click({ timeout: 5000 });
+await locator.fill("hello", { timeout: 5000 });
+const count = await locator.count({ timeout: 0 }); // no timeout
+```
+
 ## click()
 
 Click the element matched by this locator.
@@ -34,6 +42,10 @@ await locator.click();
 
 <ParamField path="options" type="LocatorClickOptions" optional>
   Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
 
 <ParamField path="options.button" type="MouseButton" optional>
   The mouse button to use: `"left"`, `"middle"`, or `"right"`.
@@ -56,6 +68,14 @@ Move the pointer over the matched element.
 await locator.hover();
 ```
 
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="Promise<void>">
   Resolves after the operation completes.
 </ResponseField>
@@ -72,6 +92,14 @@ await locator.fill("Browserbase");
   The value to set.
 </ParamField>
 
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="Promise<void>">
   Resolves after the operation completes.
 </ResponseField>
@@ -83,6 +111,14 @@ Count the elements matched by this locator.
 ```typescript
 const count = await locator.count();
 ```
+
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="Promise<number>">
   The operation result.
@@ -96,6 +132,14 @@ Check whether the matched control is checked.
 const checked = await locator.isChecked();
 ```
 
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="Promise<boolean>">
   The operation result.
 </ResponseField>
@@ -107,6 +151,14 @@ Return the current value of the matched input.
 ```typescript
 const value = await locator.inputValue();
 ```
+
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="Promise<string>">
   The operation result.
@@ -120,6 +172,14 @@ Check whether the matched element is visible.
 const visible = await locator.isVisible();
 ```
 
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="Promise<boolean>">
   The operation result.
 </ResponseField>
@@ -131,6 +191,14 @@ Return the rendered text inside the matched element.
 ```typescript
 const text = await locator.innerText();
 ```
+
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="Promise<string>">
   The operation result.
@@ -144,6 +212,14 @@ Return the HTML inside the matched element.
 const html = await locator.innerHtml();
 ```
 
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="Promise<string>">
   The operation result.
 </ResponseField>
@@ -155,6 +231,14 @@ Return the text content of the matched element.
 ```typescript
 const text = await locator.textContent();
 ```
+
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="Promise<string>">
   The operation result.
@@ -172,6 +256,14 @@ await locator.scrollTo(50);
   A percentage from 0 to 100, optionally expressed as a percentage string.
 </ParamField>
 
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="Promise<void>">
   Resolves after the operation completes.
 </ResponseField>
@@ -183,6 +275,14 @@ Return the center point of the matched element.
 ```typescript
 const point = await locator.centroid();
 ```
+
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="Promise<LocatorCentroidResult>">
   The operation result.
@@ -206,6 +306,10 @@ await locator.highlight();
 
 <ParamField path="options" type="LocatorHighlightOptions" optional>
   Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
 
   <ParamField path="options.borderColor" type="RgbaColor" optional>
     The highlight border color.
@@ -269,6 +373,10 @@ await locator.sendClickEvent();
 <ParamField path="options" type="LocatorSendClickEventOptions" optional>
   Options that configure this operation.
 
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+
 <ParamField path="options.bubbles" type="boolean" optional>
   Whether the event bubbles.
 </ParamField>
@@ -305,6 +413,10 @@ await locator.type("Browserbase");
 <ParamField path="options" type="LocatorTypeOptions" optional>
   Options that configure this operation.
 
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
+
   <ParamField path="options.delay" type="number" optional>
     The input delay in milliseconds.
   </ParamField>
@@ -324,6 +436,14 @@ const values = await locator.selectOption("us");
 
 <ParamField path="values" type="string | string[]">
   The value or values to select.
+</ParamField>
+
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="Promise<string[]>">
@@ -355,6 +475,14 @@ await page.locator('input[type="file"]').setInputFiles("./resume.pdf");
 
   <ParamField path="files.lastModified" type="number" optional>
     The file's last-modified time in Unix milliseconds.
+  </ParamField>
+</ParamField>
+
+<ParamField path="options" type="LocatorOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.timeout" type="number" optional>
+    The timeout for the whole call in milliseconds. Defaults to 20,000. Set to `0` to disable it.
   </ParamField>
 </ParamField>
 
@@ -401,6 +529,14 @@ locator = page.locator("button[type=submit]")
 await locator.click()
 ```
 
+Timeouts cover frame readiness, element lookup, & the action, including typing delays & highlight duration. File reading in the SDK & request delivery happen before the execution budget starts. Canceling the Python task stops the client waiting; it does not cancel work already sent to the browser.
+
+```python
+await locator.click(timeout=5000)
+await locator.fill("hello", timeout=5000)
+count = await locator.count(timeout=0)  # no timeout
+```
+
 ## click()
 
 Click the element matched by this locator.
@@ -417,6 +553,10 @@ await locator.click()
   The number of clicks to dispatch.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -428,6 +568,10 @@ Move the pointer over the matched element.
 ```python
 await locator.hover()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
@@ -445,6 +589,10 @@ await locator.fill("Browserbase")
   The value to set.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -456,6 +604,10 @@ Count the elements matched by this locator.
 ```python
 count = await locator.count()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="int">
   The operation result.
@@ -469,6 +621,10 @@ Check whether the matched control is checked.
 checked = await locator.is_checked()
 ```
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="bool">
   The operation result.
 </ResponseField>
@@ -480,6 +636,10 @@ Return the current value of the matched input.
 ```python
 value = await locator.input_value()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="str">
   The operation result.
@@ -493,6 +653,10 @@ Check whether the matched element is visible.
 visible = await locator.is_visible()
 ```
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="bool">
   The operation result.
 </ResponseField>
@@ -504,6 +668,10 @@ Return the rendered text inside the matched element.
 ```python
 text = await locator.inner_text()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="str">
   The operation result.
@@ -517,6 +685,10 @@ Return the HTML inside the matched element.
 html = await locator.inner_html()
 ```
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="str">
   The operation result.
 </ResponseField>
@@ -528,6 +700,10 @@ Return the text content of the matched element.
 ```python
 text = await locator.text_content()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="str">
   The operation result.
@@ -545,6 +721,10 @@ await locator.scroll_to(50)
   A percentage from 0 to 100, optionally expressed as a percentage string.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -556,6 +736,10 @@ Return the center point of the matched element.
 ```python
 point = await locator.centroid()
 ```
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
 
 <ResponseField name="result" type="LocatorCentroidResult">
   The operation result.
@@ -621,6 +805,10 @@ await locator.highlight(duration_ms=1000)
   </ParamField>
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -649,6 +837,10 @@ await locator.send_click_event()
   Event-specific click detail.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -669,6 +861,10 @@ await locator.type("Browserbase")
   Delay between keystrokes, in milliseconds.
 </ParamField>
 
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -683,6 +879,10 @@ values = await locator.select_option("us")
 
 <ParamField path="values" type="str | Sequence[str]">
   The value or values to select.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
 </ParamField>
 
 <ResponseField name="result" type="list[str]">
@@ -715,6 +915,10 @@ await page.locator('input[type="file"]').set_input_files("./resume.pdf")
   <ParamField path="files.last_modified" type="int" optional>
     The file's last-modified time in Unix milliseconds.
   </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  The timeout for the whole call in milliseconds. Omit it or pass `None` for the 20,000 ms default. Set to `0` to disable it.
 </ParamField>
 
 <ResponseField name="result" type="None">
@@ -762,7 +966,26 @@ if err := locator.Click(ctx, nil); err != nil {
 }
 ```
 
-In Go the locator type is `*stagehand.PageLocator` (the wrapper named `Locator` in the TypeScript and Python SDKs). Every method takes a `context.Context` first, and methods with options accept a pointer options struct; pass `nil` for defaults.
+Go locators use `*stagehand.PageLocator`. Actions & reads take a `context.Context` first. Methods like `Fill` & `Count` accept one optional `*stagehand.LocatorOptions`; omit it or pass `nil` for defaults. For methods like `Click` & `Type`, set `Timeout` in their existing options.
+
+The default timeout is 20 seconds. Set `Timeout` to a pointer to a number of milliseconds, or a pointer to `0` for no timeout.
+
+The same timeout covers waiting for frames, finding the element, & performing the action. Typing delays & highlight duration count toward it. Reading upload files & sending the request do not.
+
+Your context can stop the client waiting sooner, but it does not cancel work already sent to the browser.
+
+```go
+timeout := 5000.0
+if err := locator.Fill(ctx, "hello", &stagehand.LocatorOptions{Timeout: &timeout}); err != nil {
+    return err
+}
+unlimited := 0.0
+count, err := locator.Count(ctx, &stagehand.LocatorOptions{Timeout: &unlimited})
+if err != nil {
+    return err
+}
+fmt.Println(count)
+```
 
 ## Click()
 
@@ -776,6 +999,10 @@ if err := locator.Click(ctx, nil); err != nil {
 
 <ParamField path="options" type="*LocatorClickOptions" optional>
   Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
 
   <ParamField path="options.Button" type="*MouseButton" optional>
     The mouse button to use: `MouseButtonLeft`, `MouseButtonMiddle`, or `MouseButtonRight`.
@@ -800,6 +1027,14 @@ if err := locator.Hover(ctx); err != nil {
 }
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
 </ResponseField>
@@ -818,6 +1053,14 @@ if err := locator.Fill(ctx, "Browserbase"); err != nil {
   The value to set.
 </ParamField>
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
 </ResponseField>
@@ -833,6 +1076,14 @@ if err != nil {
 }
 fmt.Println(count)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(int, error)">
   The operation result.
@@ -850,6 +1101,14 @@ if err != nil {
 fmt.Println(checked)
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="(bool, error)">
   The operation result.
 </ResponseField>
@@ -865,6 +1124,14 @@ if err != nil {
 }
 fmt.Println(value)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(string, error)">
   The operation result.
@@ -882,6 +1149,14 @@ if err != nil {
 fmt.Println(visible)
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="(bool, error)">
   The operation result.
 </ResponseField>
@@ -897,6 +1172,14 @@ if err != nil {
 }
 fmt.Println(text)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(string, error)">
   The operation result.
@@ -914,6 +1197,14 @@ if err != nil {
 fmt.Println(html)
 ```
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="(string, error)">
   The operation result.
 </ResponseField>
@@ -929,6 +1220,14 @@ if err != nil {
 }
 fmt.Println(text)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(string, error)">
   The operation result.
@@ -948,6 +1247,14 @@ if err := locator.ScrollTo(ctx, stagehand.NumericScrollPercent(50)); err != nil 
   A percentage from 0 to 100. Construct it with `stagehand.NumericScrollPercent(50)`, or with `stagehand.NamedScrollPercent("50%")` for a percentage string.
 </ParamField>
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="error">
   Returns `nil` after the operation completes.
 </ResponseField>
@@ -963,6 +1270,14 @@ if err != nil {
 }
 fmt.Println(point.X, point.Y)
 ```
+
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
 
 <ResponseField name="result" type="(LocatorCentroidResult, error)">
   The operation result.
@@ -990,6 +1305,10 @@ if err != nil {
 
 <ParamField path="options" type="*LocatorHighlightOptions" optional>
   Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
 
   <ParamField path="options.BorderColor" type="*RgbaColor" optional>
     The highlight border color.
@@ -1055,6 +1374,10 @@ if err := locator.SendClickEvent(ctx, nil); err != nil {
 <ParamField path="options" type="*LocatorSendClickEventOptions" optional>
   Options that configure this operation. Pass `nil` for defaults.
 
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+
 <ParamField path="options.Bubbles" type="*bool" optional>
   Whether the event bubbles.
 </ParamField>
@@ -1093,6 +1416,10 @@ if err := locator.Type(ctx, "Browserbase", nil); err != nil {
 <ParamField path="options" type="*LocatorTypeOptions" optional>
   Options that configure this operation. Pass `nil` for defaults.
 
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+
   <ParamField path="options.Delay" type="*float64" optional>
     The input delay in milliseconds.
   </ParamField>
@@ -1118,22 +1445,43 @@ fmt.Println(values)
   The value or values to select. `StringList` is a `[]string`.
 </ParamField>
 
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="([]string, error)">
   The operation result.
 </ResponseField>
 
 ## SetInputFiles()
 
-Set one or more local files or in-memory payloads on the matched `<input type="file">`. The SDK resolves relative paths on the caller's machine. Call it without files to clear the selection.
+Set local files or in-memory payloads on the matched `<input type="file">`. Pass files as a slice; `nil` or an empty slice clears the selection. The SDK resolves relative paths on the caller's machine. Omit options to use the default timeout.
 
 ```go
-err := page.Locator(`input[type="file"]`).SetInputFiles(ctx, stagehand.FilePath("./resume.pdf"))
+timeout := 5000.0
+err := page.Locator(`input[type="file"]`).SetInputFiles(
+    ctx,
+    []stagehand.FileInput{stagehand.FilePath("./resume.pdf")},
+    &stagehand.LocatorOptions{Timeout: &timeout},
+)
 if err != nil {
     return err
 }
 ```
 
-<ParamField path="files" type="...FileInput">
+<ParamField path="options" type="...*LocatorOptions" optional>
+  Optional settings for this call. Pass at most one options value; omit it or pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The timeout for the whole call in milliseconds. A nil field uses the 20,000 ms default; a pointer to `0` disables it.
+  </ParamField>
+</ParamField>
+
+<ParamField path="files" type="[]FileInput">
   Local file path(s) or in-memory payload(s) to upload. Construct each with `stagehand.FilePath(path)` or `stagehand.FileData(name, mimeType, buffer)`. The SDK serializes each file in memory and limits it to 50 MiB.
 
   <ParamField path="files.Path" type="string">

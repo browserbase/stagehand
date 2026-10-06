@@ -1,0 +1,30 @@
+{
+  "name": "@browserbasehq/stagehand-examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "catalog:",
+    "@ai-sdk/mcp": "catalog:",
+    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/sdk": "catalog:",
+    "@browserbasehq/stagehand": "workspace:*",
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@playwright/mcp": "catalog:",
+    "ai": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "ffmpeg-static": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

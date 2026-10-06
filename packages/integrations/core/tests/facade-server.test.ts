@@ -1,4 +1,7 @@
 import { fileURLToPath } from "node:url";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import type { Stream } from "node:stream";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -11,12 +14,19 @@ const readyMessage = "Stagehand facade MCP host listening on stdio";
 describe("built Stagehand facade stdio server", () => {
   let client: Client;
   let transport: StdioClientTransport;
+  let directory: string;
 
   beforeEach(async () => {
+    directory = await fs.mkdtemp(path.join(os.tmpdir(), "facade-stdio-logs-"));
     transport = new StdioClientTransport({
       command: process.execPath,
       args: [entrypoint],
-      env: { PATH: process.env.PATH ?? "", STAGEHAND_BROWSER: "invalid" },
+      env: {
+        PATH: process.env.PATH ?? "",
+        STAGEHAND_BROWSER: "invalid",
+        STAGEHAND_FACADE_LOG_LEVEL: "debug",
+        STAGEHAND_FACADE_LOG_FILE: path.join(directory, "tools.jsonl"),
+      },
       stderr: "pipe",
     });
     if (!transport.stderr) throw new Error("stdio transport did not expose stderr");
@@ -27,6 +37,7 @@ describe("built Stagehand facade stdio server", () => {
 
   afterEach(async () => {
     await client.close();
+    await fs.rm(directory, { recursive: true, force: true });
   });
 
   it("initializes and lists the exact tools without launching a browser", async () => {
@@ -42,6 +53,20 @@ describe("built Stagehand facade stdio server", () => {
 
     const unknown = await client.callTool({ name: "missing", arguments: {} });
     expect(unknown.isError).toBe(true);
+
+    const logs = (await fs.readFile(path.join(directory, "tools.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    expect(logs.map((record) => record.event)).toEqual([
+      "tool.start",
+      "tool.end",
+      "tool.start",
+      "tool.end",
+    ]);
+    expect(logs[0]).toMatchObject({ name: "run", arguments: {} });
+    expect(logs[1]).toMatchObject({ id: logs[0].id, status: "error" });
+    expect(logs[3].result.isError).toBe(true);
 
     await expect(client.ping()).resolves.toBeDefined();
   });

@@ -3,6 +3,7 @@ import { prepareCoreBrowserTarget } from "../core/targets/index.js";
 import { getCoreTool } from "../core/tools/registry.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
+import { browserSessionFromMetadata, type BrowserSessionInfo } from "./browserSession.js";
 
 export interface AgentToolRuntimeInput {
   toolSurface: ToolSurface;
@@ -13,6 +14,12 @@ export interface AgentToolRuntimeInput {
 
 export interface StartedAgentToolRuntime {
   running: ToolStartResult;
+  /**
+   * Browser behind the surface, whether the runner provided it (Browserbase
+   * CDP target) or the tool created it (facade, stagehand_code). Known before
+   * the agent starts so the session URL can head the task log.
+   */
+  browserSession: BrowserSessionInfo;
   /** Closes the tool-owned runtime, then the runner-owned browser target. */
   cleanup: () => Promise<void>;
 }
@@ -49,6 +56,10 @@ export async function startAgentToolRuntime(
   let cleanupPromise: Promise<void> | undefined;
   return {
     running,
+    browserSession: browserSessionFromMetadata(
+      { ...running.metadata, ...target.metadata },
+      input.environment,
+    ),
     cleanup: async () => {
       cleanupPromise ??= (async () => {
         try {

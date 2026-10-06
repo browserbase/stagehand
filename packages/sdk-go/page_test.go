@@ -735,3 +735,32 @@ func TestPageReferenceSupportsConcurrentReadersAndWriters(t *testing.T) {
 	}
 	group.Wait()
 }
+
+func TestPageSnapshotTimeoutParams(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name    string
+		options *PageSnapshotOptions
+		want    string
+	}{
+		{"omitted", nil, `{"page_id":"page-1"}`},
+		{"zero", &PageSnapshotOptions{Timeout: new(0.0)}, `{"page_id":"page-1","options":{"timeout":0}}`},
+		{"positive", &PageSnapshotOptions{Timeout: new(5000.0)}, `{"page_id":"page-1","options":{"timeout":5000}}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rpc := &recordingProtocolClient{responses: map[string]any{"page.snapshot": SnapshotResult{}}}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			if _, err := page.Snapshot(context.Background(), test.options); err != nil {
+				t.Fatal(err)
+			}
+			if len(rpc.calls) != 1 || rpc.calls[0].method != "page.snapshot" {
+				t.Fatalf("calls = %#v", rpc.calls)
+			}
+			encoded, err := marshalValidatedJSON(rpc.calls[0].params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertRPCJSON(t, encoded, test.want)
+		})
+	}
+}

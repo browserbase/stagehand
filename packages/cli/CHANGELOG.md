@@ -1,5 +1,20 @@
 # browse
 
+## 0.11.1
+
+### Patch Changes
+
+- [#3055](https://github.com/browserbase/stagehand/pull/3055) [`8308d8d`](https://github.com/browserbase/stagehand/commit/8308d8dc0b61d7e6f7da7de61fa8692109ca0443) Thanks [@akeimach](https://github.com/akeimach)! - `functions init` now scaffolds a Stagehand project. It installs `@browserbasehq/stagehand` instead of `playwright-core`, installs the zod version that Stagehand uses, and writes a Stagehand starter function.
+
+- [#3055](https://github.com/browserbase/stagehand/pull/3055) [`8308d8d`](https://github.com/browserbase/stagehand/commit/8308d8dc0b61d7e6f7da7de61fa8692109ca0443) Thanks [@akeimach](https://github.com/akeimach)! - Fix Functions builds that failed because of how `functions publish` generated `package-lock.json` or how `functions init` set up pnpm:
+
+  - `functions publish` now generates `package-lock.json` without registry URLs, so private npm registries work.
+  - `functions publish` now resolves local `file:` dependencies by building `package-lock.json` from the uploaded files rather than just `package.json`.
+  - `functions publish` now prints npm's error output when it can't generate `package-lock.json`.
+  - `functions init` now writes a `pnpm-workspace.yaml` that allows the esbuild build script, required by pnpm 11+.
+
+- [#2542](https://github.com/browserbase/stagehand/pull/2542) [`514970e`](https://github.com/browserbase/stagehand/commit/514970e13f2ffe7528407dd2e57e41a77b61e785) Thanks [@shrey150](https://github.com/shrey150)! - Fix local browser discovery (`--auto-connect`, `browse doctor`) trusting a stale cached debugging port after a different Chrome process later reuses that same port.
+
 ## 0.11.0
 
 ### Minor Changes

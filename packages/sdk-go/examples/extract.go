@@ -51,7 +51,7 @@ func run(ctx context.Context) (err error) {
 		return errors.New("Stagehand initialized without an active page")
 	}
 	page := pages[0]
-	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://browserbase.github.io/stagehand-eval-sites/sites/example/", nil); err != nil {
 		return err
 	}
 

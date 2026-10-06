@@ -9,6 +9,7 @@ const allowedPackages = new Set([
   "@browserbasehq/stagehand-protocol",
   "@browserbasehq/stagehand-python",
   "@browserbasehq/stagehand-extension",
+  "@browserbasehq/eve",
   "browse",
 ]);
 
