@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, type Page } from "playwright";
-import { writeObservationFixture } from "./record.js";
+import { writeObservationTask } from "./record.js";
 
 async function main() {
   const { values } = parseArgs({
@@ -15,7 +15,7 @@ async function main() {
   });
   if (values.help) {
     console.log(
-      "fixture:record --url <http(s) URL> --out <new directory> [--setup <module.ts>]\nThe setup module must default-export an async function(page: Page). It runs trusted local code before capture.",
+      "task:record --url <http(s) URL> --out <new directory> [--setup <module.ts>]\nThe setup module must default-export an async function(page: Page). It runs trusted local code before capture.",
     );
     return;
   }
@@ -37,8 +37,8 @@ async function main() {
     const page = await context.newPage();
     await page.goto(values.url, { waitUntil: "load" });
     if (setup) await (setup as (page: Page) => Promise<void>)(page);
-    await writeObservationFixture(page, values.out);
-    console.log(`Recorded observation fixture in ${resolve(values.out)}`);
+    await writeObservationTask(page, values.out);
+    console.log(`Recorded observation task in ${resolve(values.out)}`);
   } finally {
     await browser.close();
   }

@@ -121,9 +121,9 @@ export default defineBenchTask({
 
 Runs stream into Braintrust when `BRAINTRUST_API_KEY` is set; otherwise a local summary prints to stdout. Use `evals experiments` to inspect and diff past Braintrust runs.
 
-### Recording observation fixtures
+### Recording observation tasks
 
-Use the [observation fixture recorder](fixtures/README.md) to capture a rendered
+Use the [observation task recorder](tasks/README.md) to capture a rendered
 page for a static `extract()` or `observe()` regression. It provides a standalone
 HTML artifact and provenance metadata; dynamic application replay is outside its
 scope.

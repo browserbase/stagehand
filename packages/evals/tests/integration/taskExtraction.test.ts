@@ -6,7 +6,7 @@ import { chromium } from "playwright";
 import { z } from "zod";
 import { createServer, type Server } from "node:http";
 import { Stagehand, localBrowser, type ClientLLM } from "@browserbasehq/stagehand";
-import { writeObservationFixture } from "../../fixtures/record.js";
+import { writeObservationTask } from "../../tasks/record.js";
 
 // Historical bug: https://github.com/browserbase/stagehand/pull/2624
 // Exercise real SDK -> extension -> snapshot -> model -> result, substituting
@@ -20,9 +20,9 @@ const observations: string[] = [];
 
 describe.sequential("recorded extraction regression", () => {
   beforeAll(async () => {
-    directory = await mkdtemp(join(tmpdir(), "fixture-extraction-"));
+    directory = await mkdtemp(join(tmpdir(), "task-extraction-"));
     const sourceHtml = await readFile(
-      new URL("../../fixtures/examples/schema-keys.html", import.meta.url),
+      new URL("../../tasks/examples/schema-keys.html", import.meta.url),
       "utf8",
     );
     server = createServer((request, response) => {
@@ -44,7 +44,7 @@ describe.sequential("recorded extraction regression", () => {
       await page.goto(`${serverUrl}source`);
       await page.getByRole("button", { name: "Load company" }).click();
       await page.getByText("Acme Labs").waitFor();
-      await writeObservationFixture(page, join(directory, "recorded"));
+      await writeObservationTask(page, join(directory, "recorded"));
       recordedHtml = await readFile(join(directory, "recorded/index.html"), "utf8");
       expect(recordedHtml).not.toContain("<script");
     } finally {

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { Stagehand, localBrowser, type ClientLLM } from "@browserbasehq/stagehand";
-import { writeObservationFixture } from "../../fixtures/record.js";
+import { writeObservationTask } from "../../tasks/record.js";
 
 const targetName = "Place order for Morgan Reed";
 const hiddenName = "HIDDEN CANCEL ORDER";
@@ -18,9 +18,9 @@ let sourceAvailable = true;
 const requests: string[] = [];
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), "fixture-observation-"));
+  directory = await mkdtemp(join(tmpdir(), "task-observation-"));
   const sourceHtml = await readFile(
-    new URL("../../fixtures/examples/checkout.html", import.meta.url),
+    new URL("../../tasks/examples/checkout.html", import.meta.url),
     "utf8",
   );
   server = createServer((request, response) => {
@@ -53,7 +53,7 @@ beforeAll(async () => {
     await page.goto(`${serverUrl}/source`);
     await page.getByRole("button", { name: "Load saved checkout" }).click();
     await page.getByRole("button", { name: targetName }).waitFor();
-    await writeObservationFixture(page, join(directory, "recorded"));
+    await writeObservationTask(page, join(directory, "recorded"));
     recordedHtml = await readFile(join(directory, "recorded/index.html"), "utf8");
     // Deliberately remove a property required for observation fidelity. The
     // original CSS is unavailable on replay, so this reveals the hidden decoy.

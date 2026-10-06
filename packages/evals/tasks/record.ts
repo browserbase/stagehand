@@ -7,7 +7,7 @@ export async function captureObservation(page: Page): Promise<string> {
   return page.evaluate(() => {
     const elements = Array.from(document.querySelectorAll("*"));
     if (elements.some((element) => element.shadowRoot || element.matches("iframe, frame"))) {
-      throw new Error("Observation fixtures do not support frames or shadow DOM");
+      throw new Error("Observation tasks do not support frames or shadow DOM");
     }
     const clone = document.documentElement.cloneNode(true) as HTMLElement;
     const copies = [clone, ...Array.from(clone.querySelectorAll("*"))];
@@ -61,10 +61,10 @@ export async function captureObservation(page: Page): Promise<string> {
   });
 }
 
-export async function writeObservationFixture(page: Page, output: string): Promise<void> {
+export async function writeObservationTask(page: Page, output: string): Promise<void> {
   const html = await captureObservation(page);
   const directory = resolve(output);
-  // Exclusive creation prevents accidentally replacing a reviewed fixture.
+  // Exclusive creation prevents accidentally replacing a reviewed task.
   await mkdir(directory);
   try {
     await writeFile(resolve(directory, "index.html"), html);

@@ -7,17 +7,17 @@ import { promisify } from "node:util";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
-import { writeObservationFixture } from "../../fixtures/record.js";
+import { writeObservationTask } from "../../tasks/record.js";
 
 let browser: Browser;
 let server: Server;
 let directory: string;
 let url: string;
 let page: Page;
-const cliPath = fileURLToPath(new URL("../../fixtures/cli.ts", import.meta.url));
+const cliPath = fileURLToPath(new URL("../../tasks/cli.ts", import.meta.url));
 
 beforeAll(async () => {
-  directory = await mkdtemp(join(tmpdir(), "observation-fixture-"));
+  directory = await mkdtemp(join(tmpdir(), "observation-task-"));
   server = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html");
     response.end(`<!doctype html><html><head><style>.hidden {display:none} h1 {color:rgb(255, 0, 0)}</style></head><body>
@@ -53,16 +53,16 @@ test("captures the settled observation and replays without scripts or remote ass
   await page.locator("textarea").fill("edited text");
   await page.locator("select").selectOption({ label: "B" });
   await page.getByRole("button", { name: "Update" }).click();
-  const fixture = join(directory, "capture");
-  await writeObservationFixture(page, fixture);
-  const manifest = JSON.parse(await readFile(join(fixture, "manifest.json"), "utf8"));
+  const task = join(directory, "capture");
+  await writeObservationTask(page, task);
+  const manifest = JSON.parse(await readFile(join(task, "manifest.json"), "utf8"));
   expect(manifest).toMatchObject({
     version: 1,
     kind: "observation",
     sourceUrl: `${url}/`,
     viewport: { width: 1280, height: 720 },
   });
-  const html = await readFile(join(fixture, "index.html"), "utf8");
+  const html = await readFile(join(task, "index.html"), "utf8");
   expect(html).not.toContain("secret");
   const replay = await browser.newPage();
   const requests: string[] = [];
@@ -70,7 +70,7 @@ test("captures the settled observation and replays without scripts or remote ass
     requests.push(route.request().url());
     return route.abort();
   });
-  await replay.goto(pathToFileURL(join(fixture, "index.html")).href);
+  await replay.goto(pathToFileURL(join(task, "index.html")).href);
   expect(await replay.getByRole("heading").textContent()).toBe("Updated");
   expect(await replay.locator("h1").evaluate((element) => getComputedStyle(element).color)).toBe(
     "rgb(255, 0, 0)",
@@ -97,13 +97,13 @@ test("captures the settled observation and replays without scripts or remote ass
   await replay.close();
 });
 
-test("never overwrites an existing fixture", async () => {
+test("never overwrites an existing task", async () => {
   await page.goto(url);
-  const fixture = join(directory, "exclusive");
-  await writeObservationFixture(page, fixture);
-  const original = await readFile(join(fixture, "index.html"), "utf8");
-  await expect(writeObservationFixture(page, fixture)).rejects.toThrow();
-  expect(await readFile(join(fixture, "index.html"), "utf8")).toBe(original);
+  const task = join(directory, "exclusive");
+  await writeObservationTask(page, task);
+  const original = await readFile(join(task, "index.html"), "utf8");
+  await expect(writeObservationTask(page, task)).rejects.toThrow();
+  expect(await readFile(join(task, "index.html"), "utf8")).toBe(original);
 });
 
 test.each(["frame", "shadow"])(
@@ -118,21 +118,32 @@ test.each(["frame", "shadow"])(
           .attachShadow({ mode: "open" }).innerHTML = "<button>shadow</button>";
     }, kind);
     const output = join(directory, `unsupported-${kind}`);
-    await expect(writeObservationFixture(page, output)).rejects.toThrow(
+    await expect(writeObservationTask(page, output)).rejects.toThrow(
       "do not support frames or shadow DOM",
     );
     await expect(readFile(join(output, "index.html"))).rejects.toThrow();
   },
 );
 
-test("CLI runs setup and produces a fixture; invalid setup fails without output", async () => {
+test("CLI help advertises task recording", async () => {
+  const { stdout } = await promisify(execFile)(process.execPath, [
+    "--import",
+    "tsx",
+    cliPath,
+    "--help",
+  ]);
+  expect(stdout).toContain("task:record --url");
+  expect(stdout).not.toContain("fixture");
+});
+
+test("CLI runs setup and produces a task; invalid setup fails without output", async () => {
   const setup = join(directory, "setup.mjs");
   await writeFile(
     setup,
     `export default async function(page) { await page.getByRole("button", { name: "Update" }).click(); }`,
   );
   const output = join(directory, "cli");
-  await promisify(execFile)(process.execPath, [
+  const { stdout } = await promisify(execFile)(process.execPath, [
     "--import",
     "tsx",
     cliPath,
@@ -143,6 +154,7 @@ test("CLI runs setup and produces a fixture; invalid setup fails without output"
     "--setup",
     setup,
   ]);
+  expect(stdout).toContain(`Recorded observation task in ${output}`);
   expect(await readFile(join(output, "index.html"), "utf8")).toContain(">Updated</h1>");
   await writeFile(setup, "export default 123;");
   await expect(

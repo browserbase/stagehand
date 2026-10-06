@@ -1,4 +1,4 @@
-# Observation fixture recorder
+# Observation task recorder
 
 This implements the static observation tier proposed in
 [issue #2841](https://github.com/browserbase/stagehand/issues/2841). The
@@ -15,7 +15,7 @@ distinguishes observation snapshots from network recordings needed for dynamic
    so passive replay cannot silently depend on the original site.
 4. Test using a local HTTP source and actual Chromium, without LLM credentials.
 
-This is an observation fixture on-ramp, not an arbitrary application recorder.
+This is an observation task on-ramp, not an arbitrary application recorder.
 It supports manually authored `extract()` / `observe()` regressions against a
 frozen observation. It does not generate assertions or replay click handlers,
 fetches, navigation, authentication, or state transitions. Network response
@@ -29,13 +29,13 @@ From the repository root, after installing workspace dependencies:
 
 ```sh
 pnpm --filter @browserbasehq/stagehand-evals exec playwright install chromium
-pnpm --filter @browserbasehq/stagehand-evals fixture:record \
-  --url https://example.com --out /tmp/example-fixture
+pnpm --filter @browserbasehq/stagehand-evals task:record \
+  --url https://example.com --out /tmp/example-task
 ```
 
-The output directory must not exist; its parent must exist. Existing fixtures
+The output directory must not exist; its parent must exist. Existing tasks
 are never overwritten. Refresh into a new directory, compare, and explicitly
-replace the reviewed fixture. Capture metadata records the final URL, timestamp,
+replace the reviewed task. Capture metadata records the final URL, timestamp,
 and viewport (1280 × 720).
 
 For a hydrated page or a specific UI state, pass `--setup /absolute/path/setup.ts`.
@@ -77,13 +77,13 @@ be detected by this DOM serializer. Images, fonts, pseudo-element content,
 canvas pixels, media, animations, and application behavior are not preserved.
 Computed styles preserve much of the rendered layout and visibility, but do not
 guarantee pixel or accessibility-tree equivalence. Keep these cases live or build
-a dedicated fixture; always validate the original failure against the result.
+a dedicated task; always validate the original failure against the result.
 
 ## Tests
 
 ```sh
 cd packages/evals
-pnpm exec vitest run --config vitest.integration.config.ts tests/integration/fixtureRecorder.test.ts
+pnpm exec vitest run --config vitest.integration.config.ts tests/integration/taskRecorder.test.ts
 ```
 
 Tests use a local server and Chromium to cover edited form state, accessible
@@ -93,7 +93,7 @@ model calls are required.
 
 ## Validated Stagehand regression: extraction schema keys (#2624)
 
-`tests/integration/fixtureExtraction.test.ts` exercises the real Stagehand SDK,
+`tests/integration/taskExtraction.test.ts` exercises the real Stagehand SDK,
 Chrome extension, DOM snapshot, model callback, and extraction result against both
 an interactive source page and the recorder's saved HTML. The source is an
 explicitly reduced reproduction of the confirmed historical bug in
@@ -113,7 +113,7 @@ Browserbase session is involved. Assertions verify:
 Run from `packages/evals` after building the SDK and extension:
 
 ```sh
-pnpm exec vitest run --config vitest.integration.config.ts tests/integration/fixtureExtraction.test.ts
+pnpm exec vitest run --config vitest.integration.config.ts tests/integration/taskExtraction.test.ts
 ```
 
 ### Negative-control experiment
@@ -143,7 +143,7 @@ of the workflow rather than proof for layout, shadow DOM, or dynamic `act()` bug
 
 ## DOM-sensitive observation fidelity
 
-`tests/integration/fixtureObservation.test.ts` validates a synthetic checkout page
+`tests/integration/taskObservation.test.ts` validates a synthetic checkout page
 in `examples/checkout.html` through real `stagehand.observe()` calls. It tests
 capture fidelity directly, independently of the schema-transport regression above.
 
@@ -160,7 +160,7 @@ Assertions verify that:
   control stays absent from the model input.
 - The returned XPath resolves to the intended, visible submit button.
 - Edited input, checkbox, selected option, and expanded details state survive.
-- Replay requests only the fixture document, with no source or stylesheet fetch.
+- Replay requests only the task document, with no source or stylesheet fetch.
 
 The deterministic model adapter chooses an element ID from Stagehand's actual
 observation and returns it through the normal inference pipeline. It does not
@@ -168,12 +168,12 @@ substitute for browser capture or selector resolution, and needs no API key.
 
 A negative control deliberately removes the captured visibility style. This
 exposes the hidden control in Stagehand's model input, and the observation check
-rejects the lossy fixture. It proves the validation detects this specific capture
+rejects the lossy task. It proves the validation detects this specific capture
 loss. This is a synthetic capture-fidelity regression, not a claim to reproduce a
 historical Stagehand bug or prove general model reasoning quality.
 
 Run all recorder validations from `packages/evals`:
 
 ```sh
-pnpm exec vitest run --config vitest.integration.config.ts tests/integration/fixture*.test.ts
+pnpm exec vitest run --config vitest.integration.config.ts tests/integration/task*.test.ts
 ```
