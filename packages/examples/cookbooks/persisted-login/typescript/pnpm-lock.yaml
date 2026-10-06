@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@browserbasehq/sdk':
+        specifier: 2.21.0
+        version: 2.21.0
       '@browserbasehq/stagehand':
         specifier: 4.1.0
         version: 4.1.0

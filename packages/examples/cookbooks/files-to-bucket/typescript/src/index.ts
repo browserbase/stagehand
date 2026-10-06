@@ -23,7 +23,7 @@ if (!browserbaseApiKey) {
   throw new Error("BROWSERBASE_API_KEY is required");
 }
 if (!openaiApiKey) throw new Error("OPENAI_API_KEY is required");
-const browser = await browserbase.launch({ apiKey: browserbaseApiKey, api_timeout: 300 });
+const browser = await browserbase.launch({ apiKey: browserbaseApiKey, timeout: 300 });
 
 try {
   console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);

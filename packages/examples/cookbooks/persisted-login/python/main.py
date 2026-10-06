@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 
+from browserbase import AsyncBrowserbase
 from dotenv import load_dotenv
 from stagehand import BrowserbaseBrowserSettings, Stagehand, browserbase
 
@@ -13,18 +14,24 @@ async def main() -> None:
     names = [
         "BROWSERBASE_API_KEY",
         "OPENAI_API_KEY",
-        "BROWSERBASE_CONTEXT_ID",
         "LOGIN_USER",
         "LOGIN_PASSWORD",
     ]
     for name in names:
         if not os.environ.get(name):
             raise RuntimeError(f"{name} is required")
+    api_key = os.environ["BROWSERBASE_API_KEY"]
+    context_id = os.environ.get("BROWSERBASE_CONTEXT_ID")
+    if not context_id:
+        async with AsyncBrowserbase(api_key=api_key) as bb:
+            context = await bb.contexts.create()
+            context_id = context.id
+        print("Created Browserbase context:", context_id)
     browser = await browserbase.launch(
-        api_key=os.environ["BROWSERBASE_API_KEY"],
+        api_key=api_key,
         timeout=300,
         browser_settings=BrowserbaseBrowserSettings(
-            context={"id": os.environ["BROWSERBASE_CONTEXT_ID"], "persist": True}
+            context={"id": context_id, "persist": True}
         ),
     )
     try:

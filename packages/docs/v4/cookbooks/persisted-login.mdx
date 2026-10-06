@@ -20,17 +20,17 @@ Log into the public [Internet test site](https://the-internet.herokuapp.com/logi
 <Prompt description="Adapt persisted login to an application I own." icon="robot" actions={["copy"]}>
 Adapt `packages/examples/cookbooks/persisted-login` to my application. Read the README, environment template, and source for my chosen language first. Reuse the existing dependencies and OpenAI setup. Ask only for missing application details.
 
-Change the login URL, protected URL, and authenticated marker together. Wait for the page, then check protected access before logging in. Use a persisted Browserbase context and `%variable%` credentials. Attempt login once; stop if access cannot be verified. Do not automate MFA or retry failed credentials.
+Change the login URL, protected URL, and authenticated marker together. Wait for the page, then check protected access before logging in. Use a persisted Browserbase context and `%variable%` credentials. Create a context when `BROWSERBASE_CONTEXT_ID` is missing. Attempt login once; stop if access cannot be verified. Do not automate MFA or retry failed credentials.
 
-Keep the session link, five-minute browser lifetime, cleanup, and one writer per context. Keep credentials and context IDs out of logs. Write `out/login.json` only after verifying access. When combining with another recipe, authenticate before the next step and keep one owner of browser cleanup.
+Keep the session link, five-minute browser lifetime, cleanup, and one writer per context. Keep credentials out of logs. Print a newly created context ID once so it can be saved. Write `out/login.json` only after verifying access. When combining with another recipe, authenticate before the next step and keep one owner of browser cleanup.
 
 Run local checks. With test credentials, verify fresh login and then reuse sequentially. Use a fresh test context for a wrong-password check. Report changed files, commands, receipt results, and anything untested. Keep the implementation small.
 </Prompt>
 
 ## Prerequisites and inputs
 
-- Create a [Browserbase context](https://docs.browserbase.com/features/contexts) in your project. Set `BROWSERBASE_CONTEXT_ID` to its ID.
 - Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`.
+- `BROWSERBASE_CONTEXT_ID` is optional. If it is unset, the example creates a [Browserbase context](https://docs.browserbase.com/features/contexts) and prints its ID. Save that ID in `.env` before the reuse run.
 - The example includes the test site's public `LOGIN_USER` and `LOGIN_PASSWORD`. Use credentials for your own account when adapting it.
 - TypeScript requires Node.js 22.18+ and pnpm. Python requires Python 3.11+ and uv. Go requires Go 1.26+.
 
@@ -83,7 +83,7 @@ Fill in `.env` before the first run. Run sequentially so context persistence fin
 
 <Steps>
   <Step title="Open a persisted context">
-    Launch a five-minute cloud session with the supplied context and `persist: true`.
+    Launch a five-minute cloud session with the supplied or auto-created context and `persist: true`.
   </Step>
   <Step title="Check protected-page access">
     Visit the protected page. If its logout marker exists, reuse the authenticated context without model calls.
@@ -100,7 +100,7 @@ Fill in `.env` before the first run. Run sequentially so context persistence fin
 ```typescript TypeScript
 const browser = await browserbase.launch({
   apiKey,
-  api_timeout: 300,
+  timeout: 300,
   browserSettings: { context: { id: contextId, persist: true } },
 });
 

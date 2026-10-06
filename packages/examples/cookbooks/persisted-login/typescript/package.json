@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@browserbasehq/sdk": "2.21.0",
     "@browserbasehq/stagehand": "4.1.0",
     "dotenv": "^17.4.2",
     "zod": "4.4.3"

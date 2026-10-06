@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 
 	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
@@ -17,14 +20,19 @@ func main() {
 	}
 }
 func run(ctx context.Context) (err error) {
-	for _, name := range []string{"BROWSERBASE_API_KEY", "OPENAI_API_KEY", "BROWSERBASE_CONTEXT_ID", "LOGIN_USER", "LOGIN_PASSWORD"} {
+	for _, name := range []string{"BROWSERBASE_API_KEY", "OPENAI_API_KEY", "LOGIN_USER", "LOGIN_PASSWORD"} {
 		if os.Getenv(name) == "" {
 			return fmt.Errorf("%s is required", name)
 		}
 	}
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	contextID, err := resolveContextID(ctx, apiKey)
+	if err != nil {
+		return err
+	}
 	persist, timeout := true, float64(300)
 	navigationTimeout := 45000
-	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: os.Getenv("BROWSERBASE_API_KEY"), Timeout: &timeout, BrowserSettings: &stagehand.BrowserbaseBrowserSettings{Context: &stagehand.BrowserbaseContext{ID: os.Getenv("BROWSERBASE_CONTEXT_ID"), Persist: &persist}}})
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey, Timeout: &timeout, BrowserSettings: &stagehand.BrowserbaseBrowserSettings{Context: &stagehand.BrowserbaseContext{ID: contextID, Persist: &persist}}})
 	if err != nil {
 		return err
 	}
@@ -110,4 +118,39 @@ func run(ctx context.Context) (err error) {
 	}
 	fmt.Printf("Authenticated. Reused context: %t\n", reused)
 	return nil
+}
+
+func resolveContextID(ctx context.Context, apiKey string) (string, error) {
+	if id := os.Getenv("BROWSERBASE_CONTEXT_ID"); id != "" {
+		return id, nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.browserbase.com/v1/contexts", bytes.NewReader([]byte("{}")))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("create context failed: %s: %s", resp.Status, body)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(body, &created); err != nil {
+		return "", err
+	}
+	if created.ID == "" {
+		return "", errors.New("create context returned no id")
+	}
+	fmt.Println("Created Browserbase context:", created.ID)
+	return created.ID, nil
 }

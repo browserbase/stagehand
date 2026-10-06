@@ -30,7 +30,7 @@ const openaiKey = process.env.OPENAI_API_KEY;
 if (!browserbaseKey) throw new Error("BROWSERBASE_API_KEY is required");
 if (!openaiKey) throw new Error("OPENAI_API_KEY is required");
 const agentModel = openai("gpt-6-sol");
-const browser = await browserbase.launch({ apiKey: browserbaseKey, api_timeout: 300 });
+const browser = await browserbase.launch({ apiKey: browserbaseKey, timeout: 300 });
 try {
   console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);
   const stagehand = await Stagehand.create({

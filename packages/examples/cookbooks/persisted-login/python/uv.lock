@@ -272,12 +272,14 @@ name = "stagehand-cookbook-persisted-login"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "browserbase" },
     { name = "python-dotenv" },
     { name = "stagehand" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "browserbase", specifier = ">=1.20.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "stagehand", specifier = "==4.1.0" },
 ]

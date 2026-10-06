@@ -15,7 +15,7 @@ const catalogUrl =
   "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html";
 const browser = local
   ? await localBrowser.launch({ headless: true })
-  : await browserbase.launch({ apiKey: apiKey!, api_timeout: 300 });
+  : await browserbase.launch({ apiKey: apiKey!, timeout: 300 });
 try {
   if (browser.sessionId)
     console.log(`Session: https://www.browserbase.com/sessions/${browser.sessionId}`);

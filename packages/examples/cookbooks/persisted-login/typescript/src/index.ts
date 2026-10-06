@@ -1,4 +1,5 @@
 import "dotenv/config";
+import Browserbase from "@browserbasehq/sdk";
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { mkdir, writeFile } from "node:fs/promises";
 
@@ -8,13 +9,19 @@ function requireEnv(name: string): string {
   return value;
 }
 const apiKey = requireEnv("BROWSERBASE_API_KEY");
-const contextId = requireEnv("BROWSERBASE_CONTEXT_ID");
 const modelKey = requireEnv("OPENAI_API_KEY");
 const username = requireEnv("LOGIN_USER");
 const password = requireEnv("LOGIN_PASSWORD");
+let contextId = process.env.BROWSERBASE_CONTEXT_ID;
+if (!contextId) {
+  const bb = new Browserbase({ apiKey });
+  const context = await bb.contexts.create();
+  contextId = context.id;
+  console.log("Created Browserbase context:", contextId);
+}
 const browser = await browserbase.launch({
   apiKey,
-  api_timeout: 300,
+  timeout: 300,
   browserSettings: { context: { id: contextId, persist: true } },
 });
 try {
