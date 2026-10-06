@@ -22,7 +22,6 @@ import {
 import { CDPClient, CDPConnectionClosedError, type CDPClientOptions } from "../cdpClient.js";
 import {
   createBrowserbaseSessionClient,
-  type BrowserbaseSessionClient,
   type BrowserbaseSessionClientFactory,
 } from "./browserbaseSession.js";
 import {

@@ -204,7 +204,7 @@ browser = await browserbase.launch(
 )
 ```
 
-Units follow each Browserbase SDK: TypeScript timeouts are in milliseconds and Python timeouts are in seconds. Stagehand never closes an `http_client` you pass; keep it open until `browser.close()` returns, because releasing the session uses it. The Go SDK does not support client options yet.
+Units follow each Browserbase SDK: TypeScript timeouts are in milliseconds and Python timeouts are in seconds. Stagehand never closes an `http_client` you pass; keep it open until `browser.close()` returns, because releasing the session uses it.
 
 ### Environment variables
 
