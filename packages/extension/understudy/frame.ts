@@ -1,8 +1,8 @@
 // lib/v3/understudy/frame.ts
 import { Protocol } from "devtools-protocol";
-import type { CDPSessionLike } from "./cdp.js";
+import { type CDPSessionLike, isCdpClosedError } from "./cdp.js";
 import { Locator } from "./locator.js";
-import { waitForScreenshot } from "./screenshotUtils.js";
+import { type Progress, runLocatorStep } from "./progress.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandLogger } from "../logger.js";
 
@@ -91,15 +91,20 @@ export class Frame implements FrameManager {
     return { x, y, width, height };
   }
 
-  /** Accessibility.getFullAXTree (+ recurse into child frames if requested) */
-  async getAccessibilityTree(withFrames = false): Promise<Protocol.Accessibility.AXNode[]> {
-    await this.session.send("Accessibility.enable");
+  /** Read this frame's accessibility tree. */
+  async getAccessibilityTree(progress?: Progress): Promise<Protocol.Accessibility.AXNode[]> {
+    await runLocatorStep(progress, "enabling accessibility", () =>
+      this.session.send("Accessibility.enable"),
+    );
     let nodes: Protocol.Accessibility.AXNode[];
     try {
-      ({ nodes } = await this.session.send<{
-        nodes: Protocol.Accessibility.AXNode[];
-      }>("Accessibility.getFullAXTree", { frameId: this.frameId }));
+      ({ nodes } = await runLocatorStep(progress, "reading accessibility tree", () =>
+        this.session.send<{
+          nodes: Protocol.Accessibility.AXNode[];
+        }>("Accessibility.getFullAXTree", { frameId: this.frameId }),
+      ));
     } catch (e) {
+      progress?.throwIfStopped();
       const msg = String((e as Error)?.message ?? e ?? "");
       const isFrameScopeError =
         msg.includes("Frame with the given") ||
@@ -107,18 +112,13 @@ export class Frame implements FrameManager {
         msg.includes("is not found");
       if (!isFrameScopeError) throw e;
       // Retry unscoped: on OOPIF sessions, returns the child doc's AX tree.
-      ({ nodes } = await this.session.send<{
-        nodes: Protocol.Accessibility.AXNode[];
-      }>("Accessibility.getFullAXTree"));
+      ({ nodes } = await runLocatorStep(progress, "reading accessibility tree", () =>
+        this.session.send<{
+          nodes: Protocol.Accessibility.AXNode[];
+        }>("Accessibility.getFullAXTree"),
+      ));
     }
 
-    if (!withFrames) return nodes;
-
-    const children = await this.childFrames();
-    for (const child of children) {
-      const childNodes = await child.getAccessibilityTree(false);
-      nodes.push(...childNodes);
-    }
     return nodes;
   }
 
@@ -126,13 +126,17 @@ export class Frame implements FrameManager {
    * Evaluate a function or expression in this frame's main world.
    * - If a string is provided, treated as a JS expression.
    * - If a function is provided, it is stringified and invoked with the optional argument.
+   * Progress guards dispatch, but issued evaluations are awaited so screenshot
+   * restoration cannot run before a late page mutation finishes.
    */
   async evaluate<R = unknown, Arg = unknown>(
     pageFunctionOrExpression: string | ((arg: Arg) => R | Promise<R>),
     arg?: Arg,
+    progress?: Progress,
   ): Promise<R> {
+    progress?.throwIfStopped();
     await this.session.send("Runtime.enable").catch(() => {});
-    const contextId = await this.getMainWorldExecutionContextId();
+    const contextId = await this.getMainWorldExecutionContextId(progress);
 
     const isString = typeof pageFunctionOrExpression === "string";
     let expression: string;
@@ -156,6 +160,7 @@ export class Frame implements FrameManager {
 
     let res: Protocol.Runtime.EvaluateResponse;
     try {
+      progress?.throwIfStopped();
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId,
@@ -167,7 +172,8 @@ export class Frame implements FrameManager {
       // Runtime.evaluate during popup/navigate churn. Retry once with a fresh id.
       const msg = error instanceof Error ? error.message : String(error);
       if (!msg.includes("Cannot find context with specified id")) throw error;
-      const freshContextId = await this.getMainWorldExecutionContextId();
+      const freshContextId = await this.getMainWorldExecutionContextId(progress);
+      progress?.throwIfStopped();
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId: freshContextId,
@@ -182,33 +188,48 @@ export class Frame implements FrameManager {
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
-  async evaluateInLocatorWorld<R = unknown>(expression: string): Promise<R> {
-    await this.session.send("Runtime.enable").catch(() => {});
+  async evaluateInLocatorWorld<R = unknown>(expression: string, progress?: Progress): Promise<R> {
+    await runLocatorStep(progress, "enabling runtime", () =>
+      this.session.send("Runtime.enable").catch((error) => {
+        if (progress && isCdpClosedError(error)) throw error;
+      }),
+    );
     let locatorWorld = await executionContexts.waitForLocatorWorld(
       this.session,
       this.frameId,
       1000,
+      progress,
     );
 
     let response: Protocol.Runtime.EvaluateResponse;
     try {
-      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId: locatorWorld.contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      });
+      response = await runLocatorStep(progress, "evaluating locator helper", () =>
+        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression,
+          contextId: locatorWorld.contextId,
+          awaitPromise: true,
+          returnByValue: true,
+        }),
+      );
     } catch (error) {
+      progress?.throwIfStopped();
       const message = error instanceof Error ? error.message : String(error);
       if (!message.includes("Cannot find context with specified id")) throw error;
       executionContexts.unregisterLocatorContext(this.session, locatorWorld.contextId);
-      locatorWorld = await executionContexts.waitForLocatorWorld(this.session, this.frameId, 1000);
-      response = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-        expression,
-        contextId: locatorWorld.contextId,
-        awaitPromise: true,
-        returnByValue: true,
-      });
+      locatorWorld = await executionContexts.waitForLocatorWorld(
+        this.session,
+        this.frameId,
+        1000,
+        progress,
+      );
+      response = await runLocatorStep(progress, "evaluating locator helper", () =>
+        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+          expression,
+          contextId: locatorWorld.contextId,
+          awaitPromise: true,
+          returnByValue: true,
+        }),
+      );
     }
 
     if (response.exceptionDetails) {
@@ -218,17 +239,20 @@ export class Frame implements FrameManager {
   }
 
   /** Page.captureScreenshot (frame-scoped session) */
-  async screenshot(options?: {
-    fullPage?: boolean;
-    clip?: { x: number; y: number; width: number; height: number };
-    type?: "png" | "jpeg";
-    quality?: number;
-    scale?: number;
-    signal?: AbortSignal;
-  }): Promise<Uint8Array> {
-    const signal = options?.signal;
-    signal?.throwIfAborted();
-    await waitForScreenshot(this.session.send("Page.enable"), signal);
+  async screenshot(
+    options: {
+      fullPage?: boolean;
+      clip?: { x: number; y: number; width: number; height: number };
+      type?: "png" | "jpeg";
+      quality?: number;
+      scale?: number;
+    },
+    progress: Progress,
+  ): Promise<Uint8Array> {
+    // The page bounds the caller's wait. Await actual commands here so the capture
+    // lock stays held until Chrome finishes, even after the caller times out.
+    progress.throwIfStopped();
+    await this.session.send("Page.enable");
     const format = options?.type ?? "png";
     const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } = {
       format,
@@ -260,42 +284,27 @@ export class Frame implements FrameManager {
     }
 
     // Headless Chrome can wait indefinitely for a background tab to produce a frame.
-    await waitForScreenshot(this.session.send("Page.bringToFront"), signal);
-    const { data } = await waitForScreenshot(
-      this.session.send<Protocol.Page.CaptureScreenshotResponse>("Page.captureScreenshot", params),
-      signal,
+    progress.throwIfStopped();
+    await this.session.send("Page.bringToFront");
+    progress.throwIfStopped();
+    const { data } = await this.session.send<Protocol.Page.CaptureScreenshotResponse>(
+      "Page.captureScreenshot",
+      params,
     );
+    progress.throwIfStopped();
     return base64ToBytes(data);
-  }
-
-  /** Child frames via Page.getFrameTree */
-  async childFrames(): Promise<Frame[]> {
-    const { frameTree } = await this.session.send<{
-      frameTree: Protocol.Page.FrameTree;
-    }>("Page.getFrameTree");
-    const frames: Frame[] = [];
-
-    const collect = (tree: Protocol.Page.FrameTree) => {
-      if (tree.frame.parentId === this.frameId) {
-        frames.push(
-          new Frame(this.session, tree.frame.id, this.pageId, this.remoteBrowser, this.logger),
-        );
-      }
-      tree.childFrames?.forEach(collect);
-    };
-
-    collect(frameTree);
-    return frames;
   }
 
   /** Wait for a lifecycle state (load/domcontentloaded/networkidle) */
   async waitForLoadState(
     state: "load" | "domcontentloaded" | "networkidle" = "load",
     timeout: number = 15_000,
+    progress?: Progress,
   ): Promise<void> {
-    await this.session.send("Page.enable");
+    await runLocatorStep(progress, "enabling load events", () => this.session.send("Page.enable"));
     const targetState = state.toLowerCase();
     const effectiveTimeout = Math.max(0, timeout);
+    progress?.throwIfStopped();
     await new Promise<void>((resolve, reject) => {
       let done = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
@@ -303,6 +312,7 @@ export class Frame implements FrameManager {
         if (done) return;
         done = true;
         this.session.off("Page.lifecycleEvent", handler);
+        progress?.signal.removeEventListener("abort", finish);
         if (timer) {
           clearTimeout(timer);
           timer = null;
@@ -319,11 +329,13 @@ export class Frame implements FrameManager {
         }
       };
       this.session.on("Page.lifecycleEvent", handler);
+      progress?.signal.addEventListener("abort", finish, { once: true });
 
       timer = setTimeout(() => {
         if (done) return;
         done = true;
         this.session.off("Page.lifecycleEvent", handler);
+        progress?.signal.removeEventListener("abort", finish);
         reject(
           new Error(
             `waitForLoadState(${state}) timed out after ${effectiveTimeout}ms for frame ${this.frameId}`,
@@ -331,6 +343,7 @@ export class Frame implements FrameManager {
         );
       }, effectiveTimeout);
     });
+    progress?.throwIfStopped();
   }
 
   /** Simple placeholder for your own locator abstraction */
@@ -339,8 +352,8 @@ export class Frame implements FrameManager {
   }
 
   /** Resolve the main-world execution context id for this frame. */
-  async getMainWorldExecutionContextId(): Promise<number> {
-    return executionContexts.waitForMainWorld(this.session, this.frameId, 1000);
+  async getMainWorldExecutionContextId(progress?: Progress): Promise<number> {
+    return executionContexts.waitForMainWorld(this.session, this.frameId, 1000, progress);
   }
 
   async getExtensionWorldExecutionContextId(): Promise<number> {
