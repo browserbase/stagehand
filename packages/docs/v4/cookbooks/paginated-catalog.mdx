@@ -13,7 +13,7 @@ Use this when a catalog spans several pages and failed runs must preserve progre
 
 ## Goal and output
 
-Export the [Books to Scrape](https://books.toscrape.com/) catalog into `out/catalog.json`. Each entry has a nonempty title, displayed price, and availability. The file also reports `pages` and `count`. Validated pages are saved atomically to `out/checkpoint.json`. The final catalog appears only after pagination ends.
+Export the [Books to Scrape](https://books.toscrape.com/) catalog into `out/catalog.json`. Each entry has a nonempty title, displayed price, and availability. The file also reports `pages` and `count`. The job saves validated pages atomically to `out/checkpoint.json`. The final catalog appears only after pagination ends.
 
 ## Agent prompt
 

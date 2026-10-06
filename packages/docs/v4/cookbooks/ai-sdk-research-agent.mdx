@@ -13,7 +13,7 @@ Use this when an agent should choose which of two approved pages to read, then r
 
 ## Goal and output
 
-Ask an AI SDK agent to compare Stagehand `act()` and `extract()` by reading their two documentation pages. One tool visits an approved URL and extracts facts in the same operation. Concurrent tool requests are serialized because they share one Browserbase page. The final JSON report has an answer and facts attributed to the exact source URLs. The job rejects missing or unapproved sources.
+Ask an AI SDK agent to compare Stagehand `act()` and `extract()` by reading their two documentation pages. One tool visits an approved URL and extracts facts in the same operation. The tool serializes concurrent requests because they share one Browserbase page. The final JSON report has an answer and facts attributed to the exact source URLs. The job rejects missing or unapproved sources.
 
 ## Agent prompt
 
@@ -93,9 +93,9 @@ The CLI prints JSON with a comparison answer and source entries for both approve
 
 ## Adapt sources and limits
 
-Edit the `sourceUrls` array in `src/index.ts` and set `RESEARCH_QUESTION` to your question. The tools accept only those exact URLs, and reject redirects and citations outside the allowlist. Page content is treated as untrusted data in the agent instructions. This is a tool navigation policy, not a network firewall for page subresources.
+Edit the `sourceUrls` array in `src/index.ts` and set `RESEARCH_QUESTION` to your question. The tools accept only those exact URLs, and reject redirects and citations outside the allowlist. The agent instructions treat page content as untrusted data. This is a tool navigation policy, not a network firewall for page subresources.
 
-The agent has a 10-step limit, a 120-second generation timeout, a 3,000-token output limit, and no automatic model retries. Browser lifetime is five minutes. The validated report is saved to `out/report.json`. Citation checks establish which sources were used; review the answer for factual accuracy before using it downstream.
+The agent has a 10-step limit, a 120-second generation timeout, a 3,000-token output limit, and no automatic model retries. Browser lifetime is five minutes. The job saves the validated report to `out/report.json`. Citation checks show which sources the agent used; review the answer for factual accuracy before using it downstream.
 
 ## Adapt to your site
 
