@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -94,14 +95,21 @@ class _OfficialBrowserbaseAPI:
         self._base_url = base_url
         self._client_options = dict(client_options or {})
 
-    def _client(self) -> AsyncBrowserbase:
+    @asynccontextmanager
+    async def _client(self) -> AsyncIterator[AsyncBrowserbase]:
         from browserbase import AsyncBrowserbase
 
-        return AsyncBrowserbase(
+        client = AsyncBrowserbase(
             **self._client_options,
             api_key=self._api_key,
             base_url=self._base_url,
         )
+        if self._client_options.get("http_client") is not None:
+            # Closing AsyncBrowserbase closes its HTTP client, which the caller owns.
+            yield client
+            return
+        async with client:
+            yield client
 
     async def upload_extension(self, archive: bytes) -> str:
         async with self._client() as client:

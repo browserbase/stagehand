@@ -3,6 +3,8 @@
 from collections.abc import Awaitable, Callable
 from typing import Literal, NotRequired, TypedDict
 
+import httpx
+
 from ._generated.input_types import (
     ModelConfig,
     TelemetryConfig,
@@ -73,6 +75,8 @@ class BrowserbaseClientOptions(TypedDict, total=False):
     max_retries: int
     default_headers: dict[str, str]
     default_query: dict[str, object]
+    http_client: httpx.AsyncClient
+    """Caller-owned; Stagehand never closes it. Keep it open until `browser.close()` returns."""
 
 
 class BrowserbaseConnectOptions(TypedDict):

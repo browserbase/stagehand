@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, cast
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
@@ -795,9 +796,14 @@ async def test_browserbase_launch_and_connect_pass_client_options(
     fake_cdp: type[FakeCDPClient],
 ) -> None:
     _, configurations = _install_browserbase_client(monkeypatch)
+    http_client = httpx.AsyncClient()
     launched = await browserbase.launch(
         api_key="api-key",
-        client_options={"timeout": 5.0, "default_headers": {"X-Caller": "app"}},
+        client_options={
+            "timeout": 5.0,
+            "default_headers": {"X-Caller": "app"},
+            "http_client": http_client,
+        },
     )
     await launched.close()
     connected = await browserbase.connect(
@@ -811,10 +817,13 @@ async def test_browserbase_launch_and_connect_pass_client_options(
         (
             "api-key",
             "https://api.browserbase.com",
-            {"timeout": 5.0, "default_headers": {"X-Caller": "app"}},
+            {"timeout": 5.0, "default_headers": {"X-Caller": "app"}, "http_client": http_client},
         ),
         ("api-key", "https://api.browserbase.com", {"max_retries": 0}),
     ]
+    assert configurations[0][2] is not None
+    assert configurations[0][2]["http_client"] is http_client
+    await http_client.aclose()
 
 
 async def test_browserbase_launch_connect_failure_closes_owned_session(
@@ -855,6 +864,7 @@ async def test_browserbase_validation_precedes_api_calls(
         {"base_url": "https://api.dev.browserbase.com"},
         {"timeout": -1.0},
         {"max_retries": "3"},
+        {"http_client": httpx.Client()},
     ):
         with pytest.raises(ValidationError):
             await browserbase.launch(

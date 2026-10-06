@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
@@ -108,12 +109,13 @@ class LocalBrowserConnectOptions(WireModel):
 
 
 class BrowserbaseClientOptions(WireModel):
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True, arbitrary_types_allowed=True)
 
     timeout: Annotated[float | None, Field(ge=0)] = None
     max_retries: Annotated[int | None, Field(ge=0)] = None
     default_headers: dict[str, str] | None = None
     default_query: dict[str, object] | None = None
+    http_client: httpx.AsyncClient | None = None
 
 
 class BrowserbaseConnectOptions(WireModel):

@@ -563,7 +563,12 @@ class _ConnectedBrowserSource:
 def _sdk_client_options(options: BrowserbaseClientOptions | None) -> dict[str, Any] | None:
     if options is None:
         return None
-    return options.model_dump(exclude_none=True)
+    # Read attributes rather than model_dump so a caller's http_client passes through as-is.
+    return {
+        name: value
+        for name in type(options).model_fields
+        if (value := getattr(options, name)) is not None
+    }
 
 
 class BrowserbaseBrowser:
