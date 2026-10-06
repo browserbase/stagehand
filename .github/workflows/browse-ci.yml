@@ -1,0 +1,118 @@
+name: Browse CLI
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Internal mirrored pull request number
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pull_request_number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Determine Browse changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      affected: ${{ steps.affected.outputs.affected }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        if: github.event_name == 'pull_request'
+        id: filter
+        with:
+          filters: |
+            browse:
+              - 'packages/cli/**'
+              - 'packages/sdk-ts/**'
+              - 'packages/extension/**'
+              - 'packages/protocol/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+              - 'oxlint.config.ts'
+              - 'rules/oxlint/**'
+              - '.oxfmtrc.json'
+              - '.gitignore'
+              - '.npmrc'
+              - '.pnpmfile.*'
+              - 'patches/**'
+              - '.github/workflows/browse-ci.yml'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/external-contributor-pr.yml'
+              - '.github/actions/setup-node-pnpm/**'
+
+      # Mirrored PRs are dispatched on their internal branch. Always validate
+      # that ref instead of comparing it with the default branch here.
+      - name: Select Browse validation
+        id: affected
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BROWSE_CHANGED: ${{ steps.filter.outputs.browse }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "affected=true" >> "$GITHUB_OUTPUT"
+          elif [ "$BROWSE_CHANGED" = "true" ] || [ "$BROWSE_CHANGED" = "false" ]; then
+            echo "affected=$BROWSE_CHANGED" >> "$GITHUB_OUTPUT"
+          else
+            echo "Browse change detection did not return a result." >&2
+            exit 1
+          fi
+
+  validate:
+    name: Build, lint, and test Browse
+    needs: [changes]
+    if: needs.changes.outputs.affected == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - run: pnpm exec turbo run build --filter=browse
+      - run: pnpm exec oxlint packages/cli
+      - run: pnpm --filter browse lint
+      - run: pnpm --filter browse test:cli
+
+  result:
+    name: Browse CI
+    needs: [changes, validate]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check Browse result
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          BROWSE_AFFECTED: ${{ needs.changes.outputs.affected }}
+          VALIDATION_RESULT: ${{ needs.validate.result }}
+        run: |
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "Browse change detection did not succeed: $CHANGES_RESULT" >&2
+            exit 1
+          fi
+
+          if [ "$BROWSE_AFFECTED" = "false" ] && [ "$VALIDATION_RESULT" = "skipped" ]; then
+            echo "Browse CLI and its dependencies are unaffected." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$BROWSE_AFFECTED" = "true" ] && [ "$VALIDATION_RESULT" = "success" ]; then
+            echo "Browse build, lint, and tests passed." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Browse validation did not succeed: affected=$BROWSE_AFFECTED, result=$VALIDATION_RESULT" >&2
+            exit 1
+          fi

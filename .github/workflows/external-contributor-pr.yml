@@ -648,15 +648,17 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'ci.yml',
-              ref: ${{ toJson(steps.prepare-claim.outputs.branch) }},
-              inputs: {
-                pull_request_number: ${{ toJson(steps.finalize-claim.outputs.owned-pr-number) }},
-              },
-            });
+            await Promise.all(['ci.yml', 'browse-ci.yml'].map((workflowId) =>
+              github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: workflowId,
+                ref: ${{ toJson(steps.prepare-claim.outputs.branch) }},
+                inputs: {
+                  pull_request_number: ${{ toJson(steps.finalize-claim.outputs.owned-pr-number) }},
+                },
+              }),
+            ));
 
   sync-owned-pr:
     if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.action == 'closed' || github.event.action == 'reopened')

@@ -193,13 +193,12 @@ jobs:
           go-version: "1.26.x"
           cache-dependency-path: packages/sdk-go/internal/generator/go.sum
 
-      # Keep the legacy build command here so the generated protocol drift check
-      # still compares freshly generated output with the committed schema.
-      - run: pnpm build
+      # Build the SDK packages before checking generated protocol drift.
+      # Browse and its eval consumers are validated independently.
+      - run: pnpm build:core
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
-      - run: pnpm check
+      - run: pnpm check:core
       - run: pnpm test:unit
-      - run: pnpm --filter browse test:cli
       - run: uv lock --check
         working-directory: packages/sdk-python
       - run: uv run --locked python scripts/generate.py --check
@@ -259,7 +258,7 @@ jobs:
         with:
           use-prebuilt-artifacts: "false"
 
-      - run: pnpm exec turbo run build
+      - run: pnpm build:core
 
       - name: Save Turbo cache
         if: always()
@@ -289,7 +288,6 @@ jobs:
             packages/integrations/deepagents-sdk/dist/**
             packages/integrations/fx-sdk/dist/**
             packages/integrations/cursor-sdk/dist/**
-            packages/evals/dist/**
           retention-days: 1
 
   unit-ts:
@@ -308,7 +306,29 @@ jobs:
       - uses: ./.github/actions/setup-chrome-verified
 
       # Browser-runtime specs run in browser-ts; root Vitest would repeat the unit suites.
-      - run: pnpm exec turbo run test:unit
+      - run: pnpm test:unit:core
+
+  evals-checks:
+    name: Evals checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [determine-changes]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      # Evals depend on Browse. Build that closure here so an eval or CLI failure
+      # cannot block the SDK artifacts or TypeScript unit suites.
+      - run: pnpm exec turbo run build --filter=@browserbasehq/stagehand-evals
+      # Preserve the strict environment used by the shared Turbo checks.
+      - run: pnpm exec turbo run typecheck --filter=@browserbasehq/stagehand-evals
+
+      - uses: ./.github/actions/setup-chrome-verified
+
+      - run: pnpm exec turbo run test:unit --filter=@browserbasehq/stagehand-evals
 
   browser-ts:
     name: TypeScript browser
@@ -431,10 +451,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/sdk-python/uv.lock
 
-      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
-
-      - run: just build
-        working-directory: ${{ github.workspace }}
+      # The shared SDK artifacts already contain the extension bundled into the wheel.
+      - run: uv run --locked python scripts/build.py
       - name: Smoke test installed Python wheel
         run: >-
           uv run --isolated --no-project
@@ -576,11 +594,10 @@ jobs:
     name: evals/regression
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    needs: [build, determine-changes, load-pr-context]
+    needs: [determine-changes, load-pr-context]
     if: >-
       ${{
         always() &&
-        needs.build.result == 'success' &&
         needs.determine-changes.result == 'success' &&
         needs.load-pr-context.result == 'success' &&
         needs.load-pr-context.outputs.is-internal-head == 'true' &&
@@ -608,8 +625,10 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
         with:
-          use-prebuilt-artifacts: "true"
+          use-prebuilt-artifacts: "false"
           restore-turbo-cache: "false"
+
+      - run: pnpm exec turbo run build --filter=@browserbasehq/stagehand-evals
 
       - name: Run regression evals
         id: run-evals
