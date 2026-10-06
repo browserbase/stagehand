@@ -12,14 +12,14 @@ describe("tool surface resolution", () => {
     expect(resolveToolSurface(stagehandHarness, "understudy_code")).toBe("understudy_code");
   });
 
-  it("defaults to the first supported surface and accepts supported requests", () => {
-    expect(resolveToolSurface(claudeCodeHarness)).toBe("browse_cli");
+  it("defaults to the facade when supported and accepts supported requests", () => {
+    expect(resolveToolSurface(claudeCodeHarness)).toBe("stagehand_facade");
     expect(resolveToolSurface(claudeCodeHarness, "cdp_code")).toBe("cdp_code");
   });
 
   it("rejects unsupported surfaces with the full supported list", () => {
     expect(() => resolveToolSurface(claudeCodeHarness, "understudy_code")).toThrow(
-      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, or stagehand_facade; received "understudy_code"/,
+      /Harness "claude_code" supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, chrome_devtools_mcp, stagehand_facade, or stagehand_facade_legacy; received "understudy_code"/,
     );
   });
 });

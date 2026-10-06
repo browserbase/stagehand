@@ -1,0 +1,1 @@
+{"server":"stagehand","tool":"mcp_stagehand_screenshot","result":{"content":[{"type":"text","text":"Screenshot captured."},{"type":"image","mimeType":"image/jpeg","delivery":"image content"}]}}
