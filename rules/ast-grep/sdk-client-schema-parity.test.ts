@@ -27,9 +27,6 @@ const intentionallyUndocumentedBrowserFields = new Set([
   "BrowserbaseConnectOptions.extension_id",
 ]);
 
-// Go builds its Browserbase client without the official SDK; HTTP client options are TS/Python-only for now.
-const pendingGoBrowserFields = new Set(["BrowserbaseConnectOptions.client_options"]);
-
 const concepts: readonly Concept[] = [
   {
     name: "LocalBrowserLaunchOptions",
@@ -112,12 +109,9 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
           `${concept.name} Python: expected [${expected.join(", ")}], received [${pythonFields.join(", ")}]`,
         );
       }
-      const expectedGo = expected.filter(
-        (field) => !pendingGoBrowserFields.has(`${concept.name}.${field}`),
-      );
-      if (!arraysEqual(goFields, expectedGo)) {
+      if (!arraysEqual(goFields, expected)) {
         differences.push(
-          `${concept.name} Go: expected [${expectedGo.join(", ")}], received [${goFields.join(", ")}]`,
+          `${concept.name} Go: expected [${expected.join(", ")}], received [${goFields.join(", ")}]`,
         );
       }
     }

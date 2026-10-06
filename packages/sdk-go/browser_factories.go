@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/browserbase/stagehand/packages/sdk-go/v4/internal/extensionassets"
 )
@@ -40,10 +42,28 @@ type LocalBrowserConnectOptions struct {
 	ExtensionID string
 }
 
+// BrowserbaseClientOptions configures the HTTP client Stagehand uses for
+// Browserbase session and extension requests.
+type BrowserbaseClientOptions struct {
+	// Timeout bounds each request attempt. Zero keeps the 60 second default.
+	Timeout time.Duration
+	// MaxRetries caps retries of replay-safe requests. Nil keeps the default of 2.
+	MaxRetries *int
+	// DefaultHeaders are added to every request. Stagehand's own X-BB-API-Key,
+	// User-Agent, Content-Type, and Accept headers win on conflict.
+	DefaultHeaders map[string]string
+	// DefaultQuery parameters are added to every request URL.
+	DefaultQuery map[string]string
+	// HTTPClient sends the requests. Stagehand never modifies it; Timeout is
+	// applied per attempt through the request context. Nil uses a default client.
+	HTTPClient *http.Client
+}
+
 // BrowserbaseLaunchOptions configures a newly launched Browserbase session.
 type BrowserbaseLaunchOptions struct {
 	APIKey          string
 	BaseURL         string
+	ClientOptions   *BrowserbaseClientOptions
 	BrowserSettings *BrowserbaseBrowserSettings
 	ExtensionID     *string
 	KeepAlive       *bool
@@ -55,10 +75,11 @@ type BrowserbaseLaunchOptions struct {
 
 // BrowserbaseConnectOptions configures a connection to an existing Browserbase session.
 type BrowserbaseConnectOptions struct {
-	APIKey      string
-	BaseURL     string
-	SessionID   string
-	ExtensionID string
+	APIKey        string
+	BaseURL       string
+	ClientOptions *BrowserbaseClientOptions
+	SessionID     string
+	ExtensionID   string
 }
 
 type browserbaseFactoryClient interface {
@@ -68,7 +89,7 @@ type browserbaseFactoryClient interface {
 
 type browserFactoryDependencies struct {
 	launchLocal             func(context.Context, LocalBrowserLaunchOptions) (resolvedBrowserSource, error)
-	createBrowserbaseClient func(string, string) (browserbaseFactoryClient, error)
+	createBrowserbaseClient func(apiKey string, baseURL string, clientOptions *BrowserbaseClientOptions) (browserbaseFactoryClient, error)
 	connectCDP              func(context.Context, cdpClientOptions) (*cdpClient, error)
 	materializeExtension    func() (string, func() error, error)
 	commandSender           func(*cdpClient) browserCommandSender
@@ -198,7 +219,7 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 	}
 	defer cancelLifecycle()
 
-	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, dependencies)
+	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, options.ClientOptions, dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +253,7 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 	}
 	defer cancelLifecycle()
 
-	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, dependencies)
+	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, options.ClientOptions, dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -249,19 +270,19 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 	}, dependencies)
 }
 
-func browserbaseClientForFactory(apiKey string, baseURL string, dependencies browserFactoryDependencies) (browserbaseFactoryClient, error) {
+func browserbaseClientForFactory(apiKey string, baseURL string, clientOptions *BrowserbaseClientOptions, dependencies browserFactoryDependencies) (browserbaseFactoryClient, error) {
 	if strings.TrimSpace(apiKey) == "" {
 		return nil, errors.New("stagehand Browserbase API key is required")
 	}
 	factory := dependencies.createBrowserbaseClient
 	if factory == nil {
-		factory = func(apiKey string, baseURL string) (browserbaseFactoryClient, error) {
+		factory = func(apiKey string, baseURL string, clientOptions *BrowserbaseClientOptions) (browserbaseFactoryClient, error) {
 			return newBrowserbaseSessionClient(apiKey, browserbaseSessionClientOptions{
-				http: browserbaseHTTPClientOptions{baseURL: baseURL},
+				http: browserbaseHTTPClientOptionsFor(baseURL, clientOptions),
 			})
 		}
 	}
-	client, err := factory(apiKey, baseURL)
+	client, err := factory(apiKey, baseURL, clientOptions)
 	if err != nil {
 		return nil, fmt.Errorf("create Stagehand Browserbase client: %w", err)
 	}

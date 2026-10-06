@@ -180,8 +180,10 @@ The Browserbase URL controls extension, session, and connection requests that `b
 
 ### Browserbase client options
 
-`browserbase.launch()` and `browserbase.connect()` create a Browserbase SDK client for session and extension requests. Pass `clientOptions` (TypeScript) or `client_options` (Python) to tune that client's timeout, retries, default headers, and default query parameters. TypeScript also accepts a custom `fetch`, and Python accepts an `httpx.AsyncClient` as `http_client`. `apiKey` and `baseUrl` stay top-level, so one key authenticates both Browserbase and Stagehand.
+`browserbase.launch()` and `browserbase.connect()` create a Browserbase client for session and extension requests. Pass `clientOptions` (TypeScript), `client_options` (Python), or `ClientOptions` (Go) to tune that client's timeout, retries, default headers, and default query parameters. TypeScript also accepts a custom `fetch`, Python accepts an `httpx.AsyncClient` as `http_client`, and Go accepts an `*http.Client` as `HTTPClient`. `apiKey` and `baseUrl` stay top-level, so one key authenticates both Browserbase and Stagehand.
 
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
@@ -192,7 +194,9 @@ const browser = await browserbase.launch({
   },
 });
 ```
+</Tab>
 
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
@@ -203,8 +207,28 @@ browser = await browserbase.launch(
     },
 )
 ```
+</Tab>
 
-Units follow each Browserbase SDK: TypeScript timeouts are in milliseconds and Python timeouts are in seconds. Stagehand never closes an `http_client` you pass; keep it open until `browser.close()` returns, because releasing the session uses it. The Go SDK does not support client options yet.
+<Tab title="Go">
+```go
+maxRetries := 1
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	ClientOptions: &stagehand.BrowserbaseClientOptions{
+		Timeout:        30 * time.Second, // per attempt
+		MaxRetries:     &maxRetries,
+		DefaultHeaders: map[string]string{"X-Request-Source": "my-app"},
+		// HTTPClient: myHTTPClient, // optional caller-owned *http.Client
+	},
+})
+if err != nil {
+	return err
+}
+```
+</Tab>
+</Tabs>
+
+Units follow each SDK: TypeScript timeouts are in milliseconds, Python timeouts are in seconds, and Go uses a `time.Duration` that bounds each attempt. Stagehand never closes an `http_client` you pass; keep it open until `browser.close()` returns, because releasing the session uses it. Go never modifies an `HTTPClient` you pass, so its own `Timeout` and `Transport` still apply.
 
 ### Environment variables
 
