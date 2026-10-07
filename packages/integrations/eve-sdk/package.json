@@ -25,7 +25,7 @@
     "@ai-sdk/openai": "catalog:",
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
-    "ai": "^7.0.38",
+    "ai": "catalog:eve",
     "eve": "catalog:",
     "zod": "catalog:"
   },

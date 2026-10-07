@@ -5,6 +5,11 @@ import { type Progress, runLocatorStep } from "./progress.js";
 type FrameId = Protocol.Page.FrameId;
 type ExecId = Protocol.Runtime.ExecutionContextId;
 
+export type ReadinessOptions = {
+  /** Retry failed readiness attempts within progress, or return after one attempt. */
+  readinessRetries?: "until-deadline" | "none";
+};
+
 export type LocatorWorld = {
   contextId: ExecId;
   kind: "extension" | "cdp-fallback";
@@ -92,14 +97,15 @@ export class ExecutionContextRegistry {
   }
 
   /** With progress, timeout limits each extension probe, not the whole wait.
-   * Frame traversal disables retries here so it can recheck session ownership.
+   * Callers that handle failure themselves can disable retries without losing
+   * the caller's deadline. Without progress, readiness makes a single attempt.
    */
   async waitForLocatorWorld(
     session: CDPSessionLike,
     frameId: FrameId,
     timeout: number = 1000,
     progress?: Progress,
-    retryUntilDeadline = true,
+    { readinessRetries = "until-deadline" }: ReadinessOptions = {},
   ): Promise<LocatorWorld> {
     while (true) {
       progress?.throwIfStopped();
@@ -124,7 +130,7 @@ export class ExecutionContextRegistry {
             ),
           );
         }
-        if (!progress || !retryUntilDeadline) throw extensionError;
+        if (!progress || readinessRetries === "none") throw extensionError;
       }
     }
   }
