@@ -698,7 +698,9 @@ def _install_browserbase_client(
     client = FakeBrowserbaseClient()
     configurations: list[tuple[str, str]] = []
 
-    def factory(api_key: str, base_url: str) -> FakeBrowserbaseClient:
+    def factory(
+        api_key: str, base_url: str, supplied_client: object = None
+    ) -> FakeBrowserbaseClient:
         configurations.append((api_key, base_url))
         return client
 
@@ -734,6 +736,67 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     assert configurations == [("api-key", "https://api.dev.browserbase.com")]
     assert client.created.close_calls == 1
     assert fake_cdp.instances[-1].close_calls == 1
+
+
+@pytest.mark.parametrize("launch", [True, False])
+async def test_browserbase_injected_client_routes_lifecycle_and_remains_open(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cdp: type[FakeCDPClient],
+    launch: bool,
+) -> None:
+    import httpx
+    from browserbase import AsyncBrowserbase
+
+    from stagehand import browserbase_session
+
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/v1/extensions" and request.method == "POST":
+            return httpx.Response(200, json={"id": "extension-id"})
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(
+            200, json={"id": "session-id", "connectUrl": "wss://browser", "region": "us-west-2"}
+        )
+
+    monkeypatch.setattr(browserbase_session, "build_extension_archive", lambda: b"archive")
+    async with AsyncBrowserbase(
+        api_key="management-key",
+        base_url="https://management.example",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+    ) as client:
+        if launch:
+            handle = await browserbase.launch(
+                api_key="runtime-key", base_url="https://ignored.example", client=client
+            )
+        else:
+            handle = await browserbase.connect(
+                api_key="runtime-key",
+                base_url="https://ignored.example",
+                client=client,
+                session_id="session-id",
+            )
+        assert _claim_browser(handle).worker_init_metadata.api_key == "runtime-key"
+        _release_browser(handle)
+        await handle.close()
+        assert not client.is_closed()
+        assert all(request.url.host == "management.example" for request in requests)
+        assert all(request.headers["x-bb-api-key"] == "management-key" for request in requests)
+        expected = (
+            [("POST", "/v1/extensions"), ("POST", "/v1/sessions")]
+            if launch
+            else [("GET", "/v1/sessions/session-id")]
+        )
+        expected.append(("POST", "/v1/sessions/session-id"))
+        if launch:
+            expected.append(("DELETE", "/v1/extensions/extension-id"))
+        assert [(request.method, request.url.path) for request in requests] == expected
+        if launch:
+            payload = json.loads(requests[1].content)
+            assert "client" not in payload
+            assert payload["userMetadata"]["stagehand_sdk_language"] == "python"
 
 
 async def test_browserbase_launch_keep_alive_still_closes_session_explicitly(

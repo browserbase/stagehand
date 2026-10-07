@@ -38,6 +38,41 @@ from stagehand.browserbase_session import (
 from stagehand.extension_assets import build_extension_archive
 
 
+async def test_injected_client_cleans_extension_after_create_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+    from browserbase import AsyncBrowserbase
+
+    requests: list[tuple[str, str]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, request.url.path))
+        if request.url.path == "/v1/extensions" and request.method == "POST":
+            return httpx.Response(200, json={"id": "extension-id"})
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(400, json={"message": "invalid session"})
+
+    monkeypatch.setattr(browserbase_session, "build_extension_archive", lambda: b"archive")
+    async with AsyncBrowserbase(
+        api_key="management-key",
+        base_url="https://management.example",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)),
+    ) as supplied:
+        client = browserbase_session._create_browserbase_session_client(
+            "runtime-key", "https://ignored.example", supplied
+        )
+        with pytest.raises(BrowserbaseSessionError, match="Failed to create"):
+            await client.create_session(BrowserbaseSessionCreateParams())
+        assert not supplied.is_closed()
+        assert requests == [
+            ("POST", "/v1/extensions"),
+            ("POST", "/v1/sessions"),
+            ("DELETE", "/v1/extensions/extension-id"),
+        ]
+
+
 class FakeBrowserbaseAPI:
     def __init__(self) -> None:
         self.upload_result = "uploaded-extension"
