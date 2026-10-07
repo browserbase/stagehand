@@ -114,7 +114,7 @@ class BrowserbaseClientOptions(WireModel):
     timeout: Annotated[float | None, Field(ge=0)] = None
     max_retries: Annotated[int | None, Field(ge=0)] = None
     default_headers: dict[str, str] | None = None
-    default_query: dict[str, object] | None = None
+    default_query: dict[str, str] | None = None
     http_client: httpx.AsyncClient | None = None
 
 

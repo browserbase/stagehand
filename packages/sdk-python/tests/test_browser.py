@@ -868,6 +868,8 @@ async def test_browserbase_validation_precedes_api_calls(
         {"timeout": -1.0},
         {"max_retries": "3"},
         {"http_client": httpx.Client()},
+        {"default_query": {"trace": None}},
+        {"default_query": {"trace": 1}},
     ):
         with pytest.raises(ValidationError):
             await browserbase.launch(
