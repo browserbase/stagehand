@@ -6,6 +6,6 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "**/.out"]
+  "include": ["showcase/**/*.ts"],
+  "exclude": ["node_modules", "**/.out", "cookbooks/**"]
 }
