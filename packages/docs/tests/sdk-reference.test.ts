@@ -151,13 +151,13 @@ const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
 const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Language[];
+// The Claude CUA toolset has TypeScript and Python SDKs, but no Go SDK.
+const PAGE_LANGUAGE_SETS = new Map<string, readonly Language[]>([
+  ["v4/integrations/agent-frameworks/claude-cua-toolset-quickstart.mdx", ["TypeScript", "Python"]],
+]);
 // Language tabs are the selector; every other <Tab> on a page is a different axis
 // (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
-// Integrations that only ship some SDK languages; every other page must offer all of LANGUAGES.
-const PARTIAL_LANGUAGE_PAGES = new Map<string, readonly Language[]>([
-  ["v4/integrations/agent-frameworks/claude-cua-toolset-quickstart.mdx", ["TypeScript", "Python"]],
-]);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Docs publish separately after release. Remove these entries in the WebMCP hooks docs PR.
 // These exceptions apply only to docs coverage, never SDK-to-SDK parity.
@@ -1331,7 +1331,7 @@ describe("Mintlify customization boundary", () => {
     ).toStrictEqual(indexedContentPages);
   });
 
-  it("gives every language tab group the same complete language set", async () => {
+  it("gives every language tab group the complete language set for its page", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
     );
@@ -1361,8 +1361,8 @@ describe("Mintlify customization boundary", () => {
           for (const { title } of titled) {
             counts.set(title, (counts.get(title) ?? 0) + 1);
           }
-          const languages = PARTIAL_LANGUAGE_PAGES.get(pagePath) ?? LANGUAGES;
-          const missing = languages.filter((language) => !counts.has(language));
+          const requiredLanguages = PAGE_LANGUAGE_SETS.get(pagePath) ?? LANGUAGES;
+          const missing = requiredLanguages.filter((language) => !counts.has(language));
           if (missing.length > 0) {
             found.push(`${pagePath}: missing ${missing.join(", ")} snippets`);
           }
@@ -1407,7 +1407,7 @@ describe("Mintlify customization boundary", () => {
 
     expect(
       problems,
-      "Every language tab group must offer the same languages, so switching never hides a snippet",
+      "Every language tab group must offer the languages supported by its page, so switching never hides a snippet",
     ).toEqual([]);
   });
 
