@@ -608,6 +608,9 @@ importers:
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../sdk-ts
+      '@browserbasehq/stagehand-evaluator':
+        specifier: workspace:*
+        version: link:../evaluator
       '@browserbasehq/stagehand-integrations':
         specifier: workspace:*
         version: link:../integrations/core

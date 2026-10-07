@@ -24,6 +24,7 @@
     "@braintrust/otel": "^0.2.1",
     "@browserbasehq/sdk": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
+    "@browserbasehq/stagehand-evaluator": "workspace:*",
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-cua-sdk": "workspace:*",

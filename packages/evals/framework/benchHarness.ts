@@ -2,7 +2,8 @@ import { runGeminiCuaAgent, GEMINI_CUA_DEFAULT_MODELS } from "./geminiCuaRunner.
 import { GEMINI_CUA_TOOL_SURFACES, prepareGeminiCuaToolAdapter } from "./geminiCuaToolAdapter.js";
 import { runClaudeCuaAgent, CLAUDE_CUA_DEFAULT_MODELS } from "./claudeCuaRunner.js";
 import { CLAUDE_CUA_TOOL_SURFACES, prepareClaudeCuaToolAdapter } from "./claudeCuaToolAdapter.js";
-import { V3, normalizeRubric, type AvailableModel, type TaskSpec } from "stagehand-v3";
+import type { AvailableModel } from "stagehand-v3";
+import { normalizeRubric, type TaskSpec } from "@browserbasehq/stagehand-evaluator";
 import { EvalsError } from "../errors.js";
 import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../logger.js";
@@ -37,12 +38,11 @@ import {
   type BrowserSessionInfo,
 } from "./browserSession.js";
 import { withHarnessAgentSpan } from "./otel.js";
-import { verifierTraceEnabled } from "./verifierTrace.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
-import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
+import { createVerifierEvaluator, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 export interface BenchHarnessStartInput {
   task: DiscoveredTask;
@@ -161,10 +161,9 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
         );
       }
       const plan = buildExternalHarnessTaskPlan(input);
-      // Everything past carrier construction runs inside one try/finally so a
-      // failure at any point — adapter preparation included — cleans up both
-      // the adapter and the carrier.
-      const carrierV3 = buildVerifierCarrierV3(logger);
+      // Reject an unavailable judge before allocating a browser or running an agent.
+      const evaluator = createVerifierEvaluator({ logger: logger.log.bind(logger) });
+      await evaluator.validate();
       let toolAdapter: TAdapter | undefined;
       let browserSession: BrowserSessionInfo = {
         provider: row.config.environment === "BROWSERBASE" ? "browserbase" : "local",
@@ -195,7 +194,7 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
               toolAdapter: preparedAdapter,
               signal,
               verifier: {
-                v3: carrierV3,
+                evaluator,
                 taskSpec: buildExternalHarnessTaskSpec(plan, input),
                 dataset: plan.dataset,
               },
@@ -214,39 +213,10 @@ export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBas
           browserSession,
         );
       } finally {
-        try {
-          await toolAdapter?.cleanup();
-        } finally {
-          // Deregister the never-init()-ed carrier (instance registry, event
-          // store, logger binding) so long matrix runs don't accumulate one
-          // V3 object graph per task.
-          await carrierV3.close().catch(() => {});
-        }
+        await toolAdapter?.cleanup();
       }
     },
   };
-}
-
-/**
- * Build a verifier-carrier V3 instance. Used only as the LLM-client carrier
- * for V3Evaluator.verify() — never `init()`-ed, never drives a browser.
- * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
- *
- * The model is deliberately left at V3's default: the harness model can be a
- * runner-only alias (e.g. "codex/default") that V3's provider map rejects at
- * construction, and V3Evaluator selects its own verifier model regardless.
- */
-function buildVerifierCarrierV3(logger: EvalLogger): V3 {
-  return new V3({
-    env: "LOCAL",
-    logger: logger.log.bind(logger),
-    disablePino: true,
-    disableAPI: true,
-    experimental: true,
-    // verbose 2 surfaces the judge's LLM request/response lines (level 2),
-    // which verifierAdapter routes to scores/verifier-trace.jsonl.
-    verbose: verifierTraceEnabled() ? 2 : 0,
-  });
 }
 
 function buildExternalHarnessTaskSpec(

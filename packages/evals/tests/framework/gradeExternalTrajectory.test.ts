@@ -17,8 +17,8 @@ const mockState = vi.hoisted(() => ({
   } as Record<string, unknown>,
 }));
 
-vi.mock("stagehand-v3", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("stagehand-v3")>();
+vi.mock("@browserbasehq/stagehand-evaluator", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@browserbasehq/stagehand-evaluator")>();
   class FakeV3Evaluator {
     async verify() {
       return mockState.evaluationResult;
@@ -29,7 +29,7 @@ vi.mock("stagehand-v3", async (importOriginal) => {
   }
   return {
     ...mod,
-    V3Evaluator: FakeV3Evaluator as unknown as typeof mod.V3Evaluator,
+    Evaluator: FakeV3Evaluator as unknown as typeof mod.Evaluator,
   };
 });
 

@@ -3,7 +3,7 @@
  *
  * The verifier is browser-free: it consumes a hydrated Trajectory + TaskSpec
  * and returns an EvaluationResult. This command reads the on-disk layout written by
- * `TrajectoryRecorder.persist()` and feeds it through V3Evaluator.verify().
+ * `TrajectoryRecorder.persist()` and feeds it through Evaluator.verify().
  *
  * The judge's verdict is then passed through the same deterministic gates the
  * live run applies (see verifierGates.ts), so the offline result matches what
@@ -17,7 +17,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { V3, loadTrajectoryFromDisk, nextResultFilename, type LogLine } from "stagehand-v3";
+import {
+  Evaluator,
+  loadTrajectoryFromDisk,
+  nextResultFilename,
+  type EvaluationResult,
+  type LogLine,
+} from "@browserbasehq/stagehand-evaluator";
 
 import {
   buildPersistedEvaluationResult,
@@ -40,7 +46,7 @@ import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 export interface VerifyOptions {
   /** Absolute or cwd-relative path to a `<group>/<task-id>/<run-id>/` directory. */
   trajectoryDir: string;
-  /** Override EVAL_VERIFIER_MODEL and the shared live verifier default. */
+  /** Override the verifier model. Defaults to whatever Evaluator picks. */
   model?: string;
   /** Label appended to the output result filename (default: timestamp). */
   label?: string;
@@ -74,7 +80,7 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
 
   ${cyan("Examples")}
     evals verify .trajectories/agent__20260715-110342/united_13/2026-07-15T11-03-51-204Z
-    evals verify .trajectories/<group>/<task>/<run> --model anthropic/claude-haiku-4-5 --label tuning-pass-1
+    evals verify .trajectories/<group>/<task>/<run> --model google/gemini-3.8-flash --label tuning-pass-1
     evals verify .trajectories/<group>/<task>/<run> --json > result.json
 `);
 }
@@ -138,27 +144,16 @@ export async function handleVerify(args: string[]): Promise<void> {
     );
   }
 
-  // ── Build a verifier without launching a browser ────────────────────────
-  // V3Evaluator.verify() only touches v3.logger (to construct an LLMProvider)
-  // and the verify(trajectory) call is pure. Constructing V3 without
-  // calling init() is safe and avoids any browser/Browserbase setup cost.
-  // EVAL_VERIFIER_TRACE=1 records the judge's LLM traffic (level-2 lines) to
-  // scores/verifier-trace[_label].jsonl so evidence selection can be audited.
   const traceOn = verifierTraceEnabled();
   const traceLines: LogLine[] = [];
-  const v3 = new V3({
-    env: "LOCAL",
-    verbose: traceOn ? 2 : 0,
-    disableAPI: true,
-    disablePino: true,
-    ...(traceOn ? { logger: (line: LogLine) => void traceLines.push(line) } : {}),
-  });
-
-  const evaluator = createVerifierEvaluator(v3, parsed.model);
+  const evaluator = createVerifierEvaluator(
+    { logger: traceOn ? (line: LogLine) => void traceLines.push(line) : undefined },
+    parsed.model,
+  );
 
   if (!parsed.json) {
     console.log(
-      `${cyan("▸")} running V3Evaluator.verify()${parsed.model ? ` with model=${parsed.model}` : ""}`,
+      `${cyan("▸")} running Evaluator.verify()${parsed.model ? ` with model=${parsed.model}` : ""}`,
     );
   }
   const startMs = Date.now();
@@ -200,6 +195,7 @@ export async function handleVerify(args: string[]): Promise<void> {
     ...(rubricItemCount !== undefined && { rubricItemCount }),
   });
   const result = buildPersistedEvaluationResult(judgeResult, gates);
+  if (result.health && result.health.status !== "healthy") process.exitCode = 2;
 
   if (parsed.json) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -210,6 +206,10 @@ export async function handleVerify(args: string[]): Promise<void> {
   console.log(`  ${green("✓")} verified in ${(elapsedMs / 1000).toFixed(1)}s`);
   console.log();
   console.log(formatVerdictLine(result));
+  if (result.health?.status !== "healthy") {
+    for (const error of result.health?.errors ?? [])
+      console.log(red(`${error.stage}: ${error.message}`));
+  }
   const perCriterion = result.perCriterion ?? [];
   const evidenceInsufficient = result.evidenceInsufficient ?? [];
   console.log(
