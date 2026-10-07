@@ -47,7 +47,7 @@ _DEFAULT_CHROME_FLAGS = (
     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,"
     "CalculateNativeWinOcclusion,InterestFeedContentSuggestions,"
     "CertificateTransparencyComponentUpdater,AutofillServerCommunication,"
-    "PrivacySandboxSettings4,RenderDocument",
+    "PrivacySandboxSettings4,RenderDocument,SpareRendererForSitePerProcess",
     "--disable-component-extensions-with-background-pages",
     "--disable-background-networking",
     "--disable-component-update",
@@ -949,7 +949,7 @@ def _local_browser_flags(
     )
     window_size_flag = f"--window-size={viewport.width},{viewport.height}"
 
-    return [
+    flags = [
         *(
             [flag for flag in _DEFAULT_CHROME_FLAGS if flag not in ignored_flags]
             if include_defaults
@@ -983,6 +983,34 @@ def _local_browser_flags(
         *(options.args or []),
         "about:blank",
     ]
+    return _merge_chrome_feature_flags(flags)
+
+
+def _merge_chrome_feature_flags(flags: list[str]) -> list[str]:
+    prefixes = ("--enable-features=", "--disable-features=")
+    features: dict[str, dict[str, str]] = {}
+    for flag in flags:
+        prefix = next((prefix for prefix in prefixes if flag.startswith(prefix)), None)
+        if prefix is None:
+            continue
+        values = features.setdefault(prefix, {})
+        for value in flag[len(prefix) :].split(","):
+            if value:
+                name = value
+                for separator in ("<", ":", "."):
+                    name = name.partition(separator)[0]
+                values[name.strip().removeprefix("*")] = value
+
+    result: list[str] = []
+    emitted: set[str] = set()
+    for flag in flags:
+        prefix = next((prefix for prefix in prefixes if flag.startswith(prefix)), None)
+        if prefix is None:
+            result.append(flag)
+        elif prefix not in emitted:
+            result.append(prefix + ",".join(features[prefix].values()))
+            emitted.add(prefix)
+    return result
 
 
 def _should_disable_chromium_sandbox(

@@ -166,6 +166,76 @@ describe("local browser Chrome flags", () => {
     expect(flags).toContain("--enable-unsafe-extension-debugging");
   });
 
+  it("merges caller feature lists without replacing the defaults", () => {
+    const flags = localBrowserChromeFlags(
+      {
+        args: [
+          "--disable-features=CustomFeature,Translate",
+          "--enable-features=CustomEnabled",
+          "--disable-features=AnotherFeature",
+        ],
+      },
+      9_222,
+      "/tmp/profile",
+      false,
+    );
+    expect(flags.filter((flag) => flag.startsWith("--disable-features="))).toEqual([
+      `${DEFAULT_CHROME_FLAGS[0]},CustomFeature,AnotherFeature`,
+    ]);
+    expect(flags.filter((flag) => flag.startsWith("--enable-features="))).toEqual([
+      `${WEBMCP_CHROME_FLAG},CustomEnabled`,
+    ]);
+  });
+
+  it("allows replacing a feature default by explicitly ignoring it", () => {
+    const flags = localBrowserChromeFlags(
+      { ignoreDefaultArgs: [DEFAULT_CHROME_FLAGS[0]], args: ["--disable-features=CustomFeature"] },
+      9_222,
+      "/tmp/profile",
+      false,
+    );
+    expect(flags.filter((flag) => flag.startsWith("--disable-features="))).toEqual([
+      "--disable-features=CustomFeature",
+    ]);
+  });
+
+  it("lets caller parameters and trials override earlier feature variants", () => {
+    const flags = localBrowserChromeFlags(
+      {
+        args: [
+          "--enable-features=WebMCPTesting:mode/on,Custom.Group",
+          "--enable-features=*WebMCPTesting<Trial.Group:mode/off,Custom:mode/on",
+        ],
+      },
+      9_222,
+      "/tmp/profile",
+      false,
+    );
+    expect(flags.filter((flag) => flag.startsWith("--enable-features="))).toEqual([
+      "--enable-features=*WebMCPTesting<Trial.Group:mode/off,DevToolsWebMCPSupport,Custom:mode/on",
+    ]);
+  });
+
+  it.each(["WebMCPTesting :mode/on", " \t*WebMCPTesting \t<Trial.Group:mode/on \t"])(
+    "trims feature-name whitespace while preserving caller token %j",
+    (override) => {
+      const flags = localBrowserChromeFlags(
+        {
+          args: [
+            "--enable-features=WebMCPTesting:mode/old,CustomEnabled",
+            `--enable-features=${override}`,
+          ],
+        },
+        9_222,
+        "/tmp/profile",
+        false,
+      );
+      expect(flags.filter((flag) => flag.startsWith("--enable-features="))).toEqual([
+        `--enable-features=${override},DevToolsWebMCPSupport,CustomEnabled`,
+      ]);
+    },
+  );
+
   it("retains an explicit viewport even when its matching default is ignored", () => {
     const windowSizeFlag = "--window-size=1440,900";
     expect(

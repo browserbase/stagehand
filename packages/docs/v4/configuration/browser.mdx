@@ -790,7 +790,11 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 `--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
 </Note>
 
-A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. To remove some of them, list the exact flags in the ignore-default-args option:
+A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. Stagehand also disables Chrome's spare renderer to reduce memory use.
+
+Caller `--enable-features` and `--disable-features` lists merge with the default lists. A caller entry for the same feature replaces its earlier parameters or trial settings. Other flags retain Chrome's usual last-value behavior. To remove a default feature list entirely, ignore its exact flag or use `ignoreDefaultArgs: true`.
+
+To remove individual default flags, list their exact values in the ignore-default-args option:
 
 <Tabs>
 <Tab title="TypeScript">

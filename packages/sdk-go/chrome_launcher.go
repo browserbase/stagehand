@@ -30,7 +30,7 @@ var defaultChromeFlags = []string{
 	"--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
 		"CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
 		"CertificateTransparencyComponentUpdater,AutofillServerCommunication," +
-		"PrivacySandboxSettings4,RenderDocument",
+		"PrivacySandboxSettings4,RenderDocument,SpareRendererForSitePerProcess",
 	"--disable-component-extensions-with-background-pages",
 	"--disable-background-networking",
 	"--disable-component-update",
@@ -265,7 +265,58 @@ func buildChromeArgs(options LocalBrowserLaunchOptions, port int, userDataDir st
 		args = append(args, "--ignore-certificate-errors")
 	}
 	args = append(args, options.Args...)
-	return append(args, "about:blank")
+	return mergeChromeFeatureFlags(append(args, "about:blank"))
+}
+
+func mergeChromeFeatureFlags(flags []string) []string {
+	prefixes := []string{"--enable-features=", "--disable-features="}
+	featurePrefix := func(flag string) string {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(flag, prefix) {
+				return prefix
+			}
+		}
+		return ""
+	}
+	features := make(map[string][]string)
+	positions := make(map[string]map[string]int)
+	for _, flag := range flags {
+		prefix := featurePrefix(flag)
+		if prefix == "" {
+			continue
+		}
+		if positions[prefix] == nil {
+			positions[prefix] = make(map[string]int)
+		}
+		for _, value := range strings.Split(strings.TrimPrefix(flag, prefix), ",") {
+			if value == "" {
+				continue
+			}
+			name := value
+			if index := strings.IndexAny(name, "<:."); index >= 0 {
+				name = name[:index]
+			}
+			name = strings.TrimPrefix(strings.TrimSpace(name), "*")
+			if index, exists := positions[prefix][name]; exists {
+				features[prefix][index] = value
+			} else {
+				positions[prefix][name] = len(features[prefix])
+				features[prefix] = append(features[prefix], value)
+			}
+		}
+	}
+	result := make([]string, 0, len(flags))
+	emitted := make(map[string]bool)
+	for _, flag := range flags {
+		prefix := featurePrefix(flag)
+		if prefix == "" {
+			result = append(result, flag)
+		} else if !emitted[prefix] {
+			result = append(result, prefix+strings.Join(features[prefix], ","))
+			emitted[prefix] = true
+		}
+	}
+	return result
 }
 
 func selectedDefaultChromeFlags(ignore *IgnoreDefaultArgs) []string {

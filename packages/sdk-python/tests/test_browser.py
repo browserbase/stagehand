@@ -1569,6 +1569,91 @@ async def test_launch_combines_spawn_and_profile_cleanup_errors(
     assert raised.value.exceptions[1] is profile_error
 
 
+def test_local_browser_flags_merge_caller_feature_lists(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserLaunchOptions(
+            args=[
+                "--disable-features=CustomFeature,Translate,,",
+                "--enable-features=CustomEnabled,WebMCPTesting",
+                "--disable-features=AnotherFeature,CustomFeature,CustomFeature:mode/on",
+                "--enable-features=CustomEnabled,AnotherEnabled",
+                "--custom-flag=value",
+            ]
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        disable_sandbox=False,
+    )
+
+    assert [flag for flag in flags if flag.startswith("--disable-features=")] == [
+        _DEFAULT_CHROME_FLAGS[0] + ",CustomFeature:mode/on,AnotherFeature"
+    ]
+    assert [flag for flag in flags if flag.startswith("--enable-features=")] == [
+        "--enable-features=WebMCPTesting,DevToolsWebMCPSupport,CustomEnabled,AnotherEnabled"
+    ]
+    assert flags[0].startswith("--disable-features=")
+    assert flags[-2:] == ["--custom-flag=value", "about:blank"]
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        "WebMCPTesting",
+        "WebMCPTesting:mode/on",
+        "WebMCPTesting<Trial.Group:mode/on",
+        "WebMCPTesting.Group:mode/on",
+        "*WebMCPTesting<Trial",
+        " \t*WebMCPTesting<Trial.Group:mode/on \t",
+        "WebMCPTesting :mode/on",
+        " \t*WebMCPTesting \t<Trial.Group:mode/on \t",
+    ],
+)
+def test_local_browser_flags_keep_last_feature_variant(tmp_path: Path, override: str) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserLaunchOptions(
+            args=[
+                "--enable-features=WebMCPTesting:mode/old,CustomEnabled",
+                "--enable-features=" + override,
+            ]
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        disable_sandbox=False,
+    )
+
+    assert [flag for flag in flags if flag.startswith("--enable-features=")] == [
+        f"--enable-features={override},DevToolsWebMCPSupport,CustomEnabled"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("ignored_default_args", "caller_flags"),
+    [
+        ([_DEFAULT_CHROME_FLAGS[0]], ["--disable-features=CustomFeature"]),
+        (
+            ["--enable-features=WebMCPTesting,DevToolsWebMCPSupport"],
+            ["--enable-features=CustomEnabled"],
+        ),
+        (True, ["--disable-features=CustomFeature", "--enable-features=CustomEnabled"]),
+    ],
+)
+def test_local_browser_flags_replace_explicitly_ignored_feature_defaults(
+    tmp_path: Path,
+    ignored_default_args: bool | list[str],
+    caller_flags: list[str],
+) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserLaunchOptions(ignore_default_args=ignored_default_args, args=caller_flags),
+        port=9222,
+        user_data_dir=tmp_path,
+        disable_sandbox=False,
+    )
+
+    for caller_flag in caller_flags:
+        prefix = caller_flag.partition("=")[0] + "="
+        assert [flag for flag in flags if flag.startswith(prefix)] == [caller_flag]
+
+
 def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: Path) -> None:
     flags = _local_browser_flags(
         LocalBrowserLaunchOptions(
