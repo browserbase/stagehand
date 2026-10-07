@@ -776,6 +776,7 @@ version = "4.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "browserbase" },
+    { name = "httpx" },
     { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "typing-extensions" },
@@ -795,6 +796,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "browserbase", specifier = ">=1.15,<2" },
+    { name = "httpx", specifier = ">=0.23,<1" },
     { name = "opentelemetry-api", specifier = ">=1.35,<2" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "typing-extensions", specifier = ">=4.12,<5" },
