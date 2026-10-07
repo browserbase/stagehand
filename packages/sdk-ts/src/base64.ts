@@ -1,16 +1,11 @@
-const BASE64_PATTERN = /^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/;
-
 export function decodeBase64(value: string, source: string): Uint8Array {
-  if (value.length % 4 !== 0 || !BASE64_PATTERN.test(value)) {
-    throw new Error(`${source} returned invalid base64`);
-  }
-
   let binary: string;
   try {
     binary = globalThis.atob(value);
   } catch {
     throw new Error(`${source} returned invalid base64`);
   }
+  // atob accepts noncanonical input; require the standard padded representation.
   if (globalThis.btoa(binary) !== value) {
     throw new Error(`${source} returned invalid base64`);
   }
