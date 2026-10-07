@@ -442,7 +442,7 @@ describe("locator action deadlines", () => {
   });
 
   it.each(["preparation", "legacy"] as const)(
-    "shares the remaining fill budget through the %s fallback",
+    "shares the remaining fill budget through %s recovery",
     async (path) => {
       const { locator, send, resolveNode } = createFillLocator(path === "legacy");
       const progress = createProgress(100, "fill");
@@ -463,7 +463,12 @@ describe("locator action deadlines", () => {
       const pending = locator.fill("hello", progress);
       const rejected = expect(pending).rejects.toThrow("fill timed out after 100ms");
       await vi.advanceTimersByTimeAsync(60);
-      expect(type).toHaveBeenCalledExactlyOnceWith("hello", undefined, progress);
+      if (path === "legacy") {
+        expect(type).toHaveBeenCalledExactlyOnceWith("hello", undefined, progress);
+      } else {
+        expect(type).not.toHaveBeenCalled();
+        expect(resolveNode).toHaveBeenCalledTimes(2);
+      }
       expect(resolveNode.mock.calls.every(([passed]) => passed === progress)).toBe(true);
       expect(progress.remainingMs()).toBe(40);
       await vi.advanceTimersByTimeAsync(40);
@@ -505,10 +510,30 @@ describe("locator action deadlines", () => {
   it.each(["hello", ""])(
     "fills prepared input with %j & releases each handle once",
     async (value) => {
-      const { locator, send } = createFillLocator();
+      const { locator, send, resolveNode } = createFillLocator();
       const type = vi.spyOn(locator, "type");
       await locator.fill(value, createProgress());
       expect(type).not.toHaveBeenCalled();
+      expect(resolveNode).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls.filter(([method]) => method === "Runtime.callFunctionOn")).toEqual([
+        [
+          "Runtime.callFunctionOn",
+          {
+            objectId: "node-1",
+            functionDeclaration: fillElementValue.toString(),
+            arguments: [{ value }],
+            returnByValue: true,
+          },
+        ],
+        [
+          "Runtime.callFunctionOn",
+          {
+            objectId: "node-1",
+            functionDeclaration: prepareElementForTyping.toString(),
+            returnByValue: true,
+          },
+        ],
+      ]);
       expect(send.mock.calls.filter(([method]) => method.startsWith("Input."))).toEqual(
         value
           ? [["Input.insertText", { text: value }]]
@@ -537,10 +562,94 @@ describe("locator action deadlines", () => {
       );
       expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
         ["Runtime.releaseObject", { objectId: "node-1" }],
+      ]);
+    },
+  );
+
+  it.each(["hello", ""])("prepares a replacement element before filling %j", async (value) => {
+    const { locator, send, resolveNode } = createFillLocator();
+    const type = vi.spyOn(locator, "type");
+    const respond = send.getMockImplementation()!;
+    send.mockImplementation((method, params) => {
+      const preparation = params as { objectId?: string; functionDeclaration?: string };
+      if (preparation?.functionDeclaration === prepareElementForTyping.toString()) {
+        return Promise.resolve({ result: { value: preparation.objectId === "node-2" } });
+      }
+      return respond(method, params);
+    });
+
+    await locator.fill(value, createProgress());
+
+    expect(resolveNode).toHaveBeenCalledTimes(2);
+    expect(type).not.toHaveBeenCalled();
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
+      ["Runtime.releaseObject", { objectId: "node-1" }],
+      ["Runtime.releaseObject", { objectId: "node-2" }],
+    ]);
+    const calls = send.mock.calls;
+    const preparationIndex = calls.findIndex(([, params]) => {
+      const preparation = params as { objectId?: string; functionDeclaration?: string };
+      return (
+        preparation?.objectId === "node-2" &&
+        preparation.functionDeclaration === prepareElementForTyping.toString()
+      );
+    });
+    const inputIndex = calls.findIndex(([method]) => method.startsWith("Input."));
+    expect(preparationIndex).toBeGreaterThan(-1);
+    expect(inputIndex).toBeGreaterThan(preparationIndex);
+    expect(calls.filter(([method]) => method.startsWith("Input."))).toHaveLength(value ? 1 : 2);
+  });
+
+  it.each(["hello", ""])(
+    "rejects filling %j when replacement preparation also fails",
+    async (value) => {
+      const { locator, send, resolveNode } = createFillLocator();
+      const respond = send.getMockImplementation()!;
+      send.mockImplementation((method, params) =>
+        (params as { functionDeclaration?: string })?.functionDeclaration ===
+        prepareElementForTyping.toString()
+          ? Promise.resolve({ result: { value: false } })
+          : respond(method, params),
+      );
+
+      await expect(locator.fill(value, createProgress())).rejects.toThrow(
+        "Failed to prepare element for filling",
+      );
+
+      expect(resolveNode).toHaveBeenCalledTimes(2);
+      expect(send.mock.calls.some(([method]) => method.startsWith("Input."))).toBe(false);
+      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
+        ["Runtime.releaseObject", { objectId: "node-1" }],
         ["Runtime.releaseObject", { objectId: "node-2" }],
       ]);
     },
   );
+
+  it("bounds replacement preparation and stops input after a late response", async () => {
+    const { locator, send } = createFillLocator();
+    const respond = send.getMockImplementation()!;
+    const gate = deferred();
+    send.mockImplementation((method, params) => {
+      const preparation = params as { objectId?: string; functionDeclaration?: string };
+      if (preparation?.functionDeclaration === prepareElementForTyping.toString()) {
+        return preparation.objectId === "node-1"
+          ? Promise.resolve({ result: { value: false } })
+          : gate.promise;
+      }
+      return respond(method, params);
+    });
+    const pending = locator.fill("hello", createProgress());
+    const rejected = expect(pending).rejects.toThrow(TimeoutError);
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    gate.resolve({ result: { value: true } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send.mock.calls.some(([method]) => method.startsWith("Input."))).toBe(false);
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
+      ["Runtime.releaseObject", { objectId: "node-1" }],
+      ["Runtime.releaseObject", { objectId: "node-2" }],
+    ]);
+  });
 
   it.each([undefined, 0, 100])("includes typing delays in timeout %s", async (timeout) => {
     const { locator, send } = createLocator();
@@ -600,7 +709,7 @@ describe("locator action deadlines", () => {
     );
   });
 
-  it("does not repeat fill cleanup or prepare input after an early release stalls", async () => {
+  it("does not repeat fill cleanup or type after releasing the prepared handle stalls", async () => {
     const { locator, send, resolveNode } = createFillLocator();
     const gate = deferred();
     const respond = send.getMockImplementation()!;

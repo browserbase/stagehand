@@ -17,6 +17,14 @@ export interface CDPSessionLike {
   off<P = unknown>(event: string, handler: (params: P) => void): void;
   close(): Promise<void>;
   readonly id: string | null;
+  ensureDomainEnabled?(domain: "Runtime" | "DOM"): Promise<unknown>;
+}
+
+export function ensureCdpDomainEnabled(
+  session: CDPSessionLike,
+  domain: "Runtime" | "DOM",
+): Promise<unknown> {
+  return session.ensureDomainEnabled?.(domain) ?? session.send(`${domain}.enable`);
 }
 
 /** Closure errors emitted by this transport, not transient execution-context loss. */
@@ -49,13 +57,11 @@ type Inflight = {
   reject: (e: Error) => void;
   sessionId?: string | null;
   method: string;
-  params?: object;
-  stack?: string;
-  ts: number;
   logger: CdpTelemetryLogger;
 };
 
-type CdpTelemetryLogger = Pick<StagehandLogger, "debug" | "error">;
+type CdpTelemetryLogger = Pick<StagehandLogger, "debug" | "error"> &
+  Partial<Pick<StagehandLogger, "isEnabled">>;
 
 type EventHandler = (params: unknown) => void;
 type SessionDispatchWaiter = {
@@ -208,24 +214,21 @@ export class CdpConnection implements CDPSessionLike {
   async send<R = unknown>(method: string, params?: object): Promise<R> {
     const id = this.nextId++;
     const payload = { id, method, params };
-    const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
     const logger = this.telemetryLogger();
-    logger.debug("CDP call", {
-      requestId: id,
-      method,
-      sessionId: null,
-      targetId: null,
-      params: JSON.stringify(params ?? {}),
-    });
+    if (logger.isEnabled?.("debug") ?? true)
+      logger.debug("CDP call", {
+        requestId: id,
+        method,
+        sessionId: null,
+        targetId: null,
+        params: JSON.stringify(params ?? {}),
+      });
     const p = new Promise<unknown>((resolve, reject) => {
       this.inflight.set(id, {
         resolve: resolve as (v: unknown) => void,
         reject,
         sessionId: null,
         method,
-        params,
-        stack,
-        ts: Date.now(),
         logger,
       });
     });
@@ -363,18 +366,21 @@ export class CdpConnection implements CDPSessionLike {
         };
 
         if (isExpectedReleaseObjectCleanupError(rec.method, msg.error)) {
-          rec.logger.debug("CDP releaseObject cleanup raced with context destruction", data);
+          if (rec.logger.isEnabled?.("debug") ?? true) {
+            rec.logger.debug("CDP releaseObject cleanup raced with context destruction", data);
+          }
         } else {
           rec.logger.error("CDP response failed", data);
         }
 
         rec.reject(new Error(`${msg.error.code} ${msg.error.message}`));
       } else {
-        rec.logger.debug("CDP response", {
-          requestId: msg.id,
-          method: rec.method,
-          targetId: this.targetIdForSession(rec.sessionId),
-        });
+        if (rec.logger.isEnabled?.("debug") ?? true)
+          rec.logger.debug("CDP response", {
+            requestId: msg.id,
+            method: rec.method,
+            targetId: this.targetIdForSession(rec.sessionId),
+          });
         rec.resolve((msg as { result?: unknown }).result);
       }
       return;
@@ -407,12 +413,14 @@ export class CdpConnection implements CDPSessionLike {
       }
 
       const { method, params, sessionId } = msg;
-      this.telemetryLogger().debug("CDP message", {
-        method,
-        sessionId: sessionId ?? null,
-        targetId: this.targetIdForSession(sessionId),
-        params: JSON.stringify(params ?? {}),
-      });
+      const logger = this.telemetryLogger();
+      if (logger.isEnabled?.("debug") ?? true)
+        logger.debug("CDP message", {
+          method,
+          sessionId: sessionId ?? null,
+          targetId: this.targetIdForSession(sessionId),
+          params: JSON.stringify(params ?? {}),
+        });
 
       const dispatch = () => {
         if (sessionId) {
@@ -440,15 +448,15 @@ export class CdpConnection implements CDPSessionLike {
   _sendViaSession<R = unknown>(sessionId: string, method: string, params?: object): Promise<R> {
     const id = this.nextId++;
     const payload = { id, method, params, sessionId };
-    const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
     const logger = this.telemetryLogger();
-    logger.debug("CDP call", {
-      requestId: id,
-      method,
-      sessionId,
-      targetId: this.targetIdForSession(sessionId),
-      params: JSON.stringify(params ?? {}),
-    });
+    if (logger.isEnabled?.("debug") ?? true)
+      logger.debug("CDP call", {
+        requestId: id,
+        method,
+        sessionId,
+        targetId: this.targetIdForSession(sessionId),
+        params: JSON.stringify(params ?? {}),
+      });
 
     const p = new Promise<unknown>((resolve, reject) => {
       this.inflight.set(id, {
@@ -456,9 +464,6 @@ export class CdpConnection implements CDPSessionLike {
         reject,
         sessionId,
         method,
-        params,
-        stack,
-        ts: Date.now(),
         logger,
       });
     });
@@ -496,13 +501,36 @@ export class CdpConnection implements CDPSessionLike {
 }
 
 export class CdpSession implements CDPSessionLike {
+  // Keep raw send() semantics; only internal callers may reuse domain setup.
+  private readonly domainEnables = new Map<string, Promise<unknown>>();
+
   constructor(
     readonly root: CdpConnection,
     public readonly id: string,
   ) {}
 
   send<R = unknown>(method: string, params?: object): Promise<R> {
-    return this.root._sendViaSession<R>(this.id, method, params);
+    const domain =
+      method === "Runtime.enable" || method === "Runtime.disable"
+        ? "Runtime"
+        : method === "DOM.enable" || method === "DOM.disable"
+          ? "DOM"
+          : undefined;
+    if (domain) {
+      this.domainEnables.delete(domain);
+    }
+    const response = this.root._sendViaSession<R>(this.id, method, params);
+    if (domain && method.endsWith(".enable") && params === undefined) {
+      this.domainEnables.set(domain, response);
+      void response.catch(() => {
+        if (this.domainEnables.get(domain) === response) this.domainEnables.delete(domain);
+      });
+    }
+    return response;
+  }
+
+  ensureDomainEnabled(domain: "Runtime" | "DOM"): Promise<unknown> {
+    return this.domainEnables.get(domain) ?? this.send(`${domain}.enable`);
   }
 
   on<P = unknown>(event: string, handler: (params: P) => void): void {

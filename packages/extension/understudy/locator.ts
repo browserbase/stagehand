@@ -1,6 +1,6 @@
 // lib/v3/understudy/locator.ts
 import { Protocol } from "devtools-protocol";
-import { isCdpClosedError } from "./cdp.js";
+import { ensureCdpDomainEnabled, isCdpClosedError } from "./cdp.js";
 import {
   assignFilePayloadsToInputElement,
   dispatchDomClick,
@@ -166,7 +166,7 @@ export class Locator {
     const { objectId } = await this.resolveNode(progress);
     try {
       await runLocatorStep(progress, "enabling DOM", () =>
-        session.send("DOM.enable").catch((error) => {
+        ensureCdpDomainEnabled(session, "DOM").catch((error) => {
           progress?.throwIfStopped();
           if (progress && isCdpClosedError(error)) throw error;
         }),
@@ -189,8 +189,10 @@ export class Locator {
   /** Return how many nodes the current selector resolves to. */
   public async count(progress?: Progress): Promise<number> {
     const session = this.frame.session;
-    await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
-    await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
+    await runLocatorStep(progress, "enabling runtime", () =>
+      ensureCdpDomainEnabled(session, "Runtime"),
+    );
+    await runLocatorStep(progress, "enabling DOM", () => ensureCdpDomainEnabled(session, "DOM"));
     return this.selectorResolver.count(this.selectorQuery, progress);
   }
 
@@ -281,7 +283,7 @@ export class Locator {
 
       // Prefer backendNodeId to keep a persistent highlight after releasing objectId.
       await runLocatorStep(progress, "enabling DOM", () =>
-        session.send("DOM.enable").catch((error) => {
+        ensureCdpDomainEnabled(session, "DOM").catch((error) => {
           progress?.throwIfStopped();
           if (progress && isCdpClosedError(error)) throw error;
         }),
@@ -586,41 +588,47 @@ export class Locator {
       }
 
       if (status === "needsinput") {
-        // Release the current handle before synthesizing keyboard input to avoid leaking it.
-        await release();
-
         const valueToType = typeof result?.value === "string" ? result.value : value;
+
+        const prepare = async (elementObjectId: string): Promise<boolean> => {
+          const prepRes = await runLocatorStep(progress, "preparing text input", () =>
+            session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+              objectId: elementObjectId,
+              functionDeclaration: prepareElementForTyping.toString(),
+              returnByValue: true,
+            }),
+          );
+          return Boolean(prepRes.result.value);
+        };
 
         let prepared = false;
         try {
-          const { objectId: prepObjectId } = await this.resolveNode(progress);
-          try {
-            const prepRes = await runLocatorStep(progress, "preparing text input", () =>
-              session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-                objectId: prepObjectId,
-                functionDeclaration: prepareElementForTyping.toString(),
-                returnByValue: true,
-              }),
-            );
-            prepared = Boolean(prepRes.result.value);
-          } finally {
-            const releasePrep = () =>
-              session
-                .send<never>("Runtime.releaseObject", { objectId: prepObjectId })
-                .catch(() => {});
-            if (progress) await progress.cleanup(releasePrep);
-            else await releasePrep();
-            progress?.throwIfStopped();
-          }
+          prepared = await prepare(objectId);
         } catch (error) {
           progress?.throwIfStopped();
           if (progress && isCdpClosedError(error)) throw error;
-          // Ordinary preparation failures can still fall back to typing.
         }
 
-        if (!prepared && valueToType.length > 0) {
-          await this.type(valueToType, undefined, progress);
-          return;
+        await release();
+
+        if (!prepared) {
+          // The page may replace the element between resolution and preparation.
+          const { objectId: retryObjectId } = await this.resolveNode(progress);
+          try {
+            if (!(await prepare(retryObjectId))) {
+              throw new Error(`Failed to prepare element for filling: ${this.selector}`);
+            }
+          } finally {
+            const releaseRetry = () =>
+              session
+                .send<never>("Runtime.releaseObject", {
+                  objectId: retryObjectId,
+                })
+                .catch(() => {});
+            if (progress) await progress.cleanup(releaseRetry);
+            else await releaseRetry();
+            progress?.throwIfStopped();
+          }
         }
 
         if (valueToType.length === 0) {
@@ -928,8 +936,10 @@ export class Locator {
     progress?.throwIfStopped();
     const session = this.frame.session;
 
-    await runLocatorStep(progress, "enabling runtime", () => session.send("Runtime.enable"));
-    await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable"));
+    await runLocatorStep(progress, "enabling runtime", () =>
+      ensureCdpDomainEnabled(session, "Runtime"),
+    );
+    await runLocatorStep(progress, "enabling DOM", () => ensureCdpDomainEnabled(session, "DOM"));
 
     const index = this.nthIndex < 0 ? 0 : this.nthIndex;
     const resolved = await this.selectorResolver.resolveAtIndex(
@@ -956,8 +966,8 @@ export class Locator {
   > {
     const session = this.frame.session;
 
-    await progress.run("enabling runtime", () => session.send("Runtime.enable"));
-    await progress.run("enabling DOM", () => session.send("DOM.enable"));
+    await progress.run("enabling runtime", () => ensureCdpDomainEnabled(session, "Runtime"));
+    await progress.run("enabling DOM", () => ensureCdpDomainEnabled(session, "DOM"));
 
     if (this.nthIndex >= 0) {
       const resolved = await this.selectorResolver.resolveAtIndex(

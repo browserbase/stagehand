@@ -124,6 +124,7 @@ describe("Stagehand RPC router", () => {
         ),
       );
       const router = createRouter(tracing);
+      router.runtime.logger.setLevel("debug");
       const pdfResult = { data: "JVBERi0xLjcK" };
       const failure = new TypeError("Page.printToPDF failed");
       const pdf = vi.spyOn(router.runtime, "pagePDF");
@@ -228,7 +229,7 @@ describe("Stagehand RPC router", () => {
     await tracing.shutdown();
   });
 
-  it("keeps filtered log spans under the JSON-RPC request span", async () => {
+  it("keeps request tracing while omitting filtered log spans", async () => {
     const spans = new InMemorySpanExporter();
     const tracing = configuredTracing(
       createStagehandTracingRuntime(
@@ -249,8 +250,8 @@ describe("Stagehand RPC router", () => {
     const logSpan = spans
       .getFinishedSpans()
       .find((span) => span.attributes["stagehand.span.type"] === "log");
-    expect(logSpan?.spanContext().traceId).toBe(requestSpan?.spanContext().traceId);
-    expect(logSpan?.parentSpanContext?.spanId).toBe(requestSpan?.spanContext().spanId);
+    expect(requestSpan).toBeDefined();
+    expect(logSpan).toBeUndefined();
     await tracing.shutdown();
   });
 
@@ -309,7 +310,7 @@ describe("Stagehand RPC router", () => {
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      logLevel: "info",
+      logLevel: "debug",
       model: { modelName: "openai/gpt-5.4-mini", apiKey: "test" },
       telemetry: { traces: { endpoint: "https://collector.test/v1/traces", headers: {} } },
     });
