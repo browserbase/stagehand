@@ -9,15 +9,18 @@ import {
 import {
   formatBenchHarnessFlags,
   listBenchHarnessesForTaskKind,
+  listBenchHarnessesForToolSurface,
   registerBenchHarness,
 } from "../../framework/benchHarness.js";
 
 const runEvalsMock = vi.hoisted(() =>
-  vi.fn(async () => ({
-    experimentName: "test-experiment",
-    summary: { passed: 0, failed: 0, total: 0 },
-    results: [] as RunEvalsResult["results"],
-  })),
+  vi.fn(
+    async (): Promise<RunEvalsResult> => ({
+      experimentName: "test-experiment",
+      summary: { passed: 0, failed: 0, total: 0 },
+      results: [],
+    }),
+  ),
 );
 
 vi.mock("../../framework/runner.js", () => ({
@@ -228,7 +231,9 @@ describe("deriveCategoryFilter", () => {
         },
         registry,
       ),
-    ).rejects.toThrow(formatBenchHarnessFlags(listBenchHarnessesForTaskKind("suite")));
+    ).rejects.toThrow(
+      formatBenchHarnessFlags(listBenchHarnessesForToolSurface("stagehand_facade")),
+    );
   });
 
   it("prints claude_code dry-run matrices without stagehand agent modes", async () => {
@@ -272,24 +277,24 @@ describe("deriveCategoryFilter", () => {
       dataset: "webvoyager",
       model: "anthropic/claude-sonnet-4-20250514",
       harness: "claude_code",
-      toolSurface: "browse_cli",
+      toolSurface: "stagehand_facade",
       startupProfile: "tool_create_browserbase",
-      toolCommand: "browse",
-      browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/packages[/\\]cli[/\\]bin[/\\]run\.js$/u),
+      toolCommand: null,
+      browseCliVersion: null,
+      browseCliEntrypoint: null,
       harnessConfig: {
         harness: "claude_code",
         model: "anthropic/claude-sonnet-4-20250514",
         environment: "BROWSERBASE",
         useApi: false,
-        toolSurface: "browse_cli",
+        toolSurface: "stagehand_facade",
         startupProfile: "tool_create_browserbase",
         dataset: "webvoyager",
       },
     });
   });
 
-  it("prints codex dry-run matrices with browse_cli metadata", async () => {
+  it("prints codex dry-run matrices with facade metadata", async () => {
     const registry = makeRegistry([
       makeTask({
         name: "agent/webvoyager",
@@ -330,17 +335,17 @@ describe("deriveCategoryFilter", () => {
       dataset: "webvoyager",
       model: "openai/gpt-5.4-mini",
       harness: "codex",
-      toolSurface: "browse_cli",
+      toolSurface: "stagehand_facade",
       startupProfile: "tool_create_browserbase",
-      toolCommand: "browse",
-      browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/packages[/\\]cli[/\\]bin[/\\]run\.js$/u),
+      toolCommand: null,
+      browseCliVersion: null,
+      browseCliEntrypoint: null,
       harnessConfig: {
         harness: "codex",
         model: "openai/gpt-5.4-mini",
         environment: "BROWSERBASE",
         useApi: false,
-        toolSurface: "browse_cli",
+        toolSurface: "stagehand_facade",
         startupProfile: "tool_create_browserbase",
         dataset: "webvoyager",
       },
@@ -632,6 +637,63 @@ describe("deriveCategoryFilter", () => {
     expect(process.exitCode).toBe(1);
     expect(runEvalsMock).not.toHaveBeenCalled();
     process.exitCode = undefined;
+  });
+
+  it("fails a gated batch when a graded pass has zero facade tool calls", async () => {
+    const previousExitCode = process.exitCode;
+    const previousLimit = process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA;
+    const registry = makeRegistry([makeTask()]);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    runEvalsMock.mockResolvedValueOnce({
+      experimentName: "test-experiment",
+      summary: { passed: 1, failed: 0, total: 1 },
+      results: [
+        {
+          name: "dropdown",
+          input: { name: "dropdown", modelName: "openai/gpt-4.1-mini" },
+          output: {
+            _success: true,
+            criterionCount: 1,
+            evidenceInsufficient: [],
+            metrics: { facade_tool_calls: { value: 0 } },
+          },
+          score: 1,
+        },
+      ],
+    });
+    process.exitCode = undefined;
+    try {
+      await runCommand(
+        {
+          target: "act",
+          normalizedTarget: "act",
+          trials: 1,
+          concurrency: 1,
+          environment: "LOCAL",
+          model: "openai/gpt-4.1-mini",
+          useApi: false,
+          harness: "stagehand",
+          envOverrides: { EVAL_MAX_UNVERIFIABLE_CRITERIA: "0" },
+          dryRun: false,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
+        },
+        registry,
+      );
+
+      expect(runEvalsMock).toHaveBeenCalledOnce();
+      expect(process.exitCode).toBe(1);
+      expect(error.mock.calls.flat().join("\n")).toMatch(
+        /passes without (?:any browser tool call|browser use)/,
+      );
+      expect(process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA).toBe(previousLimit);
+    } finally {
+      process.exitCode = previousExitCode;
+      if (previousLimit === undefined) delete process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA;
+      else process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA = previousLimit;
+    }
   });
 });
 

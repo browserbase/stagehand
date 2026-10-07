@@ -1,6 +1,6 @@
 # Stagehand Evals
 
-Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys).
+Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys, HardBench).
 
 Driven by an interactive TUI (`evals`) or single-shot CLI (`evals run …`). Tasks are auto-discovered from `tasks/bench/<category>/` — no registration step.
 
@@ -111,6 +111,12 @@ When the judge grades nothing (a retired model, a bad key), every row fails clos
 
 ![evals doctor](./assets/readme/doctor.png)
 
+## Shared harness behavior
+
+See [the harness contract](docs/harness-contract.md) for tool surfaces, prompt policy,
+budget units, session diagnostics, verification, and usage accounting.
+See [HardBench](datasets/hardbenchmark/README.md) for corpus selection and rubric v1.2.
+
 ## Adding a bench task
 
 ```bash
@@ -135,3 +141,10 @@ export default defineBenchTask({
 ## Tracing / Observability
 
 Runs stream into Braintrust when `BRAINTRUST_API_KEY` is set; otherwise a local summary prints to stdout. Use `evals experiments` to inspect and diff past Braintrust runs.
+
+### Recording observation tasks
+
+Use the [observation task recorder](tasks/README.md) to capture a rendered
+page for a static `extract()` or `observe()` regression. It provides a standalone
+HTML artifact and provenance metadata; dynamic application replay is outside its
+scope.
