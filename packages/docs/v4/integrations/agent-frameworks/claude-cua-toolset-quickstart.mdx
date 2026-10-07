@@ -67,7 +67,7 @@ const browser = await StagehandBrowser.launch({
 });
 
 try {
-  const runner = new Anthropic().beta.messages.toolRunner({
+  const runner = new Anthropic().messages.toolRunner({
     model: "claude-sonnet-5-5",
     max_tokens: 1024,
     tools: [browser],
@@ -107,7 +107,7 @@ async def main() -> None:
 
     async with browser:
         async with AsyncAnthropic() as client:
-            runner = client.beta.messages.tool_runner(
+            runner = client.messages.tool_runner(
                 model="claude-sonnet-5-5",
                 max_tokens=1024,
                 tools=[browser],
