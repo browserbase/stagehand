@@ -1,24 +1,29 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const turbo = path.join(root, "node_modules/turbo/bin/turbo");
-const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8")) as {
-  scripts: Record<string, string>;
-};
 
-function taskGraph(args: string[]): string[] {
-  const output = execFileSync(process.execPath, [turbo, ...args, "--dry=json"], {
+function taskGraph(command: string, args: string[]): string[] {
+  const output = execFileSync(command, [...args, "--dry=json"], {
     cwd: root,
     encoding: "utf8",
     timeout: 20_000,
     maxBuffer: 8 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, npm_config_loglevel: "silent" },
   });
-  const graph = JSON.parse(output) as { tasks: { taskId: string }[] };
-  return graph.tasks.map((task) => task.taskId);
+  const graph = JSON.parse(output) as { tasks: { taskId: string; command: string }[] };
+  return graph.tasks.filter((task) => task.command !== "<NONEXISTENT>").map((task) => task.taskId);
+}
+
+function turboGraph(args: string[]): string[] {
+  return taskGraph(process.execPath, [turbo, "run", ...args]);
+}
+
+function scriptGraph(script: string, args: string[] = []): string[] {
+  return taskGraph("pnpm", ["--silent", "run", script, ...args]);
 }
 
 describe("CI task isolation", () => {
@@ -29,10 +34,8 @@ describe("CI task isolation", () => {
   ])(
     "keeps %s independent of Browse and evals",
     (script, requiredTask) => {
-      const [runner, ...args] = manifest.scripts[script].split(/\s+/);
-      expect(runner).toBe("turbo");
       // Resolve the real dependency closure without executing the selected tests.
-      const tasks = taskGraph(args);
+      const tasks = scriptGraph(script);
       expect(tasks).toContain(requiredTask);
       expect(tasks).not.toContain("//#lint:cli");
       expect(
@@ -46,7 +49,7 @@ describe("CI task isolation", () => {
   );
 
   it("builds Browse with its SDK, extension, and protocol dependencies", () => {
-    const tasks = taskGraph(["run", "build", "--filter=browse"]);
+    const tasks = turboGraph(["build", "--filter=browse"]);
     expect(tasks).toEqual(
       expect.arrayContaining([
         "browse#build",
@@ -59,8 +62,7 @@ describe("CI task isolation", () => {
   }, 30_000);
 
   it("preserves independent eval checks and their Browse dependency", () => {
-    const tasks = taskGraph([
-      "run",
+    const tasks = turboGraph([
       "build",
       "typecheck",
       "test:unit",
@@ -75,5 +77,19 @@ describe("CI task isolation", () => {
       ]),
     );
     expect(tasks).not.toContain("@browserbasehq/stagehand#test:unit");
+  }, 30_000);
+
+  it("assigns every existing workspace check to a CI scope", () => {
+    const checks = ["build", "fmt:check", "lint", "typecheck", "test:unit"];
+    const allTasks = turboGraph(checks);
+    const ownedTasks = new Set([
+      ...scriptGraph("ci:core", checks),
+      ...turboGraph(["build", "lint", "--filter=browse"]),
+      ...turboGraph(["build", "typecheck", "test:unit", "--filter=@browserbasehq/stagehand-evals"]),
+    ]);
+
+    // A new package family must be assigned to a scope instead of silently
+    // losing checks when the core scope uses positive package selectors.
+    expect(allTasks.filter((task) => !ownedTasks.has(task))).toEqual([]);
   }, 30_000);
 });

@@ -1,4 +1,4 @@
-name: Browse CLI
+name: CLI CI
 
 on:
   pull_request:
@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   changes:
-    name: Determine Browse changes
+    name: Determine CLI changes
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -50,14 +50,14 @@ jobs:
               - '.npmrc'
               - '.pnpmfile.*'
               - 'patches/**'
-              - '.github/workflows/browse-ci.yml'
+              - '.github/workflows/cli-ci.yml'
               - '.github/workflows/ci.yml'
               - '.github/workflows/external-contributor-pr.yml'
               - '.github/actions/setup-node-pnpm/**'
 
       # Mirrored PRs are dispatched on their internal branch. Always validate
       # that ref instead of comparing it with the default branch here.
-      - name: Select Browse validation
+      - name: Select CLI validation
         id: affected
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -68,14 +68,18 @@ jobs:
           elif [ "$BROWSE_CHANGED" = "true" ] || [ "$BROWSE_CHANGED" = "false" ]; then
             echo "affected=$BROWSE_CHANGED" >> "$GITHUB_OUTPUT"
           else
-            echo "Browse change detection did not return a result." >&2
+            echo "CLI change detection did not return a result." >&2
             exit 1
           fi
 
   validate:
-    name: Build, lint, and test Browse
+    name: CLI checks
     needs: [changes]
-    if: needs.changes.outputs.affected == 'true'
+    # Original fork PRs wait for approval and the dispatched internal mirror.
+    if: >-
+      needs.changes.outputs.affected == 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -91,28 +95,31 @@ jobs:
       - run: pnpm --filter browse test:cli
 
   result:
-    name: Browse CI
+    name: CLI CI
     needs: [changes, validate]
-    if: always()
+    if: >-
+      always() &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check Browse result
+      - name: Check CLI result
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
           BROWSE_AFFECTED: ${{ needs.changes.outputs.affected }}
           VALIDATION_RESULT: ${{ needs.validate.result }}
         run: |
           if [ "$CHANGES_RESULT" != "success" ]; then
-            echo "Browse change detection did not succeed: $CHANGES_RESULT" >&2
+            echo "CLI change detection did not succeed: $CHANGES_RESULT" >&2
             exit 1
           fi
 
           if [ "$BROWSE_AFFECTED" = "false" ] && [ "$VALIDATION_RESULT" = "skipped" ]; then
-            echo "Browse CLI and its dependencies are unaffected." >> "$GITHUB_STEP_SUMMARY"
+            echo "CLI and its dependencies are unaffected." >> "$GITHUB_STEP_SUMMARY"
           elif [ "$BROWSE_AFFECTED" = "true" ] && [ "$VALIDATION_RESULT" = "success" ]; then
-            echo "Browse build, lint, and tests passed." >> "$GITHUB_STEP_SUMMARY"
+            echo "CLI build, lint, and tests passed." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "Browse validation did not succeed: affected=$BROWSE_AFFECTED, result=$VALIDATION_RESULT" >&2
+            echo "CLI validation did not succeed: affected=$BROWSE_AFFECTED, result=$VALIDATION_RESULT" >&2
             exit 1
           fi

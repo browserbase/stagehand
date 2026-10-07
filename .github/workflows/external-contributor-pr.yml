@@ -648,7 +648,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            await Promise.all(['ci.yml', 'browse-ci.yml'].map((workflowId) =>
+            await Promise.all(['ci.yml', 'cli-ci.yml'].map((workflowId) =>
               github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
