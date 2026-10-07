@@ -305,6 +305,7 @@ async def _connect_browser(
     origin: Literal["launched", "connected"],
     source: _BrowserConnectionSource,
     extension_dir: str | None = None,
+    local_extension_dir: Callable[[], str] | None = None,
     extension_id: str | None = None,
     preloaded_extension: bool = False,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
@@ -316,6 +317,7 @@ async def _connect_browser(
         cdp_client = await CDPClient.connect(
             cdp_url=source.cdp_url,
             extension_dir=extension_dir,
+            local_extension_dir=local_extension_dir,
             extension_id=extension_id,
             preloaded_extension=preloaded_extension,
             service_worker_url_includes="service-worker.js",
@@ -540,13 +542,11 @@ class LocalBrowser:
             )
             if value is not None
         })
-        extension_dir = None if options.extension_id is not None else str(extension_directory())
         return await _connect_browser(
             provider="local",
             origin="connected",
             source=_ConnectedBrowserSource(options.cdp_url),
-            extension_dir=extension_dir,
-            extension_id=options.extension_id,
+            local_extension_dir=lambda: str(extension_directory()),
             worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
         )
 
@@ -668,8 +668,7 @@ class BrowserbaseBrowser:
                 keep_alive=True,
                 _close_callback=connection.close,
             ),
-            extension_id=options.extension_id,
-            preloaded_extension=options.extension_id is None,
+            preloaded_extension=True,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=options.api_key,
                 browser=_browser_session_metadata(connection.session_id, connection.region),
