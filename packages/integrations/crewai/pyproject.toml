@@ -5,6 +5,9 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
   "crewai>=1.15.24,<2",
   "crewai-tools[mcp]>=1.15.24,<2",
+  # Security minimums for transitive HTTP and OAuth dependencies.
+  "multidict>=6.9.1,<7",
+  "oauthlib>=4.0.0,<5",
   # Security minimum for transitive HTTP clients.
   "urllib3>=2.8.0,<3",
 ]
