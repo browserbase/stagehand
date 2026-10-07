@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import type Browserbase from "@browserbasehq/sdk";
 import {
   BrowserbaseSessionError,
   createBrowserbaseApiClient,
   createBrowserbaseSessionClient,
   type BrowserbaseApiClient,
 } from "../../src/browser/browserbaseSession.js";
+import { STAGEHAND_SESSION_METADATA } from "../../src/sdkIdentity.js";
 import { STAGEHAND_SDK_VERSION } from "../../src/version.js";
 
 describe("Browserbase session creation", () => {
@@ -175,6 +177,73 @@ describe("Browserbase session creation", () => {
     expect(releaseSession).toHaveBeenCalledOnce();
     expect(releaseSession).toHaveBeenCalledWith("session_123");
     expect(cleanupExtension).toHaveBeenCalledOnce();
+  });
+
+  it("uses a supplied Browserbase SDK for launched-session lifecycle management", async () => {
+    const createExtension = vi.fn(async () => ({ id: "ext_stagehand" }));
+    const deleteExtension = vi.fn(async () => {});
+    const createSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+    }));
+    const releaseSession = vi.fn(async () => {});
+    const suppliedClient = {
+      extensions: {
+        create: createExtension,
+        delete: deleteExtension,
+      },
+      sessions: {
+        create: createSession,
+        retrieve: vi.fn(),
+        update: releaseSession,
+      },
+    } as unknown as Browserbase;
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
+      client: suppliedClient,
+    });
+
+    const session = await client.createSession({ region: "us-west-2" });
+    await session.close();
+
+    expect(createExtension).toHaveBeenCalledOnce();
+    expect(createSession).toHaveBeenCalledWith({
+      extensionId: "ext_stagehand",
+      region: "us-west-2",
+      userMetadata: STAGEHAND_SESSION_METADATA,
+    });
+    expect(releaseSession).toHaveBeenCalledWith("session_123", { status: "REQUEST_RELEASE" });
+    expect(deleteExtension).toHaveBeenCalledWith("ext_stagehand", {
+      headers: { "Content-Type": null },
+    });
+  });
+
+  it("uses a supplied Browserbase SDK for connected-session lifecycle management", async () => {
+    const retrieveSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "us-west-2" as const,
+    }));
+    const releaseSession = vi.fn(async () => {});
+    const suppliedClient = {
+      extensions: {
+        create: vi.fn(),
+        delete: vi.fn(),
+      },
+      sessions: {
+        create: vi.fn(),
+        retrieve: retrieveSession,
+        update: releaseSession,
+      },
+    } as unknown as Browserbase;
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
+      client: suppliedClient,
+    });
+
+    const session = await client.connectSession?.("session_123");
+    await session?.close();
+
+    expect(retrieveSession).toHaveBeenCalledWith("session_123");
+    expect(releaseSession).toHaveBeenCalledWith("session_123", { status: "REQUEST_RELEASE" });
   });
 
   it.each([{ extensionId: "ext_caller" }, { browserSettings: { extensionId: "ext_caller" } }])(

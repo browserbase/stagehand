@@ -178,6 +178,25 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 The Browserbase URL controls extension, session, and connection requests that `browserbase.launch()` and `browserbase.connect()` make. The Stagehand URL controls Model Gateway and managed-cache requests that the browser runtime makes.
 
+### Use an existing Browserbase client
+
+In TypeScript, pass an existing Browserbase SDK client when you need Stagehand's session and extension lifecycle calls to use that client's configuration. This is useful for applications that centralize Browserbase client setup or provide a custom Browserbase endpoint.
+
+```typescript
+import Browserbase from "@browserbasehq/sdk";
+import { browserbase } from "@browserbasehq/stagehand";
+
+const client = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY });
+
+const browser = await browserbase.connect({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  client,
+  sessionId: "session_123",
+});
+```
+
+When `client` is provided, it determines the Browserbase management endpoint; `baseUrl` is not used for those calls. `apiKey` still configures Stagehand runtime authentication.
+
 ### Environment variables
 
 Before getting started, set up the required environment variables:

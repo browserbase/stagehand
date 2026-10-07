@@ -66,11 +66,17 @@ export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
 type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl?: string;
+  /**
+   * Uses this SDK client for Browserbase session and extension management.
+   * `apiKey` still configures Stagehand runtime authentication.
+   */
+  client?: Browserbase;
 };
 
 type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl: string;
+  client?: Browserbase;
 };
 
 /**
@@ -81,6 +87,7 @@ export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    client: z.custom<Browserbase>().optional(),
     apiUrl: z.never().optional(),
     type: z.never().optional(),
   })
@@ -93,6 +100,7 @@ export const BrowserbaseConnectOptionsSchema = z
   .strictObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    client: z.custom<Browserbase>().optional(),
     sessionId: z.string().min(1),
     extensionId: z.string().min(1).optional(),
   })
