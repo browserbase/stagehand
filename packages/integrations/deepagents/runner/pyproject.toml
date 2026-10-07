@@ -9,6 +9,8 @@ dependencies = [
   "langchain-mcp-adapters>=0.3,<1",
   "langchain-openai>=1,<2",
   "pydantic>=2,<3",
+  # Security minimum for the transitive MCP authentication dependency.
+  "pyjwt>=2.15.0,<3",
 ]
 
 [tool.uv]
