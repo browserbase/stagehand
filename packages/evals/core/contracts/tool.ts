@@ -11,6 +11,8 @@ export type ToolSurface =
   | "cdp_code"
   | "playwright_mcp"
   | "chrome_devtools_mcp"
+  | "google_computer_use"
+  | "anthropic_browser_toolset"
   | "stagehand_facade"
   | "stagehand_facade_legacy"
   | "browse_cli";
@@ -140,6 +142,11 @@ export interface BrowserSessionLoss {
   cause: string;
   tool?: string;
   at?: string;
+  provider?: "local" | "browserbase";
+  sessionId?: string;
+  /** Elapsed time since the facade started browser launch, including initialization. */
+  sessionAgeMs?: number;
+  sessionTimeoutMs?: number;
 }
 
 /** MCP content returned unchanged by a runner call into its existing surface. */

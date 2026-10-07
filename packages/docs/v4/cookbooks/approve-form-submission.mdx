@@ -1,0 +1,141 @@
+---
+title: "Approve a form submission"
+description: "Fill a test form with Stagehand, then require a human decision before the submit click."
+---
+
+## When to use this
+
+Use this when a browser action needs a human decision on the exact values about to be submitted. The application enforces approval and a single attempt; the model cannot grant consent. The TypeScript version demonstrates an AI SDK tool loop. Python and Go use a direct CLI gate.
+
+| Browser | Languages | Output |
+| --- | --- | --- |
+| Browserbase | TypeScript, Python, Go | Submission or rejection; TS approval receipt |
+
+## Goal and output
+
+Fill the [httpbin test form](https://httpbin.org/forms/post) in a Browserbase cloud browser. Pause before the final `act()` that submits it. Answering `n` exits without submitting; answering `y` submits once and prints the destination URL. This is a local CLI approval example, not a persistent review service.
+
+## Agent prompt
+
+<Prompt description="Add an approval gate before Stagehand submits a form." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/cookbooks/approve-form-submission` to my form. Read the README, environment template, and source for my chosen language first. Keep the existing OpenAI setup and approval mechanism: AI SDK in TypeScript, CLI input in Python and Go.
+
+Change the target, fields, expected values, and confirmation check together. Fill through Stagehand variables and check action results. Read actual values, compare them with the request, and show the exact action to the human. Only the human may approve. Rejection must stop without Submit.
+
+Keep the code guard. Recheck values immediately before Submit; changed values invalidate approval. Permit at most one approved attempt and verify confirmation before reporting success. On an ambiguous failure, stop for inspection and never retry automatically. Preserve existing receipts, timeouts, tool limits, session links, and cleanup. The CLI receipt does not support cross-process recovery.
+
+When combining recipes, keep approval directly before the side effect and bind it to the final values.
+
+Run local checks. Use a test form for approval and rejection; verify changed values and repeated attempts are blocked. Report commands, observed results, receipts where supported, and untested behavior. Keep the implementation small.
+</Prompt>
+
+## Prerequisites and inputs
+
+Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. Each language uses OpenAI for Stagehand; TypeScript also uses it for the AI SDK agent. See [model configuration](/v4/configuration/models).
+
+TypeScript requires Node.js 22.18+ and pnpm, Python requires Python 3.11+ and uv, and Go requires Go 1.26+. The form uses test customer data. Change it with the form checks when adapting the job.
+
+## Check out and run
+
+The source is [`packages/examples/cookbooks/approve-form-submission`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/approve-form-submission). Clone this folder with the [overview command](/v4/cookbooks/overview#run-a-cookbook), then use one language:
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+cd packages/examples/cookbooks/approve-form-submission/typescript
+cp .env.example .env
+pnpm install --frozen-lockfile
+pnpm start
+```
+</Tab>
+<Tab title="Python">
+```bash
+cd packages/examples/cookbooks/approve-form-submission/python
+cp .env.example .env
+uv sync --locked
+uv run --locked python main.py
+```
+</Tab>
+<Tab title="Go">
+```bash
+cd packages/examples/cookbooks/approve-form-submission/go
+cp .env.example .env
+set -a; . ./.env; set +a
+go run .
+```
+</Tab>
+</Tabs>
+
+## How the job works
+
+<Steps>
+  <Step title="Fill the form">
+    Launch Browserbase and create Stagehand. Keep both alive until the answer is received.
+  </Step>
+  <Step title="Review and approve">
+    Fill the form with `act()` and `%variable%` placeholders. Check each result's `success` field so a failed fill cannot proceed to approval.
+  </Step>
+  <Step title="Submit once">
+    Present a single submit action. TypeScript separates `fillForm` and `submitForm` tools; `generateText` uses `toolApproval: { submitForm: "user-approval" }`. Python and Go read `y` or `n` from stdin before the submit call.
+  </Step>
+  <Step title="Verify the result">
+    Submit at most once, print the result URL, and close both resources in `finally` or deferred cleanup.
+  </Step>
+</Steps>
+
+Define the submit action as a tool, then require approval in the AI SDK loop:
+
+```typescript
+const submitForm = tool({
+  inputSchema: z.object({ summary: z.string() }),
+  execute: async () => {
+    await stagehand.act("Click the Submit order button", { page });
+    return { submitted: true, url: await page.url() };
+  },
+});
+```
+
+TypeScript waits up to 60 seconds for an answer. A code guard freezes form values after filling and allows one approved submit attempt. Every language shows actual input values and rechecks them before Submit. Rejection returns immediately. `out/approval.json` records pending, approved, rejected, submission-attempted, or submitted state. An attempted state can mean the server accepted the form even if the browser call failed. Inspect the session before starting another run.
+
+This recipe keeps approval inside one process. The receipt is an audit record, not a resume token. To support approval across service restarts, persist the exact action and model messages in your application, bind the decision to that action, and reconcile ambiguous submits before retrying. Browser sessions expire after five minutes.
+
+<CodeGroup>
+```typescript TypeScript approval
+const result = await generateText({
+  model: openai("gpt-5.6-sol"),
+  tools,
+  toolApproval: { submitForm: "user-approval" },
+  prompt: "Fill the test form, then request approval before submit.",
+  stopWhen: stepCountIs(8),
+});
+```
+```python Python approval
+if not confirm_submit():
+    print("Rejected: submit was not executed.")
+    return
+await stagehand.act("Click the Submit order button", page=page)
+```
+```go Go approval
+if strings.ToLower(strings.TrimSpace(answer)) != "y" {
+    fmt.Println("Rejected: submit was not executed.")
+    return nil
+}
+_, err = client.Act(ctx, stagehand.ActInstruction("Click the Submit order button"),
+    &stagehand.StagehandClientActOptions{Page: page})
+if err != nil { return err }
+```
+</CodeGroup>
+
+These excerpts show the approval flow. The runnable project also verifies form values and prevents repeated submission.
+
+## Expected result and failure checks
+
+The filled page appears before `Submit this form? [y/N]`. `n` prints a rejection and never clicks Submit. `y` produces one submission and a URL. Missing keys fail before browser launch. A failed form action or submission exits with an error.
+
+## Adapt to your site
+
+Change the form fields, input-value checks, and verified confirmation destination together. Keep the approval decision bound to the displayed values. Preserve the guard before the submit call and reconcile an ambiguous attempt before restarting. Distributed approval requires durable application state beyond this CLI receipt.
+
+## Related
+
+[Variables and actions](/v4/basics/act), [persisted login](/v4/cookbooks/persisted-login), and [AI SDK integration](/v4/integrations/agent-frameworks/vercel-ai-sdk).

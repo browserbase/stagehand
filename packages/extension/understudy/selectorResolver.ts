@@ -2,7 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import { isCdpClosedError } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import { type Progress, runLocatorStep } from "./progress.js";
-import { executionContexts } from "./executionContextRegistry.js";
+import { executionContexts, type ReadinessOptions } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 
 export type SelectorQuery =
@@ -20,7 +20,10 @@ export interface ResolveManyOptions {
 }
 
 export class FrameSelectorResolver {
-  constructor(readonly frame: Frame) {}
+  constructor(
+    readonly frame: Frame,
+    private readonly readinessOptions: ReadinessOptions = {},
+  ) {}
 
   public static parseSelector(raw: string): SelectorQuery {
     const trimmed = raw.trim();
@@ -147,6 +150,7 @@ export class FrameSelectorResolver {
       this.frame.frameId,
       1000,
       progress,
+      this.readinessOptions,
     );
     const results: ResolvedNode[] = [];
     try {
@@ -183,6 +187,7 @@ export class FrameSelectorResolver {
       this.frame.frameId,
       1000,
       progress,
+      this.readinessOptions,
     );
 
     const primaryExpr = buildLocatorInvocation("countCssMatchesPrimary", [
@@ -198,6 +203,7 @@ export class FrameSelectorResolver {
       this.frame.frameId,
       1000,
       progress,
+      this.readinessOptions,
     );
 
     const expr = buildLocatorInvocation("countTextMatches", [JSON.stringify(value)]);
@@ -247,6 +253,7 @@ export class FrameSelectorResolver {
       this.frame.frameId,
       1000,
       progress,
+      this.readinessOptions,
     );
 
     const expr = buildLocatorInvocation("countXPathMatchesMainWorld", [JSON.stringify(value)]);
