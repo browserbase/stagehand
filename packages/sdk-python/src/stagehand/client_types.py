@@ -74,7 +74,7 @@ class BrowserbaseClientOptions(TypedDict, total=False):
     timeout: float
     max_retries: int
     default_headers: dict[str, str]
-    default_query: dict[str, object]
+    default_query: dict[str, str]
     http_client: httpx.AsyncClient
     """Caller-owned; Stagehand never closes it. Keep it open until `browser.close()` returns."""
 
