@@ -36,6 +36,9 @@ export default class Search extends BrowseCommand {
   static override examples = [
     `browse cloud search "best restaurants in SF"`,
     `browse cloud search "web scraping tools" --num-results 5`,
+    `browse cloud search "browserbase docs" --provider parallel --mode fast`,
+    `browse cloud search "browser automation research" --provider parallel --mode advanced`,
+    `browse cloud search "browserbase docs" --provider exa`,
     `browse cloud search "browserbase docs" --json`,
     `browse cloud search "browserbase docs" --output results.json`,
   ];
@@ -53,6 +56,15 @@ export default class Search extends BrowseCommand {
       min: 1,
       max: 25,
     }),
+    provider: Flags.string({
+      description: "Search provider. Omit to use the API default.",
+      options: ["parallel", "exa"],
+    }),
+    mode: Flags.string({
+      description:
+        "Search tier (Parallel only). Omit to use the provider's default tier.",
+      options: ["fast", "advanced"],
+    }),
     output: Flags.string({
       description: "Write the search results as JSON to a file.",
       helpValue: "<output>",
@@ -69,7 +81,12 @@ export default class Search extends BrowseCommand {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: args.query, numResults }),
+        body: JSON.stringify({
+          query: args.query,
+          numResults,
+          provider: flags.provider,
+          mode: flags.mode,
+        }),
       },
     );
 
