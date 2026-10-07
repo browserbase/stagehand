@@ -703,9 +703,11 @@ async function buildBrowserbaseRow(
                     ? "Project not found for this key."
                     : `HTTP ${res.status}`,
               fix:
-                res.status === 404
-                  ? `check BROWSERBASE_PROJECT_ID belongs to this key's Browserbase project`
-                  : "replace BROWSERBASE_API_KEY (or BB_API_KEY) with a valid key",
+                res.status === 401 || res.status === 403
+                  ? "replace BROWSERBASE_API_KEY (or BB_API_KEY) with a valid key"
+                  : res.status === 404
+                    ? `check BROWSERBASE_PROJECT_ID belongs to this key's Browserbase project`
+                    : "retry in a minute: Browserbase is rate limiting or unavailable, the keys may be fine",
             },
       );
     } catch (error) {
