@@ -26,7 +26,6 @@ const intentionallyUndocumentedBrowserFields = new Set([
   "LocalBrowserConnectOptions.extension_id",
   "BrowserbaseConnectOptions.extension_id",
 ]);
-const pendingGoBrowserFields = new Set(["BrowserbaseConnectOptions.client"]);
 
 const concepts: readonly Concept[] = [
   {
@@ -104,25 +103,22 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
 
     for (const concept of concepts) {
       const expected = schemaFields(concept.typescript);
-      const goExpected = expected.filter(
-        (field) => !pendingGoBrowserFields.has(`${concept.name}.${field}`),
-      );
       const [pythonFields, goFields] = await Promise.all([concept.python(), concept.go()]);
       if (!arraysEqual(pythonFields, expected)) {
         differences.push(
           `${concept.name} Python: expected [${expected.join(", ")}], received [${pythonFields.join(", ")}]`,
         );
       }
-      if (!arraysEqual(goFields, goExpected)) {
+      if (!arraysEqual(goFields, expected)) {
         differences.push(
-          `${concept.name} Go: expected [${goExpected.join(", ")}], received [${goFields.join(", ")}]`,
+          `${concept.name} Go: expected [${expected.join(", ")}], received [${goFields.join(", ")}]`,
         );
       }
     }
 
     expect(
       differences,
-      "SDK-only field names are derived dynamically; only concept/type names and language-specific adapters are paired explicitly",
+      "SDK-only field names are derived dynamically; only concept/type names are paired explicitly",
     ).toEqual([]);
   });
 
