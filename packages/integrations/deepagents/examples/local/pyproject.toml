@@ -10,6 +10,8 @@ dependencies = [
   "pydantic>=2,<3",
   # Security minimum for the transitive MCP authentication dependency.
   "pyjwt>=2.15.0,<3",
+  # Security minimum for transitive HTTP clients.
+  "urllib3>=2.8.0,<3",
 ]
 
 [tool.uv]

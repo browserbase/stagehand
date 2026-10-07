@@ -8,6 +8,8 @@ dependencies = [
   "langchain-openai>=1,<2",
   "managed-deepagents",
   "stagehand>=4.0.0",
+  # Security minimum for transitive HTTP clients.
+  "urllib3>=2.8.0,<3",
 ]
 
 [tool.uv]
