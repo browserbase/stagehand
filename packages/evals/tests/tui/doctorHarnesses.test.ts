@@ -79,6 +79,9 @@ describe("buildHarnessMatrix", () => {
       );
     expect((await run(401)).browserbase.probes[1]?.fix).toContain("replace BROWSERBASE_API_KEY");
     expect((await run(404)).browserbase.probes[1]?.fix).toContain("check BROWSERBASE_PROJECT_ID");
+    for (const status of [429, 503]) {
+      expect((await run(status)).browserbase.probes[1]?.fix).toMatch(/^retry in a minute/);
+    }
   });
 
   it("builds one row per executable harness, skipping fx and cursor", async () => {
