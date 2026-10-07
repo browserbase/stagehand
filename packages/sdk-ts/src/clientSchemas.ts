@@ -58,7 +58,7 @@ export const LocalBrowserLaunchOptionsSchema = z
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
-    extensionId: z.string().min(1).optional(),
+    extensionId: z.string().optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
@@ -124,7 +124,7 @@ export const BrowserbaseConnectOptionsSchema = z
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     clientOptions: BrowserbaseClientOptionsSchema.optional(),
     sessionId: z.string().min(1),
-    extensionId: z.string().min(1).optional(),
+    extensionId: z.string().optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });
 
