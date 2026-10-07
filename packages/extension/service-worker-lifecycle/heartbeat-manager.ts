@@ -5,7 +5,7 @@ type ChromeEvent<Arguments extends unknown[] = []> = {
   addListener(listener: (...args: Arguments) => void): void;
 };
 
-type RuntimePort = {
+export type RuntimePort = {
   name: string;
   onDisconnect: ChromeEvent;
   onMessage: ChromeEvent<[message: unknown]>;
@@ -49,8 +49,15 @@ export function createServiceWorkerHeartbeatManager(
   let installed = false;
 
   async function ensure(): Promise<void> {
+    if (heartbeatPort != null) return;
+
     const offscreen = chromeApi.offscreen;
     if (offscreen == null) return;
+
+    if (creatingDocument != null) {
+      await creatingDocument;
+      if (heartbeatPort != null) return;
+    }
 
     const offscreenUrl = chromeApi.runtime.getURL(STAGEHAND_SERVICE_WORKER_HEARTBEAT_PATH);
     const existingContexts = await chromeApi.runtime.getContexts({
@@ -78,6 +85,7 @@ export function createServiceWorkerHeartbeatManager(
   }
 
   function requestEnsure(): void {
+    if (heartbeatPort != null) return;
     void ensure().catch(onError);
   }
 
@@ -90,6 +98,7 @@ export function createServiceWorkerHeartbeatManager(
     });
     port.onDisconnect.addListener(() => {
       if (heartbeatPort === port) heartbeatPort = null;
+      requestEnsure();
     });
   }
 
