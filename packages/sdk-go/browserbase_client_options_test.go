@@ -314,39 +314,53 @@ func TestBrowserbaseClientOptionsTimeoutCoversResponseBody(t *testing.T) {
 }
 
 func TestBrowserbaseClientOptionsRetryBodyTimeout(t *testing.T) {
-	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(
-		writer http.ResponseWriter,
-		request *http.Request,
-	) {
-		attempt := requests.Add(1)
-		writer.Header().Set("Content-Type", "application/json")
-		writer.WriteHeader(http.StatusOK)
-		writer.(http.Flusher).Flush()
-		if attempt == 1 {
-			// Stall the first body past the attempt deadline.
-			select {
-			case <-request.Context().Done():
-				return
-			case <-time.After(5 * time.Second):
-			}
-		}
-		_ = json.NewEncoder(writer).Encode(
-			browserbaseTestSessionResponse("session_123", "COMPLETED"),
-		)
-	}))
-	defer server.Close()
-
-	client := newBrowserbaseTestClientFromOptions(t, server.URL, &BrowserbaseClientOptions{
-		Timeout:    100 * time.Millisecond,
-		MaxRetries: testPointer(1),
-		HTTPClient: server.Client(),
-	})
-	if _, err := client.retrieveSession(context.Background(), "session_123"); err != nil {
-		t.Fatalf("retrieveSession() error = %v", err)
+	tests := []struct {
+		name          string
+		timeout       time.Duration
+		clientTimeout time.Duration
+	}{
+		{name: "attempt deadline", timeout: 100 * time.Millisecond},
+		{name: "caller http client timeout", timeout: 5 * time.Second, clientTimeout: 100 * time.Millisecond},
 	}
-	if got := requests.Load(); got != 2 {
-		t.Fatalf("requests = %d, want 2 (retry after the body timed out)", got)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(
+				writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				attempt := requests.Add(1)
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusOK)
+				writer.(http.Flusher).Flush()
+				if attempt == 1 {
+					// Stall the first body past whichever timeout applies.
+					select {
+					case <-request.Context().Done():
+						return
+					case <-time.After(5 * time.Second):
+					}
+				}
+				_ = json.NewEncoder(writer).Encode(
+					browserbaseTestSessionResponse("session_123", "COMPLETED"),
+				)
+			}))
+			defer server.Close()
+
+			httpClient := server.Client()
+			httpClient.Timeout = test.clientTimeout
+			client := newBrowserbaseTestClientFromOptions(t, server.URL, &BrowserbaseClientOptions{
+				Timeout:    test.timeout,
+				MaxRetries: testPointer(1),
+				HTTPClient: httpClient,
+			})
+			if _, err := client.retrieveSession(context.Background(), "session_123"); err != nil {
+				t.Fatalf("retrieveSession() error = %v", err)
+			}
+			if got := requests.Load(); got != 2 {
+				t.Fatalf("requests = %d, want 2 (retry after the body timed out)", got)
+			}
+		})
 	}
 }
 

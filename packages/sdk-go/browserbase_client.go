@@ -10,6 +10,7 @@ import (
 	"maps"
 	"math"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -439,9 +440,13 @@ func (client *browserbaseHTTPClient) sendAttempt(
 	closeErr := httpResponse.Body.Close()
 	if readErr != nil || closeErr != nil {
 		err := errors.Join(readErr, closeErr)
-		// A body cut off by this attempt's deadline is retryable like any other
-		// timed-out attempt; oversized or malformed bodies are not.
-		if errors.Is(attemptCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+		// A body cut off by a timeout (this attempt's deadline or the caller's
+		// http.Client.Timeout) is retryable like any other timed-out attempt;
+		// oversized or malformed bodies are not.
+		var netErr net.Error
+		timedOut := errors.Is(attemptCtx.Err(), context.DeadlineExceeded) ||
+			(errors.As(readErr, &netErr) && netErr.Timeout())
+		if timedOut && ctx.Err() == nil {
 			return nil, nil, &browserbaseTransportError{err: err}
 		}
 		return nil, nil, err
