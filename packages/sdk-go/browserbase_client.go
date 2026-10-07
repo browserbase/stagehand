@@ -438,7 +438,13 @@ func (client *browserbaseHTTPClient) sendAttempt(
 	responseBody, readErr := readBrowserbaseResponse(httpResponse.Body)
 	closeErr := httpResponse.Body.Close()
 	if readErr != nil || closeErr != nil {
-		return nil, nil, errors.Join(readErr, closeErr)
+		err := errors.Join(readErr, closeErr)
+		// A body cut off by this attempt's deadline is retryable like any other
+		// timed-out attempt; oversized or malformed bodies are not.
+		if errors.Is(attemptCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			return nil, nil, &browserbaseTransportError{err: err}
+		}
+		return nil, nil, err
 	}
 	return httpResponse, responseBody, nil
 }
