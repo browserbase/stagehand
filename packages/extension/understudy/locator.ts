@@ -38,8 +38,8 @@ const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Play
  *
  * Key change:
  * - Prefer **objectId**-based CDP calls (scroll, geometry) to avoid brittle
- *   frontend nodeId mappings. nodeId is resolved on a best-effort basis and
- *   returned for compatibility, but actions do not depend on it.
+ *   frontend nodeId mappings. Actions do not need nodeId, so resolution skips
+ *   DOM.requestNode and leaves nodeId null.
  *
  * Notes:
  * - Resolution is lazy: every action resolves the selector again.
@@ -60,7 +60,7 @@ export class Locator {
     readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
   ) {
-    this.selectorResolver = new FrameSelectorResolver(this.frame);
+    this.selectorResolver = new FrameSelectorResolver(this.frame, {}, { includeNodeId: false });
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
     const normalized = Number.isFinite(nthIndex) ? Math.floor(nthIndex) : -1;
     this.nthIndex = normalized < 0 ? -1 : normalized;

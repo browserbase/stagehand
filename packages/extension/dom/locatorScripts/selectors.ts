@@ -1,3 +1,4 @@
+import { filterInnermostMatches } from "./textMatches.js";
 import { resolveXPathAtIndex } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
@@ -172,25 +173,7 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
     }
   }
 
-  const innermost: typeof matchesList = [];
-  for (const item of matchesList) {
-    const el = item.element;
-    let skip = false;
-    for (const other of matchesList) {
-      if (item === other) continue;
-      try {
-        if (el.contains(other.element)) {
-          skip = true;
-          break;
-        }
-      } catch {
-        // ignore containment errors
-      }
-    }
-    if (!skip) {
-      innermost.push(item);
-    }
-  }
+  const innermost = filterInnermostMatches(matchesList);
 
   const target = innermost[targetIndex];
   return target?.element ?? null;

@@ -1,3 +1,4 @@
+import { filterInnermostMatches } from "./textMatches.js";
 import { countXPathMatches } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
@@ -176,23 +177,7 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
     }
   }
 
-  const innermost: typeof matchesList = [];
-  for (const item of matchesList) {
-    const el = item.element;
-    let skip = false;
-    for (const other of matchesList) {
-      if (item === other) continue;
-      try {
-        if (el.contains(other.element)) {
-          skip = true;
-          break;
-        }
-      } catch {
-        // ignore containment errors
-      }
-    }
-    if (!skip) innermost.push(item);
-  }
+  const innermost = filterInnermostMatches(matchesList);
 
   const count = innermost.length;
   const sample = innermost.slice(0, 5).map((item) => ({

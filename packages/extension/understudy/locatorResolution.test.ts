@@ -8,6 +8,7 @@ import { Frame } from "./frame.js";
 import { frameLocatorFromFrame } from "./frameLocator.js";
 import { Progress, runWithProgress } from "./progress.js";
 import type { Page } from "./page.js";
+import { FrameSelectorResolver } from "./selectorResolver.js";
 
 function deferred<T = unknown>() {
   let resolve!: (value: T) => void;
@@ -65,6 +66,79 @@ function createPage(...frames: Frame[]) {
     frameForId: (id: string) => frames.find((frame) => frame.frameId === id)!,
   } as unknown as Page;
 }
+
+describe("locator object-only resolution", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(["button", "text=button", "xpath=//button"])(
+    "resolves %s without materializing a frontend DOM tree",
+    async (selector) => {
+      const { frame, send } = createFrame("root");
+      await expect(frame.locator(selector).resolveNode()).resolves.toEqual({
+        objectId: "node",
+        nodeId: null,
+      });
+      expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
+    },
+  );
+
+  it("preserves frontend node IDs for low-level resolver callers", async () => {
+    const { frame, send } = createFrame("root");
+    await expect(
+      new FrameSelectorResolver(frame).resolveFirst({ kind: "css", value: "button" }),
+    ).resolves.toEqual({ objectId: "node", nodeId: 1 });
+    expect(send).toHaveBeenCalledWith("DOM.requestNode", { objectId: "node" });
+  });
+
+  it.each(["button", "text=button", "xpath=//button"])(
+    "resolves only the requested index for %s",
+    async (selector) => {
+      const { frame, send, respond } = createFrame("root");
+      let next = 0;
+      send.mockImplementation((method, params) =>
+        method === "Runtime.evaluate"
+          ? Promise.resolve({ result: { objectId: `node-${++next}` } })
+          : respond(method, params),
+      );
+      const progress = new Progress("resolve", 1000);
+      try {
+        await expect(frame.locator(selector).nth(10_000).resolveNode(progress)).resolves.toEqual({
+          objectId: "node-1",
+          nodeId: null,
+        });
+        const evaluations = send.mock.calls.filter(([method]) => method === "Runtime.evaluate");
+        expect(evaluations).toHaveLength(1);
+        expect((evaluations[0][1] as { expression: string }).expression).toContain("10000");
+        expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual(
+          [],
+        );
+        expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
+      } finally {
+        progress.dispose();
+      }
+    },
+  );
+
+  it("returns all mask handles without node IDs", async () => {
+    const { frame, send, respond } = createFrame("root");
+    let next = 0;
+    send.mockImplementation((method, params) =>
+      method === "Runtime.evaluate"
+        ? Promise.resolve({ result: ++next <= 2 ? { objectId: `node-${next}` } : {} })
+        : respond(method, params),
+    );
+    const progress = new Progress("mask", 1000);
+    try {
+      await expect(frame.locator("button").resolveNodesForMask(progress)).resolves.toEqual([
+        { objectId: "node-1", nodeId: null },
+        { objectId: "node-2", nodeId: null },
+      ]);
+      expect(send).not.toHaveBeenCalledWith("DOM.requestNode", expect.anything());
+    } finally {
+      progress.dispose();
+    }
+  });
+});
 
 describe("locator resolution deadlines", () => {
   const contexts: Progress[] = [];
@@ -206,7 +280,12 @@ describe("locator resolution deadlines", () => {
             root.frame,
             "iframe",
           ).resolveFrame(context)
-        : root.frame.locator("button").resolveNode(context);
+        : method === "DOM.requestNode"
+          ? new FrameSelectorResolver(root.frame).resolveFirst(
+              { kind: "css", value: "button" },
+              context,
+            )
+          : root.frame.locator("button").resolveNode(context);
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(40);
     await rejected;
@@ -235,7 +314,7 @@ describe("locator resolution deadlines", () => {
           : Promise.resolve({ result: { objectId: "first" } })
         : respond(method, params),
     );
-    const pending = frame.locator("button").nth(1).resolveNode(createProgress());
+    const pending = frame.locator("button").resolveNodesForMask(createProgress());
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
     await rejected;
@@ -245,32 +324,15 @@ describe("locator resolution deadlines", () => {
     expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "second" });
   });
 
-  it("reports expiry without waiting for a second stalled cleanup", async () => {
-    const { frame, send, respond } = createFrame("root");
+  it("returns null for invalid indices without acquiring remote handles", async () => {
+    const { frame, send } = createFrame("root");
     const resolver = frame.locator("button").selectorResolver;
-    vi.spyOn(resolver, "resolveAll").mockResolvedValue([
-      { objectId: "unselected", nodeId: 1 },
-      { objectId: "selected", nodeId: 2 },
-    ]);
-    const gate = deferred();
-    send.mockImplementation((method, params) =>
-      method === "Runtime.releaseObject" ? gate.promise : respond(method, params),
-    );
-    const settled = vi.fn();
-    const pending = resolver.resolveAtIndex({ kind: "css", value: "button" }, 1, createProgress());
-    void pending.then(settled, settled);
-
-    try {
-      await vi.advanceTimersByTimeAsync(1000);
-      expect(settled).toHaveBeenCalledExactlyOnceWith(expect.any(TimeoutError));
-      expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
-        ["Runtime.releaseObject", { objectId: "unselected" }],
-        ["Runtime.releaseObject", { objectId: "selected" }],
-      ]);
-    } finally {
-      gate.resolve({});
-      await vi.advanceTimersByTimeAsync(0);
+    for (const index of [-1, 0.5, Infinity, NaN]) {
+      await expect(
+        resolver.resolveAtIndex({ kind: "css", value: "button" }, index),
+      ).resolves.toBeNull();
     }
+    expect(send).not.toHaveBeenCalled();
   });
 
   it("removes the main-world listener & timer when its caller expires", async () => {
@@ -331,7 +393,7 @@ describe("locator resolution deadlines", () => {
         : respond(method, params),
     );
     const pending = runWithProgress({ name: "resolve", timeout: 100 }, (context) =>
-      frame.locator("button").resolveNode(context),
+      new FrameSelectorResolver(frame).resolveFirst({ kind: "css", value: "button" }, context),
     );
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
@@ -428,7 +490,12 @@ describe("locator resolution deadlines", () => {
               root.frame,
               "iframe",
             ).resolveFrame(progress)
-          : root.frame.locator("button").resolveNode(progress);
+          : command === "DOM.requestNode"
+            ? new FrameSelectorResolver(root.frame).resolveFirst(
+                { kind: "css", value: "button" },
+                progress,
+              )
+            : root.frame.locator("button").resolveNode(progress);
       await expect(pending).rejects.toBe(closed);
     },
   );
