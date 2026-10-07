@@ -12,57 +12,69 @@ Direct OTLP tracing is in open beta. Copy the traces URL and public key from the
 
 1. Open Project settings > Client Keys (DSN), then the project's OpenTelemetry settings.
 2. Copy the OTLP traces URL and public key.
-3. Set `SENTRY_OTLP_TRACES_ENDPOINT` and `SENTRY_PUBLIC_KEY`.
+3. Set `BROWSERBASE_API_KEY`, `SENTRY_OTLP_TRACES_ENDPOINT`, and `SENTRY_PUBLIC_KEY`.
 
 ## Configure Stagehand
 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
-import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const browser = await localBrowser.launch();
-const stagehand = await Stagehand.create({
-  browser,
-  telemetry: {
-    traces: {
-      endpoint: process.env.SENTRY_OTLP_TRACES_ENDPOINT!,
-      headers: {
-        "x-sentry-auth": `sentry sentry_key=${process.env.SENTRY_PUBLIC_KEY}`,
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+try {
+  const stagehand = await Stagehand.create({
+    browser,
+    telemetry: {
+      traces: {
+        endpoint: process.env.SENTRY_OTLP_TRACES_ENDPOINT!,
+        headers: {
+          "x-sentry-auth": `sentry sentry_key=${process.env.SENTRY_PUBLIC_KEY}`,
+        },
       },
     },
-  },
-});
+  });
 
-const [page] = await browser.context.pages();
-await page.goto("https://example.com");
-await stagehand.observe("find the link on the page");
-await stagehand.close();
+  try {
+    const [page] = await browser.context.pages();
+    await page.goto("https://example.com");
+    await stagehand.observe("find the link on the page");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
 ```
 </Tab>
 
 <Tab title="Python">
 ```python
 import os
-from stagehand import Stagehand, TelemetryConfig, local_browser
+from stagehand import Stagehand, browserbase
 
-browser = await local_browser.launch()
-stagehand = await Stagehand.create(
-    browser=browser,
-    telemetry=TelemetryConfig.model_validate({
-        "traces": {
-            "endpoint": os.environ["SENTRY_OTLP_TRACES_ENDPOINT"],
-            "headers": {
-                "x-sentry-auth": f"sentry sentry_key={os.environ['SENTRY_PUBLIC_KEY']}",
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+try:
+    stagehand = await Stagehand.create(
+        browser=browser,
+        telemetry={
+            "traces": {
+                "endpoint": os.environ["SENTRY_OTLP_TRACES_ENDPOINT"],
+                "headers": {
+                    "x-sentry-auth": f"sentry sentry_key={os.environ['SENTRY_PUBLIC_KEY']}",
+                },
             },
-        }
-    }),
-)
+        },
+    )
 
-page = (await browser.context.pages())[0]
-await page.goto("https://example.com")
-await stagehand.observe("find the link on the page")
-await stagehand.close()
+    try:
+        page = (await browser.context.pages())[0]
+        await page.goto("https://example.com")
+        await stagehand.observe("find the link on the page")
+    finally:
+        await stagehand.close()
+finally:
+    await browser.close()
 ```
 </Tab>
 
@@ -79,8 +91,10 @@ import (
 
 func main() {
 	ctx := context.Background()
-	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
 	if err != nil { panic(err) }
+	defer browser.Close(ctx)
 
 	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 		Browser: browser,
@@ -107,7 +121,7 @@ func main() {
 </Tab>
 </Tabs>
 
-Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export.
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. A script that returns immediately often drops the last export. Close the browser after Stagehand to end the Browserbase session.
 
 ## Verify traces
 

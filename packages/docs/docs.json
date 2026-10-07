@@ -83,7 +83,7 @@
             ]
           },
           {
-            "group": "Observability providers",
+            "group": "AI Observability",
             "pages": [
               "v4/observability/overview",
               "v4/observability/braintrust",
