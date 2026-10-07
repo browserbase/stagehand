@@ -248,17 +248,17 @@ export class InMemorySessionStore implements SessionStore {
       },
     };
 
+    if (params.browserbaseSessionCreateParams) {
+      options.browserbaseSessionCreateParams =
+        params.browserbaseSessionCreateParams;
+    }
+
     if (isBrowserbase) {
       options.apiKey = params.browserbaseApiKey;
       options.projectId = params.browserbaseProjectId;
 
       if (params.browserbaseSessionID) {
         options.browserbaseSessionID = params.browserbaseSessionID;
-      }
-
-      if (params.browserbaseSessionCreateParams) {
-        options.browserbaseSessionCreateParams =
-          params.browserbaseSessionCreateParams;
       }
     } else if (params.localBrowserLaunchOptions) {
       options.localBrowserLaunchOptions = params.localBrowserLaunchOptions;
