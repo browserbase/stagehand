@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, ClassVar, Literal, Self, cast
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
@@ -692,14 +693,21 @@ class FakeBrowserbaseClient:
         return self.connected
 
 
+BrowserbaseClientConfiguration = tuple[str, str, dict[str, object] | None]
+
+
 def _install_browserbase_client(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[FakeBrowserbaseClient, list[tuple[str, str]]]:
+) -> tuple[FakeBrowserbaseClient, list[BrowserbaseClientConfiguration]]:
     client = FakeBrowserbaseClient()
-    configurations: list[tuple[str, str]] = []
+    configurations: list[BrowserbaseClientConfiguration] = []
 
-    def factory(api_key: str, base_url: str) -> FakeBrowserbaseClient:
-        configurations.append((api_key, base_url))
+    def factory(
+        api_key: str,
+        base_url: str,
+        client_options: dict[str, object] | None = None,
+    ) -> FakeBrowserbaseClient:
+        configurations.append((api_key, base_url, client_options))
         return client
 
     monkeypatch.setattr(browser, "_create_browserbase_session_client", factory)
@@ -731,7 +739,7 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     _release_browser(handle)
     await handle.close()
 
-    assert configurations == [("api-key", "https://api.dev.browserbase.com")]
+    assert configurations == [("api-key", "https://api.dev.browserbase.com", None)]
     assert client.created.close_calls == 1
     assert fake_cdp.instances[-1].close_calls == 1
 
@@ -743,7 +751,7 @@ async def test_browserbase_launch_keep_alive_still_closes_session_explicitly(
     client, configurations = _install_browserbase_client(monkeypatch)
     handle = await browserbase.launch(api_key="api-key", keep_alive=True)
     await handle.close()
-    assert configurations == [("api-key", "https://api.browserbase.com")]
+    assert configurations == [("api-key", "https://api.browserbase.com", None)]
     assert client.created.close_calls == 1
     assert fake_cdp.instances[-1].close_calls == 1
 
@@ -777,10 +785,48 @@ async def test_browserbase_connect_releases_session_and_selects_extension_mode(
 
     assert client.connect_calls == ["session", "session"]
     assert configurations == [
-        ("api-key", "https://api.dev.browserbase.com"),
-        ("api-key", "https://api.browserbase.com"),
+        ("api-key", "https://api.dev.browserbase.com", None),
+        ("api-key", "https://api.browserbase.com", None),
     ]
     assert client.connected.close_calls == 2
+
+
+async def test_browserbase_launch_and_connect_pass_client_options(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    _, configurations = _install_browserbase_client(monkeypatch)
+    async with httpx.AsyncClient() as http_client:
+        launched = await browserbase.launch(
+            api_key="api-key",
+            client_options={
+                "timeout": 5.0,
+                "default_headers": {"X-Caller": "app"},
+                "http_client": http_client,
+            },
+        )
+        await launched.close()
+        connected = await browserbase.connect(
+            api_key="api-key",
+            session_id="session",
+            client_options={"max_retries": 0},
+        )
+        await connected.close()
+
+        assert configurations == [
+            (
+                "api-key",
+                "https://api.browserbase.com",
+                {
+                    "timeout": 5.0,
+                    "default_headers": {"X-Caller": "app"},
+                    "http_client": http_client,
+                },
+            ),
+            ("api-key", "https://api.browserbase.com", {"max_retries": 0}),
+        ]
+        assert configurations[0][2] is not None
+        assert configurations[0][2]["http_client"] is http_client
 
 
 async def test_browserbase_launch_connect_failure_closes_owned_session(
@@ -816,6 +862,24 @@ async def test_browserbase_validation_precedes_api_calls(
         await browserbase.connect(api_key="", session_id="session")
     with pytest.raises(ValidationError):
         await browserbase.connect(api_key="api-key", session_id="")
+    for client_options in (
+        {"api_key": "other-key"},
+        {"base_url": "https://api.dev.browserbase.com"},
+        {"timeout": -1.0},
+        {"max_retries": "3"},
+        {"http_client": httpx.Client()},
+    ):
+        with pytest.raises(ValidationError):
+            await browserbase.launch(
+                api_key="api-key",
+                client_options=client_options,  # ty: ignore[invalid-argument-type]
+            )
+        with pytest.raises(ValidationError):
+            await browserbase.connect(
+                api_key="api-key",
+                session_id="session",
+                client_options=client_options,  # ty: ignore[invalid-argument-type]
+            )
     assert api_keys == []
 
 
