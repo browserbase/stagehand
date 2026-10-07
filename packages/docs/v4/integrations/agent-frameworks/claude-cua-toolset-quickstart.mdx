@@ -175,7 +175,7 @@ This creates a Browserbase session, so you don't need local Chrome. The toolset 
 
 ## Domain restrictions
 
-Set `allowedDomains` and `blockedDomains` in TypeScript, or `allowed_domains` and `blocked_domains` in Python, to restrict HTTP and HTTPS requests. Entries accept hosts, IP addresses, or CIDR ranges. A domain entry includes its subdomains, and blocked entries take precedence.
+Set `allowedDomains` and `blockedDomains` in TypeScript, or `allowed_domains` and `blocked_domains` in Python, to restrict HTTP and HTTPS requests. Entries match exact hosts by default; use a leading `*.` pattern such as `*.example.com` for subdomains. Blocked entries take precedence.
 
 <Warning>
 Domain restrictions don't cover WebSocket handshakes. A page on an allowed host can open a WebSocket connection to another host. Don't treat these lists as complete network isolation.
