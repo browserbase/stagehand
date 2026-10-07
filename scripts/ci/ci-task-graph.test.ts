@@ -83,7 +83,9 @@ describe("CI task isolation", () => {
     const checks = ["build", "fmt:check", "lint", "typecheck", "test:unit"];
     const allTasks = turboGraph(checks);
     const ownedTasks = new Set([
-      ...scriptGraph("ci:core", checks),
+      ...scriptGraph("build:core"),
+      ...scriptGraph("check:core"),
+      ...scriptGraph("test:unit:core"),
       ...turboGraph(["build", "lint", "--filter=browse"]),
       ...turboGraph(["build", "typecheck", "test:unit", "--filter=@browserbasehq/stagehand-evals"]),
     ]);
