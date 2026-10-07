@@ -106,6 +106,7 @@ class LocalBrowserConnectOptions(WireModel):
 
     cdp_url: Annotated[str, Field(min_length=1)]
     extension_id: str | None = None
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
 
 
 class BrowserbaseClientOptions(WireModel):
@@ -126,6 +127,7 @@ class BrowserbaseConnectOptions(WireModel):
     client_options: BrowserbaseClientOptions | None = None
     session_id: Annotated[str, Field(min_length=1)]
     extension_id: str | None = None
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
 
 
 class _BrowserbaseSearchOptions(WireModel):

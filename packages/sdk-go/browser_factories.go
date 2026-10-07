@@ -38,7 +38,8 @@ type LocalBrowserLaunchOptions struct {
 
 // LocalBrowserConnectOptions configures a connection to an existing local browser.
 type LocalBrowserConnectOptions struct {
-	CDPURL      string
+	CDPURL string
+	// Deprecated: Ignored. Omit this field; Stagehand discovers the installed extension automatically.
 	ExtensionID string
 }
 
@@ -79,7 +80,8 @@ type BrowserbaseConnectOptions struct {
 	BaseURL       string
 	ClientOptions *BrowserbaseClientOptions
 	SessionID     string
-	ExtensionID   string
+	// Deprecated: Ignored. Omit this field; Stagehand discovers the installed extension automatically.
+	ExtensionID string
 }
 
 type browserbaseFactoryClient interface {

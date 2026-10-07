@@ -310,9 +310,17 @@ export type StagehandClientActOptions = z.input<typeof StagehandClientActOptions
 export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
 export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
-export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
+export interface LocalBrowserConnectOptions extends z.infer<
+  typeof LocalBrowserConnectOptionsSchema
+> {
+  /** @deprecated Ignored. Omit this option; Stagehand discovers the installed extension automatically. */
+  extensionId?: string;
+}
 export type BrowserbaseLaunchOptions = z.input<typeof BrowserbaseLaunchOptionsSchema>;
-export type BrowserbaseConnectOptions = z.input<typeof BrowserbaseConnectOptionsSchema>;
+export interface BrowserbaseConnectOptions extends z.input<typeof BrowserbaseConnectOptionsSchema> {
+  /** @deprecated Ignored. Omit this option; Stagehand discovers the installed extension automatically. */
+  extensionId?: string;
+}
 export type BrowserbaseSearchOptions = z.input<typeof BrowserbaseSearchOptionsSchema>;
 export type BrowserbaseFetchOptions = z.input<typeof BrowserbaseFetchOptionsSchema>;
 export type BrowserbaseSearchResult = z.infer<typeof BrowserbaseSearchResultSchema>;

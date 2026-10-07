@@ -534,6 +534,12 @@ class LocalBrowser:
         cdp_url: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
+        """Connect to an existing browser.
+
+        Args:
+            extension_id: Deprecated and ignored. Omit this argument; Stagehand
+                discovers the installed extension automatically.
+        """
         options = LocalBrowserConnectOptions.model_validate({
             name: value
             for name, value in (
@@ -646,6 +652,12 @@ class BrowserbaseBrowser:
         session_id: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
+        """Connect to an existing browser.
+
+        Args:
+            extension_id: Deprecated and ignored. Omit this argument; Stagehand
+                discovers the installed extension automatically.
+        """
         options = BrowserbaseConnectOptions.model_validate({
             name: value
             for name, value in (
