@@ -91,6 +91,8 @@ describe("buildHarnessMatrix", () => {
       "pi",
       "eve",
       "deepagents",
+      "claude_cua",
+      "gemini_cua",
     ]);
     expect(matrix.skipped).toEqual(["fx", "cursor"]);
     const cursor = await buildHarnessMatrix(options({ requested: ["cursor", "codex"] }));
