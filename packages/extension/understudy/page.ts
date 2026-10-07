@@ -394,10 +394,15 @@ export class Page {
    * Parent/child session emitted a `frameDetached`.
    */
   public onFrameDetached(frameId: string, reason: string = "remove"): void {
+    const removedFrames = reason === "swap" ? [] : this.registry.subtreeFrameIds(frameId);
     // A late process-swap detach must not remove tools reported by the new owner.
     if (reason !== "swap") this.invalidateWebMCPFrame(frameId);
     this.registry.onFrameDetached(frameId, reason);
     this.frameCache.delete(frameId);
+    for (const id of removedFrames) {
+      this.frameCache.delete(id);
+      this.frameOrdinals.delete(id);
+    }
   }
 
   /**
@@ -537,8 +542,7 @@ export class Page {
     }
     // Find which frames were owned by this session and prune by tree starting from each root.
     for (const fid of this.registry.framesForSession(sessionId)) {
-      this.registry.onFrameDetached(fid, "remove");
-      this.frameCache.delete(fid);
+      this.onFrameDetached(fid, "remove");
     }
     this.networkManager.untrackSession(sessionId);
   }
