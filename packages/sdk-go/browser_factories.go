@@ -49,8 +49,8 @@ type BrowserbaseClientOptions struct {
 	Timeout time.Duration
 	// MaxRetries caps retries of replay-safe requests. Nil keeps the default of 2.
 	MaxRetries *int
-	// DefaultHeaders are added to every request. Stagehand's own X-BB-API-Key,
-	// User-Agent, Content-Type, and Accept headers win on conflict.
+	// DefaultHeaders are added to every request and override Stagehand's own
+	// headers (including X-BB-API-Key and User-Agent) on conflict.
 	DefaultHeaders map[string]string
 	// DefaultQuery parameters are added to every request URL.
 	DefaultQuery map[string]string

@@ -416,9 +416,6 @@ func (client *browserbaseHTTPClient) sendAttempt(
 	if err != nil {
 		return nil, nil, fmt.Errorf("create Browserbase request: %w", err)
 	}
-	for key, value := range client.defaultHeaders {
-		httpRequest.Header.Set(key, value)
-	}
 	httpRequest.Header.Set("X-BB-API-Key", client.apiKey)
 	httpRequest.Header.Set("User-Agent", stagehandSDKClientName+"/"+stagehandSDKVersion)
 	if encoded.contentType != "" {
@@ -428,6 +425,10 @@ func (client *browserbaseHTTPClient) sendAttempt(
 		httpRequest.Header.Set("Accept", encoded.accept)
 	} else {
 		httpRequest.Header.Set("Accept", "application/json")
+	}
+	// Caller defaults override Stagehand's headers, matching the TypeScript and Python SDKs.
+	for key, value := range client.defaultHeaders {
+		httpRequest.Header.Set(key, value)
 	}
 
 	httpResponse, err := client.httpClient.Do(httpRequest)

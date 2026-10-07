@@ -75,61 +75,90 @@ func TestBrowserbaseClientOptionsReachHTTPClient(t *testing.T) {
 }
 
 func TestBrowserbaseClientOptionsAddDefaultHeadersAndQuery(t *testing.T) {
-	var requests atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(
-		writer http.ResponseWriter,
-		request *http.Request,
-	) {
-		requests.Add(1)
-		wantHeaders := map[string]string{
-			"X-Request-Source": "my-app",
-			"X-BB-API-Key":     "bb_test",
-			"User-Agent":       stagehandSDKClientName + "/" + stagehandSDKVersion,
-			"Accept":           "application/json",
-		}
-		if request.Method == http.MethodPost {
-			wantHeaders["Content-Type"] = "application/json"
-		}
-		for name, want := range wantHeaders {
-			if got := request.Header.Get(name); got != want {
-				t.Errorf("%s %s header %s = %q, want %q", request.Method, request.URL.Path, name, got, want)
-			}
-		}
-		if got := request.URL.Query(); !reflect.DeepEqual(got, url.Values{
-			"team":  {"qa"},
-			"trace": {"a b&c"},
-		}) {
-			t.Errorf("%s %s query = %#v", request.Method, request.URL.Path, got)
-		}
-		writeBrowserbaseTestJSON(writer, browserbaseTestSessionResponse("session_123", "COMPLETED"))
-	}))
-	defer server.Close()
-
-	client := newBrowserbaseTestClientFromOptions(t, server.URL, &BrowserbaseClientOptions{
-		DefaultHeaders: map[string]string{
-			"X-Request-Source": "my-app",
-			"x-bb-api-key":     "caller-key",
-			"User-Agent":       "caller-agent",
-			"Accept":           "text/plain",
-			"Content-Type":     "text/plain",
+	stagehandAgent := stagehandSDKClientName + "/" + stagehandSDKVersion
+	tests := []struct {
+		name        string
+		headers     map[string]string
+		call        func(*browserbaseHTTPClient) error
+		wantMethod  string
+		wantHeaders map[string]string
+	}{
+		{
+			name:    "adds defaults alongside Stagehand headers",
+			headers: map[string]string{"X-Request-Source": "my-app"},
+			call: func(client *browserbaseHTTPClient) error {
+				_, err := client.retrieveSession(context.Background(), "session_123")
+				return err
+			},
+			wantMethod: http.MethodGet,
+			wantHeaders: map[string]string{
+				"X-Request-Source": "my-app",
+				"X-BB-API-Key":     "bb_test",
+				"User-Agent":       stagehandAgent,
+				"Accept":           "application/json",
+			},
 		},
-		DefaultQuery: map[string]string{"team": "qa", "trace": "a b&c"},
-		HTTPClient:   server.Client(),
-	})
-	if _, err := client.releaseSession(context.Background(), "session_123"); err != nil {
-		t.Fatalf("releaseSession() error = %v", err)
+		{
+			name: "defaults override Stagehand headers",
+			headers: map[string]string{
+				"X-Request-Source": "my-app",
+				"x-bb-api-key":     "caller-key",
+				"User-Agent":       "caller-agent",
+				"Accept":           "text/plain",
+				"Content-Type":     "text/plain",
+			},
+			call: func(client *browserbaseHTTPClient) error {
+				_, err := client.releaseSession(context.Background(), "session_123")
+				return err
+			},
+			wantMethod: http.MethodPost,
+			wantHeaders: map[string]string{
+				"X-Request-Source": "my-app",
+				"X-BB-API-Key":     "caller-key",
+				"User-Agent":       "caller-agent",
+				"Accept":           "text/plain",
+				"Content-Type":     "text/plain",
+			},
+		},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(
+				writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				requests.Add(1)
+				if request.Method != test.wantMethod {
+					t.Errorf("method = %s, want %s", request.Method, test.wantMethod)
+				}
+				for name, want := range test.wantHeaders {
+					if got := request.Header.Get(name); got != want {
+						t.Errorf("header %s = %q, want %q", name, got, want)
+					}
+				}
+				if got := request.URL.Query(); !reflect.DeepEqual(got, url.Values{
+					"team":  {"qa"},
+					"trace": {"a b&c"},
+				}) {
+					t.Errorf("query = %#v", got)
+				}
+				writeBrowserbaseTestJSON(writer, browserbaseTestSessionResponse("session_123", "COMPLETED"))
+			}))
+			defer server.Close()
 
-	getClient := newBrowserbaseTestClientFromOptions(t, server.URL, &BrowserbaseClientOptions{
-		DefaultHeaders: map[string]string{"X-Request-Source": "my-app", "Accept": "text/plain"},
-		DefaultQuery:   map[string]string{"team": "qa", "trace": "a b&c"},
-		HTTPClient:     server.Client(),
-	})
-	if _, err := getClient.retrieveSession(context.Background(), "session_123"); err != nil {
-		t.Fatalf("retrieveSession() error = %v", err)
-	}
-	if requests.Load() != 2 {
-		t.Fatalf("requests = %d, want 2", requests.Load())
+			client := newBrowserbaseTestClientFromOptions(t, server.URL, &BrowserbaseClientOptions{
+				DefaultHeaders: test.headers,
+				DefaultQuery:   map[string]string{"team": "qa", "trace": "a b&c"},
+				HTTPClient:     server.Client(),
+			})
+			if err := test.call(client); err != nil {
+				t.Fatalf("request error = %v", err)
+			}
+			if requests.Load() != 1 {
+				t.Fatalf("requests = %d, want 1", requests.Load())
+			}
+		})
 	}
 }
 
