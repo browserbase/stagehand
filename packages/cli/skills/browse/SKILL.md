@@ -267,7 +267,7 @@ Use `--verified` when the task needs Browserbase Verified browser mode. To drive
 
 Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser interaction. It returns markdown-formatted page content by default; pass `--format raw` for the original response body or `--format json --schema <schema>` for structured extraction. Use `browse cloud search` when the user asks for web search results.
 
-Search accepts `--provider parallel|exa` and `--mode fast|advanced`. Parallel supports both modes; omit `--mode` with Exa. Leave either flag unset to let the API choose the default provider or the provider choose its default tier. `fast` favors lower latency and cost; `advanced` favors deeper results.
+Search accepts `--provider parallel|exa` and `--mode fast|advanced`. Provider and mode selection requires the Search API upgrade and is unavailable until that upgrade is deployed. Parallel supports both modes; omit `--mode` with Exa. Leave either flag unset to let the API choose the default provider or the provider choose its default tier. `fast` favors lower latency and cost; `advanced` favors deeper results.
 
 ## Browserbase Functions
 

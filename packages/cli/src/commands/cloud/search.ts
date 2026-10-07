@@ -31,7 +31,7 @@ interface SearchResponse {
 
 export default class Search extends BrowseCommand {
   static override description =
-    "Search the web using the Browserbase Search API.";
+    "Search the web using the Browserbase Search API.\n\nProvider and mode selection requires the Search API upgrade and is unavailable until that upgrade is deployed.";
 
   static override examples = [
     `browse cloud search "best restaurants in SF"`,

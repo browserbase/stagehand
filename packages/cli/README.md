@@ -240,6 +240,7 @@ browse cloud extensions delete <extension-id>
 # Fetch & Search APIs
 browse cloud fetch <url>                          # markdown by default
 browse cloud search <query>
+# Requires the Search API upgrade to be deployed:
 browse cloud search "browserbase docs" --provider parallel --mode fast
 browse cloud search "browser automation research" --provider parallel --mode advanced
 browse cloud search "browserbase docs" --provider exa
