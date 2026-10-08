@@ -1,10 +1,11 @@
+import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 import { launchLocalBrowser } from "../../src/browser/localBrowser.js";
 import { createBrowserFactoriesForTest } from "../../src/browser/factories.js";
 import { CDPClient } from "../../src/cdpClient.js";
 import { Stagehand } from "../../src/stagehand.js";
 
-const extensionDir = new URL("../../../extension/dist", import.meta.url).pathname;
+const extensionDir = fileURLToPath(new URL("../../../extension/dist", import.meta.url));
 
 it.each([false, true])(
   "local connect discovers or loads Stagehand (preinstalled: %s)",
