@@ -646,9 +646,12 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			}
 			var connected cdpClientOptions
 			var configuredBaseURL string
+			var configuredClientOptions *BrowserbaseClientOptions
+			clientOptions := &BrowserbaseClientOptions{Timeout: time.Second, MaxRetries: testPointer(0)}
 			dependencies := browserFactoryDependencies{
-				createBrowserbaseClient: func(_ string, baseURL string) (browserbaseFactoryClient, error) {
+				createBrowserbaseClient: func(_ string, baseURL string, clientOptions *BrowserbaseClientOptions) (browserbaseFactoryClient, error) {
 					configuredBaseURL = baseURL
+					configuredClientOptions = clientOptions
 					return client, nil
 				},
 				connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
@@ -659,10 +662,10 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			var browser *Browser
 			var err error
 			if test.connect {
-				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", BaseURL: "https://api.dev.browserbase.com", SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
+				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ClientOptions: clientOptions, SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
 			} else {
 				browser, err = launchBrowserbaseWithDependencies(context.Background(), BrowserbaseLaunchOptions{
-					APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ExtensionID: &extensionID, KeepAlive: &keepAlive,
+					APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ClientOptions: clientOptions, ExtensionID: &extensionID, KeepAlive: &keepAlive,
 					Region: &region, UserMetadata: userMetadata,
 				}, dependencies)
 			}
@@ -671,6 +674,9 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			}
 			if configuredBaseURL != "https://api.dev.browserbase.com" {
 				t.Fatalf("Browserbase base URL = %q", configuredBaseURL)
+			}
+			if configuredClientOptions != clientOptions {
+				t.Fatalf("Browserbase client options = %#v, want %#v", configuredClientOptions, clientOptions)
 			}
 			if !test.connect {
 				created := client.createOptions
