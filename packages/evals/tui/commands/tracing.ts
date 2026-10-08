@@ -17,6 +17,7 @@
 import { bold, cyan, dim, gray, green, red } from "../format.js";
 import {
   readConfig,
+  rejectSharedScope,
   writeConfig,
   resolveConfigPath,
   TRACING_ENV_VARS,
@@ -29,6 +30,10 @@ const VALID_KEYS: TracingKey[] = ["transport", "braintrustProject", "langsmithPr
 const TRANSPORTS: TraceTransport[] = ["native", "otel"];
 
 export async function handleTracing(args: string[], entryDir: string): Promise<void> {
+  if (args.includes("--shared")) {
+    rejectSharedScope("tracing");
+    return;
+  }
   const sub = args[0];
 
   if (!sub) {

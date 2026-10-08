@@ -80,3 +80,11 @@ it("prefers explicit model and startup overrides", () => {
     api: true,
   });
 });
+
+it("stamps the campaign tag only when one is set", () => {
+  const base = { environment: "LOCAL" as const, tier: "bench" as const, testcases: [row({})] };
+  expect(buildExperimentMetadata({ ...base, campaign: "facade-0831" }).campaign).toBe(
+    "facade-0831",
+  );
+  expect(buildExperimentMetadata(base)).not.toHaveProperty("campaign");
+});

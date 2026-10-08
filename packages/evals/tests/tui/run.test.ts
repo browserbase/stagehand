@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { RunEvalsResult } from "../../framework/runner.js";
+import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 import {
   canExecuteBenchHarness,
   deriveCategoryFilter,
@@ -56,6 +56,23 @@ function makeTask(overrides: Partial<DiscoveredTask> = {}): DiscoveredTask {
     ...overrides,
   };
 }
+
+// runCommand preflights Browserbase credentials for --env browserbase before
+// planning; the mocked runner never opens a session, so any value works.
+const savedBrowserbaseKeys = {
+  BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
+  BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+};
+beforeAll(() => {
+  process.env.BROWSERBASE_API_KEY ??= "test-key";
+  process.env.BROWSERBASE_PROJECT_ID ??= "test-project";
+});
+afterAll(() => {
+  for (const [key, value] of Object.entries(savedBrowserbaseKeys)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+});
 
 afterEach(() => {
   runEvalsMock.mockClear();
@@ -750,5 +767,119 @@ describe("runCommand zero-browser-pass gate", () => {
 
     const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
     expect(output).toContain("Concurrency: 10 global · openai 6");
+  });
+
+  it("shows config provider widths, with EVAL_PROVIDER_CONCURRENCY layered on top", async () => {
+    const registry = makeRegistry([
+      makeTask({ name: "act/alpha", primaryCategory: "act", categories: ["act"] }),
+    ]);
+    const options = {
+      target: "act",
+      normalizedTarget: "act",
+      trials: 1,
+      concurrency: 10,
+      environment: "BROWSERBASE" as const,
+      model: "openai/gpt-4.1-mini",
+      useApi: false,
+      harness: "stagehand" as const,
+      envOverrides: {},
+      dryRun: false,
+      preview: false,
+      successMode: "outcome" as const,
+      verbose: false,
+      providerConcurrency: { openai: 4 },
+    };
+    const saved = process.env.EVAL_PROVIDER_CONCURRENCY;
+    const headings = async (): Promise<string> => {
+      const log = vi.spyOn(console, "log").mockImplementation(() => {});
+      await runCommand(options, registry);
+      const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
+      log.mockRestore();
+      return output;
+    };
+    try {
+      delete process.env.EVAL_PROVIDER_CONCURRENCY;
+      expect(await headings()).toContain("Concurrency: 10 global · openai 4");
+      process.env.EVAL_PROVIDER_CONCURRENCY = "openai=6";
+      expect(await headings()).toContain("Concurrency: 10 global · openai 6");
+    } finally {
+      if (saved === undefined) delete process.env.EVAL_PROVIDER_CONCURRENCY;
+      else process.env.EVAL_PROVIDER_CONCURRENCY = saved;
+    }
+    expect(runEvalsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ providerConcurrency: { openai: 4 } }),
+    );
+  });
+});
+
+describe("browserbase preflight", () => {
+  it("fails before planning when the Browserbase keys are missing", async () => {
+    const saved = {
+      BROWSERBASE_API_KEY: process.env.BROWSERBASE_API_KEY,
+      BB_API_KEY: process.env.BB_API_KEY,
+      BROWSERBASE_PROJECT_ID: process.env.BROWSERBASE_PROJECT_ID,
+      BB_PROJECT_ID: process.env.BB_PROJECT_ID,
+    };
+    for (const key of Object.keys(saved)) delete process.env[key];
+    process.env.BB_PROJECT_ID = "alias-project";
+    const registry = makeRegistry([makeTask({ name: "act/alpha" })]);
+    try {
+      await expect(
+        runCommand(
+          {
+            target: "act",
+            normalizedTarget: "act",
+            trials: 1,
+            concurrency: 1,
+            environment: "BROWSERBASE",
+            useApi: false,
+            harness: "stagehand",
+            envOverrides: {},
+            dryRun: false,
+            preview: false,
+            successMode: "outcome",
+            verbose: false,
+          },
+          registry,
+        ),
+      ).rejects.toThrow(
+        "BROWSERBASE_API_KEY missing for --env browserbase — export them or add them to packages/evals/.env",
+      );
+      expect(runEvalsMock).not.toHaveBeenCalled();
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it("does not preflight dry-runs", async () => {
+    const saved = process.env.BROWSERBASE_API_KEY;
+    delete process.env.BROWSERBASE_API_KEY;
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await runCommand(
+        {
+          target: "act",
+          normalizedTarget: "act",
+          trials: 1,
+          concurrency: 1,
+          environment: "BROWSERBASE",
+          useApi: false,
+          harness: "stagehand",
+          envOverrides: {},
+          dryRun: true,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
+        },
+        makeRegistry([makeTask({ name: "act/alpha" })]),
+      );
+      expect(log).toHaveBeenCalled();
+    } finally {
+      if (saved === undefined) delete process.env.BROWSERBASE_API_KEY;
+      else process.env.BROWSERBASE_API_KEY = saved;
+    }
   });
 });

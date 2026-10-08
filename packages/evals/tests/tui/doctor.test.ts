@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { handleDoctor } from "../../tui/commands/doctor.js";
-import { __resetPackageEnvCacheForTests } from "../../tui/welcomeStatus.js";
 
 const PROVIDER_KEYS = [
   "OPENAI_API_KEY",
@@ -25,7 +24,6 @@ const PROVIDER_KEYS = [
 
 const savedEnv: Record<string, string | undefined> = {};
 const tempDirs: string[] = [];
-let savedDisablePkgEnv: string | undefined;
 
 type DoctorJsonReport = {
   verdict: string;
@@ -38,11 +36,6 @@ function clearProviderKeys(): void {
     savedEnv[key] = process.env[key];
     delete process.env[key];
   }
-  // Neutralize the package-local .env loader so tests don't depend on
-  // whatever real keys the developer happens to have at packages/evals/.env.
-  savedDisablePkgEnv = process.env.EVALS_DISABLE_PACKAGE_ENV;
-  process.env.EVALS_DISABLE_PACKAGE_ENV = "1";
-  __resetPackageEnvCacheForTests();
 }
 
 function restoreProviderKeys(): void {
@@ -50,12 +43,6 @@ function restoreProviderKeys(): void {
     if (savedEnv[key] === undefined) delete process.env[key];
     else process.env[key] = savedEnv[key];
   }
-  if (savedDisablePkgEnv === undefined) {
-    delete process.env.EVALS_DISABLE_PACKAGE_ENV;
-  } else {
-    process.env.EVALS_DISABLE_PACKAGE_ENV = savedDisablePkgEnv;
-  }
-  __resetPackageEnvCacheForTests();
 }
 
 function makeTempEntryDir(defaults?: Record<string, unknown>): string {
@@ -200,7 +187,6 @@ describe("handleDoctor verdicts", () => {
 
   it("fail — env=browserbase with both BB vars missing", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
-    __resetPackageEnvCacheForTests();
     const entryDir = makeTempEntryDir({ env: "browserbase", trials: 3 });
     const { report } = await runDoctorJson(entryDir);
     expect(report.verdict).toBe("fail");
@@ -209,7 +195,6 @@ describe("handleDoctor verdicts", () => {
 
   it("warn — provider key present but Braintrust missing", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
-    __resetPackageEnvCacheForTests();
     const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
     const { report } = await runDoctorJson(entryDir);
     expect(report.verdict).toBe("warn");
@@ -220,7 +205,6 @@ describe("handleDoctor verdicts", () => {
     process.env.OPENAI_API_KEY = "sk-test";
     process.env.BRAINTRUST_API_KEY = "bt-test";
     process.env.BROWSERBASE_API_KEY = "bb-test";
-    __resetPackageEnvCacheForTests();
     const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
     const { report } = await runDoctorJson(entryDir);
     expect(report.verdict).toBe("warn");
@@ -230,7 +214,6 @@ describe("handleDoctor verdicts", () => {
   it("ok — provider + Braintrust set, no BB needed (env=local)", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
     process.env.BRAINTRUST_API_KEY = "bt-test";
-    __resetPackageEnvCacheForTests();
     const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
     const { report } = await runDoctorJson(entryDir);
     expect(report.verdict).toBe("ok");
@@ -250,7 +233,6 @@ describe("handleDoctor exit code", () => {
   it("returns 0 on ok (human output)", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
     process.env.BRAINTRUST_API_KEY = "bt-test";
-    __resetPackageEnvCacheForTests();
     const entryDir = makeTempEntryDir({ env: "local", trials: 3 });
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     const exit = await handleDoctor([], entryDir);

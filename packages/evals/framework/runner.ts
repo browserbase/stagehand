@@ -372,6 +372,7 @@ export function buildExperimentMetadata(input: {
   harness?: Harness;
   modelOverride?: string;
   useApi?: boolean;
+  campaign?: string;
   testcases: Testcase[];
 }): Record<string, unknown> {
   const distinct = (pick: (tc: Testcase) => unknown): string[] => {
@@ -406,6 +407,7 @@ export function buildExperimentMetadata(input: {
     ...(dataset && { dataset }),
     task_count: input.testcases.length,
     ...(input.useApi && { api: true }),
+    ...(input.campaign && { campaign: input.campaign }),
   };
 }
 
@@ -552,6 +554,8 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             modelOverride: options.modelOverride,
             useApi: options.useApi,
             testcases,
+            // campaign.tag / EVAL_CAMPAIGN_TAG groups experiments across cells.
+            campaign: process.env.EVAL_CAMPAIGN_TAG?.trim() || undefined,
           }),
           data: () => testcases,
           task: async (input: EvalInput): Promise<TaskResult> => {
