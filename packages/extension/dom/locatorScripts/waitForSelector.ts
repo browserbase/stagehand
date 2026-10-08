@@ -140,6 +140,7 @@ const checkState = (el: Element | null, state: WaitForSelectorState): boolean =>
 const setupShadowObservers = (
   callback: () => void,
   observers: MutationObserver[],
+  isSettled: () => boolean,
 ): (() => void) => {
   const seenRoots = new WeakSet<Node>();
 
@@ -151,13 +152,13 @@ const setupShadowObservers = (
         callback();
         scan();
       });
+      observers.push(shadowObserver);
       shadowObserver.observe(shadowRoot, {
         childList: true,
         subtree: true,
         attributes: true,
         attributeFilter: ["style", "class", "hidden", "disabled"],
       });
-      observers.push(shadowObserver);
 
       // Recurse into shadow root children
       for (const child of Array.from(shadowRoot.children)) {
@@ -173,7 +174,7 @@ const setupShadowObservers = (
 
   const root = document.documentElement || document.body;
   const scan = (): void => {
-    if (root) observeShadowRoots(root);
+    if (!isSettled() && root) observeShadowRoots(root);
   };
   scan();
   return scan;
@@ -195,125 +196,111 @@ export function waitForSelector(
   timeoutRaw?: number,
   pierceShadowRaw?: boolean,
 ): Promise<boolean> {
+  return createSelectorWait(selectorRaw, stateRaw, timeoutRaw, pierceShadowRaw).promise;
+}
+
+/** Internal handle retained by the extension until the operation ends. */
+export function createSelectorWait(
+  selectorRaw: string,
+  stateRaw?: string,
+  timeoutRaw?: number,
+  pierceShadowRaw?: boolean,
+): { promise: Promise<boolean>; dispose: () => void } {
   const selector = String(selectorRaw ?? "").trim();
   const state = (String(stateRaw ?? "visible") as WaitForSelectorState) || "visible";
   const timeout = typeof timeoutRaw === "number" && timeoutRaw >= 0 ? timeoutRaw : 30000;
   const pierceShadow = pierceShadowRaw !== false;
+  let dispose = () => {};
 
-  return new Promise<boolean>((resolve, reject) => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let domReadyHandler: (() => void) | null = null;
+  const promise = new Promise<boolean>((resolve, reject) => {
     let settled = false;
-    const clearTimer = (): void => {
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-        timeoutId = null;
-      }
-    };
-
-    // Check immediately
-    const el = findElement(selector, pierceShadow);
-    if (checkState(el, state)) {
-      settled = true;
-      resolve(true);
-      return;
-    }
-
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let shadowScanInterval: ReturnType<typeof setInterval> | undefined;
+    let domReadyHandler: (() => void) | undefined;
+    let rescanShadowRoots: (() => void) | undefined;
     const observers: MutationObserver[] = [];
-    let shadowScanInterval: ReturnType<typeof setInterval> | null = null;
-    let rescanShadowRoots: (() => void) | null = null;
 
-    const cleanup = (): void => {
-      for (const obs of observers) {
-        obs.disconnect();
-      }
-      if (shadowScanInterval !== null) {
-        clearInterval(shadowScanInterval);
-        shadowScanInterval = null;
-      }
+    const settle = (error?: Error): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      clearInterval(shadowScanInterval);
+      for (const observer of observers) observer.disconnect();
+      observers.length = 0;
+      rescanShadowRoots = undefined;
       if (domReadyHandler) {
         document.removeEventListener("DOMContentLoaded", domReadyHandler);
-        domReadyHandler = null;
+        domReadyHandler = undefined;
       }
+      if (error) reject(error);
+      else resolve(true);
     };
+    dispose = () => settle(new Error("Selector wait disposed"));
 
     const check = (): void => {
       if (settled) return;
-      const el = findElement(selector, pierceShadow);
-      if (checkState(el, state)) {
-        settled = true;
-        clearTimer();
-        cleanup();
-        resolve(true);
+      try {
+        if (checkState(findElement(selector, pierceShadow), state)) settle();
+      } catch (error) {
+        settle(error instanceof Error ? error : new Error(String(error)));
       }
     };
 
-    // Handle case where document.body is not ready yet
-    const observeRoot = document.body || document.documentElement;
-    if (!observeRoot) {
-      domReadyHandler = (): void => {
+    const setupObservers = (): void => {
+      if (settled) return;
+      const root = document.body || document.documentElement;
+      if (!root) return;
+      try {
+        const mainObserver = new MutationObserver(() => {
+          check();
+          rescanShadowRoots?.();
+        });
+        observers.push(mainObserver);
+        mainObserver.observe(root, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["style", "class", "hidden", "disabled"],
+        });
+        if (pierceShadow) {
+          rescanShadowRoots = setupShadowObservers(check, observers, () => settled);
+          shadowScanInterval = setInterval(() => {
+            rescanShadowRoots?.();
+            check();
+          }, 100);
+        }
+      } catch (error) {
+        settle(error instanceof Error ? error : new Error(String(error)));
+      }
+    };
+
+    check();
+    if (settled) return;
+    if (document.body || document.documentElement) {
+      setupObservers();
+    } else {
+      domReadyHandler = () => {
+        if (settled) return;
         document.removeEventListener("DOMContentLoaded", domReadyHandler!);
-        domReadyHandler = null;
+        domReadyHandler = undefined;
         check();
         setupObservers();
       };
       document.addEventListener("DOMContentLoaded", domReadyHandler);
-      if (timeout > 0)
-        timeoutId = setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          clearTimer();
-          cleanup();
-          reject(
+    }
+    if (!settled && timeout > 0) {
+      timeoutId = setTimeout(
+        () =>
+          settle(
             new Error(
               `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
             ),
-          );
-        }, timeout);
-      return;
-    }
-
-    const setupObservers = (): void => {
-      const root = document.body || document.documentElement;
-      if (!root) return;
-
-      // Main document observer
-      const mainObserver = new MutationObserver(() => {
-        check();
-        rescanShadowRoots?.();
-      });
-      mainObserver.observe(root, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ["style", "class", "hidden", "disabled"],
-      });
-      observers.push(mainObserver);
-
-      // Shadow DOM observers (if piercing)
-      if (pierceShadow) {
-        rescanShadowRoots = setupShadowObservers(check, observers);
-        shadowScanInterval = setInterval(() => {
-          rescanShadowRoots?.();
-          check();
-        }, 100);
-      }
-    };
-
-    setupObservers();
-
-    // Set up timeout
-    if (timeout > 0)
-      timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        clearTimer();
-        cleanup();
-        reject(
-          new Error(
-            `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
           ),
-        );
-      }, timeout);
+        timeout,
+      );
+    }
   });
+  // Installation and awaiting use separate CDP commands; observe an early rejection.
+  void promise.catch(() => {});
+  return { promise, dispose: () => dispose() };
 }

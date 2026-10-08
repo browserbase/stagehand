@@ -493,7 +493,7 @@ const matched = await page.waitForSelector("main");
 </ParamField>
 
   <ParamField path="options.timeout" type="number" optional>
-    The operation timeout in milliseconds.
+    Timeout in milliseconds, including frame readiness. Defaults to `30000`; `0` disables the timeout.
   </ParamField>
 </ParamField>
 
@@ -1256,7 +1256,7 @@ matched = await page.wait_for_selector("main", state="visible")
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
-  Maximum wait time in milliseconds.
+  Timeout in milliseconds, including frame readiness. Defaults to `30000`; `0` disables the timeout.
 </ParamField>
 
 <ParamField path="pierce_shadow" type="bool | None" optional>
@@ -2085,7 +2085,7 @@ fmt.Println(matched)
 </ParamField>
 
   <ParamField path="options.Timeout" type="*int" optional>
-    The operation timeout in milliseconds.
+    Timeout in milliseconds, including frame readiness. Defaults to `30000`; `0` disables the timeout.
   </ParamField>
 </ParamField>
 

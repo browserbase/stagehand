@@ -1756,7 +1756,7 @@ export class Page {
    * @param selector CSS selector to wait for (supports '>>' for iframe hops)
    * @param options
    * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
-   * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
+   * @param options.timeout Maximum time to wait in milliseconds (default: 30000; zero is unlimited)
    * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
    * @returns True when the condition is met
    * @throws Error if timeout is reached before the condition is met
@@ -1779,10 +1779,10 @@ export class Page {
           selector,
           progress,
         );
-        return targetFrame.evaluateInLocatorWorld(() => {
+        return targetFrame.waitInLocatorWorld(() => {
           const remaining = progress.remainingMs();
           progress.throwIfStopped();
-          return buildLocatorInvocation("waitForSelector", [
+          return buildLocatorInvocation("createSelectorWait", [
             JSON.stringify(finalSelector),
             JSON.stringify(options?.state ?? "visible"),
             String(remaining === Infinity ? 0 : Math.ceil(remaining)),

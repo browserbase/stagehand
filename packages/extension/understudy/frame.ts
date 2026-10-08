@@ -192,6 +192,66 @@ export class Frame implements FrameManager {
     buildExpression: () => string,
     progress?: Progress,
   ): Promise<R> {
+    const response = await this.evaluateLocatorExpression(buildExpression, { progress });
+    if (response.exceptionDetails) {
+      throw new Error(response.exceptionDetails.text ?? "Locator-world evaluation failed");
+    }
+    return response.result.value as R;
+  }
+
+  /** Own a disposable browser wait, including a handle delivered after expiry. */
+  async waitInLocatorWorld(buildExpression: () => string, progress: Progress): Promise<boolean> {
+    const dispose = (objectId: string) =>
+      Promise.all([
+        progress.cleanup(() =>
+          this.session.send("Runtime.callFunctionOn", {
+            objectId,
+            functionDeclaration: "function() { this.dispose(); }",
+            returnByValue: true,
+          }),
+        ),
+        progress.cleanup(() => this.session.send("Runtime.releaseObject", { objectId })),
+      ]);
+    const response = await this.evaluateLocatorExpression(buildExpression, {
+      progress,
+      returnByValue: false,
+      awaitPromise: false,
+      onLateResult: async (late) => {
+        if (late.result.objectId) await dispose(late.result.objectId);
+      },
+    });
+    const objectId = response.result.objectId;
+    try {
+      if (response.exceptionDetails || !objectId) {
+        throw new Error(response.exceptionDetails?.text ?? "Selector wait handle was not returned");
+      }
+      const result = await progress.run("waiting for selector", () =>
+        this.session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function() { return this.promise; }",
+          awaitPromise: true,
+          returnByValue: true,
+        }),
+      );
+      if (result.exceptionDetails) {
+        throw new Error(result.exceptionDetails.text ?? "Selector wait failed");
+      }
+      return result.result.value as boolean;
+    } finally {
+      if (objectId) await dispose(objectId);
+    }
+  }
+
+  private async evaluateLocatorExpression(
+    buildExpression: () => string,
+    options: {
+      progress?: Progress;
+      returnByValue?: boolean;
+      awaitPromise?: boolean;
+      onLateResult?: (response: Protocol.Runtime.EvaluateResponse) => Promise<unknown>;
+    },
+  ): Promise<Protocol.Runtime.EvaluateResponse> {
+    const { progress } = options;
     await runLocatorStep(progress, "enabling runtime", () =>
       this.session.send("Runtime.enable").catch((error) => {
         if (progress && isCdpClosedError(error)) throw error;
@@ -205,13 +265,17 @@ export class Frame implements FrameManager {
     );
 
     const evaluate = () =>
-      runLocatorStep(progress, "evaluating locator helper", () =>
-        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression: buildExpression(),
-          contextId: locatorWorld.contextId,
-          awaitPromise: true,
-          returnByValue: true,
-        }),
+      runLocatorStep(
+        progress,
+        "evaluating locator helper",
+        () =>
+          this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+            expression: buildExpression(),
+            contextId: locatorWorld.contextId,
+            awaitPromise: options.awaitPromise ?? true,
+            returnByValue: options.returnByValue ?? true,
+          }),
+        options.onLateResult,
       );
 
     let response: Protocol.Runtime.EvaluateResponse;
@@ -231,10 +295,7 @@ export class Frame implements FrameManager {
       response = await evaluate();
     }
 
-    if (response.exceptionDetails) {
-      throw new Error(response.exceptionDetails.text ?? "Locator-world evaluation failed");
-    }
-    return response.result.value as R;
+    return response;
   }
 
   /** Page.captureScreenshot (frame-scoped session) */

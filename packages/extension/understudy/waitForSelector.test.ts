@@ -20,6 +20,10 @@ describe("waitForSelector deadline", () => {
   let page: Page;
   const send = vi.fn(async (_method: string, _params?: object): Promise<unknown> => ({}));
   const parents: Progress[] = [];
+  const respond = async (method: string): Promise<unknown> =>
+    method === "Runtime.evaluate"
+      ? { result: { objectId: "wait-handle" } }
+      : { result: { value: true } };
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
@@ -43,7 +47,7 @@ describe("waitForSelector deadline", () => {
       close: vi.fn(async () => {}),
     };
     page = new Page(connection, session, "page", "root", logger);
-    send.mockReset().mockResolvedValue({ result: { value: true } });
+    send.mockReset().mockImplementation(respond);
     executionContexts.registerExtensionWorld(session, "root", 2);
   });
 
@@ -62,7 +66,7 @@ describe("waitForSelector deadline", () => {
   function expectWait(timeout: number, index = 0) {
     expect(waits()[index]?.[1]).toMatchObject({
       expression: expect.stringContaining(
-        `scripts["waitForSelector"]("button", "visible", ${timeout}, true)`,
+        `scripts["createSelectorWait"]("button", "visible", ${timeout}, true)`,
       ),
     });
   }
@@ -75,7 +79,7 @@ describe("waitForSelector deadline", () => {
   it.each([undefined, 100, 0])("bounds a pending evaluation with timeout %s", async (timeout) => {
     const evaluation = deferred<unknown>();
     send.mockImplementation((method) =>
-      method === "Runtime.evaluate" ? evaluation.promise : Promise.resolve({}),
+      method === "Runtime.callFunctionOn" ? evaluation.promise : respond(method),
     );
     const pending = page.waitForSelector("button", { timeout });
     const settled = vi.fn();
@@ -168,7 +172,7 @@ describe("waitForSelector deadline", () => {
       if (method === "Runtime.evaluate" && ++attempts === 1) {
         throw new Error("Cannot find context with specified id");
       }
-      return { result: { value: true } };
+      return respond(method);
     });
     const pending = page.waitForSelector("button", { timeout: 100 });
     await vi.advanceTimersByTimeAsync(60);
@@ -212,6 +216,121 @@ describe("waitForSelector deadline", () => {
       }
     },
   );
+
+  function cleanupCalls() {
+    return send.mock.calls.filter(
+      ([method, params]) =>
+        method === "Runtime.callFunctionOn" &&
+        (params as { functionDeclaration?: string })?.functionDeclaration?.includes(
+          "this.dispose()",
+        ),
+    );
+  }
+
+  it.each([false, true])(
+    "disposes a late installation (deadline timer fired=%s)",
+    async (timerFired) => {
+      const installation = deferred<unknown>();
+      send.mockImplementation((method) =>
+        method === "Runtime.evaluate" ? installation.promise : respond(method),
+      );
+      const pending = page.waitForSelector("button", { timeout: 100 });
+      const rejected = expect(pending).rejects.toThrow(TimeoutError);
+      await vi.advanceTimersByTimeAsync(timerFired ? 100 : 0);
+      if (!timerFired) vi.spyOn(performance, "now").mockReturnValue(100);
+      installation.resolve({ result: { objectId: "late-handle" } });
+      await rejected;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(cleanupCalls()).toHaveLength(1);
+      expect(cleanupCalls()[0][1]).toMatchObject({ objectId: "late-handle" });
+      expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "late-handle" });
+      expect(
+        send.mock.calls.some(([, params]) => (params as { awaitPromise?: boolean })?.awaitPromise),
+      ).toBe(false);
+    },
+  );
+
+  it.each(["reject", "stall"])("preserves timeout when cleanup commands %s", async (failure) => {
+    const pendingResult = deferred<unknown>();
+    const cleanup = deferred<unknown>();
+    send.mockImplementation((method, params) => {
+      if (
+        method === "Runtime.callFunctionOn" &&
+        (params as { awaitPromise?: boolean }).awaitPromise
+      )
+        return pendingResult.promise;
+      if (method === "Runtime.callFunctionOn" || method === "Runtime.releaseObject") {
+        return failure === "stall"
+          ? cleanup.promise
+          : Promise.reject(new Error("context destroyed"));
+      }
+      return respond(method);
+    });
+    const rejected = expect(page.waitForSelector("button", { timeout: 100 })).rejects.toThrow(
+      TimeoutError,
+    );
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    expect(cleanupCalls()).toHaveLength(1);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "wait-handle" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(vi.getTimerCount()).toBe(0);
+    pendingResult.resolve({ result: { value: true } });
+    cleanup.resolve({});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(cleanupCalls()).toHaveLength(1);
+    expect(waits()).toHaveLength(1);
+  });
+
+  it("disposes an unlimited wait on session closure without recreating its context", async () => {
+    const closed = new Error("CDP connection closed: socket-close");
+    const readiness = vi.spyOn(executionContexts, "waitForLocatorWorld");
+    send.mockImplementation((method) =>
+      method === "Runtime.callFunctionOn" ? Promise.reject(closed) : respond(method),
+    );
+    await expect(page.waitForSelector("button", { timeout: 0 })).rejects.toBe(closed);
+    expect(readiness).toHaveBeenCalledTimes(1);
+    expect(cleanupCalls()).toHaveLength(1);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "wait-handle" });
+  });
+
+  it("keeps concurrent handles separate when one parent expires", async () => {
+    const first = deferred<unknown>();
+    const second = deferred<unknown>();
+    let installs = 0;
+    send.mockImplementation((method, params) => {
+      if (method === "Runtime.evaluate")
+        return Promise.resolve({ result: { objectId: `wait-${++installs}` } });
+      if (
+        method === "Runtime.callFunctionOn" &&
+        (params as { awaitPromise?: boolean }).awaitPromise
+      ) {
+        return (params as { objectId: string }).objectId === "wait-1"
+          ? first.promise
+          : second.promise;
+      }
+      return respond(method);
+    });
+    const parent = new Progress("act", 100);
+    parents.push(parent);
+    const rejected = expect(page.waitForSelector("button", { timeout: 0 }, parent)).rejects.toThrow(
+      TimeoutError,
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    const surviving = page.waitForSelector("button", { timeout: 0 });
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    expect(cleanupCalls().map(([, params]) => (params as { objectId: string }).objectId)).toEqual([
+      "wait-1",
+    ]);
+    first.resolve({ result: { value: true } });
+    second.resolve({ result: { value: true } });
+    await expect(surviving).resolves.toBe(true);
+    expect(cleanupCalls().map(([, params]) => (params as { objectId: string }).objectId)).toEqual([
+      "wait-1",
+      "wait-2",
+    ]);
+  });
 
   it("preserves a closed session error", async () => {
     const closed = new Error("CDP connection closed: socket-close");
