@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type Browserbase from "@browserbasehq/sdk";
+import type { ClientOptions } from "@browserbasehq/sdk";
 import {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseLaunchOptionsSchema,
@@ -8,6 +9,7 @@ import {
 } from "../../src/clientSchemas.js";
 import type {
   BrowserbaseBrowser,
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
   BrowserbaseLaunchOptions,
   LocalBrowser,
@@ -57,8 +59,14 @@ describe("browser API contracts", () => {
       Promise<StagehandBrowser>
     >();
     expectTypeOf<
-      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl">
+      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "clientOptions">
     >().toEqualTypeOf<Browserbase.SessionCreateParams>();
+    expectTypeOf<BrowserbaseLaunchOptions["clientOptions"]>().toEqualTypeOf<
+      BrowserbaseClientOptions | undefined
+    >();
+    expectTypeOf<BrowserbaseClientOptions>().toEqualTypeOf<
+      Pick<ClientOptions, "timeout" | "maxRetries" | "defaultHeaders" | "defaultQuery" | "fetch">
+    >();
     expectTypeOf<Parameters<BrowserbaseBrowser["connect"]>>().toEqualTypeOf<
       [options: BrowserbaseConnectOptions]
     >();
@@ -68,6 +76,9 @@ describe("browser API contracts", () => {
       sessionId: string;
       extensionId?: string;
     }>();
+    expectTypeOf<BrowserbaseConnectOptions["clientOptions"]>().toEqualTypeOf<
+      BrowserbaseClientOptions | undefined
+    >();
   });
 
   it("defines every browser input as a strict client-side schema", () => {
@@ -126,6 +137,52 @@ describe("browser API contracts", () => {
       sessionId: "session_123",
       extensionId: "user-extension",
     });
+    const fetch = async () => new Response();
+    expect(
+      BrowserbaseConnectOptionsSchema.parse({
+        apiKey: "bb_key",
+        sessionId: "session_123",
+        clientOptions: {
+          timeout: 5_000,
+          maxRetries: 1,
+          defaultHeaders: { "X-Caller": "app" },
+          defaultQuery: { trace: "1" },
+          fetch,
+        },
+      }),
+    ).toStrictEqual({
+      apiKey: "bb_key",
+      baseUrl: "https://api.browserbase.com",
+      sessionId: "session_123",
+      clientOptions: {
+        timeout: 5_000,
+        maxRetries: 1,
+        defaultHeaders: { "X-Caller": "app" },
+        defaultQuery: { trace: "1" },
+        fetch,
+      },
+    });
+    for (const clientOptions of [
+      { apiKey: "other_key" },
+      { baseURL: "https://api.dev.browserbase.com" },
+      { timeout: -1 },
+      { maxRetries: 1.5 },
+      { fetch: "not-a-function" },
+      { defaultHeaders: { "X-Caller": 1 } },
+      { defaultQuery: { trace: 1 } },
+      { defaultQuery: { trace: null } },
+    ]) {
+      expect(() =>
+        BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key", clientOptions }),
+      ).toThrow();
+      expect(() =>
+        BrowserbaseConnectOptionsSchema.parse({
+          apiKey: "bb_key",
+          sessionId: "session_123",
+          clientOptions,
+        }),
+      ).toThrow();
+    }
     expect(() =>
       LocalBrowserConnectOptionsSchema.parse({
         cdpUrl: "ws://127.0.0.1:9222",

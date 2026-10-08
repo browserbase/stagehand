@@ -15,7 +15,7 @@ const stagehand = await Stagehand.create({
 });
 
 const [page] = await browser.context.pages();
-await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/example/");
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/example/");
 
 const result = await stagehand.extract(
   "Extract the page heading and description",

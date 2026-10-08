@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_staff_members" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/panamcs/");
 
       const { data: result } = await stagehand.extract(
         "extract a list of ALL the staff members on this page, with their name and their job title",
