@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Stagehand } from "../../src/index.js";
-import { closeStagehand, createStagehand, firstPage } from "./_support.js";
+import { closeStagehand, createStagehand, firstPage, startFixtureServer } from "./_support.js";
 
 describe("text selector innermost element matching", () => {
   let stagehand: Stagehand;
@@ -43,5 +43,29 @@ describe("text selector innermost element matching", () => {
     expect(await page.locator("text=Hello").count()).toBe(1);
     expect(await page.locator("text=World").count()).toBe(1);
     expect(await page.locator("text=Hello World").count()).toBe(1);
+  });
+
+  it("counts a large repeated list and resolves its last match across a closed shadow root", async () => {
+    const page = await firstPage(stagehand);
+    const fixture = await startFixtureServer("<div id='root'></div>");
+    try {
+      await page.goto(fixture.url);
+      await page.evaluate(() => {
+        document.getElementById("root")!.innerHTML = Array.from(
+          { length: 10_000 },
+          (_, i) => `<div><button>Repeated label ${i}</button></div>`,
+        ).join("");
+        const host = document.createElement("section");
+        host.attachShadow({ mode: "closed" }).innerHTML = "<button>Repeated label shadow</button>";
+        document.body.appendChild(host);
+      });
+
+      const locator = page.locator("text=Repeated label");
+      expect(await locator.count()).toBe(10_001);
+      expect(await locator.nth(9_999).innerText()).toBe("Repeated label 9999");
+      expect(await locator.nth(10_000).innerText()).toBe("Repeated label shadow");
+    } finally {
+      await fixture.close();
+    }
   });
 });

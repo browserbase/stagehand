@@ -23,6 +23,7 @@ export class FrameSelectorResolver {
   constructor(
     readonly frame: Frame,
     private readonly readinessOptions: ReadinessOptions = {},
+    private readonly options: { includeNodeId?: boolean } = {},
   ) {}
 
   public static parseSelector(raw: string): SelectorQuery {
@@ -107,22 +108,14 @@ export class FrameSelectorResolver {
     progress?: Progress,
   ): Promise<ResolvedNode | null> {
     progress?.throwIfStopped();
-    if (index < 0 || !Number.isFinite(index)) return null;
-    const results = await this.resolveAll(query, { limit: index + 1 }, progress);
-    const selected = results[index] ?? null;
-    if (progress) {
-      await this.releaseNodes(
-        results.filter((node) => node !== selected),
-        progress,
-      );
-      try {
-        progress.throwIfStopped();
-      } catch (error) {
-        if (selected) void this.releaseNodes([selected], progress);
-        throw error;
-      }
-    }
-    return selected;
+    if (index < 0 || !Number.isInteger(index)) return null;
+    const helper = {
+      css: "resolveCssSelector",
+      text: "resolveTextSelector",
+      xpath: "resolveXPathMainWorld",
+    } as const;
+    const results = await this.resolveElements(helper[query.kind], query.value, 1, progress, index);
+    return results[0] ?? null;
   }
 
   async resolveCss(selector: string, limit: number, progress?: Progress): Promise<ResolvedNode[]> {
@@ -142,6 +135,7 @@ export class FrameSelectorResolver {
     value: string,
     limit: number,
     progress?: Progress,
+    startIndex = 0,
   ): Promise<ResolvedNode[]> {
     progress?.throwIfStopped();
     if (limit <= 0) return [];
@@ -155,7 +149,10 @@ export class FrameSelectorResolver {
     const results: ResolvedNode[] = [];
     try {
       for (let index = 0; index < limit; index += 1) {
-        const expression = buildLocatorInvocation(helper, [JSON.stringify(value), String(index)]);
+        const expression = buildLocatorInvocation(helper, [
+          JSON.stringify(value),
+          String(startIndex + index),
+        ]);
         const resolved = await this.evaluateElement(expression, contextId, progress);
         if (!resolved) break;
         results.push(resolved);
@@ -289,6 +286,10 @@ export class FrameSelectorResolver {
     objectId: Protocol.Runtime.RemoteObjectId,
     progress?: Progress,
   ): Promise<ResolvedNode | null> {
+    if (this.options.includeNodeId === false) {
+      progress?.throwIfStopped();
+      return { objectId, nodeId: null };
+    }
     const session = this.frame.session;
     let nodeId: Protocol.DOM.NodeId | null;
     try {
