@@ -3,7 +3,7 @@ title: "Quickstart"
 description: "Build your first Stagehand automation with act, extract, and observe."
 ---
 
-The quickest way to start with Stagehand is to install the SDK, point it at a browser, and write a script. This page gets you from an empty directory to a working automation in three steps.
+The quickest way to start with Stagehand is to install the SDK, point it at a browser, and write a script. This page gets you from an empty directory to a working automation in three steps, using a browser on your own machine.
 
 <Steps>
 
@@ -37,6 +37,8 @@ go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
 </Tab>
 </Tabs>
 
+Stagehand drives a local browser through the Chrome DevTools Protocol, so install [Chrome](https://www.google.com/chrome/) on your machine before running the script.
+
 </Step>
 
 <Step title="Write the script">
@@ -46,15 +48,19 @@ Create the example script (`index.ts`, `main.py`, or `main.go`). It exercises al
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
-import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 async function main() {
-  const browser = await browserbase.launch({
-    apiKey: process.env.BROWSERBASE_API_KEY,
-  });
+  const browser = await localBrowser.launch();
   try {
-    const stagehand = await Stagehand.create({ browser });
+    const stagehand = await Stagehand.create({
+      browser,
+      model: {
+        modelName: "openai/gpt-5.6-sol",
+        apiKey: process.env.OPENAI_API_KEY,
+      },
+    });
     console.log("Stagehand session started");
     try {
       const [page] = await browser.context.pages();
@@ -92,7 +98,7 @@ import asyncio
 import os
 
 from pydantic import BaseModel
-from stagehand import Stagehand, browserbase
+from stagehand import Stagehand, local_browser
 
 
 class ValueProposition(BaseModel):
@@ -100,11 +106,13 @@ class ValueProposition(BaseModel):
 
 
 async def main() -> None:
-    browser = await browserbase.launch(
-        api_key=os.environ["BROWSERBASE_API_KEY"],
-    )
+    browser = await local_browser.launch()
     try:
-        stagehand = await Stagehand.create(browser=browser)
+        stagehand = await Stagehand.create(
+            browser=browser,
+            model="openai/gpt-5.6-sol",
+            model_api_key=os.environ["OPENAI_API_KEY"],
+        )
         print("Stagehand session started")
         try:
             page = (await browser.context.pages())[0]
@@ -156,15 +164,22 @@ func main() {
 }
 
 func run(ctx context.Context) (err error) {
-	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	modelAPIKey := os.Getenv("OPENAI_API_KEY")
+	model := stagehand.ModelConfig{
+		ModelName: "openai/gpt-5.6-sol",
+		APIKey:    &modelAPIKey,
+	}
 
-	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Model:   &model,
+	})
 	if err != nil {
 		return err
 	}
@@ -218,40 +233,40 @@ func run(ctx context.Context) (err error) {
 </Tabs>
 
 <Note>
-Stagehand never reads environment variables on your behalf. Read the Browserbase API key in your own code and pass it to the browser factory, as the script above does. With no model configured, Browserbase selects one automatically for each inference call.
+Stagehand never reads environment variables on your behalf. Read your model provider API key in your own code and pass it to `Stagehand.create()`, as the script above does. A local browser cannot use the [Model Gateway](/v4/configuration/models#model-gateway), so Stagehand requires you to provide a model and its API key.
 </Note>
 
 </Step>
 
 <Step title="Run it">
 
-Set your Browserbase API key, then run the script. Model Gateway selects and authenticates the model automatically, so no model provider key is required.
+Set your model provider API key, then run the script. Stagehand launches Chrome on your machine and opens a visible window, so you can watch each step as it happens.
 
 <Tabs>
 <Tab title="TypeScript">
 ```bash
-export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-pnpm dlx tsx index.ts                    # Run the example script
+export OPENAI_API_KEY="sk-..." # Your model provider API key
+pnpm dlx tsx index.ts          # Run the example script
 ```
 </Tab>
 
 <Tab title="Python">
 ```bash
-export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-python main.py                           # Run the example script
+export OPENAI_API_KEY="sk-..." # Your model provider API key
+python main.py                 # Run the example script
 ```
 </Tab>
 
 <Tab title="Go">
 ```bash
-export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-go run .                                 # Run the example script
+export OPENAI_API_KEY="sk-..." # Your model provider API key
+go run .                       # Run the example script
 ```
 </Tab>
 </Tabs>
 
 <Tip>
-Prefer to run against a browser on your own machine while you develop? Swap `browserbase.launch()` for `localBrowser.launch()` and drop the Browserbase key. See [Browser configuration](/v4/configuration/browser).
+Ready to run in the cloud, with stealth, proxies, and session recordings? Swap `localBrowser.launch()` for `browserbase.launch()` with your Browserbase API key, and the [Model Gateway](/v4/configuration/models#model-gateway) picks and authenticates a model for you. See [Browser configuration](/v4/configuration/browser).
 </Tip>
 
 </Step>

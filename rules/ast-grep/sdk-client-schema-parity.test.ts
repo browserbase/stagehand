@@ -21,13 +21,11 @@ type Concept = {
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
 const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const docsSource = new URL("../../packages/docs/v4/", import.meta.url);
-// These legacy Chrome extension ID overrides are not user-actionable and are pending deprecation.
+// These deprecated Chrome extension ID fields are accepted but ignored by connect.
 const intentionallyUndocumentedBrowserFields = new Set([
   "LocalBrowserConnectOptions.extension_id",
   "BrowserbaseConnectOptions.extension_id",
 ]);
-// SDK client instances are native language objects and cannot share one cross-language type.
-const typescriptOnlyBrowserFields = new Set(["BrowserbaseConnectOptions.client"]);
 
 const concepts: readonly Concept[] = [
   {
@@ -104,9 +102,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
     const differences: string[] = [];
 
     for (const concept of concepts) {
-      const expected = schemaFields(concept.typescript).filter(
-        (field) => !typescriptOnlyBrowserFields.has(`${concept.name}.${field}`),
-      );
+      const expected = schemaFields(concept.typescript);
       const [pythonFields, goFields] = await Promise.all([concept.python(), concept.go()]);
       if (!arraysEqual(pythonFields, expected)) {
         differences.push(
@@ -122,7 +118,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
 
     expect(
       differences,
-      "SDK-only field names are derived dynamically; only concept/type names and language-specific adapters are paired explicitly",
+      "SDK-only field names are derived dynamically; only concept/type names are paired explicitly",
     ).toEqual([]);
   });
 
@@ -131,6 +127,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
       "LocalBrowserLaunchOptions",
       "LocalBrowserConnectOptions",
       "BrowserbaseConnectOptions",
+      "BrowserbaseClientOptions",
       "StagehandClientLoggingConfig",
       "StagehandClientCreateConfig",
     ];

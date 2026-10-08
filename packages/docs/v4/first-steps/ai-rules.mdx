@@ -113,7 +113,7 @@ const browser = await localBrowser.launch({ headless: true });
 const stagehand = await Stagehand.create({
   browser,
   model: {
-    modelName: "openai/gpt-5.4-mini",
+    modelName: "openai/gpt-5.6-luna",
     apiKey: process.env.OPENAI_API_KEY,
   },
   logging: { level: "info", format: "pretty" },
@@ -135,7 +135,7 @@ const browser = await browserbase.launch({
 });
 const stagehand = await Stagehand.create({
   browser,
-  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
+  model: { modelName: "openai/gpt-5.6-luna", apiKey: process.env.OPENAI_API_KEY },
 });
 ```
 
@@ -417,7 +417,7 @@ from stagehand import Stagehand, browserbase, local_browser
 browser = await local_browser.launch(headless=True)
 stagehand = await Stagehand.create(
     browser=browser,
-    model="openai/gpt-5.4-mini",
+    model="openai/gpt-5.6-luna",
     model_api_key=os.environ["OPENAI_API_KEY"],
     logging={"level": "info", "format": "pretty"},
 )
@@ -722,7 +722,7 @@ Every method takes a `context.Context` as its first argument and returns an `err
 ```go
 apiKey := os.Getenv("OPENAI_API_KEY")
 model := stagehand.ModelConfig{
-	ModelName: "openai/gpt-5.4-mini",
+	ModelName: "openai/gpt-5.6-sol",
 	APIKey:    &apiKey,
 }
 

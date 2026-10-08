@@ -1,3 +1,4 @@
+import type { Progress } from "./progress.js";
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
 import type { DeepLocatorDelegate } from "./deepLocator.js";
@@ -8,6 +9,88 @@ import type { ScreenshotClip, UnderstudyScreenshotOptions } from "../types/priva
 import { resolveMaskRect } from "../dom/screenshotScripts/index.js";
 
 export type ScreenshotCleanup = () => Promise<void> | void;
+
+const screenshotQueues = new WeakMap<object, { tail: Promise<void>; blocked: AbortController }>();
+
+/** Serialize page mutations, or the browser-wide activation/capture critical section. */
+export async function withScreenshotLock<T>(
+  owner: object,
+  capture: () => Promise<T>,
+  progress: Progress,
+): Promise<T> {
+  progress.throwIfStopped();
+  const queue = screenshotQueues.get(owner) ?? {
+    tail: Promise.resolve(),
+    blocked: new AbortController(),
+  };
+  // Keep late setup/cleanup isolated, but never make callers wait indefinitely for it.
+  queue.blocked.signal.throwIfAborted();
+  let started = false;
+  const onAbort = () => {
+    if (started) {
+      const error = progress.signal.reason as Error;
+      queue.blocked.abort(
+        new Error(`A previous capture is still recovering: ${error.message}`, { cause: error }),
+      );
+    }
+  };
+  progress.signal.addEventListener("abort", onAbort, { once: true });
+  const previous = queue.tail;
+  const pending = waitForScreenshot(
+    previous,
+    AbortSignal.any([queue.blocked.signal, progress.signal]),
+  ).then(async () => {
+    queue.blocked.signal.throwIfAborted();
+    progress.throwIfStopped();
+    started = true;
+    try {
+      return await capture();
+    } finally {
+      started = false;
+    }
+  });
+  const settled = pending.then(
+    () => {},
+    () => {},
+  );
+  // A queued request can fail before the active capture finishes. Retain both
+  // promises so that failure cannot release the active capture's lock.
+  const released = Promise.all([previous, settled]).then(() => {});
+  queue.tail = released;
+  screenshotQueues.set(owner, queue);
+  try {
+    // The page's operation bounds its caller; nested locks await actual recovery.
+    return await pending;
+  } finally {
+    progress.signal.removeEventListener("abort", onAbort);
+    void released.then(() => {
+      if (queue.tail === released) screenshotQueues.delete(owner);
+    });
+  }
+}
+
+/** Bound a wait by an operation or queue recovery signal. */
+async function waitForScreenshot<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return await pending;
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason);
+    };
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+    pending.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
 
 export function collectFramesForScreenshot(page: Page): Frame[] {
   const seen = new Map<string, Frame>();
@@ -41,46 +124,76 @@ export function normalizeScreenshotClip(clip: ScreenshotClip): ScreenshotClip {
 export async function computeScreenshotScale(
   page: Page,
   mode: NonNullable<UnderstudyScreenshotOptions["scale"]>,
+  progress: Progress,
 ): Promise<number | undefined> {
   if (mode !== "css") return undefined;
-  try {
-    const frame = page.mainFrame();
-    const dpr = await frame
-      .evaluate(() => {
+  const dpr = await page
+    .mainFrame()
+    .evaluate(
+      () => {
         const ratio = Number(window.devicePixelRatio || 1);
         return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
-      })
-      .catch(() => 1);
-    const safeRatio = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
-    return Math.min(2, Math.max(0.1, 1 / safeRatio));
-  } catch {
-    return 1;
-  }
+      },
+      undefined,
+      progress,
+    )
+    .catch(() => {
+      progress.throwIfStopped();
+      return 1;
+    });
+  progress.throwIfStopped();
+  const safeRatio = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+  return Math.min(2, Math.max(0.1, 1 / safeRatio));
 }
 
 export async function setTransparentBackground(
   session: CDPSessionLike,
-): Promise<ScreenshotCleanup> {
+  progress: Progress,
+  cleanups: ScreenshotCleanup[],
+): Promise<void> {
+  progress.throwIfStopped();
+  cleanups.push(async () => {
+    await session.send("Emulation.setDefaultBackgroundColorOverride", {}).catch(() => {});
+  });
   await session
     .send("Emulation.setDefaultBackgroundColorOverride", {
       color: { r: 0, g: 0, b: 0, a: 0 },
     })
     .catch(() => {});
-
-  return async () => {
-    await session.send("Emulation.setDefaultBackgroundColorOverride", {}).catch(() => {});
-  };
+  progress.throwIfStopped();
 }
 
 export async function applyStyleToFrames(
   frames: Frame[],
   css: string,
   label: string,
-): Promise<ScreenshotCleanup> {
+  progress: Progress,
+  cleanups: ScreenshotCleanup[],
+): Promise<void> {
   const trimmed = css.trim();
-  if (!trimmed) return async () => {};
+  if (!trimmed) return;
   const token = `__v3_style_${label}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
+  cleanups.push(async () => {
+    await Promise.all(
+      frames.map((frame) =>
+        frame
+          .evaluate((token) => {
+            try {
+              const doc = document;
+              if (!doc) return;
+              const nodes = doc.querySelectorAll(`[data-stagehand-style="${token}"]`);
+              nodes.forEach((node) => node.remove());
+            } catch {
+              // ignore
+            }
+          }, token)
+          .catch(() => {}),
+      ),
+    );
+  });
+
+  // Await issued mutations so restoration cannot run before late setup finishes.
   await Promise.all(
     frames.map((frame) =>
       frame
@@ -99,32 +212,20 @@ export async function applyStyleToFrames(
             }
           },
           { css: trimmed, token },
+          progress,
         )
         .catch(() => {}),
     ),
   );
 
-  return async () => {
-    await Promise.all(
-      frames.map((frame) =>
-        frame
-          .evaluate((token) => {
-            try {
-              const doc = document;
-              if (!doc) return;
-              const nodes = doc.querySelectorAll(`[data-stagehand-style="${token}"]`);
-              nodes.forEach((node) => node.remove());
-            } catch {
-              // ignore
-            }
-          }, token)
-          .catch(() => {}),
-      ),
-    );
-  };
+  progress.throwIfStopped();
 }
 
-export async function disableAnimations(frames: Frame[]): Promise<ScreenshotCleanup> {
+export async function disableAnimations(
+  frames: Frame[],
+  progress: Progress,
+  cleanups: ScreenshotCleanup[],
+): Promise<void> {
   const css = `
 *,
 *::before,
@@ -138,39 +239,47 @@ export async function disableAnimations(frames: Frame[]): Promise<ScreenshotClea
   transition-delay: 0s !important;
 }`;
 
-  const cleanup = await applyStyleToFrames(frames, css, "animations");
+  await applyStyleToFrames(frames, css, "animations", progress, cleanups);
 
   await Promise.all(
     frames.map((frame) =>
       frame
-        .evaluate(() => {
-          try {
-            const animations =
-              typeof document.getAnimations === "function" ? document.getAnimations() : [];
-            for (const animation of animations) {
-              try {
-                const details = animation.effect?.getComputedTiming?.();
-                if (details && details.iterations !== Infinity) {
-                  animation.finish?.();
-                } else {
+        .evaluate(
+          () => {
+            try {
+              const animations =
+                typeof document.getAnimations === "function" ? document.getAnimations() : [];
+              for (const animation of animations) {
+                try {
+                  const details = animation.effect?.getComputedTiming?.();
+                  if (details && details.iterations !== Infinity) {
+                    animation.finish?.();
+                  } else {
+                    animation.cancel?.();
+                  }
+                } catch {
                   animation.cancel?.();
                 }
-              } catch {
-                animation.cancel?.();
               }
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
-          }
-        })
+          },
+          undefined,
+          progress,
+        )
         .catch(() => {}),
     ),
   );
 
-  return cleanup;
+  progress.throwIfStopped();
 }
 
-export async function hideCaret(frames: Frame[]): Promise<ScreenshotCleanup> {
+export async function hideCaret(
+  frames: Frame[],
+  progress: Progress,
+  cleanups: ScreenshotCleanup[],
+): Promise<void> {
   const css = `
 input,
 textarea,
@@ -182,48 +291,71 @@ textarea,
   caret-color: transparent !important;
 }`;
 
-  return applyStyleToFrames(frames, css, "caret");
+  return applyStyleToFrames(frames, css, "caret", progress, cleanups);
 }
 
 export async function applyMaskOverlays(
   locators: Array<Locator | DeepLocatorDelegate>,
   color: string,
-): Promise<ScreenshotCleanup> {
+  progress: Progress,
+  cleanups: ScreenshotCleanup[],
+): Promise<void> {
   type MaskRectSpec = ScreenshotClip & {
     rootToken?: string | null;
     position?: "absolute" | "fixed";
   };
-  const rectsByFrame = new Map<Frame, { rects: MaskRectSpec[]; rootTokens: Set<string> }>();
+  const rectsByFrame = new Map<Frame, MaskRectSpec[]>();
 
   const token = `__v3_mask_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
+  cleanups.push(async () => {
+    await Promise.all(
+      Array.from(rectsByFrame.keys()).map((frame) =>
+        frame
+          .evaluate((token) => {
+            try {
+              const doc = document;
+              if (!doc) return;
+              const nodes = doc.querySelectorAll(`[data-stagehand-mask="${token}"]`);
+              nodes.forEach((node) => node.remove());
+              const roots = doc.querySelectorAll<HTMLElement>(
+                `[data-stagehand-mask-root^="${token}"]`,
+              );
+              for (const root of roots) {
+                const prev = root.getAttribute("data-stagehand-mask-root-pos");
+                if (prev !== null) {
+                  root.style.position = prev;
+                  root.removeAttribute("data-stagehand-mask-root-pos");
+                }
+                root.removeAttribute("data-stagehand-mask-root");
+              }
+            } catch {
+              // ignore
+            }
+          }, token)
+          .catch(() => {}),
+      ),
+    );
+  });
+
   for (const locator of locators) {
     try {
-      const info = await resolveMaskRects(
-        "real" in locator ? await locator.real() : locator,
-        token,
-      );
-      if (!info) continue;
-      const entry = rectsByFrame.get(info.frame) ?? {
-        rects: [],
-        rootTokens: new Set<string>(),
-      };
-      entry.rects.push(...info.rects);
-      for (const rect of info.rects) {
-        if (rect.rootToken) entry.rootTokens.add(rect.rootToken);
-      }
-      rectsByFrame.set(info.frame, entry);
+      progress.throwIfStopped();
+      const resolved = "real" in locator ? await locator.real(progress) : locator;
+      const frame = resolved.getFrame();
+      const rects = rectsByFrame.get(frame) ?? [];
+      rectsByFrame.set(frame, rects);
+      rects.push(...(await resolveMaskRects(resolved, token, progress)));
     } catch {
+      progress.throwIfStopped();
       // ignore individual locator failures
     }
   }
 
-  if (rectsByFrame.size === 0) {
-    return async () => {};
-  }
+  if ([...rectsByFrame.values()].every((rects) => rects.length === 0)) return;
 
   await Promise.all(
-    Array.from(rectsByFrame.entries()).map(([frame, { rects }]) =>
+    Array.from(rectsByFrame.entries()).map(([frame, rects]) =>
       frame
         .evaluate(
           ({ rects, color, token }) => {
@@ -274,6 +406,7 @@ export async function applyMaskOverlays(
             }
           },
           { rects, color, token },
+          progress,
         )
         .catch(() => {}),
     ),
@@ -281,75 +414,36 @@ export async function applyMaskOverlays(
 
   // Wait outside the page's main world, where application code cannot replace the timer and
   // prevent masked screenshots from completing. This also gives Chromium a paint opportunity.
-  await new Promise<void>((resolve) => setTimeout(resolve, 100));
-
-  return async () => {
-    await Promise.all(
-      Array.from(rectsByFrame.entries()).map(([frame, { rootTokens }]) =>
-        frame
-          .evaluate(
-            ({ token, rootTokens }) => {
-              try {
-                const doc = document;
-                if (!doc) return;
-                const nodes = doc.querySelectorAll(`[data-stagehand-mask="${token}"]`);
-                nodes.forEach((node) => node.remove());
-                for (const rootToken of rootTokens) {
-                  const root = doc.querySelector(
-                    `[data-stagehand-mask-root="${rootToken}"]`,
-                  ) as HTMLElement | null;
-                  if (!root) continue;
-                  const prev = root.getAttribute("data-stagehand-mask-root-pos");
-                  if (prev !== null) {
-                    root.style.position = prev;
-                    root.removeAttribute("data-stagehand-mask-root-pos");
-                  }
-                  root.removeAttribute("data-stagehand-mask-root");
-                }
-              } catch {
-                // ignore
-              }
-            },
-            { token, rootTokens: Array.from(rootTokens) },
-          )
-          .catch(() => {}),
-      ),
-    );
-  };
+  await progress.delay(100);
 }
 
 async function resolveMaskRects(
   locator: Locator,
   maskToken: string,
-): Promise<{
-  frame: Frame;
-  rects: Array<ScreenshotClip & { rootToken?: string | null }>;
-} | null> {
-  const frame = locator.getFrame();
-  const session = frame.session;
+  progress: Progress,
+): Promise<Array<ScreenshotClip & { rootToken?: string | null }>> {
+  const session = locator.getFrame().session;
+  const resolved = await locator.resolveNodesForMask(progress);
+  const rects: Array<ScreenshotClip & { rootToken?: string | null }> = [];
   try {
-    const resolved: Array<{
-      objectId: Protocol.Runtime.RemoteObjectId;
-      nodeId: Protocol.DOM.NodeId | null;
-    }> = await locator.resolveNodesForMask();
-    const rects: Array<ScreenshotClip & { rootToken?: string | null }> = [];
-
     for (const { objectId } of resolved) {
+      progress.throwIfStopped();
       try {
         const rect = await resolveMaskRectForObject(session, objectId, maskToken);
         if (rect) rects.push(rect);
       } catch {
+        progress.throwIfStopped();
         // ignore individual element failures
-      } finally {
-        await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
       }
     }
-
-    if (!rects.length) return null;
-
-    return { frame, rects };
-  } catch {
-    return null;
+    return rects;
+  } finally {
+    // Release every resolved handle, including elements skipped after expiry.
+    await Promise.all(
+      resolved.map(({ objectId }) =>
+        session.send("Runtime.releaseObject", { objectId }).catch(() => {}),
+      ),
+    );
   }
 }
 

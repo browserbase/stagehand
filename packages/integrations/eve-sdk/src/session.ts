@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
@@ -16,6 +17,8 @@ export type EveEvent = {
 };
 
 export type EveTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -39,12 +42,16 @@ export type EveSessionResult = {
 
 export type EveMessageResponseLike = AsyncIterable<EveEvent> & { readonly sessionId: string };
 export type EveClientSessionLike = {
-  send(input: { message: string; signal?: AbortSignal }): Promise<EveMessageResponseLike>;
   cancel(options?: { turnId?: string }): Promise<unknown>;
 };
 export type EveClientLike = {
   health(): Promise<unknown>;
-  session(): EveClientSessionLike;
+  sessions: {
+    create(input: { message: string; signal?: AbortSignal }): Promise<{
+      session: EveClientSessionLike;
+      response: EveMessageResponseLike;
+    }>;
+  };
 };
 
 export const EVE_PACKAGE = "eve";
@@ -68,10 +75,7 @@ export function resolveEveAppNodeModulesDir(): string {
 
 export async function loadEveClient(host: string): Promise<EveClientLike> {
   try {
-    const specifier = `${EVE_PACKAGE}/client`;
-    const mod = (await import(specifier)) as {
-      Client?: new (options: { host: string }) => EveClientLike;
-    };
+    const mod = await import("eve/client");
     if (typeof mod.Client !== "function") throw new Error("Client export missing");
     return new mod.Client({ host });
   } catch (error) {
@@ -238,9 +242,13 @@ export async function runEveSession(input: {
     }
     const client = input.client ?? (await loadEveClient(serverUrl));
     await client.health();
-    session = client.session();
+    const created = await client.sessions.create({
+      message: input.prompt,
+      signal: controller.signal,
+    });
+    session = created.session;
     if (input.signal?.aborted) void cancelSession();
-    const response = await session.send({ message: input.prompt, signal: controller.signal });
+    const response = created.response;
     sessionId = response.sessionId;
     let toolStepCount = 0;
 
@@ -250,7 +258,9 @@ export async function runEveSession(input: {
       const data = isRecord(event.data) ? event.data : undefined;
 
       if (event.type === "message.completed" && typeof data?.message === "string") {
-        finalMessage = data.message;
+        // Eve emits interim assistant text before tool calls with finishReason
+        // "tool-calls"; only a terminal reply is the agent's final message.
+        if (data.finishReason !== "tool-calls") finalMessage = data.message;
       } else if (event.type === "step.completed") {
         // Usage is aggregated from the complete event list below.
       } else if (event.type === "actions.requested" && Array.isArray(data?.actions)) {
@@ -338,10 +348,12 @@ export function extractEveTokenUsage(events: EveEvent[]): EveTokenUsage {
   const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
   let costUsd = 0;
   let hasCostUsd = false;
+  let reported = false;
   for (const event of events) {
     if (event.type !== "step.completed") continue;
     const data = isRecord(event.data) ? event.data : undefined;
     const stepUsage = isRecord(data?.usage) ? data.usage : undefined;
+    reported ||= [stepUsage?.inputTokens, stepUsage?.outputTokens].some(isTokenCount);
     usage.inputTokens += toFiniteNumber(stepUsage?.inputTokens);
     usage.outputTokens += toFiniteNumber(stepUsage?.outputTokens);
     usage.cacheReadTokens += toFiniteNumber(stepUsage?.cacheReadTokens);
@@ -353,6 +365,7 @@ export function extractEveTokenUsage(events: EveEvent[]): EveTokenUsage {
   }
   return {
     ...usage,
+    reported,
     totalTokens: Object.values(usage).reduce((sum, value) => sum + value, 0),
     ...(hasCostUsd && { costUsd }),
   };
@@ -373,13 +386,23 @@ export function buildEveTranscript(events: EveEvent[]): string {
 }
 
 export function logEveEvent(logger: HarnessLogger, event: EveEvent): void {
+  const level = harnessEventLogLevel(event.type, {
+    isError:
+      event.type.endsWith(".failed") ||
+      (event.type === "action.result" &&
+        isRecord(event.data) &&
+        (event.data.status !== "completed" ||
+          (isRecord(event.data.result) && event.data.result.isError === true))),
+    hasContent: event.type.endsWith(".completed") || event.type === "action.result",
+  });
+  if (level === undefined) return;
   const summary = summarizeEveEvent(event);
   const message = sanitizeErrorMessage(summary.message);
   const detail = summary.detail ? sanitizeErrorMessage(summary.detail) : undefined;
   logger.log({
     category: "eve",
     message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: event.type, type: "string" },
       ...(detail && { detail: { value: detail, type: "string" } }),
@@ -482,4 +505,12 @@ export function stringifyError(value: unknown): string {
 
 export function clip(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

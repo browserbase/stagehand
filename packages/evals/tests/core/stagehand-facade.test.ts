@@ -52,6 +52,14 @@ afterEach(() => {
 });
 
 describe("stagehand facade tool surface", () => {
+  it("uses only the supplied environment for the child allowlist", () => {
+    process.env.BROWSERBASE_API_KEY = "ambient-secret";
+    expect(buildStagehandFacadeEnv("LOCAL", { STAGEHAND_MODEL_NAME: "test-model" })).toEqual({
+      STAGEHAND_BROWSER: "local",
+      STAGEHAND_MODEL_NAME: "test-model",
+    });
+  });
+
   it("is registered as agent-mount-only", () => {
     expect(listCoreTools()).toContain("stagehand_facade");
     // Never selectable for core-tier runs: its CoreSession throws on every
@@ -94,10 +102,11 @@ describe("stagehand facade tool surface", () => {
         ...server,
         startup_timeout_sec: 60,
         tool_timeout_sec: 300,
+        default_tools_approval_mode: "approve",
       },
     });
     expect(buildCodexMcpServers("playwright_mcp", { playwright: server })).toEqual({
-      playwright: server,
+      playwright: { ...server, default_tools_approval_mode: "approve" },
     });
   });
 
@@ -178,6 +187,9 @@ describe("stagehand facade tool surface", () => {
       STAGEHAND_BROWSER: "browserbase",
       STAGEHAND_MODEL_API_KEY: "model-secret",
       BROWSERBASE_PROJECT_ID: "project-id",
+      STAGEHAND_BROWSERBASE_SESSION_TIMEOUT_SECONDS: "3600",
+      STAGEHAND_BROWSERBASE_PROXIES: "1",
+      STAGEHAND_BROWSERBASE_VERIFIED: "1",
     });
   });
 

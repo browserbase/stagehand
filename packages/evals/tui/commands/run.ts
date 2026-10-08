@@ -23,6 +23,7 @@ import type { Harness } from "../../framework/benchTypes.js";
 import { formatBenchHarnessFlags, isExecutableBenchHarness } from "../../framework/benchHarness.js";
 import {
   armsOverLimit,
+  armsWithPassesWithoutBrowserUse,
   armsWithUngradedRuns,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
@@ -256,9 +257,13 @@ export async function runCommand(
         for (const arm of arms) {
           const ungradedSuffix =
             arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
+          const browserlessSuffix =
+            arm.passesWithoutBrowserUse > 0
+              ? `, ${arm.passesWithoutBrowserUse} passes without browser use`
+              : "";
           console.log(
             dim(
-              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}`,
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}${browserlessSuffix}`,
             ),
           );
         }
@@ -277,7 +282,13 @@ export async function runCommand(
               `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
             );
           }
-          if (over.length > 0 || ungraded.length > 0) {
+          const browserless = armsWithPassesWithoutBrowserUse(arms);
+          for (const arm of browserless) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.passesWithoutBrowserUse} passes without browser use`,
+            );
+          }
+          if (over.length > 0 || ungraded.length > 0 || browserless.length > 0) {
             process.exitCode = 1;
           }
         }

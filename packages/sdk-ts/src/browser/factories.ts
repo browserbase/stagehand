@@ -1,5 +1,4 @@
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
-import type Browserbase from "@browserbasehq/sdk";
 import {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseFetchOptionsSchema,
@@ -23,7 +22,7 @@ import {
 import { CDPClient, CDPConnectionClosedError, type CDPClientOptions } from "../cdpClient.js";
 import {
   createBrowserbaseSessionClient,
-  type BrowserbaseSessionClient,
+  type BrowserbaseSessionClientFactory,
 } from "./browserbaseSession.js";
 import {
   createBrowserbaseServicesClient,
@@ -46,11 +45,7 @@ export type ClaimedStagehandBrowser = {
 
 type BrowserFactoryDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
-  createBrowserbaseSessionClient?: (
-    apiKey: string,
-    baseUrl: string,
-    options?: { client?: Browserbase },
-  ) => BrowserbaseSessionClient;
+  createBrowserbaseSessionClient?: BrowserbaseSessionClientFactory;
   createBrowserbaseServicesClient?: (apiKey: string, baseUrl: string) => BrowserbaseServicesClient;
   connectCdp?: (options: CDPClientOptions) => Promise<CDPClient>;
 };
@@ -136,10 +131,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             origin: "connected",
             source,
             connectCdp,
-            extension:
-              parsed.extensionId === undefined
-                ? { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }
-                : { extensionId: parsed.extensionId },
+            extension: { localExtensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
             signal,
             workerInitMetadata: {},
           }),
@@ -149,14 +141,12 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
     browserbase: {
       async launch(input) {
-        const { apiKey, baseUrl, client, ...sessionOptions } =
+        const { apiKey, baseUrl, clientOptions, ...sessionOptions } =
           BrowserbaseLaunchOptionsSchema.parse(input);
         return await withStagehandInitDeadline(async (signal) => {
-          const sessionClient =
-            client === undefined
-              ? createBrowserbase(apiKey, baseUrl)
-              : createBrowserbase(apiKey, baseUrl, { client });
-          const sessionPromise = sessionClient.createSession(sessionOptions);
+          const sessionPromise = createBrowserbase(apiKey, baseUrl, clientOptions).createSession(
+            sessionOptions,
+          );
           let session: Awaited<typeof sessionPromise>;
           try {
             session = await abortable(sessionPromise, signal);
@@ -194,15 +184,12 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
       async connect(input) {
         const options = BrowserbaseConnectOptionsSchema.parse(input);
-        const sessionClient =
-          options.client === undefined
-            ? createBrowserbase(options.apiKey, options.baseUrl)
-            : createBrowserbase(options.apiKey, options.baseUrl, { client: options.client });
-        if (!sessionClient.connectSession) {
+        const client = createBrowserbase(options.apiKey, options.baseUrl, options.clientOptions);
+        if (!client.connectSession) {
           throw new Error("Browserbase session connection is not supported by this client");
         }
         return await withStagehandInitDeadline(async (signal) => {
-          const session = await abortable(sessionClient.connectSession!(options.sessionId), signal);
+          const session = await abortable(client.connectSession!(options.sessionId), signal);
           const source: BrowserConnectionSource = {
             cdpUrl: session.cdpUrl,
             keepAlive: true,
@@ -213,10 +200,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             origin: "connected",
             source,
             connectCdp,
-            extension:
-              options.extensionId === undefined
-                ? { preloadedExtension: true }
-                : { extensionId: options.extensionId },
+            extension: { preloadedExtension: true },
             signal,
             workerInitMetadata: {
               apiKey: options.apiKey,
@@ -273,7 +257,10 @@ async function connectBrowser(options: {
   origin: StagehandBrowserOrigin;
   source: BrowserConnectionSource;
   connectCdp: (options: CDPClientOptions) => Promise<CDPClient>;
-  extension: { extensionDir: string } | { extensionId: string } | { preloadedExtension: true };
+  extension:
+    | { extensionDir: string }
+    | { localExtensionDir: string }
+    | { preloadedExtension: true };
   signal: AbortSignal;
   afterConnect?: (cdpClient: CDPClient, signal: AbortSignal) => Promise<void>;
   workerInitMetadata: StagehandWorkerInitMetadata;
@@ -332,7 +319,10 @@ async function connectBrowser(options: {
     });
   } catch (error) {
     cdpClient?.close();
-    if (ownsSource) {
+    // No browser handle escaped this failed launch. A newly created remote
+    // session remains ours to release, even if successful handles stay alive
+    // after transport loss. Connecting to somebody else's session stays unowned.
+    if (ownsSource || (options.provider === "browserbase" && options.origin === "launched")) {
       try {
         await closeSource(options.source);
       } catch (cleanupError) {

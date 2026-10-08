@@ -27,9 +27,8 @@ describe("published TypeScript SDK", () => {
           {
             private: true,
             type: "module",
-            packageManager: "pnpm@11.10.0",
+            packageManager: "pnpm@11.11.0",
             dependencies: {
-              "@browserbasehq/sdk": "^2.16.0",
               "@browserbasehq/stagehand": "file:../stagehand-sdk.tgz",
             },
             devDependencies: {
@@ -93,12 +92,14 @@ describe("published TypeScript SDK", () => {
         path.join(consumerDirectory, "verify.ts"),
         `
           import type {
+            BrowserbaseClientOptions,
             BrowserbaseConnectOptions,
-            BrowserbaseLaunchOptions,
+            LocalBrowserConnectOptions,
             Caching,
             LoadState,
             LocatorCentroidResult,
             LocatorClickOptions,
+            LocatorOptions,
             LocatorHighlightOptions,
             LocatorSendClickEventOptions,
             LocatorTypeOptions,
@@ -124,18 +125,25 @@ describe("published TypeScript SDK", () => {
             StagehandResultUsage,
             Variables,
           } from "@browserbasehq/stagehand";
-          import Browserbase from "@browserbasehq/sdk";
 
-          const browserbaseClient = new Browserbase({ apiKey: "bb_key" });
-          const browserbaseLaunch: BrowserbaseLaunchOptions = {
-            apiKey: "bb_key",
-            client: browserbaseClient,
+          const browserbaseClientOptions: BrowserbaseClientOptions = {
+            timeout: 5_000,
+            maxRetries: 1,
+            defaultHeaders: { "X-Caller": "app" },
+          };
+          declare const extensionId: string | undefined;
+          const localConnect: LocalBrowserConnectOptions = {
+            cdpUrl: "ws://127.0.0.1:9222",
+            extensionId,
           };
           const browserbaseConnect: BrowserbaseConnectOptions = {
             apiKey: "bb_key",
             sessionId: "session_123",
-            client: browserbaseClient,
+            clientOptions: browserbaseClientOptions,
+            extensionId,
           };
+          const localWithoutId: LocalBrowserConnectOptions = { ...localConnect, extensionId: undefined };
+          const browserbaseWithoutId: BrowserbaseConnectOptions = { ...browserbaseConnect, extensionId: undefined };
           const loadState: LoadState = "domcontentloaded";
           const mouseButton: MouseButton = "left";
           const modelName: ModelName = "openai/gpt-5";
@@ -153,10 +161,11 @@ describe("published TypeScript SDK", () => {
           const pageKeyPress: PageKeyPressOptions = { delay: 0 };
           const pageReload: PageReloadOptions = navigation;
           const pageViewport: PageSetViewportSizeOptions = { deviceScaleFactor: 2 };
-          const pageSnapshot: PageSnapshotOptions = { includeIframes: true };
+          const pageSnapshot: PageSnapshotOptions = { includeIframes: true, timeout: 5_000 };
           const pageType: PageTypeOptions = { delay: 0, withMistakes: false };
           const pageWait: PageWaitForSelectorOptions = { state: "visible", timeout: 1_000 };
-          const locatorClick: LocatorClickOptions = pageClick;
+          const locatorOptions: LocatorOptions = { timeout: 0 };
+          const locatorClick: LocatorClickOptions = { ...pageClick, timeout: 50 };
           const locatorHighlight: LocatorHighlightOptions = { borderColor: color };
           const locatorSendClick: LocatorSendClickEventOptions = { bubbles: true };
           const locatorType: LocatorTypeOptions = { delay: 0 };
@@ -169,7 +178,6 @@ describe("published TypeScript SDK", () => {
           declare const usage: StagehandResultUsage;
 
           void [
-            browserbaseLaunch,
             browserbaseConnect,
             clip,
             navigation,
@@ -181,6 +189,7 @@ describe("published TypeScript SDK", () => {
             pageSnapshot,
             pageType,
             pageWait,
+            locatorOptions,
             locatorClick,
             locatorHighlight,
             locatorSendClick,
@@ -204,6 +213,8 @@ describe("published TypeScript SDK", () => {
           "exec",
           "tsc",
           "--noEmit",
+          "--strictNullChecks",
+          "--exactOptionalPropertyTypes",
           "--module",
           "nodenext",
           "--moduleResolution",

@@ -36,7 +36,7 @@ import {
   LocatorClickResultSchema,
   LocatorCentroidResultSchema,
   LocatorCountResultSchema,
-  LocatorDescriptorSchema,
+  LocatorParamsSchema,
   LocatorFillParamsSchema,
   LocatorFillResultSchema,
   LocatorHighlightParamsSchema,
@@ -63,6 +63,7 @@ import {
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageCDPEventNotificationSchema,
+  PageEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
@@ -79,6 +80,8 @@ import {
   PageOnParamsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
+  PagePDFParamsSchema,
+  PagePDFResultSchema,
   PageScreenshotParamsSchema,
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
@@ -345,6 +348,11 @@ export const StagehandMethods = {
     params: PageScreenshotParamsSchema,
     result: PageScreenshotResultSchema,
   },
+  pagePDF: {
+    name: "page.pdf",
+    params: PagePDFParamsSchema,
+    result: PagePDFResultSchema,
+  },
   pageSnapshot: {
     name: "page.snapshot",
     params: PageSnapshotParamsSchema,
@@ -407,42 +415,42 @@ export const StagehandMethods = {
   },
   locatorHover: {
     name: "locator.hover",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorHoverResultSchema,
   },
   locatorCount: {
     name: "locator.count",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorCountResultSchema,
   },
   locatorIsChecked: {
     name: "locator.is_checked",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorIsCheckedResultSchema,
   },
   locatorInputValue: {
     name: "locator.input_value",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorInputValueResultSchema,
   },
   locatorIsVisible: {
     name: "locator.is_visible",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorIsVisibleResultSchema,
   },
   locatorInnerText: {
     name: "locator.inner_text",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorInnerTextResultSchema,
   },
   locatorInnerHtml: {
     name: "locator.inner_html",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorInnerHtmlResultSchema,
   },
   locatorTextContent: {
     name: "locator.text_content",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorTextContentResultSchema,
   },
   locatorScrollTo: {
@@ -452,7 +460,7 @@ export const StagehandMethods = {
   },
   locatorCentroid: {
     name: "locator.centroid",
-    params: LocatorDescriptorSchema,
+    params: LocatorParamsSchema,
     result: LocatorCentroidResultSchema,
   },
   locatorHighlight: {
@@ -539,6 +547,11 @@ export const StagehandNotifications = {
     name: "page.cdp_event",
     params: PageCDPEventNotificationSchema,
     paramsWire: { opaqueKeys: ["params"] },
+  },
+  pageEvent: {
+    name: "page.event",
+    params: PageEventNotificationSchema,
+    paramsWire: { opaqueKeys: ["inputSchema"] },
   },
 } as const satisfies Record<string, RPCNotification>;
 

@@ -29,6 +29,7 @@ const (
 )
 
 var customDefinitions = map[string]string{
+	"PageEventNotification":        "PageEventNotification",
 	"Caching":                      "Caching",
 	"CookieFilter":                 "CookieFilter",
 	"ContextActivePageResult":      "ContextActivePageResult",
@@ -144,7 +145,7 @@ func run(check bool) error {
 	gen, err := generator.New(generator.Config{
 		Capitalizations: []string{
 			"AP", "API", "CDP", "CSS", "DOM", "EU", "HTML", "HTTP", "ID", "IOS",
-			"IP", "JPEG", "JS", "JSON", "LLM", "MIME", "OS", "PNG", "RPC", "TLS", "URI",
+			"IP", "JPEG", "JS", "JSON", "LLM", "MIME", "OS", "PDF", "PNG", "RPC", "TLS", "URI",
 			"URL", "US", "UUID", "XML", "XPath",
 		},
 		DefaultOutputName:  generatedFile,

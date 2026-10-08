@@ -1,10 +1,12 @@
 import {
   HarnessAdapterError,
+  harnessEventLogLevel,
   sanitizeErrorMessage,
   type HarnessLogger,
 } from "@browserbasehq/stagehand-integrations/harness";
 import type {
   AgentToolResult,
+  AgentSession,
   CreateAgentSessionOptions,
   ResourceLoader,
   ToolDefinition,
@@ -26,28 +28,46 @@ export type PiAgentSessionLike = {
   abort(): Promise<void>;
   dispose(): void;
   agent: {
-    shouldStopAfterTurn?: (...args: any[]) => boolean | Promise<boolean>;
+    finishTurn?: AgentSession["agent"]["finishTurn"];
     state: { errorMessage?: string };
   };
 };
+/**
+ * Reasoning stays on by default. With thinking off, the agent was observed
+ * to take the first plausible answer instead of planning around obstacles.
+ */
+export const DEFAULT_PI_THINKING_LEVEL = "medium";
+
 export type PiSdk = {
   createSession(options: {
     model: string;
     cwd?: string;
     systemPrompt?: string;
+    appendSystemPrompt?: string;
     thinkingLevel?: string;
     customTools: PiToolDefinition[];
   }): Promise<PiAgentSessionLike>;
 };
 export type PiSessionConfig = {
   cwd?: string;
+  /**
+   * Replaces pi's stock system prompt entirely. Prefer `appendSystemPrompt`:
+   * the stock prompt carries the agent's persistence/verification framing,
+   * and replacing it with a two-line brief was observed to make the agent
+   * stop early and report partial results.
+   */
   systemPrompt?: string;
+  /** Appended after pi's stock system prompt (the claude_code preset+append shape). */
+  appendSystemPrompt?: string;
+  /** Overrides the model's thinking suffix; defaults to "medium" when neither is supplied. */
   thinkingLevel?: string;
   maxTurns?: number;
   customTools?: PiToolDefinition[];
   mcpServers?: Record<string, PiMcpServerSpec>;
 };
 export type PiTokenUsage = {
+  /** Whether token counters were observed; false distinguishes missing telemetry from zero. */
+  reported?: boolean;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -113,10 +133,11 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
           getPrompts: () => ({ prompts: [], diagnostics: [] }),
           getThemes: () => ({ themes: [], diagnostics: [] }),
           getAgentsFiles: () => ({ agentsFiles: [] }),
-          getSystemPrompt: () =>
-            sessionOptions.systemPrompt ?? "You are a browser automation agent under evaluation.",
+          // undefined keeps pi's stock system prompt; a custom prompt replaces it.
+          getSystemPrompt: () => sessionOptions.systemPrompt,
           getSystemPromptSource: () => undefined,
-          getAppendSystemPrompt: () => [],
+          getAppendSystemPrompt: () =>
+            sessionOptions.appendSystemPrompt ? [sessionOptions.appendSystemPrompt] : [],
           getAppendSystemPromptSources: () => [],
           extendResources: () => {},
           reload: async () => {},
@@ -127,7 +148,7 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
           model: resolved.model,
           thinkingLevel: (sessionOptions.thinkingLevel ??
             resolved.thinkingLevel ??
-            "off") as CreateAgentSessionOptions["thinkingLevel"],
+            DEFAULT_PI_THINKING_LEVEL) as CreateAgentSessionOptions["thinkingLevel"],
           resourceLoader,
           sessionManager: pi.SessionManager.inMemory(cwd),
           settingsManager,
@@ -161,6 +182,7 @@ export async function runPiSession(input: {
 }): Promise<PiSessionResult> {
   const sdk = input.sdk ?? (await loadPiSdk({ logger: input.logger }));
   const events: PiEvent[] = [];
+  const imageBudget = { remainingBytes: MAX_PI_SESSION_IMAGE_BYTES };
   let iterationError: unknown;
   let stopReason: string | undefined;
   let piSession: PiAgentSessionLike | undefined;
@@ -186,13 +208,23 @@ export async function runPiSession(input: {
       model: input.model,
       ...(input.session.cwd && { cwd: input.session.cwd }),
       ...(input.session.systemPrompt && { systemPrompt: input.session.systemPrompt }),
-      ...(input.session.thinkingLevel && { thinkingLevel: input.session.thinkingLevel }),
+      ...(input.session.appendSystemPrompt && {
+        appendSystemPrompt: input.session.appendSystemPrompt,
+      }),
+      ...(input.session.thinkingLevel !== undefined && {
+        thinkingLevel: input.session.thinkingLevel,
+      }),
       customTools,
     });
-    piSession.agent.shouldStopAfterTurn = () => turns >= maxTurns;
+    const finishTurn = piSession.agent.finishTurn;
+    piSession.agent.finishTurn = async (turn, signal) => {
+      // Pi calls finishTurn before emitting turn_end for the current turn.
+      const decision = await finishTurn?.(turn, signal);
+      return turns + 1 >= maxTurns ? { action: "end" } : decision || undefined;
+    };
     unsubscribe = piSession.subscribe((event) => {
       if (event.type === "message_update") return;
-      events.push(event);
+      events.push(compactPiEvent(event, imageBudget));
       logPiEvent(input.logger, event);
       if (event.type === "turn_end") turns += 1;
       if (event.type === "tool_execution_end" && typeof event.toolName === "string") {
@@ -266,6 +298,7 @@ export async function runPiSession(input: {
 
 export function extractPiTokenUsage(events: PiEvent[]): PiTokenUsage {
   const total: PiTokenUsage = {
+    reported: false,
     inputTokens: 0,
     outputTokens: 0,
     cacheReadTokens: 0,
@@ -280,6 +313,7 @@ export function extractPiTokenUsage(events: PiEvent[]): PiTokenUsage {
     const message = event.message;
     if (message.role !== "assistant" || !isRecord(message.usage)) continue;
     const usage = message.usage;
+    total.reported ||= [usage.input, usage.output].some(isTokenCount);
     total.inputTokens += toFiniteNumber(usage.input);
     total.outputTokens += toFiniteNumber(usage.output);
     total.cacheReadTokens += toFiniteNumber(usage.cacheRead);
@@ -302,11 +336,20 @@ export function buildPiTranscript(events: PiEvent[]): string {
 }
 
 export function logPiEvent(logger: HarnessLogger, event: PiEvent): void {
+  const type = String(event.type ?? "unknown");
+  const level = harnessEventLogLevel(type, {
+    isError:
+      type === "error" ||
+      (type === "message_end" && isRecord(event.message) && event.message.stopReason === "error") ||
+      (type === "tool_execution_end" && event.isError === true),
+    hasContent: type === "message_end" || type === "tool_execution_end",
+  });
+  if (level === undefined) return;
   const summary = summarizePiEvent(event);
   logger.log({
     category: "pi",
     message: summary.message,
-    level: 1,
+    level,
     auxiliary: {
       type: { value: String(event.type ?? "unknown"), type: "string" },
       ...(summary.detail && { detail: { value: summary.detail, type: "string" } }),
@@ -318,24 +361,112 @@ export function summarizePiEvent(event: PiEvent): { message: string; detail?: st
   const type = String(event.type ?? "unknown");
   if (type === "message_end" && isRecord(event.message)) {
     const text = assistantText(event.message);
-    const detail = text || safeJson(event.message);
+    const detail = text || safeJson(withoutImageData(event.message));
     return {
-      message: sanitizeErrorMessage(`assistant: ${clip(text, 500)}`),
-      ...(detail && { detail: sanitizeErrorMessage(detail) }),
+      message: `assistant: ${clip(sanitizeErrorMessage(text), 500)}`,
+      ...(detail && { detail: clip(sanitizeErrorMessage(detail), MAX_EVENT_DETAIL_CHARS) }),
     };
   }
   if (type.startsWith("tool_execution_")) {
-    const detail = safeJson(event);
+    const detail = safeJson(withoutImageData(event));
     return {
       message: sanitizeErrorMessage(`${type}: ${String(event.toolName ?? "tool")}`),
-      ...(detail && { detail: sanitizeErrorMessage(detail) }),
+      ...(detail && { detail: clip(sanitizeErrorMessage(detail), MAX_EVENT_DETAIL_CHARS) }),
     };
   }
-  const detail = safeJson(event);
+  const detail = safeJson(withoutImageData(event));
   return {
     message: sanitizeErrorMessage(`${type} event`),
-    ...(detail && { detail: sanitizeErrorMessage(detail) }),
+    ...(detail && { detail: clip(sanitizeErrorMessage(detail), MAX_EVENT_DETAIL_CHARS) }),
   };
+}
+
+const MAX_EVENT_DETAIL_CHARS = 20_000;
+/** Retained trajectory evidence only; model-facing tool results are unchanged. */
+export const MAX_PI_IMAGE_BYTES = 8 * 1024 * 1024;
+export const MAX_PI_SESSION_IMAGE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Reduce a retained pi event to what the trajectory adapter and usage
+ * accounting read. pi emits every message (including tool results carrying
+ * screenshots) both as its own `message_end` and inside `tool_execution_end`,
+ * so screenshots are decoded to a single Buffer on the tool event and dropped
+ * from non-assistant messages, which nothing downstream reads.
+ */
+export function compactPiEvent(
+  event: PiEvent,
+  imageBudget: { remainingBytes: number } = { remainingBytes: MAX_PI_SESSION_IMAGE_BYTES },
+): PiEvent {
+  if (event.type === "tool_execution_end") {
+    return { ...event, result: decodeImageBlocks(event.result, imageBudget) };
+  }
+  if (
+    event.type === "message_end" &&
+    isRecord(event.message) &&
+    event.message.role !== "assistant"
+  ) {
+    return { ...event, message: withoutImageData(event.message) };
+  }
+  return event;
+}
+
+function decodeImageBlocks(value: unknown, budget: { remainingBytes: number }): unknown {
+  if (!isRecord(value) || !Array.isArray(value.content)) return value;
+  return {
+    ...value,
+    content: value.content.map((block) => {
+      if (!isRecord(block) || block.type !== "image") {
+        return block;
+      }
+      const data = typeof block.data === "string" ? block.data : undefined;
+      const bytes = Buffer.isBuffer(block.bytes) ? block.bytes : undefined;
+      if (data === undefined && !bytes) return block;
+      // An upper bound from encoded length prevents allocating an oversized
+      // Buffer. Noncanonical/whitespace-heavy base64 may be rejected conservatively.
+      const size =
+        bytes?.byteLength ??
+        Math.max(
+          0,
+          Math.ceil(data!.length / 4) * 3 -
+            (data!.endsWith("==") ? 2 : data!.endsWith("=") ? 1 : 0),
+        );
+      const limit =
+        size > MAX_PI_IMAGE_BYTES
+          ? `${MAX_PI_IMAGE_BYTES}-byte per-image`
+          : size > budget.remainingBytes
+            ? `${budget.remainingBytes}-byte remaining session image`
+            : undefined;
+      if (limit) {
+        // A text block leaves neither base64 nor Buffer for an adapter to decode.
+        return {
+          type: "text",
+          text: `[Screenshot omitted from retained evidence: ${size} bytes exceeds the ${limit} budget.]`,
+        };
+      }
+      const retained = bytes ?? Buffer.from(data!, "base64");
+      budget.remainingBytes -= retained.byteLength;
+      const { data: _data, bytes: _bytes, ...rest } = block;
+      return { ...rest, bytes: retained };
+    }),
+  };
+}
+
+/** Deep copy with image payloads replaced by a size placeholder (for logs). */
+export function withoutImageData<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => withoutImageData(item)) as T;
+  if (Buffer.isBuffer(value)) return `[${value.byteLength} bytes]` as T;
+  if (!isRecord(value)) return value;
+  if (value.type === "image" && (typeof value.data === "string" || Buffer.isBuffer(value.bytes))) {
+    const size =
+      typeof value.data === "string"
+        ? Math.floor((value.data.length * 3) / 4)
+        : (value.bytes as Buffer).byteLength;
+    const { data: _data, bytes: _bytes, ...rest } = value;
+    return { ...rest, data: `[image ${size} bytes]` } as T;
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [key, withoutImageData(entry)]),
+  ) as T;
 }
 
 export function resolvePiStatus(input: {
@@ -432,4 +563,12 @@ export function toFiniteNumber(value: unknown): number {
         ? Number(value)
         : 0;
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function isTokenCount(value: unknown): boolean {
+  return (
+    ((typeof value === "number" && Number.isFinite(value)) ||
+      (typeof value === "string" && value.trim().length > 0 && Number.isFinite(Number(value)))) &&
+    Number(value) >= 0
+  );
 }

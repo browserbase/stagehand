@@ -61,6 +61,26 @@ describe("buildExternalHarnessTaskPlan", () => {
     });
   });
 
+  it("builds HardBench plans without changing task text and with a Google fallback", () => {
+    for (const web of [undefined, "https://example.com/shop"]) {
+      expect(
+        buildExternalHarnessTaskPlan({
+          name: "agent/hardbenchmark",
+          modelName,
+          params: { id: "hb-1", ques: "Find the exact item", web },
+        }),
+      ).toEqual({
+        dataset: "hardbenchmark",
+        taskId: "hb-1",
+        instruction: "Find the exact item",
+        startUrl: web ?? "https://www.google.com",
+      });
+    }
+    expect(() => buildExternalHarnessTaskPlan({ name: "agent/hardbenchmark", modelName })).toThrow(
+      /expected ques/,
+    );
+  });
+
   it("rejects unsupported external harness tasks", () => {
     expect(() =>
       buildExternalHarnessTaskPlan({

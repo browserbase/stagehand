@@ -27,6 +27,7 @@ const (
 	maxJSONRPCRequestID     uint64 = 9_007_199_254_740_991
 	maxPendingNotifications        = 100
 	rpcResponseGrace               = 10 * time.Second
+	defaultLocatorTimeout          = 20 * time.Second
 	maxRPCResponseTimeout          = time.Duration(math.MaxInt64)
 )
 
@@ -40,6 +41,8 @@ var (
 		"page.go_forward":          15 * time.Second,
 		"page.wait_for_load_state": 15 * time.Second,
 		"page.wait_for_selector":   30 * time.Second,
+		"page.pdf":                 30 * time.Second,
+		"page.snapshot":            20 * time.Second,
 		"page.webmcp_tools":        time.Second,
 	}
 	unboundedByDefaultMethods = map[string]struct{}{
@@ -65,7 +68,6 @@ var (
 		"page.close":                     {},
 		"page.evaluate":                  {},
 		"page.screenshot":                {},
-		"page.snapshot":                  {},
 		"page.webmcp_invocation_result":  {},
 	}
 )
@@ -221,8 +223,9 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 	}
 	callContext := ctx
 	cancel := func() {}
-	if timeout, ok := rpcResponseTimeout(method, encodedParams); ok {
-		callContext, cancel = context.WithTimeout(ctx, timeout)
+	responseTimeout, bounded := rpcResponseTimeout(method, encodedParams)
+	if bounded {
+		callContext, cancel = context.WithTimeout(ctx, responseTimeout)
 	}
 	defer cancel()
 
@@ -254,7 +257,7 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 			return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
 		}
 		if callContext.Err() != nil {
-			return fmt.Errorf("RPC response timed out: %s: %w", method, callContext.Err())
+			return fmt.Errorf("RPC response timed out after %s: %s: %w", responseTimeout, method, callContext.Err())
 		}
 		return fmt.Errorf("send RPC request for %s: %w", method, err)
 	}
@@ -272,11 +275,20 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 		if ctx.Err() != nil {
 			return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
 		}
-		return fmt.Errorf("RPC response timed out: %s: %w", method, callContext.Err())
+		return fmt.Errorf("RPC response timed out after %s: %s: %w", responseTimeout, method, callContext.Err())
 	}
 }
 
 func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, bool) {
+	if strings.HasPrefix(method, "locator.") {
+		if milliseconds, found := jsonNumberAtPath(params, "options", "timeout"); found {
+			if milliseconds == 0 {
+				return 0, false
+			}
+			return rpcResponseTimeoutForDuration(milliseconds), true
+		}
+		return rpcResponseGrace + defaultLocatorTimeout, true
+	}
 	var path []string
 	switch method {
 	case "stagehand.act",
@@ -288,6 +300,8 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 		"page.go_back",
 		"page.go_forward",
 		"page.screenshot",
+		"page.pdf",
+		"page.snapshot",
 		"page.wait_for_selector",
 		"page.webmcp_tools",
 		"page.webmcp_invocation_result":
@@ -299,6 +313,9 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	}
 
 	if durationMilliseconds, found := jsonNumberAtPath(params, path...); found {
+		if (method == "page.pdf" || method == "page.snapshot") && durationMilliseconds == 0 {
+			return 0, false
+		}
 		return rpcResponseTimeoutForDuration(durationMilliseconds), true
 	}
 	if defaultTimeout, found := defaultOperationTimeouts[method]; found {
@@ -306,7 +323,7 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	}
 	// These operations had no v3 deadline. Keep the server as the owner of their
 	// lifetime instead of turning the transport grace period into a 10s ceiling.
-	if _, found := unboundedByDefaultMethods[method]; found || strings.HasPrefix(method, "locator.") {
+	if _, found := unboundedByDefaultMethods[method]; found {
 		return 0, false
 	}
 	return rpcResponseGrace, true
@@ -386,6 +403,10 @@ func (c *rpcClient) onNotification(method string, handler func(StagehandLog)) fu
 
 func (c *rpcClient) onPageCDPEvent(handler func(PageCDPEventNotification)) func() {
 	return registerNotification(c, "page.cdp_event", handler)
+}
+
+func (c *rpcClient) onPageEvent(handler func(PageEventNotification)) func() {
+	return registerNotification(c, "page.event", handler)
 }
 
 func registerNotification[Notification any](

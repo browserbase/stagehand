@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -93,6 +95,63 @@ type uppercaseRPCResult struct {
 	Value string `json:"value"`
 }
 
+func TestCaptureResponseTimeout(t *testing.T) {
+	t.Parallel()
+	for _, method := range []string{"page.pdf", "page.snapshot"} {
+		for _, test := range []struct {
+			params  string
+			want    time.Duration
+			bounded bool
+		}{
+			{`{"options":{"timeout":250}}`, 10*time.Second + 250*time.Millisecond, true},
+			{`{"options":{"timeout":45000}}`, 55 * time.Second, true},
+			{`{"options":{"timeout":0}}`, 0, false},
+		} {
+			got, bounded := rpcResponseTimeout(method, json.RawMessage(test.params))
+			if got != test.want || bounded != test.bounded {
+				t.Errorf("%s %s timeout = %v, %t; want %v, %t", method, test.params, got, bounded, test.want, test.bounded)
+			}
+		}
+	}
+}
+
+func TestRPCClientTimeoutDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	for _, phase := range []string{"send", "response"} {
+		for _, callerDeadline := range []bool{false, true} {
+			t.Run(phase+"/callerDeadline="+strconv.FormatBool(callerDeadline), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					transport := newQueueRPCTransport()
+					if phase == "send" {
+						transport.sent = make(chan json.RawMessage)
+					}
+					client := newTestRPCClient(t, transport)
+					ctx := context.Background()
+					if callerDeadline {
+						var cancel context.CancelFunc
+						ctx, cancel = context.WithTimeout(ctx, time.Second)
+						defer cancel()
+					}
+					timeout := 250.0
+					var result PagePDFResult
+					err := client.call(ctx, "page.pdf", PagePDFParams{
+						PageID:  "page-1",
+						Options: &PagePDFOptions{Timeout: &timeout},
+					}, &result)
+					want := "RPC response timed out after 10.25s: page.pdf: context deadline exceeded"
+					if callerDeadline {
+						want = "RPC request canceled: page.pdf: context deadline exceeded"
+					}
+					if !errors.Is(err, context.DeadlineExceeded) || err.Error() != want {
+						t.Fatalf("call() error = %v, want wrapped deadline error %q", err, want)
+					}
+				})
+			})
+		}
+	}
+}
+
 func TestRPCResponseTimeoutPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -150,6 +209,8 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"page.go_forward":          25 * time.Second,
 		"page.wait_for_load_state": 25 * time.Second,
 		"page.wait_for_selector":   40 * time.Second,
+		"page.pdf":                 40 * time.Second,
+		"page.snapshot":            30 * time.Second,
 		"page.webmcp_tools":        11 * time.Second,
 	}
 	for method, expected := range defaultTimeouts {
@@ -182,25 +243,7 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		"page.close",
 		"page.evaluate",
 		"page.screenshot",
-		"page.snapshot",
 		"page.webmcp_invocation_result",
-		"locator.click",
-		"locator.fill",
-		"locator.hover",
-		"locator.count",
-		"locator.is_checked",
-		"locator.input_value",
-		"locator.is_visible",
-		"locator.inner_text",
-		"locator.inner_html",
-		"locator.text_content",
-		"locator.scroll_to",
-		"locator.centroid",
-		"locator.highlight",
-		"locator.send_click_event",
-		"locator.type",
-		"locator.select_option",
-		"locator.set_input_files",
 	}
 	for _, method := range unboundedMethods {
 		if timeout, ok := rpcResponseTimeout(method, json.RawMessage(`{}`)); ok {
@@ -689,6 +732,31 @@ func TestRPCClientValidatesPageCDPEventNotificationsWithoutRenamingRawParams(t *
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for page CDP event")
+	}
+}
+
+func TestRPCClientDeliversTypedToolNotifications(t *testing.T) {
+	t.Parallel()
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport)
+	received := make(chan PageEventNotification, 1)
+	remove := client.onPageEvent(func(notification PageEventNotification) { received <- notification })
+	defer remove()
+	transport.receiveJSON(`{"jsonrpc":"2.0","method":"page.event","params":{
+		"subscription_id":"added","page_id":"page","session_id":"child","target_id":"target",
+		"event":"toolsadded","tools":[{"name":"search","description":"Search","frame_id":"child",
+		"input_schema":{"properties":{"searchQuery":{"type":"string"}}}}]}}`)
+	select {
+	case notification := <-received:
+		event, ok := notification.AsToolsAdded()
+		if !ok || event.SubscriptionID != "added" || len(event.Tools) != 1 {
+			t.Fatalf("notification = %#v", notification)
+		}
+		if string(event.Tools[0].InputSchema["properties"]) != `{"searchQuery":{"type":"string"}}` {
+			t.Fatalf("schema = %#v", event.Tools[0].InputSchema)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for typed notification")
 	}
 }
 
@@ -1222,4 +1290,139 @@ func contextWithTestSpan(
 		TraceState: traceState,
 	})
 	return trace.ContextWithSpanContext(context.Background(), spanContext)
+}
+
+func TestLocatorRPCResponseTimeoutPolicy(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../protocol/stagehand.v4.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var protocol struct {
+		Properties struct {
+			Methods struct{ Properties map[string]json.RawMessage }
+		}
+	}
+	if err := json.Unmarshal(data, &protocol); err != nil {
+		t.Fatal(err)
+	}
+	for method := range protocol.Properties.Methods.Properties {
+		if !strings.HasPrefix(method, "locator.") {
+			continue
+		}
+		for _, test := range []struct {
+			params  string
+			want    time.Duration
+			bounded bool
+		}{
+			{`{}`, 30 * time.Second, true},
+			{`{"options":{}}`, 30 * time.Second, true},
+			{`{"options":{"timeout":0}}`, 0, false},
+			{`{"options":{"timeout":5000}}`, 15 * time.Second, true},
+			{`{"options":{"timeout":0.5}}`, 10*time.Second + 500*time.Microsecond, true},
+			{`{"options":{"timeout":1e100}}`, maxRPCResponseTimeout, true},
+		} {
+			if got, bounded := rpcResponseTimeout(method, json.RawMessage(test.params)); got != test.want || bounded != test.bounded {
+				t.Errorf("%s %s: timeout = %v, %t; want %v, %t", method, test.params, got, bounded, test.want, test.bounded)
+			}
+		}
+	}
+}
+
+func TestLocatorRPCResponseDeadline(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name    string
+		timeout *float64
+		wait    time.Duration
+	}{
+		{"default", nil, 30 * time.Second},
+		{"override", new(5000.0), 15 * time.Second},
+		{"unlimited", new(0.0), time.Hour},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				transport := newQueueRPCTransport()
+				client := newTestRPCClient(t, transport)
+				done := make(chan error, 1)
+				go func() {
+					var result LocatorCountResult
+					done <- client.call(context.Background(), "locator.count", LocatorParams{
+						PageID: "page-1", Selector: "button", Options: &LocatorOptions{Timeout: test.timeout},
+					}, &result)
+				}()
+				_ = receiveSentRPC(t, transport)
+				time.Sleep(test.wait - time.Millisecond)
+				select {
+				case err := <-done:
+					t.Fatalf("returned before deadline: %v", err)
+				default:
+				}
+				time.Sleep(time.Millisecond)
+				synctest.Wait()
+				if test.timeout != nil && *test.timeout == 0 {
+					select {
+					case err := <-done:
+						t.Fatalf("unlimited call returned before response: %v", err)
+					default:
+					}
+					transport.receiveJSON(`{"jsonrpc":"2.0","id":1,"result":2}`)
+					if err := receiveCallError(t, done); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := receiveCallError(t, done); !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "RPC response timed out") {
+					t.Fatalf("deadline error = %v", err)
+				}
+				client.mu.Lock()
+				pending := len(client.pending)
+				client.mu.Unlock()
+				if pending != 0 {
+					t.Fatalf("pending requests = %d", pending)
+				}
+			})
+		})
+	}
+}
+
+func TestLocatorRPCCallerContextStopsWait(t *testing.T) {
+	t.Parallel()
+	for _, timeout := range []*float64{nil, new(0.0), new(5000.0)} {
+		for _, cancelEarly := range []bool{false, true} {
+			synctest.Test(t, func(t *testing.T) {
+				transport := newQueueRPCTransport()
+				client := newTestRPCClient(t, transport)
+				ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+				defer cancel()
+				done := make(chan error, 1)
+				go func() {
+					var result LocatorCountResult
+					done <- client.call(ctx, "locator.count", LocatorParams{
+						PageID: "page-1", Selector: "button", Options: &LocatorOptions{Timeout: timeout},
+					}, &result)
+				}()
+				_ = receiveSentRPC(t, transport)
+				want := context.DeadlineExceeded
+				if cancelEarly {
+					cancel()
+					want = context.Canceled
+				}
+				if err := receiveCallError(t, done); !errors.Is(err, want) {
+					t.Fatalf("call error = %v, want %v", err, want)
+				}
+				client.mu.Lock()
+				pending := len(client.pending)
+				client.mu.Unlock()
+				if pending != 0 {
+					t.Fatalf("pending requests = %d", pending)
+				}
+				transport.receiveJSON(`{"jsonrpc":"2.0","id":1,"result":2}`)
+				synctest.Wait()
+				select {
+				case message := <-transport.sent:
+					t.Fatalf("unexpected message after cancellation: %s", message)
+				default:
+				}
+			})
+		}
+	}
 }

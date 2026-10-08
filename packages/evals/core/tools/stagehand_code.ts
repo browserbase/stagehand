@@ -465,7 +465,7 @@ export class StagehandCodeTool implements CoreTool {
     input.logger.log({
       category: "stagehand_code",
       message: "Initialized stagehand_code Stagehand SDK runtime.",
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: input.startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -496,6 +496,8 @@ export class StagehandCodeTool implements CoreTool {
         browserOwnership: "tool",
         connectionMode: connectionModeFromProfile(input.startupProfile),
         startupProfile: input.startupProfile,
+        ...(sdk.sessionUrl && { browserbaseSessionUrl: sdk.sessionUrl }),
+        ...(sdk.debugUrl && { browserbaseDebugUrl: sdk.debugUrl }),
       },
     };
   }

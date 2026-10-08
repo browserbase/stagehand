@@ -4,7 +4,9 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { HarnessAdapterError } from "@browserbasehq/stagehand-integrations/harness";
 import {
+  extractEveTokenUsage,
   logEveEvent,
+  loadEveClient,
   parseEveDevServerUrl,
   runEveSession,
   startEveDevServer,
@@ -30,7 +32,7 @@ function clientFor(events: EveEvent[]) {
   const send = vi.fn(async (_input: { message: string; signal?: AbortSignal }) => response(events));
   const client: EveClientLike = {
     health: vi.fn(async () => ({})),
-    session: () => ({ send, cancel }),
+    sessions: { create: async (input) => ({ session: { cancel }, response: await send(input) }) },
   };
   return { client, send, cancel };
 }
@@ -54,6 +56,30 @@ function fakeChild() {
 }
 
 describe("Eve SDK session", () => {
+  it("creates a session with the installed Eve client", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ sessionId: "session-real-client" }, { status: 202 }));
+    try {
+      const client = await loadEveClient("http://localhost:12345");
+      const signal = new AbortController().signal;
+      const { session, response } = await client.sessions.create({ message: "task", signal });
+      expect(response.sessionId).toBe("session-real-client");
+      expect(typeof session.cancel).toBe("function");
+      expect(fetch).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ message: "task" }),
+          signal,
+        }),
+      );
+      expect(fetch.mock.calls[0]?.[0]).toBe("http://localhost:12345/eve/v1/session");
+    } finally {
+      fetch.mockRestore();
+    }
+  });
+
   it("parses only the dev server ready line", () => {
     expect(parseEveDevServerUrl("☰eve  v0.29.4")).toBeUndefined();
     expect(parseEveDevServerUrl("[DEV] server listening at http://127.0.0.1:61439/")).toBe(
@@ -217,6 +243,7 @@ describe("Eve SDK session", () => {
       sessionId: "session-1",
       serverUrl: "http://eve",
       tokenUsage: {
+        reported: true,
         inputTokens: 15,
         outputTokens: 7,
         cacheReadTokens: 2,
@@ -343,42 +370,34 @@ describe("Eve SDK session", () => {
     expect(result.stopReason).toContain("budget exhausted");
   });
 
-  it("does not count failed tool results against the completed-step budget", async () => {
-    const setup = clientFor([
+  it("does not treat tool-call narration as the final message", async () => {
+    const { client } = clientFor([
       {
-        type: "action.result",
-        data: {
-          status: "failed",
-          result: {
-            kind: "tool-result",
-            toolName: "stagehand__run",
-            isError: true,
-          },
-        },
+        type: "message.completed",
+        data: { finishReason: "tool-calls", message: "Now let me get Walmart's price..." },
+      },
+      {
+        type: "actions.requested",
+        data: { actions: [{ kind: "tool-call", callId: "1", toolName: "stagehand__run" }] },
       },
       {
         type: "action.result",
         data: {
           status: "completed",
-          result: { kind: "tool-result", toolName: "stagehand__run" },
+          result: { kind: "tool-result", callId: "1", toolName: "stagehand__run" },
         },
       },
     ]);
-    const onToolResult = vi.fn();
     const result = await runEveSession({
       prompt: "task",
       model: "gpt",
       logger,
       server: { url: "http://eve" },
-      client: setup.client,
+      client,
       maxToolSteps: 1,
-      onToolResult,
     });
-
-    expect(onToolResult).toHaveBeenCalledTimes(2);
-    expect(result.events).toHaveLength(2);
-    expect(setup.cancel).toHaveBeenCalledOnce();
     expect(result.status).toBe("max_turns");
+    expect(result.finalMessage).toBe("");
   });
 
   it("cancels and errors when Eve requests human input", async () => {
@@ -427,10 +446,10 @@ describe("Eve SDK session", () => {
     const cancel = vi.fn(async () => ({}));
     const client: EveClientLike = {
       health: vi.fn(async () => ({})),
-      session: () => ({
-        cancel,
-        send: vi.fn(async () =>
-          Object.assign(
+      sessions: {
+        create: vi.fn(async () => ({
+          session: { cancel },
+          response: Object.assign(
             {
               async *[Symbol.asyncIterator]() {
                 yield {
@@ -443,8 +462,8 @@ describe("Eve SDK session", () => {
             },
             { sessionId: "session-1" },
           ),
-        ),
-      }),
+        })),
+      },
     };
     const pending = runEveSession({
       prompt: "task",
@@ -488,10 +507,10 @@ describe("Eve SDK session", () => {
     const cancel = vi.fn(async () => ({}));
     const client: EveClientLike = {
       health: vi.fn(async () => ({})),
-      session: () => ({
-        cancel,
-        send: vi.fn(async () =>
-          Object.assign(
+      sessions: {
+        create: vi.fn(async () => ({
+          session: { cancel },
+          response: Object.assign(
             {
               async *[Symbol.asyncIterator]() {
                 streamStarted?.();
@@ -501,8 +520,8 @@ describe("Eve SDK session", () => {
             },
             { sessionId: "session-1" },
           ),
-        ),
-      }),
+        })),
+      },
     };
     const pending = runEveSession({
       prompt: "task",
@@ -592,7 +611,7 @@ describe("Eve SDK session", () => {
       health: vi.fn(async () => {
         throw new Error("health failed");
       }),
-      session: vi.fn(),
+      sessions: { create: vi.fn() },
     };
     const result = await runEveSession({
       prompt: "task",
@@ -631,5 +650,63 @@ describe("Eve SDK session", () => {
     expect(setup.cancel).toHaveBeenCalledOnce();
     expect(result.iterationError).toBeInstanceOf(HarnessAdapterError);
     expect(JSON.stringify(result)).not.toContain("SUPERSECRET");
+  });
+
+  it("does not count failed tool results against the completed-step budget", async () => {
+    const setup = clientFor([
+      {
+        type: "action.result",
+        data: {
+          status: "failed",
+          result: {
+            kind: "tool-result",
+            toolName: "stagehand__run",
+            isError: true,
+          },
+        },
+      },
+      {
+        type: "action.result",
+        data: {
+          status: "completed",
+          result: { kind: "tool-result", toolName: "stagehand__run" },
+        },
+      },
+    ]);
+    const onToolResult = vi.fn();
+    const result = await runEveSession({
+      prompt: "task",
+      model: "gpt",
+      logger,
+      server: { url: "http://eve" },
+      client: setup.client,
+      maxToolSteps: 1,
+      onToolResult,
+    });
+
+    expect(onToolResult).toHaveBeenCalledTimes(2);
+    expect(result.events).toHaveLength(2);
+    expect(setup.cancel).toHaveBeenCalledOnce();
+    expect(result.status).toBe("max_turns");
+  });
+});
+
+describe("Eve token usage presence", () => {
+  it.each([{}, { costUsd: 0 }, { totalTokens: 0 }, { inputTokens: null, outputTokens: -1 }])(
+    "does not infer tokens from missing or invalid telemetry: %j",
+    (usage) => {
+      expect(extractEveTokenUsage([{ type: "step.completed", data: { usage } }]).reported).toBe(
+        false,
+      );
+    },
+  );
+  it("preserves observed zero across missing later steps without inventing cost", () => {
+    expect(extractEveTokenUsage([]).reported).toBe(false);
+    const usage = extractEveTokenUsage([
+      { type: "step.completed", data: { usage: { inputTokens: 0, outputTokens: "0" } } },
+      { type: "step.completed", data: {} },
+    ]);
+    expect(usage).toMatchObject({ reported: true, totalTokens: 0 });
+    expect(usage).not.toHaveProperty("costUsd");
   });
 });

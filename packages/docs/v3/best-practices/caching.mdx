@@ -180,7 +180,7 @@ const stagehand = new Stagehand({
 await stagehand.init();
 const page = stagehand.context.pages()[0];
 
-await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc-scroll/");
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/iframe-same-proc-scroll/");
 
 // First run: uses LLM inference and caches
 // Subsequent runs: reuses cached action
@@ -209,7 +209,7 @@ const stagehand = new Stagehand({
 await stagehand.init();
 const page = stagehand.context.pages()[0];
 
-await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/drag-drop/");
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/drag-drop/");
 
 const agent = stagehand.agent({
   mode: "cua",

@@ -151,10 +151,17 @@ const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
 const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Language[];
+// The Claude CUA toolset has TypeScript and Python SDKs, but no Go SDK.
+const PAGE_LANGUAGE_SETS = new Map<string, readonly Language[]>([
+  ["v4/integrations/agent-frameworks/claude-cua-toolset-quickstart.mdx", ["TypeScript", "Python"]],
+]);
 // Language tabs are the selector; every other <Tab> on a page is a different axis
 // (model provider, output shape, ...).
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
+// Docs publish separately after release. Remove these entries in the WebMCP hooks docs PR.
+// These exceptions apply only to docs coverage, never SDK-to-SDK parity.
+const UNRELEASED_REFERENCE_METHODS = new Set(["page/on-tools-added", "page/on-tools-removed"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 
@@ -243,9 +250,14 @@ describe("SDK reference surface", () => {
           .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}`)
           .sort(),
         `${language} method headings must match the public SDK surface`,
-      ).toStrictEqual(expected);
+      ).toStrictEqual(expected.filter((key) => !UNRELEASED_REFERENCE_METHODS.has(key)));
     }
   }, 30_000);
+
+  it("keeps unreleased reference exceptions limited to existing SDK methods", async () => {
+    const methods = new Set(methodKeys(await readTypescriptMethods()));
+    expect([...UNRELEASED_REFERENCE_METHODS].filter((key) => !methods.has(key))).toEqual([]);
+  });
 
   it("has exactly one reference page for every documented SDK object", async () => {
     const pageSlugs = (await readReferencePages()).map(({ classSlug }) => classSlug).sort();
@@ -287,7 +299,7 @@ describe("SDK reference surface", () => {
     const referenceSlugs = (await listFiles(REFERENCE_ROOT, () => false))
       .filter((filePath) => extname(filePath) === ".mdx")
       .map((filePath) => filePath.slice(0, -extname(filePath).length).split(sep).at(-1) as string);
-    const sdkSlugs = new Set(SDK_OBJECTS.map(({ classSlug }) => classSlug));
+    const sdkSlugs = new Set<string>(SDK_OBJECTS.map(({ classSlug }) => classSlug));
     const supplemental = referenceSlugs.filter((slug) => !sdkSlugs.has(slug)).sort();
 
     expect(
@@ -593,7 +605,10 @@ describe("SDK reference surface", () => {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
         .sort();
-      const expected = methods.map((method) => `${methodKey(method)}:${method.methodName}`).sort();
+      const expected = methods
+        .filter((method) => !UNRELEASED_REFERENCE_METHODS.has(methodKey(method)))
+        .map((method) => `${methodKey(method)}:${method.methodName}`)
+        .sort();
       if (!arraysEqual(documented, expected)) {
         differences.push(
           `${language}: expected [${expected.join(", ")}], received [${documented.join(", ")}]`,
@@ -1316,7 +1331,7 @@ describe("Mintlify customization boundary", () => {
     ).toStrictEqual(indexedContentPages);
   });
 
-  it("gives every language tab group the same complete language set", async () => {
+  it("gives every language tab group the complete language set for its page", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
     );
@@ -1346,7 +1361,8 @@ describe("Mintlify customization boundary", () => {
           for (const { title } of titled) {
             counts.set(title, (counts.get(title) ?? 0) + 1);
           }
-          const missing = LANGUAGES.filter((language) => !counts.has(language));
+          const requiredLanguages = PAGE_LANGUAGE_SETS.get(pagePath) ?? LANGUAGES;
+          const missing = requiredLanguages.filter((language) => !counts.has(language));
           if (missing.length > 0) {
             found.push(`${pagePath}: missing ${missing.join(", ")} snippets`);
           }
@@ -1391,7 +1407,7 @@ describe("Mintlify customization boundary", () => {
 
     expect(
       problems,
-      "Every language tab group must offer the same languages, so switching never hides a snippet",
+      "Every language tab group must offer the languages supported by its page, so switching never hides a snippet",
     ).toEqual([]);
   });
 

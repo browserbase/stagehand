@@ -1,5 +1,10 @@
+import { runGeminiCuaAgent, GEMINI_CUA_DEFAULT_MODELS } from "./geminiCuaRunner.js";
+import { GEMINI_CUA_TOOL_SURFACES, prepareGeminiCuaToolAdapter } from "./geminiCuaToolAdapter.js";
+import { runClaudeCuaAgent, CLAUDE_CUA_DEFAULT_MODELS } from "./claudeCuaRunner.js";
+import { CLAUDE_CUA_TOOL_SURFACES, prepareClaudeCuaToolAdapter } from "./claudeCuaToolAdapter.js";
 import { V3, normalizeRubric, type AvailableModel, type TaskSpec } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
+import { sanitizeErrorMessage } from "@browserbasehq/stagehand-integrations/harness";
 import type { EvalLogger } from "../logger.js";
 import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
@@ -26,7 +31,13 @@ import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
 } from "./externalHarnessPlan.js";
+import {
+  logBrowserSession,
+  withBrowserSession,
+  type BrowserSessionInfo,
+} from "./browserSession.js";
 import { withHarnessAgentSpan } from "./otel.js";
+import { verifierTraceEnabled } from "./verifierTrace.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
@@ -69,7 +80,7 @@ export interface BenchHarness {
   supportsApi: boolean;
   /**
    * Tool surfaces this harness can mount for the agent, in display order; the
-   * first entry is the default when --tool is omitted. An empty list means the
+   * facade is preferred when --tool is omitted, otherwise the first entry. An empty list means the
    * harness does not mount tool surfaces and the planner passes the requested
    * surface/profile through unchanged as row metadata (stagehand harness).
    */
@@ -105,7 +116,14 @@ export interface ExternalHarnessRunInput<TAdapter> {
   verifier: ExternalHarnessVerifierConfig;
 }
 
-export interface ExternalHarnessDefinition<TAdapter extends { cleanup: () => Promise<void> }> {
+/** What every prepared external-harness adapter must expose to the shared lifecycle. */
+export interface ExternalHarnessAdapterBase {
+  cleanup: () => Promise<void>;
+  /** Browser behind the mounted surface; logged before the agent starts. */
+  browserSession?: BrowserSessionInfo;
+}
+
+export interface ExternalHarnessDefinition<TAdapter extends ExternalHarnessAdapterBase> {
   harness: string;
   supportedToolSurfaces: ToolSurface[];
   defaultModels: AvailableModel[];
@@ -119,7 +137,7 @@ export interface ExternalHarnessDefinition<TAdapter extends { cleanup: () => Pro
  * Define the lifecycle common to external agent harnesses without registering
  * it; registry ownership stays explicit so list order remains deterministic.
  */
-export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<void> }>(
+export function defineExternalHarness<TAdapter extends ExternalHarnessAdapterBase>(
   definition: ExternalHarnessDefinition<TAdapter>,
 ): BenchHarness {
   const {
@@ -148,6 +166,9 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
       // the adapter and the carrier.
       const carrierV3 = buildVerifierCarrierV3(logger);
       let toolAdapter: TAdapter | undefined;
+      let browserSession: BrowserSessionInfo = {
+        provider: row.config.environment === "BROWSERBASE" ? "browserbase" : "local",
+      };
       try {
         toolAdapter = await prepareToolAdapter({
           toolSurface: row.config.toolSurface,
@@ -157,7 +178,9 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
           logger,
         });
         const preparedAdapter = toolAdapter;
-        return await withHarnessAgentSpan(
+        browserSession = preparedAdapter.browserSession ?? browserSession;
+        logBrowserSession(logger, browserSession);
+        const result = await withHarnessAgentSpan(
           {
             harness,
             model: input.modelName,
@@ -177,6 +200,18 @@ export function defineExternalHarness<TAdapter extends { cleanup: () => Promise<
                 dataset: plan.dataset,
               },
             }),
+        );
+        return withBrowserSession(result, browserSession);
+      } catch (error) {
+        return withBrowserSession(
+          {
+            _success: false,
+            error: sanitizeErrorMessage(error instanceof Error ? error.message : String(error)),
+            harnessStatus: "sdk_error",
+            terminationReason: signal?.aborted ? "aborted" : "sdk_error",
+            logs: logger.getLogs(),
+          },
+          browserSession,
         );
       } finally {
         try {
@@ -208,7 +243,9 @@ function buildVerifierCarrierV3(logger: EvalLogger): V3 {
     disablePino: true,
     disableAPI: true,
     experimental: true,
-    verbose: 0,
+    // verbose 2 surfaces the judge's LLM request/response lines (level 2),
+    // which verifierAdapter routes to scores/verifier-trace.jsonl.
+    verbose: verifierTraceEnabled() ? 2 : 0,
   });
 }
 
@@ -346,6 +383,22 @@ export const cursorHarness = defineExternalHarness({
   runAgent: runCursorAgent,
 });
 
+export const claudeCuaHarness = defineExternalHarness({
+  harness: "claude_cua",
+  supportedToolSurfaces: CLAUDE_CUA_TOOL_SURFACES,
+  defaultModels: CLAUDE_CUA_DEFAULT_MODELS,
+  prepareToolAdapter: prepareClaudeCuaToolAdapter,
+  runAgent: runClaudeCuaAgent,
+});
+
+export const geminiCuaHarness = defineExternalHarness({
+  harness: "gemini_cua",
+  supportedToolSurfaces: GEMINI_CUA_TOOL_SURFACES,
+  defaultModels: GEMINI_CUA_DEFAULT_MODELS,
+  prepareToolAdapter: prepareGeminiCuaToolAdapter,
+  runAgent: runGeminiCuaAgent,
+});
+
 const harnessRegistry = new Map<Harness, BenchHarness>([
   ["stagehand", stagehandHarness],
   ["claude_code", claudeCodeHarness],
@@ -356,6 +409,8 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["deepagents", deepagentsHarness],
   ["fx", fxHarness],
   ["cursor", cursorHarness],
+  ["claude_cua", claudeCuaHarness],
+  ["gemini_cua", geminiCuaHarness],
 ]);
 
 export function registerBenchHarness(harness: BenchHarness): () => void {

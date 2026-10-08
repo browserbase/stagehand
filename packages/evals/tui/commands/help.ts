@@ -1,6 +1,4 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
-import { listBenchHarnesses, listBenchHarnessesForTaskKind } from "../../framework/benchHarness.js";
-import { listCoreRunnableTools } from "../../core/tools/registry.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -26,6 +24,8 @@ export function printHelp(): void {
     ),
     row(`${cyan("verify")} ${dim("<trajectory-dir> [options]")}`, "Re-score a saved trajectory"),
     row(`${cyan("doctor")} ${dim("| health")}`, "Health report"),
+    row(cyan("setup"), "Guided setup for agent benchmarks"),
+    row(cyan("welcome"), "Guided onboarding on a real benchmark task"),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
@@ -36,7 +36,9 @@ export function printHelp(): void {
   ]);
 }
 
-export function printRunHelp(): void {
+export async function printRunHelp(): Promise<void> {
+  const { listBenchHarnesses, listBenchHarnessesForTaskKind } =
+    await import("../../framework/benchHarness.js");
   const suiteHarness = listBenchHarnessesForTaskKind("suite")[0];
   print([
     "",
@@ -58,6 +60,7 @@ export function printRunHelp(): void {
       "Benchmark suite shorthand",
     ),
     row(cyan("b:webtailbench"), "WebTailBench benchmark shorthand"),
+    row(cyan("b:hardbenchmark"), "HardBench core38 (EVAL_HARDBENCHMARK_SET: core|extended)"),
     "",
     `  ${bold("Options:")}`,
     "",
@@ -152,7 +155,8 @@ export function printNewHelp(): void {
   ]);
 }
 
-export function printConfigHelp(): void {
+export async function printConfigHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config")} ${dim("[subcommand]")}`,
@@ -193,7 +197,8 @@ export function printConfigHelp(): void {
   ]);
 }
 
-export function printConfigCoreHelp(): void {
+export async function printConfigCoreHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config core")} ${dim("[subcommand]")}`,

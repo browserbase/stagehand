@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import re
 import signal
@@ -14,6 +15,7 @@ from typing import Any
 
 from deepagents import create_deep_agent
 from deepagents._models import get_model_identifier, get_model_provider
+from langchain.chat_models import init_chat_model
 from deepagents.profiles import (
     GeneralPurposeSubagentProfile,
     HarnessProfile,
@@ -27,6 +29,65 @@ from langgraph.errors import GraphRecursionError
 
 Event = dict[str, Any]
 Emitter = Callable[[Event], None]
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a non-negative float from the environment; 0 disables the guard."""
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if math.isfinite(value) and value >= 0 else default
+
+
+# Watchdogs so a wedged model/MCP call can never hang the process forever. A
+# stalled `astream` never yields another chunk, so the tool-step/recursion caps
+# (which only fire on chunk arrival) cannot stop it; without these the Node side
+# waits on the child's exit indefinitely and the eval harness freezes. All are
+# overridable via env (0 disables); defaults are generous enough not to cut off
+# a slow-but-progressing run.
+INACTIVITY_TIMEOUT_S = _env_float("DEEPAGENTS_INACTIVITY_TIMEOUT_S", 240.0)
+WALL_TIMEOUT_S = _env_float("DEEPAGENTS_WALL_TIMEOUT_S", 2400.0)
+MCP_SETUP_TIMEOUT_S = _env_float("DEEPAGENTS_MCP_SETUP_TIMEOUT_S", 120.0)
+CLEANUP_TIMEOUT_S = 5.0
+
+
+class _WatchdogExpired(TimeoutError):
+    """Only a deadline owned by this runner expired, not an inner operation."""
+
+
+async def _with_optional_timeout(coro: Any, timeout: float) -> Any:
+    """Apply a deadline without moving MCP or stream contexts to another task."""
+    # AnyIO cancel scopes (including MCP ClientSession) must be entered and
+    # exited by the same task. wait_for(coro) creates a new task on every call.
+    deadline = asyncio.timeout(timeout if timeout > 0 else None)
+    try:
+        async with deadline:
+            return await coro
+    except TimeoutError as error:
+        if deadline.expired():
+            raise _WatchdogExpired from error
+        raise
+
+
+async def _open_mcp_server(
+    stack: AsyncExitStack, client: MultiServerMCPClient, name: str
+) -> list[object]:
+    session = await stack.enter_async_context(client.session(name))
+    return await load_mcp_tools(session, server_name=name)
+
+
+async def _aclose_quietly(stream: object) -> None:
+    aclose = getattr(stream, "aclose", None)
+    if aclose is None:
+        return
+    try:
+        await _with_optional_timeout(aclose(), CLEANUP_TIMEOUT_S)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @dataclass(frozen=True)
@@ -45,6 +106,10 @@ class RunnerConfig:
     mcp_servers: dict[str, McpServerConfig]
     recursion_limit: int
     max_tool_steps: int
+    reasoning_summary: str | None = None
+
+
+_REASONING_SUMMARY_MODES = frozenset({"auto", "concise", "detailed"})
 
 
 def _require_string(value: object, name: str, *, nullable: bool = False) -> str | None:
@@ -98,6 +163,11 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
             dict(env) if env is not None else None,
             cwd,
         )
+    reasoning_summary = _require_string(
+        raw.get("reasoning_summary"), "reasoning_summary", nullable=True
+    )
+    if reasoning_summary is not None and reasoning_summary not in _REASONING_SUMMARY_MODES:
+        raise ValueError("reasoning_summary must be one of auto, concise, detailed or null")
     return RunnerConfig(
         prompt=str(_require_string(raw.get("prompt"), "prompt")),
         system_prompt=_require_string(raw.get("system_prompt"), "system_prompt", nullable=True),
@@ -105,10 +175,47 @@ def parse_config(raw: dict[str, Any]) -> RunnerConfig:
         mcp_servers=servers,
         recursion_limit=_require_positive_int(raw.get("recursion_limit"), "recursion_limit"),
         max_tool_steps=_require_positive_int(raw.get("max_tool_steps"), "max_tool_steps"),
+        reasoning_summary=reasoning_summary,
     )
 
 
+# Content blocks that are tool invocations rather than model prose. Providers
+# such as OpenAI's Responses API surface them inside AIMessage.content next to
+# the text blocks; they are already reported through message.tool_calls.
+_TOOL_CALL_BLOCK_TYPES = frozenset({"function_call", "tool_call", "tool_use", "tool_call_chunk"})
+
+
+def _reasoning_text(block: Mapping[str, object]) -> str:
+    """Text of a provider reasoning block (OpenAI `summary`, Anthropic `thinking`)."""
+    summary = block.get("summary")
+    if isinstance(summary, list):
+        return "\n".join(
+            item["text"]
+            for item in summary
+            if isinstance(item, dict) and isinstance(item.get("text"), str)
+        )
+    for key in ("reasoning", "thinking", "text"):
+        if isinstance(block.get(key), str):
+            return block[key]  # type: ignore[return-value]
+    return ""
+
+
+def reasoning_text(content: object) -> str:
+    """The model's reasoning summaries, kept apart from its visible text."""
+    if not isinstance(content, list):
+        return ""
+    parts = [
+        text
+        for block in content
+        if isinstance(block, dict)
+        and block.get("type") in ("reasoning", "thinking")
+        and (text := _reasoning_text(block))
+    ]
+    return "\n".join(parts)
+
+
 def flatten_text(content: object) -> str:
+    """The model's visible text; reasoning blocks are reported separately."""
     if isinstance(content, str):
         return content
     if not isinstance(content, list):
@@ -123,6 +230,10 @@ def flatten_text(content: object) -> str:
             and isinstance(block.get("text"), str)
         ):
             parts.append(block["text"])
+        elif isinstance(block, dict) and block.get("type") in _TOOL_CALL_BLOCK_TYPES:
+            continue
+        elif isinstance(block, dict) and block.get("type") in ("reasoning", "thinking"):
+            continue
         elif isinstance(block, dict) and _image_from_block(block) is not None:
             continue
         else:
@@ -173,6 +284,7 @@ def message_events(message: object, tool_servers: Mapping[str, str]) -> list[Eve
             {
                 "type": "assistant",
                 "text": flatten_text(message.content),
+                "reasoning": reasoning_text(message.content),
                 "tool_calls": calls,
                 "usage": _json_safe(message.usage_metadata) if message.usage_metadata else None,
             }
@@ -210,7 +322,7 @@ def message_events(message: object, tool_servers: Mapping[str, str]) -> list[Eve
     return []
 
 
-def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int]:
+def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int | bool]:
     totals = {
         "input_tokens": 0,
         "output_tokens": 0,
@@ -218,9 +330,16 @@ def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int]
         "reasoning_output_tokens": 0,
         "total_tokens": 0,
     }
+    reported = False
     for usage in usages:
         if not usage:
             continue
+        reported = reported or any(
+            isinstance(usage.get(key), int)
+            and not isinstance(usage.get(key), bool)
+            and usage[key] >= 0
+            for key in ("input_tokens", "output_tokens")
+        )
         totals["input_tokens"] += _integer(usage.get("input_tokens"))
         totals["output_tokens"] += _integer(usage.get("output_tokens"))
         totals["total_tokens"] += _integer(usage.get("total_tokens"))
@@ -230,7 +349,7 @@ def aggregate_usage(usages: list[Mapping[str, object] | None]) -> dict[str, int]
             totals["cache_read_input_tokens"] += _integer(input_details.get("cache_read"))
         if isinstance(output_details, Mapping):
             totals["reasoning_output_tokens"] += _integer(output_details.get("reasoning"))
-    return totals
+    return {**totals, "reported": reported}
 
 
 def _integer(value: object) -> int:
@@ -348,13 +467,40 @@ def _register_eval_harness_profile(model: str | BaseChatModel) -> None:
     _REGISTERED_PROFILE_KEYS.add(profile_key)
 
 
+def build_eval_model(config: RunnerConfig) -> str | BaseChatModel:
+    """The agent model; OpenAI models are asked for reasoning summaries.
+
+    The Responses API only returns reasoning text when `reasoning.summary` is
+    requested, and deepagents' own string resolution passes no call options.
+    """
+    # xAI's API is OpenAI-compatible; langchain has no xai provider here, so route
+    # grok through ChatOpenAI against api.x.ai (no new dependency, no gateway).
+    if config.model.startswith("xai/") or config.model.startswith("xai:"):
+        from langchain_openai import ChatOpenAI
+
+        api_key = os.environ.get("XAI_API_KEY")
+        if not api_key or not api_key.strip():
+            # ChatOpenAI otherwise falls back to OPENAI_API_KEY, including when
+            # base_url selects another provider. Never send that key to xAI.
+            raise ValueError("XAI_API_KEY is required for xAI models.")
+        model_id = config.model.split("/", 1)[-1].split(":", 1)[-1]
+        return ChatOpenAI(
+            model=model_id,
+            base_url="https://api.x.ai/v1",
+            api_key=api_key,
+        )
+    if config.reasoning_summary is None or not config.model.startswith("openai:"):
+        return config.model
+    return init_chat_model(config.model, reasoning={"summary": config.reasoning_summary})
+
+
 def _default_build_agent(
     config: RunnerConfig,
     tools: list[object],
     *,
     model: BaseChatModel | None = None,
 ) -> object:
-    resolved_model: str | BaseChatModel = model or config.model
+    resolved_model: str | BaseChatModel = model or build_eval_model(config)
     _register_eval_harness_profile(resolved_model)
     return create_deep_agent(
         model=resolved_model,
@@ -402,8 +548,26 @@ async def run(
             }
             client = MultiServerMCPClient(connections)  # type: ignore[arg-type]
             for name in config.mcp_servers:
-                session = await stack.enter_async_context(client.session(name))
-                server_tools = await load_mcp_tools(session, server_name=name)
+                setup = _with_optional_timeout(
+                    _open_mcp_server(stack, client, name),
+                    MCP_SETUP_TIMEOUT_S,
+                )
+                try:
+                    server_tools = await setup
+                except _WatchdogExpired:
+                    emit_event(
+                        {
+                            "type": "error",
+                            "kind": "mcp_setup_timeout",
+                            "message": (
+                                f"MCP server '{name}' did not become ready within "
+                                f"{MCP_SETUP_TIMEOUT_S:g}s"
+                            ),
+                        }
+                    )
+                    emit_event({"type": "final", "text": last_text})
+                    emit_event({"type": "usage", **aggregate_usage(usages)})
+                    return 1
                 tools.extend(server_tools)
                 tool_servers.update({tool.name: name for tool in server_tools})
 
@@ -413,7 +577,55 @@ async def run(
             config={"recursion_limit": config.recursion_limit},
             stream_mode="updates",
         )
-        async for chunk in stream:
+        iterator = stream.__aiter__()
+        loop = asyncio.get_running_loop()
+        run_deadline = (loop.time() + WALL_TIMEOUT_S) if WALL_TIMEOUT_S > 0 else None
+        while True:
+            remaining = run_deadline - loop.time() if run_deadline is not None else None
+            if remaining is not None and remaining <= 0:
+                emit_event(
+                    {
+                        "type": "error",
+                        "kind": "wall_timeout",
+                        "message": (
+                            "deepagents runner exceeded its wall-clock budget "
+                            f"({WALL_TIMEOUT_S:g}s)"
+                        ),
+                    }
+                )
+                break
+            try:
+                limits = [
+                    (value, kind)
+                    for value, kind in (
+                        (remaining, "wall_timeout"),
+                        (INACTIVITY_TIMEOUT_S, "inactivity_timeout"),
+                    )
+                    if value is not None and value > 0
+                ]
+                # Keep the selected guard: cancellation cleanup may finish after
+                # another deadline, but that does not change which timer fired.
+                next_timeout, watchdog_kind = (
+                    min(limits, key=lambda item: item[0]) if limits else (0, None)
+                )
+                chunk = await _with_optional_timeout(
+                    iterator.__anext__(), next_timeout
+                )
+            except StopAsyncIteration:
+                break
+            except _WatchdogExpired:
+                emit_event(
+                    {
+                        "type": "error",
+                        "kind": watchdog_kind,
+                        "message": (
+                            f"deepagents runner exceeded its wall-clock budget ({WALL_TIMEOUT_S:g}s)"
+                            if watchdog_kind == "wall_timeout" else
+                            f"no agent activity for {INACTIVITY_TIMEOUT_S:g}s (model or tool call stalled)"
+                        ),
+                    }
+                )
+                break
             if not isinstance(chunk, dict):
                 continue
             budget_reached = False
@@ -452,8 +664,8 @@ async def run(
                         ),
                     }
                 )
-                await stream.aclose()
                 break
+        await _aclose_quietly(stream)
     except GraphRecursionError as error:
         emit_event(
             {
@@ -478,7 +690,7 @@ async def run(
         # (the Node side maps any nonzero exit to sdk_error) or emit an
         # error event that overwrites the real stop classification.
         try:
-            await stack.aclose()
+            await _with_optional_timeout(stack.aclose(), CLEANUP_TIMEOUT_S)
         except Exception:  # noqa: BLE001
             pass
 

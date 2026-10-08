@@ -34,7 +34,7 @@ export async function handleCore(args: string[], entryDir: string): Promise<void
 
   if (sub === "help" || sub === "-h" || sub === "--help") {
     const { printConfigCoreHelp } = await import("./help.js");
-    printConfigCoreHelp();
+    await printConfigCoreHelp();
     return;
   }
 
@@ -42,7 +42,7 @@ export async function handleCore(args: string[], entryDir: string): Promise<void
   // so leaf values like `set tool --help` aren't swallowed as help.
   if (args[1] === "--help" || args[1] === "-h" || args[1] === "help") {
     const { printConfigCoreHelp } = await import("./help.js");
-    printConfigCoreHelp();
+    await printConfigCoreHelp();
     return;
   }
 

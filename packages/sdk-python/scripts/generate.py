@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 from copy import deepcopy
@@ -94,6 +95,73 @@ def _generate_module(protocol: dict[str, object], config: GenerateConfig) -> str
     return f"{module.rstrip()}\n"
 
 
+def _base_name(base: ast.expr) -> str | None:
+    if isinstance(base, ast.Subscript):
+        return _base_name(base.value)
+    return base.id if isinstance(base, ast.Name) else None
+
+
+def _use_model_default_factories(module: str) -> str:
+    classes = [node for node in ast.parse(module).body if isinstance(node, ast.ClassDef)]
+    configured_bases = PYDANTIC_CONFIG.base_class_map or {}
+    model_bases = {"WireModel", "RootModel"} | {
+        base.rsplit(".", 1)[-1]
+        for mapped in configured_bases.values()
+        for base in ([mapped] if isinstance(mapped, str) else mapped)
+    }
+    class_bases = {
+        node.name: {name for base in node.bases if (name := _base_name(base)) is not None}
+        for node in classes
+    }
+    model_classes: set[str] = set()
+    while True:
+        found = {
+            name for name, bases in class_bases.items() if bases & (model_bases | model_classes)
+        }
+        if found == model_classes:
+            break
+        model_classes = found
+    lines = module.splitlines(keepends=True)
+    offsets = [0]
+    for line in lines:
+        offsets.append(offsets[-1] + len(line))
+
+    replacements: list[tuple[int, int, str]] = []
+    for node in classes:
+        for field in node.body:
+            if not isinstance(field, ast.AnnAssign) or not isinstance(field.value, ast.Dict):
+                continue
+            annotation_names = {
+                name.id for name in ast.walk(field.annotation) if isinstance(name, ast.Name)
+            }
+            model_names = annotation_names & model_classes
+            if "dict" in annotation_names or len(model_names) != 1:
+                continue
+            model_name = model_names.pop()
+            value = field.value
+            if value.end_lineno is None or value.end_col_offset is None:
+                raise ValueError(f"missing generated default location for {node.name}")
+            start = offsets[value.lineno - 1] + len(
+                lines[value.lineno - 1].encode()[: value.col_offset].decode()
+            )
+            end = offsets[value.end_lineno - 1] + len(
+                lines[value.end_lineno - 1].encode()[: value.end_col_offset].decode()
+            )
+            raw_default = module[start:end].replace("\n", "\n        ")
+            replacements.append((
+                start,
+                end,
+                "Field(\n"
+                f"        default_factory=lambda: {model_name}.model_validate(\n"
+                f"            {raw_default}\n"
+                "        )\n"
+                "    )",
+            ))
+    for start, end, replacement in reversed(replacements):
+        module = module[:start] + replacement + module[end:]
+    return module
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate Python wire models from the protocol")
     parser.add_argument("--check", action="store_true", help="fail when generated models differ")
@@ -131,7 +199,7 @@ def main() -> None:
     wire_protocol = deepcopy(protocol)
     use_wire_urls(wire_protocol)
     preserve_json_value_integers(wire_protocol)
-    models = _generate_module(wire_protocol, PYDANTIC_CONFIG)
+    models = _use_model_default_factories(_generate_module(wire_protocol, PYDANTIC_CONFIG))
     input_types = _generate_module(protocol, TYPED_DICT_CONFIG)
 
     protocol_version_module = generate_protocol_version_module()

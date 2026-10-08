@@ -2,7 +2,9 @@ import { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
+import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
+import { type Progress, runLocatorStep, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
@@ -22,7 +24,12 @@ import type {
   LocalBrowserLaunchOptions,
   PageEventName,
   PageCDPEvent,
+  PageToolsAddedNotification,
+  PageToolsRemovedNotification,
+  WebMCPToolIdentity,
   PageSnapshotOptions,
+  PagePDFOptions,
+  PagePDFResult,
   SnapshotResult,
   WebMCPAnnotation,
   WebMCPInvocationDescriptor,
@@ -50,10 +57,10 @@ import {
   normalizeScreenshotClip,
   runScreenshotCleanups,
   setTransparentBackground,
+  withScreenshotLock,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
-import { withTimeout } from "../timeoutConfig.js";
 
 /**
  * Page
@@ -76,6 +83,12 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 };
 
 const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
+export type WebMCPToolsEvent =
+  | Omit<PageToolsAddedNotification, "subscriptionId">
+  | Omit<PageToolsRemovedNotification, "subscriptionId">;
+type WebMCPToolsChange =
+  | Pick<PageToolsAddedNotification, "event" | "tools">
+  | Pick<PageToolsRemovedNotification, "event" | "tools">;
 const WEBMCP_SETTLED_INVOCATION_RETENTION_MS = 5 * 60 * 1_000;
 
 type PageCDPEventMethod = PageCDPEvent["method"];
@@ -102,6 +115,17 @@ type WebMCPResponseSessionState = {
   handler: (event: Protocol.WebMCP.ToolRespondedEvent) => void;
   invocationIds: Set<string>;
   pendingCommands: number;
+};
+
+type WebMCPToolSessionState = {
+  targetId?: string;
+  ready: Deferred<void>;
+  tools: Map<string, WebMCPToolDescriptor>;
+  pendingTools: Map<string, WebMCPToolDescriptor>;
+  added: (event: Protocol.WebMCP.ToolsAddedEvent) => void;
+  removed: (event: Protocol.WebMCP.ToolsRemovedEvent) => void;
+  error?: Error;
+  enableFailed?: boolean;
 };
 
 type CDPEventSubscription = {
@@ -186,7 +210,12 @@ export class Page {
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private readonly webMCPResponseSessions = new Map<CDPSessionLike, WebMCPResponseSessionState>();
+  private readonly webMCPToolSessions = new Map<CDPSessionLike, WebMCPToolSessionState>();
+  private readonly webMCPToolsChanged = new Set<() => void>();
+  private readonly webMCPToolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
+  private disposed = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
+  private readonly pageEventDisposers = new Set<() => void>();
 
   private onWebMCPToolResponded(
     session: CDPSessionLike,
@@ -281,14 +310,15 @@ export class Page {
     this.cursorEnabled = true;
   }
 
-  async updateCursor(x: number, y: number): Promise<void> {
+  async updateCursor(x: number, y: number, progress?: Progress): Promise<void> {
     if (!this.cursorEnabled) return;
     try {
       await this.mainFrameWrapper.evaluateInLocatorWorld(
         `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        progress,
       );
     } catch {
-      //
+      progress?.throwIfStopped();
     }
   }
 
@@ -340,6 +370,9 @@ export class Page {
     // Seed topology + ownership for nodes known at creation time.
     page.registry.seedFromFrameTree(session.id ?? "root", frameTree);
 
+    // Experimental domain failures are retained for WebMCP callers, not page initialization.
+    void page.ensureWebMCPToolTracking(session).catch(() => {});
+
     return page;
   }
 
@@ -352,6 +385,7 @@ export class Page {
   public onFrameAttached(frameId: string, parentId: string | null, session: CDPSessionLike): void {
     this.ensureOrdinal(frameId);
     this.registry.onFrameAttached(frameId, parentId, session.id ?? "root");
+    this.reconcilePendingWebMCPTools();
     // Cache is keyed by frameId → invalidate to ensure future frameForId resolves with latest owner
     this.frameCache.delete(frameId);
   }
@@ -360,6 +394,8 @@ export class Page {
    * Parent/child session emitted a `frameDetached`.
    */
   public onFrameDetached(frameId: string, reason: string = "remove"): void {
+    // A late process-swap detach must not remove tools reported by the new owner.
+    if (reason !== "swap") this.invalidateWebMCPFrame(frameId);
     this.registry.onFrameDetached(frameId, reason);
     this.frameCache.delete(frameId);
   }
@@ -369,6 +405,14 @@ export class Page {
    * Topology + ownership update. Handles root swaps.
    */
   public onFrameNavigated(frame: Protocol.Page.Frame, session: CDPSessionLike): void {
+    const previous = this.registry.frames.get(frame.id);
+    if (previous?.lastSeen?.loaderId !== frame.loaderId) {
+      // The first navigation can establish ownership for tools already reported by this session.
+      this.invalidateWebMCPFrame(
+        frame.parentId ? frame.id : this.mainFrameId(),
+        !!previous?.lastSeen?.loaderId,
+      );
+    }
     const prevRoot = this.mainFrameId();
     this.registry.onFrameNavigated(frame, session.id ?? "root");
 
@@ -398,6 +442,7 @@ export class Page {
 
     // Invalidate the cached Frame for this id (session may have changed)
     this.frameCache.delete(frame.id);
+    this.reconcilePendingWebMCPTools();
   }
 
   public onNavigatedWithinDocument(frameId: string, url: string, session: CDPSessionLike): void {
@@ -405,6 +450,7 @@ export class Page {
     if (!normalized) return;
 
     this.registry.onNavigatedWithinDocument(frameId, normalized, session.id ?? "root");
+    this.reconcilePendingWebMCPTools();
 
     if (frameId === this.mainFrameId()) {
       this._currentUrl = normalized;
@@ -416,7 +462,10 @@ export class Page {
    * has been attached; adopt the session into this Page and seed ownership for its subtree.
    */
   public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
+    if (this.disposed) return;
+    const previous = childSession.id ? this.sessions.get(childSession.id) : undefined;
     if (childSession.id) this.sessions.set(childSession.id, childSession);
+    if (previous && previous !== childSession) this.stopWebMCPToolTracking(previous);
 
     for (const subscription of this.cdpEventSubscriptions) {
       this.attachCDPEventSubscription(subscription, childSession);
@@ -430,6 +479,7 @@ export class Page {
 
     // session will start emitting its own page events; mark ownership seed now
     this.registry.adoptChildSession(childSession.id ?? "child", childMainFrameId);
+    this.reconcilePendingWebMCPTools();
     this.frameCache.delete(childMainFrameId);
 
     // Bridge events from the child session to keep registry in sync
@@ -444,7 +494,7 @@ export class Page {
     });
 
     // One-shot seed the child's subtree ownership from its current tree
-    void (async () => {
+    const seedOwnership = (async () => {
       try {
         await childSession.send("Page.enable").catch(() => {});
         let { frameTree } =
@@ -458,17 +508,23 @@ export class Page {
           };
         }
 
-        this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
+        if (!this.disposed && this.sessions.get(childSession.id ?? "") === childSession) {
+          this.registry.seedFromFrameTree(childSession.id ?? "child", frameTree);
+          this.reconcilePendingWebMCPTools();
+        }
       } catch {
         // If snapshot races, live events will still converge the registry.
       }
     })();
+    void this.ensureWebMCPToolTracking(childSession, seedOwnership).catch(() => {});
   }
 
   /** Detach an adopted child session and prune its subtree */
   public detachOopifSession(sessionId: string): void {
     const session = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
     if (session) {
+      this.stopWebMCPToolTracking(session);
       this.teardownWebMCPInvocationsForSession(
         session,
         (invocationId) =>
@@ -484,7 +540,6 @@ export class Page {
       this.registry.onFrameDetached(fid, "remove");
       this.frameCache.delete(fid);
     }
-    this.sessions.delete(sessionId);
     this.networkManager.untrackSession(sessionId);
   }
 
@@ -532,7 +587,86 @@ export class Page {
   }
 
   /** Subscribe to events on every session owned by this page. */
-  public subscribeCDPEvent(
+  public async subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      undefined,
+      () => this.attachCDPEventListener(pageEventName, listener),
+      signal,
+    );
+  }
+
+  /** Activate against future shared-state changes, without replaying initial tools. */
+  public async subscribeWebMCPToolsChanged(
+    listener: (event: WebMCPToolsEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    return this.subscribeWhenReady(
+      () =>
+        Promise.all(
+          [...new Set([this.mainSession, ...this.sessions.values()])].map((session) =>
+            this.ensureWebMCPToolTracking(session),
+          ),
+        ),
+      () => {
+        for (const [session, state] of this.webMCPToolSessions) {
+          state.targetId ??= this.conn.targetIdForSession(session.id) ?? this._targetId;
+        }
+        const handler = (event: WebMCPToolsEvent) => {
+          if (!this.webMCPToolEventListeners.has(handler)) return;
+          try {
+            listener(event);
+          } catch (error) {
+            this.logger.error("WebMCP state listener failed", {
+              pageId: this.pageId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        };
+        this.webMCPToolEventListeners.add(handler);
+        return () => {
+          this.webMCPToolEventListeners.delete(handler);
+        };
+      },
+      signal,
+    );
+  }
+
+  private async subscribeWhenReady(
+    ready: (() => Promise<unknown>) | undefined,
+    activate: () => () => void,
+    signal?: AbortSignal,
+  ): Promise<() => void> {
+    if (this.disposed) throw new Error("Page is disposed");
+    signal?.throwIfAborted();
+    const canceled = createDeferred<never>();
+    let active = true;
+    let disposeListener: (() => void) | undefined;
+    const dispose = () => {
+      if (!active) return;
+      active = false;
+      signal?.removeEventListener("abort", dispose);
+      this.pageEventDisposers.delete(dispose);
+      disposeListener?.();
+      canceled.reject(new Error("Page event subscription was canceled"));
+    };
+    this.pageEventDisposers.add(dispose);
+    signal?.addEventListener("abort", dispose, { once: true });
+    try {
+      if (ready) await Promise.race([ready(), canceled.promise]);
+      if (!active) throw new Error("Page event subscription was canceled");
+      disposeListener = activate();
+      return dispose;
+    } catch (error) {
+      dispose();
+      throw error;
+    }
+  }
+
+  private attachCDPEventListener(
     pageEventName: PageEventName,
     listener: (event: PageCDPEvent) => void,
   ): () => void {
@@ -543,12 +677,8 @@ export class Page {
       sessionHandlers: new Map(),
     };
     this.cdpEventSubscriptions.add(subscription);
-    for (const session of this.sessions.values()) {
-      this.attachCDPEventSubscription(subscription, session);
-    }
-
     let active = true;
-    return () => {
+    const dispose = () => {
       if (!active) return;
       active = false;
       this.cdpEventSubscriptions.delete(subscription);
@@ -556,6 +686,15 @@ export class Page {
         this.detachCDPEventSubscription(subscription, sessionId);
       }
     };
+    try {
+      for (const session of this.sessions.values()) {
+        this.attachCDPEventSubscription(subscription, session);
+      }
+      return dispose;
+    } catch (error) {
+      dispose();
+      throw error;
+    }
   }
 
   private attachCDPEventSubscription(
@@ -565,6 +704,11 @@ export class Page {
     const sessionId = session.id ?? "root";
     if (subscription.sessionHandlers.has(sessionId)) return;
     const handler = (params: unknown): void => {
+      if (
+        !this.cdpEventSubscriptions.has(subscription) ||
+        subscription.sessionHandlers.get(sessionId)?.handler !== handler
+      )
+        return;
       const normalizedParams =
         params !== null && typeof params === "object" && !Array.isArray(params)
           ? (params as Record<string, unknown>)
@@ -599,105 +743,246 @@ export class Page {
     subscription.sessionHandlers.delete(sessionId);
   }
 
-  /**
-   * Return a fresh snapshot of the WebMCP tools registered by the current page and its frames.
-   *
-   * Enabling the domain on each owned CDP session emits `toolsAdded` for every currently
-   * registered tool in that target. Keep the listeners scoped to this call so tools from an
-   * earlier document or call are never cached.
-   */
+  private notifyWebMCPToolsChanged(): void {
+    for (const listener of this.webMCPToolsChanged) listener();
+  }
+
+  private emitWebMCPToolsChange(session: CDPSessionLike, change: WebMCPToolsChange): void {
+    this.notifyWebMCPToolsChanged();
+    if (this.disposed || !this.webMCPToolEventListeners.size || !change.tools.length) return;
+    const state = this.webMCPToolSessions.get(session);
+    const targetId = state?.targetId ?? this.conn.targetIdForSession(session.id) ?? this._targetId;
+    if (state) state.targetId = targetId;
+    const event: WebMCPToolsEvent = {
+      ...change,
+      pageId: this.pageId,
+      sessionId: session.id ?? "root",
+      targetId,
+    };
+    // Fix the recipient set at this transition and isolate each listener's payload.
+    const listeners = [...this.webMCPToolEventListeners];
+    for (const listener of listeners) listener(structuredClone(event));
+  }
+
+  private removeWebMCPTools(
+    session: CDPSessionLike,
+    state: WebMCPToolSessionState,
+    matches: (tool: WebMCPToolDescriptor) => boolean = () => true,
+    clearPending = true,
+  ): void {
+    if (clearPending) {
+      for (const [key, tool] of state.pendingTools) {
+        if (matches(tool)) state.pendingTools.delete(key);
+      }
+    }
+    const tools: WebMCPToolIdentity[] = [];
+    for (const [key, tool] of state.tools) {
+      if (!matches(tool)) continue;
+      state.tools.delete(key);
+      tools.push({ frameId: tool.frameId, name: tool.name });
+    }
+    if (tools.length) this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools });
+  }
+
+  private ownsWebMCPFrame(session: CDPSessionLike, frameId: string): boolean {
+    if (this.disposed) return false;
+    if (frameId === this.mainFrameId()) return session === this.mainSession;
+    return (
+      this.registry.getOwnerSessionId(frameId) === (session.id ?? "root") &&
+      (session === this.mainSession || this.sessions.get(session.id ?? "") === session)
+    );
+  }
+
+  private publishWebMCPTools(
+    session: CDPSessionLike,
+    state: WebMCPToolSessionState,
+    tools: WebMCPToolDescriptor[],
+  ): void {
+    const added: WebMCPToolDescriptor[] = [];
+    for (const tool of tools) {
+      const key = `${tool.frameId}\u0000${tool.name}`;
+      if (JSON.stringify(state.tools.get(key)) === JSON.stringify(tool)) continue;
+      state.tools.set(key, tool);
+      added.push(tool);
+    }
+    if (added.length) this.emitWebMCPToolsChange(session, { event: "toolsadded", tools: added });
+  }
+
+  private reconcilePendingWebMCPTools(): void {
+    for (const [session, state] of this.webMCPToolSessions) {
+      if (state.error) continue;
+      const owned: WebMCPToolDescriptor[] = [];
+      for (const [key, tool] of state.pendingTools) {
+        if (this.ownsWebMCPFrame(session, tool.frameId)) {
+          state.pendingTools.delete(key);
+          owned.push(tool);
+        } else if (this.registry.getOwnerSessionId(tool.frameId)) {
+          state.pendingTools.delete(key);
+        }
+      }
+      this.publishWebMCPTools(session, state, owned);
+    }
+  }
+
+  private ensureWebMCPToolTracking(
+    session: CDPSessionLike,
+    seedOwnership: Promise<void> = Promise.resolve(),
+  ): Promise<void> {
+    if (this.disposed) return Promise.reject(new Error("WebMCP page is disposed"));
+    const existing = this.webMCPToolSessions.get(session);
+    if (existing && !existing.enableFailed)
+      return existing.error ? Promise.reject(existing.error) : existing.ready.promise;
+
+    const state: WebMCPToolSessionState = {
+      ready: createDeferred<void>(),
+      tools: new Map(),
+      pendingTools: new Map(),
+      added: (event) => {
+        if (this.webMCPToolSessions.get(session) !== state || state.error) return;
+        try {
+          const tools = event.tools.map(webMCPTool);
+          const owned: WebMCPToolDescriptor[] = [];
+          for (const tool of tools) {
+            if (this.ownsWebMCPFrame(session, tool.frameId)) {
+              owned.push(tool);
+            } else if (!this.registry.getOwnerSessionId(tool.frameId)) {
+              state.pendingTools.set(`${tool.frameId}\u0000${tool.name}`, tool);
+            }
+          }
+          this.publishWebMCPTools(session, state, owned);
+        } catch (error) {
+          fail(error);
+        }
+      },
+      removed: (event) => {
+        if (this.webMCPToolSessions.get(session) !== state || state.error) return;
+        const removed: WebMCPToolIdentity[] = [];
+        for (const tool of event.tools) {
+          state.pendingTools.delete(`${tool.frameId}\u0000${tool.name}`);
+          if (state.tools.delete(`${tool.frameId}\u0000${tool.name}`)) {
+            removed.push({ frameId: tool.frameId, name: tool.name });
+          }
+        }
+        if (removed.length)
+          this.emitWebMCPToolsChange(session, { event: "toolsremoved", tools: removed });
+      },
+    };
+    const fail = (error: unknown, enableFailed = false): void => {
+      if (this.webMCPToolSessions.get(session) !== state || state.error) return;
+      state.error = error instanceof Error ? error : new Error(String(error));
+      state.enableFailed = enableFailed;
+      this.removeWebMCPTools(session, state);
+      session.off("WebMCP.toolsAdded", state.added);
+      session.off("WebMCP.toolsRemoved", state.removed);
+      state.ready.reject(state.error);
+      this.notifyWebMCPToolsChanged();
+      this.logger.error("WebMCP tracking failed", {
+        pageId: this.pageId,
+        sessionId: session.id ?? "root",
+        targetId: this.targetId(),
+        domain: "WebMCP",
+        error: state.error.message,
+      });
+    };
+    this.webMCPToolSessions.set(session, state);
+    session.on("WebMCP.toolsAdded", state.added);
+    session.on("WebMCP.toolsRemoved", state.removed);
+    // Share pending/successful initialization; a later caller may retry a failed enable.
+    void seedOwnership
+      .then(async () => {
+        if (this.webMCPToolSessions.get(session) !== state) return;
+        try {
+          await session.send("WebMCP.enable");
+        } catch (error) {
+          fail(error, true);
+        }
+      })
+      .then(() => {
+        if (this.webMCPToolSessions.get(session) === state && !state.error) {
+          state.ready.resolve();
+          this.notifyWebMCPToolsChanged();
+        }
+      })
+      .catch(fail);
+    return state.ready.promise;
+  }
+
+  private stopWebMCPToolTracking(session: CDPSessionLike): void {
+    const state = this.webMCPToolSessions.get(session);
+    if (!state) return;
+    session.off("WebMCP.toolsAdded", state.added);
+    session.off("WebMCP.toolsRemoved", state.removed);
+    this.removeWebMCPTools(session, state);
+    this.webMCPToolSessions.delete(session);
+    state.ready.reject(new Error("WebMCP session was detached or disposed"));
+    this.notifyWebMCPToolsChanged();
+  }
+
+  private invalidateWebMCPFrame(frameId: string, clearPending = true): void {
+    const frames = new Set<string>();
+    const visit = (id: string): void => {
+      if (frames.has(id)) return;
+      frames.add(id);
+      for (const child of this.registry.frames.get(id)?.children ?? []) visit(child);
+    };
+    visit(frameId);
+    for (const [session, state] of this.webMCPToolSessions) {
+      this.removeWebMCPTools(session, state, (tool) => frames.has(tool.frameId), clearPending);
+    }
+  }
+
+  /** Read shared tool state after initialization and the existing bounded quiet window. */
   public async listWebMCPTools(
     options?: Partial<WebMCPToolsOptions>,
   ): Promise<WebMCPToolDescriptor[]> {
     const { timeout } = WebMCPToolsOptionsSchema.parse(options ?? {});
-    const quietWindowMs = Math.min(MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS, timeout);
-    const tools = new Map<string, WebMCPToolDescriptor>();
-    let toolsVersion = 0;
-    let lastUpdatedAt: number | undefined;
-    let scheduleQuietWindow: (() => void) | undefined;
-
-    const toolKey = (tool: Pick<WebMCPToolDescriptor, "frameId" | "name">): string =>
-      `${tool.frameId}\u0000${tool.name}`;
-
-    const onToolsAdded = (event: Protocol.WebMCP.ToolsAddedEvent): void => {
-      for (const tool of event.tools) {
-        const normalized = webMCPTool(tool);
-        tools.set(toolKey(normalized), normalized);
-      }
-      if (event.tools.length === 0) return;
-      toolsVersion += 1;
-      lastUpdatedAt = Date.now();
-      scheduleQuietWindow?.();
-    };
-
-    const onToolsRemoved = (event: Protocol.WebMCP.ToolsRemovedEvent): void => {
-      let changed = false;
-      for (const tool of event.tools) {
-        changed = tools.delete(toolKey(tool)) || changed;
-      }
-      if (!changed) return;
-      toolsVersion += 1;
-      lastUpdatedAt = Date.now();
-      scheduleQuietWindow?.();
-    };
-
     const deadline = Date.now() + timeout;
-    const sessions = [
+    const ownedSessions = (): CDPSessionLike[] => [
       this.mainSession,
       ...[...this.sessions.values()].filter((session) => session !== this.mainSession),
     ];
-    for (const session of sessions) {
-      session.on("WebMCP.toolsAdded", onToolsAdded);
-      session.on("WebMCP.toolsRemoved", onToolsRemoved);
-    }
-
-    try {
-      await Promise.all(sessions.map((session) => session.send("WebMCP.enable")));
-      if (quietWindowMs === 0) return [...tools.values()];
-
-      await new Promise<void>((resolve) => {
-        const versionAfterEnable = toolsVersion;
-        let quietTimer: ReturnType<typeof setTimeout> | undefined;
-        let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
-        let settled = false;
-
-        const finish = (): void => {
-          if (settled) return;
-          settled = true;
-          if (quietTimer !== undefined) clearTimeout(quietTimer);
-          if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
-          resolve();
-        };
-
-        scheduleQuietWindow = (): void => {
-          if (settled) return;
-          if (quietTimer !== undefined) clearTimeout(quietTimer);
-
-          const now = Date.now();
-          if (now >= deadline) {
-            finish();
-            return;
-          }
-
-          const updatedAfterEnable = toolsVersion > versionAfterEnable;
-          const quietRemaining =
-            updatedAfterEnable && lastUpdatedAt !== undefined
-              ? Math.max(0, quietWindowMs - (now - lastUpdatedAt))
-              : quietWindowMs;
-          quietTimer = setTimeout(finish, Math.min(quietRemaining, deadline - now));
-        };
-
-        deadlineTimer = setTimeout(finish, Math.max(0, deadline - Date.now()));
-        scheduleQuietWindow();
-      });
-    } finally {
-      for (const session of sessions) {
-        session.off("WebMCP.toolsAdded", onToolsAdded);
-        session.off("WebMCP.toolsRemoved", onToolsRemoved);
+    const ready = async (): Promise<void> => {
+      await Promise.all(ownedSessions().map((session) => this.ensureWebMCPToolTracking(session)));
+      if (this.disposed) throw new Error("WebMCP page is disposed");
+      for (const state of this.webMCPToolSessions.values()) {
+        if (state.error) throw state.error;
+      }
+    };
+    await ready();
+    if (timeout > 0 && Date.now() < deadline) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let changed!: () => void;
+      try {
+        await new Promise<void>((resolve) => {
+          changed = () => {
+            if (timer !== undefined) clearTimeout(timer);
+            if (
+              this.disposed ||
+              [...this.webMCPToolSessions.values()].some((state) => state.error)
+            ) {
+              resolve();
+              return;
+            }
+            timer = setTimeout(
+              resolve,
+              Math.max(0, Math.min(MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS, deadline - Date.now())),
+            );
+          };
+          this.webMCPToolsChanged.add(changed);
+          changed();
+        });
+      } finally {
+        this.webMCPToolsChanged.delete(changed);
+        if (timer !== undefined) clearTimeout(timer);
       }
     }
-
-    return [...tools.values()];
+    // Include adopted sessions and surface their initialization errors rather than partial success.
+    await ready();
+    return ownedSessions().flatMap((session) =>
+      [...(this.webMCPToolSessions.get(session)?.tools.values() ?? [])]
+        .filter((tool) => this.ownsWebMCPFrame(session, tool.frameId))
+        .map((tool) => structuredClone(tool)),
+    );
   }
 
   public async invokeWebMCPTool(
@@ -707,6 +992,12 @@ export class Page {
   ): Promise<WebMCPInvocationDescriptor> {
     const { input } = WebMCPInvokeOptionsSchema.parse(options ?? {});
     const session = this.webMCPSessionForFrame(frameId);
+    await this.ensureWebMCPToolTracking(session);
+    if (this.disposed || !this.ownsWebMCPFrame(session, frameId)) {
+      throw new Error(
+        `WebMCP session for frame "${frameId}" was disposed before invocation registration completed.`,
+      );
+    }
     const responseState = this.ensureWebMCPResponseListener(session);
     responseState.pendingCommands += 1;
 
@@ -890,12 +1181,9 @@ export class Page {
 
   /** Release page-scoped listeners, pending work, and network tracking. */
   public dispose(): void {
-    for (const subscription of this.cdpEventSubscriptions) {
-      this.cdpEventSubscriptions.delete(subscription);
-      for (const sessionId of subscription.sessionHandlers.keys()) {
-        this.detachCDPEventSubscription(subscription, sessionId);
-      }
-    }
+    this.disposed = true;
+    for (const dispose of this.pageEventDisposers) dispose();
+    for (const session of this.webMCPToolSessions.keys()) this.stopWebMCPToolTracking(session);
     this.teardownWebMCPInvocations();
     this.networkManager.dispose();
   }
@@ -1219,7 +1507,10 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  async screenshot(options?: UnderstudyScreenshotOptions): Promise<Uint8Array> {
+  async screenshot(
+    options?: UnderstudyScreenshotOptions,
+    parentProgress?: Progress,
+  ): Promise<Uint8Array> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
@@ -1241,48 +1532,112 @@ export class Page {
     const scaleMode: NonNullable<UnderstudyScreenshotOptions["scale"]> = opts.scale ?? "device";
     const frames = collectFramesForScreenshot(this);
     const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
-    const captureScale = await computeScreenshotScale(this, scaleMode);
     const maskLocators = opts.mask ?? [];
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
-    const exec = async (): Promise<Uint8Array> => {
+    let failure: { error: unknown } | undefined;
+    const exec = async (progress: Progress): Promise<Uint8Array> => {
       try {
+        const captureScale = await computeScreenshotScale(this, scaleMode, progress);
         if (opts.omitBackground) {
-          cleanupTasks.push(await setTransparentBackground(this.mainSession));
+          await setTransparentBackground(this.mainSession, progress, cleanupTasks);
         }
 
         if (animationsMode === "disabled") {
-          cleanupTasks.push(await disableAnimations(frames));
+          await disableAnimations(frames, progress, cleanupTasks);
         }
 
         if (caretMode === "hide") {
-          cleanupTasks.push(await hideCaret(frames));
+          await hideCaret(frames, progress, cleanupTasks);
         }
 
         if (opts.style && opts.style.trim()) {
-          cleanupTasks.push(await applyStyleToFrames(frames, opts.style, "custom"));
+          await applyStyleToFrames(frames, opts.style, "custom", progress, cleanupTasks);
         }
 
         if (maskLocators.length > 0) {
-          cleanupTasks.push(await applyMaskOverlays(maskLocators, opts.maskColor ?? "#FF00FF"));
+          await applyMaskOverlays(
+            maskLocators,
+            opts.maskColor ?? "#FF00FF",
+            progress,
+            cleanupTasks,
+          );
         }
 
-        const buffer = await this.mainFrameWrapper.screenshot({
-          fullPage: opts.fullPage,
-          clip,
-          type,
-          quality: type === "jpeg" ? opts.quality : undefined,
-          scale: captureScale,
-        });
-
-        return buffer;
+        // Setup and cleanup mutate this page only. Hold the browser-wide lock solely
+        // while activating and capturing, so stalled preparation cannot block other tabs.
+        return await withScreenshotLock(
+          this.conn,
+          () =>
+            this.mainFrameWrapper.screenshot(
+              {
+                fullPage: opts.fullPage,
+                clip,
+                type,
+                quality: type === "jpeg" ? opts.quality : undefined,
+                scale: captureScale,
+              },
+              progress,
+            ),
+          progress,
+        );
+      } catch (error) {
+        progress.throwIfStopped();
+        failure = { error };
+        throw error;
       } finally {
         await runScreenshotCleanups(cleanupTasks);
       }
     };
 
-    return await withTimeout(exec(), opts.timeout, "screenshot");
+    try {
+      return await runWithProgress(
+        parentProgress ?? { name: "screenshot", timeout: opts.timeout ?? 0 },
+        (progress) => withScreenshotLock(this, () => exec(progress), progress),
+      );
+    } catch (error) {
+      // Cleanup may outlast the deadline; preserve a capture error already received.
+      throw failure ? failure.error : error;
+    }
+  }
+
+  /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
+  async pdf(options?: PagePDFOptions, parentProgress?: Progress): Promise<PagePDFResult> {
+    const {
+      timeout = 30_000,
+      width,
+      height,
+      margin,
+      tagged = false,
+      outline = false,
+      ...printOptions
+    } = options ?? {};
+    return await runWithProgress(parentProgress ?? { name: "pdf", timeout }, (progress) =>
+      withScreenshotLock(
+        this,
+        async () => {
+          // Keep the print promise in the queue even if progress stops the caller's wait.
+          const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
+            "Page.printToPDF",
+            {
+              ...printOptions,
+              paperWidth: width,
+              paperHeight: height,
+              marginTop: margin?.top ?? 0,
+              marginBottom: margin?.bottom ?? 0,
+              marginLeft: margin?.left ?? 0,
+              marginRight: margin?.right ?? 0,
+              generateTaggedPDF: tagged,
+              generateDocumentOutline: outline,
+              transferMode: "ReturnAsBase64",
+            },
+          );
+          return { data };
+        },
+        progress,
+      ),
+    );
   }
 
   /**
@@ -1435,6 +1790,15 @@ export class Page {
     return targetFrame.evaluateInLocatorWorld(expression);
   }
 
+  /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
+  async evaluateWithShadowRoots(functionSource: string): Promise<unknown> {
+    return evaluateWithShadowRoots(
+      this.mainSession,
+      (expression) => this.evaluate(expression),
+      functionSource,
+    );
+  }
+
   /**
    * Evaluate a function or expression in the current main frame's main world.
    * - If a string is provided, it is treated as a JS expression.
@@ -1582,24 +1946,34 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
   }
-  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
-    await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    progress?: Progress,
+  ): Promise<void> {
+    await runLocatorStep(progress, "updating cursor", () => this.updateCursor(x, y, progress));
+    await runLocatorStep(progress, "scrolling page", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
 
     // Synthesize a simple mouse move + press + release sequence
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseWheel",
-      x,
-      y,
-      button: "none",
-      deltaX,
-      deltaY,
-    } as Protocol.Input.DispatchMouseEventRequest);
+    await runLocatorStep(progress, "scrolling page", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x,
+        y,
+        button: "none",
+        deltaX,
+        deltaY,
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
   }
 
   /**
@@ -1617,12 +1991,14 @@ export class Page {
       delay?: number;
       route?: Array<{ x: number; y: number }>;
     },
+    progress?: Progress,
   ): Promise<void> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
 
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) =>
+      progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
     const buttonMask = (b: typeof button): number => {
       switch (b) {
@@ -1638,65 +2014,100 @@ export class Page {
     };
 
     // Move to start
-    await this.updateCursor(fromX, fromY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x: fromX,
-      y: fromY,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    // Press
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x: fromX,
-      y: fromY,
-      button,
-      buttons: buttonMask(button),
-      clickCount: 1,
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    const samePoint = (point: { x: number; y: number }, x: number, y: number) =>
-      point.x === x && point.y === y;
-    const route = options?.route ?? [];
-    let routeStart = 0;
-    let routeEnd = route.length;
-    while (routeStart < routeEnd && samePoint(route[routeStart], fromX, fromY)) routeStart++;
-    while (routeEnd > routeStart && samePoint(route[routeEnd - 1], toX, toY)) routeEnd--;
-
-    const movementPoints =
-      route.length > 0
-        ? [...route.slice(routeStart, routeEnd), { x: toX, y: toY }]
-        : Array.from({ length: steps }, (_, index) => {
-            const t = (index + 1) / steps;
-            return {
-              x: fromX + (toX - fromX) * t,
-              y: fromY + (toY - fromY) * t,
-            };
-          });
-
-    for (const { x, y } of movementPoints) {
-      await this.updateCursor(x, y);
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+    await runLocatorStep(progress, "updating cursor", () =>
+      this.updateCursor(fromX, fromY, progress),
+    );
+    await runLocatorStep(progress, "dragging mouse", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
+        x: fromX,
+        y: fromY,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
+
+    let pressed = false;
+    let x = fromX;
+    let y = fromY;
+    const release = () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
         x,
         y,
         button,
         buttons: buttonMask(button),
+        clickCount: 1,
       } as Protocol.Input.DispatchMouseEventRequest);
-      if (delay) await sleep(delay);
-    }
+    // Release even when a drag expires after the button was pressed.
+    try {
+      progress?.throwIfStopped();
+      // Press
+      await runLocatorStep(progress, "pressing mouse", () => {
+        pressed = true;
+        return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: fromX,
+          y: fromY,
+          button,
+          buttons: buttonMask(button),
+          clickCount: 1,
+        } as Protocol.Input.DispatchMouseEventRequest);
+      });
 
-    // Release at end
-    await this.updateCursor(toX, toY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x: toX,
-      y: toY,
-      button,
-      buttons: buttonMask(button),
-      clickCount: 1,
-    } as Protocol.Input.DispatchMouseEventRequest);
+      const samePoint = (point: { x: number; y: number }, x: number, y: number) =>
+        point.x === x && point.y === y;
+      const route = options?.route ?? [];
+      let routeStart = 0;
+      let routeEnd = route.length;
+      while (routeStart < routeEnd && samePoint(route[routeStart], fromX, fromY)) routeStart++;
+      while (routeEnd > routeStart && samePoint(route[routeEnd - 1], toX, toY)) routeEnd--;
+
+      const movementPoints =
+        route.length > 0
+          ? [...route.slice(routeStart, routeEnd), { x: toX, y: toY }]
+          : Array.from({ length: steps }, (_, index) => {
+              const t = (index + 1) / steps;
+              return {
+                x: fromX + (toX - fromX) * t,
+                y: fromY + (toY - fromY) * t,
+              };
+            });
+
+      for (const point of movementPoints) {
+        progress?.throwIfStopped();
+        await runLocatorStep(progress, "updating cursor", () =>
+          this.updateCursor(point.x, point.y, progress),
+        );
+        await runLocatorStep(progress, "dragging mouse", () => {
+          x = point.x;
+          y = point.y;
+          return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+            type: "mouseMoved",
+            x,
+            y,
+            button,
+            buttons: buttonMask(button),
+          } as Protocol.Input.DispatchMouseEventRequest);
+        });
+        if (delay) await sleep(delay);
+      }
+
+      // Release at end
+      await runLocatorStep(progress, "updating cursor", () =>
+        this.updateCursor(toX, toY, progress),
+      );
+      await runLocatorStep(progress, "releasing mouse", () => {
+        // Cleanup must not repeat a release whose response is still pending.
+        pressed = false;
+        return release();
+      });
+    } finally {
+      if (pressed) {
+        if (progress) await progress.cleanup(release);
+        else await release().catch(() => {});
+      }
+    }
+    progress?.throwIfStopped();
   }
 
   /**
@@ -1827,9 +2238,10 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
-  async keyPress(key: string, options?: { delay?: number }): Promise<void> {
+  async keyPress(key: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) =>
+      progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
     // Split key combination by + but handle the special case of "+" key itself
     function split(keyString: string): string[] {
@@ -1858,39 +2270,56 @@ export class Page {
     const mainKey = tokens[tokens.length - 1];
     const modifierKeys = tokens.slice(0, -1);
 
+    const heldKeys = new Set<string>();
     try {
-      for (const modKey of modifierKeys) {
-        await this.keyDown(modKey);
+      for (const key of [...modifierKeys, mainKey]) {
+        await runLocatorStep(progress, "pressing key", () => {
+          heldKeys.add(key);
+          return this.keyDown(key);
+        });
       }
-
-      await this.keyDown(mainKey);
       if (delay) await sleep(delay);
-      await this.keyUp(mainKey);
-
-      for (let i = modifierKeys.length - 1; i >= 0; i--) {
-        await this.keyUp(modifierKeys[i]);
+      for (const key of [mainKey, ...modifierKeys.toReversed()]) {
+        await runLocatorStep(progress, "releasing key", () => {
+          // Cleanup must not repeat a release whose response is still pending.
+          heldKeys.delete(key);
+          return this.keyUp(key);
+        });
       }
     } catch (error) {
-      // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
+      // Release keys already dispatched without allowing more key presses.
+      if (progress) {
+        await progress.cleanup(() =>
+          Promise.allSettled([...heldKeys].reverse().map((key) => this.keyUp(key))),
+        );
+      }
       this._pressedModifiers.clear();
       throw error;
     }
   }
-  async captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot> {
-    return await captureHybridSnapshot(this, options, this.logger);
+  async captureSnapshot(
+    options?: SnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<HybridSnapshot> {
+    return await runWithProgress(parentProgress ?? { name: "snapshot", timeout: 0 }, (progress) =>
+      captureHybridSnapshot(this, options, progress, this.logger),
+    );
   }
 
-  async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
-    const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot({
-      pierceShadow: true,
-      includeIframes: options?.includeIframes,
-    });
-
-    return {
-      formattedTree: combinedTree,
-      xpathMap: combinedXpathMap,
-      urlMap: combinedUrlMap,
-    };
+  async snapshot(
+    options?: PageSnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<SnapshotResult> {
+    return await runWithProgress(
+      parentProgress ?? { name: "snapshot", timeout: options?.timeout ?? 20_000 },
+      async (progress) => {
+        const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot(
+          { pierceShadow: true, includeIframes: options?.includeIframes },
+          progress,
+        );
+        return { formattedTree: combinedTree, xpathMap: combinedXpathMap, urlMap: combinedUrlMap };
+      },
+    );
   }
 
   // Track pressed modifier keys

@@ -178,24 +178,57 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 The Browserbase URL controls extension, session, and connection requests that `browserbase.launch()` and `browserbase.connect()` make. The Stagehand URL controls Model Gateway and managed-cache requests that the browser runtime makes.
 
-### Use an existing Browserbase client
+### Browserbase client options
 
-In TypeScript, pass an existing Browserbase SDK client when you need Stagehand's session and extension lifecycle calls to use that client's configuration. This is useful for applications that centralize Browserbase client setup or provide a custom Browserbase endpoint.
+`browserbase.launch()` and `browserbase.connect()` create a Browserbase client for session and extension requests. Pass `clientOptions` (TypeScript), `client_options` (Python), or `ClientOptions` (Go) to tune that client's timeout, retries, default headers, and default query parameters. TypeScript also accepts a custom `fetch`, Python accepts an `httpx.AsyncClient` as `http_client`, and Go accepts an `*http.Client` as `HTTPClient`. `apiKey` and `baseUrl` stay top-level, so one key authenticates both Browserbase and Stagehand.
 
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
-import Browserbase from "@browserbasehq/sdk";
-import { browserbase } from "@browserbasehq/stagehand";
-
-const client = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY });
-
-const browser = await browserbase.connect({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  client,
-  sessionId: "session_123",
+  clientOptions: {
+    timeout: 30_000, // milliseconds
+    maxRetries: 1,
+    defaultHeaders: { "X-Request-Source": "my-app" },
+  },
 });
 ```
+</Tab>
 
-When `client` is provided, it determines the Browserbase management endpoint; `baseUrl` is not used for those calls. `apiKey` still configures Stagehand runtime authentication.
+<Tab title="Python">
+```python
+browser = await browserbase.launch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    client_options={
+        "timeout": 30.0,  # seconds
+        "max_retries": 1,
+        "default_headers": {"X-Request-Source": "my-app"},
+    },
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+maxRetries := 1
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	ClientOptions: &stagehand.BrowserbaseClientOptions{
+		Timeout:        30 * time.Second, // per attempt
+		MaxRetries:     &maxRetries,
+		DefaultHeaders: map[string]string{"X-Request-Source": "my-app"},
+		// HTTPClient: myHTTPClient, // optional caller-owned *http.Client
+	},
+})
+if err != nil {
+	return err
+}
+```
+</Tab>
+</Tabs>
+
+Units follow each SDK: TypeScript timeouts are in milliseconds, Python timeouts are in seconds, and Go uses a `time.Duration` that bounds each attempt. Stagehand never closes an `http_client` you pass; keep it open until `browser.close()` returns, because releasing the session uses it. Go never modifies an `HTTPClient` you pass, so its own `Timeout` and `Transport` still apply. In every SDK, default headers override the client's own headers on conflict, including `X-BB-API-Key` and `User-Agent`. Go rejects invalid header names or values before sending any request.
 
 ### Environment variables
 
@@ -532,7 +565,11 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 #### Connecting over CDP
 
-`localBrowser.connect()` attaches to a Chromium browser that is already running and exposing a DevTools endpoint. By default, it loads Stagehand's extension from the SDK host, so use it when the SDK and browser share a filesystem. For an existing Browserbase session, use `browserbase.connect()` with its session ID as shown above.
+`localBrowser.connect()` attaches to a running Chromium browser through its DevTools endpoint. It discovers an installed Stagehand extension first, then loads the bundled extension if none is found or discovery is unsupported. Loading requires a shared filesystem. For Browserbase sessions, use `browserbase.connect()` with the session ID; the extension must already be installed.
+
+<Note>
+Connect-time `extensionId` / `extension_id` / `ExtensionID` is deprecated and ignored.
+</Note>
 
 <Tabs>
 <Tab title="TypeScript">
