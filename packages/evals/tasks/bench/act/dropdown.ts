@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "dropdown" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/dropdown/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/dropdown/");
 
       // click the dropdown element to expand it
       const xpath = "xpath=/html/body/div/div/button";

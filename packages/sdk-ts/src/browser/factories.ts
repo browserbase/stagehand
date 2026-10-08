@@ -22,7 +22,7 @@ import {
 import { CDPClient, CDPConnectionClosedError, type CDPClientOptions } from "../cdpClient.js";
 import {
   createBrowserbaseSessionClient,
-  type BrowserbaseSessionClient,
+  type BrowserbaseSessionClientFactory,
 } from "./browserbaseSession.js";
 import {
   createBrowserbaseServicesClient,
@@ -45,7 +45,7 @@ export type ClaimedStagehandBrowser = {
 
 type BrowserFactoryDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
-  createBrowserbaseSessionClient?: (apiKey: string, baseUrl: string) => BrowserbaseSessionClient;
+  createBrowserbaseSessionClient?: BrowserbaseSessionClientFactory;
   createBrowserbaseServicesClient?: (apiKey: string, baseUrl: string) => BrowserbaseServicesClient;
   connectCdp?: (options: CDPClientOptions) => Promise<CDPClient>;
 };
@@ -144,9 +144,12 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
     browserbase: {
       async launch(input) {
-        const { apiKey, baseUrl, ...sessionOptions } = BrowserbaseLaunchOptionsSchema.parse(input);
+        const { apiKey, baseUrl, clientOptions, ...sessionOptions } =
+          BrowserbaseLaunchOptionsSchema.parse(input);
         return await withStagehandInitDeadline(async (signal) => {
-          const sessionPromise = createBrowserbase(apiKey, baseUrl).createSession(sessionOptions);
+          const sessionPromise = createBrowserbase(apiKey, baseUrl, clientOptions).createSession(
+            sessionOptions,
+          );
           let session: Awaited<typeof sessionPromise>;
           try {
             session = await abortable(sessionPromise, signal);
@@ -184,7 +187,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
       async connect(input) {
         const options = BrowserbaseConnectOptionsSchema.parse(input);
-        const client = createBrowserbase(options.apiKey, options.baseUrl);
+        const client = createBrowserbase(options.apiKey, options.baseUrl, options.clientOptions);
         if (!client.connectSession) {
           throw new Error("Browserbase session connection is not supported by this client");
         }
