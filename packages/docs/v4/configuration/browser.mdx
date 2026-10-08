@@ -565,7 +565,11 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 #### Connecting over CDP
 
-`localBrowser.connect()` attaches to a Chromium browser that is already running and exposing a DevTools endpoint. By default, it loads Stagehand's extension from the SDK host, so use it when the SDK and browser share a filesystem. For an existing Browserbase session, use `browserbase.connect()` with its session ID as shown above.
+`localBrowser.connect()` attaches to a running Chromium browser through its DevTools endpoint. It discovers an installed Stagehand extension first, then loads the bundled extension if none is found or discovery is unsupported. Loading requires a shared filesystem. For Browserbase sessions, use `browserbase.connect()` with the session ID; the extension must already be installed.
+
+<Note>
+Connect-time `extensionId` / `extension_id` / `ExtensionID` is deprecated and ignored.
+</Note>
 
 <Tabs>
 <Tab title="TypeScript">

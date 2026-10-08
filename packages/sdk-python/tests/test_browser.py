@@ -573,27 +573,30 @@ async def test_launch_converts_argument_tuples_to_flag_lists(
     await handle.close()
 
 
-async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_source(
+@pytest.mark.parametrize("extension_id", [None, "", "existing", "wrong-id"])
+async def test_local_connect_ignores_id_and_defers_packaged_extension(
     fake_cdp: type[FakeCDPClient],
+    monkeypatch: pytest.MonkeyPatch,
+    extension_id: str | None,
 ) -> None:
-    with_id = await local_browser.connect(cdp_url="http://browser", extension_id="existing")
-    assert fake_cdp.connect_arguments[-1]["extension_id"] == "existing"
-    assert fake_cdp.connect_arguments[-1]["extension_dir"] is None
-    await with_id.close()
+    accessed = []
 
-    packaged = await local_browser.connect(cdp_url="http://browser")
+    def directory() -> Path:
+        accessed.append(True)
+        return Path("/bundle")
+
+    monkeypatch.setattr(browser, "extension_directory", directory)
+    handle = await local_browser.connect(cdp_url="http://browser", extension_id=extension_id)
     arguments = fake_cdp.connect_arguments[-1]
     assert arguments["extension_id"] is None
-    assert str(arguments["extension_dir"]).endswith(("stagehand/_extension", "extension/dist"))
-    assert arguments["service_worker_url_includes"] == "service-worker.js"
-    assert set(arguments) == {
-        "cdp_url",
-        "extension_dir",
-        "extension_id",
-        "preloaded_extension",
-        "service_worker_url_includes",
-    }
-    await packaged.close()
+    assert arguments["extension_dir"] is None
+    assert arguments["preloaded_extension"] is False
+    assert accessed == []
+    get_directory = arguments["local_extension_dir"]
+    assert callable(get_directory)
+    assert get_directory() == "/bundle"
+    assert accessed == [True]
+    await handle.close()
 
 
 async def test_browser_factory_bounds_the_complete_connection_lifecycle(
@@ -756,9 +759,11 @@ async def test_browserbase_launch_keep_alive_still_closes_session_explicitly(
     assert fake_cdp.instances[-1].close_calls == 1
 
 
-async def test_browserbase_connect_releases_session_and_selects_extension_mode(
+@pytest.mark.parametrize("extension_id", [None, "", "existing", "wrong-id"])
+async def test_browserbase_connect_releases_session_and_ignores_extension_id(
     monkeypatch: pytest.MonkeyPatch,
     fake_cdp: type[FakeCDPClient],
+    extension_id: str | None,
 ) -> None:
     client, configurations = _install_browserbase_client(monkeypatch)
     preloaded = await browserbase.connect(
@@ -776,11 +781,12 @@ async def test_browserbase_connect_releases_session_and_selects_extension_mode(
     caller_extension = await browserbase.connect(
         api_key="api-key",
         session_id="session",
-        extension_id="caller-extension",
+        extension_id=extension_id,
     )
     arguments = fake_cdp.connect_arguments[-1]
-    assert arguments["preloaded_extension"] is False
-    assert arguments["extension_id"] == "caller-extension"
+    assert arguments["preloaded_extension"] is True
+    assert arguments["extension_id"] is None
+    assert arguments["local_extension_dir"] is None
     await caller_extension.close()
 
     assert client.connect_calls == ["session", "session"]
@@ -810,6 +816,7 @@ async def test_browserbase_launch_and_connect_pass_client_options(
             api_key="api-key",
             session_id="session",
             client_options={"max_retries": 0},
+            extension_id="ignored-id",
         )
         await connected.close()
 
