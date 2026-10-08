@@ -251,8 +251,9 @@ describe("handleDoctor --help", () => {
     spy.mockRestore();
     expect(exit).toBe(0);
     expect(text).toContain("evals doctor");
-    // Hidden flag should NOT appear in help
-    expect(text).not.toContain("--probe");
+    // --probe and --harness are public flags
+    expect(text).toContain("--probe");
+    expect(text).toContain("--harness");
   });
 
   it("prints help and exits 0 on -h", async () => {
