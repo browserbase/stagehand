@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_zillow" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/zillow/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/zillow/");
 
       const { data: real_estate_listings } = await stagehand.extract(
         "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",

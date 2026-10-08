@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "heal_scroll_50" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/aigrant/");
 
       // Self-healing act(Action) replay (restored by
       // stagehand#2427): same supplied action as the v3 twin — a
