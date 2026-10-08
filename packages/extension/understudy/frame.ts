@@ -227,7 +227,9 @@ export class Frame implements FrameManager {
       try {
         if (response.exceptionDetails || !objectId) {
           throw new Error(
-            response.exceptionDetails?.text ?? "Selector wait handle was not returned",
+            response.exceptionDetails?.exception?.description ??
+              response.exceptionDetails?.text ??
+              "Selector wait handle was not returned",
           );
         }
         let result: Protocol.Runtime.CallFunctionOnResponse;
@@ -250,7 +252,11 @@ export class Frame implements FrameManager {
           continue;
         }
         if (result.exceptionDetails) {
-          throw new Error(result.exceptionDetails.text ?? "Selector wait failed");
+          throw new Error(
+            result.exceptionDetails.exception?.description ??
+              result.exceptionDetails.text ??
+              "Selector wait failed",
+          );
         }
         completed = true;
         return result.result.value as boolean;

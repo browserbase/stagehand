@@ -451,6 +451,39 @@ describe("waitForSelector deadline", () => {
     expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "wait-2" });
   });
 
+  it.each([
+    { phase: "installation", description: "Error: installation failed" },
+    { phase: "installation", description: undefined },
+    { phase: "waiting", description: "Error: selector check failed" },
+    { phase: "waiting", description: undefined },
+  ])(
+    "preserves browser errors during $phase (description=$description)",
+    async ({ phase, description }) => {
+      send.mockImplementation(async (method, params) => {
+        if (
+          (phase === "installation" && method === "Runtime.evaluate") ||
+          (phase === "waiting" &&
+            method === "Runtime.callFunctionOn" &&
+            (params as { awaitPromise?: boolean }).awaitPromise)
+        ) {
+          return {
+            result: {},
+            exceptionDetails: {
+              text: "Uncaught (in promise)",
+              ...(description === undefined ? {} : { exception: { description } }),
+            },
+          };
+        }
+        return respond(method);
+      });
+      await expect(page.waitForSelector("button")).rejects.toThrow(
+        description ?? "Uncaught (in promise)",
+      );
+      expect(waits()).toHaveLength(1);
+      expect(cleanupCalls()).toHaveLength(phase === "waiting" ? 1 : 0);
+    },
+  );
+
   it("preserves a closed session error", async () => {
     const closed = new Error("CDP connection closed: socket-close");
     send.mockRejectedValue(closed);
