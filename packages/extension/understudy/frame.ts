@@ -243,6 +243,7 @@ export class Frame implements FrameManager {
         } catch (error) {
           progress.throwIfStopped();
           const message = error instanceof Error ? error.message : String(error);
+          // Retry context loss once, matching locator evaluation recovery
           if (attempt !== 0 || !message.includes("Cannot find context with specified id"))
             throw error;
           executionContexts.unregisterLocatorContext(this.session, response.contextId);
