@@ -16,11 +16,13 @@ import {
   buildExternalHarnessPrompt,
   metricValue,
   parseEvalResult,
+  resolveFinalAnswer,
   runExternalHarnessTask,
   type ExternalHarnessToolAdapterLike,
   type MetricValue,
   type ParsedEvalResult,
 } from "./harnesses/externalRunner.js";
+import { resolveStepBudget } from "./stepBudget.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
@@ -64,15 +66,25 @@ export async function runEveAgent({
     captureEvidence: toolAdapter.captureEvidence,
     drainStepObservations: toolAdapter.drainStepObservations,
     observedToolMatcher: toolAdapter.observedToolMatcher,
+    browserSessionLoss: toolAdapter.browserSessionLoss,
   };
+  const maxToolSteps = resolveStepBudget({
+    harnessEnvKey: "EVAL_EVE_MAX_STEPS",
+    dataset: plan.dataset,
+    harnessDefault: 50,
+  });
   return runExternalHarnessTask({
     harness: "eve",
     plan,
+    model,
     logger,
     toolAdapter: adapterLike,
     verifier,
     resultContract: "structured_output",
     fallbackErrorMessage: "Eve did not report success",
+    stepBudget: maxToolSteps,
+    stepBudgetUnit: "successful_tool_calls",
+    systemPromptMode: !serverUrl && toolAdapter ? "native" : "task_prefix",
     runSession: async (prompt) => {
       const { buildEveTranscript, runEveSession, stringifyError } =
         await import("@browserbasehq/stagehand-integrations-eve-sdk");
@@ -93,7 +105,7 @@ export async function runEveAgent({
         signal,
         server,
         client,
-        maxToolSteps: readEveMaxToolSteps(),
+        maxToolSteps,
         onToolResult: (name) => {
           if (toolAdapter?.observedToolMatcher(name)) toolAdapter.recordObservation?.();
         },
@@ -127,7 +139,13 @@ export async function runEveAgent({
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
           ...(observedToolName && { observedToolName }),
-          finalAnswer: parsed.finalAnswer ?? raw.finalMessage,
+          // A run cut off on its step budget never reached a conclusion: its
+          // last message is mid-task narration, which must not be graded as
+          // (or stand in for) an answer.
+          finalAnswer:
+            raw.status === "max_turns"
+              ? (parsed.finalAnswer ?? "")
+              : resolveFinalAnswer(parsed, raw.finalMessage),
           status,
           usage: {
             input_tokens: raw.tokenUsage.inputTokens,
@@ -178,14 +196,6 @@ async function prepareGeneratedServer(
   };
 }
 
-function readEveMaxToolSteps(): number {
-  for (const key of ["EVAL_EVE_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
-}
-
 function readPositiveIntEnv(key: string, fallback: number): number {
   const parsed = Number.parseInt(process.env[key] ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -201,6 +211,7 @@ function stringOnly(
 
 function normalizeEveUsage(usage: EveTokenUsage) {
   return {
+    reported: usage.reported,
     inputTokens: toFiniteNumber(usage.inputTokens),
     outputTokens: toFiniteNumber(usage.outputTokens),
     cachedInputTokens: toFiniteNumber(usage.cacheReadTokens),
