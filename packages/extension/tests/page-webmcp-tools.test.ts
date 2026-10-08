@@ -106,6 +106,7 @@ describe("Page WebMCP tool discovery", () => {
               annotations: {
                 readOnly: true,
                 untrustedContent: true,
+                consequential: true,
                 autosubmit: false,
               },
               frameId: "frame-1",
@@ -139,6 +140,7 @@ describe("Page WebMCP tool discovery", () => {
         annotations: {
           readOnly: true,
           untrustedContent: true,
+          consequential: true,
           autosubmit: false,
         },
         frameId: "frame-1",

@@ -4188,6 +4188,9 @@
         "untrusted_content": {
           "type": "boolean"
         },
+        "consequential": {
+          "type": "boolean"
+        },
         "autosubmit": {
           "type": "boolean"
         }
