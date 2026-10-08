@@ -249,8 +249,12 @@ export class InMemorySessionStore implements SessionStore {
     };
 
     if (params.browserbaseSessionCreateParams) {
-      options.browserbaseSessionCreateParams =
-        params.browserbaseSessionCreateParams;
+      options.browserbaseSessionCreateParams = {
+        ...params.browserbaseSessionCreateParams,
+      };
+      if (!isBrowserbase) {
+        delete options.browserbaseSessionCreateParams.keepAlive;
+      }
     }
 
     if (isBrowserbase) {

@@ -28,12 +28,19 @@ describe("session store CAPTCHA options", () => {
             modelName: "openai/gpt-4.1-mini",
             waitForCaptchaSolves: options.wait,
             browserbaseSessionCreateParams: {
+              keepAlive: true,
               browserSettings: { solveCaptchas: options.solve },
             },
             localBrowserLaunchOptions: { cdpUrl: "ws://attached-browser" },
           });
           const stagehand = await store.getOrCreateStagehand(sessionId, {});
           assert.equal(stagehand.isCaptchaAutoSolveEnabled, options.expected);
+          assert.equal(
+            stagehand["keepAlive"],
+            browserType === "browserbase" ? true : undefined,
+          );
+          const stored = await store.getSessionConfig(sessionId);
+          assert.equal(stored.browserbaseSessionCreateParams?.keepAlive, true);
         } finally {
           await store.destroy();
         }

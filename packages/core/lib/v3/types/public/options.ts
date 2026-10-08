@@ -66,8 +66,9 @@ export interface V3Options {
   selfHeal?: boolean;
   /**
    * Wait for Browserbase CAPTCHA solves before agent steps and actions.
-   * Defaults to browserSettings.solveCaptchas when provided, otherwise true on
-   * Browserbase and false locally. Set true when attaching locally to a
+   * Defaults to browserbaseSessionCreateParams.browserSettings.solveCaptchas
+   * when provided, otherwise true on Browserbase and false locally.
+   * Set true when attaching locally to a
    * Browserbase session. Does not enable a CAPTCHA solver itself.
    * browserbaseSessionCreateParams.browserSettings.solveCaptchas: false disables it.
    */

@@ -549,7 +549,7 @@ export const SessionStartRequestSchema = z
     experimental: z.boolean().optional(),
     waitForCaptchaSolves: z.boolean().optional().meta({
       description:
-        "Wait for Browserbase CAPTCHA solves before agent steps and actions. Defaults to browserSettings.solveCaptchas when provided, otherwise true on Browserbase and false locally; does not enable a solver itself.",
+        "Wait for Browserbase CAPTCHA solves before agent steps and actions. Defaults to browserbaseSessionCreateParams.browserSettings.solveCaptchas when provided, otherwise true on Browserbase and false locally; does not enable a solver itself.",
     }),
     // V2 compatibility fields - only included because the server imports this type and supports V2
     // should never be used in v3 clients or v3-only server implementations

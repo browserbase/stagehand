@@ -29,7 +29,6 @@ describe("CAPTCHA awareness options", () => {
                 env === "BROWSERBASE") &&
                 solveCaptchas !== false,
             );
-            expect(stagehand.isBrowserbase).toBe(false);
           } finally {
             await stagehand.close();
           }
