@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "observe_github" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/github/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/github/");
 
       const { data: observations } = await stagehand.observe(
         "find the scrollable element that holds the repos file tree.",

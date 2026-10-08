@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Checkout observation fidelity</title>
+    <link rel="stylesheet" href="/checkout.css" />
+  </head>
+  <body>
+    <!-- Synthetic DOM-sensitive validation, not a historical bug report. -->
+    <main>
+      <h1>Checkout</h1>
+      <button id="prepare">Load saved checkout</button>
+      <label>Recipient <input id="recipient" value="Guest" /></label>
+      <label><input id="gift" type="checkbox" />Gift wrap</label>
+      <label
+        >Shipping
+        <select id="shipping">
+          <option>Standard</option>
+          <option>Express</option>
+        </select></label
+      >
+      <details id="delivery">
+        <summary>Delivery details</summary>
+        <p>Express shipping: $12</p>
+      </details>
+      <span id="submit-label" hidden>Place guest order</span>
+      <button id="submit" aria-labelledby="submit-label">Continue</button>
+      <section id="decoy" class="css-hidden"><button>HIDDEN CANCEL ORDER</button></section>
+    </main>
+    <script>
+      document.querySelector("#prepare").addEventListener("click", () => {
+        document.querySelector("#recipient").value = "Morgan Reed";
+        document.querySelector("#gift").checked = true;
+        document.querySelector("#shipping").value = "Express";
+        document.querySelector("#delivery").open = true;
+        document.querySelector("#submit-label").textContent = "Place order for Morgan Reed";
+      });
+    </script>
+  </body>
+</html>

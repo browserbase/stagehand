@@ -15,7 +15,6 @@ export async function pushCliReleaseTag(
   const git = (args: string[]) =>
     execFileSync("git", args, { cwd: repositoryRoot, encoding: "utf8" }).trim();
   if (git(["ls-remote", "--tags", "origin", ref])) return "existing";
-  if (!(await isCliVersionPublished(repositoryRoot, registry))) return "unpublished";
 
   const local = spawnSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
     cwd: repositoryRoot,
@@ -23,6 +22,7 @@ export async function pushCliReleaseTag(
   });
   if (local.error) throw local.error;
   if (local.status === 1) {
+    if (!(await isCliVersionPublished(repositoryRoot, registry))) return "unpublished";
     // A fresh checkout after npm accepted the upload may have no local tag.
     // Recover only on the version-bump commit; tagging a later main HEAD would
     // misidentify the released code. Retrying the original workflow retains it.
@@ -36,6 +36,8 @@ export async function pushCliReleaseTag(
   } else if (local.status !== 0) {
     throw new Error("Could not inspect the local Browse release tag");
   } else {
+    // Changesets creates this tag after a successful upload. Registry reads can
+    // still return 404 while npm propagates the version, so trust the local tag.
     const tagged = JSON.parse(git(["show", `${local.stdout.trim()}:${manifestPath}`]));
     if (tagged.version !== version)
       throw new Error("Local Browse tag points to a different package version");

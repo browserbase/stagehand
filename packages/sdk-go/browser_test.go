@@ -401,39 +401,43 @@ func TestLaunchLocalBrowserDownloadBehaviorAndExtension(t *testing.T) {
 	}
 }
 
-func TestConnectLocalBrowserExtensionIDSkipsMaterialization(t *testing.T) {
-	materializeCalls := 0
-	var connected cdpClientOptions
-	var connectDeadline time.Duration
-	browser, err := connectLocalBrowserWithDependencies(context.Background(), LocalBrowserConnectOptions{
-		CDPURL: "ws://browser.test", ExtensionID: "extension-id",
-	}, browserFactoryDependencies{
-		materializeExtension: func() (string, func() error, error) {
-			materializeCalls++
-			return "", nil, errors.New("unexpected materialization")
-		},
-		connectCDP: func(ctx context.Context, options cdpClientOptions) (*cdpClient, error) {
-			connected = options
-			deadline, ok := ctx.Deadline()
-			if !ok {
-				t.Fatal("browser connect context has no deadline")
+func TestConnectLocalBrowserIgnoresExtensionIDAndDefersMaterialization(t *testing.T) {
+	for _, id := range []string{"", "existing", "wrong-id"} {
+		t.Run(id, func(t *testing.T) {
+			materializeCalls := 0
+			var connected cdpClientOptions
+			var connectDeadline time.Duration
+			browser, err := connectLocalBrowserWithDependencies(context.Background(), LocalBrowserConnectOptions{
+				CDPURL: "ws://browser.test", ExtensionID: id,
+			}, browserFactoryDependencies{
+				materializeExtension: func() (string, func() error, error) {
+					materializeCalls++
+					return "", nil, errors.New("unexpected materialization")
+				},
+				connectCDP: func(ctx context.Context, options cdpClientOptions) (*cdpClient, error) {
+					connected = options
+					deadline, ok := ctx.Deadline()
+					if !ok {
+						t.Fatal("browser connect context has no deadline")
+					}
+					connectDeadline = time.Until(deadline)
+					return newBrowserTestCDP(t), nil
+				},
+				commandSender: func(*cdpClient) browserCommandSender {
+					return &recordingBrowserCommandSender{}
+				},
+			})
+			if err != nil {
+				t.Fatalf("ConnectLocalBrowser() error = %v", err)
 			}
-			connectDeadline = time.Until(deadline)
-			return newBrowserTestCDP(t), nil
-		},
-		commandSender: func(*cdpClient) browserCommandSender {
-			return &recordingBrowserCommandSender{}
-		},
-	})
-	if err != nil {
-		t.Fatalf("ConnectLocalBrowser() error = %v", err)
-	}
-	defer browser.Close(context.Background())
-	if materializeCalls != 0 || connected.extensionID != "extension-id" || connected.extensionDir != "" {
-		t.Fatalf("extension routing = calls %d, options %#v", materializeCalls, connected)
-	}
-	if connectDeadline < stagehandInitTimeout-time.Second || connectDeadline > stagehandInitTimeout {
-		t.Fatalf("browser connect deadline = %v, want approximately %v", connectDeadline, stagehandInitTimeout)
+			defer browser.Close(context.Background())
+			if materializeCalls != 0 || connected.extensionID != "" || connected.extensionDir != "" || connected.localExtensionDir == nil {
+				t.Fatalf("extension routing = calls %d, options %#v", materializeCalls, connected)
+			}
+			if connectDeadline < stagehandInitTimeout-time.Second || connectDeadline > stagehandInitTimeout {
+				t.Fatalf("browser connect deadline = %v, want approximately %v", connectDeadline, stagehandInitTimeout)
+			}
+		})
 	}
 }
 
@@ -626,7 +630,8 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 		wantExtensionID string
 	}{
 		{name: "launch", wantPreloaded: true},
-		{name: "connect extension ID", connect: true, extensionID: "ext", wantExtensionID: "ext"},
+		{name: "connect extension ID", connect: true, extensionID: "ext", wantPreloaded: true},
+		{name: "connect without ID", connect: true, wantPreloaded: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -646,9 +651,12 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			}
 			var connected cdpClientOptions
 			var configuredBaseURL string
+			var configuredClientOptions *BrowserbaseClientOptions
+			clientOptions := &BrowserbaseClientOptions{Timeout: time.Second, MaxRetries: testPointer(0)}
 			dependencies := browserFactoryDependencies{
-				createBrowserbaseClient: func(_ string, baseURL string) (browserbaseFactoryClient, error) {
+				createBrowserbaseClient: func(_ string, baseURL string, clientOptions *BrowserbaseClientOptions) (browserbaseFactoryClient, error) {
 					configuredBaseURL = baseURL
+					configuredClientOptions = clientOptions
 					return client, nil
 				},
 				connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
@@ -659,10 +667,10 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			var browser *Browser
 			var err error
 			if test.connect {
-				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", BaseURL: "https://api.dev.browserbase.com", SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
+				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ClientOptions: clientOptions, SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
 			} else {
 				browser, err = launchBrowserbaseWithDependencies(context.Background(), BrowserbaseLaunchOptions{
-					APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ExtensionID: &extensionID, KeepAlive: &keepAlive,
+					APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ClientOptions: clientOptions, ExtensionID: &extensionID, KeepAlive: &keepAlive,
 					Region: &region, UserMetadata: userMetadata,
 				}, dependencies)
 			}
@@ -671,6 +679,9 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			}
 			if configuredBaseURL != "https://api.dev.browserbase.com" {
 				t.Fatalf("Browserbase base URL = %q", configuredBaseURL)
+			}
+			if configuredClientOptions != clientOptions {
+				t.Fatalf("Browserbase client options = %#v, want %#v", configuredClientOptions, clientOptions)
 			}
 			if !test.connect {
 				created := client.createOptions
@@ -712,5 +723,80 @@ func TestBrowserbaseFactoriesRequireAPIKey(t *testing.T) {
 	_, err := LaunchBrowserbase(context.Background(), BrowserbaseLaunchOptions{})
 	if err == nil || !strings.Contains(err.Error(), "Browserbase API key is required") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestLocalExtensionFallbackCleanup(t *testing.T) {
+	for _, outcome := range []string{"success", "initialization failure", "cancelled", "materialization failure"} {
+		t.Run(outcome, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			failure := errors.New("initialization failed")
+			materializations, cleanups := 0, 0
+			browser, err := connectLocalBrowserWithDependencies(ctx, LocalBrowserConnectOptions{CDPURL: "ws://browser"}, browserFactoryDependencies{
+				materializeExtension: func() (string, func() error, error) {
+					materializations++
+					if outcome == "materialization failure" {
+						return "", nil, failure
+					}
+					return "/bundle", func() error { cleanups++; return nil }, nil
+				},
+				connectCDP: func(ctx context.Context, options cdpClientOptions) (*cdpClient, error) {
+					if materializations != 0 {
+						t.Fatal("materialized before fallback")
+					}
+					dir, err := options.localExtensionDir()
+					if err != nil {
+						return nil, err
+					}
+					if dir != "/bundle" || cleanups != 0 {
+						t.Fatal("fallback directory unavailable during initialization")
+					}
+					if outcome == "initialization failure" {
+						return nil, failure
+					}
+					if outcome == "cancelled" {
+						cancel()
+						return nil, ctx.Err()
+					}
+					return newBrowserTestCDP(t), nil
+				},
+				commandSender: func(*cdpClient) browserCommandSender { return &recordingBrowserCommandSender{} },
+			})
+			if materializations != 1 {
+				t.Fatalf("materializations = %d", materializations)
+			}
+			if outcome == "success" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if cleanups != 0 || browser.extensionDir != "/bundle" {
+					t.Fatal("extraction not retained")
+				}
+				if err := browser.Close(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if err := browser.Close(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if browser != nil || err == nil {
+					t.Fatalf("result = %v, %v", browser, err)
+				}
+				if outcome == "cancelled" && !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+				if outcome != "cancelled" && !errors.Is(err, failure) {
+					t.Fatal(err)
+				}
+			}
+			wantCleanups := 1
+			if outcome == "materialization failure" {
+				wantCleanups = 0
+			}
+			if cleanups != wantCleanups {
+				t.Fatalf("cleanup calls = %d, want %d", cleanups, wantCleanups)
+			}
+		})
 	}
 }

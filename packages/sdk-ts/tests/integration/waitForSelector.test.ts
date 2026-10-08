@@ -158,7 +158,7 @@ describe("Page.waitForSelector tests", () => {
 
     it("state 'detached' resolves immediately for non-existent element", async () => {
       const page = await firstPage(stagehand);
-      await page.goto("data:text/html," + encodeURIComponent("<div>Content</div>"));
+      await page.goto(fixtureUrl("<div>Content</div>"));
 
       const result = await page.waitForSelector("#does-not-exist", {
         state: "detached",
@@ -171,7 +171,7 @@ describe("Page.waitForSelector tests", () => {
   describe("Timeout behavior", () => {
     it("throws on timeout when element never appears", async () => {
       const page = await firstPage(stagehand);
-      await page.goto("data:text/html," + encodeURIComponent("<div>No button here</div>"));
+      await page.goto(fixtureUrl("<div>No button here</div>"));
 
       let error: Error | null = null;
       try {
@@ -181,13 +181,13 @@ describe("Page.waitForSelector tests", () => {
       }
 
       expect(error).not.toBeNull();
-      expect(error?.message).toContain("Timeout");
-      expect(error?.message).toContain("#nonexistent");
+      expect(error?.name).toBe("TimeoutError");
+      expect(error?.message).toContain("waitForSelector");
     });
 
     it("respects custom timeout duration", async () => {
       const page = await firstPage(stagehand);
-      await page.goto("data:text/html," + encodeURIComponent("<div>Content</div>"));
+      await page.goto(fixtureUrl("<div>Content</div>"));
 
       const startTime = Date.now();
       try {
@@ -248,15 +248,14 @@ describe("Page.waitForSelector tests", () => {
     it("does NOT find shadow DOM element with pierceShadow: false", async () => {
       const page = await firstPage(stagehand);
       await page.goto(
-        "data:text/html," +
-          encodeURIComponent(
-            '<div id="host"></div>' +
-              "<script>" +
-              'const host = document.getElementById("host");' +
-              'const shadow = host.attachShadow({mode: "open"});' +
-              'shadow.innerHTML = "<button id=\\"shadow-only-btn\\">Shadow Only</button>";' +
-              "</script>",
-          ),
+        fixtureUrl(
+          '<div id="host"></div>' +
+            "<script>" +
+            'const host = document.getElementById("host");' +
+            'const shadow = host.attachShadow({mode: "open"});' +
+            'shadow.innerHTML = "<button id=\\"shadow-only-btn\\">Shadow Only</button>";' +
+            "</script>",
+        ),
         { waitUntil: "load", timeout: 30000 },
       );
 
@@ -271,7 +270,7 @@ describe("Page.waitForSelector tests", () => {
       }
 
       expect(error).not.toBeNull();
-      expect(error?.message).toContain("Timeout");
+      expect(error?.name).toBe("TimeoutError");
     });
 
     it("finds element in nested open shadow DOM", async () => {
@@ -521,6 +520,52 @@ describe("Page.waitForSelector tests", () => {
   });
 
   describe("Iframe hop notation (>>)", () => {
+    it.each([1_800, 0, 5_000])(
+      "shares readiness and element waiting with timeout %s",
+      async (timeout) => {
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const delayed = await startFixtureServer({
+          "/": '<iframe src="/child"></iframe>',
+          "/child": async () => {
+            await gate;
+            return {
+              body: `<html><body><script>
+            setTimeout(() => {
+              const button = document.createElement("button");
+              button.id = "delayed";
+              button.textContent = "Ready";
+              document.body.appendChild(button);
+            }, 1200);
+          </script></body></html>`,
+            };
+          },
+        });
+        try {
+          const page = await firstPage(stagehand);
+          await page.goto(delayed.url, { waitUntil: "domcontentloaded" });
+          await expect.poll(() => page.locator("iframe").count()).toBe(1);
+          const pending = page.waitForSelector("iframe >> #delayed", { timeout });
+          const checked =
+            timeout === 1_800
+              ? expect(pending).rejects.toMatchObject({ name: "TimeoutError" })
+              : expect(pending).resolves.toBe(true);
+          await new Promise((resolve) => setTimeout(resolve, 900));
+          release();
+          await checked;
+          // The button still arrives after the shorter shared deadline expires.
+          await expect(
+            page.waitForSelector("iframe >> #delayed", { timeout: 5_000 }),
+          ).resolves.toBe(true);
+        } finally {
+          release();
+          await delayed.close();
+        }
+      },
+    );
+
     it("finds element inside single iframe", async () => {
       const page = await firstPage(stagehand);
       await page.goto(

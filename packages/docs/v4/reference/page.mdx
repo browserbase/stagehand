@@ -367,6 +367,71 @@ await subscription.unsubscribe();
 Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
 `unsubscribe()` again.
 
+## onToolsAdded()
+
+Run a callback when WebMCP tools are added to this page or its child frames. The subscription
+reports future additions without replaying tools already registered. Use `page.tools()` to
+retrieve the current tools, or subscribe before navigation to receive tools from the new document.
+Subscriptions remain active across navigation.
+
+```typescript
+const subscription = await page.onToolsAdded((tools) => {
+  for (const tool of tools) {
+    console.log(tool.name, tool.frameId, tool.inputSchema);
+  }
+});
+
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/webmcp-test/");
+await subscription.unsubscribe();
+```
+
+<ParamField path="listener" type="ToolsAddedListener">
+  A callback with the signature `(tools: WebMCPTool[]) => unknown`. Each call receives
+  an array of added tools. Each tool exposes `name`, `description`, `frameId`, optional
+  `inputSchema`, `annotations`, and `backendNodeId`, and an `invoke()` method. See the
+  [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
+  Async callbacks may overlap and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery. See
+  [CDPSubscription](#cdpsubscription) for cleanup behavior.
+</ResponseField>
+
+Tools are identified by `frameId` and `name`. A tool is also reported when its descriptor
+changes; an identical descriptor is not reported again.
+
+## onToolsRemoved()
+
+Run a callback when WebMCP tools are removed from this page or its child frames. Removals
+include tools unregistered by the page and tools cleared when their document navigates
+or their frame detaches. The subscription reports future removals and remains active
+across navigation.
+
+```typescript
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/webmcp-test/");
+const subscription = await page.onToolsRemoved((tools) => {
+  for (const tool of tools) {
+    console.log(tool.name, tool.frameId);
+  }
+});
+
+await page.goto("about:blank");
+await subscription.unsubscribe();
+```
+
+<ParamField path="listener" type="ToolsRemovedListener">
+  A callback with the signature `(tools: WebMCPToolIdentity[]) => unknown`. Each call
+  receives an array of removed tool identities containing `name` and `frameId`, both
+  strings. These identities have no `invoke()` method. Async callbacks may overlap
+  and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery. See
+  [CDPSubscription](#cdpsubscription) for cleanup behavior.
+</ResponseField>
+
 ## addInitScript()
 
 Run a script before other scripts whenever the page navigates.
@@ -493,7 +558,7 @@ const matched = await page.waitForSelector("main");
 </ParamField>
 
   <ParamField path="options.timeout" type="number" optional>
-    The operation timeout in milliseconds.
+    Timeout in milliseconds, including frame readiness. Defaults to `30000`; `0` disables the timeout.
   </ParamField>
 </ParamField>
 
@@ -586,6 +651,97 @@ const image = await page.screenshot({ fullPage: true });
   The screenshot image bytes.
 </ResponseField>
 
+## pdf()
+
+Render the current document to PDF with Chrome's print pipeline.
+
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
+```typescript
+const pdf = await page.pdf({
+  path: "page.pdf",
+  margin: { top: 0.25, bottom: 0.25 },
+  preferCSSPageSize: true,
+  printBackground: true,
+});
+```
+
+<ParamField path="options" type="PDFOptions" optional>
+  Options that configure PDF rendering. Paper sizes and margins are measured in inches.
+
+  <ParamField path="options.displayHeaderFooter" type="boolean" optional>
+    Whether to render the header and footer templates.
+  </ParamField>
+
+  <ParamField path="options.footerTemplate" type="string" optional>
+    HTML for the print footer. Chrome fills elements with `pageNumber`, `totalPages`, `date`,
+    `title`, and `url` classes.
+  </ParamField>
+
+  <ParamField path="options.outline" type="boolean" optional>
+    Whether to generate a document outline from the page structure. Defaults to `false`.
+  </ParamField>
+
+  <ParamField path="options.tagged" type="boolean" optional>
+    Whether to include document structure tags in the PDF. Defaults to `false`.
+  </ParamField>
+
+  <ParamField path="options.headerTemplate" type="string" optional>
+    HTML for the print header, with the same supported classes as `footerTemplate`.
+  </ParamField>
+
+  <ParamField path="options.landscape" type="boolean" optional>
+    Whether to use landscape orientation.
+  </ParamField>
+
+  <ParamField path="options.margin" type="PagePDFMargin" optional>
+    Non-negative page margins in inches. Each omitted side defaults to `0`.
+
+    <ParamField path="options.margin.bottom" type="number" optional />
+    <ParamField path="options.margin.left" type="number" optional />
+    <ParamField path="options.margin.right" type="number" optional />
+    <ParamField path="options.margin.top" type="number" optional />
+  </ParamField>
+
+  <ParamField path="options.pageRanges" type="string" optional>
+    Page ranges to print, such as `"1-3, 5"`.
+  </ParamField>
+
+  <ParamField path="options.height" type="number" optional>
+    The positive paper height in inches.
+  </ParamField>
+
+  <ParamField path="options.width" type="number" optional>
+    The positive paper width in inches.
+  </ParamField>
+
+  <ParamField path="options.path" type="string" optional>
+    A local file path where the PDF is also written. Node.js only.
+  </ParamField>
+
+  <ParamField path="options.preferCSSPageSize" type="boolean" optional>
+    Whether CSS `@page` sizing takes precedence over `width` and `height`.
+  </ParamField>
+
+  <ParamField path="options.printBackground" type="boolean" optional>
+    Whether to include CSS backgrounds.
+  </ParamField>
+
+  <ParamField path="options.scale" type="number" optional>
+    Render scale from `0.1` to `2`.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum capture wait in milliseconds, including time queued behind another capture.
+    Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<Uint8Array>">
+  The PDF bytes.
+</ResponseField>
+
 ## snapshot()
 
 Capture the page's accessibility-oriented DOM snapshot.
@@ -599,6 +755,10 @@ const snapshot = await page.snapshot();
 
   <ParamField path="options.includeIframes" type="boolean" optional>
     Whether to include iframe content.
+  </ParamField>
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
+    Defaults to 20,000 ms. Use `0` for no timeout. Request delivery is outside this budget.
   </ParamField>
 </ParamField>
 
@@ -1048,6 +1208,71 @@ await subscription.unsubscribe()
 Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
 cancelled while awaiting cleanup, the shared cleanup task continues in the background.
 
+## on_tools_added()
+
+Run a callback when WebMCP tools are added to this page or its child frames. The subscription
+reports future additions without replaying tools already registered. Use `page.tools()` to
+retrieve the current tools, or subscribe before navigation to receive tools from the new document.
+Subscriptions remain active across navigation.
+
+```python
+def handle_tools_added(tools: list[WebMCPTool]) -> None:
+    for tool in tools:
+        print(tool.name, tool.frame_id, tool.input_schema)
+
+subscription = await page.on_tools_added(handle_tools_added)
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/webmcp-test/")
+await subscription.unsubscribe()
+```
+
+<ParamField path="listener" type="ToolsAddedListener">
+  A sync or async callback that receives a `list[WebMCPTool]` of added tools. Each tool
+  exposes `name`, `description`, `frame_id`, optional `input_schema`, `annotations`, and
+  `backend_node_id`, and an `invoke()` method. See the
+  [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
+  Async callbacks may overlap and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method removes the listener locally and
+  from the Stagehand runtime. Repeated calls await the same successful cleanup;
+  failed cleanup can be retried.
+</ResponseField>
+
+Tools are identified by `frame_id` and `name`. A tool is also reported when its descriptor
+changes; an identical descriptor is not reported again.
+
+## on_tools_removed()
+
+Run a callback when WebMCP tools are removed from this page or its child frames. Removals
+include tools unregistered by the page and tools cleared when their document navigates
+or their frame detaches. The subscription reports future removals and remains active
+across navigation.
+
+```python
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/webmcp-test/")
+
+def handle_tools_removed(tools: list[WebMCPToolIdentity]) -> None:
+    for tool in tools:
+        print(tool.name, tool.frame_id)
+
+subscription = await page.on_tools_removed(handle_tools_removed)
+await page.goto("about:blank")
+await subscription.unsubscribe()
+```
+
+<ParamField path="listener" type="ToolsRemovedListener">
+  A sync or async callback that receives a `list[WebMCPToolIdentity]` of removed tool
+  identities containing `name` and `frame_id`, both strings. These identities have no
+  `invoke()` method. Async callbacks may overlap and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method removes the listener locally and
+  from the Stagehand runtime. Repeated calls await the same successful cleanup;
+  failed cleanup can be retried.
+</ResponseField>
+
 ## add_init_script()
 
 Run a script before other scripts whenever the page navigates.
@@ -1161,7 +1386,7 @@ matched = await page.wait_for_selector("main", state="visible")
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
-  Maximum wait time in milliseconds.
+  Timeout in milliseconds, including frame readiness. Defaults to `30000`; `0` disables the timeout.
 </ParamField>
 
 <ParamField path="pierce_shadow" type="bool | None" optional>
@@ -1252,6 +1477,93 @@ image = await page.screenshot(full_page=True)
   The operation result.
 </ResponseField>
 
+## pdf()
+
+Render the current document to PDF with Chrome's print pipeline.
+
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
+```python
+pdf = await page.pdf(
+    path="page.pdf",
+    margin={"top": 0.25, "bottom": 0.25},
+    prefer_css_page_size=True,
+    print_background=True,
+)
+```
+
+Paper dimensions and margins are measured in inches.
+
+<ParamField path="display_header_footer" type="bool | None" optional>
+  Whether to render the header and footer templates.
+</ParamField>
+
+<ParamField path="footer_template" type="str | None" optional>
+  HTML for the print footer. Chrome fills elements with `pageNumber`, `totalPages`, `date`,
+  `title`, and `url` classes.
+</ParamField>
+
+<ParamField path="outline" type="bool | None" optional>
+  Whether to generate a document outline from the page structure. Defaults to `False`.
+</ParamField>
+
+<ParamField path="tagged" type="bool | None" optional>
+  Whether to include document structure tags in the PDF. Defaults to `False`.
+</ParamField>
+
+<ParamField path="header_template" type="str | None" optional>
+  HTML for the print header, with the same supported classes as `footer_template`.
+</ParamField>
+
+<ParamField path="landscape" type="bool | None" optional />
+
+<ParamField path="margin" type="PagePDFMargin | None" optional>
+  Non-negative page margins in inches. Each omitted side defaults to `0`.
+
+  <ParamField path="margin.bottom" type="float" optional />
+  <ParamField path="margin.left" type="float" optional />
+  <ParamField path="margin.right" type="float" optional />
+  <ParamField path="margin.top" type="float" optional />
+</ParamField>
+
+<ParamField path="page_ranges" type="str | None" optional>
+  Page ranges to print, such as `"1-3, 5"`.
+</ParamField>
+
+<ParamField path="height" type="float | None" optional>
+  The positive paper height in inches.
+</ParamField>
+
+<ParamField path="width" type="float | None" optional>
+  The positive paper width in inches.
+</ParamField>
+
+<ParamField path="path" type="str | Path | None" optional>
+  A local path where the PDF is also written.
+</ParamField>
+
+<ParamField path="prefer_css_page_size" type="bool | None" optional>
+  Whether CSS `@page` sizing takes precedence over `width` and `height`.
+</ParamField>
+
+<ParamField path="print_background" type="bool | None" optional>
+  Whether to include CSS backgrounds.
+</ParamField>
+
+<ParamField path="scale" type="float | None" optional>
+  Render scale from `0.1` to `2`.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum capture wait in milliseconds, including time queued behind another capture.
+  Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
+</ParamField>
+
+<ResponseField name="result" type="bytes">
+  The PDF bytes.
+</ResponseField>
+
 ## snapshot()
 
 Capture the page's accessibility-oriented DOM snapshot.
@@ -1262,6 +1574,11 @@ snapshot = await page.snapshot()
 
 <ParamField path="include_iframes" type="bool | None" optional>
   Whether to include iframe content.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
+  Defaults to 20,000 ms. Use `0` for no timeout. Request delivery is outside this budget.
 </ParamField>
 
 <ResponseField name="result" type="SnapshotResult">
@@ -1760,6 +2077,88 @@ if err := subscription.Close(ctx); err != nil {
 Repeated calls after successful cleanup return `nil`. Concurrent calls share the active cleanup;
 a failed attempt can be retried.
 
+## OnToolsAdded()
+
+Run a callback when WebMCP tools are added to this page or its child frames. The subscription
+reports future additions without replaying tools already registered. Use `page.Tools(ctx, nil)` to
+retrieve the current tools, or subscribe before navigation to receive tools from the new document.
+Subscriptions remain active across navigation.
+
+```go
+subscription, err := page.OnToolsAdded(ctx, func(tools []*stagehand.WebMCPTool) {
+    for _, tool := range tools {
+        descriptor := tool.Descriptor()
+        fmt.Println(descriptor.Name, descriptor.FrameID, descriptor.InputSchema)
+    }
+})
+if err != nil {
+    return err
+}
+
+if _, err := page.Goto(ctx, "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/", nil); err != nil {
+    return err
+}
+if err := subscription.Close(ctx); err != nil {
+    return err
+}
+```
+
+<ParamField path="listener" type="func([]*WebMCPTool)">
+  A non-nil callback that receives a slice of added tools. Each tool exposes its
+  descriptor through `Descriptor()` and can be invoked with `Invoke()`. See the
+  [WebMCP reference](/v4/reference/webmcp) for descriptor fields and invocation options.
+  Listeners are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="(*CDPSubscription, error)">
+  A subscription handle whose `Close(ctx)` method removes the listener locally and
+  from the Stagehand runtime. Repeated calls after successful cleanup return `nil`;
+  failed cleanup can be retried.
+</ResponseField>
+
+Tools are identified by `FrameID` and `Name`. A tool is also reported when its descriptor
+changes; an identical descriptor is not reported again.
+
+## OnToolsRemoved()
+
+Run a callback when WebMCP tools are removed from this page or its child frames. Removals
+include tools unregistered by the page and tools cleared when their document navigates
+or their frame detaches. The subscription reports future removals and remains active
+across navigation.
+
+```go
+if _, err := page.Goto(ctx, "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/", nil); err != nil {
+    return err
+}
+subscription, err := page.OnToolsRemoved(ctx, func(tools []stagehand.WebMCPToolIdentity) {
+    for _, tool := range tools {
+        fmt.Println(tool.Name, tool.FrameID)
+    }
+})
+if err != nil {
+    return err
+}
+
+if _, err := page.Goto(ctx, "about:blank", nil); err != nil {
+    return err
+}
+if err := subscription.Close(ctx); err != nil {
+    return err
+}
+```
+
+<ParamField path="listener" type="func([]WebMCPToolIdentity)">
+  A non-nil callback that receives a slice of removed tool identities containing
+  `Name` and `FrameID`, both strings. These identities have no `Invoke()` method.
+  Listeners are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="(*CDPSubscription, error)">
+  A subscription handle whose `Close(ctx)` method removes the listener locally and
+  from the Stagehand runtime. Repeated calls after successful cleanup return `nil`;
+  failed cleanup can be retried.
+</ResponseField>
+
 ## AddInitScript()
 
 Run a script before other scripts whenever the page navigates.
@@ -1898,7 +2297,7 @@ fmt.Println(matched)
 </ParamField>
 
   <ParamField path="options.Timeout" type="*int" optional>
-    The operation timeout in milliseconds.
+    Timeout in milliseconds, including frame readiness. Defaults to `30000`; `0` disables the timeout.
   </ParamField>
 </ParamField>
 
@@ -1999,6 +2398,82 @@ if err := os.WriteFile("screenshot.png", image, 0o644); err != nil {
   The screenshot image bytes.
 </ResponseField>
 
+## PDF()
+
+Render the current document to PDF with Chrome's print pipeline. Write the returned bytes with
+`os.WriteFile` when a file is needed.
+
+If a running print times out, further captures on that page fail until Chrome finishes the pending
+print. Other pages remain available.
+
+```go
+printBackground := true
+pdf, err := page.PDF(ctx, &stagehand.PagePDFOptions{PrintBackground: &printBackground})
+if err != nil {
+    return err
+}
+if err := os.WriteFile("page.pdf", pdf, 0o644); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*PagePDFOptions" optional>
+  Options that configure PDF rendering. Pass `nil` for defaults. Paper sizes and margins are
+  measured in inches.
+
+  <ParamField path="options.DisplayHeaderFooter" type="*bool" optional />
+  <ParamField path="options.FooterTemplate" type="*string" optional />
+  <ParamField path="options.Outline" type="*bool" optional>
+    Whether to generate a document outline from the page structure. Defaults to `false`.
+  </ParamField>
+
+  <ParamField path="options.Tagged" type="*bool" optional>
+    Whether to include document structure tags in the PDF. Defaults to `false`.
+  </ParamField>
+
+  <ParamField path="options.HeaderTemplate" type="*string" optional />
+  <ParamField path="options.Landscape" type="*bool" optional />
+
+  <ParamField path="options.Margin" type="*PagePDFMargin" optional>
+    Non-negative page margins in inches. Each omitted side defaults to `0`.
+
+    <ParamField path="options.Margin.Bottom" type="*float64" optional />
+    <ParamField path="options.Margin.Left" type="*float64" optional />
+    <ParamField path="options.Margin.Right" type="*float64" optional />
+    <ParamField path="options.Margin.Top" type="*float64" optional />
+  </ParamField>
+
+  <ParamField path="options.PageRanges" type="*string" optional />
+
+  <ParamField path="options.Height" type="*float64" optional>
+    The positive paper height in inches.
+  </ParamField>
+
+  <ParamField path="options.Width" type="*float64" optional>
+    The positive paper width in inches.
+  </ParamField>
+
+  <ParamField path="options.PreferCSSPageSize" type="*bool" optional>
+    Whether CSS `@page` sizing takes precedence over `Width` and `Height`.
+  </ParamField>
+
+  <ParamField path="options.PrintBackground" type="*bool" optional />
+
+  <ParamField path="options.Scale" type="*float64" optional>
+    Render scale from `0.1` to `2`.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    Maximum capture wait in milliseconds, including time queued behind another capture.
+    Defaults to `30000`; `0` disables the deadline. Must be between `0` and `2147473647`.
+    The caller's context can end the wait earlier.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="([]byte, error)">
+  The PDF bytes.
+</ResponseField>
+
 ## Snapshot()
 
 Capture the page's accessibility-oriented DOM snapshot.
@@ -2016,6 +2491,10 @@ fmt.Println(snapshot.FormattedTree)
 
   <ParamField path="options.IncludeIframes" type="*bool" optional>
     Whether to include iframe content.
+  </ParamField>
+  <ParamField path="options.Timeout" type="*float64" optional>
+    Maximum time in milliseconds for the whole snapshot, including frame traversal & browser reads.
+    Defaults to 20,000 ms. Use `0` for no timeout. Request delivery is outside this budget.
   </ParamField>
 </ParamField>
 
