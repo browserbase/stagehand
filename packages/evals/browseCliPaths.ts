@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -10,3 +11,8 @@ export const BROWSE_CLI_BUILD_ARTIFACTS = [
 ];
 export const BROWSE_CLI_PACKAGE_JSON = path.join(browseCliRoot, "package.json");
 export const BROWSE_SKILL_SOURCE = path.join(browseCliRoot, "skills", "browse", "SKILL.md");
+
+export function createBrowseCliSessionName(): string {
+  const random = randomBytes(8).toString("hex");
+  return `eval-${process.pid}-${random}`;
+}

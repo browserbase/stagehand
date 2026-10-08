@@ -68,6 +68,10 @@ export async function cloneTemplate(
   const parentDir = dirname(dest);
   const projectName = basename(dest);
   const scaffolder = getScaffolder(language);
+  // create-browser-app identifies a template by its final source directory.
+  const scaffolderTemplate = basename(
+    options.template.sourcePath || options.template.slug,
+  );
   await mkdir(parentDir, { recursive: true });
   const existingEntries = await getDirectoryEntryNames(parentDir);
 
@@ -80,12 +84,7 @@ export async function cloneTemplate(
   try {
     runCommand(
       scaffolder.command,
-      [
-        ...scaffolder.argsPrefix,
-        projectName,
-        "--template",
-        options.template.slug,
-      ],
+      [...scaffolder.argsPrefix, projectName, "--template", scaffolderTemplate],
       parentDir,
     );
 
@@ -258,7 +257,7 @@ async function findCreatedProjectDir(
   return null;
 }
 
-async function buildNextSteps(
+export async function buildNextSteps(
   dest: string,
   displayPath: string,
   language: TemplateLanguage,
@@ -266,22 +265,23 @@ async function buildNextSteps(
   const nextSteps = [`cd ${displayPath}`];
 
   if (language === "typescript") {
-    if (existsSync(join(dest, "package.json"))) {
-      nextSteps.push("npm install");
+    const packageJson = await readPackageJson(dest);
+    const packageManager = resolvePackageManager(packageJson?.packageManager);
+    if (packageJson) {
+      nextSteps.push(`${packageManager} install`);
     }
 
     if (existsSync(join(dest, ".env.example"))) {
       nextSteps.push("cp .env.example .env");
     }
 
-    const packageJson = await readPackageJson(dest);
     if (packageJson?.scripts?.dev) {
-      nextSteps.push("npm run dev");
+      nextSteps.push(runPackageScript(packageManager, "dev"));
       return nextSteps;
     }
 
     if (packageJson?.scripts?.start) {
-      nextSteps.push("npm start");
+      nextSteps.push(runPackageScript(packageManager, "start"));
       return nextSteps;
     }
 
@@ -292,10 +292,12 @@ async function buildNextSteps(
     return nextSteps;
   }
 
-  if (existsSync(join(dest, "pyproject.toml"))) {
+  const hasPyproject = existsSync(join(dest, "pyproject.toml"));
+  const hasRequirements = existsSync(join(dest, "requirements.txt"));
+  if (hasPyproject) {
     nextSteps.push("uv sync");
-  } else if (existsSync(join(dest, "requirements.txt"))) {
-    nextSteps.push("pip install -r requirements.txt");
+  } else if (hasRequirements) {
+    nextSteps.push("uv venv && uv pip install -r requirements.txt");
   }
 
   if (existsSync(join(dest, ".env.example"))) {
@@ -303,15 +305,16 @@ async function buildNextSteps(
   }
 
   if (existsSync(join(dest, "main.py"))) {
-    nextSteps.push("python main.py");
+    nextSteps.push("uv run python main.py");
   }
 
   return nextSteps;
 }
 
-async function readPackageJson(
-  dest: string,
-): Promise<{ scripts?: Record<string, string> } | null> {
+async function readPackageJson(dest: string): Promise<{
+  packageManager?: string;
+  scripts?: Record<string, string>;
+} | null> {
   const packageJsonPath = join(dest, "package.json");
   if (!existsSync(packageJsonPath)) {
     return null;
@@ -319,8 +322,31 @@ async function readPackageJson(
 
   try {
     const contents = await readFile(packageJsonPath, "utf8");
-    return JSON.parse(contents) as { scripts?: Record<string, string> };
+    return JSON.parse(contents) as {
+      packageManager?: string;
+      scripts?: Record<string, string>;
+    };
   } catch {
     return null;
   }
+}
+
+type PackageManager = "bun" | "npm" | "pnpm" | "yarn";
+
+function resolvePackageManager(packageManager?: string): PackageManager {
+  const name = packageManager?.split("@")[0];
+  if (name === "bun" || name === "pnpm" || name === "yarn") {
+    return name;
+  }
+  return "npm";
+}
+
+function runPackageScript(
+  packageManager: PackageManager,
+  script: string,
+): string {
+  if (packageManager === "npm" || packageManager === "bun") {
+    return `${packageManager} run ${script}`;
+  }
+  return `${packageManager} ${script}`;
 }

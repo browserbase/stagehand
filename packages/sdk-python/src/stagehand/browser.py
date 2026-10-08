@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path, PureWindowsPath
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
 if TYPE_CHECKING:
     from .browser_context import BrowserContext
@@ -30,6 +30,7 @@ from .browserbase_services import fetch_browserbase, search_browserbase
 from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
 from .cdp_client import CDPClient, CDPConnectionClosedError
 from .client_models import (
+    BrowserbaseClientOptions,
     BrowserbaseConnectOptions,
     BrowserbaseFetchResult,
     BrowserbaseSearchResult,
@@ -40,6 +41,7 @@ from .client_models import (
     _BrowserbaseFetchOptions,
     _BrowserbaseSearchOptions,
 )
+from .client_types import BrowserbaseClientOptions as BrowserbaseClientOptionsInput
 from .extension_assets import extension_directory
 from .timeouts import stagehand_init_deadline
 
@@ -281,7 +283,8 @@ class _LocalBrowserOptions(Protocol):
 
 
 class _WaitableChromeProcess(Protocol):
-    returncode: int | None
+    @property
+    def returncode(self) -> int | None: ...
 
     async def wait(self) -> int: ...
 
@@ -557,6 +560,17 @@ class _ConnectedBrowserSource:
         return None
 
 
+def _sdk_client_options(options: BrowserbaseClientOptions | None) -> dict[str, Any] | None:
+    if options is None:
+        return None
+    # Read attributes rather than model_dump so a caller's http_client passes through as-is.
+    return {
+        name: value
+        for name in type(options).model_fields
+        if (value := getattr(options, name)) is not None
+    }
+
+
 class BrowserbaseBrowser:
     @stagehand_init_deadline
     async def launch(
@@ -564,6 +578,7 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client_options: BrowserbaseClientOptionsInput | None = None,
         browser_settings: BrowserbaseBrowserSettings | None = None,
         extension_id: str | None = None,
         keep_alive: bool | None = None,
@@ -597,9 +612,14 @@ class BrowserbaseBrowser:
             and not options.browser_settings.extension_id.strip()
         ):
             raise ValueError("browser_settings.extension_id must not be empty")
-        session = await _create_browserbase_session_client(api_key, base_url).create_session(
-            options
+        validated_client_options = (
+            BrowserbaseClientOptions.model_validate(client_options)
+            if client_options is not None
+            else None
         )
+        session = await _create_browserbase_session_client(
+            api_key, base_url, _sdk_client_options(validated_client_options)
+        ).create_session(options)
         source = ResolvedBrowserSource(
             cdp_url=session.cdp_url,
             keep_alive=options.keep_alive or False,
@@ -622,6 +642,7 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client_options: BrowserbaseClientOptionsInput | None = None,
         session_id: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
@@ -630,13 +651,14 @@ class BrowserbaseBrowser:
             for name, value in (
                 ("api_key", api_key),
                 ("base_url", base_url),
+                ("client_options", client_options),
                 ("session_id", session_id),
                 ("extension_id", extension_id),
             )
             if value is not None
         })
         connection = await _create_browserbase_session_client(
-            options.api_key, options.base_url
+            options.api_key, options.base_url, _sdk_client_options(options.client_options)
         ).connect_session(options.session_id)
         return await _connect_browser(
             provider="browserbase",
@@ -721,7 +743,7 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
     process: _ChromeProcess | None = None
     try:
         try:
-            process = await asyncio.create_subprocess_exec(
+            launched_process = await asyncio.create_subprocess_exec(
                 chrome_path,
                 *flags,
                 stdin=asyncio.subprocess.DEVNULL,
@@ -729,9 +751,10 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
                 stderr=asyncio.subprocess.DEVNULL,
                 start_new_session=sys.platform != "win32",
             )
+            process = launched_process
         except OSError as error:
             raise RuntimeError(f"Failed to start Chrome: {error}") from error
-        await _wait_for_chrome(f"http://127.0.0.1:{port}", process)
+        await _wait_for_chrome(f"http://127.0.0.1:{port}", launched_process)
     except BaseException as launch_error:
         try:
             if process is not None:
@@ -746,7 +769,7 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
         raise
 
     async def close() -> None:
-        await _close_local_chrome(process, profile)
+        await _close_local_chrome(launched_process, profile)
 
     return ResolvedBrowserSource(
         cdp_url=f"http://127.0.0.1:{port}",
@@ -838,10 +861,10 @@ def _read_chrome_version(cdp_url: str) -> dict[str, object]:
         url,
         timeout=_CHROME_REQUEST_TIMEOUT_SECONDS,
     ) as response:
-        value: Any = json.load(response)
+        value: object = json.load(response)
     if not isinstance(value, dict):
         raise RuntimeError("Chrome version endpoint returned invalid JSON")
-    return value
+    return {str(key): item for key, item in value.items()}
 
 
 def _chrome_exited_before_ready_error(returncode: int | None) -> RuntimeError:
@@ -992,7 +1015,8 @@ def _should_disable_chromium_sandbox(
 ) -> bool:
     platform = sys.platform if platform is None else platform
     environment = os.environ if environment is None else environment
-    getuid = getattr(os, "getuid", None) if getuid is None else getuid
+    if getuid is None:
+        getuid = cast("Callable[[], int] | None", getattr(os, "getuid", None))
     return (
         bool(environment.get("CI"))
         or options.chromium_sandbox is False

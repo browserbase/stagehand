@@ -46,6 +46,8 @@ func (client *loggingProtocolClient) onNotification(
 	}
 }
 
+func (*loggingProtocolClient) onPageEvent(func(PageEventNotification)) func() { return func() {} }
+
 func (*loggingProtocolClient) onPageCDPEvent(func(PageCDPEventNotification)) func() {
 	return func() {}
 }

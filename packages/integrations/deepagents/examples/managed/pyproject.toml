@@ -6,8 +6,12 @@ dependencies = [
   "httpx>=0.28,<1",
   "langchain>=1,<2",
   "langchain-openai>=1,<2",
+  # Requires langgraph-sdk with the authorization fix.
+  "langgraph>=1.2.14,<1.3",
   "managed-deepagents",
   "stagehand>=4.0.0",
+  # Security minimum for transitive HTTP clients.
+  "urllib3>=2.8.0,<3",
 ]
 
 [tool.uv]

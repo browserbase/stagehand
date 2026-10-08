@@ -11,7 +11,13 @@ from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter
 
-from ._generated.input_types import PageDragAndDropRoutePoint, PageEventName, PageScreenshotClip
+from ._generated.input_types import (
+    PageDragAndDropRoutePoint,
+    PageEventName,
+    PagePDFMargin,
+    PageScreenshotClip,
+    PageSubscriptionEventName,
+)
 from ._generated.models import (
     Animations,
     Caret,
@@ -27,6 +33,7 @@ from ._generated.models import (
     PageDragAndDropParams,
     PageEvaluateParams,
     PageEvaluateResult,
+    PageEventNotification,
     PageGoBackParams,
     PageGoForwardParams,
     PageGotoParams,
@@ -38,6 +45,9 @@ from ._generated.models import (
     PageNavigationResult,
     PageOffParams,
     PageOnParams,
+    PagePDFOptions,
+    PagePDFParams,
+    PagePDFResult,
     PageRef,
     PageReloadOptions,
     PageReloadParams,
@@ -51,6 +61,8 @@ from ._generated.models import (
     PageSnapshotOptions,
     PageSnapshotParams,
     PageTitleResult,
+    PageToolsAddedNotification,
+    PageToolsRemovedNotification,
     PageTypeOptions,
     PageTypeParams,
     PageUrlResult,
@@ -65,6 +77,7 @@ from ._generated.models import (
     Scale,
     SnapshotResult,
     State,
+    WebMCPToolIdentity,
     WebMCPToolsOptions,
 )
 from ._generated.models import (
@@ -77,6 +90,9 @@ from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
 PageEventListener = Callable[[PageCDPEvent], object | Awaitable[object]]
+ToolsAddedListener = Callable[[list[WebMCPTool]], object | Awaitable[object]]
+ToolsRemovedListener = Callable[[list[WebMCPToolIdentity]], object | Awaitable[object]]
+NotificationT = TypeVar("NotificationT", PageCDPEventNotification, PageEventNotification)
 
 
 class CDPSubscription:
@@ -390,13 +406,53 @@ class Page:
         event: PageEventName,
         listener: PageEventListener,
     ) -> CDPSubscription:
+        if event != "console":
+            raise ValueError('page.on only supports "console" events')
+        return await self._subscribe(
+            event,
+            "page.cdp_event",
+            PageCDPEventNotification,
+            lambda notification: listener(notification.event),
+        )
+
+    async def on_tools_added(self, listener: ToolsAddedListener) -> CDPSubscription:
+        def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
+            event = notification.root
+            if isinstance(event, PageToolsAddedNotification):
+                return listener([
+                    WebMCPTool(self._rpc_client, self.page_id, tool) for tool in event.tools
+                ])
+            return None
+
+        return await self._subscribe("toolsadded", "page.event", PageEventNotification, deliver)
+
+    async def on_tools_removed(self, listener: ToolsRemovedListener) -> CDPSubscription:
+        def deliver(notification: PageEventNotification) -> object | Awaitable[object]:
+            if isinstance(notification.root, PageToolsRemovedNotification):
+                return listener(notification.root.tools)
+            return None
+
+        return await self._subscribe("toolsremoved", "page.event", PageEventNotification, deliver)
+
+    async def _subscribe(
+        self,
+        event: PageSubscriptionEventName,
+        method: str,
+        model: builtins.type[NotificationT],
+        deliver: Callable[[NotificationT], object | Awaitable[object]],
+    ) -> CDPSubscription:
         subscription_id = uuid4().hex
 
-        async def notify(notification: PageCDPEventNotification) -> None:
-            if notification.subscription_id != subscription_id:
+        async def notify(notification: NotificationT) -> None:
+            payload = (
+                notification.root
+                if isinstance(notification, PageEventNotification)
+                else notification
+            )
+            if payload.subscription_id != subscription_id:
                 return
             try:
-                result = listener(notification.event)
+                result = deliver(notification)
                 if inspect.isawaitable(result):
                     await result
             except Exception as error:
@@ -406,8 +462,8 @@ class Page:
                 })
 
         remove_notification_listener = self._rpc_client.on_notification(
-            "page.cdp_event",
-            PageCDPEventNotification,
+            method,
+            model,
             notify,
         )
 
@@ -429,9 +485,15 @@ class Page:
                 }),
                 PageVoidResult,
             )
-        except Exception:
+        except BaseException:
             remove_notification_listener()
-            self._event_subscriptions.discard(subscription)
+            try:
+                await subscription.unsubscribe()
+            except Exception as error:
+                asyncio.get_running_loop().call_exception_handler({
+                    "message": "Failed to clean up unsuccessful page subscription",
+                    "exception": error,
+                })
             raise
         return subscription
 
@@ -555,10 +617,65 @@ class Page:
             Path(path).write_bytes(data)
         return data
 
-    async def snapshot(self, *, include_iframes: bool | None = None) -> SnapshotResult:
+    async def pdf(
+        self,
+        *,
+        landscape: bool | None = None,
+        display_header_footer: bool | None = None,
+        print_background: bool | None = None,
+        scale: float | None = None,
+        width: float | None = None,
+        height: float | None = None,
+        margin: PagePDFMargin | None = None,
+        page_ranges: str | None = None,
+        header_template: str | None = None,
+        footer_template: str | None = None,
+        prefer_css_page_size: bool | None = None,
+        tagged: bool | None = None,
+        outline: bool | None = None,
+        timeout: float | None = None,
+        path: str | Path | None = None,
+    ) -> bytes:
+        params = PagePDFParams(page_id=self.page_id)
+        options = PagePDFOptions.model_validate({
+            name: value
+            for name, value in (
+                ("landscape", landscape),
+                ("display_header_footer", display_header_footer),
+                ("print_background", print_background),
+                ("scale", scale),
+                ("width", width),
+                ("height", height),
+                ("margin", margin),
+                ("page_ranges", page_ranges),
+                ("header_template", header_template),
+                ("footer_template", footer_template),
+                ("prefer_css_page_size", prefer_css_page_size),
+                ("tagged", tagged),
+                ("outline", outline),
+                ("timeout", timeout),
+            )
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        result = await self._rpc_client.send("page.pdf", params, PagePDFResult)
+        data = base64.b64decode(result.data, validate=True)
+        if path is not None:
+            Path(path).write_bytes(data)
+        return data
+
+    async def snapshot(
+        self, *, include_iframes: bool | None = None, timeout: float | None = None
+    ) -> SnapshotResult:
         params = PageSnapshotParams(page_id=self.page_id)
-        if include_iframes is not None:
-            params.options = PageSnapshotOptions(include_iframes=include_iframes)
+        options = PageSnapshotOptions.model_validate({
+            key: value
+            for key, value in {"include_iframes": include_iframes, "timeout": timeout}.items()
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:
