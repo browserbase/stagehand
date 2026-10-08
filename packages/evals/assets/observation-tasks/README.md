@@ -69,4 +69,11 @@ ran three times per page variant, using its original success assertion:
 | `observe_file_uploads`       | 3/3 pass      | 3/3 pass        |
 
 All 18 task runs passed. This is a small migration check, not a statistical claim
-about every model. Remote Browserbase execution was not exercised in this run.
+about every model.
+
+Browserbase validation on 2026-10-07 also passed all three task comparisons
+(six cloud sessions). Each task passed its original assertions on both the public
+source and saved recording, and the normalized Stagehand observation prompts
+matched. This cloud check used the deterministic adapter, not paid model calls;
+it validates remote replay and observation fidelity. Run it with the opt-in
+`TASK_VALIDATION_BROWSERBASE=1` command in `tasks/README.md`.
