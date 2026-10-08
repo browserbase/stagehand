@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "observation",
+  "sourceUrl": "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
+  "recordedAt": "2026-10-08T00:42:32.870Z",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "limitations": [
+    "No application scripts or remote assets",
+    "No post-click behavior",
+    "No frames or shadow DOM",
+    "No pseudo-element content or canvas pixels"
+  ],
+  "htmlSha256": "912d0013fd765f5e9943dee545fdd17ac9bec553ffdaf208d3ba08106d036bc0"
+}

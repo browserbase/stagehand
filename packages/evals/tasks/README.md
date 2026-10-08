@@ -180,67 +180,67 @@ pnpm exec vitest run --config vitest.integration.config.ts tests/integration/tas
 
 ## Existing-eval migrations
 
-Three current benchmarks now use recordings in `assets/observation-tasks`:
+Seven benchmarks now use six recordings in `assets/observation-tasks`:
 
-| Existing task                | Preserved check                                                                    |
-| ---------------------------- | ---------------------------------------------------------------------------------- |
-| `extract_aigrant_targeted`   | The original XPath exposes the Coframe company link and extraction returns Coframe |
-| `extract_aigrant_targeted_2` | Neighboring OpusClip stays outside the targeted extraction input                   |
-| `observe_file_uploads`       | The observed selector resolves to the exact input required by the existing task    |
+| Existing task                | Preserved check                                                  |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `extract_aigrant_targeted`   | Extract Coframe within the original XPath                        |
+| `extract_aigrant_targeted_2` | Keep neighboring OpusClip outside that XPath                     |
+| `observe_file_uploads`       | Resolve the observed selector to the expected file input         |
+| `extract_csa`                | Extract the publication list and its expected first/last entries |
+| `extract_professional_info`  | Extract the practices, phone, and fax                            |
+| `extract_resistor_info`      | Extract lead time, tolerance, resistance, and temperature        |
+| `ionwave_observe`            | Resolve an observed element to the expected registration link    |
 
 The instructions, schemas, selectors, and scoring assertions are unchanged.
-The two extraction tasks share the AI Grant page; file upload uses a second page.
-`tasks/replay.ts` loads each recording into a blank browser document at the
-recorded viewport. It works through the normal SDK page API and does not need a
-recording web server accessible to a remote browser. The HTML is stored as gzip
-because repeated computed styles make the AI Grant capture approximately 4 MB;
-compressed, both pages together are approximately 51 KB. Capture metadata and
-SHA-256 digests accompany the assets. The existing eval build copies these assets
-into `dist/esm/assets`.
+All 37 extraction/observation tasks were audited. See the [eligibility audit](../assets/observation-tasks/AUDIT.md)
+for every decision, including unsupported pages, required interactions, capture
+fidelity failures, and broken source baselines. All candidates that passed the
+fidelity checks are included; excluded tasks retain their existing live behavior.
 
-`tests/integration/taskExistingEvals.test.ts` runs the actual migrated task
-functions. Its default offline tests use a deterministic model adapter that reads
-company text and control IDs from real Stagehand prompts. External browser DNS is
-blocked as well as the recording CSP's remote-asset restrictions. A negative control
-replaces the company link text and requires validation to reject the altered page.
-The tests also check the saved bytes against their manifest hashes.
+`tasks/replay.ts` restores each recorded viewport and sends the HTML through the
+normal SDK page API. It needs no recording server reachable by a remote browser.
+Gzip reduces the repeated computed styles; the eval build copies these assets to
+`dist/esm/assets`. Manifests include provenance and uncompressed HTML SHA-256.
 
-`pnpm test:browser` runs these five offline checks without credentials. They are
-also included in root `just test` and the TypeScript browser CI job, including
-eval-only changes. The command selects only the offline suite, even when optional
-validation flags are set.
+`tests/integration/taskExistingEvals.test.ts` runs the actual task functions.
+Offline tests use deterministic model adapters: the initial three exercise the
+original assertions; the four additions inspect real Stagehand prompts for
+required source content and stop at the inference boundary. Paid model tests
+check the original scoring assertions for all seven tasks. Local offline runs
+block external DNS, and the recording CSP blocks remote page assets. A negative
+control removes company text and requires validation to reject the altered page.
+Manifest checks cover all six recordings.
 
-After building the SDK and extension and installing Playwright Chromium, run from
-`packages/evals`:
+`pnpm test:browser` includes the offline checks in root `just test` and the
+TypeScript browser CI job, including eval-only changes. Its explicit test filter
+excludes opt-in suites even when their environment flags are set.
+
+After building the SDK and extension, run from `packages/evals` (install Playwright
+Chromium for the optional frame-rejection check):
 
 ```sh
 # Offline replay: no provider credentials or original websites needed.
 pnpm test:browser
 
-# Also compare the committed recordings with the current public source pages.
+# Compare the committed recordings with current public source pages.
 VALIDATE_EXISTING_EVAL_TASKS=1 pnpm exec vitest run \
   --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts
 
-# Cloud replay: compares all three tasks on Browserbase (six sessions).
-# Set BROWSERBASE_API_KEY first; no model API key is needed.
+# Cloud replay: seven comparisons, fourteen Browserbase sessions.
+# Set BROWSERBASE_API_KEY first; no model key is needed.
 TASK_VALIDATION_BROWSERBASE=1 pnpm exec vitest run \
   --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts -t Browserbase
 
-# Paid real-model validation: three source/recording pairs per task.
-# Set OPENAI_API_KEY in the environment first; use any supported OpenAI model.
+# Paid model validation: three source/recording pairs per task.
+# Set OPENAI_API_KEY first; use any supported OpenAI model.
 TASK_VALIDATION_MODEL=openai/gpt-5.4-mini pnpm exec vitest run \
   --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts -t real-model
 ```
 
-Live source comparisons are opt-in because mirror changes and availability can
-legitimately fail them. For the three supported tasks, source and saved observation
-prompts match after normalizing session-local element IDs. The real-model suite
-uses Stagehand's normal provider integration and each task's original pass/fail
-assertions. It repeats each pair three times; this checks practical behavior but
-is not a statistical guarantee for every model or future SDK version.
-
-`extract_single_link` stays live: the Geniusee mirror has unsupported frames and
-capture rejects it explicitly. Tasks such as `observe_simple_google_search` and
-`observe_main_frame_element_ids` assert post-action behavior and keep their
-executable pages. See the [asset notes](../assets/observation-tasks/README.md)
-for provenance, refresh instructions, and validation results.
+Source comparisons normalize session-local element IDs, whitespace-only text
+nodes, and blank link names; nonempty text, other roles, hierarchy, and values
+remain intact. These checks stay opt-in because source changes can legitimately
+fail them. Three real-model repeats check practical behavior, not a statistical
+guarantee for every model or future SDK version. See the
+[asset notes](../assets/observation-tasks/README.md) for provenance and refresh instructions.

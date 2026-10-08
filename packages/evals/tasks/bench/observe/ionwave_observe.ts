@@ -1,10 +1,11 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { gotoRecordedTask } from "../../replay.js";
 
 export default defineBenchTask(
   { name: "ionwave_observe" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/");
+      await gotoRecordedTask(page, "ionwave");
 
       const { data: observations } = await stagehand.observe();
 

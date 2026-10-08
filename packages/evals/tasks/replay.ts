@@ -2,7 +2,13 @@ import { readFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import type { Page } from "@browserbasehq/stagehand";
 
-export type RecordedTaskName = "aigrant" | "file-uploads-3";
+export type RecordedTaskName =
+  | "aigrant"
+  | "file-uploads-3"
+  | "csa"
+  | "ionwave"
+  | "professional-info"
+  | "resistor";
 
 /** Load a reviewed recording without depending on a server reachable by the browser. */
 export async function gotoRecordedTask(page: Page, name: RecordedTaskName): Promise<void> {

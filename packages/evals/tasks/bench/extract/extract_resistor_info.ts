@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { gotoRecordedTask } from "../../replay.js";
 import { normalizeString } from "../../../framework/stringScoring.js";
 
 export default defineBenchTask(
   { name: "extract_resistor_info" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/resistor/");
+      await gotoRecordedTask(page, "resistor");
 
       const { data: result } = await stagehand.extract(
         "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",

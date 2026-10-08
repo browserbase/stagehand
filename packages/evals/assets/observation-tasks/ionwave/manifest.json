@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "observation",
+  "sourceUrl": "https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/",
+  "recordedAt": "2026-10-08T00:42:52.367Z",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "limitations": [
+    "No application scripts or remote assets",
+    "No post-click behavior",
+    "No frames or shadow DOM",
+    "No pseudo-element content or canvas pixels"
+  ],
+  "htmlSha256": "51ef1539efe8b8b911ae73d335377e2829ecab59c7b2e0baf79869c793bba155"
+}

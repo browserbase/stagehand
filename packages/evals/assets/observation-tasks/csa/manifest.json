@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "observation",
+  "sourceUrl": "https://browserbase.github.io/stagehand-eval-sites/sites/csa/",
+  "recordedAt": "2026-10-08T00:42:12.484Z",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "limitations": [
+    "No application scripts or remote assets",
+    "No post-click behavior",
+    "No frames or shadow DOM",
+    "No pseudo-element content or canvas pixels"
+  ],
+  "htmlSha256": "781b8700f8ff012ab8b18015c9f3ffc485c64fdee0342e923ceeb862ee552ebe"
+}

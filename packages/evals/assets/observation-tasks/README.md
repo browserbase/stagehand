@@ -4,12 +4,18 @@ These are captures of the public mirrors already used by the migrated benchmarks
 
 - `aigrant`: https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/
 - `file-uploads-3`: https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-3/
+- `csa`: https://browserbase.github.io/stagehand-eval-sites/sites/csa/
+- `professional-info`: https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/
+- `resistor`: https://browserbase.github.io/stagehand-eval-sites/sites/resistor/
+- `ionwave`: https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/
 
 Each `manifest.json` records the original URL, capture time, viewport, recorder
 limitations, and SHA-256 of the uncompressed HTML. The `.html.gz` files contain
 the recorder's unmodified HTML; gzip only reduces storage size. The recorder
-removes scripts and remote assets. Review found no form values in either capture:
-AI Grant has no inputs, and file upload has one file input without a value.
+removes scripts and remote assets. Captures use fresh unauthenticated public sessions. AI Grant has no inputs,
+and file upload has one file input without a value. The additional captures
+contain public default form values (a publication date, resistor part number,
+and button labels); no account credentials or user-entered data are included.
 Original page text and link attribution remain in the captures.
 
 ## Inspect or refresh
@@ -21,7 +27,7 @@ gzip -dc assets/observation-tasks/aigrant/index.html.gz > /tmp/aigrant-recorded.
 ```
 
 To refresh, record into a **new** directory, using the source URL in the existing
-manifest. These two static mirrors need no setup script; the recorder waits for
+manifest. These static mirrors need no setup script; the recorder waits for
 page load. For example:
 
 ```sh
@@ -52,28 +58,21 @@ Do not update expected task results just to accommodate a changed recording.
 
 ## Validation
 
-The initial 2026-10-04 captures pass the three original benchmark assertions with
-the deterministic adapter, and their normalized Stagehand prompts match the public
-source pages. Deliberately replacing the Coframe link text is detected. The
-Geniusee link-extraction page is excluded because its frames are unsupported.
+All 37 extraction/observation tasks were audited; see [AUDIT.md](./AUDIT.md) for
+all decisions and exclusions. Seven tasks across six captured pages preserve the
+source observation. The original two pages were captured on 2026-10-04; the four
+additional pages were captured on 2026-10-07. Captured HTML is unmodified except
+for gzip packaging and the added manifest digest.
 
-Real-model validation used `openai/gpt-5.4-mini` through Stagehand's normal provider
-integration in local Chrome. The initial 2026-10-04 run was repeated on 2026-10-07
-after adopting the merged task recorder and updating to current `main`. Each task
-ran three times per page variant, using its original success assertion:
+Local offline checks verify required observation content, all manifest hashes,
+and a negative control for missing company text. Source comparisons preserve
+nonempty accessible text and hierarchy, normalizing only session-local IDs,
+whitespace-only text nodes, and blank link names.
 
-| Task                         | Public source | Saved recording |
-| ---------------------------- | ------------- | --------------- |
-| `extract_aigrant_targeted`   | 3/3 pass      | 3/3 pass        |
-| `extract_aigrant_targeted_2` | 3/3 pass      | 3/3 pass        |
-| `observe_file_uploads`       | 3/3 pass      | 3/3 pass        |
-
-All 18 task runs passed. This is a small migration check, not a statistical claim
-about every model.
-
-Browserbase validation on 2026-10-07 also passed all three task comparisons
-(six cloud sessions). Each task passed its original assertions on both the public
-source and saved recording, and the normalized Stagehand observation prompts
-matched. This cloud check used the deterministic adapter, not paid model calls;
-it validates remote replay and observation fidelity. Run it with the opt-in
-`TASK_VALIDATION_BROWSERBASE=1` command in `tasks/README.md`.
+Validation on 2026-10-07 passed all 45 checks: nine offline, eight live-source,
+21 real-model pairs, and seven Browserbase comparisons. All 42 real-model task
+runs passed the original assertions with `openai/gpt-5.4-mini` (three runs per
+task and page variant). All 14 Browserbase sessions passed observation comparison
+using deterministic adapters without paid inference. The six packaged recordings
+also loaded through the compiled helper in offline Chrome. These are migration
+checks, not a statistical guarantee about every model.

@@ -17,18 +17,51 @@ import targeted from "../../tasks/bench/extract/extract_aigrant_targeted.js";
 import targetedBoundary from "../../tasks/bench/extract/extract_aigrant_targeted_2.js";
 import fileUpload from "../../tasks/bench/observe/observe_file_uploads.js";
 
+import extract_csa from "../../tasks/bench/extract/extract_csa.js";
+import extract_professional_info from "../../tasks/bench/extract/extract_professional_info.js";
+import extract_resistor_info from "../../tasks/bench/extract/extract_resistor_info.js";
+import ionwave_observe from "../../tasks/bench/observe/ionwave_observe.js";
+
 const origin = "https://browserbase.github.io/stagehand-eval-sites/sites/";
-const cases = [
+const originalCases = [
   { task: targeted, site: "aigrant", kind: "extract" },
   { task: targetedBoundary, site: "aigrant", kind: "extract" },
   { task: fileUpload, site: "file-uploads-3", kind: "observe" },
 ] as const;
+const additionalCases = [
+  {
+    task: extract_csa,
+    site: "csa",
+    kind: "probe",
+    requiredText: ["11-30-2024", "11-30-2016", "Assembly Weekly History"],
+  },
+  {
+    task: extract_professional_info,
+    site: "professional-info",
+    kind: "probe",
+    requiredText: ["Restructuring", "Private Credit", "373-3262"],
+  },
+  {
+    task: extract_resistor_info,
+    site: "resistor",
+    kind: "probe",
+    requiredText: ["11 Weeks", "330", "155"],
+  },
+  {
+    task: ionwave_observe,
+    site: "ionwave",
+    kind: "probe",
+    requiredText: ["Welcome to City of El Paso", "Login"],
+  },
+] as const;
+const cases = [...originalCases, ...additionalCases];
 type EvalCase = (typeof cases)[number];
 type Variant = "recorded" | "source" | "lossy";
 // Stagehand.create validates the configured name against the SDK's model enum.
 const realModelName = process.env.TASK_VALIDATION_MODEL as ModelName | undefined;
 
-function deterministicModel(kind: EvalCase["kind"], prompts: string[]): ClientLLM {
+function deterministicModel(entry: EvalCase, prompts: string[]): ClientLLM {
+  const { kind } = entry;
   return {
     generate: async (params) => {
       if (
@@ -48,7 +81,22 @@ function deterministicModel(kind: EvalCase["kind"], prompts: string[]): ClientLL
             .map((content) => content.text),
         )
         .join("\n");
-      prompts.push(prompt.replace(/\[\d+-\d+\]/g, "[id]"));
+      // Ignore session IDs and empty accessible text only. Preserve all named
+      // nodes, roles, hierarchy, values and nonempty text in fidelity comparisons.
+      prompts.push(
+        prompt
+          .replace(/\[\d+-\d+\]/g, "[id]")
+          .split("\n")
+          .filter((line) => !/^\s*\[id\] StaticText:\s*$/.test(line))
+          .map((line) => line.replace(/(\[id\] link):\s*$/, "$1"))
+          .join("\n"),
+      );
+      if (kind === "probe") {
+        for (const text of entry.requiredText) expect(prompt).toContain(text);
+        // Stop at the real inference boundary: this verifies capture fidelity,
+        // while the opt-in real-model suite checks the original scoring assertions.
+        throw new Error("Recorded task observation inspected");
+      }
       let structuredContent:
         | { company_name: string }
         | {
@@ -106,7 +154,7 @@ async function runTask(
     throw new Error("TASK_VALIDATION_MODEL must be an openai/ model");
   const model = useRealModel
     ? { modelName: realModelName!, apiKey: process.env.OPENAI_API_KEY! }
-    : deterministicModel(entry.kind, prompts);
+    : deterministicModel(entry, prompts);
   // Local deterministic replay additionally blocks DNS; cloud sessions and
   // real-model runs need network access. Recording CSP blocks remote page assets.
   if (useBrowserbase && !process.env.BROWSERBASE_API_KEY)
@@ -160,7 +208,14 @@ async function runTask(
       sessionUrl: "",
     });
     expect(navigation).toHaveBeenCalledTimes(1);
-    expect(result, JSON.stringify(result)).toMatchObject({ _success: true });
+    if (!useRealModel && entry.kind === "probe") {
+      expect(result).toMatchObject({
+        _success: false,
+        error: "Recorded task observation inspected",
+      });
+    } else {
+      expect(result, JSON.stringify(result)).toMatchObject({ _success: true });
+    }
     if (!useRealModel) expect(prompts).toHaveLength(1);
     return prompts;
   } finally {
@@ -175,7 +230,7 @@ async function runTask(
 
 describe("recorded existing benchmarks (offline)", () => {
   for (const entry of cases) {
-    test(`${entry.task.meta.name}: passes its original assertions`, async () => {
+    test(`${entry.task.meta.name}: preserves recorded observation`, async () => {
       await runTask(entry, "recorded");
     });
   }
@@ -203,7 +258,9 @@ describe("recorded existing benchmarks (offline)", () => {
 describe.skipIf(process.env.VALIDATE_EXISTING_EVAL_TASKS !== "1")("live source fidelity", () => {
   for (const entry of cases) {
     test(`${entry.task.meta.name}: source and saved observation prompts match`, async () => {
-      expect(await runTask(entry, "recorded")).toEqual(await runTask(entry, "source"));
+      const saved = await runTask(entry, "recorded");
+      const source = await runTask(entry, "source");
+      expect(saved).toEqual(source);
     });
   }
 
