@@ -345,7 +345,7 @@ export class Frame implements FrameManager {
     progress.throwIfStopped();
     await this.session.send("Page.enable");
     const format = options?.type ?? "png";
-    const params: Protocol.Page.CaptureScreenshotRequest & { scale?: number } = {
+    const params: Protocol.Page.CaptureScreenshotRequest = {
       format,
       fromSurface: true,
       captureBeyondViewport: options?.fullPage,
@@ -366,7 +366,19 @@ export class Frame implements FrameManager {
       };
       params.clip = clip;
     } else if (normalizedScale !== undefined && normalizedScale !== 1) {
-      params.scale = normalizedScale;
+      // CDP applies scale only inside clip; a top-level scale is silently ignored.
+      const metrics =
+        await this.session.send<Protocol.Page.GetLayoutMetricsResponse>("Page.getLayoutMetrics");
+      const viewport = metrics.cssVisualViewport;
+      const bounds = options?.fullPage
+        ? metrics.cssContentSize
+        : {
+            x: viewport.pageX,
+            y: viewport.pageY,
+            width: viewport.clientWidth,
+            height: viewport.clientHeight,
+          };
+      params.clip = { ...bounds, scale: normalizedScale };
     }
 
     if (format === "jpeg" && typeof options?.quality === "number") {
