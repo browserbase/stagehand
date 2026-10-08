@@ -13,6 +13,7 @@ type FrameState = {
   scrollY: number;
   targetScroll: number;
   targetInView: boolean;
+  keys: Array<{ type: string; key: string; code: string; time: number }>;
 };
 
 it("runs the shared facade against same-origin and out-of-process local frames", async () => {
@@ -35,7 +36,10 @@ it("runs the shared facade against same-origin and out-of-process local frames",
           <div style="height:700px">Scrollable target</div>
         </div>
         <script>
-          const events = {click: 0, input: 0, change: 0, lastClick: null};
+          const events = {click: 0, input: 0, change: 0, lastClick: null, keys: []};
+          for (const type of ['keydown', 'keyup']) document.addEventListener(type, event => {
+            events.keys.push({type, key: event.key, code: event.code, time: performance.now()});
+          });
           for (const type of ['click', 'input', 'change']) document.addEventListener(type, event => {
             events[type]++;
             if (type === 'click') events.lastClick = event.target.id;
@@ -156,6 +160,28 @@ it("runs the shared facade against same-origin and out-of-process local frames",
     ).toBe(true);
     expect(generate).not.toHaveBeenCalled();
     expect(tools.sessionLoss).toBeUndefined();
+    for (const id of ["same", "cross"]) {
+      await tools.run(
+        `await page.frameLocator("#${id}").locator("#value").press("w", {delay: 100});`,
+      );
+      const state = (await inspect()).find((state) => state.fixture === `/${id}`)!;
+      expect(state.keys).toMatchObject([
+        { type: "keydown", key: "w", code: "KeyW" },
+        { type: "keyup", key: "w", code: "KeyW" },
+      ]);
+      expect(state.keys[1].time - state.keys[0].time).toBeGreaterThanOrEqual(90);
+      await tools.run(
+        `await page.frameLocator("#${id}").locator("#value").press("w+a", {delay:100});`,
+      );
+      const combined = (await inspect()).find((state) => state.fixture === `/${id}`)!;
+      expect(combined.keys.slice(2)).toMatchObject([
+        { type: "keydown", code: "KeyW" },
+        { type: "keydown", code: "KeyA" },
+        { type: "keyup", code: "KeyA" },
+        { type: "keyup", code: "KeyW" },
+      ]);
+      expect(combined.keys[4].time - combined.keys[3].time).toBeGreaterThanOrEqual(90);
+    }
   } finally {
     try {
       await stagehand?.close();

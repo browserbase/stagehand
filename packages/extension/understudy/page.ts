@@ -82,6 +82,35 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
   networkidle: "networkIdle",
 };
 
+const US_KEYBOARD_PUNCTUATION: Record<string, { code: string; vk: number }> = (() => {
+  const keys: Array<[unshifted: string, shifted: string, code: string, vk: number]> = [
+    [" ", " ", "Space", 32],
+    ["`", "~", "Backquote", 192],
+    ["-", "_", "Minus", 189],
+    ["=", "+", "Equal", 187],
+    ["[", "{", "BracketLeft", 219],
+    ["]", "}", "BracketRight", 221],
+    ["\\", "|", "Backslash", 220],
+    [";", ":", "Semicolon", 186],
+    ["'", '"', "Quote", 222],
+    [",", "<", "Comma", 188],
+    [".", ">", "Period", 190],
+    ["/", "?", "Slash", 191],
+    ...[..."1234567890"].map((digit, index): [string, string, string, number] => [
+      digit,
+      "!@#$%^&*()"[index],
+      `Digit${digit}`,
+      digit.charCodeAt(0),
+    ]),
+  ];
+  const table: Record<string, { code: string; vk: number }> = {};
+  for (const [unshifted, shifted, code, vk] of keys) {
+    table[unshifted] = { code, vk };
+    table[shifted] = { code, vk };
+  }
+  return table;
+})();
+
 const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
 export type WebMCPToolsEvent =
   | Omit<PageToolsAddedNotification, "subscriptionId">
@@ -2364,9 +2393,13 @@ export class Page {
         } as Protocol.Input.DispatchKeyEventRequest;
         await this.mainSession.send("Input.dispatchKeyEvent", req);
       } else {
-        // Typing path (no non-Shift modifiers): send text to generate input
+        // Keep physical key identity for listeners that use event.code, as well as text input.
+        const desc = this.describePrintableKey(normalizedKey);
         await this.mainSession.send("Input.dispatchKeyEvent", {
           type: "keyDown",
+          key: desc.key,
+          ...(desc.code ? { code: desc.code } : {}),
+          ...(typeof desc.vk === "number" ? { windowsVirtualKeyCode: desc.vk } : {}),
           text: normalizedKey,
           unmodifiedText: normalizedKey,
           modifiers,
@@ -2565,8 +2598,9 @@ export class Page {
   }
 
   /**
-   * Minimal description for printable keys (letters/digits/space) to provide code and VK.
-   * Used when non-Shift modifiers are pressed to avoid sending text while keeping accelerator info.
+   * US-layout key, code, and VK for a printable character.
+   * Unknown characters get no code or VK: Chromium runs editing commands from the VK, so an
+   * ASCII-derived VK would make "." act as Delete (46) and "(" as ArrowDown (40).
    */
   describePrintableKey(ch: string): {
     key: string;
@@ -2574,35 +2608,25 @@ export class Page {
     vk?: number;
   } {
     const shiftDown = this._pressedModifiers.has("Shift");
-    const isLetter = /^[a-zA-Z]$/.test(ch);
-    const isDigit = /^[0-9]$/.test(ch);
+    const accelerator =
+      this._pressedModifiers.has("Alt") ||
+      this._pressedModifiers.has("Control") ||
+      this._pressedModifiers.has("Meta");
 
-    if (isLetter) {
+    if (/^[a-zA-Z]$/.test(ch)) {
       const upper = ch.toUpperCase();
       return {
-        key: shiftDown ? upper : upper.toLowerCase(),
+        // Shortcut listeners expect "Ctrl+A" to report key "a", as a physical keyboard does.
+        key: shiftDown ? upper : accelerator ? ch.toLowerCase() : ch,
         code: `Key${upper}`,
-        vk: upper.charCodeAt(0), // 'A'..'Z' => 65..90
+        vk: upper.charCodeAt(0),
       };
     }
 
-    if (isDigit) {
-      return {
-        key: ch,
-        code: `Digit${ch}`,
-        vk: ch.charCodeAt(0), // '0'..'9' => 48..57
-      };
-    }
+    const physical = US_KEYBOARD_PUNCTUATION[ch];
+    if (physical) return { key: ch, ...physical };
 
-    if (ch === " ") {
-      return { key: " ", code: "Space", vk: 32 };
-    }
-
-    // Fallback: just return the character as-is; VK best-effort from ASCII
-    return {
-      key: shiftDown ? ch.toUpperCase() : ch,
-      vk: ch.toUpperCase().charCodeAt(0),
-    };
+    return { key: ch };
   }
 
   isMacOS(): boolean {
