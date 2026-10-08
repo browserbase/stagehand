@@ -275,7 +275,10 @@ export class StagehandAPIClient {
         message: `API error (${sessionResponse.status}): ${errorText}`,
         level: 0,
       });
-      throw new StagehandHttpError(`Unknown error: ${sessionResponse.status}`);
+      throw new StagehandHttpError(
+        `Unknown error: ${sessionResponse.status}`,
+        sessionResponse.status,
+      );
     }
 
     const sessionResponseBody =
@@ -537,6 +540,7 @@ export class StagehandAPIClient {
       });
       throw new StagehandHttpError(
         `Failed to fetch metrics with status ${response.status}: ${errorText}`,
+        response.status,
       );
     }
 
@@ -762,6 +766,7 @@ export class StagehandAPIClient {
       const errorBody = await response.text();
       throw new StagehandHttpError(
         `HTTP error! status: ${response.status}, body: ${errorBody}`,
+        response.status,
       );
     }
 
@@ -794,9 +799,11 @@ export class StagehandAPIClient {
 
           if (eventData.type === "system") {
             if (eventData.data.status === "error") {
-              const { error: errorMsg } = eventData.data;
-              // Throw plain Error to match local SDK behavior (useApi: false)
-              throw new Error(errorMsg);
+              const { error: errorMsg, statusCode } = eventData.data;
+              throw new StagehandHttpError(
+                errorMsg,
+                typeof statusCode === "number" ? statusCode : undefined,
+              );
             }
             if (eventData.data.status === "finished") {
               this.lastFinishedEventData = eventData.data;

@@ -12,8 +12,11 @@ export class StagehandAPIUnauthorizedError extends StagehandAPIError {
 }
 
 export class StagehandHttpError extends StagehandAPIError {
-  constructor(message: string) {
+  statusCode?: number;
+
+  constructor(message: string, statusCode?: number) {
     super(message);
+    this.statusCode = statusCode;
   }
 }
 
