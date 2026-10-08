@@ -47,6 +47,10 @@ export class StagehandLogger {
     this.threshold = threshold;
   }
 
+  isEnabled(level: StagehandLogLevel): boolean {
+    return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[this.threshold];
+  }
+
   debug(message: string, data: StagehandLogData): void {
     this.write("debug", message, data);
   }
@@ -95,6 +99,7 @@ export class StagehandLogger {
   }
 
   write(level: StagehandLogLevel, message: string, data: StagehandLogData): void {
+    if (!this.isEnabled(level)) return;
     const log = StagehandLogSchema.parse({ level, message, data });
     const span = this.tracing.tracer.startSpan(
       log.message,
@@ -110,7 +115,6 @@ export class StagehandLogger {
     );
 
     span.end();
-    if (LOG_LEVEL_PRIORITY[level] < LOG_LEVEL_PRIORITY[this.threshold]) return;
     this.emitLog(log);
   }
 }
