@@ -127,6 +127,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
       "LocalBrowserLaunchOptions",
       "LocalBrowserConnectOptions",
       "BrowserbaseConnectOptions",
+      "BrowserbaseClientOptions",
       "StagehandClientLoggingConfig",
       "StagehandClientCreateConfig",
     ];

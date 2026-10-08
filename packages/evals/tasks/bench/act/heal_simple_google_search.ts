@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "heal_simple_google_search" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/google/");
 
       // Self-healing act(Action) replay (restored by
       // stagehand#2427): same intentionally invalid selector as the v3
@@ -34,8 +34,7 @@ export default defineBenchTask(
       await stagehand.act("press enter");
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
-      const expectedUrl =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
+      const expectedUrl = "https://stagehand-eval-sites.vercel.app/sites/google/openai.html";
       const currentUrl = await page.url();
 
       return {

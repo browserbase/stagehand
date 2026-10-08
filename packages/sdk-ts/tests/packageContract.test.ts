@@ -27,7 +27,7 @@ describe("published TypeScript SDK", () => {
           {
             private: true,
             type: "module",
-            packageManager: "pnpm@11.10.0",
+            packageManager: "pnpm@11.11.0",
             dependencies: {
               "@browserbasehq/stagehand": "file:../stagehand-sdk.tgz",
             },
@@ -92,6 +92,8 @@ describe("published TypeScript SDK", () => {
         path.join(consumerDirectory, "verify.ts"),
         `
           import type {
+            BrowserbaseClientOptions,
+            BrowserbaseConnectOptions,
             Caching,
             LoadState,
             LocatorCentroidResult,
@@ -123,6 +125,16 @@ describe("published TypeScript SDK", () => {
             Variables,
           } from "@browserbasehq/stagehand";
 
+          const browserbaseClientOptions: BrowserbaseClientOptions = {
+            timeout: 5_000,
+            maxRetries: 1,
+            defaultHeaders: { "X-Caller": "app" },
+          };
+          const browserbaseConnect: BrowserbaseConnectOptions = {
+            apiKey: "bb_key",
+            sessionId: "session_123",
+            clientOptions: browserbaseClientOptions,
+          };
           const loadState: LoadState = "domcontentloaded";
           const mouseButton: MouseButton = "left";
           const modelName: ModelName = "openai/gpt-5";
@@ -157,6 +169,7 @@ describe("published TypeScript SDK", () => {
           declare const usage: StagehandResultUsage;
 
           void [
+            browserbaseConnect,
             clip,
             navigation,
             pageClick,
