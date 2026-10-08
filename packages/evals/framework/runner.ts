@@ -48,14 +48,24 @@ export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { rejectAgentMountOnlyCoreTool, resolveDefaultCoreStartupProfile } from "./context.js";
 import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
+import {
+  ProviderConcurrency,
+  runGatedRow,
+  type ConcurrencyQueueSnapshot,
+  type ThrottleRecord,
+} from "./providerConcurrency.js";
 
 export interface RunProgressEvent {
-  type: "planned" | "started" | "passed" | "failed" | "error";
+  type: "planned" | "started" | "passed" | "failed" | "error" | "queue" | "throttled";
   taskName?: string;
   modelName?: string;
   durationMs?: number;
   error?: string;
   total?: number;
+  /** Live scheduler state; present on `queue` events. */
+  queue?: ConcurrencyQueueSnapshot;
+  /** Which semaphore was halved and why; present on `throttled` events. */
+  throttle?: ThrottleRecord;
 }
 
 export interface RunEvalsOptions {
@@ -73,6 +83,12 @@ export interface RunEvalsOptions {
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;
   verbose?: boolean;
+  /**
+   * Per-provider widths under the global cap (`{ openai: 3, anthropic: 3 }`).
+   * `EVAL_PROVIDER_CONCURRENCY` layers on top of these; unset providers
+   * default to 3.
+   */
+  providerConcurrency?: Record<string, number>;
   /**
    * Cooperative abort. When triggered, the runner short-circuits any
    * unstarted testcases and any in-flight bench task is asked to close
@@ -430,6 +446,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
   const traceTransport = resolveTraceTransport();
   const hasCoreOnly = options.tasks.every((t: DiscoveredTask) => t.tier === "core");
   const braintrustProjectName = resolveBraintrustProjectName(hasCoreOnly ? "core" : "bench");
+  let scheduler: ProviderConcurrency | undefined;
 
   try {
     const concurrency = options.concurrency ?? 3;
@@ -442,10 +459,19 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     if (effectiveCoreToolSurface) rejectAgentMountOnlyCoreTool(effectiveCoreToolSurface);
 
     const testcases = generateTestcases(options.tasks, options);
+    // Braintrust runs every testcase once per trial; counts are per execution.
+    const plannedExecutions = testcases.length * trials;
     options.onProgress?.({
       type: "planned",
-      total: testcases.length,
+      total: plannedExecutions,
     });
+    // Provider semaphores gate what runs under Braintrust's cap.
+    scheduler = ProviderConcurrency.fromEnv(concurrency, {
+      configWidths: options.providerConcurrency,
+      onChange: (queue) => options.onProgress?.({ type: "queue", queue }),
+    });
+    scheduler.setTotal(plannedExecutions);
+    const activeScheduler = scheduler;
     if (testcases.length === 0) {
       console.log("No testcases to run.");
       return {
@@ -534,6 +560,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             // abort still finishes its current step; this stops the next one
             // from spinning up.
             if (options.signal?.aborted) {
+              activeScheduler.markFinished();
               options.onProgress?.({
                 type: "failed",
                 taskName: input.name,
@@ -554,16 +581,11 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                 : options.registry.byName.get(`agent/${input.name}`));
 
             if (!resolvedTask) {
+              activeScheduler.markFinished();
               throw new EvalsError(`Task "${input.name}" not found in registry.`);
             }
 
-            options.onProgress?.({
-              type: "started",
-              taskName: input.name,
-              modelName: input.modelName,
-            });
-
-            const result =
+            const executeAttempt = async (): Promise<TaskResult> =>
               traceTransport === "otel"
                 ? await tracedSpan(
                     async (span) => {
@@ -595,6 +617,30 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
                     },
                   )
                 : await executeTask(input, resolvedTask, options);
+
+            // Provider slot + single throttle-aware retry. Each attempt builds
+            // its own session inside executeTask, so a retry is a fresh one.
+            // `started` fires once the provider slot is held, so rows queued
+            // behind a provider limit never show as running.
+            const result = await runGatedRow({
+              scheduler: activeScheduler,
+              modelName: input.modelName,
+              execute: executeAttempt,
+              signal: options.signal,
+              onStart: () =>
+                options.onProgress?.({
+                  type: "started",
+                  taskName: input.name,
+                  modelName: input.modelName,
+                }),
+              onThrottle: (throttle) =>
+                options.onProgress?.({
+                  type: "throttled",
+                  taskName: input.name,
+                  modelName: input.modelName,
+                  throttle,
+                }),
+            });
 
             options.onProgress?.({
               type: result._success ? "passed" : "failed",
@@ -660,6 +706,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       results: summaryResults,
     };
   } finally {
+    scheduler?.dispose();
     if (traceTransport === "otel") {
       try {
         await shutdownTracing();
