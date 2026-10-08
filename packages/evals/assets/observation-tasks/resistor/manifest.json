@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "observation",
+  "sourceUrl": "https://browserbase.github.io/stagehand-eval-sites/sites/resistor/",
+  "recordedAt": "2026-10-08T00:42:42.501Z",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "limitations": [
+    "No application scripts or remote assets",
+    "No post-click behavior",
+    "No frames or shadow DOM",
+    "No pseudo-element content or canvas pixels"
+  ],
+  "htmlSha256": "54f49254e17dfa9f21cdf2b35ea2304f2fd6f5be6761564d4ecd2b56744639e6"
+}

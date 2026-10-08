@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { gotoRecordedTask } from "../../replay.js";
 
 export default defineBenchTask(
   { name: "extract_csa" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/csa/");
+      await gotoRecordedTask(page, "csa");
 
       const { data: result } = await stagehand.extract(
         "Extract all the publications on the page including the publication date, session type, publication type, and annotation",

@@ -352,6 +352,11 @@
       "passThroughEnv": ["CHROME_PATH", "PLAYWRIGHT_CHROMIUM_CHANNEL"],
       "inputs": ["$TURBO_DEFAULT$", "integration/**", "src/**", "vitest.browser.config.ts"]
     },
+    "@browserbasehq/stagehand-evals#test:browser": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": ["CHROME_PATH"]
+    },
     "@browserbasehq/stagehand#test:browser": {
       "dependsOn": ["^build", "@browserbasehq/stagehand#build"],
       "cache": false,

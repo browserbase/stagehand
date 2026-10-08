@@ -19,9 +19,9 @@ This is an observation task on-ramp, not an arbitrary application recorder.
 It supports manually authored `extract()` / `observe()` regressions against a
 frozen observation. It does not generate assertions or replay click handlers,
 fetches, navigation, authentication, or state transitions. Network response
-recording and bug-report automation are future work. The issue's old
-`tasks/extract` and `tasks/observe` live-site tasks are absent from current v4
-`main`, so migrating those tasks is not part of this change.
+recording and bug-report automation are future work. Current extraction and
+observation benchmarks live under `tasks/bench/extract` and `tasks/bench/observe`.
+The existing-eval validation below covers three tasks migrated to saved pages.
 
 ## Record
 
@@ -177,3 +177,70 @@ Run all recorder validations from `packages/evals`:
 ```sh
 pnpm exec vitest run --config vitest.integration.config.ts tests/integration/task*.test.ts
 ```
+
+## Existing-eval migrations
+
+Seven benchmarks now use six recordings in `assets/observation-tasks`:
+
+| Existing task                | Preserved check                                                  |
+| ---------------------------- | ---------------------------------------------------------------- |
+| `extract_aigrant_targeted`   | Extract Coframe within the original XPath                        |
+| `extract_aigrant_targeted_2` | Keep neighboring OpusClip outside that XPath                     |
+| `observe_file_uploads`       | Resolve the observed selector to the expected file input         |
+| `extract_csa`                | Extract the publication list and its expected first/last entries |
+| `extract_professional_info`  | Extract the practices, phone, and fax                            |
+| `extract_resistor_info`      | Extract lead time, tolerance, resistance, and temperature        |
+| `ionwave_observe`            | Resolve an observed element to the expected registration link    |
+
+The instructions, schemas, selectors, and scoring assertions are unchanged.
+All 37 extraction/observation tasks were audited. See the [eligibility audit](../assets/observation-tasks/AUDIT.md)
+for every decision, including unsupported pages, required interactions, capture
+fidelity failures, and broken source baselines. All candidates that passed the
+fidelity checks are included; excluded tasks retain their existing live behavior.
+
+`tasks/replay.ts` restores each recorded viewport and sends the HTML through the
+normal SDK page API. It needs no recording server reachable by a remote browser.
+Gzip reduces the repeated computed styles; the eval build copies these assets to
+`dist/esm/assets`. Manifests include provenance and uncompressed HTML SHA-256.
+
+`tests/integration/taskExistingEvals.test.ts` runs the actual task functions.
+Offline tests use deterministic model adapters: the initial three exercise the
+original assertions; the four additions inspect real Stagehand prompts for
+required source content and stop at the inference boundary. Paid model tests
+check the original scoring assertions for all seven tasks. Local offline runs
+block external DNS, and the recording CSP blocks remote page assets. A negative
+control removes company text and requires validation to reject the altered page.
+Manifest checks cover all six recordings.
+
+`pnpm test:browser` includes the offline checks in root `just test` and the
+TypeScript browser CI job, including eval-only changes. Its explicit test filter
+excludes opt-in suites even when their environment flags are set.
+
+After building the SDK and extension, run from `packages/evals` (install Playwright
+Chromium for the optional frame-rejection check):
+
+```sh
+# Offline replay: no provider credentials or original websites needed.
+pnpm test:browser
+
+# Compare the committed recordings with current public source pages.
+VALIDATE_EXISTING_EVAL_TASKS=1 pnpm exec vitest run \
+  --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts
+
+# Cloud replay: seven comparisons, fourteen Browserbase sessions.
+# Set BROWSERBASE_API_KEY first; no model key is needed.
+TASK_VALIDATION_BROWSERBASE=1 pnpm exec vitest run \
+  --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts -t Browserbase
+
+# Paid model validation: three source/recording pairs per task.
+# Set OPENAI_API_KEY first; use any supported OpenAI model.
+TASK_VALIDATION_MODEL=openai/gpt-5.4-mini pnpm exec vitest run \
+  --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts -t real-model
+```
+
+Source comparisons normalize session-local element IDs, whitespace-only text
+nodes, and blank link names; nonempty text, other roles, hierarchy, and values
+remain intact. These checks stay opt-in because source changes can legitimately
+fail them. Three real-model repeats check practical behavior, not a statistical
+guarantee for every model or future SDK version. See the
+[asset notes](../assets/observation-tasks/README.md) for provenance and refresh instructions.

@@ -315,7 +315,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [build, determine-changes]
-    if: needs.determine-changes.outputs.sdk-ts == 'true'
+    if: needs.determine-changes.outputs.sdk-ts == 'true' || needs.determine-changes.outputs.evals == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
