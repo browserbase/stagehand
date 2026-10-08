@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-claude-cua-sdk",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "private": true,
   "description": "Anthropic Messages API Browser Use toolset (CUA) harness adapter for Stagehand integrations",
   "files": [
