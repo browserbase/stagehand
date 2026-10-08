@@ -66,6 +66,7 @@ class LocalBrowserLaunchOptions(TypedDict, total=False):
 class LocalBrowserConnectOptions(TypedDict):
     cdp_url: str
     extension_id: NotRequired[str]
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
 
 
 class BrowserbaseClientOptions(TypedDict, total=False):
@@ -85,6 +86,7 @@ class BrowserbaseConnectOptions(TypedDict):
     client_options: NotRequired[BrowserbaseClientOptions]
     session_id: str
     extension_id: NotRequired[str]
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
 
 
 class ClientLLM(TypedDict):
