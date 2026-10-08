@@ -94,6 +94,7 @@ describe("published TypeScript SDK", () => {
           import type {
             BrowserbaseClientOptions,
             BrowserbaseConnectOptions,
+            LocalBrowserConnectOptions,
             Caching,
             LoadState,
             LocatorCentroidResult,
@@ -130,11 +131,19 @@ describe("published TypeScript SDK", () => {
             maxRetries: 1,
             defaultHeaders: { "X-Caller": "app" },
           };
+          declare const extensionId: string | undefined;
+          const localConnect: LocalBrowserConnectOptions = {
+            cdpUrl: "ws://127.0.0.1:9222",
+            extensionId,
+          };
           const browserbaseConnect: BrowserbaseConnectOptions = {
             apiKey: "bb_key",
             sessionId: "session_123",
             clientOptions: browserbaseClientOptions,
+            extensionId,
           };
+          const localWithoutId: LocalBrowserConnectOptions = { ...localConnect, extensionId: undefined };
+          const browserbaseWithoutId: BrowserbaseConnectOptions = { ...browserbaseConnect, extensionId: undefined };
           const loadState: LoadState = "domcontentloaded";
           const mouseButton: MouseButton = "left";
           const modelName: ModelName = "openai/gpt-5";
@@ -204,6 +213,8 @@ describe("published TypeScript SDK", () => {
           "exec",
           "tsc",
           "--noEmit",
+          "--strictNullChecks",
+          "--exactOptionalPropertyTypes",
           "--module",
           "nodenext",
           "--moduleResolution",
