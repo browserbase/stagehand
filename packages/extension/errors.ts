@@ -34,3 +34,10 @@ export class ShadowRootEvaluationUnavailableError extends Error {
     this.name = "ShadowRootEvaluationUnavailableError";
   }
 }
+
+export class PageEvaluationError extends Error {
+  constructor() {
+    super("Page evaluation failed");
+    this.name = "PageEvaluationError";
+  }
+}
