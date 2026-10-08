@@ -188,7 +188,10 @@ export class Frame implements FrameManager {
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
-  async evaluateInLocatorWorld<R = unknown>(expression: string, progress?: Progress): Promise<R> {
+  async evaluateInLocatorWorld<R = unknown>(
+    buildExpression: () => string,
+    progress?: Progress,
+  ): Promise<R> {
     await runLocatorStep(progress, "enabling runtime", () =>
       this.session.send("Runtime.enable").catch((error) => {
         if (progress && isCdpClosedError(error)) throw error;
@@ -201,16 +204,19 @@ export class Frame implements FrameManager {
       progress,
     );
 
-    let response: Protocol.Runtime.EvaluateResponse;
-    try {
-      response = await runLocatorStep(progress, "evaluating locator helper", () =>
+    const evaluate = () =>
+      runLocatorStep(progress, "evaluating locator helper", () =>
         this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression,
+          expression: buildExpression(),
           contextId: locatorWorld.contextId,
           awaitPromise: true,
           returnByValue: true,
         }),
       );
+
+    let response: Protocol.Runtime.EvaluateResponse;
+    try {
+      response = await evaluate();
     } catch (error) {
       progress?.throwIfStopped();
       const message = error instanceof Error ? error.message : String(error);
@@ -222,14 +228,7 @@ export class Frame implements FrameManager {
         1000,
         progress,
       );
-      response = await runLocatorStep(progress, "evaluating locator helper", () =>
-        this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-          expression,
-          contextId: locatorWorld.contextId,
-          awaitPromise: true,
-          returnByValue: true,
-        }),
-      );
+      response = await evaluate();
     }
 
     if (response.exceptionDetails) {

@@ -185,7 +185,7 @@ const setupShadowObservers = (
  *
  * @param selectorRaw - CSS selector or XPath expression to wait for
  * @param stateRaw - Element state: 'attached' | 'detached' | 'visible' | 'hidden'
- * @param timeoutRaw - Maximum time to wait in milliseconds
+ * @param timeoutRaw - Maximum time to wait in milliseconds; defaults to 30,000, zero is unlimited
  * @param pierceShadowRaw - Whether to search inside shadow DOM
  * @returns Promise that resolves to true when condition is met, or rejects on timeout
  */
@@ -197,7 +197,7 @@ export function waitForSelector(
 ): Promise<boolean> {
   const selector = String(selectorRaw ?? "").trim();
   const state = (String(stateRaw ?? "visible") as WaitForSelectorState) || "visible";
-  const timeout = typeof timeoutRaw === "number" && timeoutRaw > 0 ? timeoutRaw : 30000;
+  const timeout = typeof timeoutRaw === "number" && timeoutRaw >= 0 ? timeoutRaw : 30000;
   const pierceShadow = pierceShadowRaw !== false;
 
   return new Promise<boolean>((resolve, reject) => {
@@ -258,17 +258,18 @@ export function waitForSelector(
         setupObservers();
       };
       document.addEventListener("DOMContentLoaded", domReadyHandler);
-      timeoutId = setTimeout(() => {
-        if (settled) return;
-        settled = true;
-        clearTimer();
-        cleanup();
-        reject(
-          new Error(
-            `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
-          ),
-        );
-      }, timeout);
+      if (timeout > 0)
+        timeoutId = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          clearTimer();
+          cleanup();
+          reject(
+            new Error(
+              `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
+            ),
+          );
+        }, timeout);
       return;
     }
 
@@ -302,16 +303,17 @@ export function waitForSelector(
     setupObservers();
 
     // Set up timeout
-    timeoutId = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      clearTimer();
-      cleanup();
-      reject(
-        new Error(
-          `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
-        ),
-      );
-    }, timeout);
+    if (timeout > 0)
+      timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        clearTimer();
+        cleanup();
+        reject(
+          new Error(
+            `waitForSelector: Timeout ${timeout}ms exceeded waiting for "${selector}" to be ${state}`,
+          ),
+        );
+      }, timeout);
   });
 }

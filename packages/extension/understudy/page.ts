@@ -300,7 +300,7 @@ export class Page {
   cursorEnabled = false;
   async ensureCursorScript(): Promise<void> {
     await this.mainFrameWrapper
-      .evaluateInLocatorWorld("globalThis.__stagehandLocatorScripts.installCursorOverlay()")
+      .evaluateInLocatorWorld(() => "globalThis.__stagehandLocatorScripts.installCursorOverlay()")
       .catch(() => {});
   }
 
@@ -314,7 +314,8 @@ export class Page {
     if (!this.cursorEnabled) return;
     try {
       await this.mainFrameWrapper.evaluateInLocatorWorld(
-        `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        () =>
+          `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
         progress,
       );
     } catch {
@@ -1767,27 +1768,29 @@ export class Page {
       timeout?: number;
       pierceShadow?: boolean;
     },
+    parentProgress?: Progress,
   ): Promise<boolean> {
-    const timeout = options?.timeout ?? 30000;
-    const state = options?.state ?? "visible";
-    const pierceShadow = options?.pierceShadow ?? true;
-    const startTime = Date.now();
-    const root = this.mainFrameWrapper;
-    const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
-      this,
-      root,
-      selector,
+    return runWithProgress(
+      parentProgress ?? { name: "waitForSelector", timeout: options?.timeout ?? 30_000 },
+      async (progress) => {
+        const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
+          this,
+          this.mainFrameWrapper,
+          selector,
+          progress,
+        );
+        return targetFrame.evaluateInLocatorWorld(() => {
+          const remaining = progress.remainingMs();
+          progress.throwIfStopped();
+          return buildLocatorInvocation("waitForSelector", [
+            JSON.stringify(finalSelector),
+            JSON.stringify(options?.state ?? "visible"),
+            String(remaining === Infinity ? 0 : Math.ceil(remaining)),
+            String(options?.pierceShadow ?? true),
+          ]);
+        }, progress);
+      },
     );
-    const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(0, timeout - elapsed);
-
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluateInLocatorWorld(expression);
   }
 
   /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
