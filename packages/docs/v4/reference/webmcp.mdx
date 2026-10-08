@@ -4,9 +4,9 @@ description: "Inspect and invoke page-provided WebMCP tools"
 icon: "plug"
 ---
 
-`page.tools()` returns page-bound `WebMCPTool` objects. Invoking a tool returns a
-`WebMCPInvocation`, which can wait for Chrome's terminal response or request cancellation. See the
-[Page reference](/v4/reference/page) for tool discovery options.
+`page.tools()` returns page-bound `WebMCPTool` objects. Invoking a tool returns a `WebMCPInvocation`, which can wait for Chrome's terminal response or request cancellation. See the [Page reference](/v4/reference/page) for tool discovery options.
+
+Use [`page.onToolsAdded()`](/v4/reference/page#ontoolsadded) to subscribe to future tool additions, including tools in child frames.
 
 <Tabs>
 <Tab title="TypeScript">
