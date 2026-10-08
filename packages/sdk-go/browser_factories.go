@@ -38,7 +38,8 @@ type LocalBrowserLaunchOptions struct {
 
 // LocalBrowserConnectOptions configures a connection to an existing local browser.
 type LocalBrowserConnectOptions struct {
-	CDPURL      string
+	CDPURL string
+	// Deprecated: Ignored. Omit this field; Stagehand discovers the installed extension automatically.
 	ExtensionID string
 }
 
@@ -79,7 +80,8 @@ type BrowserbaseConnectOptions struct {
 	BaseURL       string
 	ClientOptions *BrowserbaseClientOptions
 	SessionID     string
-	ExtensionID   string
+	// Deprecated: Ignored. Omit this field; Stagehand discovers the installed extension automatically.
+	ExtensionID string
 }
 
 type browserbaseFactoryClient interface {
@@ -119,6 +121,7 @@ type connectBrowserOptions struct {
 	origin             BrowserOrigin
 	source             browserConnectionSource
 	extensionDir       string
+	localExtension     bool
 	extensionID        string
 	preloadedExtension bool
 	afterConnect       func(context.Context, browserCommandSender) error
@@ -191,19 +194,10 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 	}
 	defer cancelLifecycle()
 
-	extensionDir := ""
-	var cleanup func() error
-	if options.ExtensionID == "" {
-		var err error
-		extensionDir, cleanup, err = materializeStagehandExtension(dependencies)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderLocal, origin: BrowserOriginConnected,
-		source:       browserConnectionSource{cdpURL: options.CDPURL, keepAlive: true, cleanup: cleanup},
-		extensionDir: extensionDir, extensionID: options.ExtensionID,
+		source:         browserConnectionSource{cdpURL: options.CDPURL, keepAlive: true},
+		localExtension: true,
 	}, dependencies)
 }
 
@@ -263,10 +257,10 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 	}
 	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderBrowserbase, origin: BrowserOriginConnected,
-		source:      browserConnectionSource{cdpURL: session.cdpURL, keepAlive: true, close: session.close},
-		extensionID: options.ExtensionID, preloadedExtension: options.ExtensionID == "",
-		workerAPIKey:  &options.APIKey,
-		workerBrowser: &BrowserSessionMetadata{SessionID: session.sessionID, Region: session.region},
+		source:             browserConnectionSource{cdpURL: session.cdpURL, keepAlive: true, close: session.close},
+		preloadedExtension: true,
+		workerAPIKey:       &options.APIKey,
+		workerBrowser:      &BrowserSessionMetadata{SessionID: session.sessionID, Region: session.region},
 	}, dependencies)
 }
 
@@ -320,9 +314,23 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 	if connect == nil {
 		connect = connectCDPClient
 	}
+	var localExtensionDir func() (string, error)
+	if options.localExtension {
+		localExtensionDir = func() (string, error) {
+			directory, cleanup, err := materializeStagehandExtension(dependencies)
+			if err != nil {
+				return "", err
+			}
+			// Register ownership before loading so initialization failures also clean up.
+			options.extensionDir = directory
+			options.source.cleanup = cleanup
+			return directory, nil
+		}
+	}
 	cdp, err := connect(ctx, cdpClientOptions{
 		cdpURL: options.source.cdpURL, extensionDir: options.extensionDir,
-		extensionID: options.extensionID, preloadedExtension: options.preloadedExtension,
+		localExtensionDir: localExtensionDir,
+		extensionID:       options.extensionID, preloadedExtension: options.preloadedExtension,
 		serviceWorkerURLIncludes: "service-worker.js",
 	})
 	if err == nil && options.afterConnect != nil {

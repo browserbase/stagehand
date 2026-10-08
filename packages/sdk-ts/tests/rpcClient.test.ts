@@ -448,7 +448,7 @@ describe("RPCClient", () => {
     expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
   });
 
-  it.each(["page.pdf", "page.snapshot"])(
+  it.each(["page.pdf", "page.snapshot", "page.wait_for_selector"])(
     "honors explicit %s deadlines and allows disabling them",
     (method) => {
       expect(rpcResponseTimeoutMs(method, { options: { timeout: 250 } })).toBe(10_250);
@@ -515,6 +515,42 @@ describe("RPCClient", () => {
             `RPC response timed out after ${(timeout ?? 20_000) + 10_000}ms: locator.count`,
           );
           await vi.advanceTimersByTimeAsync((timeout ?? 20_000) + 10_000 - 1);
+          expect(client.pending.size).toBe(1);
+          await vi.advanceTimersByTimeAsync(1);
+          await rejected;
+        }
+        expect(client.pending.size).toBe(0);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        client.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each([undefined, 50, 0, 2_147_483_648])(
+    "waits for a selector response with timeout %s",
+    async (timeout) => {
+      vi.useFakeTimers();
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp);
+      try {
+        const pending = client.send(StagehandMethods.pageWaitForSelector, {
+          pageId: "page-1",
+          selector: "button",
+          ...(timeout === undefined ? {} : { options: { timeout } }),
+        });
+        void pending.catch(() => {});
+        if (timeout === 0) {
+          await vi.advanceTimersByTimeAsync(60_000);
+          expect(client.pending.size).toBe(1);
+          await cdp.receive({ jsonrpc: "2.0", id: 1, result: { matched: true } });
+          await expect(pending).resolves.toEqual({ matched: true });
+        } else {
+          const rejected = expect(pending).rejects.toThrow(
+            `RPC response timed out after ${(timeout ?? 30_000) + 10_000}ms: page.wait_for_selector`,
+          );
+          await vi.advanceTimersByTimeAsync((timeout ?? 30_000) + 10_000 - 1);
           expect(client.pending.size).toBe(1);
           await vi.advanceTimersByTimeAsync(1);
           await rejected;

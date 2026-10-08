@@ -595,9 +595,15 @@ func TestWaitForRuntimeReadyKeepsPollingIncompatibleRuntimeWhenFallbackAllowed(t
 	}
 }
 
-func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
+func TestCDPClientDiscoversInstalledExtension(t *testing.T) {
 	t.Parallel()
+	for _, mode := range []string{"browserbase", "local", "incompatible"} {
+		t.Run(mode, func(t *testing.T) { testInstalledExtensionConnection(t, mode) })
+	}
+}
 
+func testInstalledExtensionConnection(t *testing.T, mode string) {
+	t.Helper()
 	socket := newFakeCDPWebSocket()
 	methods := make(chan string, 16)
 	socket.writeHook = responseHook(t, socket, methods, func(
@@ -632,6 +638,9 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 		case "Target.attachToTarget":
 			return map[string]any{"result": map[string]any{"sessionId": "worker-session"}}
 		case "Runtime.evaluate":
+			if mode == "incompatible" {
+				return runtimeReadinessResponse(runtimeMarker(incompatibleProtocolVersionForTest(t), stagehandRuntimeName), true)
+			}
 			return readyRuntimeResponse()
 		default:
 			return map[string]any{"result": map[string]any{}}
@@ -647,7 +656,20 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 		preloadedExtension: true,
 		pollInterval:       time.Millisecond,
 	})
-	if err := client.initialize(context.Background(), options); err != nil {
+	if mode != "browserbase" {
+		options.preloadedExtension = false
+		options.localExtensionDir = func() (string, error) {
+			t.Error("installed extension must not trigger materialization")
+			return "", errors.New("unexpected materialization")
+		}
+	}
+	err := client.initialize(context.Background(), options)
+	if mode == "incompatible" {
+		var incompatible *RuntimeIncompatibleError
+		if !errors.As(err, &incompatible) {
+			t.Fatalf("error = %v, want runtime incompatibility", err)
+		}
+	} else if err != nil {
 		t.Fatalf("initialize() error = %v", err)
 	}
 
@@ -743,7 +765,7 @@ func TestDiscoverInstalledStagehandExtensionID(t *testing.T) {
 				"ws://127.0.0.1/devtools/browser/test",
 			)
 
-			got, err := client.discoverInstalledStagehandExtensionID(context.Background())
+			got, err := client.resolveExtension(context.Background(), false, nil)
 			if test.wantError != "" {
 				if err == nil || err.Error() != test.wantError {
 					t.Fatalf("error = %v, want %q", err, test.wantError)
@@ -776,7 +798,7 @@ func TestDiscoverInstalledStagehandExtensionIDPropagatesCommandError(t *testing.
 	})
 	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
 
-	_, err := client.discoverInstalledStagehandExtensionID(context.Background())
+	_, err := client.resolveExtension(context.Background(), false, nil)
 	var commandError *cdpCommandError
 	if !errors.As(err, &commandError) || commandError.Method != "Extensions.getExtensions" {
 		t.Fatalf("error = %T %v, want Extensions.getExtensions command error", err, err)
@@ -1129,7 +1151,7 @@ func TestCDPClientExplainsUnavailableExtensionLoading(t *testing.T) {
 		"ws://127.0.0.1/devtools/browser/test",
 	)
 	_, err := client.loadUnpackedExtension(context.Background(), "/tmp/stagehand-extension")
-	if err == nil || !strings.Contains(err.Error(), "launch with --load-extension") {
+	if err == nil || !strings.Contains(err.Error(), "supports Extensions.getExtensions") {
 		t.Fatalf("loadUnpackedExtension() error = %v", err)
 	}
 }
@@ -1346,5 +1368,108 @@ func assertJSONEqual(t *testing.T, actual json.RawMessage, expected string) {
 	}
 	if !reflect.DeepEqual(actualValue, expectedValue) {
 		t.Fatalf("JSON mismatch\nactual:   %s\nexpected: %s", actual, expected)
+	}
+}
+
+func TestResolveLocalExtension(t *testing.T) {
+	tests := []struct {
+		name         string
+		inventory    any
+		commandError map[string]any
+		wantID       string
+		wantError    string
+		wantLoad     bool
+	}{
+		{name: "installed", inventory: []map[string]any{installedExtension("installed", "Stagehand Runtime", true)}, wantID: "installed"},
+		{name: "missing", inventory: []map[string]any{}, wantID: "loaded", wantLoad: true},
+		{name: "unsupported", commandError: map[string]any{"code": -32601, "message": "Method not found"}, wantID: "loaded", wantLoad: true},
+		{name: "disabled", inventory: []map[string]any{installedExtension("disabled", "Stagehand Runtime", false)}, wantError: "disabled"},
+		{name: "ambiguous", inventory: []map[string]any{installedExtension("a", "Stagehand Runtime", true), installedExtension("b", "Stagehand Runtime", true)}, wantError: "Multiple enabled"},
+		{name: "malformed", inventory: []map[string]any{{"id": "invalid"}}, wantError: "invalid extension"},
+		{name: "permission denied", commandError: map[string]any{"code": -32000, "message": "Permission denied"}, wantError: "Permission denied"},
+		{name: "load failed", inventory: []map[string]any{}, wantLoad: true, wantError: "load failed"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			socket := newFakeCDPWebSocket()
+			methods := make(chan string, 4)
+			socket.writeHook = responseHook(t, socket, methods, func(method string, command map[string]json.RawMessage) map[string]any {
+				if method == "Extensions.getExtensions" {
+					if test.commandError != nil {
+						return map[string]any{"error": test.commandError}
+					}
+					return map[string]any{"result": map[string]any{"extensions": test.inventory}}
+				}
+				if method != "Extensions.loadUnpacked" {
+					t.Errorf("unexpected method: %s", method)
+				}
+				var params struct {
+					Path string `json:"path"`
+				}
+				if err := json.Unmarshal(command["params"], &params); err != nil || params.Path != "/bundle" {
+					t.Errorf("loading params = %s", command["params"])
+				}
+				if test.name == "load failed" {
+					return map[string]any{"error": map[string]any{"code": -32000, "message": "load failed"}}
+				}
+				return map[string]any{"result": map[string]any{"id": "loaded"}}
+			})
+			client := newTestCDPClient(t, socket, "ws://browser")
+			materializations := 0
+			id, err := client.resolveExtension(context.Background(), true, func() (string, error) {
+				materializations++
+				return "/bundle", nil
+			})
+			if test.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("error = %v, want %s", err, test.wantError)
+				}
+			} else if err != nil || id != test.wantID {
+				t.Fatalf("result = %q, %v", id, err)
+			}
+			wantMethods := []string{"Extensions.getExtensions"}
+			wantMaterializations := 0
+			if test.wantLoad {
+				wantMethods = append(wantMethods, "Extensions.loadUnpacked")
+				wantMaterializations = 1
+			}
+			if materializations != wantMaterializations {
+				t.Fatalf("materializations = %d, want %d", materializations, wantMaterializations)
+			}
+			if got := drainMethods(methods); !reflect.DeepEqual(got, wantMethods) {
+				t.Fatalf("methods = %v, want %v", got, wantMethods)
+			}
+		})
+	}
+}
+
+func TestResolveLocalExtensionCancellation(t *testing.T) {
+	for _, phase := range []string{"discovery", "materialization"} {
+		t.Run(phase, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			socket := newFakeCDPWebSocket()
+			methods := make(chan string, 4)
+			socket.writeHook = responseHook(t, socket, methods, func(string, map[string]json.RawMessage) map[string]any {
+				if phase == "discovery" {
+					cancel()
+				}
+				return map[string]any{"result": map[string]any{"extensions": []any{}}}
+			})
+			client := newTestCDPClient(t, socket, "ws://browser")
+			_, err := client.resolveExtension(ctx, true, func() (string, error) {
+				if phase == "discovery" {
+					t.Error("materialized after cancellation")
+				}
+				cancel()
+				return "/bundle", nil
+			})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v", err)
+			}
+			if got := drainMethods(methods); !reflect.DeepEqual(got, []string{"Extensions.getExtensions"}) {
+				t.Fatalf("methods = %v", got)
+			}
+		})
 	}
 }

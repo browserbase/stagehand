@@ -375,7 +375,7 @@ describe("locator resolution deadlines", () => {
     send.mockImplementation((method, params) =>
       method === "Runtime.evaluate" ? gate.promise : respond(method, params),
     );
-    const pending = frame.evaluateInLocatorWorld("1", createProgress());
+    const pending = frame.evaluateInLocatorWorld(() => "1", createProgress());
     const rejected = expect(pending).rejects.toThrow(TimeoutError);
     await vi.advanceTimersByTimeAsync(100);
     await rejected;
@@ -540,7 +540,7 @@ describe("locator resolution deadlines", () => {
         }
         return respond(method, params);
       });
-      const pending = frame.evaluateInLocatorWorld("1", progress);
+      const pending = frame.evaluateInLocatorWorld(() => "1", progress);
       if (expired) await expect(pending).rejects.toThrow(TimeoutError);
       else await expect(pending).resolves.toBe("recovered");
       expect(evaluations).toBe(expired ? 1 : 2);
