@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_area_codes" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ncc-area-codes/", {
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/ncc-area-codes/", {
         waitUntil: "domcontentloaded",
       });
 
