@@ -1065,6 +1065,7 @@ class LocatorClickOptions(WireModel):
     """Milliseconds for the whole locator call. Zero disables the timeout."""
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+    position: Optional[LocatorClickPosition] = None
 
 
 class LocatorClickParams(WireModel):
@@ -1076,6 +1077,15 @@ class LocatorClickParams(WireModel):
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     options: Optional[LocatorClickOptions] = None
+
+
+class LocatorClickPosition(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    x: StrictFloat
+    y: StrictFloat
 
 
 class LocatorClickResult(WireModel):

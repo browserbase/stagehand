@@ -205,8 +205,8 @@ func TestPageLocatorTimeoutOptions(t *testing.T) {
 	}{
 		{"click", func(l *PageLocator, o *LocatorOptions) error {
 			button, count := MouseButtonRight, 2
-			return l.Click(ctx, &LocatorClickOptions{Timeout: o.Timeout, Button: &button, ClickCount: &count})
-		}, nil, map[string]any{"button": "right", "click_count": float64(2)}},
+			return l.Click(ctx, &LocatorClickOptions{Timeout: o.Timeout, Button: &button, ClickCount: &count, Position: &LocatorClickPosition{X: 12, Y: 8.5}})
+		}, nil, map[string]any{"button": "right", "click_count": float64(2), "position": map[string]any{"x": float64(12), "y": 8.5}}},
 		{"hover", func(l *PageLocator, o *LocatorOptions) error { return l.Hover(ctx, o) }, nil, nil},
 		{"fill", func(l *PageLocator, o *LocatorOptions) error { return l.Fill(ctx, "hello", o) }, map[string]any{"value": "hello"}, nil},
 		{"count", func(l *PageLocator, o *LocatorOptions) error { _, err := l.Count(ctx, o); return err }, nil, nil},

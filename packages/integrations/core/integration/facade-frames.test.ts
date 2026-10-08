@@ -13,6 +13,7 @@ type FrameState = {
   scrollY: number;
   targetScroll: number;
   targetInView: boolean;
+  mapClick: { x: number; y: number } | null;
 };
 
 it("runs the shared facade against same-origin and out-of-process local frames", async () => {
@@ -26,6 +27,7 @@ it("runs the shared facade against same-origin and out-of-process local frames",
     if (request.url === "/same" || request.url === "/cross") {
       const name = request.url === "/same" ? "Same value" : "Cross value";
       response.end(`
+        <canvas id="map" width="140" height="70" style="display:block"></canvas>
         <label>${name}<input id="value"></label>
         <button id="focus">Frame action</button>
         <div id="a"><button class="choice" id="first">First</button></div>
@@ -35,10 +37,11 @@ it("runs the shared facade against same-origin and out-of-process local frames",
           <div style="height:700px">Scrollable target</div>
         </div>
         <script>
-          const events = {click: 0, input: 0, change: 0, lastClick: null};
+          const events = {click: 0, input: 0, change: 0, lastClick: null, mapClick: null};
           for (const type of ['click', 'input', 'change']) document.addEventListener(type, event => {
             events[type]++;
             if (type === 'click') events.lastClick = event.target.id;
+            if (type === 'click' && event.target.id === 'map') events.mapClick = {x:event.offsetX,y:event.offsetY};
           });
           document.querySelector('#shadow').attachShadow({mode:'open'}).innerHTML = '<button>Shadow-only action</button>';
           document.querySelector('#target').scrollTop = 45;
@@ -53,9 +56,17 @@ it("runs the shared facade against same-origin and out-of-process local frames",
         </script>`);
       return;
     }
-    response.end(
-      `<h1>Local frame fixture</h1><iframe id="same" height="350" src="/same"></iframe><iframe id="cross" height="350" src="http://localhost:${port}/cross"></iframe>`,
-    );
+    response.end(`
+      <h1>Local frame fixture</h1>
+      <canvas id="main-map" width="80" height="40" style="display:block"></canvas>
+      <iframe id="same" height="350" src="/same"></iframe>
+      <iframe id="cross" height="350" src="http://localhost:${port}/cross"></iframe>
+      <script>
+        window.mainMapClick = null;
+        document.querySelector('#main-map').addEventListener('click', event => {
+          window.mainMapClick = {x:event.offsetX,y:event.offsetY};
+        });
+      </script>`);
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -100,6 +111,11 @@ it("runs the shared facade against same-origin and out-of-process local frames",
           }),
       );
 
+    await expect(
+      tools.run(
+        `await page.locator("#main-map").click({position:{x:13,y:17}}); return await page.evaluate(() => window.mainMapClick);`,
+      ),
+    ).resolves.toEqual({ x: 13, y: 17 });
     for (const id of ["same", "cross"]) {
       await tools.run(`await page.frameLocator("#${id}").locator("#focus").focus();`);
       const state = (await inspect()).find((state) => state.fixture === `/${id}`);
@@ -156,6 +172,16 @@ it("runs the shared facade against same-origin and out-of-process local frames",
     ).toBe(true);
     expect(generate).not.toHaveBeenCalled();
     expect(tools.sessionLoss).toBeUndefined();
+    for (const id of ["same", "cross"]) {
+      await tools.run(
+        `await page.frameLocator("#${id}").locator("#map").scrollIntoViewIfNeeded();`,
+      );
+      await tools.run(
+        `await page.frameLocator("#${id}").locator("#map").click({position:{x:37,y:19}});`,
+      );
+      const clicked = (await inspect()).find((state) => state.fixture === `/${id}`)!;
+      expect(clicked.mapClick).toEqual({ x: 37, y: 19 });
+    }
   } finally {
     try {
       await stagehand?.close();

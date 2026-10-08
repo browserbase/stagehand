@@ -864,6 +864,9 @@ type LocatorClickOptions struct {
 	// ClickCount corresponds to the JSON schema field "click_count".
 	ClickCount *int `json:"click_count,omitempty,omitzero"`
 
+	// Position corresponds to the JSON schema field "position".
+	Position *LocatorClickPosition `json:"position,omitempty,omitzero"`
+
 	// Milliseconds for the whole locator call. Zero disables the timeout.
 	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
@@ -880,6 +883,14 @@ type LocatorClickParams struct {
 
 	// Selector corresponds to the JSON schema field "selector".
 	Selector string `json:"selector"`
+}
+
+type LocatorClickPosition struct {
+	// X corresponds to the JSON schema field "x".
+	X float64 `json:"x"`
+
+	// Y corresponds to the JSON schema field "y".
+	Y float64 `json:"y"`
 }
 
 type LocatorClickResult struct {
@@ -2573,6 +2584,10 @@ type generatedModelCatalog struct {
 
 	// LocatorClickParams corresponds to the JSON schema field "LocatorClickParams".
 	LocatorClickParams *LocatorClickParams `json:"LocatorClickParams,omitempty,omitzero"`
+
+	// LocatorClickPosition corresponds to the JSON schema field
+	// "LocatorClickPosition".
+	LocatorClickPosition *LocatorClickPosition `json:"LocatorClickPosition,omitempty,omitzero"`
 
 	// LocatorClickResult corresponds to the JSON schema field "LocatorClickResult".
 	LocatorClickResult *LocatorClickResult `json:"LocatorClickResult,omitempty,omitzero"`

@@ -4364,8 +4364,24 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
+        },
+        "position": {
+          "$ref": "#/$defs/LocatorClickPosition"
         }
       },
+      "additionalProperties": false
+    },
+    "LocatorClickPosition": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": ["x", "y"],
       "additionalProperties": false
     },
     "LocatorClickResult": {

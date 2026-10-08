@@ -52,6 +52,7 @@ type RawLocator = {
   click(options?: {
     button?: "left" | "right" | "middle";
     clickCount?: number;
+    position?: { x: number; y: number };
     timeout?: number;
   }): Promise<void>;
   hover(options?: LocatorTimeoutOptions): Promise<void>;
@@ -173,6 +174,24 @@ export async function createPlaywrightCompatRuntime(
     token?: string;
     handleKind?: "element" | "value";
     error?: { name: string; message: string; stack?: string };
+  };
+
+  const locatorClickPosition = (
+    method: string,
+    value: unknown,
+  ): { x: number; y: number } | undefined => {
+    if (value === undefined) return undefined;
+    if (value === null || typeof value !== "object") {
+      throw new Error(`${method}: position must be an object with finite x and y values`);
+    }
+    const position = value as { x?: unknown; y?: unknown };
+    if (typeof position.x !== "number" || typeof position.y !== "number") {
+      throw new Error(`${method}: position must be an object with finite x and y values`);
+    }
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      throw new Error(`${method}: position must be an object with finite x and y values`);
+    }
+    return { x: position.x, y: position.y };
   };
 
   const locatorTimeoutOptions = (deadline: number, method: string): LocatorTimeoutOptions => {
@@ -1481,12 +1500,13 @@ export async function createPlaywrightCompatRuntime(
     }
 
     private async clickAs(method: string, options: Record<string, unknown>): Promise<void> {
+      const position = locatorClickPosition(method, options.position);
       if (options.trial === true) {
         throw new Error(
           `${method}: trial clicks are not supported because the Stagehand locator API does not expose actionability checks without dispatching input`,
         );
       }
-      if (options.force === true) {
+      if (options.force === true && position === undefined) {
         record("calls", "locator.click");
         const result = await this.state.execute(this.plan, "inspect");
         if (result.count === 0) throw new Error(`${method}: no element matched`);
@@ -1504,6 +1524,7 @@ export async function createPlaywrightCompatRuntime(
               ? { button: options.button as "left" | "right" | "middle" }
               : {}),
             ...(typeof options.clickCount === "number" ? { clickCount: options.clickCount } : {}),
+            ...(position ? { position } : {}),
           }),
         options,
       );
@@ -2145,6 +2166,7 @@ export async function createPlaywrightCompatRuntime(
     }
 
     async click(options: Record<string, unknown> = {}): Promise<void> {
+      const position = locatorClickPosition("locator.click", options.position);
       if (options.trial === true) {
         return frameUnsupported(
           "locator.click",
@@ -2160,6 +2182,7 @@ export async function createPlaywrightCompatRuntime(
               ? { button: options.button as "left" | "right" | "middle" }
               : {}),
             ...(typeof options.clickCount === "number" ? { clickCount: options.clickCount } : {}),
+            ...(position ? { position } : {}),
           }),
         options,
       );

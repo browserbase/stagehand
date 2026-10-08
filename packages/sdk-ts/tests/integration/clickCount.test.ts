@@ -195,4 +195,27 @@ describe("Locator and Page click methods", () => {
     const newCount = await countDisplay.inputValue();
     expect(newCount).toBe("3");
   });
+
+  it("locator.click() position is relative to the padding box, including transforms", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(
+      `data:text/html,${encodeURIComponent(`<style>body{margin:0}</style>
+        <div style="height:900px"></div>
+        <div id="pad" style="width:200px;height:100px;padding:10px;border:5px solid;margin-left:30px"></div>
+        <div id="rot" style="width:100px;height:40px;margin:80px;transform:rotate(90deg)"></div>
+        <script>window.hits=[];for (const id of ['pad','rot']) document.getElementById(id).addEventListener('click', e => hits.push([e.target.id, e.offsetX, e.offsetY]));</script>`)}`,
+    );
+
+    await page.locator("#pad").click({ position: { x: 0, y: 0 } });
+    await page.locator("#pad").click({ position: { x: 37, y: 19 } });
+    await page.locator("#rot").click({ position: { x: 10, y: 5 } });
+
+    await expect(
+      page.evaluate(() => (window as unknown as { hits: unknown }).hits),
+    ).resolves.toEqual([
+      ["pad", 0, 0],
+      ["pad", 37, 19],
+      ["rot", 10, 5],
+    ]);
+  });
 });
