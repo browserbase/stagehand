@@ -9,7 +9,7 @@ describe the TypeScript SDK.
 
 - [#3030](https://github.com/browserbase/stagehand/pull/3030) [`34edfa3`](https://github.com/browserbase/stagehand/commit/34edfa38d6c33b30b07b4dd813f9c943f8e6689f) Thanks [@supremeboxlogos](https://github.com/supremeboxlogos)! - Export browser pages as PDF bytes in TypeScript, Python, and Go, with configurable print settings and timeouts, and optional local file saving in TypeScript and Python.
 
-- [#3118](https://github.com/browserbase/stagehand/pull/3118) [`a837acf`](https://github.com/browserbase/stagehand/commit/a837acfe3fa5682558b0ab63c68dd57cd6f84316) Thanks [@miguelg719](https://github.com/miguelg719)! - Add `clientOptions` to `browserbase.launch()` and `browserbase.connect()`.
+- [#3118](https://github.com/browserbase/stagehand/pull/3118) [`a837acf`](https://github.com/browserbase/stagehand/commit/a837acfe3fa5682558b0ab63c68dd57cd6f84316) Thanks [@miguelg719](https://github.com/miguelg719)! - Add `clientOptions` to `browserbase.launch()` and `browserbase.connect()`. Thanks to [@pr1m8](https://github.com/pr1m8) for the original proposal that motivated this feature.
 
 - [#3083](https://github.com/browserbase/stagehand/pull/3083) [`666b6fa`](https://github.com/browserbase/stagehand/commit/666b6fa32b003420a4a9e641dc47ee4c9a531eff) Thanks [@seanmcguire12](https://github.com/seanmcguire12)! - expose a timeout option for page.snapshot() across all sdks, defaulting to 20 seconds.
   set it to 0 for unlimited execution. one budget covers the whole snapshot capture.
