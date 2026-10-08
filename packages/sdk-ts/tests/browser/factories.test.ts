@@ -243,6 +243,7 @@ describe("Stagehand browser factories", () => {
     const browser = await browserbase.launch({
       apiKey: "bb_key",
       baseUrl: "https://api.dev.browserbase.com",
+      clientOptions: { timeout: 5_000, defaultHeaders: { "X-Caller": "app" } },
       projectId: "project_123",
       region: "us-west-2",
     });
@@ -255,6 +256,7 @@ describe("Stagehand browser factories", () => {
     expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
       "bb_key",
       "https://api.dev.browserbase.com",
+      { timeout: 5_000, defaultHeaders: { "X-Caller": "app" } },
     );
     expect(connectCdp).toHaveBeenCalledWith(expect.objectContaining({ preloadedExtension: true }));
     expect(claimed.workerInitMetadata).toStrictEqual({
@@ -290,12 +292,14 @@ describe("Stagehand browser factories", () => {
       baseUrl: "https://api.dev.browserbase.com",
       sessionId: "session_123",
       extensionId: "extension-id",
+      clientOptions: { maxRetries: 0 },
     });
 
     expect(connectSession).toHaveBeenCalledWith("session_123");
     expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
       "bb_key",
       "https://api.dev.browserbase.com",
+      { maxRetries: 0 },
     );
     expect(connectCdp).toHaveBeenCalledWith(
       expect.objectContaining({ extensionId: "extension-id" }),
