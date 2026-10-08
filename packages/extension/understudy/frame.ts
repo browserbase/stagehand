@@ -212,33 +212,48 @@ export class Frame implements FrameManager {
         ),
         progress.cleanup(() => this.session.send("Runtime.releaseObject", { objectId })),
       ]);
-    const response = await this.evaluateLocatorExpression(buildExpression, {
-      progress,
-      returnByValue: false,
-      awaitPromise: false,
-      onLateResult: async (late) => {
-        if (late.result.objectId) await dispose(late.result.objectId);
-      },
-    });
-    const objectId = response.result.objectId;
-    try {
-      if (response.exceptionDetails || !objectId) {
-        throw new Error(response.exceptionDetails?.text ?? "Selector wait handle was not returned");
+    for (let attempt = 0; ; attempt++) {
+      progress.throwIfStopped();
+      const response = await this.evaluateLocatorExpression(buildExpression, {
+        progress,
+        returnByValue: false,
+        awaitPromise: false,
+        onLateResult: async (late) => {
+          if (late.result.objectId) await dispose(late.result.objectId);
+        },
+      });
+      const objectId = response.result.objectId;
+      try {
+        if (response.exceptionDetails || !objectId) {
+          throw new Error(
+            response.exceptionDetails?.text ?? "Selector wait handle was not returned",
+          );
+        }
+        let result: Protocol.Runtime.CallFunctionOnResponse;
+        try {
+          result = await progress.run("waiting for selector", () =>
+            this.session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+              objectId,
+              functionDeclaration: "function() { return this.promise; }",
+              awaitPromise: true,
+              returnByValue: true,
+            }),
+          );
+        } catch (error) {
+          progress.throwIfStopped();
+          const message = error instanceof Error ? error.message : String(error);
+          if (attempt !== 0 || !message.includes("Cannot find context with specified id"))
+            throw error;
+          executionContexts.unregisterLocatorContext(this.session, response.contextId);
+          continue;
+        }
+        if (result.exceptionDetails) {
+          throw new Error(result.exceptionDetails.text ?? "Selector wait failed");
+        }
+        return result.result.value as boolean;
+      } finally {
+        if (objectId) await dispose(objectId);
       }
-      const result = await progress.run("waiting for selector", () =>
-        this.session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-          objectId,
-          functionDeclaration: "function() { return this.promise; }",
-          awaitPromise: true,
-          returnByValue: true,
-        }),
-      );
-      if (result.exceptionDetails) {
-        throw new Error(result.exceptionDetails.text ?? "Selector wait failed");
-      }
-      return result.result.value as boolean;
-    } finally {
-      if (objectId) await dispose(objectId);
     }
   }
 
@@ -250,7 +265,7 @@ export class Frame implements FrameManager {
       awaitPromise?: boolean;
       onLateResult?: (response: Protocol.Runtime.EvaluateResponse) => Promise<unknown>;
     },
-  ): Promise<Protocol.Runtime.EvaluateResponse> {
+  ): Promise<Protocol.Runtime.EvaluateResponse & { contextId: number }> {
     const { progress } = options;
     await runLocatorStep(progress, "enabling runtime", () =>
       this.session.send("Runtime.enable").catch((error) => {
@@ -295,7 +310,7 @@ export class Frame implements FrameManager {
       response = await evaluate();
     }
 
-    return response;
+    return { ...response, contextId: locatorWorld.contextId };
   }
 
   /** Page.captureScreenshot (frame-scoped session) */

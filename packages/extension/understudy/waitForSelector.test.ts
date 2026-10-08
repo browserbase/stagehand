@@ -182,6 +182,94 @@ describe("waitForSelector deadline", () => {
     expectWait(40, 1);
   });
 
+  it.each(["recovered", "missing again", "expired", "unrelated"])(
+    "handles context loss while awaiting the selector: %s",
+    async (outcome) => {
+      const firstWait = deferred<void>();
+      const missing = new Error("Cannot find context with specified id");
+      const unrelated = new Error("selector evaluation failed");
+      const unregister = vi.spyOn(executionContexts, "unregisterLocatorContext");
+      const readiness = vi
+        .spyOn(executionContexts, "waitForLocatorWorld")
+        .mockResolvedValueOnce({
+          contextId: 2,
+          kind: "extension",
+          capabilities: { closedShadowRoots: true },
+        })
+        .mockResolvedValueOnce({
+          contextId: 3,
+          kind: "extension",
+          capabilities: { closedShadowRoots: true },
+        });
+      let installs = 0;
+      let awaited = 0;
+      send.mockImplementation(async (method, params) => {
+        if (method === "Runtime.evaluate") return { result: { objectId: `wait-${++installs}` } };
+        if (
+          method === "Runtime.callFunctionOn" &&
+          (params as { awaitPromise?: boolean }).awaitPromise
+        ) {
+          if (++awaited === 1) {
+            await firstWait.promise;
+            if (outcome === "expired") vi.spyOn(performance, "now").mockReturnValue(100);
+            throw outcome === "unrelated" ? unrelated : missing;
+          }
+          if (outcome === "missing again") throw missing;
+        }
+        return respond(method);
+      });
+      const pending = page.waitForSelector("button", { timeout: 100 });
+      const checked =
+        outcome === "recovered"
+          ? expect(pending).resolves.toBe(true)
+          : outcome === "expired"
+            ? expect(pending).rejects.toThrow(TimeoutError)
+            : expect(pending).rejects.toBe(outcome === "unrelated" ? unrelated : missing);
+      await vi.advanceTimersByTimeAsync(60);
+      firstWait.resolve();
+      await checked;
+      await vi.advanceTimersByTimeAsync(0);
+      const retries = outcome === "recovered" || outcome === "missing again";
+      expect(awaited).toBe(retries ? 2 : 1);
+      expect(readiness).toHaveBeenCalledTimes(retries ? 2 : 1);
+      expect(unregister).toHaveBeenCalledTimes(retries ? 1 : 0);
+      expectWait(100);
+      if (retries) {
+        expect(unregister).toHaveBeenCalledWith(page.mainFrame().session, 2);
+        expectWait(40, 1);
+        expect(waits()[1][1]).toMatchObject({ contextId: 3 });
+      }
+      expect(cleanupCalls().map(([, params]) => (params as { objectId: string }).objectId)).toEqual(
+        retries ? ["wait-1", "wait-2"] : ["wait-1"],
+      );
+      for (let index = 1; index <= installs; index++) {
+        expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: `wait-${index}` });
+      }
+    },
+  );
+
+  it("does not recreate a wait when disposal consumes the remaining deadline", async () => {
+    const cleanup = deferred<unknown>();
+    send.mockImplementation((method, params) => {
+      if (method === "Runtime.callFunctionOn") {
+        if ((params as { awaitPromise?: boolean }).awaitPromise) {
+          return Promise.reject(new Error("Cannot find context with specified id"));
+        }
+        return cleanup.promise;
+      }
+      return respond(method);
+    });
+    const rejected = expect(page.waitForSelector("button", { timeout: 100 })).rejects.toThrow(
+      TimeoutError,
+    );
+    await vi.advanceTimersByTimeAsync(100);
+    await rejected;
+    cleanup.resolve({});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(waits()).toHaveLength(1);
+    expect(cleanupCalls()).toHaveLength(1);
+  });
+
   it.each([100, 0])("preserves parent deadline and ownership (timeout=%s)", async (timeout) => {
     const parent = new Progress("act", timeout);
     parents.push(parent);
