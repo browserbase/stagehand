@@ -6,6 +6,7 @@ import {
   fetchWithoutModel,
 } from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/protocol-version";
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 
 vi.mock("ai", () => ({
@@ -25,10 +26,13 @@ afterEach(() => {
 });
 
 const initParams = {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: { name: "test", version: "1.0.0" },
+  logLevel: "off",
   model: { modelName: "openai/gpt-5" },
   apiKey: "bb-api-key",
   browser: { sessionId: "session-123", region: "eu-central-1" },
-} as StagehandInitParams;
+} satisfies StagehandInitParams;
 
 describe("buildGatewayContext", () => {
   it("builds the context from the Browserbase API key, session, and region", () => {
@@ -159,6 +163,17 @@ describe("llmService.generate gateway routing", () => {
     await expect(
       llmService.generate({ modelName: "openai/gpt-5" }, input, vi.fn()),
     ).rejects.toThrow(/requires a provider API key or a Browserbase session/);
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it("rejects xAI without a provider key before calling Gateway", async () => {
+    await expect(
+      llmService.generate({ modelName: "xai/grok-4.7" }, input, vi.fn(), {
+        apiUrl: "https://api.stagehand.browserbase.com/v1",
+        apiKey: "bb-api-key",
+        sessionId: "session-123",
+      }),
+    ).rejects.toThrow("xAI requires a provider apiKey");
     expect(generateText).not.toHaveBeenCalled();
   });
 

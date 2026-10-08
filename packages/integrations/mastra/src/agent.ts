@@ -1,4 +1,3 @@
-import { openai } from "@ai-sdk/openai";
 import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
 import { Agent } from "@mastra/core/agent";
 
@@ -28,7 +27,10 @@ async function main() {
       id: "stagehand-facade-agent",
       name: "Stagehand Facade Agent",
       instructions: FACADE_AGENT_INSTRUCTIONS,
-      model: openai(process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5.6-luna"),
+      model: {
+        providerId: "openai",
+        modelId: process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-6-luna",
+      },
       tools,
     });
 

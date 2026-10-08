@@ -9,7 +9,7 @@ Set a model-provider key and select the Deep Agents model:
 
 ```bash
 export OPENAI_API_KEY=...
-export DEEPAGENTS_MODEL=openai:gpt-5.6-luna
+export DEEPAGENTS_MODEL=openai:gpt-6-luna
 ```
 
 The MCP server launches a visible local Chrome browser by default. Then run:

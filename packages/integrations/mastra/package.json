@@ -10,7 +10,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/openai": "catalog:",
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@mastra/core": "catalog:",
     "@mastra/mcp": "catalog:"
