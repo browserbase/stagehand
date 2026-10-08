@@ -1,0 +1,163 @@
+---
+title: "Reuse an authenticated session"
+description: "Persist login across browser jobs with a Browserbase context and verify authentication before each run."
+---
+
+## When to use this
+
+Use this when a recurring job needs an authenticated browser without logging in on every run. Browserbase contexts retain site data; a deterministic protected-page marker proves authentication. Use ordinary locators for a login form you own. Stagehand is useful when adapting the fill steps to an unfamiliar form.
+
+| Browser | Languages | Output |
+| --- | --- | --- |
+| Browserbase | TypeScript, Python, Go | Persisted context and `out/login.json` |
+
+## Goal and output
+
+Log into the public [Internet test site](https://the-internet.herokuapp.com/login), persist its cookies in a Browserbase context, and reuse that context on the next run. Each run writes `out/login.json` with an authentication check, a reuse flag, and the Browserbase session ID.
+
+## Agent prompt
+
+<Prompt description="Adapt persisted login to an application I own." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/cookbooks/persisted-login` to my application. Read the README, environment template, and source for my chosen language first. Reuse the existing dependencies and OpenAI setup. Ask only for missing application details.
+
+Change the login URL, protected URL, and authenticated marker together. Wait for the page, then check protected access before logging in. Use a persisted Browserbase context and `%variable%` credentials. Create a context when `BROWSERBASE_CONTEXT_ID` is missing. Attempt login once; stop if access cannot be verified. Do not automate MFA or retry failed credentials.
+
+Keep the session link, five-minute browser lifetime, cleanup, and one writer per context. Keep credentials out of logs. Print a newly created context ID once so it can be saved. Write `out/login.json` only after verifying access. When combining with another recipe, authenticate before the next step and keep one owner of browser cleanup.
+
+Run local checks. With test credentials, verify fresh login and then reuse sequentially. Use a fresh test context for a wrong-password check. Report changed files, commands, receipt results, and anything untested. Keep the implementation small.
+</Prompt>
+
+## Prerequisites and inputs
+
+- Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`.
+- `BROWSERBASE_CONTEXT_ID` is optional. If it is unset, the example creates a [Browserbase context](https://docs.browserbase.com/features/contexts) and prints its ID. Save that ID in `.env` before the reuse run.
+- The example includes the test site's public `LOGIN_USER` and `LOGIN_PASSWORD`. Use credentials for your own account when adapting it.
+- TypeScript requires Node.js 22.18+ and pnpm. Python requires Python 3.11+ and uv. Go requires Go 1.26+.
+
+## Check out and run
+
+Check out [`packages/examples/cookbooks/persisted-login`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/persisted-login) using the [overview command](/v4/cookbooks/overview#run-a-cookbook).
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+cd packages/examples/cookbooks/persisted-login/typescript
+cp .env.example .env
+pnpm install --frozen-lockfile
+# First run: authenticates and persists context
+pnpm start
+
+# Second run: verifies context reuse
+pnpm start
+```
+</Tab>
+<Tab title="Python">
+```bash
+cd packages/examples/cookbooks/persisted-login/python
+cp .env.example .env
+uv sync --locked
+# First run: authenticates and persists context
+uv run --locked python main.py
+
+# Second run: verifies context reuse
+uv run --locked python main.py
+```
+</Tab>
+<Tab title="Go">
+```bash
+cd packages/examples/cookbooks/persisted-login/go
+cp .env.example .env
+set -a; . ./.env; set +a
+# First run: authenticates and persists context
+go run .
+
+# Second run: verifies context reuse
+go run .
+```
+</Tab>
+</Tabs>
+
+Fill in `.env` before the first run. Run sequentially so context persistence finishes before reuse.
+
+## How the job works
+
+<Steps>
+  <Step title="Open a persisted context">
+    Launch a five-minute cloud session with the supplied or auto-created context and `persist: true`.
+  </Step>
+  <Step title="Check protected-page access">
+    Visit the protected page. If its logout marker exists, reuse the authenticated context without model calls.
+  </Step>
+  <Step title="Log in once">
+    Otherwise, fill username and password through `%variable%` placeholders and click Login once. Check protected-page access again.
+  </Step>
+  <Step title="Verify and close">
+    Write the receipt only after authentication is verified. Close Stagehand and the browser, which persists browser data for the next session.
+  </Step>
+</Steps>
+
+<CodeGroup>
+```typescript TypeScript
+const browser = await browserbase.launch({
+  apiKey,
+  timeout: 300,
+  browserSettings: { context: { id: contextId, persist: true } },
+});
+
+const reused = (await page.locator('a[href="/logout"]').count()) > 0;
+if (!reused) {
+  await stagehand.act("Type %password% into the password field", {
+    page, variables: { password },
+  });
+}
+```
+```python Python
+browser = await browserbase.launch(
+    api_key=api_key, timeout=300,
+    browser_settings=BrowserbaseBrowserSettings(
+        context={"id": context_id, "persist": True},
+    ),
+)
+reused = await page.locator('a[href="/logout"]').count() > 0
+```
+```go Go
+persist, timeout := true, float64(300)
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+    APIKey: apiKey, Timeout: &timeout,
+    BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+        Context: &stagehand.BrowserbaseContext{ID: contextID, Persist: &persist},
+    },
+})
+if err != nil { return err }
+loginCount, err := page.Locator(`a[href="/logout"]`).Count(ctx)
+if err != nil { return err }
+reused := loginCount > 0
+```
+</CodeGroup>
+
+The excerpts show context configuration and the authentication probe. The runnable folder fills both credentials, submits once, verifies protected-page access, and closes the browser to persist the context.
+
+## Expected result and failure checks
+
+The first run reports authentication. The second reports context reuse and writes `reused: true`. Both print a session link for inspection.
+
+| Failure | Check |
+| --- | --- |
+| Wrong password | Run with a fresh context and an invalid password; authentication must fail |
+| Context reuse fails | Wait for the first run to close, then check the project and context ID |
+| Session expires | Start a new run with the same context; do not retry login in a loop |
+| Target requires MFA | Add an explicit application approval flow before adapting this recipe |
+
+Context IDs carry authenticated state. Treat them as credentials, keep them out of version control, and use separate contexts per account and environment.
+
+<Warning>Run one writer per Browserbase context. Wait for browser closure and persistence before starting the next session.</Warning>
+
+For local profile persistence, see [user data](/v4/best-practices/user-data).
+
+## Adapt to your site
+
+Change the fixed login URL, protected URL, and authenticated marker together. The marker must prove access to a protected page, not merely the presence of a generic header. Keep credentials in variables and serialize writes to each context. Add an explicit MFA flow when your application requires it.
+
+## Related
+
+[Browser data persistence](/v4/best-practices/user-data) and [form approval](/v4/cookbooks/approve-form-submission).

@@ -53,12 +53,15 @@ showcase slug *args:
     pnpm --filter ./packages/extension build
     pnpm --filter ./packages/sdk-ts build
     pnpm --filter ./packages/integrations/core build
-    pnpm exec tsx packages/examples/_harness/run.ts {{slug}} {{args}}
+    pnpm exec tsx packages/examples/showcase/_harness/run.ts {{slug}} {{args}}
 
-cookbook slug:
+showcase-script slug:
     pnpm --filter ./packages/extension build
     pnpm --filter ./packages/sdk-ts build
-    pnpm exec tsx packages/examples/{{slug}}/index.ts
+    pnpm exec tsx packages/examples/showcase/{{slug}}/index.ts
+
+cookbook slug:
+    pnpm --dir "packages/examples/cookbooks/{{slug}}/typescript" start
 
 go-example name="act":
     go -C {{go_dir}} run "./examples/{{name}}"
