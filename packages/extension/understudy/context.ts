@@ -566,20 +566,40 @@ export class BrowserContext {
    * Close CDP and clear all mappings. Best-effort cleanup.
    */
   async close(): Promise<void> {
-    await this.conn.close();
-    this.pagesByTarget.clear();
-    this.mainFrameToTarget.clear();
-    this.sessionOwnerPage.clear();
-    this.frameOwnerPage.clear();
-    this.pendingOopifByMainFrame.clear();
-    this.createdAtByTarget.clear();
-    this.typeByTarget.clear();
-    this.pendingCreatedTargetUrl.clear();
-    this.pageCreationFailures.clear();
-    this.pendingInitialTopLevelTargets.clear();
-    this.pendingNewPageTargets.clear();
-    this.domainPolicyClosingTargets.clear();
-    this.domainPolicyClosePromises.clear();
+    const errors: unknown[] = [];
+    // Disposers can remove other pages from the context while cleanup runs.
+    const pages = [...this.pagesByTarget.values()];
+    for (const page of pages) {
+      try {
+        page.dispose();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    try {
+      await this.conn.close();
+    } catch (error) {
+      errors.push(error);
+    } finally {
+      this._targetSessionListeners.clear();
+      this._domainPolicySessionListeners.clear();
+      this._sessionInit.clear();
+      this.pagesByTarget.clear();
+      this.mainFrameToTarget.clear();
+      this.sessionOwnerPage.clear();
+      this.frameOwnerPage.clear();
+      this.pendingOopifByMainFrame.clear();
+      this.createdAtByTarget.clear();
+      this.typeByTarget.clear();
+      this.pendingCreatedTargetUrl.clear();
+      this.pageCreationFailures.clear();
+      this.pendingInitialTopLevelTargets.clear();
+      this.pendingNewPageTargets.clear();
+      this.domainPolicyClosingTargets.clear();
+      this.domainPolicyClosePromises.clear();
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, "Failed to close browser context");
   }
 
   /**
@@ -1053,6 +1073,7 @@ export class BrowserContext {
     const owner = this.sessionOwnerPage.get(sessionId);
     if (owner) {
       owner.detachOopifSession(sessionId);
+      this.pruneFrameOwners(owner);
       this.sessionOwnerPage.delete(sessionId);
     }
 
@@ -1089,7 +1110,9 @@ export class BrowserContext {
     page.dispose();
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
-    this.frameOwnerPage.delete(mainId);
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page) this.frameOwnerPage.delete(frameId);
+    }
 
     for (const [sid, p] of Array.from(this.sessionOwnerPage.entries())) {
       if (p === page) this.sessionOwnerPage.delete(sid);
@@ -1125,6 +1148,14 @@ export class BrowserContext {
       targetId,
       cause instanceof Error ? cause : new Error(`${fallbackMessage}: ${String(cause)}`),
     );
+  }
+
+  private pruneFrameOwners(page: Page): void {
+    for (const [frameId, owner] of this.frameOwnerPage) {
+      if (owner === page && !page.registry.frames.has(frameId)) {
+        this.frameOwnerPage.delete(frameId);
+      }
+    }
   }
 
   /**
@@ -1169,9 +1200,7 @@ export class BrowserContext {
 
     session.on<Protocol.Page.FrameDetachedEvent>("Page.frameDetached", (evt) => {
       owner.onFrameDetached(evt.frameId, evt.reason ?? "remove");
-      if (evt.reason !== "swap") {
-        this.frameOwnerPage.delete(evt.frameId);
-      }
+      if (evt.reason !== "swap") this.pruneFrameOwners(owner);
     });
 
     session.on<Protocol.Page.FrameNavigatedEvent>("Page.frameNavigated", (evt) => {

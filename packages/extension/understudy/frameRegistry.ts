@@ -144,14 +144,7 @@ export class FrameRegistry {
   onFrameDetached(frameId: FrameId, reason: string = "remove"): void {
     if (reason === "swap") return;
 
-    // Collect subtree starting from frameId.
-    const toRemove: FrameId[] = [];
-    const collect = (fid: FrameId) => {
-      toRemove.push(fid);
-      const kids = this.frames.get(fid)?.children ?? new Set<FrameId>();
-      for (const k of kids) collect(k);
-    };
-    collect(frameId);
+    const toRemove = this.subtreeFrameIds(frameId);
 
     // Remove nodes, fix parents and inverse maps
     for (const fid of toRemove) {
@@ -267,13 +260,17 @@ export class FrameRegistry {
    * List frame ids in root-first DFS order (same shape as CDP’s FrameTree traversal).
    */
   listAllFrames(): FrameId[] {
+    return this.subtreeFrameIds(this.rootFrameId);
+  }
+
+  subtreeFrameIds(rootId: FrameId): FrameId[] {
     const out: FrameId[] = [];
     const dfs = (fid: FrameId) => {
       out.push(fid);
       const kids = this.frames.get(fid)?.children ?? new Set<FrameId>();
       for (const k of kids) dfs(k);
     };
-    if (this.frames.has(this.rootFrameId)) dfs(this.rootFrameId);
+    if (this.frames.has(rootId)) dfs(rootId);
     return out;
   }
 
