@@ -557,7 +557,9 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
 
   if (operationTimeoutMs !== undefined) {
     if (
-      (method === StagehandMethods.pagePDF.name || method === StagehandMethods.pageSnapshot.name) &&
+      (method === StagehandMethods.pagePDF.name ||
+        method === StagehandMethods.pageSnapshot.name ||
+        method === StagehandMethods.pageWaitForSelector.name) &&
       operationTimeoutMs === 0
     )
       return undefined;
