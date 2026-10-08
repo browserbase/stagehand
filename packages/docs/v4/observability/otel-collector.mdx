@@ -1,0 +1,84 @@
+---
+title: "OpenTelemetry Collector"
+sidebarTitle: "OTel Collector"
+description: "Route Stagehand traces through an OpenTelemetry Collector."
+---
+
+Use a collector when one Stagehand process needs to reach more than one backend, or when a backend wants a different encoding than Stagehand sends. Stagehand's runtime exporter posts OTLP/HTTP JSON to a single `/v1/traces` URL. Direct export is simpler for one supported provider.
+
+A collector is the right extra hop if you need to batch, sample, or transcode. It can receive Stagehand's JSON and export protobuf when a backend requires that encoding.
+
+## Configure Stagehand
+
+Set `BROWSERBASE_API_KEY` and `OTEL_COLLECTOR_TRACES_ENDPOINT`. The endpoint is the collector's full OTLP/HTTP traces URL, including `/v1/traces`. The receiver defaults to port 4318.
+
+Stagehand exports from the browser's extension runtime. For Browserbase, the collector URL must be reachable from the remote browser. Use an HTTPS endpoint exposed through your deployment's authenticated ingress. `localhost` refers to the remote browser, not your machine. Add any required ingress auth headers to `telemetry.traces.headers`.
+
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+try {
+  const stagehand = await Stagehand.create({
+    browser,
+    telemetry: {
+      traces: {
+        endpoint: process.env.OTEL_COLLECTOR_TRACES_ENDPOINT!,
+        headers: {},
+      },
+    },
+  });
+
+  try {
+    const [page] = await browser.context.pages();
+    await page.goto("https://example.com");
+    await stagehand.observe("find the link on the page");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+
+Call `stagehand.close()` before the process exits. Spans sit in a one-second batch. The collector cannot export a batch that never arrived.
+
+## Configure the collector
+
+This example receives OTLP/HTTP from Stagehand and forwards it to two providers. Copy each provider's full traces URL into `FIRST_OTLP_TRACES_ENDPOINT` or `SECOND_OTLP_TRACES_ENDPOINT`, and set its headers on the matching exporter. The `otlp_http` exporter's `traces_endpoint` uses the URL exactly as given, including `/v1/traces`.
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+
+exporters:
+  otlp_http/first:
+    traces_endpoint: ${env:FIRST_OTLP_TRACES_ENDPOINT}
+    headers:
+      Authorization: ${env:FIRST_OTLP_AUTHORIZATION}
+  otlp_http/second:
+    traces_endpoint: ${env:SECOND_OTLP_TRACES_ENDPOINT}
+    headers:
+      Authorization: ${env:SECOND_OTLP_AUTHORIZATION}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp_http/first, otlp_http/second]
+```
+
+Some providers use a header other than `Authorization`. Braintrust wants `x-bt-parent`. LangSmith wants `x-api-key` and `Langsmith-Project`. Sentry wants `x-sentry-auth`. Put those on the matching exporter.
+
+## Verify traces
+
+Start the collector before Stagehand. Watch the collector logs for export errors first. A 404 can mean the traces URL is wrong. If you use the exporter's `endpoint` instead of `traces_endpoint`, remove only the `/v1/traces` suffix. Keep any provider path prefix, such as `/otel` or `/api/public/otel`, because the exporter appends `/v1/traces`. A 401 response usually means the authentication header or credential is missing or invalid. Then confirm the run in each provider UI, filtering on `service.name = stagehand-service-worker`.
+
+If only one backend shows the trace, inspect the other exporter's errors, endpoint, and headers. If neither shows it, check receiver and exporter logs first. Both exports can fail even after the collector receives the batch. Temporarily add a [`debug` exporter](https://opentelemetry.io/docs/collector/troubleshooting/) to the traces pipeline to confirm receipt. If the collector receives no spans, check the receiver URL, network access from the Browserbase browser, and that `stagehand.close()` ran.
