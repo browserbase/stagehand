@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSelectorWait, waitForSelector } from "../dom/locatorScripts/waitForSelector.js";
+import { createSelectorWait } from "../dom/locatorScripts/waitForSelector.js";
 
 describe("injected waitForSelector", () => {
   const querySelector = vi.fn();
@@ -56,7 +56,7 @@ describe("injected waitForSelector", () => {
   it.each([undefined, 75])("expires with timeout %s", async (timeout) => {
     const duration = timeout ?? 30_000;
     const settled = vi.fn();
-    const pending = waitForSelector("button", "attached", timeout, false);
+    const pending = createSelectorWait("button", "attached", timeout, false).promise;
     void pending.then(settled, settled);
     const rejected = expect(pending).rejects.toThrow(`Timeout ${duration}ms exceeded`);
     await vi.advanceTimersByTimeAsync(duration - 1);
@@ -68,7 +68,7 @@ describe("injected waitForSelector", () => {
 
   it("keeps zero unlimited and can still settle on a later mutation", async () => {
     const settled = vi.fn();
-    const pending = waitForSelector("button", "attached", 0, false);
+    const pending = createSelectorWait("button", "attached", 0, false).promise;
     void pending.then(settled, settled);
     expect(vi.getTimerCount()).toBe(0);
     await vi.advanceTimersByTimeAsync(60_000);

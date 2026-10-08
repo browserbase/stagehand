@@ -188,18 +188,8 @@ const setupShadowObservers = (
  * @param stateRaw - Element state: 'attached' | 'detached' | 'visible' | 'hidden'
  * @param timeoutRaw - Maximum time to wait in milliseconds; defaults to 30,000, zero is unlimited
  * @param pierceShadowRaw - Whether to search inside shadow DOM
- * @returns Promise that resolves to true when condition is met, or rejects on timeout
+ * @returns A disposable handle whose promise resolves when the condition is met
  */
-export function waitForSelector(
-  selectorRaw: string,
-  stateRaw?: string,
-  timeoutRaw?: number,
-  pierceShadowRaw?: boolean,
-): Promise<boolean> {
-  return createSelectorWait(selectorRaw, stateRaw, timeoutRaw, pierceShadowRaw).promise;
-}
-
-/** Internal handle retained by the extension until the operation ends. */
 export function createSelectorWait(
   selectorRaw: string,
   stateRaw?: string,
