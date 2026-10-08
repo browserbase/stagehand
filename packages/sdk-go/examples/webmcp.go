@@ -10,7 +10,7 @@ import (
 	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
-const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/"
+const webMCPTestSite = "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/"
 
 func main() {
 	if err := run(context.Background()); err != nil {
