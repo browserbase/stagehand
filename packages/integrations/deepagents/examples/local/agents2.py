@@ -37,7 +37,7 @@ class FormFillResult(BaseModel):
 
 
 async def main() -> None:
-    model = "openai:gpt-5.6-luna"
+    model = "openai:gpt-6-luna"
     instruction = """Navigate to https://file.1040.com/estimate/ and wait for it to load. Fill the
 form with this mock data:
 - age: 26

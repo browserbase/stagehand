@@ -109,9 +109,9 @@ describe("Codex SDK session", () => {
     expect(result.status).toBe("completed");
   });
   it("normalizes provider-prefixed and default models", () => {
-    expect(normalizeCodexModel("openai/gpt-5.4-mini")).toBe("gpt-5.4-mini");
+    expect(normalizeCodexModel("openai/gpt-6-luna")).toBe("gpt-6-luna");
     expect(normalizeCodexModel("gpt-5.4")).toBe("gpt-5.4");
-    expect(normalizeCodexModel("codex/default")).toBe("gpt-5.4-mini");
+    expect(normalizeCodexModel("codex/default")).toBe("gpt-6-luna");
   });
 
   it("forwards thread options and collects messages and usage", async () => {
@@ -142,7 +142,7 @@ describe("Codex SDK session", () => {
     const outputSchema = { type: "object" };
     const result = await runCodexSession({
       prompt: "task",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-6-luna",
       logger,
       sdk,
       thread: { workingDirectory: "/tmp/work", modelReasoningEffort: "xhigh" },
@@ -150,7 +150,7 @@ describe("Codex SDK session", () => {
     });
 
     expect(threadOptions).toMatchObject({
-      model: "gpt-5.4-mini",
+      model: "gpt-6-luna",
       workingDirectory: "/tmp/work",
       modelReasoningEffort: "xhigh",
       sandboxMode: "read-only",
@@ -175,7 +175,7 @@ describe("Codex SDK session", () => {
     };
     const result = await runCodexSession({
       prompt: "task",
-      model: "gpt-5.4-mini",
+      model: "gpt-6-luna",
       logger,
       sdk,
       thread: {},
@@ -200,7 +200,7 @@ describe("Codex SDK session", () => {
     };
     const result = await runCodexSession({
       prompt: "task",
-      model: "gpt-5.4-mini",
+      model: "gpt-6-luna",
       logger,
       sdk,
       thread: {},
@@ -363,7 +363,7 @@ describe("Codex SDK session", () => {
       };
       const result = await runCodexSession({
         prompt: "task",
-        model: "gpt-5.4-mini",
+        model: "gpt-6-luna",
         logger: { ...logger, log: (line: { message: string }) => logged.push(line.message) },
         sdk,
         thread: {},
@@ -443,7 +443,7 @@ describe("Codex SDK session", () => {
     };
     await runCodexSession({
       prompt: "task",
-      model: "gpt-5.4-mini",
+      model: "gpt-6-luna",
       logger,
       sdk,
       thread: { sandboxMode: "yolo" as never },
@@ -463,7 +463,7 @@ describe("Codex SDK session", () => {
     };
     const result = await runCodexSession({
       prompt: "task",
-      model: "gpt-5.4-mini",
+      model: "gpt-6-luna",
       logger,
       sdk,
       thread: {},

@@ -9,7 +9,7 @@ const browser = await localBrowser.launch({ headless: true });
 const stagehand = await Stagehand.create({
   browser,
   model: {
-    modelName: "openai/gpt-5.4-mini",
+    modelName: "openai/gpt-6-luna",
     apiKey: OPENAI_API_KEY,
   },
 });

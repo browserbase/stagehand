@@ -75,7 +75,7 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(
             browser=browser,
-            model="openai/gpt-5.4-mini",
+            model="openai/gpt-6-luna",
             model_api_key=os.environ["OPENAI_API_KEY"],
         )
         try:
