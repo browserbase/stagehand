@@ -453,7 +453,6 @@ export async function act({
             ),
         ),
       })
-      .strict()
       .nullable()
       .describe(
         "The element to act on. Return null if no element on the page matches the instruction — do NOT fabricate or guess an element, and never emit empty strings or placeholder values.",
