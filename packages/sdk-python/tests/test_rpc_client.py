@@ -966,7 +966,7 @@ async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
             },
         })
         with pytest.raises(
-            RPCError, match="locator.count timed out after 20000ms while resolving frame"
+            RPCError, match=r"locator.count timed out after 20000ms while resolving frame"
         ) as raised:
             await call
         assert raised.value.data == {"name": "TimeoutError"}
