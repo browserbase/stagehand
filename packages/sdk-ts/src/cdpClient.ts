@@ -35,6 +35,8 @@ export type ServiceWorkerInfo = {
 export type CDPClientOptions = {
   cdpUrl: string;
   extensionDir?: string;
+  /** Discover an installed runtime first; load this directory only if absent or unsupported. */
+  localExtensionDir?: string;
   extensionId?: string;
   preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
@@ -342,15 +344,21 @@ export class CDPClient {
 
     try {
       let extensionId: string;
-      if (options.extensionDir) {
+      if (options.localExtensionDir) {
+        extensionId = await resolveExtension(client, {
+          loadIfNotFound: true,
+          extensionDir: options.localExtensionDir,
+          signal,
+        });
+      } else if (options.extensionDir) {
         extensionId = await loadUnpackedExtension(client, options.extensionDir, signal);
       } else if (options.extensionId) {
         extensionId = options.extensionId;
       } else if (options.preloadedExtension) {
-        extensionId = await discoverInstalledStagehandExtensionId(client, { signal });
+        extensionId = await resolveExtension(client, { loadIfNotFound: false, signal });
       } else {
         throw new Error(
-          "Exactly one of extensionDir, extensionId, or preloadedExtension is required",
+          "Exactly one of localExtensionDir, extensionDir, extensionId, or preloadedExtension is required",
         );
       }
       const serviceWorker = await waitForServiceWorker(client, {
@@ -626,10 +634,44 @@ export async function waitForRuntimeReady(
   }
 }
 
-export async function discoverInstalledStagehandExtensionId(
+/** @internal Discover the runtime, optionally loading a bundled extension if needed. */
+export async function resolveExtension(
+  cdp: CDPCommandSender,
+  options: {
+    signal: AbortSignal;
+    loadIfNotFound: boolean;
+    extensionDir?: string;
+  },
+): Promise<string> {
+  let id: string | undefined;
+  try {
+    id = await getInstalledStagehandExtensionId(cdp, options);
+  } catch (error) {
+    if (
+      !options.loadIfNotFound ||
+      !isExtensionCommandUnavailable(error, "Extensions.getExtensions")
+    ) {
+      throw error;
+    }
+  }
+  throwIfAborted(options.signal);
+  if (id !== undefined) return id;
+  if (options.loadIfNotFound) {
+    if (!options.extensionDir) {
+      throw new Error("extensionDir is required to load the Stagehand extension");
+    }
+    return await loadUnpackedExtension(cdp, options.extensionDir, options.signal);
+  }
+  throw new Error(
+    "Stagehand extension is not installed in the connected browser. " +
+      "The extension must be included when the Browserbase session is created.",
+  );
+}
+
+async function getInstalledStagehandExtensionId(
   cdp: CDPCommandSender,
   options: { signal: AbortSignal },
-): Promise<string> {
+): Promise<string | undefined> {
   throwIfAborted(options.signal);
   const response = await cdp.sendCommand<unknown>(
     "Extensions.getExtensions",
@@ -653,10 +695,7 @@ export async function discoverInstalledStagehandExtensionId(
   if (installed.length > 0) {
     throw new Error("Stagehand extension is installed in the connected browser but is disabled.");
   }
-  throw new Error(
-    "Stagehand extension is not installed in the connected browser. " +
-      "The extension must be included when the Browserbase session is created.",
-  );
+  return undefined;
 }
 
 async function evaluateRuntimeReadiness(
@@ -766,9 +805,9 @@ export async function loadUnpackedExtension(
       signal,
     );
   } catch (error) {
-    if (isExtensionsLoadUnpackedUnavailable(error)) {
+    if (isExtensionCommandUnavailable(error, "Extensions.loadUnpacked")) {
       throw new Error(
-        "This Chrome build does not support Extensions.loadUnpacked. Launch with --load-extension and connect using extensionId instead.",
+        "This Chrome build does not support Extensions.loadUnpacked. Preload the Stagehand extension and connect using a Chrome build that supports Extensions.getExtensions.",
         { cause: error },
       );
     }
@@ -830,14 +869,14 @@ function delay(ms: number): Promise<void> {
   return abortableDelay(ms);
 }
 
-function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
+function isExtensionCommandUnavailable(error: unknown, method: string): boolean {
   if (!(error instanceof Error)) return false;
 
   const cause = CDPCommandErrorCauseSchema.safeParse(error.cause);
   if (!cause.success) return false;
 
   return (
-    cause.data.method === "Extensions.loadUnpacked" &&
+    cause.data.method === method &&
     (cause.data.code === -32601 || /method not found|wasn't found/i.test(cause.data.message))
   );
 }
