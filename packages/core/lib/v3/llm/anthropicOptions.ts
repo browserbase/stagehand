@@ -60,11 +60,12 @@ export function isAnthropicFable5Model(modelId: string): boolean {
 }
 
 /**
- * Models that reject `tool_choice` type "tool" or "any". Fable 5 has
- * always-on thinking, and Sonnet 5.5 rejects forced tool use at the API level.
+ * Models that require automatic tool choice for the final agent assessment.
  */
 const MODELS_WITHOUT_FORCED_TOOL_USE = new Set<string>([
   "claude-fable-5",
+  "claude-fable-5-1",
+  "claude-opus-5-5",
   "claude-sonnet-5-5",
 ]);
 

@@ -3,7 +3,13 @@ import type { LanguageModelV2 } from "@ai-sdk/provider";
 
 import { handleDoneToolCall } from "../../lib/v3/agent/utils/handleDoneToolCall.js";
 
-function sonnetMock(modelId: string, response: "done" | "text") {
+const automaticToolChoiceModels = [
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+  "claude-fable-5-1",
+].flatMap((modelId) => [modelId, `anthropic/${modelId}`]);
+
+function modelMock(modelId: string, response: "done" | "text") {
   const toolChoices: unknown[] = [];
   const model = {
     specificationVersion: "v2",
@@ -16,7 +22,7 @@ function sonnetMock(modelId: string, response: "done" | "text") {
         options.toolChoice?.type === "tool" ||
         options.toolChoice?.type === "required"
       ) {
-        throw new Error("Sonnet 5.5 rejects forced tool use");
+        throw new Error(`${modelId} rejects forced tool use`);
       }
       return {
         finishReason: "stop" as const,
@@ -43,10 +49,10 @@ function sonnetMock(modelId: string, response: "done" | "text") {
 }
 
 describe("v3 agent done tool choice", () => {
-  it.each(["claude-sonnet-5-5", "anthropic/claude-sonnet-5-5"])(
+  it.each(automaticToolChoiceModels)(
     "lets %s call done without forcing tool use",
     async (modelId) => {
-      const { model, toolChoices } = sonnetMock(modelId, "done");
+      const { model, toolChoices } = modelMock(modelId, "done");
       const result = await handleDoneToolCall({
         model,
         inputMessages: [{ role: "user", content: "The task is complete." }],
@@ -60,17 +66,20 @@ describe("v3 agent done tool choice", () => {
     },
   );
 
-  it("keeps a text reply as an incomplete result", async () => {
-    const { model, toolChoices } = sonnetMock("claude-sonnet-5-5", "text");
-    const result = await handleDoneToolCall({
-      model,
-      inputMessages: [{ role: "user", content: "The task is incomplete." }],
-      instruction: "Complete the task",
-      logger: () => {},
-    });
+  it.each(automaticToolChoiceModels)(
+    "keeps a text reply from %s as an incomplete result",
+    async (modelId) => {
+      const { model, toolChoices } = modelMock(modelId, "text");
+      const result = await handleDoneToolCall({
+        model,
+        inputMessages: [{ role: "user", content: "The task is incomplete." }],
+        instruction: "Complete the task",
+        logger: () => {},
+      });
 
-    expect(toolChoices).toEqual([{ type: "auto" }]);
-    expect(result.taskComplete).toBe(false);
-    expect(result.reasoning).toBe("The task needs review.");
-  });
+      expect(toolChoices).toEqual([{ type: "auto" }]);
+      expect(result.taskComplete).toBe(false);
+      expect(result.reasoning).toBe("The task needs review.");
+    },
+  );
 });
