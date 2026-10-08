@@ -1,6 +1,7 @@
 import { Output, generateText } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
+import { createProviderLanguageModel } from "../llm/providerRegistry.js";
 import * as llmService from "../services/llmService.js";
 
 vi.mock("ai", () => ({
@@ -19,8 +20,8 @@ describe("AI SDK language models", () => {
   it.each([
     {
       name: "OpenAI",
-      modelName: "openai/gpt-5.4-mini" as const,
-      modelId: "gpt-5.4-mini",
+      modelName: "openai/gpt-6-luna" as const,
+      modelId: "gpt-6-luna",
       provider: "openai.responses",
     },
     {
@@ -36,16 +37,10 @@ describe("AI SDK language models", () => {
       provider: "google.generative-ai",
     },
     {
-      name: "Groq",
-      modelName: "groq/openai/gpt-oss-120b" as const,
-      modelId: "openai/gpt-oss-120b",
-      provider: "groq.chat",
-    },
-    {
-      name: "Cerebras",
-      modelName: "cerebras/gpt-oss-120b" as const,
-      modelId: "gpt-oss-120b",
-      provider: "cerebras.chat",
+      name: "new OpenAI ID",
+      modelName: "openai/gpt-6-astra" as const,
+      modelId: "gpt-6-astra",
+      provider: "openai.responses",
     },
   ])("creates a direct $name model from its validated configuration", (testCase) => {
     const model = createAiSdkLanguageModel({
@@ -63,7 +58,7 @@ describe("AI SDK language models", () => {
   it("uses Chat Completions for OpenAI requests with stop sequences", () => {
     const model = createAiSdkLanguageModel(
       {
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6-luna",
         apiKey: "provider-secret",
       },
       { stopSequences: ["STOP"] },
@@ -71,8 +66,43 @@ describe("AI SDK language models", () => {
 
     expect(model).toMatchObject({
       provider: "openai.chat",
-      modelId: "gpt-5.4-mini",
+      modelId: "gpt-6-luna",
     });
+  });
+
+  it("keeps Anthropic's browser header after provider construction", async () => {
+    const fetch = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
+        throw new Error("request intercepted");
+      },
+    );
+    const model = createProviderLanguageModel("anthropic", "claude-sonnet-5-5", {
+      apiKey: "provider-secret",
+      headers: { "x-tenant-id": "tenant-123" },
+      fetch,
+    });
+
+    await expect(
+      model.doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "Hi" }] }] }),
+    ).rejects.toThrow("request intercepted");
+
+    const init = fetch.mock.calls[0]?.[1] as RequestInit;
+    const headers = new Headers(init.headers);
+    expect(headers.get("anthropic-dangerous-direct-browser-access")).toBe("true");
+    expect(headers.get("x-tenant-id")).toBe("tenant-123");
+  });
+
+  it("returns an upstream unknown-model error without replacing it", async () => {
+    const upstreamError = new Error("OpenAI: model private-model was not found");
+    vi.mocked(generateText).mockRejectedValue(upstreamError);
+
+    await expect(
+      llmService.generate(
+        { modelName: "openai/private-model", apiKey: "provider-secret" },
+        { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] },
+        vi.fn(),
+      ),
+    ).rejects.toBe(upstreamError);
   });
 
   it("routes a configured provider model through the AI SDK client", async () => {
@@ -89,7 +119,7 @@ describe("AI SDK language models", () => {
 
     await llmService.generate(
       {
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6-luna",
         apiKey: "provider-secret",
       },
       {
@@ -102,7 +132,7 @@ describe("AI SDK language models", () => {
       expect.objectContaining({
         model: expect.objectContaining({
           provider: "openai.responses",
-          modelId: "gpt-5.4-mini",
+          modelId: "gpt-6-luna",
         }),
       }),
     );
@@ -122,7 +152,7 @@ describe("AI SDK language models", () => {
 
     await llmService.generate(
       {
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/gpt-6-luna",
         apiKey: "provider-secret",
       },
       {

@@ -15,7 +15,7 @@ const browser = await browserbase.launch({ apiKey: BROWSERBASE_API_KEY, proxies:
 const stagehand = await Stagehand.create({
   browser,
   model: {
-    modelName: "anthropic/claude-sonnet-5",
+    modelName: "anthropic/claude-sonnet-5-5",
     apiKey: ANTHROPIC_API_KEY,
     // Stagehand calls the model from inside the browser extension.
     headers: { "anthropic-dangerous-direct-browser-access": "true" },

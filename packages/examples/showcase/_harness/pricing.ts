@@ -10,7 +10,7 @@ export type ModelPrice = {
 // USD per million tokens. Snapshotted into every results.json so published
 // costs stay tied to the prices in effect when the run happened.
 export const PRICES: Record<string, ModelPrice> = {
-  "anthropic/claude-sonnet-5": {
+  "anthropic/claude-sonnet-5-5": {
     inputPerMTok: 2,
     cachedInputPerMTok: 0.2,
     cacheWritePerMTok: 2.5,
@@ -18,13 +18,13 @@ export const PRICES: Record<string, ModelPrice> = {
     source: "https://platform.claude.com/docs/en/about-claude/pricing",
     checkedOn: "2026-09-25",
   },
-  "openai/gpt-5.4-mini": {
-    inputPerMTok: 0.75,
-    cachedInputPerMTok: 0.075,
-    cacheWritePerMTok: 0.75,
-    outputPerMTok: 4.5,
-    source: "https://openrouter.ai/openai/gpt-5.4-mini",
-    checkedOn: "2026-09-25",
+  "openai/gpt-6-luna": {
+    inputPerMTok: 0.1,
+    cachedInputPerMTok: 0.01,
+    cacheWritePerMTok: 0.1,
+    outputPerMTok: 0.5,
+    source: "https://developers.openai.com/api/docs/models/gpt-6-luna",
+    checkedOn: "2026-10-03",
   },
 };
 

@@ -340,24 +340,6 @@ For Microsoft Entra ID authentication, pass the bearer token explicitly in `auth
 [View all supported Azure models →](https://ai.azure.com/catalog)
 </Tab>
 
-<Tab title="Cerebras">
-<CodeGroup>
-```typescript TypeScript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  model: "cerebras/llama-4-scout"
-  // API key auto-loads from CEREBRAS_API_KEY - set in your .env
-});
-
-await stagehand.init();
-```
-
-</CodeGroup>
-[View all supported Cerebras models →](https://inference-docs.cerebras.ai/models/overview)
-</Tab>
-
 <Tab title="DeepSeek">
 
 <CodeGroup>
@@ -375,26 +357,6 @@ await stagehand.init();
 ```
 </CodeGroup>
 [View all supported DeepSeek models →](https://api-docs.deepseek.com/quick_start/pricing)
-</Tab>
-
-<Tab title="Groq">
-
-
-<CodeGroup>
-```typescript TypeScript
-import { Stagehand } from "@browserbasehq/stagehand";
-
-const stagehand = new Stagehand({
-  env: "BROWSERBASE",
-  model: "groq/llama-3.1-8b-instant"
-  // API key auto-loads from GROQ_API_KEY - set in your .env
-});
-
-await stagehand.init();
-```
-
-</CodeGroup>
-[View all supported Groq models →](https://console.groq.com/docs/models)
 </Tab>
 
 <Tab title="Mistral">
@@ -1004,19 +966,6 @@ The following models work without the `provider/` prefix in the model parameter 
 - `o1-preview`
 
 </Accordion>
-<Accordion title="Cerebras">
-
-- `cerebras-llama-3.3-70b`
-- `cerebras-llama-3.1-8b`
-
-</Accordion>
-<Accordion title="Groq">
-
-- `groq-llama-3.3-70b-versatile`
-- `groq-llama-3.3-70b-specdec`
-- `moonshotai/kimi-k2-instruct`
-
-</Accordion>
 </AccordionGroup>
 
 ---
@@ -1042,9 +991,7 @@ The following models work without the `provider/` prefix in the model parameter 
 | Anthropic  | `ANTHROPIC_API_KEY`            |
 | OpenAI     | `OPENAI_API_KEY`               |
 | Azure      | `AZURE_API_KEY`                |
-| Cerebras   | `CEREBRAS_API_KEY`             |
 | DeepSeek   | `DEEPSEEK_API_KEY`             |
-| Groq       | `GROQ_API_KEY`                 |
 | Mistral    | `MISTRAL_API_KEY`              |
 | Ollama     | None (local)                   |
 | Perplexity | `PERPLEXITY_API_KEY`           |

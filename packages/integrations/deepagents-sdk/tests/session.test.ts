@@ -73,7 +73,7 @@ describe("Deep Agents session", () => {
     const onToolResult = vi.fn();
     const result = await runDeepagentsSession({
       prompt: "task",
-      model: "openai/gpt-5.4-mini",
+      model: "openai/gpt-6-luna",
       logger,
       spawn: fake.spawn,
       session: {
@@ -91,7 +91,7 @@ describe("Deep Agents session", () => {
     });
     expect(JSON.parse(fake.getStdin())).toMatchObject({
       prompt: "task",
-      model: "openai:gpt-5.4-mini",
+      model: "openai:gpt-6-luna",
       mcp_servers: { stagehand: { command: "node", args: ["server.js"] } },
       recursion_limit: 80,
       max_tool_steps: 12,
@@ -274,10 +274,10 @@ describe("Deep Agents session", () => {
   });
 
   it("normalizes supported provider model prefixes", () => {
-    expect(normalizeDeepagentsModel("openai/gpt-5.4-mini")).toBe("openai:gpt-5.4-mini");
+    expect(normalizeDeepagentsModel("openai/gpt-6-luna")).toBe("openai:gpt-6-luna");
     expect(normalizeDeepagentsModel("anthropic/claude")).toBe("anthropic:claude");
     expect(normalizeDeepagentsModel("google/gemini")).toBe("google_genai:gemini");
-    expect(normalizeDeepagentsModel("openai:gpt-5.4-mini")).toBe("openai:gpt-5.4-mini");
+    expect(normalizeDeepagentsModel("openai:gpt-6-luna")).toBe("openai:gpt-6-luna");
     expect(normalizeDeepagentsModel("bare-model")).toBe("bare-model");
   });
 

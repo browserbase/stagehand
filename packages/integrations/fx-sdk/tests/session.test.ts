@@ -87,7 +87,7 @@ describe("fx CLI session", () => {
     };
     const result = await runFxSession({
       prompt: "do the task",
-      model: "openai/gpt-5.6-sol",
+      model: "openai/gpt-6.1-sol",
       cwd: "/fake/workspace",
       home: "/fake/home",
       env: { PATH: "/bin" },
@@ -109,7 +109,7 @@ describe("fx CLI session", () => {
     expect(captured?.stdin).toBe("do the task");
     expect(captured?.env).toMatchObject({
       HOME: "/fake/home",
-      FX_MODEL: "openai/gpt-5.6-sol",
+      FX_MODEL: "openai/gpt-6.1-sol",
       FX_MAX_AGENT_STEPS: "17",
       FX_PERMISSION_MODE: "auto",
     });
