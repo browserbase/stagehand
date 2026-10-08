@@ -68,6 +68,7 @@ from .client_models import (
     ExtractResult,
 )
 from .client_types import (
+    BrowserbaseClientOptions,
     CacheOptions,
     LLMGenerateCallback,
     LLMGenerateInput,
@@ -102,6 +103,7 @@ __all__ = [
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",
+    "BrowserbaseClientOptions",
     "BrowserbaseFetchResult",
     "BrowserbaseProxyConfig",
     "BrowserbaseRegion",
