@@ -585,8 +585,12 @@ async def test_response_timeout_and_transport_close_reject_pending_requests(
     timeout_transport = QueueTransport()
     timeout_client = RPCClient(timeout_transport)
     try:
-        with pytest.raises(TimeoutError, match=r"RPC response timed out: test\.request"):
+        with pytest.raises(
+            TimeoutError, match=r"RPC response timed out after 0\.05s: test\.request"
+        ) as raised:
             await timeout_client.send("test.request", models.EmptyParams(), RPCResult)
+        assert isinstance(raised.value.__cause__, TimeoutError)
+        assert not timeout_client._pending
     finally:
         await timeout_client.close()
 
@@ -598,6 +602,44 @@ async def test_response_timeout_and_transport_close_reject_pending_requests(
     with pytest.raises(RuntimeError, match="transport reader failed"):
         await call
     await asyncio.wait_for(failing_transport.closed.wait(), timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_pdf_timeout_reports_the_operation_deadline_plus_grace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 50)
+    client = RPCClient(QueueTransport())
+    try:
+        with pytest.raises(
+            TimeoutError, match=r"RPC response timed out after 0\.055s: page\.pdf"
+        ) as raised:
+            await client.send(
+                "page.pdf",
+                models.PagePDFParams(page_id="page-1", options=models.PagePDFOptions(timeout=5)),
+                models.PagePDFResult,
+            )
+        assert isinstance(raised.value.__cause__, TimeoutError)
+        assert not client._pending
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_pdf_caller_cancellation_is_not_converted_to_a_response_timeout() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(
+        client.send("page.pdf", models.PagePDFParams(page_id="page-1"), models.PagePDFResult)
+    )
+    try:
+        await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        call.cancel("caller canceled")
+        with pytest.raises(asyncio.CancelledError, match="caller canceled"):
+            await call
+        assert not client._pending
+    finally:
+        await client.close()
 
 
 def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() -> None:
@@ -623,7 +665,7 @@ def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() 
     assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
 
 
-def test_response_deadline_uses_v3_operation_defaults() -> None:
+def test_response_deadline_uses_operation_defaults() -> None:
     params = models.EmptyParams()
     expected = {
         "page.goto": 25,
@@ -632,11 +674,40 @@ def test_response_deadline_uses_v3_operation_defaults() -> None:
         "page.go_forward": 25,
         "page.wait_for_load_state": 25,
         "page.wait_for_selector": 40,
+        "page.pdf": 40,
+        "page.snapshot": 30,
         "page.webmcp_tools": 11,
     }
 
     for method, timeout in expected.items():
         assert rpc_client._rpc_response_timeout_seconds(method, params) == timeout
+
+
+@pytest.mark.parametrize("method", ["page.pdf", "page.snapshot"])
+@pytest.mark.parametrize("timeout,expected", [(250, 10.25), (45_000, 55), (0, None)])
+def test_capture_response_deadline_honors_explicit_timeout(
+    method: str, timeout: float, expected: float | None
+) -> None:
+    params = (
+        models.PagePDFParams(page_id="page-1", options=models.PagePDFOptions(timeout=timeout))
+        if method == "page.pdf"
+        else models.PageSnapshotParams(
+            page_id="page-1", options=models.PageSnapshotOptions(timeout=timeout)
+        )
+    )
+    assert rpc_client._rpc_response_timeout_seconds(method, params) == expected
+
+
+@pytest.mark.parametrize("timeout,expected", [(250, 10.25), (45_000, 55), (0, None)])
+def test_selector_response_deadline_honors_explicit_timeout(
+    timeout: int, expected: float | None
+) -> None:
+    params = models.PageWaitForSelectorParams(
+        page_id="page-1",
+        selector="button",
+        options=models.PageWaitForSelectorOptions(timeout=timeout),
+    )
+    assert rpc_client._rpc_response_timeout_seconds("page.wait_for_selector", params) == expected
 
 
 def test_response_deadline_preserves_v3_unbounded_operations() -> None:
@@ -664,25 +735,7 @@ def test_response_deadline_preserves_v3_unbounded_operations() -> None:
         "page.close",
         "page.evaluate",
         "page.screenshot",
-        "page.snapshot",
         "page.webmcp_invocation_result",
-        "locator.click",
-        "locator.fill",
-        "locator.hover",
-        "locator.count",
-        "locator.is_checked",
-        "locator.input_value",
-        "locator.is_visible",
-        "locator.inner_text",
-        "locator.inner_html",
-        "locator.text_content",
-        "locator.scroll_to",
-        "locator.centroid",
-        "locator.highlight",
-        "locator.send_click_event",
-        "locator.type",
-        "locator.select_option",
-        "locator.set_input_files",
     }
 
     for method in methods:
@@ -758,3 +811,166 @@ async def test_close_can_detach_without_closing_transport() -> None:
             ),
             models.CallbackBatchResult,
         )
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        method
+        for method in json.loads(
+            (Path(__file__).resolve().parents[2] / "protocol" / "stagehand.v4.json").read_text()
+        )["properties"]["methods"]["properties"]
+        if method.startswith("locator.")
+    ],
+)
+@pytest.mark.parametrize(
+    ("options", "expected"),
+    [
+        (None, 30),
+        ({}, 30),
+        ({"timeout": 0}, None),
+        ({"timeout": 5000}, 15),
+    ],
+)
+def test_locator_response_deadlines(
+    method: str, options: dict[str, float] | None, expected: float | None
+) -> None:
+    params = models.LocatorParams.model_validate({
+        "page_id": "page-1",
+        "selector": "button",
+        **({"options": options} if options is not None else {}),
+    })
+    assert rpc_client._rpc_response_timeout_seconds(method, params) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [None, 20, 0])
+async def test_locator_response_wait_uses_default_override_and_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    timeout: float | None,
+) -> None:
+    # Keep real event-loop deadlines short; the policy tests above check production values.
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10)
+    monkeypatch.setattr(rpc_client, "_DEFAULT_LOCATOR_TIMEOUT_MS", 20)
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    params = models.LocatorParams.model_validate({
+        "page_id": "page-1",
+        "selector": "button",
+        **({"options": {"timeout": timeout}} if timeout is not None else {}),
+    })
+    call = asyncio.create_task(client.send("locator.count", params, models.LocatorCountResult))
+    try:
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        if timeout == 0:
+            await asyncio.sleep(0.06)
+            assert not call.done()
+            await transport.incoming.put({"jsonrpc": "2.0", "id": request["id"], "result": 2})
+            assert await asyncio.wait_for(call, timeout=1) == 2
+        else:
+            with pytest.raises(
+                TimeoutError, match=r"RPC response timed out after 0\.03s: locator\.count"
+            ):
+                await asyncio.wait_for(call, timeout=1)
+        assert client._pending == {}
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [None, 20, 0])
+async def test_selector_response_wait_uses_default_override_and_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    timeout: int | None,
+) -> None:
+    # Keep real event-loop deadlines short; the policy tests above check production values.
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10)
+    monkeypatch.setitem(rpc_client._DEFAULT_OPERATION_TIMEOUT_MS, "page.wait_for_selector", 20)
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    params = models.PageWaitForSelectorParams.model_validate({
+        "page_id": "page-1",
+        "selector": "button",
+        **({"options": {"timeout": timeout}} if timeout is not None else {}),
+    })
+    call = asyncio.create_task(
+        client.send("page.wait_for_selector", params, models.PageWaitForSelectorResult)
+    )
+    try:
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        if timeout == 0:
+            await asyncio.sleep(0.06)
+            assert not call.done()
+            await transport.incoming.put({
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": {"matched": True},
+            })
+            assert (await asyncio.wait_for(call, timeout=1)).matched is True
+        else:
+            with pytest.raises(
+                TimeoutError, match=r"RPC response timed out after 0\.03s: page\.wait_for_selector"
+            ):
+                await asyncio.wait_for(call, timeout=1)
+        assert client._pending == {}
+    finally:
+        await client.close()
+        await asyncio.gather(call, return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [None, 0, 5000])
+async def test_canceling_a_locator_task_stops_the_client_wait(timeout: float | None) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    params = models.LocatorParams.model_validate({
+        "page_id": "page-1",
+        "selector": "button",
+        **({"options": {"timeout": timeout}} if timeout is not None else {}),
+    })
+    call = asyncio.create_task(client.send("locator.count", params, models.LocatorCountResult))
+    try:
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        call.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await call
+        assert client._pending == {}
+        # Local cancellation sends no remote cancellation command; a late reply is ignored.
+        await client._receive({"jsonrpc": "2.0", "id": request["id"], "result": 2})
+        assert transport.sent == [request]
+        assert not client._closed
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_locator_timeout_error_keeps_remote_message_and_details() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(
+        client.send(
+            "locator.count",
+            models.LocatorParams(page_id="page-1", selector="button"),
+            models.LocatorCountResult,
+        )
+    )
+    try:
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "error": {
+                "code": -32603,
+                "message": "locator.count timed out after 20000ms while resolving frame",
+                "data": {"name": "TimeoutError"},
+            },
+        })
+        with pytest.raises(
+            RPCError, match=r"locator.count timed out after 20000ms while resolving frame"
+        ) as raised:
+            await call
+        assert raised.value.data == {"name": "TimeoutError"}
+        assert raised.value.code == -32603
+        assert client._pending == {}
+    finally:
+        await client.close()

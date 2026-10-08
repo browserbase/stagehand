@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "iframe_same_proc" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/iframe-same-proc/");
 
       await stagehand.act("type 'stagehand' into the 'your name' field");
 

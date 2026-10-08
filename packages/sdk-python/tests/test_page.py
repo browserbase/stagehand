@@ -3,13 +3,14 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TypeVar, cast, overload
 
 import pytest
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, RootModel, ValidationError
 from typing_extensions import override
 
-from stagehand import Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
+from stagehand import PagePDFMargin, Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
     NavigationResponseDescriptor,
     PageCDPEventNotification,
@@ -23,6 +24,8 @@ from stagehand._generated.models import (
     PageNavigationResult,
     PageOffParams,
     PageOnParams,
+    PagePDFParams,
+    PagePDFResult,
     PageRef,
     PageScrollParams,
     PageUrlResult,
@@ -32,6 +35,7 @@ from stagehand._generated.models import (
     PageWebMCPInvokeToolParams,
     PageWebMCPToolsParams,
     PageWebMCPToolsResult,
+    SnapshotResult,
     WebMCPInvocationDescriptor,
     WebMCPResultOptions,
     WebMCPToolIdentity,
@@ -178,6 +182,68 @@ async def test_page_url_returns_a_scalar_string() -> None:
     assert recording.calls == [
         ("page.url", PageIdParams(page_id="page-1"), PageUrlResult),
     ]
+
+
+@pytest.mark.asyncio
+async def test_page_pdf_returns_bytes_writes_path_and_serializes_options(tmp_path: Path) -> None:
+    recording = RecordingRPCClient({"page.pdf": PagePDFResult(data="JVBERi0xLjcK")})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    output_path = tmp_path / "page.pdf"
+
+    data = await page.pdf(
+        landscape=True,
+        print_background=True,
+        width=8.5,
+        height=11,
+        margin={"top": 0.25, "bottom": 0},
+        tagged=False,
+        outline=False,
+        timeout=0,
+        path=output_path,
+    )
+
+    assert data == b"%PDF-1.7\n"
+    assert output_path.read_bytes() == data
+    method, params, result_model = recording.calls[0]
+    assert method == "page.pdf"
+    assert isinstance(params, PagePDFParams)
+    assert params.model_dump(mode="json", exclude_unset=True) == {
+        "page_id": "page-1",
+        "options": {
+            "landscape": True,
+            "print_background": True,
+            "width": 8.5,
+            "height": 11,
+            "margin": {"top": 0.25, "bottom": 0},
+            "tagged": False,
+            "outline": False,
+            "timeout": 0,
+        },
+    }
+    assert result_model is PagePDFResult
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("margin", "expected_options"),
+    [
+        (None, None),
+        ({}, {"margin": {}}),
+        ({"left": 0}, {"margin": {"left": 0}}),
+    ],
+)
+async def test_page_pdf_preserves_omitted_and_empty_options(
+    margin: PagePDFMargin | None, expected_options: dict[str, object] | None
+) -> None:
+    recording = RecordingRPCClient({"page.pdf": PagePDFResult(data="JVBERi0xLjcK")})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.pdf(margin=margin)
+
+    expected: dict[str, object] = {"page_id": "page-1"}
+    if expected_options is not None:
+        expected["options"] = expected_options
+    assert recording.calls[0][1].model_dump(mode="json", exclude_unset=True) == expected
 
 
 @pytest.mark.asyncio
@@ -906,3 +972,27 @@ def test_optional_page_arguments_are_keyword_only() -> None:
                 offenders.append(f"Page.{name}({parameter.name}=...)")
 
     assert offenders == []
+
+
+@pytest.mark.parametrize("timeout", [None, 0, 5_000])
+async def test_snapshot_forwards_timeout(timeout: float | None) -> None:
+    snapshot = SnapshotResult(formatted_tree="root", xpath_map={}, url_map={})
+    recording = RecordingRPCClient({"page.snapshot": snapshot})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    assert await page.snapshot(timeout=timeout) == snapshot
+    method, params, result_model = recording.calls[0]
+    expected: dict[str, object] = {"page_id": "page-1"}
+    if timeout is not None:
+        expected["options"] = {"timeout": timeout}
+    assert method == "page.snapshot"
+    assert params.model_dump(exclude_unset=True) == expected
+    assert result_model is SnapshotResult
+
+
+@pytest.mark.parametrize("timeout", [-1, float("inf"), float("nan")])
+async def test_snapshot_rejects_invalid_timeout_before_sending(timeout: float) -> None:
+    recording = RecordingRPCClient()
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    with pytest.raises(ValidationError):
+        await page.snapshot(timeout=timeout)
+    assert not recording.calls

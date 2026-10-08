@@ -30,6 +30,7 @@ from .browserbase_services import fetch_browserbase, search_browserbase
 from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
 from .cdp_client import CDPClient, CDPConnectionClosedError
 from .client_models import (
+    BrowserbaseClientOptions,
     BrowserbaseConnectOptions,
     BrowserbaseFetchResult,
     BrowserbaseSearchResult,
@@ -40,6 +41,7 @@ from .client_models import (
     _BrowserbaseFetchOptions,
     _BrowserbaseSearchOptions,
 )
+from .client_types import BrowserbaseClientOptions as BrowserbaseClientOptionsInput
 from .extension_assets import extension_directory
 from .timeouts import stagehand_init_deadline
 
@@ -303,6 +305,7 @@ async def _connect_browser(
     origin: Literal["launched", "connected"],
     source: _BrowserConnectionSource,
     extension_dir: str | None = None,
+    local_extension_dir: Callable[[], str] | None = None,
     extension_id: str | None = None,
     preloaded_extension: bool = False,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
@@ -314,6 +317,7 @@ async def _connect_browser(
         cdp_client = await CDPClient.connect(
             cdp_url=source.cdp_url,
             extension_dir=extension_dir,
+            local_extension_dir=local_extension_dir,
             extension_id=extension_id,
             preloaded_extension=preloaded_extension,
             service_worker_url_includes="service-worker.js",
@@ -530,6 +534,12 @@ class LocalBrowser:
         cdp_url: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
+        """Connect to an existing browser.
+
+        Args:
+            extension_id: Deprecated and ignored. Omit this argument; Stagehand
+                discovers the installed extension automatically.
+        """
         options = LocalBrowserConnectOptions.model_validate({
             name: value
             for name, value in (
@@ -538,13 +548,11 @@ class LocalBrowser:
             )
             if value is not None
         })
-        extension_dir = None if options.extension_id is not None else str(extension_directory())
         return await _connect_browser(
             provider="local",
             origin="connected",
             source=_ConnectedBrowserSource(options.cdp_url),
-            extension_dir=extension_dir,
-            extension_id=options.extension_id,
+            local_extension_dir=lambda: str(extension_directory()),
             worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
         )
 
@@ -558,6 +566,17 @@ class _ConnectedBrowserSource:
         return None
 
 
+def _sdk_client_options(options: BrowserbaseClientOptions | None) -> dict[str, Any] | None:
+    if options is None:
+        return None
+    # Read attributes rather than model_dump so a caller's http_client passes through as-is.
+    return {
+        name: value
+        for name in type(options).model_fields
+        if (value := getattr(options, name)) is not None
+    }
+
+
 class BrowserbaseBrowser:
     @stagehand_init_deadline
     async def launch(
@@ -565,6 +584,7 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client_options: BrowserbaseClientOptionsInput | None = None,
         browser_settings: BrowserbaseBrowserSettings | None = None,
         extension_id: str | None = None,
         keep_alive: bool | None = None,
@@ -598,9 +618,14 @@ class BrowserbaseBrowser:
             and not options.browser_settings.extension_id.strip()
         ):
             raise ValueError("browser_settings.extension_id must not be empty")
-        session = await _create_browserbase_session_client(api_key, base_url).create_session(
-            options
+        validated_client_options = (
+            BrowserbaseClientOptions.model_validate(client_options)
+            if client_options is not None
+            else None
         )
+        session = await _create_browserbase_session_client(
+            api_key, base_url, _sdk_client_options(validated_client_options)
+        ).create_session(options)
         source = ResolvedBrowserSource(
             cdp_url=session.cdp_url,
             keep_alive=options.keep_alive or False,
@@ -623,21 +648,29 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client_options: BrowserbaseClientOptionsInput | None = None,
         session_id: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
+        """Connect to an existing browser.
+
+        Args:
+            extension_id: Deprecated and ignored. Omit this argument; Stagehand
+                discovers the installed extension automatically.
+        """
         options = BrowserbaseConnectOptions.model_validate({
             name: value
             for name, value in (
                 ("api_key", api_key),
                 ("base_url", base_url),
+                ("client_options", client_options),
                 ("session_id", session_id),
                 ("extension_id", extension_id),
             )
             if value is not None
         })
         connection = await _create_browserbase_session_client(
-            options.api_key, options.base_url
+            options.api_key, options.base_url, _sdk_client_options(options.client_options)
         ).connect_session(options.session_id)
         return await _connect_browser(
             provider="browserbase",
@@ -647,8 +680,7 @@ class BrowserbaseBrowser:
                 keep_alive=True,
                 _close_callback=connection.close,
             ),
-            extension_id=options.extension_id,
-            preloaded_extension=options.extension_id is None,
+            preloaded_extension=True,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=options.api_key,
                 browser=_browser_session_metadata(connection.session_id, connection.region),
