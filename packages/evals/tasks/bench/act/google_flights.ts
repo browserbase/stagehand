@@ -15,7 +15,7 @@ export default defineBenchTask(
   { name: "google_flights" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/google-flights/");
 
       const observeResult: Action = {
         selector:
@@ -27,7 +27,7 @@ export default defineBenchTask(
       await stagehand.act(observeResult);
 
       const expectedUrl =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/return-flight.html";
+        "https://stagehand-eval-sites.vercel.app/sites/google-flights/return-flight.html";
       const currentUrl = await page.url();
 
       if (currentUrl === expectedUrl) {
