@@ -1,3 +1,4 @@
+import { reportRowPhase } from "./rowContext.js";
 import type { StartupProfile, ToolStartResult, ToolSurface } from "../core/contracts/tool.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
 import { getCoreTool } from "../core/tools/registry.js";
@@ -39,6 +40,7 @@ export async function startAgentToolRuntime(
     );
   }
 
+  reportRowPhase("session");
   const target = await prepareCoreBrowserTarget(input);
   let running: ToolStartResult;
   try {

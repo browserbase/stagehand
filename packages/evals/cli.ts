@@ -122,10 +122,13 @@ const args = process.argv.slice(2);
     const readline = await import("node:readline");
     const wasRaw = process.stdin.isRaw;
     readline.emitKeypressEvents(process.stdin);
-    const onKeypress = (_str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
+    const { getActiveRun } = await import("./tui/liveRun.js");
+    const onKeypress = (str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
       if (!key) return;
       if (key.name === "escape") void handleSignal("SIGINT");
       else if (key.ctrl && key.name === "c") void handleSignal("SIGINT");
+      // Live-board keys (`v` logs, `?` help); `?` arrives as a string, not a name.
+      else getActiveRun()?.onKey?.(key.name ?? str);
     };
     armArgvInput = () => {
       process.stdin.setRawMode?.(true);
