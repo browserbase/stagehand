@@ -227,7 +227,7 @@ jobs:
       # The TypeScript SDK bundles the extension, which in turn needs the protocol schema.
       - run: pnpm exec turbo run build --filter=@browserbasehq/stagehand
 
-      # Versions SDK packages with a pending changeset as `<next>-alpha-<sha>` and
+      # Versions SDK packages with a pending changeset as `<next>-alpha.<N>` and
       # publishes the public ones under the `alpha` dist-tag. The working tree is
       # discarded afterwards, so nothing is committed. No-op when there are no
       # unreleased changesets (e.g. the push that just cut a stable release).
