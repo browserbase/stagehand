@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "login" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/login/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/login/");
 
       await stagehand.act("type %nunya% into the username field", {
         variables: { nunya: "business" },

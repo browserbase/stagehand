@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "panamcs" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/panamcs/");
 
       const { data: observations } = await stagehand.observe("click the 'about us' link");
 
