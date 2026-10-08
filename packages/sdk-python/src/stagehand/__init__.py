@@ -77,6 +77,7 @@ from .client_types import (
 )
 from .file_upload import FileInput, FilePayload
 from .locator import Locator
+from .openai_compatible import open_ai_compatible
 from .page import (
     CDPSubscription,
     Page,
@@ -142,6 +143,7 @@ __all__ = [
     "NavigationSecurityDetails",
     "NavigationServerAddr",
     "ObserveResult",
+    "open_ai_compatible",
     "Page",
     "PageCDPEvent",
     "PageDragAndDropRoutePoint",
