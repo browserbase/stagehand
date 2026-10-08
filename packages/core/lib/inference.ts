@@ -453,6 +453,10 @@ export async function act({
             ),
         ),
       })
+      // OpenAI strict mode requires additionalProperties: false on every
+      // object. The AI SDK converter omits it inside anyOf, so set it in the
+      // JSON schema only; parsing still strips unknown keys.
+      .meta({ additionalProperties: false })
       .nullable()
       .describe(
         "The element to act on. Return null if no element on the page matches the instruction — do NOT fabricate or guess an element, and never emit empty strings or placeholder values.",
