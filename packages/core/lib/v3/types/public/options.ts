@@ -64,8 +64,16 @@ export interface V3Options {
   experimental?: boolean;
   verbose?: 0 | 1 | 2;
   selfHeal?: boolean;
-  // V2 compatibility fields - only included because the server imports this type and supports V2
+  /**
+   * Wait for Browserbase CAPTCHA solves before agent steps and actions.
+   * Defaults to browserbaseSessionCreateParams.browserSettings.solveCaptchas
+   * when provided, otherwise true on Browserbase and false locally.
+   * Set true when attaching locally to a
+   * Browserbase session. Does not enable a CAPTCHA solver itself.
+   * browserbaseSessionCreateParams.browserSettings.solveCaptchas: false disables it.
+   */
   waitForCaptchaSolves?: boolean;
+  // V2 compatibility fields - only included because the server imports this type and supports V2
   actTimeoutMs?: number;
   /** Disable pino logging backend (useful for tests or minimal environments). */
   disablePino?: boolean;
