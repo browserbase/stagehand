@@ -161,7 +161,7 @@ const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Docs publish separately after release. Remove these entries in the WebMCP hooks docs PR.
 // These exceptions apply only to docs coverage, never SDK-to-SDK parity.
-const UNRELEASED_REFERENCE_METHODS = new Set(["page/on-tools-added", "page/on-tools-removed"]);
+const UNRELEASED_REFERENCE_METHODS = new Set(["page/on-tools-removed"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 

@@ -367,6 +367,40 @@ await subscription.unsubscribe();
 Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
 `unsubscribe()` again.
 
+## onToolsAdded()
+
+Subscribe to WebMCP tools added to this page, including its child frames. The subscription
+reports future additions without replaying tools already registered. Use `page.tools()` to
+retrieve the current tools, or subscribe before navigation to receive tools from the new document.
+Subscriptions remain active across navigation.
+
+```typescript
+const subscription = await page.onToolsAdded((tools) => {
+  for (const tool of tools) {
+    console.log(tool.name, tool.frameId, tool.inputSchema);
+  }
+});
+
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/webmcp-test/");
+await subscription.unsubscribe();
+```
+
+<ParamField path="listener" type="ToolsAddedListener">
+  A callback with the signature `(tools: WebMCPTool[]) => unknown`. Each call receives
+  an array of added tools. Each tool exposes `name`, `description`, `frameId`, optional
+  `inputSchema`, `annotations`, and `backendNodeId`, and an `invoke()` method. See the
+  [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
+  Async callbacks may overlap and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery. See
+  [CDPSubscription](#cdpsubscription) for cleanup behavior.
+</ResponseField>
+
+Tools are identified by `frameId` and `name`. A tool is also reported when its descriptor
+changes; an identical descriptor is not reported again.
+
 ## addInitScript()
 
 Run a script before other scripts whenever the page navigates.
@@ -1142,6 +1176,40 @@ await subscription.unsubscribe()
 `await subscription.unsubscribe()` removes the listener locally and from the Stagehand runtime.
 Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
 cancelled while awaiting cleanup, the shared cleanup task continues in the background.
+
+## on_tools_added()
+
+Subscribe to WebMCP tools added to this page, including its child frames. The subscription
+reports future additions without replaying tools already registered. Use `page.tools()` to
+retrieve the current tools, or subscribe before navigation to receive tools from the new document.
+Subscriptions remain active across navigation.
+
+```python
+def handle_tools_added(tools: list[WebMCPTool]) -> None:
+    for tool in tools:
+        print(tool.name, tool.frame_id, tool.input_schema)
+
+subscription = await page.on_tools_added(handle_tools_added)
+await page.goto("https://stagehand-eval-sites.vercel.app/sites/webmcp-test/")
+await subscription.unsubscribe()
+```
+
+<ParamField path="listener" type="ToolsAddedListener">
+  A sync or async callback that receives a `list[WebMCPTool]` of added tools. Each tool
+  exposes `name`, `description`, `frame_id`, optional `input_schema`, `annotations`, and
+  `backend_node_id`, and an `invoke()` method. See the
+  [WebMCP reference](/v4/reference/webmcp) for property types and invocation options.
+  Async callbacks may overlap and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method removes the listener locally and
+  from the Stagehand runtime. Repeated calls await the same successful cleanup;
+  failed cleanup can be retried.
+</ResponseField>
+
+Tools are identified by `frame_id` and `name`. A tool is also reported when its descriptor
+changes; an identical descriptor is not reported again.
 
 ## add_init_script()
 
@@ -1946,6 +2014,48 @@ if err := subscription.Close(ctx); err != nil {
 `Close(ctx context.Context) error` removes the listener locally and from the Stagehand runtime.
 Repeated calls after successful cleanup return `nil`. Concurrent calls share the active cleanup;
 a failed attempt can be retried.
+
+## OnToolsAdded()
+
+Subscribe to WebMCP tools added to this page, including its child frames. The subscription
+reports future additions without replaying tools already registered. Use `page.Tools(ctx, nil)` to
+retrieve the current tools, or subscribe before navigation to receive tools from the new document.
+Subscriptions remain active across navigation.
+
+```go
+subscription, err := page.OnToolsAdded(ctx, func(tools []*stagehand.WebMCPTool) {
+    for _, tool := range tools {
+        descriptor := tool.Descriptor()
+        fmt.Println(descriptor.Name, descriptor.FrameID, descriptor.InputSchema)
+    }
+})
+if err != nil {
+    return err
+}
+
+if _, err := page.Goto(ctx, "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/", nil); err != nil {
+    return err
+}
+if err := subscription.Close(ctx); err != nil {
+    return err
+}
+```
+
+<ParamField path="listener" type="func([]*WebMCPTool)">
+  A non-nil callback that receives a slice of added tools. Each tool exposes its
+  descriptor through `Descriptor()` and can be invoked with `Invoke()`. See the
+  [WebMCP reference](/v4/reference/webmcp) for descriptor fields and invocation options.
+  Listeners are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="(*CDPSubscription, error)">
+  A subscription handle whose `Close(ctx)` method removes the listener locally and
+  from the Stagehand runtime. Repeated calls after successful cleanup return `nil`;
+  failed cleanup can be retried.
+</ResponseField>
+
+Tools are identified by `FrameID` and `Name`. A tool is also reported when its descriptor
+changes; an identical descriptor is not reported again.
 
 ## AddInitScript()
 

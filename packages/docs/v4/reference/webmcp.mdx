@@ -8,6 +8,10 @@ icon: "plug"
 `WebMCPInvocation`, which can wait for Chrome's terminal response or request cancellation. See the
 [Page reference](/v4/reference/page) for tool discovery options.
 
+Use [`page.onToolsAdded()`](/v4/reference/page#ontoolsadded) to subscribe to future tool
+additions, including tools in child frames. The callback receives callable `WebMCPTool`
+objects; tools already registered are not replayed.
+
 <Tabs>
 <Tab title="TypeScript">
 
