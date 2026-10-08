@@ -205,16 +205,26 @@ blocked as well as the recording CSP's remote-asset restrictions. A negative con
 replaces the company link text and requires validation to reject the altered page.
 The tests also check the saved bytes against their manifest hashes.
 
+`pnpm test:browser` runs these five offline checks without credentials. They are
+also included in root `just test` and the TypeScript browser CI job, including
+eval-only changes. The command selects only the offline suite, even when optional
+validation flags are set.
+
 After building the SDK and extension and installing Playwright Chromium, run from
 `packages/evals`:
 
 ```sh
 # Offline replay: no provider credentials or original websites needed.
-pnpm exec vitest run --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts
+pnpm test:browser
 
 # Also compare the committed recordings with the current public source pages.
 VALIDATE_EXISTING_EVAL_TASKS=1 pnpm exec vitest run \
   --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts
+
+# Cloud replay: compares all three tasks on Browserbase (six sessions).
+# Set BROWSERBASE_API_KEY first; no model API key is needed.
+TASK_VALIDATION_BROWSERBASE=1 pnpm exec vitest run \
+  --config vitest.integration.config.ts tests/integration/taskExistingEvals.test.ts -t Browserbase
 
 # Paid real-model validation: three source/recording pairs per task.
 # Set OPENAI_API_KEY in the environment first; use any supported OpenAI model.

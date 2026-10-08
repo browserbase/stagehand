@@ -3,7 +3,13 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { chromium } from "playwright";
-import { Stagehand, localBrowser, type ClientLLM, type ModelName } from "@browserbasehq/stagehand";
+import {
+  Stagehand,
+  browserbase,
+  localBrowser,
+  type ClientLLM,
+  type ModelName,
+} from "@browserbasehq/stagehand";
 import * as replay from "../../tasks/replay.js";
 import { captureObservation } from "../../tasks/record.js";
 import { EvalLogger } from "../../logger.js";
@@ -87,7 +93,12 @@ function deterministicModel(kind: EvalCase["kind"], prompts: string[]): ClientLL
   };
 }
 
-async function runTask(entry: EvalCase, variant: Variant, useRealModel = false) {
+async function runTask(
+  entry: EvalCase,
+  variant: Variant,
+  useRealModel = false,
+  useBrowserbase = false,
+) {
   const prompts: string[] = [];
   if (useRealModel && !process.env.OPENAI_API_KEY)
     throw new Error("Real-model validation requires OPENAI_API_KEY");
@@ -96,14 +107,18 @@ async function runTask(entry: EvalCase, variant: Variant, useRealModel = false) 
   const model = useRealModel
     ? { modelName: realModelName!, apiKey: process.env.OPENAI_API_KEY! }
     : deterministicModel(entry.kind, prompts);
-  // Real-model runs need provider access; deterministic replay additionally
-  // blocks DNS. The recorded document's CSP blocks remote page assets in both.
-  const browser = await localBrowser.launch({
-    headless: true,
-    ...(variant !== "source" && !useRealModel
-      ? { args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"] }
-      : {}),
-  });
+  // Local deterministic replay additionally blocks DNS; cloud sessions and
+  // real-model runs need network access. Recording CSP blocks remote page assets.
+  if (useBrowserbase && !process.env.BROWSERBASE_API_KEY)
+    throw new Error("Browserbase validation requires BROWSERBASE_API_KEY");
+  const browser = useBrowserbase
+    ? await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY! })
+    : await localBrowser.launch({
+        headless: true,
+        ...(variant !== "source" && !useRealModel
+          ? { args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"] }
+          : {}),
+      });
   let stagehand: Stagehand | undefined;
   const originalReplay = replay.gotoRecordedTask;
   try {
@@ -217,5 +232,16 @@ describe.skipIf(!realModelName)("real-model source and recording comparison", ()
         await runTask(entry, "recorded", true);
       }, 120_000);
     }
+  }
+});
+
+// Cloud sessions stay opt-in and never run in the credential-free CI suite.
+describe.skipIf(process.env.TASK_VALIDATION_BROWSERBASE !== "1")("Browserbase replay", () => {
+  for (const entry of cases) {
+    test(`${entry.task.meta.name}: remote source and saved prompts match`, async () => {
+      expect(await runTask(entry, "recorded", false, true)).toEqual(
+        await runTask(entry, "source", false, true),
+      );
+    }, 180_000);
   }
 });
