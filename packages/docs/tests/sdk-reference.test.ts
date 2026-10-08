@@ -299,7 +299,7 @@ describe("SDK reference surface", () => {
     const referenceSlugs = (await listFiles(REFERENCE_ROOT, () => false))
       .filter((filePath) => extname(filePath) === ".mdx")
       .map((filePath) => filePath.slice(0, -extname(filePath).length).split(sep).at(-1) as string);
-    const sdkSlugs = new Set(SDK_OBJECTS.map(({ classSlug }) => classSlug));
+    const sdkSlugs = new Set<string>(SDK_OBJECTS.map(({ classSlug }) => classSlug));
     const supplemental = referenceSlugs.filter((slug) => !sdkSlugs.has(slug)).sort();
 
     expect(
