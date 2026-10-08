@@ -57,6 +57,7 @@
                 "group": "Agent Frameworks",
                 "pages": [
                   "v4/integrations/agent-frameworks/overview",
+                  "v4/integrations/agent-frameworks/claude-cua-toolset-quickstart",
                   "v4/integrations/agent-frameworks/eve",
                   "v4/integrations/agent-frameworks/deep-agents",
                   "v4/integrations/agent-frameworks/crewai",
@@ -92,6 +93,17 @@
               "v4/best-practices/speed-optimization",
               "v4/best-practices/cost-optimization",
               "v4/best-practices/deployments"
+            ]
+          },
+          {
+            "group": "Cookbooks",
+            "pages": [
+              "v4/cookbooks/overview",
+              "v4/cookbooks/persisted-login",
+              "v4/cookbooks/paginated-catalog",
+              "v4/cookbooks/files-to-bucket",
+              "v4/cookbooks/approve-form-submission",
+              "v4/cookbooks/ai-sdk-research-agent"
             ]
           },
           {
@@ -648,6 +660,42 @@
     {
       "source": "/migrations/:slug*",
       "destination": "/v3/migrations/:slug*"
+    },
+    {
+      "source": "/v4/examples/compare-pages-in-parallel",
+      "destination": "/v4/best-practices/using-multiple-tabs"
+    },
+    {
+      "source": "/v4/examples/model-gateway-extract",
+      "destination": "/v4/configuration/models#model-gateway"
+    },
+    {
+      "source": "/v4/examples/observe-then-act",
+      "destination": "/v4/cookbooks/paginated-catalog"
+    },
+    {
+      "source": "/v4/examples/tanstack-ai-extraction-tool",
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/overview",
+      "destination": "/v4/cookbooks/overview"
+    },
+    {
+      "source": "/v4/examples/approve-form-submission",
+      "destination": "/v4/cookbooks/approve-form-submission"
+    },
+    {
+      "source": "/v4/examples/paginated-catalog",
+      "destination": "/v4/cookbooks/paginated-catalog"
+    },
+    {
+      "source": "/v4/examples/files-to-bucket",
+      "destination": "/v4/cookbooks/files-to-bucket"
+    },
+    {
+      "source": "/v4/examples/ai-sdk-research-agent",
+      "destination": "/v4/cookbooks/ai-sdk-research-agent"
     }
   ]
 }
