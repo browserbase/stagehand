@@ -2,9 +2,10 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
-import type { MouseButton } from "../../../protocol/types.js";
+import type { MouseButton } from "@browserbasehq/stagehand-protocol/types";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
+import type { Progress } from "../../understudy/progress.js";
 import type { StagehandLogger } from "../../logger.js";
 import { toTitleCase } from "../../utils.js";
 
@@ -17,6 +18,7 @@ export interface UnderstudyMethodHandlerContext {
   page: Page;
   initialUrl: string;
   logger: StagehandLogger;
+  progress: Progress;
   domSettleTimeoutMs?: number;
 }
 
@@ -49,6 +51,7 @@ export async function performUnderstudyMethod(
   rawXPath: string,
   args: ReadonlyArray<unknown>,
   logger: StagehandLogger,
+  progress: Progress,
   domSettleTimeoutMs?: number,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
@@ -59,8 +62,10 @@ export async function performUnderstudyMethod(
       { target: selectorRaw },
       async (spanLogger) => {
         // Unified resolver: supports '>>' hops and XPath across iframes.
-        const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw);
-        const initialUrl = await getFrameUrl(frame);
+        const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw, progress);
+        const initialUrl = await progress.run("reading frame URL", () =>
+          frame.evaluate<string>("location.href", undefined, progress),
+        );
 
         spanLogger.debug("Performing understudy method", {
           category: "action",
@@ -79,11 +84,12 @@ export async function performUnderstudyMethod(
           initialUrl,
           logger: spanLogger,
           domSettleTimeoutMs,
+          progress,
         };
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
         if (handler) {
-          await handler(ctx);
+          await progress.run(`performing ${method}`, () => handler(ctx));
           return;
         }
 
@@ -134,7 +140,7 @@ export async function selectOption(ctx: UnderstudyMethodHandlerContext) {
   const { locator, xpath, args, logger } = ctx;
   try {
     const text = args[0]?.toString() || "";
-    await locator.selectOption(text);
+    await locator.selectOption(text, ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -154,10 +160,15 @@ async function scrollIntoView(ctx: UnderstudyMethodHandlerContext): Promise<void
     category: "action",
     xpath,
   });
-  const { objectId } = await locator.resolveNode();
+  const { objectId } = await locator.resolveNode(ctx.progress);
   const ownerSession = locator.getFrame().session;
-  await ownerSession.send("DOM.scrollIntoViewIfNeeded", { objectId });
-  await ownerSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+  try {
+    await ctx.progress.run("scrolling element into view", () =>
+      ownerSession.send("DOM.scrollIntoViewIfNeeded", { objectId }),
+    );
+  } finally {
+    await ctx.progress.cleanup(() => ownerSession.send("Runtime.releaseObject", { objectId }));
+  }
 }
 
 async function scrollElementToPercentage(ctx: UnderstudyMethodHandlerContext): Promise<void> {
@@ -169,7 +180,7 @@ async function scrollElementToPercentage(ctx: UnderstudyMethodHandlerContext): P
   });
 
   const [yArg = "0%"] = args;
-  await locator.scrollTo(yArg);
+  await locator.scrollTo(yArg, ctx.progress);
 }
 
 /** Scroll the page by pixel offset, starting from the element's center. */
@@ -178,8 +189,8 @@ async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise
   const dx = Number(args[0] ?? 0);
   const dy = Number(args[1] ?? 0);
 
-  const { x, y } = await locator.centroid();
-  await page.scroll(x, y, dx, dy);
+  const { x, y } = await locator.centroid(ctx.progress);
+  await page.scroll(x, y, dx, dy, ctx.progress);
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
@@ -189,20 +200,22 @@ async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
     category: "action",
     deltaY,
   });
-  await frame.session.send<never>("Input.dispatchMouseEvent", {
-    type: "mouseWheel",
-    x: 0,
-    y: 0,
-    deltaY,
-    deltaX: 0,
-  } as Protocol.Input.DispatchMouseEventRequest);
+  await ctx.progress.run("dispatching mouse wheel", () =>
+    frame.session.send<never>("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x: 0,
+      y: 0,
+      deltaY,
+      deltaX: 0,
+    } as Protocol.Input.DispatchMouseEventRequest),
+  );
 }
 
 async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger } = ctx;
   try {
-    await locator.fill(""); // clear
-    await locator.fill(args[0] ?? "");
+    await locator.fill("", ctx.progress); // clear
+    await locator.fill(args[0] ?? "", ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.debug("Error filling element", {
@@ -217,7 +230,7 @@ async function fillOrType(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger } = ctx;
   try {
-    await locator.type(args[0] ?? "");
+    await locator.type(args[0] ?? "", undefined, ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.debug("Error typing into element", {
@@ -238,7 +251,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
       key,
       xpath,
     });
-    await page.keyPress(key);
+    await page.keyPress(key, undefined, ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.debug("Error pressing key", {
@@ -254,7 +267,7 @@ async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 async function clickElement(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, xpath, args, logger } = ctx;
   try {
-    await locator.click({ button: (args[0] as MouseButton) || undefined });
+    await locator.click({ button: (args[0] as MouseButton) || undefined }, ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.error("Error performing click", {
@@ -269,7 +282,7 @@ async function clickElement(ctx: UnderstudyMethodHandlerContext): Promise<void> 
 async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const { locator, xpath, logger } = ctx;
   try {
-    await locator.click({ clickCount: 2 });
+    await locator.click({ clickCount: 2 }, ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.error("Error performing double click", {
@@ -286,12 +299,12 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath) throw new Error("dragAndDrop requires a target XPath arg");
 
-  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath, ctx.progress);
 
   try {
     // 1) Centers in local (owning-frame) viewport
-    const { x: fromLocalX, y: fromLocalY } = await locator.centroid();
-    const { x: toLocalX, y: toLocalY } = await targetLocator.centroid();
+    const { x: fromLocalX, y: fromLocalY } = await locator.centroid(ctx.progress);
+    const { x: toLocalX, y: toLocalY } = await targetLocator.centroid(ctx.progress);
 
     // 2) Convert to main-viewport absolute coordinates
     const fromAbs = await locator
@@ -312,6 +325,7 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
           return { x: Math.round(X), y: Math.round(Y) };
         },
         { x: fromLocalX, y: fromLocalY },
+        ctx.progress,
       );
 
     const toAbs = await targetLocator
@@ -332,13 +346,21 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
           return { x: Math.round(X), y: Math.round(Y) };
         },
         { x: toLocalX, y: toLocalY },
+        ctx.progress,
       );
 
     // 3) Perform drag in main session
-    await page.dragAndDrop(fromAbs.x, fromAbs.y, toAbs.x, toAbs.y, {
-      steps: 10,
-      delay: 5,
-    });
+    await page.dragAndDrop(
+      fromAbs.x,
+      fromAbs.y,
+      toAbs.x,
+      toAbs.y,
+      {
+        steps: 10,
+        delay: 5,
+      },
+      ctx.progress,
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     logger.error("Error performing drag and drop", {
@@ -369,12 +391,13 @@ async function scrollByElementHeight(
     xpath,
   });
 
-  const { objectId } = await locator.resolveNode();
+  const { objectId } = await locator.resolveNode(ctx.progress);
   try {
     const ownerSession = locator.getFrame().session;
-    await ownerSession.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
-      objectId,
-      functionDeclaration: `
+    await ctx.progress.run("scrolling by element height", () =>
+      ownerSession.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: `
           function(dir) {
             const waitForScrollEnd = (el) => new Promise((resolve) => {
               let last = el.scrollTop ?? 0;
@@ -399,20 +422,21 @@ async function scrollByElementHeight(
             return waitForScrollEnd(this);
           }
         `,
-      arguments: [{ value: direction }],
-      awaitPromise: true,
-      returnByValue: true,
-    });
+        arguments: [{ value: direction }],
+        awaitPromise: true,
+        returnByValue: true,
+      }),
+    );
   } finally {
     const ownerSession = locator.getFrame().session;
-    await ownerSession.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    await ctx.progress.cleanup(() => ownerSession.send("Runtime.releaseObject", { objectId }));
   }
 }
 
 export async function hover(ctx: UnderstudyMethodHandlerContext) {
   const { locator, xpath, logger } = ctx;
   try {
-    await locator.hover();
+    await locator.hover(ctx.progress);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : undefined;
@@ -428,12 +452,6 @@ export async function hover(ctx: UnderstudyMethodHandlerContext) {
 
 /* ===================== Helpers ===================== */
 
-async function getFrameUrl(frame: Frame): Promise<string> {
-  // Evaluate from within the frame's isolated world
-  const url = await frame.evaluate<string>("location.href");
-  return url;
-}
-
 /**
  * More robust DOM settle using Network + Page events to detect network quiet.
  * Closely modeled after the provided snippet, adapted to our Frame/session + logger.
@@ -441,7 +459,8 @@ async function getFrameUrl(frame: Frame): Promise<string> {
 export async function waitForDomNetworkQuiet(
   frame: Frame,
   logger: StagehandLogger,
-  timeout?: number,
+  timeout: number | undefined,
+  progress: Progress,
 ): Promise<void> {
   const overallTimeout =
     typeof timeout === "number" && Number.isFinite(timeout) ? Math.max(0, timeout) : 5_000;
@@ -451,13 +470,18 @@ export async function waitForDomNetworkQuiet(
   // Ensure a document exists; if not, wait for DOMContentLoaded on this frame.
   let hasDoc: boolean;
   try {
-    const rs = await frame.evaluate<string>("document.readyState");
+    const rs = await progress.run("checking document readiness", () =>
+      frame.evaluate<string>("document.readyState", undefined, progress),
+    );
     hasDoc = rs === "interactive" || rs === "complete";
   } catch {
+    progress.throwIfStopped();
     hasDoc = false;
   }
   if (!hasDoc && overallTimeout > 0) {
-    await frame.waitForLoadState("domcontentloaded", overallTimeout).catch(() => {});
+    await frame.waitForLoadState("domcontentloaded", overallTimeout, progress).catch(() => {
+      progress.throwIfStopped();
+    });
   }
 
   const elapsed = Date.now() - settleStart;
@@ -466,22 +490,27 @@ export async function waitForDomNetworkQuiet(
     return;
   }
 
-  await client.send("Network.enable").catch(() => {});
-  await client.send("Page.enable").catch(() => {});
+  await progress.run("enabling network events", () =>
+    client.send("Network.enable").catch(() => {}),
+  );
+  await progress.run("enabling page events", () => client.send("Page.enable").catch(() => {}));
   // Best-effort; some sessions may not support Target.setAutoAttach here.
-  await client
-    .send("Target.setAutoAttach", {
-      autoAttach: true,
-      waitForDebuggerOnStart: false,
-      flatten: true,
-      filter: [
-        { type: "worker", exclude: true },
-        { type: "shared_worker", exclude: true },
-      ],
-    })
-    .catch(() => {});
+  await progress.run("attaching to frames", () =>
+    client
+      .send("Target.setAutoAttach", {
+        autoAttach: true,
+        waitForDebuggerOnStart: false,
+        flatten: true,
+        filter: [
+          { type: "worker", exclude: true },
+          { type: "shared_worker", exclude: true },
+        ],
+      })
+      .catch(() => {}),
+  );
 
-  return new Promise<void>((resolve) => {
+  progress.throwIfStopped();
+  await new Promise<void>((resolve) => {
     const inflight = new Set<string>();
     const meta = new Map<string, { url: string; start: number }>();
     const docByFrame = new Map<string, string>();
@@ -576,7 +605,10 @@ export async function waitForDomNetworkQuiet(
       if (quietTimer) clearTimeout(quietTimer);
       if (stalledRequestSweepTimer) clearInterval(stalledRequestSweepTimer);
       clearTimeout(guard);
+      progress.signal.removeEventListener("abort", resolveDone);
       resolve();
     };
+    progress.signal.addEventListener("abort", resolveDone, { once: true });
   });
+  progress.throwIfStopped();
 }

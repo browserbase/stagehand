@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { DomainPolicy } from "../../protocol/types.js";
+import type { DomainPolicy } from "@browserbasehq/stagehand-protocol/types";
 
 type DomainRule = { type: "exact"; hostname: string } | { type: "wildcard"; hostname: string };
 

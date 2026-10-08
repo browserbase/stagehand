@@ -1,4 +1,4 @@
-import type { Locator } from "../../../protocol/types.js";
+import type { Locator } from "@browserbasehq/stagehand-protocol/types";
 
 /**
  * Options that control how hybrid snapshots and targeted scopes are captured.

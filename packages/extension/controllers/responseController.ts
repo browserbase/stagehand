@@ -1,4 +1,4 @@
-import type { ResponseIdParams } from "../../protocol/types.js";
+import type { ResponseIdParams } from "@browserbasehq/stagehand-protocol/types";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
 

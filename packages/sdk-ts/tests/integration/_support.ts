@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { LLMGenerateResult } from "../../../protocol/types.js";
+import type { LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import {
   localBrowser,
   Stagehand,

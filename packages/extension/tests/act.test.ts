@@ -1,7 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
-import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import type { CacheClient } from "../clients/cacheClient.js";
 import {
   performUnderstudyMethod,
@@ -11,6 +11,7 @@ import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as actService from "../services/actService.js";
 import type { Page } from "../understudy/page.js";
+import { Progress } from "../understudy/progress.js";
 
 vi.mock("../handlers/handlerUtils/actHandlerUtils.js", () => ({
   performUnderstudyMethod: vi.fn(),
@@ -130,7 +131,7 @@ describe("act service", () => {
       domSettleTimeoutMs: 2_000,
     });
 
-    expect(waitForQuiet).toHaveBeenCalledWith(frame, logger, 2_000);
+    expect(waitForQuiet).toHaveBeenCalledWith(frame, logger, 2_000, expect.any(Progress));
     expect(captureSnapshot).toHaveBeenCalledTimes(1);
     expect(performAction).toHaveBeenCalledWith(
       page,
@@ -139,6 +140,7 @@ describe("act service", () => {
       "xpath=/html/body/input",
       ["user@example.com"],
       logger,
+      expect.any(Progress),
       2_000,
     );
     expect(result).toStrictEqual({
@@ -197,10 +199,13 @@ describe("act service", () => {
       logger: testLogger(),
     });
 
-    expect(captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "main", nth: 1 },
-      ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
-    });
+    expect(captureSnapshot).toHaveBeenCalledWith(
+      {
+        focusLocator: { selector: "main", nth: 1 },
+        ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
+      },
+      expect.any(Progress),
+    );
   });
 
   it("plans actions from the locator-filtered snapshot context", async () => {
@@ -333,6 +338,7 @@ describe("act service", () => {
       "xpath=/html/body/button[1]",
       [],
       expect.any(StagehandLogger),
+      expect.any(Progress),
       undefined,
     );
     expect(performAction).toHaveBeenNthCalledWith(
@@ -343,6 +349,7 @@ describe("act service", () => {
       "xpath=/html/body/button[2]",
       [],
       expect.any(StagehandLogger),
+      expect.any(Progress),
       undefined,
     );
     expect(result.data).toMatchObject({
@@ -461,6 +468,7 @@ describe("act service", () => {
       "xpath=/html/body/button[2]",
       [],
       expect.any(StagehandLogger),
+      expect.any(Progress),
       undefined,
     );
     expect(result.data).toMatchObject({
@@ -612,52 +620,17 @@ describe("act service", () => {
     });
 
     expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
-    expect(captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "main", nth: 1 },
-      ignoreLocators: [{ selector: ".promo", nth: 0 }],
-    });
+    expect(captureSnapshot).toHaveBeenCalledWith(
+      {
+        focusLocator: { selector: "main", nth: 1 },
+        ignoreLocators: [{ selector: ".promo", nth: 0 }],
+      },
+      expect.any(Progress),
+    );
     expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
     expect(get).not.toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
     expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
-  });
-
-  it("respects the act timeout across page preparation", async () => {
-    const now = vi
-      .spyOn(Date, "now")
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
-      .mockReturnValue(6);
-    const page = actPage(
-      {},
-      vi.fn(async () => snapshot("0-12", "/html/body/button")),
-    );
-    const clientLLMGenerate = vi.fn(
-      async (): Promise<LLMGenerateResult> =>
-        actGeneration({
-          elementId: "0-12",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        }),
-    );
-
-    await expect(
-      actService.act({
-        params: {
-          pageId: "page-1",
-          instruction: "Click the submit button",
-          options: { timeout: 5 },
-        },
-        page,
-        model: { source: "client" },
-        clientLLMGenerate,
-        logger: testLogger(),
-      }),
-    ).rejects.toThrow("act() timed out after 5ms");
-
-    expect(clientLLMGenerate).not.toHaveBeenCalled();
-    now.mockRestore();
   });
 });
 

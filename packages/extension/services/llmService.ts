@@ -3,8 +3,8 @@ import type {
   LLMGenerateParams,
   LLMGenerateResult,
   ModelConfig,
-} from "../../protocol/types.js";
-import { LLMGenerateParamsSchema } from "../../protocol/schemas.js";
+} from "@browserbasehq/stagehand-protocol/types";
+import { LLMGenerateParamsSchema } from "@browserbasehq/stagehand-protocol/schemas";
 import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
 import { generateWithClientLlm, type ClientLlmRequest } from "../llm/clientLlmClient.js";
 import { createGatewayLanguageModel, type GatewayContext } from "../llm/gatewayClient.js";

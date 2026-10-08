@@ -9,6 +9,7 @@ from typing import TypeVar, assert_type, cast, overload
 
 import pytest
 from pydantic import BaseModel, RootModel, StrictInt
+from typing_extensions import override
 
 from stagehand import (
     DefaultExtract,
@@ -370,6 +371,7 @@ async def test_create_omits_unset_browser_region_from_the_wire(
     params = cast(StagehandInitParams, recording.calls[0][1])
     wire = json.loads(params.model_dump_json(by_alias=True, exclude_unset=True, warnings="none"))
     assert wire["browser"] == {"session_id": "session-1"}
+    assert "telemetry" not in wire
 
 
 @pytest.mark.asyncio
@@ -570,6 +572,7 @@ async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
             result_model: type[ResultT],
         ) -> ResultT: ...
 
+        @override
         async def send(
             self,
             method: str,
@@ -625,6 +628,7 @@ async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_tim
             result_model: type[ResultT],
         ) -> ResultT: ...
 
+        @override
         async def send(
             self,
             method: str,

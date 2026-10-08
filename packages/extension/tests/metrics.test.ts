@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { StagehandMetrics, StagehandResultUsage } from "../../protocol/types.js";
+import type {
+  StagehandMetrics,
+  StagehandResultUsage,
+} from "@browserbasehq/stagehand-protocol/types";
 import { StagehandMetricsAccumulator } from "../metrics.js";
 
 const ACT_USAGE: StagehandResultUsage = {

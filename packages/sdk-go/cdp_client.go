@@ -59,12 +59,18 @@ type cdpClientOptions struct {
 	cdpURL                   string
 	headers                  http.Header
 	extensionDir             string
+	localExtensionDir        func() (string, error)
 	extensionID              string
 	preloadedExtension       bool
 	serviceWorkerURLIncludes string
 	pollInterval             time.Duration
 	activationDelay          time.Duration
 	httpClient               *http.Client
+	// allowFallbackInstall is reserved for flows that can replace an
+	// incompatible preloaded extension. When false (the default) an
+	// incompatible runtime marker fails initialization on the first poll
+	// instead of polling until the initialization deadline.
+	allowFallbackInstall bool
 }
 
 type cdpClient struct {
@@ -236,6 +242,9 @@ func validateCDPClientOptions(options cdpClientOptions) error {
 	if options.activationDelay < 0 {
 		return errors.New("stagehand CDP activation delay cannot be negative")
 	}
+	if options.localExtensionDir != nil && (options.preloadedExtension || options.extensionDir != "" || options.extensionID != "") {
+		return errors.New("local extension discovery cannot use another extension source")
+	}
 	if options.preloadedExtension && (options.extensionDir != "" || options.extensionID != "") {
 		return errors.New("preloaded Stagehand extension cannot use extensionDir or extensionID")
 	}
@@ -304,17 +313,15 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 	)
 
 	extensionID := options.extensionID
-	if options.extensionDir != "" {
+	if options.localExtensionDir != nil {
+		extensionID, err = c.resolveExtension(ctx, true, options.localExtensionDir)
+	} else if options.extensionDir != "" {
 		extensionID, err = c.loadUnpackedExtension(ctx, options.extensionDir)
-		if err != nil {
-			return err
-		}
+	} else if options.preloadedExtension {
+		extensionID, err = c.resolveExtension(ctx, false, nil)
 	}
-	if options.preloadedExtension {
-		extensionID, err = c.discoverInstalledStagehandExtensionID(ctx)
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
 	if extensionID == "" {
 		return errors.New("Stagehand extension ID was not resolved")
@@ -377,6 +384,7 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 		ctx,
 		sessionID,
 		options.pollInterval,
+		options.allowFallbackInstall,
 	)
 }
 
@@ -802,7 +810,7 @@ func (c *cdpClient) loadUnpackedExtension(
 				strings.Contains(strings.ToLower(commandError.Message), "wasn't found")) {
 			return "", fmt.Errorf(
 				"this Chrome build does not support Extensions.loadUnpacked; "+
-					"launch with --load-extension and connect using extensionID instead: %w",
+					"preload the Stagehand extension and connect using a Chrome build that supports Extensions.getExtensions: %w",
 				err,
 			)
 		}
@@ -814,7 +822,49 @@ func (c *cdpClient) loadUnpackedExtension(
 	return loaded.ID, nil
 }
 
-func (c *cdpClient) discoverInstalledStagehandExtensionID(
+func (c *cdpClient) resolveExtension(
+	ctx context.Context,
+	loadIfNotFound bool,
+	extensionDir func() (string, error),
+) (string, error) {
+	id, err := c.getInstalledStagehandExtensionID(ctx)
+	if err != nil {
+		var commandError *cdpCommandError
+		unsupported := errors.As(err, &commandError) &&
+			commandError.Method == "Extensions.getExtensions" &&
+			(commandError.Code == -32601 ||
+				strings.Contains(strings.ToLower(commandError.Message), "method not found") ||
+				strings.Contains(strings.ToLower(commandError.Message), "wasn't found"))
+		if !loadIfNotFound || !unsupported {
+			return "", err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if id != "" {
+		return id, nil
+	}
+	if loadIfNotFound {
+		if extensionDir == nil {
+			return "", errors.New("extension directory is required to load the Stagehand extension")
+		}
+		directory, err := extensionDir()
+		if err != nil {
+			return "", err
+		}
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		return c.loadUnpackedExtension(ctx, directory)
+	}
+	return "", errors.New(
+		"Stagehand extension is not installed in the connected browser. " +
+			"The extension must be included when the Browserbase session is created.",
+	)
+}
+
+func (c *cdpClient) getInstalledStagehandExtensionID(
 	ctx context.Context,
 ) (string, error) {
 	var response struct {
@@ -863,10 +913,7 @@ func (c *cdpClient) discoverInstalledStagehandExtensionID(
 				"Stagehand extension is installed in the connected browser but is disabled.",
 			)
 		}
-		return "", errors.New(
-			"Stagehand extension is not installed in the connected browser. " +
-				"The extension must be included when the Browserbase session is created.",
-		)
+		return "", nil
 	default:
 		slices.Sort(enabledIDs)
 		return "", fmt.Errorf(
@@ -962,6 +1009,7 @@ func (c *cdpClient) waitForRuntimeReady(
 	ctx context.Context,
 	sessionID string,
 	pollInterval time.Duration,
+	allowFallbackInstall bool,
 ) error {
 	lastError := ""
 	for {
@@ -978,9 +1026,12 @@ func (c *cdpClient) waitForRuntimeReady(
 				err,
 			)
 		}
-		ready, detail := c.evaluateRuntimeReadiness(ctx, sessionID)
+		ready, incompatible, detail := c.evaluateRuntimeReadiness(ctx, sessionID)
 		if ready {
 			return nil
+		}
+		if incompatible != nil && !allowFallbackInstall {
+			return incompatible
 		}
 		lastError = detail
 		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
@@ -989,10 +1040,14 @@ func (c *cdpClient) waitForRuntimeReady(
 	}
 }
 
+// evaluateRuntimeReadiness reports whether the runtime is ready. When the
+// marker is present but incompatible it also returns the typed error so the
+// caller can stop polling; detail always describes why the runtime is not
+// ready yet.
 func (c *cdpClient) evaluateRuntimeReadiness(
 	ctx context.Context,
 	sessionID string,
-) (bool, string) {
+) (ready bool, incompatible *RuntimeIncompatibleError, detail string) {
 	var evaluated cdpRuntimeEvaluateResult
 	err := c.sendCommand(
 		ctx,
@@ -1005,30 +1060,34 @@ func (c *cdpClient) evaluateRuntimeReadiness(
 		&evaluated,
 	)
 	if err != nil {
-		return false, err.Error()
+		return false, nil, err.Error()
 	}
 	if evaluated.ExceptionDetails != nil {
-		return false, runtimeExceptionMessage(
+		return false, nil, runtimeExceptionMessage(
 			evaluated.ExceptionDetails,
 			"readiness evaluation threw",
 		)
 	}
 	if evaluated.Result == nil || len(evaluated.Result.Value) == 0 {
-		return false, "readiness evaluation returned no value"
+		return false, nil, "readiness evaluation returned no value"
 	}
 	var readiness cdpRuntimeReadiness
 	if err := json.Unmarshal(evaluated.Result.Value, &readiness); err != nil {
-		return false, "readiness evaluation returned an invalid value"
+		return false, nil, "readiness evaluation returned an invalid value"
 	}
-	compatible, detail := negotiateRuntimeCompatibility(readiness.Marker)
-	if compatible && readiness.HasReceiver {
-		return true, ""
+	negotiation := negotiateRuntimeCompatibility(readiness.Marker)
+	if negotiation.compatible() && readiness.HasReceiver {
+		return true, nil, ""
 	}
-	return false, fmt.Sprintf(
+	detail = fmt.Sprintf(
 		"runtime %s, __stagehandReceiveFromHost=%t",
-		detail,
+		negotiation.detail,
 		readiness.HasReceiver,
 	)
+	if negotiation.kind == runtimeIncompatible {
+		return false, negotiation.incompatibleError(), detail
+	}
+	return false, nil, detail
 }
 
 func (c *cdpClient) bestEffortCommand(ctx context.Context, method string, params any) {

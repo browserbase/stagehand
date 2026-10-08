@@ -1,8 +1,8 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod/v4";
-import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
-import type { NavigationResponseDescriptor } from "../../protocol/types.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import type { NavigationResponseDescriptor } from "@browserbasehq/stagehand-protocol/types";
 import { Page, Response } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
 

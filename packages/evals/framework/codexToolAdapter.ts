@@ -1,22 +1,27 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { isolatedCodexEnv } from "@browserbasehq/stagehand-integrations-codex-sdk";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import {
   AGENT_RUN_TOOL_NAME,
+  type BrowserSessionLoss,
   type StartupProfile,
   type ToolSurface,
 } from "../core/contracts/tool.js";
 import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { buildBridgeClientScript, startCodeBridge } from "./codexCodeBridge.js";
+import { validateCodexReasoningEffort } from "./codexRunner.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import {
   prepareBrowseCliHarnessAdapter,
   type PreparedBrowseCliHarnessAdapter,
 } from "./claudeCodeToolAdapter.js";
+import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
 export interface CodexToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -33,17 +38,22 @@ export interface PreparedCodexCodeAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Browser behind the mounted surface, resolved before the agent starts. */
+  browserSession: BrowserSessionInfo;
   /** Extra Codex `--config` overrides (e.g. mcp_servers for MCP mounts). */
   codexConfig?: Record<string, unknown>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Set once the mounted browser is gone for the rest of the run. */
+  browserSessionLoss?: () => BrowserSessionLoss | undefined;
   drainStepObservations?: () => Promise<StepObservation[]>;
   /**
    * Runner calls this on every completed mcp_tool_call event; MCP mounts use
    * it to record per-step observations (their tool calls never pass through
    * the workspace bridge).
    */
-  recordObservation?: () => void;
+  recordObservation?: (item: Record<string, unknown>) => Promise<void>;
+  allowedMcpServers?: string[];
   /** Which normalized tool-call names consume observation indexes. */
   observedToolMatcher?: (name: string) => boolean;
   cleanup: () => Promise<void>;
@@ -51,33 +61,59 @@ export interface PreparedCodexCodeAdapter {
 
 export type PreparedCodexToolAdapter = PreparedBrowseCliHarnessAdapter | PreparedCodexCodeAdapter;
 
-const CODE_SURFACES = new Set<ToolSurface>(["stagehand_code", "playwright_code", "cdp_code"]);
-const MCP_SURFACES = new Set<ToolSurface>([
+export const CODEX_TOOL_SURFACES: ToolSurface[] = [
+  "browse_cli",
+  "playwright_code",
+  "cdp_code",
+  "stagehand_code",
   "playwright_mcp",
   "chrome_devtools_mcp",
   "stagehand_facade",
-]);
+  "stagehand_facade_legacy",
+];
 
 const STAGEHAND_FACADE_MCP_TIMEOUTS = {
   startup_timeout_sec: 60,
   tool_timeout_sec: 300,
 } as const;
 
+/**
+ * Codex treats MCP tools without a `readOnlyHint` annotation as needing
+ * approval under the read-only sandbox. Headless runs have no reviewer, so the
+ * request is dropped and the call fails as "user cancelled MCP tool call"
+ * (verified against codex 0.147). The runner owns every mounted server, so
+ * pre-approving its tools is safe and keeps the filesystem sandbox read-only.
+ */
+export const CODEX_MCP_TOOLS_APPROVAL_MODE = "approve";
+
+/** Name of the per-run Codex home directory created inside the adapter cwd. */
+export const CODEX_HOME_DIRNAME = path.join("home", ".codex");
+
 export function buildCodexMcpServers(
   toolSurface: ToolSurface,
   mcpServers: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (toolSurface !== "stagehand_facade") return mcpServers;
-
+  const facade = toolSurface === "stagehand_facade" || toolSurface === "stagehand_facade_legacy";
   return Object.fromEntries(
     Object.entries(mcpServers).map(([name, config]) => [
       name,
       {
         ...(typeof config === "object" && config !== null ? config : {}),
-        ...STAGEHAND_FACADE_MCP_TIMEOUTS,
+        default_tools_approval_mode: CODEX_MCP_TOOLS_APPROVAL_MODE,
+        ...(facade && STAGEHAND_FACADE_MCP_TIMEOUTS),
       },
     ]),
   );
+}
+
+/** Create the isolated profile once and retain the SDK's filtered environment. */
+async function createIsolatedCodexEnvironment(cwd: string): Promise<Record<string, string>> {
+  const env = await isolatedCodexEnv(cwd);
+  await fsp.writeFile(
+    path.join(env.CODEX_HOME, "config.toml"),
+    "# Per-run Codex home created by stagehand-evals; intentionally empty.\n",
+  );
+  return env;
 }
 
 /** Mirrors the claude adapter's bounded, best-effort terminal capture. */
@@ -123,8 +159,15 @@ function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<
 export async function prepareCodexToolAdapter(
   input: CodexToolAdapterInput,
 ): Promise<PreparedCodexToolAdapter> {
-  const toolSurface = resolveCodexToolSurface(input.toolSurface);
-  const startupProfile = resolveCodexStartupProfile(
+  validateCodexReasoningEffort(process.env.EVAL_CODEX_REASONING_EFFORT);
+  const toolSurface = resolveToolSurface(
+    { harness: "codex", supportedToolSurfaces: CODEX_TOOL_SURFACES },
+    input.toolSurface,
+  );
+  if (toolSurface === undefined) {
+    throw new EvalsError("Codex harness requires a tool surface.");
+  }
+  const startupProfile = resolveStartupProfile(
     toolSurface,
     input.environment,
     input.startupProfile,
@@ -165,13 +208,14 @@ export async function prepareCodexToolAdapter(
         path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
       );
       const capturedCwd = cwd;
+      const env = await createIsolatedCodexEnvironment(cwd);
       const serverNames = Object.keys(mount.mcpServers);
       const codexMcpServers = buildCodexMcpServers(toolSurface, mount.mcpServers);
 
       input.logger.log({
         category: "codex",
         message: `Initialized ${toolSurface} MCP mount for Codex (servers: ${serverNames.join(", ")}).`,
-        level: 1,
+        level: 2,
         auxiliary: {
           startupProfile: { value: startupProfile, type: "string" },
           environment: { value: input.environment, type: "string" },
@@ -182,9 +226,14 @@ export async function prepareCodexToolAdapter(
         toolSurface,
         startupProfile,
         cwd,
-        env: { ...process.env } as Record<string, string>,
+        env,
         promptInstructions: mount.promptInstructions,
+        browserSession: runtime.browserSession,
         codexConfig: { mcp_servers: codexMcpServers },
+        allowedMcpServers: serverNames,
+        ...(runtime.running.browserSessionLoss && {
+          browserSessionLoss: runtime.running.browserSessionLoss,
+        }),
         ...(runtime.running.captureEvidence && {
           captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
         }),
@@ -193,7 +242,11 @@ export async function prepareCodexToolAdapter(
             await recorder.settle();
             return recorder.drain();
           },
-          recordObservation: () => void recorder.record(),
+          recordObservation: async (item: Record<string, unknown>) => {
+            if (serverNames.includes(String(item.server))) {
+              await recorder.record(typeof item.id === "string" ? item.id : undefined);
+            }
+          },
         }),
         observedToolMatcher: (name: string) =>
           serverNames.some((server) => name.startsWith(`${server}.`)),
@@ -223,11 +276,12 @@ export async function prepareCodexToolAdapter(
       path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
     );
     await fsp.writeFile(path.join(cwd, "browser_run.mjs"), buildBridgeClientScript(bridge.port));
+    const env = await createIsolatedCodexEnvironment(cwd);
 
     input.logger.log({
       category: "codex",
       message: `Initialized ${toolSurface} bridge runtime for Codex (port ${bridge.port}).`,
-      level: 1,
+      level: 2,
       auxiliary: {
         startupProfile: { value: startupProfile, type: "string" },
         environment: { value: input.environment, type: "string" },
@@ -240,8 +294,12 @@ export async function prepareCodexToolAdapter(
       toolSurface,
       startupProfile,
       cwd,
-      env: { ...process.env } as Record<string, string>,
+      env,
       promptInstructions: buildCodexCodePromptInstructions(mount, toolSurface),
+      browserSession: runtime.browserSession,
+      ...(runtime.running.browserSessionLoss && {
+        browserSessionLoss: runtime.running.browserSessionLoss,
+      }),
       ...(runtime.running.captureEvidence && {
         captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),
@@ -300,47 +358,4 @@ function buildCodexCodePromptInstructions(
     surfaceGuidance,
     `Surface: ${toolSurface}.`,
   ].join("\n");
-}
-
-export function resolveCodexToolSurface(requested?: ToolSurface): ToolSurface {
-  if (!requested) return "browse_cli";
-  if (requested === "browse_cli" || CODE_SURFACES.has(requested) || MCP_SURFACES.has(requested)) {
-    return requested;
-  }
-  throw new EvalsError(
-    `Codex harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp, with stagehand_facade also available; received "${requested}".`,
-  );
-}
-
-export function resolveCodexStartupProfile(
-  toolSurface: ToolSurface,
-  environment: "LOCAL" | "BROWSERBASE",
-  requested?: StartupProfile,
-): StartupProfile {
-  if (requested) return requested;
-
-  // browse_cli, stagehand_code, and stagehand_facade own their browser;
-  // playwright/cdp attach to a runner-provided CDP endpoint.
-  if (
-    toolSurface === "browse_cli" ||
-    toolSurface === "stagehand_code" ||
-    toolSurface === "stagehand_facade"
-  ) {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
-  }
-  // Attachable surfaces need a runner-provided endpoint so the harness-side
-  // session (evidence capture) and the agent's server instance share a browser.
-  if (
-    toolSurface === "playwright_code" ||
-    toolSurface === "cdp_code" ||
-    MCP_SURFACES.has(toolSurface)
-  ) {
-    return environment === "BROWSERBASE"
-      ? "runner_provided_browserbase_cdp"
-      : "runner_provided_local_cdp";
-  }
-
-  throw new EvalsError(
-    `No Codex startup profile default for tool "${toolSurface}" in ${environment}.`,
-  );
 }

@@ -1,14 +1,18 @@
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import { JSONRPCRequestSchema, JSONRPCResponseSchema } from "../../protocol/json-rpc/schemas.ts";
-import type { JSONRPCResponse } from "../../protocol/json-rpc/types.ts";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import {
+  JSONRPCRequestSchema,
+  JSONRPCResponseSchema,
+} from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import type { JSONRPCResponse } from "@browserbasehq/stagehand-protocol/json-rpc/types";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandRpcNotificationSchema,
   StagehandSendToHostBindingSchema,
-} from "../../protocol/schema-registry.ts";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import { startStagehandServiceWorker } from "../service-worker.ts";
+import type { WebMCPToolsEvent } from "../understudy/page.js";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
@@ -20,7 +24,7 @@ import type {
   UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
-import { DuplicatePageEventSubscriptionError } from "../errors.ts";
+import { DuplicatePageEventSubscriptionError, TimeoutError } from "../errors.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
   ContextSetExtraHTTPHeadersParams,
@@ -38,12 +42,16 @@ import type {
   LocatorTypeParams,
   PageAddInitScriptParams,
   PageClickParams,
+  PageEventName,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
   PageDragAndDropParams,
   PageEvaluateParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PagePDFOptions,
+  PagePDFResult,
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
@@ -58,7 +66,7 @@ import type {
   WebMCPToolDescriptor,
   WebMCPToolResponse,
   WebMCPToolsOptions,
-} from "../../protocol/types.ts";
+} from "@browserbasehq/stagehand-protocol/types";
 
 vi.mock("../understudy/context.js", () => ({
   BrowserContext: {
@@ -232,6 +240,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     options?: PageWaitForSelectorParams["options"];
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
+  readonly pdfCalls: Array<PagePDFOptions | undefined> = [];
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
   readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
   readonly invokeWebMCPToolCalls: Array<{
@@ -382,6 +391,11 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return this.screenshotBytes;
   }
 
+  async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
+    this.pdfCalls.push(options);
+    return { data: "JVBERi0xLjc=" };
+  }
+
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
     this.snapshotCalls.push(options);
     return this.snapshotResult;
@@ -457,7 +471,22 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
-  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
+  readonly toolEventListeners = new Set<(event: WebMCPToolsEvent) => void>();
+
+  async subscribeWebMCPToolsChanged(
+    listener: (event: WebMCPToolsEvent) => void,
+  ): Promise<() => void> {
+    this.toolEventListeners.add(listener);
+    return () => {
+      this.toolEventListeners.delete(listener);
+    };
+  }
+
+  async subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+    _signal?: AbortSignal,
+  ): Promise<() => void> {
     const method = "Runtime.consoleAPICalled";
     const listeners = this.cdpEventListeners.get(method) ?? new Set();
     listeners.add(listener);
@@ -736,7 +765,7 @@ describe("Stagehand worker clients", () => {
     });
     await runtime.contextPages();
 
-    runtime.pageOn({ pageId: "page-a", subscriptionId: "subscription-1", event: "console" });
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "subscription-1", event: "console" });
     page.emitCDPEvent({
       pageId: "page-a",
       method: "Runtime.consoleAPICalled",
@@ -776,20 +805,140 @@ describe("Stagehand worker clients", () => {
     const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
     const subscriptionId = 'caller-controlled-<script>alert("x")</script>';
 
-    runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+    await runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
 
-    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
-      DuplicatePageEventSubscriptionError,
-    );
-    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
-      "A page event subscription with this identifier already exists",
-    );
+    await expect(
+      runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" }),
+    ).rejects.toThrow(DuplicatePageEventSubscriptionError);
+    await expect(
+      runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" }),
+    ).rejects.toThrow("A page event subscription with this identifier already exists");
     try {
-      runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+      await runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
     } catch (error) {
       expect((error as Error).message).not.toContain(subscriptionId);
     }
   });
+
+  it("routes typed WebMCP events by subscription kind and suppresses late delivery", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const notifications: PageEventNotification[] = [];
+    const consoleNotifications = vi.fn();
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => new FakeBrowserSession([page]),
+      emitPageEvent: (notification) => notifications.push(notification),
+      emitPageCDPEvent: consoleNotifications,
+    });
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+    });
+    await runtime.contextPages();
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "added", event: "toolsadded" });
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "removed", event: "toolsremoved" });
+    const listeners = [...page.toolEventListeners];
+    const added: WebMCPToolsEvent = {
+      pageId: "page-a",
+      sessionId: "child-session",
+      targetId: "child-target",
+      event: "toolsadded",
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          frameId: "child-frame",
+          inputSchema: { properties: { searchQuery: { type: "string" } } },
+        },
+      ],
+    };
+    for (const listener of listeners) listener(added);
+    const removed: WebMCPToolsEvent = {
+      ...added,
+      event: "toolsremoved",
+      tools: [{ name: "search", frameId: "child-frame" }],
+    };
+    for (const listener of listeners) listener(removed);
+    expect(notifications).toEqual([
+      { ...added, subscriptionId: "added" },
+      { ...removed, subscriptionId: "removed" },
+    ]);
+    expect(consoleNotifications).not.toHaveBeenCalled();
+    runtime.pageOff({ subscriptionId: "added" });
+    for (const listener of listeners) listener(added);
+    expect(notifications).toHaveLength(2);
+    await runtime.close();
+    for (const listener of listeners) listener(removed);
+    expect(notifications).toHaveLength(2);
+    expect(page.toolEventListeners.size).toBe(0);
+  });
+
+  it("reserves pending IDs and cleans up late setup without deleting a replacement", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
+    let finish!: (dispose: () => void) => void;
+    let signal!: AbortSignal;
+    vi.spyOn(page, "subscribeCDPEvent").mockImplementationOnce(
+      (_event, _listener, pendingSignal) => {
+        signal = pendingSignal!;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    );
+    const params = { pageId: "page-a", subscriptionId: "pending", event: "console" } as const;
+    const registration = runtime.pageOn(params);
+    const rejected = expect(registration).rejects.toThrow();
+    await expect(runtime.pageOn(params)).rejects.toThrow(DuplicatePageEventSubscriptionError);
+    runtime.pageOff({ subscriptionId: params.subscriptionId });
+    expect(signal.aborted).toBe(true);
+    await runtime.pageOn(params);
+    const dispose = vi.fn();
+    finish(dispose);
+    await rejected;
+    expect(dispose).toHaveBeenCalledTimes(1);
+    await expect(runtime.pageOn(params)).rejects.toThrow(DuplicatePageEventSubscriptionError);
+    runtime.pageOff({ subscriptionId: params.subscriptionId });
+    expect(page.cdpEventListeners.size).toBe(0);
+  });
+
+  it("releases a failed registration's reservation while preserving other subscribers", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
+    await runtime.pageOn({ pageId: "page-a", subscriptionId: "healthy", event: "console" });
+    vi.spyOn(page, "subscribeCDPEvent").mockRejectedValueOnce(new Error("setup failed"));
+    const params = { pageId: "page-a", subscriptionId: "retry", event: "console" } as const;
+    await expect(runtime.pageOn(params)).rejects.toThrow("setup failed");
+    expect(page.cdpEventListeners.get("Runtime.consoleAPICalled")?.size).toBe(1);
+    await runtime.pageOn(params);
+    expect(page.cdpEventListeners.get("Runtime.consoleAPICalled")?.size).toBe(2);
+    await runtime.close();
+    expect(page.cdpEventListeners.size).toBe(0);
+  });
+
+  it.each(["page", "runtime", "instance"] as const)(
+    "cancels pending subscriptions on %s close",
+    async (scope) => {
+      const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+      const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
+      vi.spyOn(page, "subscribeCDPEvent").mockImplementationOnce(
+        (_event, _listener, signal) =>
+          new Promise((_resolve, reject) => {
+            signal!.addEventListener("abort", () => reject(new Error("setup canceled")), {
+              once: true,
+            });
+          }),
+      );
+      const release = runtime.acquireStagehandInstanceRequest();
+      const pending = runtime
+        .pageOn({ pageId: "page-a", subscriptionId: "pending", event: "console" })
+        .finally(release);
+      const rejected = expect(pending).rejects.toThrow("setup canceled");
+      if (scope === "page") await runtime.pageClose({ pageId: "page-a" });
+      else if (scope === "runtime") await runtime.close();
+      else await runtime.disposeStagehandInstance();
+      await rejected;
+      expect(page.cdpEventListeners.size).toBe(0);
+    },
+  );
 
   it("accepts only the shared Stagehand Chrome binding name", () => {
     expect(StagehandSendToHostBindingSchema.parse(STAGEHAND_SEND_TO_HOST_BINDING)).toBe(
@@ -1944,12 +2093,36 @@ describe("Stagehand worker clients", () => {
       handle({
         jsonrpc: "2.0",
         id: 31,
+        method: "page.pdf",
+        params: {
+          page_id: "page-a",
+          options: {
+            landscape: true,
+            print_background: true,
+            width: 8.5,
+            height: 11,
+            margin: { top: 0.25, bottom: 0 },
+            tagged: true,
+            outline: false,
+          },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 31,
+      result: { data: "JVBERi0xLjc=" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 32,
         method: "page.snapshot",
         params: { page_id: "page-a", options: { include_iframes: true } },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
-      id: 31,
+      id: 32,
       result: {
         formatted_tree: "root",
         xpath_map: { frameOne: "/html/body" },
@@ -1964,7 +2137,44 @@ describe("Stagehand worker clients", () => {
         maskColor: "#000000",
       },
     ]);
+    expect(page.pdfCalls).toStrictEqual([
+      {
+        landscape: true,
+        printBackground: true,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25, bottom: 0 },
+        tagged: true,
+        outline: false,
+      },
+    ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+  });
+
+  it("preserves the recovery message and original PDF deadline over RPC", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const cause = new TimeoutError("pdf", 30_000);
+    vi.spyOn(page, "pdf").mockRejectedValue(
+      new Error(`A previous capture is still recovering: ${cause.message}`, { cause }),
+    );
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 33,
+        method: "page.pdf",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 33,
+      error: {
+        code: -32603,
+        message: "A previous capture is still recovering: pdf timed out after 30000ms",
+        data: { name: "Error" },
+      },
+    });
   });
 
   it("routes WebMCP discovery and invocation operations through the owning page", async () => {

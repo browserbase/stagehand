@@ -1,4 +1,7 @@
-import type { StagehandMetrics, StagehandResultUsage } from "../protocol/types.js";
+import type {
+  StagehandMetrics,
+  StagehandResultUsage,
+} from "@browserbasehq/stagehand-protocol/types";
 
 type StagehandMetricMethod = "act" | "extract" | "observe";
 

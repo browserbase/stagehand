@@ -4,14 +4,13 @@ import type {
   ModelConfig,
   ObserveResult,
   StagehandObserveParams,
-} from "../../protocol/types.js";
-import { TimeoutError } from "../errors.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Page } from "../understudy/page.js";
+import { type Progress, runWithProgress } from "../understudy/progress.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
 import type { EncodedId } from "../types/private/internal.js";
 import { trimTrailingTextNode } from "../utils.js";
@@ -22,16 +21,7 @@ import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.j
 const DEFAULT_OBSERVE_INSTRUCTION =
   "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
 
-export async function observe({
-  params,
-  page,
-  model,
-  clientLLMGenerate,
-  logger,
-  systemPrompt = "",
-  cache,
-  gateway,
-}: {
+type ObserveServiceOptions = {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
   model: ModelConfig | ClientModelReference | undefined;
@@ -40,12 +30,30 @@ export async function observe({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-}): Promise<ObserveResult> {
-  const { instruction, options } = params;
-  const ensureTimeRemaining = createTimeoutGuard(
-    options?.timeout,
-    (ms) => new TimeoutError("observe()", ms),
+  progress?: Progress;
+};
+
+export async function observe(options: ObserveServiceOptions): Promise<ObserveResult> {
+  return runWithProgress(
+    options.progress ?? { name: "observe()", timeout: options.params.options?.timeout ?? 0 },
+    (progress) => observeWithProgress(options, progress),
   );
+}
+
+async function observeWithProgress(
+  {
+    params,
+    page,
+    model,
+    clientLLMGenerate,
+    logger,
+    systemPrompt = "",
+    cache,
+    gateway,
+  }: ObserveServiceOptions,
+  progress: Progress,
+): Promise<ObserveResult> {
+  const { instruction, options } = params;
   const effectiveInstruction = instruction ?? DEFAULT_OBSERVE_INSTRUCTION;
   logger.info("Starting observation", {
     category: "observation",
@@ -60,6 +68,7 @@ export async function observe({
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
+    progress,
     onHit: (value) => {
       const actions = cacheService.normalizeCachedActions(value);
       if (actions.length === 0) {
@@ -74,12 +83,15 @@ export async function observe({
   });
 
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
-    ensureTimeRemaining();
-    const { combinedTree, combinedXpathMap } = await page.captureSnapshot({
-      focusLocator: options?.locator,
-      ignoreLocators: options?.ignoreLocators,
-    });
-    ensureTimeRemaining();
+    progress.throwIfStopped();
+    const { combinedTree, combinedXpathMap } = await page.captureSnapshot(
+      {
+        focusLocator: options?.locator,
+        ignoreLocators: options?.ignoreLocators,
+      },
+      progress,
+    );
+    progress.throwIfStopped();
 
     logger.debug("Captured accessibility snapshot for observation", {
       category: "observation",
@@ -88,12 +100,15 @@ export async function observe({
     const observation = await inference.observe({
       instruction: effectiveInstruction,
       domElements: combinedTree,
-      generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
+      generate: (input) =>
+        progress.run("waiting for observe inference", () =>
+          llmService.generate(model, input, clientLLMGenerate, gateway),
+        ),
       userProvidedInstructions: systemPrompt,
       supportedActions: Object.values(SupportedUnderstudyAction),
       variables: options?.variables,
     });
-    ensureTimeRemaining();
+    progress.throwIfStopped();
 
     const xpathMap = (combinedXpathMap ?? {}) as Record<EncodedId, string>;
     const actions: Action[] = [];
@@ -140,7 +155,7 @@ export async function observe({
       });
     }
 
-    ensureTimeRemaining();
+    progress.throwIfStopped();
     logger.info("Observation completed", {
       category: "observation",
       promptTokens: observation.prompt_tokens,

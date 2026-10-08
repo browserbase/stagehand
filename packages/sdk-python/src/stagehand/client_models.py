@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+import httpx
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
 from ._generated.models import (
@@ -16,7 +17,7 @@ from ._generated.models import (
     StagehandResultMetadata,
     TelemetryConfig,
 )
-from ._validation import WireModel
+from ._validation import WireModel, WireUrl
 from .browserbase_session import DEFAULT_BROWSERBASE_URL
 from .client_types import Cache as CacheInput
 
@@ -66,7 +67,8 @@ Cache = bool | CacheOptions
 def _cache_config(cache: CacheInput) -> bool | dict[str, int]:
     if isinstance(cache, bool):
         return cache
-    return CacheOptions.model_validate(cache).model_dump(exclude_none=True)
+    options = CacheOptions.model_validate(cache)
+    return {"threshold": options.threshold} if options.threshold is not None else {}
 
 
 class LocalViewport(WireModel):
@@ -103,7 +105,18 @@ class LocalBrowserConnectOptions(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     cdp_url: Annotated[str, Field(min_length=1)]
-    extension_id: Annotated[str | None, Field(min_length=1)] = None
+    extension_id: str | None = None
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+
+
+class BrowserbaseClientOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True, arbitrary_types_allowed=True)
+
+    timeout: Annotated[float | None, Field(ge=0)] = None
+    max_retries: Annotated[int | None, Field(ge=0)] = None
+    default_headers: dict[str, str] | None = None
+    default_query: dict[str, str] | None = None
+    http_client: httpx.AsyncClient | None = None
 
 
 class BrowserbaseConnectOptions(WireModel):
@@ -111,8 +124,71 @@ class BrowserbaseConnectOptions(WireModel):
 
     api_key: Annotated[str, Field(min_length=1)]
     base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
+    client_options: BrowserbaseClientOptions | None = None
     session_id: Annotated[str, Field(min_length=1)]
-    extension_id: Annotated[str | None, Field(min_length=1)] = None
+    extension_id: str | None = None
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+
+
+class _BrowserbaseSearchOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    api_key: Annotated[str, Field(min_length=1)]
+    base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
+    query: Annotated[str, Field(min_length=1, max_length=200)]
+    num_results: Annotated[int | None, Field(ge=1, le=25)] = None
+
+
+class _BrowserbaseFetchOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    api_key: Annotated[str, Field(min_length=1)]
+    base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
+    url: WireUrl
+    allow_insecure_ssl: bool | None = None
+    allow_redirects: bool | None = None
+    format: Literal["raw", "json", "markdown"] | None = None
+    proxies: bool | None = None
+    json_schema: dict[str, Any] | None = Field(default=None, alias="schema")
+
+    @model_validator(mode="after")
+    def validate_schema_format(self) -> _BrowserbaseFetchOptions:
+        if self.json_schema is not None and self.format != "json":
+            raise ValueError('schema is only valid when format is "json"')
+        if self.format == "json" and self.json_schema is None:
+            raise ValueError('schema is required when format is "json"')
+        return self
+
+
+class BrowserbaseSearchResultItem(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    title: str
+    url: str
+    author: str | None = None
+    favicon: str | None = None
+    image: str | None = None
+    published_date: str | None = None
+
+
+class BrowserbaseSearchResult(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    query: str
+    request_id: str
+    results: list[BrowserbaseSearchResultItem]
+
+
+class BrowserbaseFetchResult(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    content: str | dict[str, Any]
+    content_type: str
+    encoding: str
+    headers: dict[str, str]
+    status_code: int
 
 
 LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams

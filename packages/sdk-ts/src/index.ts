@@ -12,6 +12,7 @@ export {
 } from "./browserClipboard.js";
 export {
   Locator,
+  type LocatorOptions,
   type LocatorClickOptions,
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,
@@ -24,8 +25,11 @@ export {
   type PageClickOptions,
   type PageDragAndDropOptions,
   type PageEventListener,
+  type ToolsAddedListener,
+  type ToolsRemovedListener,
   type PageKeyPressOptions,
   type PageReloadOptions,
+  type PDFOptions,
   type PageSetViewportSizeOptions,
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
@@ -38,20 +42,36 @@ export {
   type ResponseServerAddr,
 } from "./response.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
+export { CDPConnectionClosedError } from "./cdpClient.js";
+export { RPCResponseTimeoutError } from "./rpcErrors.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
+export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
 export type {
-  ExperimentalBatchCallback,
-  ExperimentalBatchBrowserContext,
-  ExperimentalBatchContext,
-  ExperimentalBatchExtractOptions,
-  ExperimentalBatchOptions,
+  ReportedRuntimeDescriptor,
+  RuntimeCompatibility,
+  RuntimeIncompatibilityReason,
+  RuntimeRequirement,
+} from "./runtimeCompatibility.js";
+export {
+  CALLBACK_BATCH_CLIENT_GRACE_MS,
+  StagehandBatchTimeoutError,
+  type ExperimentalBatchCallback,
+  type ExperimentalBatchBrowserContext,
+  type ExperimentalBatchContext,
+  type ExperimentalBatchExtractOptions,
+  type ExperimentalBatchOptions,
 } from "./batch.js";
 export { browserbase, localBrowser } from "./browser/factories.js";
 export type {
   BrowserbaseBrowser,
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
+  BrowserbaseFetchOptions,
+  BrowserbaseFetchResult,
   BrowserbaseLaunchOptions,
+  BrowserbaseSearchOptions,
+  BrowserbaseSearchResult,
   LocalBrowser,
   LocalBrowserConnectOptions,
   LocalBrowserLaunchOptions,
@@ -77,6 +97,8 @@ export type {
   PageDragAndDropRoutePoint,
   PageEventName,
   PageNavigationOptions,
+  PagePDFMargin,
+  PagePDFOptions,
   PageScreenshotClip,
   PageSnapshotOptions,
   RgbaColor,
@@ -89,10 +111,15 @@ export type {
   WebMCPInvocationStatus,
   WebMCPRemoteObject,
   WebMCPToolResponse,
-} from "../../protocol/types.js";
+  WebMCPToolIdentity,
+} from "@browserbasehq/stagehand-protocol/types";
 export {
   BrowserbaseConnectOptionsSchema,
+  BrowserbaseFetchOptionsSchema,
+  BrowserbaseFetchResultSchema,
   BrowserbaseLaunchOptionsSchema,
+  BrowserbaseSearchOptionsSchema,
+  BrowserbaseSearchResultSchema,
   ClientLLMSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,

@@ -3,8 +3,8 @@ import type {
   WebMCPInvocationDescriptor,
   WebMCPToolDescriptor,
   WebMCPToolResponse,
-} from "../../protocol/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/types";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import type { WebMCPInvokeOptions, WebMCPResultOptions } from "./clientSchemas.js";
 import type { StagehandCommandClient } from "./commandClient.js";
 

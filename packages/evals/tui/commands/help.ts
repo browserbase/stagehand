@@ -24,6 +24,8 @@ export function printHelp(): void {
     ),
     row(`${cyan("verify")} ${dim("<trajectory-dir> [options]")}`, "Re-score a saved trajectory"),
     row(`${cyan("doctor")} ${dim("| health")}`, "Health report"),
+    row(cyan("setup"), "Guided setup for agent benchmarks"),
+    row(cyan("welcome"), "Guided onboarding on a real benchmark task"),
     row(`${cyan("new")} ${dim("<tier> <cat> <name>")}`, "Scaffold a new task"),
     row(cyan("help"), "Show this help"),
     row(cyan("clear"), "Clear the screen"),
@@ -34,7 +36,10 @@ export function printHelp(): void {
   ]);
 }
 
-export function printRunHelp(): void {
+export async function printRunHelp(): Promise<void> {
+  const { listBenchHarnesses, listBenchHarnessesForTaskKind } =
+    await import("../../framework/benchHarness.js");
+  const suiteHarness = listBenchHarnessesForTaskKind("suite")[0];
   print([
     "",
     `  ${dustyCyanHeader("evals run")} ${dim("[target] [options]")}`,
@@ -55,6 +60,7 @@ export function printRunHelp(): void {
       "Benchmark suite shorthand",
     ),
     row(cyan("b:webtailbench"), "WebTailBench benchmark shorthand"),
+    row(cyan("b:hardbenchmark"), "HardBench core38 (EVAL_HARDBENCHMARK_SET: core|extended)"),
     "",
     `  ${bold("Options:")}`,
     "",
@@ -76,7 +82,7 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
+      `Bench harness ${gray(`(${listBenchHarnesses().join(" | ")})`)}`,
     ),
     row(
       `${cyan("--success")} ${dim("<mode>")}`,
@@ -103,7 +109,11 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run b:webvoyager -l 10`,
     `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
     `    ${dim("$")} evals run b:webtailbench -l 10`,
-    `    ${dim("$")} evals run b:webvoyager --harness claude_code --tool stagehand_code -l 3`,
+    ...(suiteHarness
+      ? [
+          `    ${dim("$")} evals run b:webvoyager --harness ${suiteHarness} --tool stagehand_code -l 3`,
+        ]
+      : []),
     "",
   ]);
 }
@@ -145,7 +155,8 @@ export function printNewHelp(): void {
   ]);
 }
 
-export function printConfigHelp(): void {
+export async function printConfigHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config")} ${dim("[subcommand]")}`,
@@ -173,7 +184,7 @@ export function printConfigHelp(): void {
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, stagehand_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",
@@ -186,7 +197,8 @@ export function printConfigHelp(): void {
   ]);
 }
 
-export function printConfigCoreHelp(): void {
+export async function printConfigCoreHelp(): Promise<void> {
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   print([
     "",
     `  ${dustyCyanHeader("evals config core")} ${dim("[subcommand]")}`,
@@ -204,7 +216,7 @@ export function printConfigCoreHelp(): void {
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or the whole core section"),
     row(cyan("setup"), `Interactive wizard ${gray("(coming soon)")}`),
     "",
-    `  ${bold("Valid core tools:")} ${gray("understudy_code, stagehand_code, playwright_code, cdp_code, playwright_mcp, chrome_devtools_mcp, browse_cli")}`,
+    `  ${bold("Valid core tools:")} ${gray(listCoreRunnableTools().join(", "))}`,
     "",
     `  ${bold("Examples:")}`,
     "",

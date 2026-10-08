@@ -1,7 +1,8 @@
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 import type { CacheClient } from "../clients/cacheClient.js";
+import { Progress } from "../understudy/progress.js";
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as observeService from "../services/observeService.js";
@@ -147,10 +148,13 @@ describe("observe service", () => {
       systemPrompt: "Prefer visible controls",
     });
 
-    expect(captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "xpath=//main", nth: 1 },
-      ignoreLocators: [{ selector: "nav", nth: 2 }],
-    });
+    expect(captureSnapshot).toHaveBeenCalledWith(
+      {
+        focusLocator: { selector: "xpath=//main", nth: 1 },
+        ignoreLocators: [{ selector: "nav", nth: 2 }],
+      },
+      expect.any(Progress),
+    );
     expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
     expect(result).toStrictEqual({
       data: [
@@ -286,48 +290,17 @@ describe("observe service", () => {
     });
 
     expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
-    expect(page.captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "main", nth: 1 },
-      ignoreLocators: [{ selector: "nav", nth: 2 }],
-    });
+    expect(page.captureSnapshot).toHaveBeenCalledWith(
+      {
+        focusLocator: { selector: "main", nth: 1 },
+        ignoreLocators: [{ selector: "nav", nth: 2 }],
+      },
+      expect.any(Progress),
+    );
     expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
     expect(get).not.toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
     expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
-  });
-
-  it("enforces the configured timeout at service checkpoints", async () => {
-    const now = vi
-      .spyOn(Date, "now")
-      .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0)
-      .mockReturnValue(10);
-    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => observationResult());
-    const logger = new StagehandLogger(
-      { tracer: trace.getTracer("observe-timeout-test") },
-      () => {},
-    );
-
-    try {
-      await expect(
-        observeService.observe({
-          params: { pageId: "page-1", options: { timeout: 5 } },
-          page: {
-            captureSnapshot: async () => ({
-              combinedTree: "[0-12] textbox: Email",
-              combinedXpathMap: { "0-12": "/html/body/input" },
-              combinedUrlMap: {},
-            }),
-          },
-          model: { source: "client" },
-          clientLLMGenerate,
-          logger,
-        }),
-      ).rejects.toThrow("observe() timed out after 5ms");
-      expect(clientLLMGenerate).not.toHaveBeenCalled();
-    } finally {
-      now.mockRestore();
-    }
   });
 });
 

@@ -863,6 +863,9 @@ type LocatorClickOptions struct {
 
 	// ClickCount corresponds to the JSON schema field "click_count".
 	ClickCount *int `json:"click_count,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorClickParams struct {
@@ -901,6 +904,9 @@ type LocatorFillParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
 
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
+
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
 
@@ -925,6 +931,9 @@ type LocatorHighlightOptions struct {
 
 	// DurationMs corresponds to the JSON schema field "duration_ms".
 	DurationMs *int `json:"duration_ms,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorHighlightParams struct {
@@ -961,9 +970,31 @@ type LocatorIsCheckedResult bool
 
 type LocatorIsVisibleResult bool
 
+type LocatorOptions struct {
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+}
+
+type LocatorParams struct {
+	// Nth corresponds to the JSON schema field "nth".
+	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// Selector corresponds to the JSON schema field "selector".
+	Selector string `json:"selector"`
+}
+
 type LocatorScrollToParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -983,6 +1014,9 @@ type LocatorScrollToResult struct {
 type LocatorSelectOptionParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1008,6 +1042,9 @@ type LocatorSendClickEventOptions struct {
 
 	// Detail corresponds to the JSON schema field "detail".
 	Detail *float64 `json:"detail,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorSendClickEventParams struct {
@@ -1036,6 +1073,9 @@ type LocatorSetInputFilesParams struct {
 	// Nth corresponds to the JSON schema field "nth".
 	Nth *int `json:"nth,omitempty,omitzero"`
 
+	// Options corresponds to the JSON schema field "options".
+	Options *LocatorOptions `json:"options,omitempty,omitzero"`
+
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
 
@@ -1053,6 +1093,9 @@ type LocatorTextContentResult string
 type LocatorTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
 	Delay *float64 `json:"delay,omitempty,omitzero"`
+
+	// Milliseconds for the whole locator call. Zero disables the timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type LocatorTypeParams struct {
@@ -1201,7 +1244,7 @@ type PageAddInitScriptParams struct {
 
 type PageCDPEvent struct {
 	// Method corresponds to the JSON schema field "method".
-	Method string `json:"method"`
+	Method PageCDPEventMethod `json:"method"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1215,6 +1258,10 @@ type PageCDPEvent struct {
 	// TargetID corresponds to the JSON schema field "target_id".
 	TargetID string `json:"target_id"`
 }
+
+type PageCDPEventMethod string
+
+const PageCDPEventMethodRuntimeConsoleAPICalled PageCDPEventMethod = "Runtime.consoleAPICalled"
 
 type PageCDPEventNotification struct {
 	// Event corresponds to the JSON schema field "event".
@@ -1394,13 +1441,85 @@ type PageOffParams struct {
 
 type PageOnParams struct {
 	// Event corresponds to the JSON schema field "event".
-	Event PageEventName `json:"event"`
+	Event PageSubscriptionEventName `json:"event"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
 
 	// SubscriptionID corresponds to the JSON schema field "subscription_id".
 	SubscriptionID string `json:"subscription_id"`
+}
+
+type PagePDFMargin struct {
+	// Bottom corresponds to the JSON schema field "bottom".
+	Bottom *float64 `json:"bottom,omitempty,omitzero"`
+
+	// Left corresponds to the JSON schema field "left".
+	Left *float64 `json:"left,omitempty,omitzero"`
+
+	// Right corresponds to the JSON schema field "right".
+	Right *float64 `json:"right,omitempty,omitzero"`
+
+	// Top corresponds to the JSON schema field "top".
+	Top *float64 `json:"top,omitempty,omitzero"`
+}
+
+type PagePDFOptions struct {
+	// DisplayHeaderFooter corresponds to the JSON schema field
+	// "display_header_footer".
+	DisplayHeaderFooter *bool `json:"display_header_footer,omitempty,omitzero"`
+
+	// FooterTemplate corresponds to the JSON schema field "footer_template".
+	FooterTemplate *string `json:"footer_template,omitempty,omitzero"`
+
+	// HeaderTemplate corresponds to the JSON schema field "header_template".
+	HeaderTemplate *string `json:"header_template,omitempty,omitzero"`
+
+	// Height corresponds to the JSON schema field "height".
+	Height *float64 `json:"height,omitempty,omitzero"`
+
+	// Landscape corresponds to the JSON schema field "landscape".
+	Landscape *bool `json:"landscape,omitempty,omitzero"`
+
+	// Margin corresponds to the JSON schema field "margin".
+	Margin *PagePDFMargin `json:"margin,omitempty,omitzero"`
+
+	// Outline corresponds to the JSON schema field "outline".
+	Outline *bool `json:"outline,omitempty,omitzero"`
+
+	// PageRanges corresponds to the JSON schema field "page_ranges".
+	PageRanges *string `json:"page_ranges,omitempty,omitzero"`
+
+	// PreferCSSPageSize corresponds to the JSON schema field "prefer_css_page_size".
+	PreferCSSPageSize *bool `json:"prefer_css_page_size,omitempty,omitzero"`
+
+	// PrintBackground corresponds to the JSON schema field "print_background".
+	PrintBackground *bool `json:"print_background,omitempty,omitzero"`
+
+	// Scale corresponds to the JSON schema field "scale".
+	Scale *float64 `json:"scale,omitempty,omitzero"`
+
+	// Tagged corresponds to the JSON schema field "tagged".
+	Tagged *bool `json:"tagged,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// Width corresponds to the JSON schema field "width".
+	Width *float64 `json:"width,omitempty,omitzero"`
+}
+
+type PagePDFParams struct {
+	// Options corresponds to the JSON schema field "options".
+	Options *PagePDFOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
+type PagePDFResult struct {
+	// Data corresponds to the JSON schema field "data".
+	Data string `json:"data"`
 }
 
 type PageRef struct {
@@ -1567,6 +1686,10 @@ type PageSetViewportSizeParams struct {
 type PageSnapshotOptions struct {
 	// IncludeIframes corresponds to the JSON schema field "include_iframes".
 	IncludeIframes *bool `json:"include_iframes,omitempty,omitzero"`
+
+	// Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the
+	// timeout.
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
 }
 
 type PageSnapshotParams struct {
@@ -1577,7 +1700,53 @@ type PageSnapshotParams struct {
 	PageID string `json:"page_id"`
 }
 
+type PageSubscriptionEventName string
+
+const PageSubscriptionEventNameConsole PageSubscriptionEventName = "console"
+const PageSubscriptionEventNameToolsadded PageSubscriptionEventName = "toolsadded"
+const PageSubscriptionEventNameToolsremoved PageSubscriptionEventName = "toolsremoved"
+
 type PageTitleResult string
+
+type PageToolsAddedNotification struct {
+	// Event corresponds to the JSON schema field "event".
+	Event string `json:"event"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// SessionID corresponds to the JSON schema field "session_id".
+	SessionID string `json:"session_id"`
+
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
+
+	// TargetID corresponds to the JSON schema field "target_id".
+	TargetID string `json:"target_id"`
+
+	// Tools corresponds to the JSON schema field "tools".
+	Tools []WebMCPToolDescriptor `json:"tools"`
+}
+
+type PageToolsRemovedNotification struct {
+	// Event corresponds to the JSON schema field "event".
+	Event string `json:"event"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// SessionID corresponds to the JSON schema field "session_id".
+	SessionID string `json:"session_id"`
+
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
+
+	// TargetID corresponds to the JSON schema field "target_id".
+	TargetID string `json:"target_id"`
+
+	// Tools corresponds to the JSON schema field "tools".
+	Tools []WebMCPToolIdentity `json:"tools"`
+}
 
 type PageTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
@@ -1845,7 +2014,7 @@ type StagehandInitParams struct {
 	SystemPrompt *string `json:"system_prompt,omitempty,omitzero"`
 
 	// Telemetry corresponds to the JSON schema field "telemetry".
-	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
+	Telemetry *TelemetryConfig `json:"telemetry,omitempty,omitzero"`
 }
 
 type StagehandInitParamsLogLevel string
@@ -2083,6 +2252,14 @@ type WebMCPToolDescriptor struct {
 }
 
 type WebMCPToolDescriptorInputSchema map[string]json.RawMessage
+
+type WebMCPToolIdentity struct {
+	// FrameID corresponds to the JSON schema field "frame_id".
+	FrameID string `json:"frame_id"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+}
 
 type WebMCPToolResponse struct {
 	// ErrorText corresponds to the JSON schema field "error_text".
@@ -2447,6 +2624,12 @@ type generatedModelCatalog struct {
 	// "LocatorIsVisibleResult".
 	LocatorIsVisibleResult *LocatorIsVisibleResult `json:"LocatorIsVisibleResult,omitempty,omitzero"`
 
+	// LocatorOptions corresponds to the JSON schema field "LocatorOptions".
+	LocatorOptions *LocatorOptions `json:"LocatorOptions,omitempty,omitzero"`
+
+	// LocatorParams corresponds to the JSON schema field "LocatorParams".
+	LocatorParams *LocatorParams `json:"LocatorParams,omitempty,omitzero"`
+
 	// LocatorScrollToParams corresponds to the JSON schema field
 	// "LocatorScrollToParams".
 	LocatorScrollToParams *LocatorScrollToParams `json:"LocatorScrollToParams,omitempty,omitzero"`
@@ -2577,6 +2760,10 @@ type generatedModelCatalog struct {
 	// PageEventName corresponds to the JSON schema field "PageEventName".
 	PageEventName *PageEventName `json:"PageEventName,omitempty,omitzero"`
 
+	// PageEventNotification corresponds to the JSON schema field
+	// "PageEventNotification".
+	PageEventNotification *PageEventNotification `json:"PageEventNotification,omitempty,omitzero"`
+
 	// PageGoBackParams corresponds to the JSON schema field "PageGoBackParams".
 	PageGoBackParams *PageGoBackParams `json:"PageGoBackParams,omitempty,omitzero"`
 
@@ -2611,6 +2798,18 @@ type generatedModelCatalog struct {
 
 	// PageOnParams corresponds to the JSON schema field "PageOnParams".
 	PageOnParams *PageOnParams `json:"PageOnParams,omitempty,omitzero"`
+
+	// PagePDFMargin corresponds to the JSON schema field "PagePDFMargin".
+	PagePDFMargin *PagePDFMargin `json:"PagePDFMargin,omitempty,omitzero"`
+
+	// PagePDFOptions corresponds to the JSON schema field "PagePDFOptions".
+	PagePDFOptions *PagePDFOptions `json:"PagePDFOptions,omitempty,omitzero"`
+
+	// PagePDFParams corresponds to the JSON schema field "PagePDFParams".
+	PagePDFParams *PagePDFParams `json:"PagePDFParams,omitempty,omitzero"`
+
+	// PagePDFResult corresponds to the JSON schema field "PagePDFResult".
+	PagePDFResult *PagePDFResult `json:"PagePDFResult,omitempty,omitzero"`
 
 	// PageRef corresponds to the JSON schema field "PageRef".
 	PageRef *PageRef `json:"PageRef,omitempty,omitzero"`
@@ -2657,8 +2856,20 @@ type generatedModelCatalog struct {
 	// PageSnapshotParams corresponds to the JSON schema field "PageSnapshotParams".
 	PageSnapshotParams *PageSnapshotParams `json:"PageSnapshotParams,omitempty,omitzero"`
 
+	// PageSubscriptionEventName corresponds to the JSON schema field
+	// "PageSubscriptionEventName".
+	PageSubscriptionEventName *PageSubscriptionEventName `json:"PageSubscriptionEventName,omitempty,omitzero"`
+
 	// PageTitleResult corresponds to the JSON schema field "PageTitleResult".
 	PageTitleResult *PageTitleResult `json:"PageTitleResult,omitempty,omitzero"`
+
+	// PageToolsAddedNotification corresponds to the JSON schema field
+	// "PageToolsAddedNotification".
+	PageToolsAddedNotification *PageToolsAddedNotification `json:"PageToolsAddedNotification,omitempty,omitzero"`
+
+	// PageToolsRemovedNotification corresponds to the JSON schema field
+	// "PageToolsRemovedNotification".
+	PageToolsRemovedNotification *PageToolsRemovedNotification `json:"PageToolsRemovedNotification,omitempty,omitzero"`
 
 	// PageTypeOptions corresponds to the JSON schema field "PageTypeOptions".
 	PageTypeOptions *PageTypeOptions `json:"PageTypeOptions,omitempty,omitzero"`
@@ -2826,6 +3037,9 @@ type generatedModelCatalog struct {
 	// WebMCPToolDescriptor corresponds to the JSON schema field
 	// "WebMCPToolDescriptor".
 	WebMCPToolDescriptor *WebMCPToolDescriptor `json:"WebMCPToolDescriptor,omitempty,omitzero"`
+
+	// WebMCPToolIdentity corresponds to the JSON schema field "WebMCPToolIdentity".
+	WebMCPToolIdentity *WebMCPToolIdentity `json:"WebMCPToolIdentity,omitempty,omitzero"`
 
 	// WebMCPToolResponse corresponds to the JSON schema field "WebMCPToolResponse".
 	WebMCPToolResponse *WebMCPToolResponse `json:"WebMCPToolResponse,omitempty,omitzero"`

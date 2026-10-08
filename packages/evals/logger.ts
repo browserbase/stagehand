@@ -122,11 +122,13 @@ export class EvalLogger {
 
   /**
    * getLogs:
-   * Retrieves the array of stored log lines.
-   * Useful for returning logs after a task completes, for analysis or debugging.
+   * Retrieves the stored log lines at or below `maxLevel` (default 1, so
+   * level-2 debug lines stay out of persisted task output). Lines without a
+   * level count as level 1. Pass `{ maxLevel: 2 }` for everything.
    */
-  getLogs(): LogLineEval[] {
-    return this.logs || [];
+  getLogs(options: { maxLevel?: number } = {}): LogLineEval[] {
+    const maxLevel = options.maxLevel ?? 1;
+    return (this.logs || []).filter((line) => (line.level ?? 1) <= maxLevel);
   }
 
   /**

@@ -3,24 +3,29 @@ from __future__ import annotations
 import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TypeVar, cast, overload
 
 import pytest
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, RootModel, ValidationError
+from typing_extensions import override
 
-from stagehand import Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
+from stagehand import PagePDFMargin, Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
     NavigationResponseDescriptor,
     PageCDPEventNotification,
     PageClickParams,
     PageDragAndDropParams,
     PageEvaluateResult,
+    PageEventNotification,
     PageGotoParams,
     PageHoverParams,
     PageIdParams,
     PageNavigationResult,
     PageOffParams,
     PageOnParams,
+    PagePDFParams,
+    PagePDFResult,
     PageRef,
     PageScrollParams,
     PageUrlResult,
@@ -30,8 +35,10 @@ from stagehand._generated.models import (
     PageWebMCPInvokeToolParams,
     PageWebMCPToolsParams,
     PageWebMCPToolsResult,
+    SnapshotResult,
     WebMCPInvocationDescriptor,
     WebMCPResultOptions,
+    WebMCPToolIdentity,
     WebMCPToolsOptions,
 )
 from stagehand._generated.models import (
@@ -40,7 +47,7 @@ from stagehand._generated.models import (
 from stagehand._generated.models import (
     WebMCPToolResponse as WireWebMCPToolResponse,
 )
-from stagehand.page import Page
+from stagehand.page import Page, PageEventName
 from stagehand.rpc_client import RPCClient
 
 from ._support import RecordingRPCClient
@@ -178,6 +185,80 @@ async def test_page_url_returns_a_scalar_string() -> None:
 
 
 @pytest.mark.asyncio
+async def test_page_pdf_returns_bytes_writes_path_and_serializes_options(tmp_path: Path) -> None:
+    recording = RecordingRPCClient({"page.pdf": PagePDFResult(data="JVBERi0xLjcK")})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    output_path = tmp_path / "page.pdf"
+
+    data = await page.pdf(
+        landscape=True,
+        print_background=True,
+        width=8.5,
+        height=11,
+        margin={"top": 0.25, "bottom": 0},
+        tagged=False,
+        outline=False,
+        timeout=0,
+        path=output_path,
+    )
+
+    assert data == b"%PDF-1.7\n"
+    assert output_path.read_bytes() == data
+    method, params, result_model = recording.calls[0]
+    assert method == "page.pdf"
+    assert isinstance(params, PagePDFParams)
+    assert params.model_dump(mode="json", exclude_unset=True) == {
+        "page_id": "page-1",
+        "options": {
+            "landscape": True,
+            "print_background": True,
+            "width": 8.5,
+            "height": 11,
+            "margin": {"top": 0.25, "bottom": 0},
+            "tagged": False,
+            "outline": False,
+            "timeout": 0,
+        },
+    }
+    assert result_model is PagePDFResult
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("margin", "expected_options"),
+    [
+        (None, None),
+        ({}, {"margin": {}}),
+        ({"left": 0}, {"margin": {"left": 0}}),
+    ],
+)
+async def test_page_pdf_preserves_omitted_and_empty_options(
+    margin: PagePDFMargin | None, expected_options: dict[str, object] | None
+) -> None:
+    recording = RecordingRPCClient({"page.pdf": PagePDFResult(data="JVBERi0xLjcK")})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.pdf(margin=margin)
+
+    expected: dict[str, object] = {"page_id": "page-1"}
+    if expected_options is not None:
+        expected["options"] = expected_options
+    assert recording.calls[0][1].model_dump(mode="json", exclude_unset=True) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event", ["toolsadded", "toolsremoved", "unknown", ""])
+async def test_page_on_rejects_unsupported_events_before_subscribing(event: str) -> None:
+    recording = RecordingRPCClient({})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    with pytest.raises(ValueError, match='page.on only supports "console" events'):
+        await page.on(cast(PageEventName, event), lambda _: None)
+    assert recording.calls == []
+    assert recording.notifications == {}
+    assert not page._event_subscriptions
+
+
+@pytest.mark.asyncio
 async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> None:
     recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
@@ -222,9 +303,190 @@ async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> N
 
 
 @pytest.mark.asyncio
+async def test_tools_added_delivers_callable_tools_and_filters_events() -> None:
+    recording = RecordingRPCClient({
+        "page.on": {"ok": True},
+        "page.off": {"ok": True},
+        "page.webmcp_invoke_tool": WebMCPInvocationDescriptor.model_validate({
+            "invocation_id": "invocation-1",
+            "frame_id": "child",
+            "tool_name": "search",
+            "input": {"searchQuery": "hello"},
+        }),
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    received: list[WebMCPTool] = []
+
+    async def added(tools: list[WebMCPTool]) -> None:
+        received.extend(tools)
+        await tools[0].invoke(input={"searchQuery": "hello"})
+
+    subscription = await page.on_tools_added(added)
+    params = recording.calls[0][1]
+    assert isinstance(params, PageOnParams)
+    model, raw_listener = recording.notifications["page.event"]
+    assert model is PageEventNotification
+    listener = cast(Callable[[PageEventNotification], Awaitable[None]], raw_listener)
+    payload = {
+        "subscription_id": params.subscription_id,
+        "page_id": "page-1",
+        "session_id": "child",
+        "target_id": "child",
+        "event": "toolsadded",
+        "tools": [
+            {
+                "name": "search",
+                "description": "Search",
+                "frame_id": "child",
+                "input_schema": {"properties": {"searchQuery": {"type": "string"}}},
+            }
+        ],
+    }
+    await listener(PageEventNotification.model_validate({**payload, "subscription_id": "other"}))
+    await listener(
+        PageEventNotification.model_validate({
+            **payload,
+            "event": "toolsremoved",
+            "tools": [{"name": "search", "frame_id": "child"}],
+        })
+    )
+    assert received == []
+    await listener(PageEventNotification.model_validate(payload))
+    assert len(received) == 1
+    assert isinstance(received[0], WebMCPTool)
+    assert received[0].input_schema == {"properties": {"searchQuery": {"type": "string"}}}
+    assert recording.calls[1][1] == PageWebMCPInvokeToolParams.model_validate({
+        "page_id": "page-1",
+        "frame_id": "child",
+        "tool_name": "search",
+        "input": {"searchQuery": "hello"},
+    })
+    await subscription.unsubscribe()
+    assert "page.event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+async def test_tools_removed_delivers_identities_without_wrappers() -> None:
+    recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    received: list[WebMCPToolIdentity] = []
+    subscription = await page.on_tools_removed(received.extend)
+    params = recording.calls[0][1]
+    assert isinstance(params, PageOnParams)
+    listener = cast(
+        Callable[[PageEventNotification], Awaitable[None]], recording.notifications["page.event"][1]
+    )
+    payload = {
+        "subscription_id": params.subscription_id,
+        "page_id": "page-1",
+        "session_id": "child",
+        "target_id": "child",
+        "event": "toolsremoved",
+        "tools": [{"name": "search", "frame_id": "child"}],
+    }
+    await listener(
+        PageEventNotification.model_validate({
+            **payload,
+            "event": "toolsadded",
+            "tools": [{"name": "search", "frame_id": "child", "description": "Search"}],
+        })
+    )
+    assert received == []
+    await listener(PageEventNotification.model_validate(payload))
+    assert received == [WebMCPToolIdentity(name="search", frame_id="child")]
+    assert not hasattr(received[0], "invoke")
+    await subscription.unsubscribe()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["on_tools_added", "on_tools_removed"])
+async def test_tool_hook_registration_failure_cleans_up(method: str) -> None:
+    recording = RecordingRPCClient({
+        "page.on": RuntimeError("registration failed"),
+        "page.off": {"ok": True},
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    with pytest.raises(RuntimeError, match="registration failed"):
+        await getattr(page, method)(lambda _: None)
+    assert "page.event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("method", ["on", "on_tools_added", "on_tools_removed"])
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+@pytest.mark.parametrize("failure_kind", ["cancellation", "timeout", "remote_error"])
+async def test_unsuccessful_registration_unsubscribes_remotely(
+    method: str, cleanup_fails: bool, failure_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    failure = RuntimeError("cleanup failed")
+    registration_error = (
+        TimeoutError("page.on timed out")
+        if failure_kind == "timeout"
+        else RuntimeError("registration failed")
+    )
+    recording = RecordingRPCClient({"page.off": failure if cleanup_fails else {"ok": True}})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    started = asyncio.Event()
+    send = recording.send
+
+    async def blocking_send(
+        method: str, params: BaseModel, result_model: type[BaseModel]
+    ) -> object:
+        if method == "page.on":
+            recording.calls.append((method, params, result_model))
+            started.set()
+            if failure_kind == "cancellation":
+                await asyncio.Future[None]()
+            raise registration_error
+        return await send(method, params, result_model)
+
+    monkeypatch.setattr(recording, "send", blocking_send)
+    loop = asyncio.get_running_loop()
+    original_handler = loop.get_exception_handler()
+    reported: list[dict[str, object]] = []
+    loop.set_exception_handler(lambda _loop, context: reported.append(context))
+    registration = asyncio.create_task(
+        page.on("console", lambda _: None)
+        if method == "on"
+        else getattr(page, method)(lambda _: None)
+    )
+    try:
+        await asyncio.wait_for(started.wait(), timeout=1)
+        if failure_kind == "cancellation":
+            registration.cancel()
+        with pytest.raises(
+            asyncio.CancelledError if failure_kind == "cancellation" else type(registration_error)
+        ) as caught:
+            await registration
+        if failure_kind != "cancellation":
+            assert caught.value is registration_error
+        assert [name for name, _, _ in recording.calls] == ["page.on", "page.off"]
+        on_params = cast(PageOnParams, recording.calls[0][1])
+        off_params = cast(PageOffParams, recording.calls[1][1])
+        assert off_params.subscription_id == on_params.subscription_id
+        assert recording.notifications == {}
+        if cleanup_fails:
+            assert len(reported) == 1
+            assert reported[0]["exception"] is failure
+            assert len(page._event_subscriptions) == 1
+            recording.responses["page.off"] = {"ok": True}
+            recording.responses["page.close"] = {"closed": True}
+            await page.close()
+            assert not page._event_subscriptions
+        else:
+            assert reported == []
+            assert not page._event_subscriptions
+    finally:
+        registration.cancel()
+        await asyncio.gather(registration, return_exceptions=True)
+        loop.set_exception_handler(original_handler)
+
+
+@pytest.mark.asyncio
 async def test_page_on_cleans_up_local_state_when_remote_registration_fails() -> None:
     recording = RecordingRPCClient({
         "page.on": RuntimeError("registration failed"),
+        "page.off": {"ok": True},
         "page.close": {"closed": True},
     })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
@@ -234,7 +496,7 @@ async def test_page_on_cleans_up_local_state_when_remote_registration_fails() ->
 
     assert "page.cdp_event" not in recording.notifications
     await page.close()
-    assert [method for method, _, _ in recording.calls] == ["page.on", "page.close"]
+    assert [method for method, _, _ in recording.calls] == ["page.on", "page.off", "page.close"]
 
 
 @pytest.mark.asyncio
@@ -318,6 +580,7 @@ async def test_unsubscribe_continues_after_calling_task_is_cancelled() -> None:
             result_model: type[ResultT],
         ) -> ResultT: ...
 
+        @override
         async def send(
             self,
             method: str,
@@ -395,6 +658,7 @@ async def test_unsubscribe_reports_background_failure_after_caller_cancellation(
             result_model: type[ResultT],
         ) -> ResultT: ...
 
+        @override
         async def send(
             self,
             method: str,
@@ -708,3 +972,27 @@ def test_optional_page_arguments_are_keyword_only() -> None:
                 offenders.append(f"Page.{name}({parameter.name}=...)")
 
     assert offenders == []
+
+
+@pytest.mark.parametrize("timeout", [None, 0, 5_000])
+async def test_snapshot_forwards_timeout(timeout: float | None) -> None:
+    snapshot = SnapshotResult(formatted_tree="root", xpath_map={}, url_map={})
+    recording = RecordingRPCClient({"page.snapshot": snapshot})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    assert await page.snapshot(timeout=timeout) == snapshot
+    method, params, result_model = recording.calls[0]
+    expected: dict[str, object] = {"page_id": "page-1"}
+    if timeout is not None:
+        expected["options"] = {"timeout": timeout}
+    assert method == "page.snapshot"
+    assert params.model_dump(exclude_unset=True) == expected
+    assert result_model is SnapshotResult
+
+
+@pytest.mark.parametrize("timeout", [-1, float("inf"), float("nan")])
+async def test_snapshot_rejects_invalid_timeout_before_sending(timeout: float) -> None:
+    recording = RecordingRPCClient()
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    with pytest.raises(ValidationError):
+        await page.snapshot(timeout=timeout)
+    assert not recording.calls

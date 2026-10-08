@@ -34,6 +34,7 @@ vi.mock("../../summary.js", () => ({
 }));
 
 vi.mock("../../framework/context.js", () => ({
+  rejectAgentMountOnlyCoreTool: vi.fn(),
   buildCoreContext: buildCoreContextMock,
   resolveDefaultCoreStartupProfile: resolveDefaultCoreStartupProfileMock,
 }));

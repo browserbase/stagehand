@@ -5,17 +5,16 @@ import type {
   LLMImageContent,
   ModelConfig,
   StagehandExtractParams,
-} from "../../protocol/types.js";
-import { TimeoutError } from "../errors.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
+import { type Progress, runWithProgress } from "../understudy/progress.js";
 import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
 import { injectUrls, transformSchema } from "../utils.js";
-import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
@@ -39,16 +38,7 @@ interface ExtractionResponseBase {
 
 type ExtractionResponse<Schema extends z.ZodObject> = ExtractionResponseBase & z.infer<Schema>;
 
-export async function extract({
-  params,
-  page,
-  model,
-  clientLLMGenerate,
-  logger,
-  systemPrompt = "",
-  cache,
-  gateway,
-}: {
+type ExtractServiceOptions = {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
   model: ModelConfig | ClientModelReference | undefined;
@@ -57,12 +47,30 @@ export async function extract({
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
   gateway?: GatewayContext;
-}): Promise<ExtractResult> {
-  const { instruction, options } = params;
-  const ensureTimeRemaining = createTimeoutGuard(
-    options?.timeout,
-    (ms) => new TimeoutError("extract()", ms),
+  progress?: Progress;
+};
+
+export async function extract(options: ExtractServiceOptions): Promise<ExtractResult> {
+  return runWithProgress(
+    options.progress ?? { name: "extract()", timeout: options.params.options?.timeout ?? 0 },
+    (progress) => extractWithProgress(options, progress),
   );
+}
+
+async function extractWithProgress(
+  {
+    params,
+    page,
+    model,
+    clientLLMGenerate,
+    logger,
+    systemPrompt = "",
+    cache,
+    gateway,
+  }: ExtractServiceOptions,
+  progress: Progress,
+): Promise<ExtractResult> {
+  const { instruction, options } = params;
 
   // Cache keys contain DOM state, not screenshot pixels. Do not serve a
   // visual extraction from a cache entry that cannot represent its image.
@@ -78,6 +86,7 @@ export async function extract({
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
+    progress,
     onHit: (value) => ({
       data: z.json().parse(value),
       metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
@@ -86,24 +95,20 @@ export async function extract({
   });
 
   async function runExtraction(): Promise<cacheService.CacheExecuteOutcome<ExtractResult>> {
-    ensureTimeRemaining();
-    const { combinedTree, combinedUrlMap } = await page.captureSnapshot({
-      focusLocator: options?.locator,
-      ignoreLocators: options?.ignoreLocators,
-    });
-    ensureTimeRemaining();
+    progress.throwIfStopped();
+    const { combinedTree, combinedUrlMap } = await page.captureSnapshot(
+      {
+        focusLocator: options?.locator,
+        ignoreLocators: options?.ignoreLocators,
+      },
+      progress,
+    );
+    progress.throwIfStopped();
 
     const screenshot = options?.screenshot
-      ? await (async () => {
-          ensureTimeRemaining();
-          const image = await page.screenshot({
-            fullPage: false,
-            type: "png",
-          });
-          ensureTimeRemaining();
-          return image;
-        })()
+      ? await page.screenshot({ fullPage: false, type: "png" }, progress)
       : undefined;
+    progress.throwIfStopped();
 
     logger.info(
       screenshot
@@ -133,17 +138,20 @@ export async function extract({
         }
       : undefined;
 
-    ensureTimeRemaining();
+    progress.throwIfStopped();
     const extractionResponse: ExtractionResponse<z.ZodObject> =
       await inference.extract<z.ZodObject>({
         instruction,
         domElements: combinedTree,
         schema: transformedSchema as z.ZodObject,
-        generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
+        generate: (input) =>
+          progress.run("waiting for extract inference", () =>
+            llmService.generate(model, input, clientLLMGenerate, gateway),
+          ),
         userProvidedInstructions: systemPrompt,
         screenshot: screenshotContent,
       });
-    ensureTimeRemaining();
+    progress.throwIfStopped();
 
     const {
       metadata: { completed },

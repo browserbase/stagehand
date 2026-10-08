@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import asyncio
+import errno
+import json
+import math
 import os
 import shutil
 import signal
 import socket
 import sys
 import tempfile
+import urllib.request
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol
+from pathlib import Path, PureWindowsPath
+from typing import TYPE_CHECKING, Any, Literal, Protocol, cast
 
 if TYPE_CHECKING:
     from .browser_context import BrowserContext
@@ -21,15 +26,22 @@ from ._generated.models import (
     BrowserbaseSessionCreateParams,
     BrowserSessionMetadata,
 )
+from .browserbase_services import fetch_browserbase, search_browserbase
 from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
 from .cdp_client import CDPClient, CDPConnectionClosedError
 from .client_models import (
+    BrowserbaseClientOptions,
     BrowserbaseConnectOptions,
+    BrowserbaseFetchResult,
+    BrowserbaseSearchResult,
     LocalBrowserConnectOptions,
     LocalBrowserLaunchOptions,
     LocalProxyConfig,
     LocalViewport,
+    _BrowserbaseFetchOptions,
+    _BrowserbaseSearchOptions,
 )
+from .client_types import BrowserbaseClientOptions as BrowserbaseClientOptionsInput
 from .extension_assets import extension_directory
 from .timeouts import stagehand_init_deadline
 
@@ -65,6 +77,8 @@ _DEFAULT_CHROME_FLAGS = (
 )
 
 _BROWSER_TOKEN = object()
+_CHROME_POLL_INTERVAL_SECONDS = 0.1
+_CHROME_REQUEST_TIMEOUT_SECONDS = 0.1
 
 
 @dataclass(frozen=True)
@@ -84,14 +98,24 @@ class ResolvedBrowserSource:
     cdp_url: str
     keep_alive: bool
     _close_callback: Callable[[], Awaitable[None]] | None = field(default=None, repr=False)
-    _closed: bool = field(default=False, init=False, repr=False)
+    _close_task: asyncio.Task[None] | None = field(default=None, init=False, repr=False)
 
     async def close(self) -> None:
-        if self._closed:
+        if self._close_callback is None:
             return
-        self._closed = True
-        if self._close_callback is not None:
-            await self._close_callback()
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(_invoke_close(self._close_callback))
+        await asyncio.shield(self._close_task)
+
+
+async def _invoke_close(callback: Callable[[], Awaitable[None]]) -> None:
+    await callback()
+
+
+@dataclass(frozen=True)
+class _ChromeProfile:
+    path: Path
+    remove: bool
 
 
 class StagehandBrowser:
@@ -258,12 +282,30 @@ class _LocalBrowserOptions(Protocol):
     keep_alive: bool | None
 
 
+class _WaitableChromeProcess(Protocol):
+    @property
+    def returncode(self) -> int | None: ...
+
+    async def wait(self) -> int: ...
+
+
+class _ChromeProcess(_WaitableChromeProcess, Protocol):
+    pid: int
+
+
+class _TaskkillError(RuntimeError):
+    def __init__(self, returncode: int) -> None:
+        self.returncode = returncode
+        super().__init__(f"taskkill exited with code {returncode}")
+
+
 async def _connect_browser(
     *,
     provider: Literal["local", "browserbase"],
     origin: Literal["launched", "connected"],
     source: _BrowserConnectionSource,
     extension_dir: str | None = None,
+    local_extension_dir: Callable[[], str] | None = None,
     extension_id: str | None = None,
     preloaded_extension: bool = False,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
@@ -275,6 +317,7 @@ async def _connect_browser(
         cdp_client = await CDPClient.connect(
             cdp_url=source.cdp_url,
             extension_dir=extension_dir,
+            local_extension_dir=local_extension_dir,
             extension_id=extension_id,
             preloaded_extension=preloaded_extension,
             service_worker_url_includes="service-worker.js",
@@ -491,6 +534,12 @@ class LocalBrowser:
         cdp_url: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
+        """Connect to an existing browser.
+
+        Args:
+            extension_id: Deprecated and ignored. Omit this argument; Stagehand
+                discovers the installed extension automatically.
+        """
         options = LocalBrowserConnectOptions.model_validate({
             name: value
             for name, value in (
@@ -499,13 +548,11 @@ class LocalBrowser:
             )
             if value is not None
         })
-        extension_dir = None if options.extension_id is not None else str(extension_directory())
         return await _connect_browser(
             provider="local",
             origin="connected",
             source=_ConnectedBrowserSource(options.cdp_url),
-            extension_dir=extension_dir,
-            extension_id=options.extension_id,
+            local_extension_dir=lambda: str(extension_directory()),
             worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
         )
 
@@ -519,6 +566,17 @@ class _ConnectedBrowserSource:
         return None
 
 
+def _sdk_client_options(options: BrowserbaseClientOptions | None) -> dict[str, Any] | None:
+    if options is None:
+        return None
+    # Read attributes rather than model_dump so a caller's http_client passes through as-is.
+    return {
+        name: value
+        for name in type(options).model_fields
+        if (value := getattr(options, name)) is not None
+    }
+
+
 class BrowserbaseBrowser:
     @stagehand_init_deadline
     async def launch(
@@ -526,6 +584,7 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client_options: BrowserbaseClientOptionsInput | None = None,
         browser_settings: BrowserbaseBrowserSettings | None = None,
         extension_id: str | None = None,
         keep_alive: bool | None = None,
@@ -559,9 +618,14 @@ class BrowserbaseBrowser:
             and not options.browser_settings.extension_id.strip()
         ):
             raise ValueError("browser_settings.extension_id must not be empty")
-        session = await _create_browserbase_session_client(api_key, base_url).create_session(
-            options
+        validated_client_options = (
+            BrowserbaseClientOptions.model_validate(client_options)
+            if client_options is not None
+            else None
         )
+        session = await _create_browserbase_session_client(
+            api_key, base_url, _sdk_client_options(validated_client_options)
+        ).create_session(options)
         source = ResolvedBrowserSource(
             cdp_url=session.cdp_url,
             keep_alive=options.keep_alive or False,
@@ -584,21 +648,29 @@ class BrowserbaseBrowser:
         *,
         api_key: str,
         base_url: str = DEFAULT_BROWSERBASE_URL,
+        client_options: BrowserbaseClientOptionsInput | None = None,
         session_id: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
+        """Connect to an existing browser.
+
+        Args:
+            extension_id: Deprecated and ignored. Omit this argument; Stagehand
+                discovers the installed extension automatically.
+        """
         options = BrowserbaseConnectOptions.model_validate({
             name: value
             for name, value in (
                 ("api_key", api_key),
                 ("base_url", base_url),
+                ("client_options", client_options),
                 ("session_id", session_id),
                 ("extension_id", extension_id),
             )
             if value is not None
         })
         connection = await _create_browserbase_session_client(
-            options.api_key, options.base_url
+            options.api_key, options.base_url, _sdk_client_options(options.client_options)
         ).connect_session(options.session_id)
         return await _connect_browser(
             provider="browserbase",
@@ -608,13 +680,60 @@ class BrowserbaseBrowser:
                 keep_alive=True,
                 _close_callback=connection.close,
             ),
-            extension_id=options.extension_id,
-            preloaded_extension=options.extension_id is None,
+            preloaded_extension=True,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=options.api_key,
                 browser=_browser_session_metadata(connection.session_id, connection.region),
             ),
         )
+
+    async def search(
+        self,
+        *,
+        api_key: str,
+        query: str,
+        base_url: str = DEFAULT_BROWSERBASE_URL,
+        num_results: int | None = None,
+    ) -> BrowserbaseSearchResult:
+        options = _BrowserbaseSearchOptions.model_validate({
+            name: value
+            for name, value in (
+                ("api_key", api_key),
+                ("base_url", base_url),
+                ("query", query),
+                ("num_results", num_results),
+            )
+            if value is not None
+        })
+        return await search_browserbase(options)
+
+    async def fetch(
+        self,
+        *,
+        api_key: str,
+        url: str,
+        base_url: str = DEFAULT_BROWSERBASE_URL,
+        allow_insecure_ssl: bool | None = None,
+        allow_redirects: bool | None = None,
+        format: Literal["raw", "json", "markdown"] | None = None,
+        proxies: bool | None = None,
+        schema: Mapping[str, Any] | None = None,
+    ) -> BrowserbaseFetchResult:
+        options = _BrowserbaseFetchOptions.model_validate({
+            name: value
+            for name, value in (
+                ("api_key", api_key),
+                ("base_url", base_url),
+                ("url", url),
+                ("allow_insecure_ssl", allow_insecure_ssl),
+                ("allow_redirects", allow_redirects),
+                ("format", format),
+                ("proxies", proxies),
+                ("schema", dict(schema) if schema is not None else None),
+            )
+            if value is not None
+        })
+        return await fetch_browserbase(options)
 
 
 local_browser = LocalBrowser()
@@ -622,54 +741,46 @@ browserbase = BrowserbaseBrowser()
 
 
 async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowserSource:
-    chrome_path = options.executable_path or _find_chrome_path()
-    port = options.port or _available_port()
-    temporary_profile = options.user_data_dir is None
-    user_data_dir = Path(options.user_data_dir or tempfile.mkdtemp(prefix="stagehand-chrome-"))
+    _validate_local_browser_options(options)
+    chrome_path = _find_chrome_path(options.executable_path)
+    port = _resolve_chrome_port(options.port)
+    profile = _resolve_chrome_profile(options)
     flags = _local_browser_flags(
         options,
         port=port,
-        user_data_dir=user_data_dir,
-        is_ci=bool(os.environ.get("CI")),
+        user_data_dir=profile.path,
+        disable_sandbox=_should_disable_chromium_sandbox(options),
     )
+    process: _ChromeProcess | None = None
     try:
-        process = await asyncio.create_subprocess_exec(
-            chrome_path,
-            *flags,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.DEVNULL,
-            start_new_session=sys.platform != "win32",
-        )
-    except BaseException:
-        if temporary_profile and options.preserve_user_data_dir is not True:
-            await asyncio.to_thread(shutil.rmtree, user_data_dir, True)
+        try:
+            launched_process = await asyncio.create_subprocess_exec(
+                chrome_path,
+                *flags,
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+                start_new_session=sys.platform != "win32",
+            )
+            process = launched_process
+        except OSError as error:
+            raise RuntimeError(f"Failed to start Chrome: {error}") from error
+        await _wait_for_chrome(f"http://127.0.0.1:{port}", launched_process)
+    except BaseException as launch_error:
+        try:
+            if process is not None:
+                await _close_local_chrome(process, profile)
+            elif profile.remove:
+                await _remove_chrome_profile(profile.path)
+        except BaseException as cleanup_error:
+            raise _combined_error(
+                "Chrome launch failed and browser cleanup also failed",
+                [launch_error, cleanup_error],
+            ) from launch_error
         raise
 
     async def close() -> None:
-        try:
-            if process.returncode is None:
-                try:
-                    if sys.platform == "win32":
-                        process.terminate()
-                    else:
-                        os.killpg(process.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                try:
-                    await asyncio.wait_for(process.wait(), timeout=3)
-                except TimeoutError:
-                    try:
-                        if sys.platform == "win32":
-                            process.kill()
-                        else:
-                            os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                    await process.wait()
-        finally:
-            if temporary_profile and options.preserve_user_data_dir is not True:
-                await asyncio.to_thread(shutil.rmtree, user_data_dir, True)
+        await _close_local_chrome(launched_process, profile)
 
     return ResolvedBrowserSource(
         cdp_url=f"http://127.0.0.1:{port}",
@@ -678,12 +789,189 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
     )
 
 
+def _validate_local_browser_options(options: _LocalBrowserOptions) -> None:
+    if options.viewport is not None and (
+        options.viewport.width <= 0 or options.viewport.height <= 0
+    ):
+        raise ValueError("Chrome viewport dimensions must be positive integers")
+    if options.device_scale_factor is not None and (
+        not math.isfinite(options.device_scale_factor) or options.device_scale_factor <= 0
+    ):
+        raise ValueError("Chrome device scale factor must be positive and finite")
+    if options.proxy is not None:
+        if not options.proxy.server:
+            raise ValueError("Chrome proxy server is required")
+        if options.proxy.username is not None or options.proxy.password is not None:
+            raise NotImplementedError("Authenticated local browser proxies are not implemented yet")
+
+
+def _resolve_chrome_profile(options: _LocalBrowserOptions) -> _ChromeProfile:
+    if options.user_data_dir not in (None, ""):
+        path = Path(options.user_data_dir)
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        return _ChromeProfile(path=path, remove=False)
+    path = Path(tempfile.mkdtemp(prefix="stagehand-chrome-"))
+    return _ChromeProfile(path=path, remove=options.preserve_user_data_dir is not True)
+
+
+async def _wait_for_chrome(
+    cdp_url: str,
+    process: _WaitableChromeProcess,
+) -> None:
+    exited = asyncio.create_task(process.wait())
+    ready: asyncio.Task[bool] | None = None
+    delay: asyncio.Task[None] | None = None
+    try:
+        while True:
+            if process.returncode is not None:
+                raise _chrome_exited_before_ready_error(process.returncode)
+
+            ready = asyncio.create_task(_chrome_debugging_ready(cdp_url))
+            done, _ = await asyncio.wait((ready, exited), return_when=asyncio.FIRST_COMPLETED)
+            if exited in done:
+                ready.cancel()
+                with suppress(asyncio.CancelledError):
+                    await ready
+                raise _chrome_exited_before_ready_error(exited.result())
+            if ready.result():
+                if process.returncode is not None or exited.done():
+                    raise _chrome_exited_before_ready_error(process.returncode)
+                return
+
+            delay = asyncio.create_task(asyncio.sleep(_CHROME_POLL_INTERVAL_SECONDS))
+            done, _ = await asyncio.wait((delay, exited), return_when=asyncio.FIRST_COMPLETED)
+            if exited in done:
+                delay.cancel()
+                with suppress(asyncio.CancelledError):
+                    await delay
+                raise _chrome_exited_before_ready_error(exited.result())
+    finally:
+        for pending in (ready, delay):
+            if pending is not None and not pending.done():
+                pending.cancel()
+                with suppress(asyncio.CancelledError):
+                    await pending
+        if not exited.done():
+            exited.cancel()
+            with suppress(asyncio.CancelledError):
+                await exited
+
+
+async def _chrome_debugging_ready(cdp_url: str) -> bool:
+    try:
+        version = await asyncio.to_thread(_read_chrome_version, cdp_url)
+    except Exception:
+        return False
+    debugger_url = version.get("webSocketDebuggerUrl")
+    return isinstance(debugger_url, str) and bool(debugger_url.strip())
+
+
+def _read_chrome_version(cdp_url: str) -> dict[str, object]:
+    url = f"{cdp_url.rstrip('/')}/json/version"
+    with urllib.request.urlopen(  # noqa: S310 -- The launcher owns this loopback URL.
+        url,
+        timeout=_CHROME_REQUEST_TIMEOUT_SECONDS,
+    ) as response:
+        value: object = json.load(response)
+    if not isinstance(value, dict):
+        raise RuntimeError("Chrome version endpoint returned invalid JSON")
+    return {str(key): item for key, item in value.items()}
+
+
+def _chrome_exited_before_ready_error(returncode: int | None) -> RuntimeError:
+    detail = "unknown" if returncode is None else str(returncode)
+    return RuntimeError(f"Chrome exited before its debugging port was ready with code {detail}")
+
+
+async def _close_local_chrome(
+    process: _ChromeProcess,
+    profile: _ChromeProfile,
+) -> None:
+    errors: list[BaseException] = []
+    try:
+        await _close_chrome_process(process)
+    except BaseException as error:
+        errors.append(error)
+    if profile.remove:
+        try:
+            await _remove_chrome_profile(profile.path)
+        except BaseException as error:
+            errors.append(error)
+    if errors:
+        raise _combined_error("Chrome termination and profile cleanup failed", errors)
+
+
+async def _close_chrome_process(process: _ChromeProcess) -> None:
+    if process.returncode is not None:
+        return
+    try:
+        await _terminate_chrome_process(process.pid, force=False)
+    except BaseException as error:
+        if not _is_finished_process_error(error):
+            raise
+    try:
+        await asyncio.wait_for(process.wait(), timeout=3)
+        return
+    except TimeoutError:
+        pass
+    try:
+        await _terminate_chrome_process(process.pid, force=True)
+    except BaseException as error:
+        if not _is_finished_process_error(error):
+            raise
+    await process.wait()
+
+
+async def _terminate_chrome_process(pid: int, *, force: bool) -> None:
+    if sys.platform == "win32":
+        await _run_taskkill(pid, force=force)
+        return
+    os.killpg(pid, signal.SIGKILL if force else signal.SIGTERM)
+
+
+async def _run_taskkill(pid: int, *, force: bool) -> None:
+    taskkill = await asyncio.create_subprocess_exec(
+        "taskkill",
+        "/PID",
+        str(pid),
+        "/T",
+        *(["/F"] if force else []),
+        stdin=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    returncode = await taskkill.wait()
+    if returncode != 0:
+        raise _TaskkillError(returncode)
+
+
+def _is_finished_process_error(error: BaseException) -> bool:
+    return isinstance(error, ProcessLookupError) or (
+        isinstance(error, _TaskkillError) and error.returncode == 128
+    )
+
+
+def _combined_error(message: str, errors: list[BaseException]) -> BaseException:
+    if len(errors) == 1:
+        return errors[0]
+    if all(isinstance(error, Exception) for error in errors):
+        return ExceptionGroup(
+            message,
+            [error for error in errors if isinstance(error, Exception)],
+        )
+    return BaseExceptionGroup(message, errors)
+
+
+async def _remove_chrome_profile(path: Path) -> None:
+    await asyncio.to_thread(shutil.rmtree, path)
+
+
 def _local_browser_flags(
     options: _LocalBrowserOptions,
     *,
     port: int,
     user_data_dir: Path,
-    is_ci: bool,
+    disable_sandbox: bool,
 ) -> list[str]:
     ignored_default_args = options.ignore_default_args
     ignored_flags = set(ignored_default_args) if isinstance(ignored_default_args, list) else set()
@@ -709,7 +997,7 @@ def _local_browser_flags(
         f"--user-data-dir={user_data_dir}",
         *(["--headless"] if options.headless is True else []),
         *(["--auto-open-devtools-for-tabs"] if options.devtools is True else []),
-        *(["--no-sandbox"] if is_ci or options.chromium_sandbox is False else []),
+        *(["--no-sandbox"] if disable_sandbox else []),
         *([f"--proxy-server={options.proxy.server}"] if options.proxy else []),
         *(
             [f"--proxy-bypass-list={options.proxy.bypass}"]
@@ -777,29 +1065,70 @@ def _merge_feature_flags(flags: list[str]) -> list[str]:
     return merged
 
 
-def _find_chrome_path() -> str:
-    configured = os.environ.get("CHROME_PATH")
-    if configured and Path(configured).is_file():
+def _should_disable_chromium_sandbox(
+    options: _LocalBrowserOptions,
+    *,
+    platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    getuid: Callable[[], int] | None = None,
+) -> bool:
+    platform = sys.platform if platform is None else platform
+    environment = os.environ if environment is None else environment
+    if getuid is None:
+        getuid = cast("Callable[[], int] | None", getattr(os, "getuid", None))
+    return (
+        bool(environment.get("CI"))
+        or options.chromium_sandbox is False
+        or (platform == "linux" and getuid is not None and getuid() == 0)
+    )
+
+
+def _find_chrome_path(
+    explicit_path: str | None = None,
+    *,
+    platform: str | None = None,
+    environment: Mapping[str, str] | None = None,
+    which: Callable[[str], str | None] = shutil.which,
+    is_executable: Callable[[str, str], bool] | None = None,
+) -> str:
+    platform = sys.platform if platform is None else platform
+    environment = os.environ if environment is None else environment
+    is_executable = _is_executable_file if is_executable is None else is_executable
+
+    if explicit_path is not None:
+        if is_executable(explicit_path, platform):
+            return explicit_path
+        raise RuntimeError(f"Chrome executable {json.dumps(explicit_path)} does not exist")
+
+    configured = environment.get("CHROME_PATH")
+    if configured and is_executable(configured, platform):
         return configured
 
-    if sys.platform == "darwin":
+    if platform == "darwin":
         candidates = (
             "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
         )
-    elif sys.platform == "win32":
+    elif platform == "win32":
         roots = filter(
             None,
             (
-                os.environ.get("LOCALAPPDATA"),
-                os.environ.get("PROGRAMFILES"),
-                os.environ.get("PROGRAMFILES(X86)"),
+                environment.get(name)
+                for name in (
+                    "LOCALAPPDATA",
+                    "PROGRAMFILES",
+                    "PROGRAMFILES(X86)",
+                )
             ),
         )
         candidates = tuple(
-            str(Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe") for root in roots
+            str(PureWindowsPath(root) / "Google" / product / "Application" / "chrome.exe")
+            for root in roots
+            for product in ("Chrome SxS", "Chrome")
         )
-    else:
+    elif platform == "linux":
         candidates = tuple(
             path
             for name in (
@@ -808,16 +1137,43 @@ def _find_chrome_path() -> str:
                 "chromium-browser",
                 "chromium",
             )
-            if (path := shutil.which(name)) is not None
+            if (path := which(name)) is not None
         )
+    else:
+        raise RuntimeError(f"Chrome launching is not supported on {platform}")
 
     for candidate in candidates:
-        if Path(candidate).is_file():
+        if is_executable(candidate, platform):
             return candidate
     raise RuntimeError("Chrome installation not found; set CHROME_PATH")
 
 
-def _available_port() -> int:
-    with socket.socket() as candidate:
-        candidate.bind(("127.0.0.1", 0))
+def _is_executable_file(path: str, platform: str) -> bool:
+    candidate = Path(path)
+    return candidate.is_file() and (platform == "win32" or os.access(candidate, os.X_OK))
+
+
+def _resolve_chrome_port(requested_port: int | None) -> int:
+    if requested_port is None:
+        return _available_port()
+    if requested_port < 1 or requested_port > 65_535:
+        raise ValueError("Chrome port must be between 1 and 65535")
+    try:
+        _inspect_chrome_port(requested_port)
+    except OSError as error:
+        if error.errno == errno.EADDRINUSE:
+            raise RuntimeError(
+                f"Chrome debugging port {requested_port} is already in use"
+            ) from error
+        raise
+    return requested_port
+
+
+def _inspect_chrome_port(port: int) -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as candidate:
+        candidate.bind(("127.0.0.1", port))
         return int(candidate.getsockname()[1])
+
+
+def _available_port() -> int:
+    return _inspect_chrome_port(0)

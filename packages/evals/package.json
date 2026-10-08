@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "eval": "tsx cli.ts",
-    "report:core": "tsx scripts/render-braintrust-core-report.ts"
+    "report:core": "tsx scripts/render-braintrust-core-report.ts",
+    "task:record": "tsx tasks/cli.ts"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
@@ -26,19 +27,29 @@
     "@browserbasehq/stagehand": "workspace:*",
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-claude-cua-sdk": "workspace:*",
     "@browserbasehq/stagehand-integrations-codex-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-cursor-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-deepagents-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-eve-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-fx-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-gemini-cua-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-mastra-sdk": "workspace:*",
+    "@browserbasehq/stagehand-integrations-pi-sdk": "workspace:*",
+    "@clack/prompts": "^1.3.0",
+    "@modelcontextprotocol/sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
     "@opentelemetry/sdk-trace-node": "^2.9.0",
     "ai": "^5.0.133",
     "braintrust": "^3.21.0",
-    "browse": "0.9.5",
+    "browse": "workspace:*",
     "dotenv": "^17.3.1",
-    "langsmith": "^0.5.16",
+    "langsmith": "^0.6.0",
     "openai": "^4.104.0",
     "playwright": ">=1.55.1 <1.57.0",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.4",
     "stagehand-v3": "npm:@browserbasehq/stagehand@3.7.1",
     "tsx": "catalog:",
     "ws": "^8.21.0",
@@ -52,5 +63,8 @@
     "string-comparison": "^1.3.0",
     "vite": "catalog:",
     "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.0.0"
   }
 }

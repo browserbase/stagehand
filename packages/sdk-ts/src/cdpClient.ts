@@ -1,14 +1,17 @@
-import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
+import { appendFileSync } from "node:fs";
+import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandMethods,
   StagehandSendToHostBindingSchema,
-} from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import { z } from "zod/v4";
+import type { ImplementationInfo } from "@browserbasehq/stagehand-protocol/types";
 import {
   DEFAULT_RUNTIME_REQUIREMENT,
   negotiateRuntimeCompatibility,
   type RuntimeCompatibility,
+  type RuntimeIncompatibilityReason,
   type RuntimeRequirement,
 } from "./runtimeCompatibility.js";
 import { abortable, abortableDelay, abortReason, throwIfAborted } from "./abort.js";
@@ -32,6 +35,8 @@ export type ServiceWorkerInfo = {
 export type CDPClientOptions = {
   cdpUrl: string;
   extensionDir?: string;
+  /** Discover an installed runtime first; load this directory only if absent or unsupported. */
+  localExtensionDir?: string;
   extensionId?: string;
   preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
@@ -104,8 +109,27 @@ export function stagehandMessageExpression(message: JSONRPCMessage): string {
     : `void globalThis.__stagehandReceiveFromHost(${JSON.stringify(JSON.stringify(message))}); true`;
 }
 
+export const RUNTIME_INCOMPATIBLE_REMEDIATION =
+  "Upgrade the Stagehand SDK and the Stagehand extension together so their protocol majors match, " +
+  "or start the session with the extension bundled in this SDK.";
+
+/**
+ * Raised as soon as the connected Stagehand extension publishes a runtime marker this SDK cannot
+ * talk to. Initialization does not keep polling: the extension will not change its protocol
+ * version while the session is open.
+ */
 export class StagehandRuntimeIncompatibleError extends Error {
-  readonly reason;
+  readonly reason: RuntimeIncompatibilityReason;
+  /** Human-readable negotiation failure, without the version summary or remediation. */
+  readonly detail: string;
+  /** Protocol version this SDK speaks. */
+  readonly clientProtocolVersion: string;
+  /** Protocol version the connected extension reported. */
+  readonly reportedProtocolVersion: string;
+  /** `serverInfo` published by the connected runtime (name + version). */
+  readonly serverInfo: ImplementationInfo;
+  readonly remediation = RUNTIME_INCOMPATIBLE_REMEDIATION;
+
   constructor(readonly compatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }>) {
     super(
       "Incompatible Stagehand runtime: " +
@@ -117,10 +141,16 @@ export class StagehandRuntimeIncompatibleError extends Error {
         ", server " +
         compatibility.reported.serverInfo.name +
         "/" +
-        compatibility.reported.serverInfo.version,
+        compatibility.reported.serverInfo.version +
+        ". " +
+        RUNTIME_INCOMPATIBLE_REMEDIATION,
     );
     this.name = "StagehandRuntimeIncompatibleError";
     this.reason = compatibility.reason;
+    this.detail = compatibility.detail;
+    this.clientProtocolVersion = compatibility.required.protocolVersion;
+    this.reportedProtocolVersion = compatibility.reported.protocolVersion;
+    this.serverInfo = { ...compatibility.reported.serverInfo };
   }
 }
 
@@ -173,8 +203,12 @@ const InstalledExtensionsResultSchema = z.looseObject({
 const STAGEHAND_EXTENSION_NAME = "Stagehand Runtime";
 
 export class CDPConnectionClosedError extends Error {
-  constructor(options?: ErrorOptions) {
-    super("CDP connection closed", options);
+  constructor(options?: ErrorOptions & { code?: number; reason?: string }) {
+    const detail =
+      options?.code !== undefined
+        ? ` (close code ${options.code}${options.reason ? `: ${options.reason}` : ""})`
+        : "";
+    super(`CDP connection closed${detail}`, options);
     this.name = "CDPConnectionClosedError";
   }
 }
@@ -189,6 +223,13 @@ export class CDPClient {
   sessionId: string | undefined;
   attachedServiceWorker: ServiceWorkerInfo | undefined;
   closed = false;
+  private readonly heartbeatMs = cdpHeartbeatMs(process.env.STAGEHAND_CDP_HEARTBEAT_MS);
+  private heartbeatTimer?: ReturnType<typeof setInterval>;
+  private heartbeatAbort?: AbortController;
+  private readonly connectedAt = Date.now();
+  private lastMsgAt = this.connectedAt;
+  private lastSentAt = this.connectedAt;
+  private lastMethod = "";
 
   constructor(
     readonly socket: WebSocket,
@@ -196,34 +237,101 @@ export class CDPClient {
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.socket.addEventListener("message", (event) => {
+      if (this.closed) return;
+      this.lastMsgAt = Date.now();
       this.handleMessage(event.data).catch((error: unknown) => {
-        const normalized = asError(error);
-        this.rejectPending(normalized);
-        this.onerror?.(normalized);
+        this.finishDrop(asError(error), "error");
       });
     });
 
-    this.socket.addEventListener("close", () => {
-      if (this.closed) return;
-      this.closed = true;
-      const reason = new CDPConnectionClosedError();
-      this.rejectPending(reason);
-      this.onclose?.(reason);
+    this.socket.addEventListener("close", (event) => {
+      const { code, reason: closeReason } = event as Event & { code?: number; reason?: string };
+      this.finishDrop(new CDPConnectionClosedError({ code, reason: closeReason }), "close", code);
     });
 
     this.socket.addEventListener("error", (event) => {
-      if (this.closed) return;
-      this.closed = true;
       const socketError = asError((event as Event & { error?: unknown }).error ?? event);
-      const reason = new CDPConnectionClosedError({ cause: socketError });
-      this.rejectPending(reason);
+      this.finishDrop(new CDPConnectionClosedError({ cause: socketError }), "error");
+    });
+    this.startHeartbeat();
+  }
+
+  /** Browser-level traffic only; no replay, transport replacement or reconnection. */
+  private startHeartbeat(): void {
+    this.heartbeatTimer = setInterval(() => {
+      if (this.closed || this.socket.readyState !== WebSocket.OPEN || this.heartbeatAbort) return;
+      const controller = new AbortController();
+      this.heartbeatAbort = controller;
+      const timeout = setTimeout(
+        () => controller.abort(new Error("CDP heartbeat timed out")),
+        Math.min(this.heartbeatMs, 10_000),
+      );
+      timeout.unref?.();
+      void this.sendCommand("Browser.getVersion", {}, undefined, controller.signal)
+        .catch(() => undefined)
+        .finally(() => {
+          clearTimeout(timeout);
+          if (this.heartbeatAbort === controller) this.heartbeatAbort = undefined;
+        });
+    }, this.heartbeatMs);
+    this.heartbeatTimer.unref?.();
+  }
+
+  private stopHeartbeat(): void {
+    clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = undefined;
+    this.heartbeatAbort?.abort(new Error("CDP heartbeat stopped"));
+    this.heartbeatAbort = undefined;
+  }
+
+  private finishDrop(reason: Error, kind: "close" | "error", code?: number): void {
+    if (this.closed) return;
+    // Mark terminal before closing the socket: synchronous error->close must
+    // notify once and retain the original error rather than the cleanup close.
+    this.closed = true;
+    this.logDrop(reason, kind, code);
+    this.stopHeartbeat();
+    this.rejectPending(reason);
+    if (kind === "error") {
       try {
         this.socket.close();
       } catch {
-        // The transport is already terminal; preserve the original socket failure.
+        /* preserve the terminal error */
       }
       this.onerror?.(reason);
-    });
+    } else {
+      this.onclose?.(reason);
+    }
+  }
+
+  private logDrop(reason: Error, kind: "close" | "error", code?: number): void {
+    if (process.env.STAGEHAND_CDP_LOG !== "1") return;
+    const now = Date.now();
+    const line = `CDP_DROP ${JSON.stringify({
+      ts: new Date(now).toISOString(),
+      kind,
+      code: code ?? null,
+      idle_ms: now - this.lastMsgAt,
+      since_send_ms: now - this.lastSentAt,
+      age_ms: now - this.connectedAt,
+      pending: this.pending.size,
+      last_method: /^[A-Za-z][A-Za-z0-9_.]*$/u.test(this.lastMethod) ? this.lastMethod : "",
+      reason: cdpDiagnosticReason(reason),
+    })}\n`;
+    // Diagnostics never change the connection's terminal outcome.
+    try {
+      process.stderr.write(line);
+    } catch {
+      /* best effort */
+    }
+    const file = process.env.STAGEHAND_CDP_LOG_FILE;
+    if (file) {
+      try {
+        appendFileSync(file, line);
+      } catch {
+        /* best effort */
+      }
+    }
   }
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
@@ -236,15 +344,21 @@ export class CDPClient {
 
     try {
       let extensionId: string;
-      if (options.extensionDir) {
+      if (options.localExtensionDir) {
+        extensionId = await resolveExtension(client, {
+          loadIfNotFound: true,
+          extensionDir: options.localExtensionDir,
+          signal,
+        });
+      } else if (options.extensionDir) {
         extensionId = await loadUnpackedExtension(client, options.extensionDir, signal);
       } else if (options.extensionId) {
         extensionId = options.extensionId;
       } else if (options.preloadedExtension) {
-        extensionId = await discoverInstalledStagehandExtensionId(client, { signal });
+        extensionId = await resolveExtension(client, { loadIfNotFound: false, signal });
       } else {
         throw new Error(
-          "Exactly one of extensionDir, extensionId, or preloadedExtension is required",
+          "Exactly one of localExtensionDir, extensionDir, extensionId, or preloadedExtension is required",
         );
       }
       const serviceWorker = await waitForServiceWorker(client, {
@@ -331,6 +445,7 @@ export class CDPClient {
     signal?: AbortSignal,
   ): Promise<Result> {
     throwIfAborted(signal);
+    if (this.closed) throw new CDPConnectionClosedError();
     if (this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("CDP connection is not open");
     }
@@ -360,6 +475,8 @@ export class CDPClient {
       }
       try {
         this.socket.send(JSON.stringify(message));
+        this.lastSentAt = Date.now();
+        if (method !== "Browser.getVersion") this.lastMethod = method;
       } catch (error) {
         this.pending.delete(id);
         signal?.removeEventListener("abort", onAbort);
@@ -371,6 +488,7 @@ export class CDPClient {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.stopHeartbeat();
     this.onmessage = undefined;
     this.onclose = undefined;
     this.onerror = undefined;
@@ -484,6 +602,11 @@ export async function waitForRuntimeReady(
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
     runtimeRequirement?: RuntimeRequirement;
+    /**
+     * Reserved for flows that can replace an incompatible preloaded extension. When not explicitly
+     * `true`, an incompatible marker fails initialization on the first poll instead of polling
+     * until the initialization timeout.
+     */
     allowFallbackInstall?: boolean;
     signal: AbortSignal;
   },
@@ -502,7 +625,7 @@ export async function waitForRuntimeReady(
         options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
         readiness.marker,
       );
-      if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
+      if (compatibility.kind === "incompatible" && options.allowFallbackInstall !== true)
         throw new StagehandRuntimeIncompatibleError(compatibility);
       if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
     }
@@ -511,10 +634,44 @@ export async function waitForRuntimeReady(
   }
 }
 
-export async function discoverInstalledStagehandExtensionId(
+/** @internal Discover the runtime, optionally loading a bundled extension if needed. */
+export async function resolveExtension(
+  cdp: CDPCommandSender,
+  options: {
+    signal: AbortSignal;
+    loadIfNotFound: boolean;
+    extensionDir?: string;
+  },
+): Promise<string> {
+  let id: string | undefined;
+  try {
+    id = await getInstalledStagehandExtensionId(cdp, options);
+  } catch (error) {
+    if (
+      !options.loadIfNotFound ||
+      !isExtensionCommandUnavailable(error, "Extensions.getExtensions")
+    ) {
+      throw error;
+    }
+  }
+  throwIfAborted(options.signal);
+  if (id !== undefined) return id;
+  if (options.loadIfNotFound) {
+    if (!options.extensionDir) {
+      throw new Error("extensionDir is required to load the Stagehand extension");
+    }
+    return await loadUnpackedExtension(cdp, options.extensionDir, options.signal);
+  }
+  throw new Error(
+    "Stagehand extension is not installed in the connected browser. " +
+      "The extension must be included when the Browserbase session is created.",
+  );
+}
+
+async function getInstalledStagehandExtensionId(
   cdp: CDPCommandSender,
   options: { signal: AbortSignal },
-): Promise<string> {
+): Promise<string | undefined> {
   throwIfAborted(options.signal);
   const response = await cdp.sendCommand<unknown>(
     "Extensions.getExtensions",
@@ -538,10 +695,7 @@ export async function discoverInstalledStagehandExtensionId(
   if (installed.length > 0) {
     throw new Error("Stagehand extension is installed in the connected browser but is disabled.");
   }
-  throw new Error(
-    "Stagehand extension is not installed in the connected browser. " +
-      "The extension must be included when the Browserbase session is created.",
-  );
+  return undefined;
 }
 
 async function evaluateRuntimeReadiness(
@@ -651,9 +805,9 @@ export async function loadUnpackedExtension(
       signal,
     );
   } catch (error) {
-    if (isExtensionsLoadUnpackedUnavailable(error)) {
+    if (isExtensionCommandUnavailable(error, "Extensions.loadUnpacked")) {
       throw new Error(
-        "This Chrome build does not support Extensions.loadUnpacked. Launch with --load-extension and connect using extensionId instead.",
+        "This Chrome build does not support Extensions.loadUnpacked. Preload the Stagehand extension and connect using a Chrome build that supports Extensions.getExtensions.",
         { cause: error },
       );
     }
@@ -715,18 +869,60 @@ function delay(ms: number): Promise<void> {
   return abortableDelay(ms);
 }
 
-function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
+function isExtensionCommandUnavailable(error: unknown, method: string): boolean {
   if (!(error instanceof Error)) return false;
 
   const cause = CDPCommandErrorCauseSchema.safeParse(error.cause);
   if (!cause.success) return false;
 
   return (
-    cause.data.method === "Extensions.loadUnpacked" &&
+    cause.data.method === method &&
     (cause.data.code === -32601 || /method not found|wasn't found/i.test(cause.data.message))
   );
 }
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function cdpHeartbeatMs(raw: string | undefined): number {
+  const value = Number(raw);
+  return raw?.trim() && Number.isInteger(value) && value >= 1_000 && value <= 2_147_483_647
+    ? value
+    : 20_000;
+}
+
+/** Keep transport causes useful without serializing errors, payloads or arbitrary objects. */
+function cdpDiagnosticReason(reason: Error): string {
+  const messages: string[] = [];
+  const seen = new Set<Error>();
+  let current: unknown = reason;
+  for (let depth = 0; depth < 4; depth++) {
+    try {
+      if (typeof current === "string") {
+        messages.push(sanitizeCdpDiagnostic(current));
+        break;
+      }
+      if (!(current instanceof Error) || seen.has(current)) break;
+      seen.add(current);
+      if (typeof current.message === "string" && current.message)
+        messages.push(sanitizeCdpDiagnostic(current.message));
+      current = current.cause;
+    } catch {
+      // A diagnostic accessor must not interrupt rejection or transport cleanup.
+      break;
+    }
+  }
+  return (messages.join(": ") || "CDP connection closed").slice(0, 160);
+}
+
+/** The diagnostic contains no payloads or connection URLs, including close text URLs. */
+function sanitizeCdpDiagnostic(message: string): string {
+  return message
+    .replace(/(?:https?|wss?):\/\/[^\s"']+/giu, "[url]")
+    .replace(
+      /\b(?:sk-[A-Za-z0-9_-]+|bb_(?:live|test)_[A-Za-z0-9_-]+|AIza[A-Za-z0-9_-]{20,})/gu,
+      "[redacted]",
+    )
+    .replace(/\bBearer\s+[^\s]+/giu, "Bearer [redacted]");
 }

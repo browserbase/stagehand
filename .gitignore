@@ -7,6 +7,7 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 eval-summary.json
+.trajectories/
 
 node_modules
 dist
@@ -50,3 +51,11 @@ to dos.md
 # Changesets Action reads these after the version command consolidates them.
 /packages/*/CHANGELOG.md
 /packages/integrations/*/CHANGELOG.md
+
+# Showcase run artifacts (recordings, results) synced to stagehand.dev
+packages/examples/showcase/*/.out/
+# Playwright MCP writes run output here during showcase benchmarks
+.playwright-mcp/
+
+# Cookbook output
+packages/examples/cookbooks/*/*/out/

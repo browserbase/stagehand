@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
+import type { JSONRPCMessage } from "@browserbasehq/stagehand-protocol/json-rpc/types";
 import type {
   LLMGenerateParams,
   LLMGenerateResult,
   StagehandMetrics,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserContext,
   Stagehand,
@@ -104,6 +104,9 @@ describe("Stagehand.create", () => {
         api_url: "https://api.stagehand.dev.browserbase.com",
       },
     });
+    expect((cdp.requestsFor("stagehand.init")[0] as { params: object }).params).not.toHaveProperty(
+      "telemetry",
+    );
 
     await stagehand.close();
     expect(cdp.close).not.toHaveBeenCalled();

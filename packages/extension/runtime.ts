@@ -1,3 +1,6 @@
+import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
+import { runWithProgress, type Progress } from "./understudy/progress.js";
+import { ShadowRootEvaluationUnavailableError } from "./errors.js";
 import type {
   ClearCookieOptions,
   ContextActivePageResult,
@@ -32,6 +35,7 @@ import type {
   LocatorCentroidResult,
   LocatorCountResult,
   LocatorDescriptor,
+  LocatorParams,
   LocatorFillParams,
   LocatorFillResult,
   LocatorHighlightParams,
@@ -57,6 +61,8 @@ import type {
   PageCloseResult,
   PageCDPEvent,
   PageCDPEventNotification,
+  PageEventNotification,
+  PageEventName,
   PageAddInitScriptParams,
   PageDragAndDropParams,
   PageEvaluateParams,
@@ -71,6 +77,9 @@ import type {
   PageNavigationResult,
   PageOffParams,
   PageOnParams,
+  PagePDFOptions,
+  PagePDFParams,
+  PagePDFResult,
   PageRef,
   PageReloadParams,
   PageScrollParams,
@@ -110,7 +119,7 @@ import type {
   WebMCPToolDescriptor,
   WebMCPToolResponse,
   WebMCPToolsOptions,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
@@ -121,7 +130,7 @@ import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runti
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
-import { Page } from "./understudy/page.js";
+import { Page, type WebMCPToolsEvent } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
@@ -147,6 +156,7 @@ export type UnderstudyRuntimePage = {
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
+  evaluateWithShadowRoots?(functionSource: string): Promise<unknown>;
   addInitScript(source: string): Promise<void>;
   setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void>;
   setViewportSize(
@@ -161,6 +171,7 @@ export type UnderstudyRuntimePage = {
     options?: PageWaitForSelectorParams["options"],
   ): Promise<boolean>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
+  pdf(options?: PagePDFOptions): Promise<PagePDFResult>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
   listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]>;
   invokeWebMCPTool(
@@ -177,7 +188,15 @@ export type UnderstudyRuntimePage = {
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
-  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void;
+  subscribeCDPEvent(
+    pageEventName: PageEventName,
+    listener: (event: PageCDPEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
+  subscribeWebMCPToolsChanged(
+    listener: (event: WebMCPToolsEvent) => void,
+    signal?: AbortSignal,
+  ): Promise<() => void>;
 };
 
 export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
@@ -208,23 +227,30 @@ export type UnderstudyRuntimeClipboard = {
 };
 
 export type UnderstudyRuntimeLocator = {
-  click(options?: LocatorClickParams["options"]): Promise<void> | void;
-  hover(): Promise<void> | void;
-  fill(value: string): Promise<void> | void;
-  count(): Promise<number>;
-  isChecked(): Promise<boolean>;
-  inputValue(): Promise<string>;
-  isVisible(): Promise<boolean>;
-  innerText(): Promise<string>;
-  innerHtml(): Promise<string>;
-  textContent(): Promise<string>;
-  scrollTo(percent: LocatorScrollToParams["percent"]): Promise<void> | void;
-  centroid(): Promise<LocatorCentroidResult>;
-  highlight(options?: LocatorHighlightParams["options"]): Promise<void> | void;
-  sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> | void;
-  type(text: string, options?: LocatorTypeParams["options"]): Promise<void> | void;
-  selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]>;
-  setInputFiles(files: SetInputFilesArgument): Promise<void>;
+  click(options?: LocatorClickParams["options"], progress?: Progress): Promise<void> | void;
+  hover(progress?: Progress): Promise<void> | void;
+  fill(value: string, progress?: Progress): Promise<void> | void;
+  count(progress?: Progress): Promise<number>;
+  isChecked(progress?: Progress): Promise<boolean>;
+  inputValue(progress?: Progress): Promise<string>;
+  isVisible(progress?: Progress): Promise<boolean>;
+  innerText(progress?: Progress): Promise<string>;
+  innerHtml(progress?: Progress): Promise<string>;
+  textContent(progress?: Progress): Promise<string>;
+  scrollTo(percent: LocatorScrollToParams["percent"], progress?: Progress): Promise<void> | void;
+  centroid(progress?: Progress): Promise<LocatorCentroidResult>;
+  highlight(options?: LocatorHighlightParams["options"], progress?: Progress): Promise<void> | void;
+  sendClickEvent(
+    options?: LocatorSendClickEventParams["options"],
+    progress?: Progress,
+  ): Promise<void> | void;
+  type(
+    text: string,
+    options?: LocatorTypeParams["options"],
+    progress?: Progress,
+  ): Promise<void> | void;
+  selectOption(values: LocatorSelectOptionParams["values"], progress?: Progress): Promise<string[]>;
+  setInputFiles(files: SetInputFilesArgument, progress?: Progress): Promise<void>;
   nth(index: number): UnderstudyRuntimeLocator;
 };
 
@@ -262,6 +288,7 @@ export type StagehandRuntimeAdapters = {
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
+  emitPageEvent?: (notification: PageEventNotification) => void;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -285,10 +312,17 @@ export function createStagehandRuntime(
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
+      emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
     },
     tracing,
   );
 }
+
+type RuntimePageEventSubscription = {
+  pageId: string;
+  controller: AbortController;
+  dispose?: () => void;
+};
 
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
@@ -299,10 +333,7 @@ export class StagehandRuntime {
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
-  private readonly pageEventSubscriptions = new Map<
-    string,
-    { pageId: string; dispose: () => void }
-  >();
+  private readonly pageEventSubscriptions = new Map<string, RuntimePageEventSubscription>();
   private initializationInProgress = false;
   private lifecycleTail = Promise.resolve();
   private stagehandInstanceClosing = false;
@@ -620,6 +651,13 @@ export class StagehandRuntime {
     return { ok: true };
   }
 
+  async evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown> {
+    const page = this.resolvePage(pageId);
+    this.logger.debug("page.evaluateWithShadowRoots", { pageId });
+    if (!page.evaluateWithShadowRoots) throw new ShadowRootEvaluationUnavailableError();
+    return page.evaluateWithShadowRoots(functionSource);
+  }
+
   async pageEvaluate(params: PageEvaluateParams): Promise<PageEvaluateResult> {
     const value = await this.resolvePage(params.pageId).evaluate(params.expression);
     return {
@@ -688,6 +726,10 @@ export class StagehandRuntime {
     };
   }
 
+  async pagePDF(params: PagePDFParams): Promise<PagePDFResult> {
+    return await this.resolvePage(params.pageId).pdf(params.options);
+  }
+
   async pageSnapshot(params: PageSnapshotParams): Promise<SnapshotResult> {
     return await this.resolvePage(params.pageId).snapshot(params.options);
   }
@@ -732,6 +774,7 @@ export class StagehandRuntime {
 
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
     const page = this.resolvePage(params.pageId);
+    this.disposePageEventSubscriptions(params.pageId, true);
     await page.close();
     this.disposePageEventSubscriptions(params.pageId);
     this.pagesById.delete(params.pageId);
@@ -739,117 +782,201 @@ export class StagehandRuntime {
     return { closed: true };
   }
 
-  pageOn(params: PageOnParams): PageVoidResult {
+  async pageOn(params: PageOnParams): Promise<PageVoidResult> {
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
       throw new DuplicatePageEventSubscriptionError();
     }
-    const dispose = this.resolvePage(params.pageId).subscribeCDPEvent((event) => {
-      this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
-    });
-    this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });
-    return { ok: true };
+    const page = this.resolvePage(params.pageId);
+    const subscription: RuntimePageEventSubscription = {
+      pageId: params.pageId,
+      controller: new AbortController(),
+    };
+    this.pageEventSubscriptions.set(params.subscriptionId, subscription);
+    try {
+      const isActive = () =>
+        this.pageEventSubscriptions.get(params.subscriptionId) === subscription &&
+        !subscription.controller.signal.aborted;
+      switch (params.event) {
+        case "console":
+          subscription.dispose = await page.subscribeCDPEvent(
+            params.event,
+            (event) => {
+              if (!isActive()) return;
+              this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+            },
+            subscription.controller.signal,
+          );
+          break;
+        case "toolsadded":
+        case "toolsremoved":
+          subscription.dispose = await page.subscribeWebMCPToolsChanged((event) => {
+            if (!isActive() || event.event !== params.event) return;
+            this.adapters.emitPageEvent({ ...event, subscriptionId: params.subscriptionId });
+          }, subscription.controller.signal);
+          break;
+        default: {
+          const unsupportedEvent: never = params.event;
+          throw new Error(`Unsupported page subscription event: ${unsupportedEvent}`);
+        }
+      }
+      subscription.controller.signal.throwIfAborted();
+      return { ok: true };
+    } catch (error) {
+      subscription.controller.abort();
+      subscription.dispose?.();
+      if (this.pageEventSubscriptions.get(params.subscriptionId) === subscription) {
+        this.pageEventSubscriptions.delete(params.subscriptionId);
+      }
+      throw error;
+    }
   }
 
   pageOff(params: PageOffParams): PageVoidResult {
     const subscription = this.pageEventSubscriptions.get(params.subscriptionId);
     if (!subscription) return { ok: true };
-    subscription.dispose();
+    subscription.controller.abort();
+    subscription.dispose?.();
     this.pageEventSubscriptions.delete(params.subscriptionId);
     return { ok: true };
   }
 
   async locatorClick(params: LocatorClickParams): Promise<LocatorClickResult> {
-    await this.resolveLocator(params).click(params.options);
+    await this.runLocator("locator.click", params, (locator, progress) =>
+      locator.click(params.options, progress),
+    );
     return { clicked: true };
   }
 
-  async locatorHover(params: LocatorDescriptor): Promise<LocatorHoverResult> {
-    await this.resolveLocator(params).hover();
+  async locatorHover(params: LocatorParams): Promise<LocatorHoverResult> {
+    await this.runLocator("locator.hover", params, (locator, progress) => locator.hover(progress));
     return { hovered: true };
   }
 
   async locatorFill(params: LocatorFillParams): Promise<LocatorFillResult> {
-    await this.resolveLocator(params).fill(params.value);
+    await this.runLocator("locator.fill", params, (locator, progress) =>
+      locator.fill(params.value, progress),
+    );
     return { filled: true };
   }
 
-  async locatorCount(params: LocatorDescriptor): Promise<LocatorCountResult> {
-    return await this.resolveLocator(params).count();
+  async locatorCount(params: LocatorParams): Promise<LocatorCountResult> {
+    return await this.runLocator("locator.count", params, (locator, progress) =>
+      locator.count(progress),
+    );
   }
 
-  async locatorIsChecked(params: LocatorDescriptor): Promise<LocatorIsCheckedResult> {
-    return await this.resolveLocator(params).isChecked();
+  async locatorIsChecked(params: LocatorParams): Promise<LocatorIsCheckedResult> {
+    return await this.runLocator("locator.is_checked", params, (locator, progress) =>
+      locator.isChecked(progress),
+    );
   }
 
-  async locatorInputValue(params: LocatorDescriptor): Promise<LocatorInputValueResult> {
-    return await this.resolveLocator(params).inputValue();
+  async locatorInputValue(params: LocatorParams): Promise<LocatorInputValueResult> {
+    return await this.runLocator("locator.input_value", params, (locator, progress) =>
+      locator.inputValue(progress),
+    );
   }
 
-  async locatorIsVisible(params: LocatorDescriptor): Promise<LocatorIsVisibleResult> {
-    return await this.resolveLocator(params).isVisible();
+  async locatorIsVisible(params: LocatorParams): Promise<LocatorIsVisibleResult> {
+    return await this.runLocator("locator.is_visible", params, (locator, progress) =>
+      locator.isVisible(progress),
+    );
   }
 
-  async locatorInnerText(params: LocatorDescriptor): Promise<LocatorInnerTextResult> {
-    return await this.resolveLocator(params).innerText();
+  async locatorInnerText(params: LocatorParams): Promise<LocatorInnerTextResult> {
+    return await this.runLocator("locator.inner_text", params, (locator, progress) =>
+      locator.innerText(progress),
+    );
   }
 
-  async locatorInnerHtml(params: LocatorDescriptor): Promise<LocatorInnerHtmlResult> {
-    return await this.resolveLocator(params).innerHtml();
+  async locatorInnerHtml(params: LocatorParams): Promise<LocatorInnerHtmlResult> {
+    return await this.runLocator("locator.inner_html", params, (locator, progress) =>
+      locator.innerHtml(progress),
+    );
   }
 
-  async locatorTextContent(params: LocatorDescriptor): Promise<LocatorTextContentResult> {
-    return await this.resolveLocator(params).textContent();
+  async locatorTextContent(params: LocatorParams): Promise<LocatorTextContentResult> {
+    return await this.runLocator("locator.text_content", params, (locator, progress) =>
+      locator.textContent(progress),
+    );
   }
 
   async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
-    await this.resolveLocator(params).scrollTo(params.percent);
+    await this.runLocator("locator.scroll_to", params, (locator, progress) =>
+      locator.scrollTo(params.percent, progress),
+    );
     return { scrolled: true };
   }
 
-  async locatorCentroid(params: LocatorDescriptor): Promise<LocatorCentroidResult> {
-    return await this.resolveLocator(params).centroid();
+  async locatorCentroid(params: LocatorParams): Promise<LocatorCentroidResult> {
+    return await this.runLocator("locator.centroid", params, (locator, progress) =>
+      locator.centroid(progress),
+    );
   }
 
   async locatorHighlight(params: LocatorHighlightParams): Promise<LocatorHighlightResult> {
-    await this.resolveLocator(params).highlight(params.options);
+    await this.runLocator("locator.highlight", params, (locator, progress) =>
+      locator.highlight(params.options, progress),
+    );
     return { highlighted: true };
   }
 
   async locatorSendClickEvent(
     params: LocatorSendClickEventParams,
   ): Promise<LocatorSendClickEventResult> {
-    await this.resolveLocator(params).sendClickEvent(params.options);
+    await this.runLocator("locator.send_click_event", params, (locator, progress) =>
+      locator.sendClickEvent(params.options, progress),
+    );
     return { clicked: true };
   }
 
   async locatorType(params: LocatorTypeParams): Promise<LocatorTypeResult> {
-    await this.resolveLocator(params).type(params.text, params.options);
+    await this.runLocator("locator.type", params, (locator, progress) =>
+      locator.type(params.text, params.options, progress),
+    );
     return { typed: true };
   }
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
-    return await this.resolveLocator(params).selectOption(params.values);
+    return await this.runLocator("locator.select_option", params, (locator, progress) =>
+      locator.selectOption(params.values, progress),
+    );
   }
 
   async locatorSetInputFiles(
     params: LocatorSetInputFilesParams,
   ): Promise<LocatorSetInputFilesResult> {
-    await this.resolveLocator(params).setInputFiles(
-      params.files.map((file) => {
-        const binary = globalThis.atob(file.data);
-        const buffer = new Uint8Array(binary.length);
-        for (let index = 0; index < binary.length; index += 1) {
-          buffer[index] = binary.charCodeAt(index);
-        }
-        return {
-          name: file.name,
-          mimeType: file.mimeType,
-          buffer,
-          lastModified: file.lastModified,
-        };
-      }),
+    await this.runLocator("locator.set_input_files", params, (locator, progress) =>
+      locator.setInputFiles(
+        params.files.map((file) => {
+          progress.throwIfStopped();
+          const binary = globalThis.atob(file.data);
+          const buffer = new Uint8Array(binary.length);
+          for (let index = 0; index < binary.length; index += 1) {
+            buffer[index] = binary.charCodeAt(index);
+          }
+          return {
+            name: file.name,
+            mimeType: file.mimeType,
+            buffer,
+            lastModified: file.lastModified,
+          };
+        }),
+        progress,
+      ),
     );
     return { set: true };
+  }
+
+  private runLocator<T>(
+    name: string,
+    params: LocatorParams,
+    action: (locator: UnderstudyRuntimeLocator, progress: Progress) => Promise<T> | T,
+  ): Promise<T> {
+    return runWithProgress(
+      { name, timeout: params.options?.timeout ?? DEFAULT_LOCATOR_TIMEOUT_MS },
+      async (progress) => action(this.resolveLocator(params), progress),
+    );
   }
 
   async close(): Promise<void> {
@@ -866,6 +993,8 @@ export class StagehandRuntime {
 
     this.stagehandInstanceClosing = true;
     const disposal = this.enqueueLifecycle(async () => {
+      // Pending registrations must release their request leases before disposal can drain them.
+      this.disposeAllPageEventSubscriptions();
       await this.waitForStagehandInstanceRequests();
       this.clearStagehandInstance();
     });
@@ -971,17 +1100,17 @@ export class StagehandRuntime {
     }
   }
 
-  private disposePageEventSubscriptions(pageId: string): void {
+  private disposePageEventSubscriptions(pageId: string, pendingOnly = false): void {
     for (const [subscriptionId, subscription] of this.pageEventSubscriptions) {
       if (subscription.pageId !== pageId) continue;
-      subscription.dispose();
-      this.pageEventSubscriptions.delete(subscriptionId);
+      if (pendingOnly && subscription.dispose) continue;
+      this.pageOff({ subscriptionId });
     }
   }
 
   private disposeAllPageEventSubscriptions(): void {
-    for (const subscription of this.pageEventSubscriptions.values()) subscription.dispose();
-    this.pageEventSubscriptions.clear();
+    for (const subscriptionId of this.pageEventSubscriptions.keys())
+      this.pageOff({ subscriptionId });
   }
 
   registerPage(page: UnderstudyRuntimePage): string {

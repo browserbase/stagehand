@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -403,9 +404,206 @@ func TestCDPClientInitializesLoadedExtension(t *testing.T) {
 	}
 }
 
-func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
+func incompatibleProtocolVersionForTest(t *testing.T) string {
+	t.Helper()
+	protocolMajor, err := strconv.Atoi(strings.Split(stagehandProtocolVersion, ".")[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%d.0.0", protocolMajor+1)
+}
+
+func runtimeReadinessResponse(marker map[string]any, hasReceiver bool) map[string]any {
+	value := map[string]any{"hasReceiver": hasReceiver}
+	if marker == nil {
+		value["marker"] = nil
+	} else {
+		value["marker"] = marker
+	}
+	return map[string]any{"result": map[string]any{
+		"result": map[string]any{"value": value},
+	}}
+}
+
+func runtimeMarker(protocolVersion string, name string) map[string]any {
+	return map[string]any{
+		"protocolVersion": protocolVersion,
+		"serverInfo":      map[string]any{"name": name, "version": "1.0.0"},
+	}
+}
+
+// readinessSequence answers Runtime.evaluate with each response in order and
+// repeats the last one forever.
+func readinessSequence(
+	t *testing.T,
+	socket *fakeCDPWebSocket,
+	responses ...map[string]any,
+) (*cdpClient, *atomic.Int32) {
+	t.Helper()
+	var evaluations atomic.Int32
+	socket.writeHook = responseHook(t, socket, nil, func(
+		method string,
+		_ map[string]json.RawMessage,
+	) map[string]any {
+		if method != "Runtime.evaluate" {
+			return map[string]any{"result": map[string]any{}}
+		}
+		index := int(evaluations.Add(1)) - 1
+		if index >= len(responses) {
+			index = len(responses) - 1
+		}
+		return responses[index]
+	})
+	return newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test"), &evaluations
+}
+
+func TestWaitForRuntimeReadyFailsFastOnIncompatibleRuntime(t *testing.T) {
 	t.Parallel()
 
+	incompatibleVersion := incompatibleProtocolVersionForTest(t)
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(runtimeMarker(incompatibleVersion, stagehandRuntimeName), true),
+	)
+
+	// A generous poll interval proves the error is returned before any re-poll wait; the
+	// bounded context turns a regression that keeps polling into a fast, explicit failure.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	started := time.Now()
+	err := client.waitForRuntimeReady(ctx, "worker-session", time.Hour, false)
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("waitForRuntimeReady() kept polling an incompatible runtime instead of failing fast")
+	}
+	if err == nil {
+		t.Fatal("waitForRuntimeReady() error = nil, want RuntimeIncompatibleError")
+	}
+	var incompatible *RuntimeIncompatibleError
+	if !errors.As(err, &incompatible) {
+		t.Fatalf("waitForRuntimeReady() error = %v, want *RuntimeIncompatibleError", err)
+	}
+	if incompatible.Reason != "protocol-major-mismatch" {
+		t.Fatalf("Reason = %q", incompatible.Reason)
+	}
+	if incompatible.ClientProtocolVersion != stagehandProtocolVersion {
+		t.Fatalf("ClientProtocolVersion = %q", incompatible.ClientProtocolVersion)
+	}
+	if incompatible.ReportedProtocolVersion != incompatibleVersion {
+		t.Fatalf("ReportedProtocolVersion = %q", incompatible.ReportedProtocolVersion)
+	}
+	if incompatible.ServerInfo != (ImplementationInfo{Name: stagehandRuntimeName, Version: "1.0.0"}) {
+		t.Fatalf("ServerInfo = %#v", incompatible.ServerInfo)
+	}
+	for _, want := range []string{
+		"client protocol " + stagehandProtocolVersion,
+		"reported protocol " + incompatibleVersion,
+		"Upgrade the Stagehand SDK and the Stagehand extension",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("error %q does not contain %q", err.Error(), want)
+		}
+	}
+	if got := evaluations.Load(); got != 1 {
+		t.Fatalf("Runtime.evaluate calls = %d, want 1", got)
+	}
+	if elapsed := time.Since(started); elapsed > 10*time.Second {
+		t.Fatalf("waitForRuntimeReady() waited %s before failing", elapsed)
+	}
+}
+
+func TestWaitForRuntimeReadyFailsFastOnForeignRuntime(t *testing.T) {
+	t.Parallel()
+
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(runtimeMarker(stagehandProtocolVersion, "other"), true),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := client.waitForRuntimeReady(ctx, "worker-session", time.Hour, false)
+	if errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal("waitForRuntimeReady() kept polling a foreign runtime instead of failing fast")
+	}
+	var incompatible *RuntimeIncompatibleError
+	if !errors.As(err, &incompatible) {
+		t.Fatalf("waitForRuntimeReady() error = %v, want *RuntimeIncompatibleError", err)
+	}
+	if incompatible.Reason != "runtime-name-mismatch" {
+		t.Fatalf("Reason = %q", incompatible.Reason)
+	}
+	if incompatible.ServerInfo.Name != "other" {
+		t.Fatalf("ServerInfo.Name = %q", incompatible.ServerInfo.Name)
+	}
+	if got := evaluations.Load(); got != 1 {
+		t.Fatalf("Runtime.evaluate calls = %d, want 1", got)
+	}
+}
+
+func TestWaitForRuntimeReadyKeepsPollingUnknownMarkerUntilCompatible(t *testing.T) {
+	t.Parallel()
+
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(nil, false),
+		runtimeReadinessResponse(nil, false),
+		runtimeReadinessResponse(nil, true),
+		readyRuntimeResponse(),
+	)
+
+	err := client.waitForRuntimeReady(
+		context.Background(),
+		"worker-session",
+		time.Millisecond,
+		false,
+	)
+	if err != nil {
+		t.Fatalf("waitForRuntimeReady() error = %v", err)
+	}
+	if got := evaluations.Load(); got != 4 {
+		t.Fatalf("Runtime.evaluate calls = %d, want 4", got)
+	}
+}
+
+func TestWaitForRuntimeReadyKeepsPollingIncompatibleRuntimeWhenFallbackAllowed(t *testing.T) {
+	t.Parallel()
+
+	client, evaluations := readinessSequence(
+		t,
+		newFakeCDPWebSocket(),
+		runtimeReadinessResponse(
+			runtimeMarker(incompatibleProtocolVersionForTest(t), stagehandRuntimeName),
+			true,
+		),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	err := client.waitForRuntimeReady(ctx, "worker-session", time.Millisecond, true)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waitForRuntimeReady() error = %v, want context deadline", err)
+	}
+	var incompatible *RuntimeIncompatibleError
+	if errors.As(err, &incompatible) {
+		t.Fatalf("waitForRuntimeReady() returned RuntimeIncompatibleError with fallback allowed")
+	}
+	if got := evaluations.Load(); got < 2 {
+		t.Fatalf("Runtime.evaluate calls = %d, want at least 2", got)
+	}
+}
+
+func TestCDPClientDiscoversInstalledExtension(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"browserbase", "local", "incompatible"} {
+		t.Run(mode, func(t *testing.T) { testInstalledExtensionConnection(t, mode) })
+	}
+}
+
+func testInstalledExtensionConnection(t *testing.T, mode string) {
+	t.Helper()
 	socket := newFakeCDPWebSocket()
 	methods := make(chan string, 16)
 	socket.writeHook = responseHook(t, socket, methods, func(
@@ -440,6 +638,9 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 		case "Target.attachToTarget":
 			return map[string]any{"result": map[string]any{"sessionId": "worker-session"}}
 		case "Runtime.evaluate":
+			if mode == "incompatible" {
+				return runtimeReadinessResponse(runtimeMarker(incompatibleProtocolVersionForTest(t), stagehandRuntimeName), true)
+			}
 			return readyRuntimeResponse()
 		default:
 			return map[string]any{"result": map[string]any{}}
@@ -455,7 +656,20 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 		preloadedExtension: true,
 		pollInterval:       time.Millisecond,
 	})
-	if err := client.initialize(context.Background(), options); err != nil {
+	if mode != "browserbase" {
+		options.preloadedExtension = false
+		options.localExtensionDir = func() (string, error) {
+			t.Error("installed extension must not trigger materialization")
+			return "", errors.New("unexpected materialization")
+		}
+	}
+	err := client.initialize(context.Background(), options)
+	if mode == "incompatible" {
+		var incompatible *RuntimeIncompatibleError
+		if !errors.As(err, &incompatible) {
+			t.Fatalf("error = %v, want runtime incompatibility", err)
+		}
+	} else if err != nil {
 		t.Fatalf("initialize() error = %v", err)
 	}
 
@@ -551,7 +765,7 @@ func TestDiscoverInstalledStagehandExtensionID(t *testing.T) {
 				"ws://127.0.0.1/devtools/browser/test",
 			)
 
-			got, err := client.discoverInstalledStagehandExtensionID(context.Background())
+			got, err := client.resolveExtension(context.Background(), false, nil)
 			if test.wantError != "" {
 				if err == nil || err.Error() != test.wantError {
 					t.Fatalf("error = %v, want %q", err, test.wantError)
@@ -584,7 +798,7 @@ func TestDiscoverInstalledStagehandExtensionIDPropagatesCommandError(t *testing.
 	})
 	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
 
-	_, err := client.discoverInstalledStagehandExtensionID(context.Background())
+	_, err := client.resolveExtension(context.Background(), false, nil)
 	var commandError *cdpCommandError
 	if !errors.As(err, &commandError) || commandError.Method != "Extensions.getExtensions" {
 		t.Fatalf("error = %T %v, want Extensions.getExtensions command error", err, err)
@@ -937,7 +1151,7 @@ func TestCDPClientExplainsUnavailableExtensionLoading(t *testing.T) {
 		"ws://127.0.0.1/devtools/browser/test",
 	)
 	_, err := client.loadUnpackedExtension(context.Background(), "/tmp/stagehand-extension")
-	if err == nil || !strings.Contains(err.Error(), "launch with --load-extension") {
+	if err == nil || !strings.Contains(err.Error(), "supports Extensions.getExtensions") {
 		t.Fatalf("loadUnpackedExtension() error = %v", err)
 	}
 }
@@ -1154,5 +1368,108 @@ func assertJSONEqual(t *testing.T, actual json.RawMessage, expected string) {
 	}
 	if !reflect.DeepEqual(actualValue, expectedValue) {
 		t.Fatalf("JSON mismatch\nactual:   %s\nexpected: %s", actual, expected)
+	}
+}
+
+func TestResolveLocalExtension(t *testing.T) {
+	tests := []struct {
+		name         string
+		inventory    any
+		commandError map[string]any
+		wantID       string
+		wantError    string
+		wantLoad     bool
+	}{
+		{name: "installed", inventory: []map[string]any{installedExtension("installed", "Stagehand Runtime", true)}, wantID: "installed"},
+		{name: "missing", inventory: []map[string]any{}, wantID: "loaded", wantLoad: true},
+		{name: "unsupported", commandError: map[string]any{"code": -32601, "message": "Method not found"}, wantID: "loaded", wantLoad: true},
+		{name: "disabled", inventory: []map[string]any{installedExtension("disabled", "Stagehand Runtime", false)}, wantError: "disabled"},
+		{name: "ambiguous", inventory: []map[string]any{installedExtension("a", "Stagehand Runtime", true), installedExtension("b", "Stagehand Runtime", true)}, wantError: "Multiple enabled"},
+		{name: "malformed", inventory: []map[string]any{{"id": "invalid"}}, wantError: "invalid extension"},
+		{name: "permission denied", commandError: map[string]any{"code": -32000, "message": "Permission denied"}, wantError: "Permission denied"},
+		{name: "load failed", inventory: []map[string]any{}, wantLoad: true, wantError: "load failed"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			socket := newFakeCDPWebSocket()
+			methods := make(chan string, 4)
+			socket.writeHook = responseHook(t, socket, methods, func(method string, command map[string]json.RawMessage) map[string]any {
+				if method == "Extensions.getExtensions" {
+					if test.commandError != nil {
+						return map[string]any{"error": test.commandError}
+					}
+					return map[string]any{"result": map[string]any{"extensions": test.inventory}}
+				}
+				if method != "Extensions.loadUnpacked" {
+					t.Errorf("unexpected method: %s", method)
+				}
+				var params struct {
+					Path string `json:"path"`
+				}
+				if err := json.Unmarshal(command["params"], &params); err != nil || params.Path != "/bundle" {
+					t.Errorf("loading params = %s", command["params"])
+				}
+				if test.name == "load failed" {
+					return map[string]any{"error": map[string]any{"code": -32000, "message": "load failed"}}
+				}
+				return map[string]any{"result": map[string]any{"id": "loaded"}}
+			})
+			client := newTestCDPClient(t, socket, "ws://browser")
+			materializations := 0
+			id, err := client.resolveExtension(context.Background(), true, func() (string, error) {
+				materializations++
+				return "/bundle", nil
+			})
+			if test.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("error = %v, want %s", err, test.wantError)
+				}
+			} else if err != nil || id != test.wantID {
+				t.Fatalf("result = %q, %v", id, err)
+			}
+			wantMethods := []string{"Extensions.getExtensions"}
+			wantMaterializations := 0
+			if test.wantLoad {
+				wantMethods = append(wantMethods, "Extensions.loadUnpacked")
+				wantMaterializations = 1
+			}
+			if materializations != wantMaterializations {
+				t.Fatalf("materializations = %d, want %d", materializations, wantMaterializations)
+			}
+			if got := drainMethods(methods); !reflect.DeepEqual(got, wantMethods) {
+				t.Fatalf("methods = %v, want %v", got, wantMethods)
+			}
+		})
+	}
+}
+
+func TestResolveLocalExtensionCancellation(t *testing.T) {
+	for _, phase := range []string{"discovery", "materialization"} {
+		t.Run(phase, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			socket := newFakeCDPWebSocket()
+			methods := make(chan string, 4)
+			socket.writeHook = responseHook(t, socket, methods, func(string, map[string]json.RawMessage) map[string]any {
+				if phase == "discovery" {
+					cancel()
+				}
+				return map[string]any{"result": map[string]any{"extensions": []any{}}}
+			})
+			client := newTestCDPClient(t, socket, "ws://browser")
+			_, err := client.resolveExtension(ctx, true, func() (string, error) {
+				if phase == "discovery" {
+					t.Error("materialized after cancellation")
+				}
+				cancel()
+				return "/bundle", nil
+			})
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v", err)
+			}
+			if got := drainMethods(methods); !reflect.DeepEqual(got, []string{"Extensions.getExtensions"}) {
+				t.Fatalf("methods = %v", got)
+			}
+		})
 	}
 }

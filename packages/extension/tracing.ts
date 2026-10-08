@@ -14,7 +14,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import { z } from "zod/v4";
-import type { ImplementationInfo, TelemetryConfig } from "../protocol/types.js";
+import type { ImplementationInfo, TelemetryConfig } from "@browserbasehq/stagehand-protocol/types";
 import extensionPackageJson from "./package.json" with { type: "json" };
 
 const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
@@ -36,7 +36,7 @@ type StagehandTracingRuntime = {
 };
 
 export type StagehandTracing = StagehandTracingRuntime & {
-  configure(telemetry: TelemetryConfig, clientInfo: ImplementationInfo): Promise<void>;
+  configure(telemetry: TelemetryConfig | undefined, clientInfo: ImplementationInfo): Promise<void>;
 };
 
 type StagehandTracingRuntimeDependencies = {
@@ -117,6 +117,10 @@ export function createStagehandTracing(
         const previousRuntime = runtime;
         runtime = undefined;
         await previousRuntime?.shutdown();
+        activeTelemetry = undefined;
+        activeClientInfo = undefined;
+        // Without an explicit telemetry sink, tracing stays inert: no OTLP export.
+        if (!telemetry) return;
 
         const registerGlobals = options.registerGlobals !== false && !globalsRegistered;
         runtime = createStagehandTracingRuntime(

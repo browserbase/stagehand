@@ -1,4 +1,4 @@
-import type { VariableValue } from "../../../protocol/types.js";
+import type { VariableValue } from "@browserbasehq/stagehand-protocol/types";
 
 /**
  * Resolves a VariableValue to its primitive string value.

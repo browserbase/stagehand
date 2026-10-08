@@ -1,14 +1,24 @@
 import type {
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
+  BrowserbaseFetchOptions,
+  BrowserbaseFetchResult,
   BrowserbaseLaunchOptions,
+  BrowserbaseSearchOptions,
+  BrowserbaseSearchResult,
   LocalBrowserConnectOptions,
   LocalBrowserLaunchOptions,
 } from "../clientSchemas.js";
 import type { BrowserContext } from "../browserContext.js";
 
 export type {
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
+  BrowserbaseFetchOptions,
+  BrowserbaseFetchResult,
   BrowserbaseLaunchOptions,
+  BrowserbaseSearchOptions,
+  BrowserbaseSearchResult,
   LocalBrowserConnectOptions,
   LocalBrowserLaunchOptions,
 };
@@ -43,6 +53,8 @@ export interface LocalBrowser {
 export interface BrowserbaseBrowser {
   launch(options: BrowserbaseLaunchOptions): Promise<StagehandBrowser>;
   connect(options: BrowserbaseConnectOptions): Promise<StagehandBrowser>;
+  search(options: BrowserbaseSearchOptions): Promise<BrowserbaseSearchResult>;
+  fetch(options: BrowserbaseFetchOptions): Promise<BrowserbaseFetchResult>;
 }
 
 type BrowserHandleInternals = {

@@ -37,6 +37,7 @@ jobs:
       is_internal_head: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
+      deepagents-runner: ${{ steps.filter.outputs.deepagents-runner }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -74,6 +75,9 @@ jobs:
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
+              - '.github/**'
+            deepagents-runner:
+              - 'packages/integrations/deepagents/runner/**'
               - '.github/**'
             sdk-go:
               - 'packages/sdk-go/**'
@@ -139,6 +143,25 @@ jobs:
               labels.has('skip-regression-evals') ? 'true' : 'false',
             );
 
+  docs:
+    name: Docs validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [determine-changes]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      # Run directly on every PR, including docs-only and Python/Go-only changes.
+      # The checked-out SDK and docs must describe the same API on either branch.
+      - run: pnpm --filter ./packages/protocol build
+      - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
+      - run: pnpm --filter ./packages/docs test:unit
+      - run: pnpm --filter ./packages/docs check
+
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -176,6 +199,7 @@ jobs:
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm check
       - run: pnpm test:unit
+      - run: pnpm --filter browse test:cli
       - run: uv lock --check
         working-directory: packages/sdk-python
       - run: uv run --locked python scripts/generate.py --check
@@ -256,7 +280,15 @@ jobs:
             packages/sdk-ts/dist/**
             packages/integrations/core/dist/**
             packages/integrations/claude-agent-sdk/dist/**
+            packages/integrations/claude-cua-sdk/dist/**
+            packages/integrations/gemini-cua-sdk/dist/**
             packages/integrations/codex-sdk/dist/**
+            packages/integrations/mastra-sdk/dist/**
+            packages/integrations/pi-sdk/dist/**
+            packages/integrations/eve-sdk/dist/**
+            packages/integrations/deepagents-sdk/dist/**
+            packages/integrations/fx-sdk/dist/**
+            packages/integrations/cursor-sdk/dist/**
             packages/evals/dist/**
           retention-days: 1
 
@@ -274,12 +306,9 @@ jobs:
           use-prebuilt-artifacts: "true"
 
       - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
 
+      # Browser-runtime specs run in browser-ts; root Vitest would repeat the unit suites.
       - run: pnpm exec turbo run test:unit
-      - run: pnpm exec vitest run
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
   browser-ts:
     name: TypeScript browser
@@ -338,6 +367,35 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/sdk-python/uv.lock
 
+      - run: uv sync --locked --dev
+      - run: uv run --locked pytest
+
+  deepagents-runner-checks:
+    name: Deep Agents runner checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.deepagents-runner == 'true'
+    defaults:
+      run:
+        working-directory: packages/integrations/deepagents/runner
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: packages/integrations/deepagents/runner/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/integrations/deepagents/runner
+          enable-cache: true
+          cache-dependency-glob: packages/integrations/deepagents/runner/uv.lock
+
+      - run: uv lock --check
       - run: uv sync --locked --dev
       - run: uv run --locked pytest
 
@@ -540,6 +598,7 @@ jobs:
       BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
       BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
       BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+      EVAL_BROWSERBASE_PROXIES: "0"
       EVAL_MAX_CONCURRENCY: "25"
       EVAL_MODELS: ${{ vars.EVAL_MODELS }}
       EVAL_TRIAL_COUNT: "3"

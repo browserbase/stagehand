@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import type { CallbackBatchOptions, StagehandRpcRequest } from "../../protocol/types.js";
+import type {
+  CallbackBatchOptions,
+  StagehandRpcRequest,
+} from "@browserbasehq/stagehand-protocol/types";
 import { createCallbackBatchController, type CallbackBatchFunction } from "../callbackBatch.js";
 import type { HandlerContext, RPCRouter } from "../rpcRouter.js";
 

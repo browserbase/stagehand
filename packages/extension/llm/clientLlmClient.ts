@@ -2,8 +2,8 @@ import {
   createLLMGenerateResultSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
-} from "../../protocol/schemas.js";
-import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
+import type { LLMGenerateParams, LLMGenerateResult } from "@browserbasehq/stagehand-protocol/types";
 
 export type ClientLlmRequest = (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
 

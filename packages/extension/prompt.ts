@@ -1,5 +1,10 @@
 import type { ChatMessage } from "./llm/LLMClient.js";
-import type { LLMImageContent, LLMMessage, Variables, VariableValue } from "../protocol/types.js";
+import type {
+  LLMImageContent,
+  LLMMessage,
+  Variables,
+  VariableValue,
+} from "@browserbasehq/stagehand-protocol/types";
 
 interface VariablePromptEntry {
   name: string;

@@ -1,12 +1,16 @@
 import { RPCClient } from "./rpcClient.js";
+import { RPCResponseTimeoutError } from "./rpcErrors.js";
 import {
   DefaultExtractDataSchema,
   MAX_CALLBACK_BATCH_TIMEOUT_MS,
   STAGEHAND_PROTOCOL_VERSION,
   StagehandInitParamsSchema,
-} from "../../protocol/schemas.js";
-import { JSONRPCErrorObjectSchema } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/schemas";
+import { JSONRPCErrorObjectSchema } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import {
+  StagehandMethods,
+  StagehandNotifications,
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   Action,
   ActResult,
@@ -15,7 +19,7 @@ import type {
   ObserveResult,
   StagehandMetrics,
   StagehandRpcNotification,
-} from "../../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
 import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
@@ -42,9 +46,14 @@ import {
 } from "./browser/factories.js";
 import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
-import type { ExperimentalBatchCallback, ExperimentalBatchOptions } from "./batch.js";
+import {
+  CALLBACK_BATCH_CLIENT_GRACE_MS,
+  StagehandBatchTimeoutError,
+  type ExperimentalBatchCallback,
+  type ExperimentalBatchOptions,
+} from "./batch.js";
 
-type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
+type ProtocolExtractResult = import("@browserbasehq/stagehand-protocol/types").ExtractResult;
 
 export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
   data: z.output<Schema>;
@@ -57,6 +66,9 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
   typeof value.parse === "function" &&
   "safeParse" in value &&
   typeof value.safeParse === "function";
+
+// setTimeout treats larger delays as 1ms; MAX_CALLBACK_BATCH_TIMEOUT_MS leaves 10s below this.
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 const nativeFunctionSourcePattern =
   /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
@@ -151,18 +163,28 @@ export class Stagehand {
     if (nativeFunctionSourcePattern.test(callbackSource)) {
       throw new TypeError("stagehand.experimentalBatch() callback must be serializable JavaScript");
     }
+    const clientTimeout = Math.min(timeout + CALLBACK_BATCH_CLIENT_GRACE_MS, MAX_TIMER_DELAY_MS);
 
-    const result: CallbackBatchResult = await this.connectedRpcClient.send(
-      StagehandMethods.stagehandCallbackBatch,
-      {
-        callbackSource,
-        ...(parsedInput === undefined ? {} : { input: parsedInput }),
-        options: {
-          ...(options.page ? { pageId: options.page.pageId } : {}),
-          timeout,
+    let result: CallbackBatchResult;
+    try {
+      result = await this.connectedRpcClient.send(
+        StagehandMethods.stagehandCallbackBatch,
+        {
+          callbackSource,
+          ...(parsedInput === undefined ? {} : { input: parsedInput }),
+          options: {
+            ...(options.page ? { pageId: options.page.pageId } : {}),
+            timeout,
+          },
         },
-      },
-    );
+        { responseTimeoutMs: clientTimeout },
+      );
+    } catch (error) {
+      if (error instanceof RPCResponseTimeoutError) {
+        throw new StagehandBatchTimeoutError({ timeout, clientTimeout }, { cause: error });
+      }
+      throw error;
+    }
     return result.value as Awaited<Result>;
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import {
   serializeClientLocator,
   serializeClientLocatorOptions,

@@ -3,8 +3,8 @@ import type {
   NavigationResponseDescriptor,
   NavigationSecurityDetails,
   NavigationServerAddr,
-} from "../../protocol/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+} from "@browserbasehq/stagehand-protocol/types";
+import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { decodeBase64 } from "./base64.js";
 import type { StagehandCommandClient } from "./commandClient.js";
 

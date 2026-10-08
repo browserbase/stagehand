@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PageCDPEvent } from "../../protocol/types.js";
+import type { PageCDPEvent } from "@browserbasehq/stagehand-protocol/types";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
 import { Page } from "../understudy/page.js";
@@ -45,13 +45,13 @@ function createPage(
 }
 
 describe("Page CDP event subscriptions", () => {
-  it("covers the main session plus current and future OOPIF sessions", () => {
+  it("covers the main session plus current and future OOPIF sessions", async () => {
     const main = new FakeCDPSession("main");
     const child = new FakeCDPSession("child");
     const page = createPage(main);
     const events: unknown[] = [];
 
-    const unsubscribe = page.subscribeCDPEvent((event) => {
+    const unsubscribe = await page.subscribeCDPEvent("console", (event) => {
       events.push(event);
     });
     main.emit("Runtime.consoleAPICalled", { type: "log", args: [] });
@@ -81,29 +81,29 @@ describe("Page CDP event subscriptions", () => {
     expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
   });
 
-  it("removes every raw listener when the page is disposed", () => {
+  it("removes every raw listener when the page is disposed", async () => {
     const main = new FakeCDPSession("main");
     const child = new FakeCDPSession("child");
     const page = createPage(main);
 
     page.adoptOopifSession(child, "frame-child");
-    page.subscribeCDPEvent(() => {});
+    await page.subscribeCDPEvent("console", () => {});
     page.dispose();
 
     expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
     expect(child.listenerCount("Runtime.consoleAPICalled")).toBe(0);
   });
 
-  it("isolates listener failures so other subscriptions still receive the event", () => {
+  it("isolates listener failures so other subscriptions still receive the event", async () => {
     const main = new FakeCDPSession("main");
     const logError = vi.fn();
     const page = createPage(main, { error: logError } as unknown as StagehandLogger);
     const events: PageCDPEvent[] = [];
 
-    page.subscribeCDPEvent(() => {
+    await page.subscribeCDPEvent("console", () => {
       throw new Error("listener failed");
     });
-    page.subscribeCDPEvent((event) => events.push(event));
+    await page.subscribeCDPEvent("console", (event) => events.push(event));
 
     expect(() => main.emit("Runtime.consoleAPICalled", { type: "log", args: [] })).not.toThrow();
     expect(events).toHaveLength(1);

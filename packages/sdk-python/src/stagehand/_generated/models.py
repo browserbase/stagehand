@@ -1061,6 +1061,8 @@ class LocatorClickOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
 
@@ -1106,6 +1108,7 @@ class LocatorFillParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     value: StrictStr
 
 
@@ -1122,6 +1125,8 @@ class LocatorHighlightOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     duration_ms: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     border_color: Optional[RgbaColor] = None
     content_color: Optional[RgbaColor] = None
@@ -1174,6 +1179,26 @@ class LocatorIsVisibleResult(RootModel[StrictBool]):
     root: StrictBool
 
 
+class LocatorOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
+
+
+class LocatorParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    selector: Annotated[StrictStr, Field(min_length=1)]
+    nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
+
+
 class LocatorScrollToParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1182,6 +1207,7 @@ class LocatorScrollToParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     percent: Union[StrictFloat, StrictStr]
 
 
@@ -1201,6 +1227,7 @@ class LocatorSelectOptionParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     values: Union[StrictStr, list[StrictStr]]
 
 
@@ -1213,6 +1240,8 @@ class LocatorSendClickEventOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     bubbles: Optional[StrictBool] = None
     cancelable: Optional[StrictBool] = None
     composed: Optional[StrictBool] = None
@@ -1246,6 +1275,7 @@ class LocatorSetInputFilesParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     files: list[InputFilePayload]
 
 
@@ -1266,6 +1296,8 @@ class LocatorTypeOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
 
 
@@ -1277,8 +1309,8 @@ class LocatorTypeParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
-    text: StrictStr
     options: Optional[LocatorTypeOptions] = None
+    text: StrictStr
 
 
 class LocatorTypeResult(WireModel):
@@ -1674,7 +1706,62 @@ class PageOnParams(WireModel):
     )
     page_id: StrictStr
     subscription_id: Annotated[StrictStr, Field(min_length=1)]
-    event: PageEventName
+    event: PageSubscriptionEventName
+
+
+class PagePDFMargin(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    top: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    bottom: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    left: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    right: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+
+
+class PagePDFOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    landscape: Optional[StrictBool] = None
+    display_header_footer: Optional[StrictBool] = None
+    print_background: Optional[StrictBool] = None
+    scale: Annotated[Optional[StrictFloat], Field(ge=0.1, le=2.0)] = None
+    width: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    height: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    margin: Optional[PagePDFMargin] = None
+    page_ranges: Optional[StrictStr] = None
+    header_template: Optional[StrictStr] = None
+    footer_template: Optional[StrictStr] = None
+    prefer_css_page_size: Optional[StrictBool] = None
+    tagged: Optional[StrictBool] = None
+    outline: Optional[StrictBool] = None
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0, le=2147473647.0)] = None
+
+
+class PagePDFParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[PagePDFOptions] = None
+
+
+class PagePDFResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    data: Annotated[
+        StrictStr,
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ]
 
 
 class PageRef(WireModel):
@@ -1812,6 +1899,8 @@ class PageSnapshotOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the timeout."""
     include_iframes: Optional[StrictBool] = None
 
 
@@ -1824,8 +1913,46 @@ class PageSnapshotParams(WireModel):
     options: Optional[PageSnapshotOptions] = None
 
 
+class PageSubscriptionEventName(StrEnum):
+    console = "console"
+    toolsadded = "toolsadded"
+    toolsremoved = "toolsremoved"
+
+
 class PageTitleResult(RootModel[StrictStr]):
     root: StrictStr
+
+
+class PageToolsAddedNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Literal["toolsadded"]
+    tools: list[WebMCPToolDescriptor]
+
+
+class PageToolsRemovedNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+    event: Literal["toolsremoved"]
+    tools: list[WebMCPToolIdentity]
+
+
+class PageEventNotification(
+    RootModel[Union[PageToolsAddedNotification, PageToolsRemovedNotification]]
+):
+    root: Union[PageToolsAddedNotification, PageToolsRemovedNotification]
 
 
 class PageTypeOptions(WireModel):
@@ -2079,13 +2206,17 @@ class StagehandExtractParams(WireModel):
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Annotated[StrictStr, Field(min_length=1)]
-    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {"extraction": {"type": "string"}},
-        "required": ["extraction"],
-        "additionalProperties": False,
-    }
+    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = Field(
+        default_factory=lambda: FieldSchema0.model_validate(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {"extraction": {"type": "string"}},
+                "required": ["extraction"],
+                "additionalProperties": False,
+            }
+        )
+    )
     options: Optional[ExtractOptions] = None
 
 
@@ -2109,9 +2240,7 @@ class StagehandInitParams(WireModel):
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
-        "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-    }
+    telemetry: Optional[TelemetryConfig] = None
     log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None
@@ -2330,6 +2459,15 @@ class WebMCPToolDescriptor(WireModel):
     backend_node_id: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
         None
     )
+
+
+class WebMCPToolIdentity(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    name: Annotated[StrictStr, Field(min_length=1)]
 
 
 class WebMCPToolResponse(WireModel):

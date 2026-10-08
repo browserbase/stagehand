@@ -6,6 +6,7 @@ export default defineConfig({
   platform: "node",
   target: "node22",
   dts: {
+    eager: true,
     sourcemap: true,
   },
   sourcemap: true,

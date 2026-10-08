@@ -1,5 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
+import { type Progress, runLocatorStep } from "../../progress.js";
 import type { SessionDomIndex } from "../../../types/private/snapshot.js";
 import { buildChildXPathSegments, joinXPath, normalizeXPath } from "./xpathUtils.js";
 
@@ -48,12 +49,14 @@ export async function hydrateDomTree(
   session: CDPSessionLike,
   root: Protocol.DOM.Node,
   pierce: boolean,
+  progress?: Progress,
 ): Promise<void> {
   const stack: Protocol.DOM.Node[] = [root];
   const expandedNodeIds = new Set<number>();
   const expandedBackendIds = new Set<number>();
 
   while (stack.length) {
+    progress?.throwIfStopped();
     const node = stack.pop()!;
     const nodeId = typeof node.nodeId === "number" && node.nodeId > 0 ? node.nodeId : undefined;
     const backendId =
@@ -74,13 +77,12 @@ export async function hydrateDomTree(
       let lastRetryError: unknown;
       for (const depth of DESCRIBE_DEPTH_ATTEMPTS) {
         try {
-          const described = await session.send<Protocol.DOM.DescribeNodeResponse>(
-            "DOM.describeNode",
-            {
+          const described = await runLocatorStep(progress, "expanding snapshot DOM", () =>
+            session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", {
               ...describeParamsBase,
               depth,
               pierce,
-            },
+            }),
           );
           mergeDomNodes(node, described.node);
           if (!nodeId && described.node.nodeId && described.node.nodeId > 0) {
@@ -90,6 +92,7 @@ export async function hydrateDomTree(
           expanded = true;
           break;
         } catch (err) {
+          progress?.throwIfStopped();
           const message = err instanceof Error ? err.message : String(err);
           if (isCborStackError(message)) {
             lastRetryError = err;
@@ -118,22 +121,23 @@ export async function hydrateDomTree(
 export async function getDomTreeWithFallback(
   session: CDPSessionLike,
   pierce: boolean,
+  progress?: Progress,
 ): Promise<Protocol.DOM.Node> {
   let lastRetryError: unknown;
 
   for (const depth of DOM_DEPTH_ATTEMPTS) {
     try {
-      const { root } = await session.send<{ root: Protocol.DOM.Node }>("DOM.getDocument", {
-        depth,
-        pierce,
-      });
+      const { root } = await runLocatorStep(progress, "reading snapshot DOM", () =>
+        session.send<{ root: Protocol.DOM.Node }>("DOM.getDocument", { depth, pierce }),
+      );
 
       if (depth !== -1) {
-        await hydrateDomTree(session, root, pierce);
+        await hydrateDomTree(session, root, pierce, progress);
       }
 
       return root;
     } catch (err) {
+      progress?.throwIfStopped();
       const message = err instanceof Error ? err.message : String(err);
       if (isCborStackError(message)) {
         lastRetryError = err;
@@ -157,20 +161,21 @@ export async function domMapsForSession(
   pierce: boolean,
   encode: (fid: string, backendNodeId: number) => string,
   attemptOwnerLookup = true,
+  progress?: Progress,
 ): Promise<{
   tagNameMap: Record<string, string>;
   xpathMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
 }> {
-  await session.send("DOM.enable").catch(() => {});
-  const root = await getDomTreeWithFallback(session, pierce);
+  await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable").catch(() => {}));
+  const root = await getDomTreeWithFallback(session, pierce, progress);
 
   let startNode: Protocol.DOM.Node = root;
   if (attemptOwnerLookup) {
     try {
-      const owner = await session.send<{ backendNodeId?: number }>("DOM.getFrameOwner", {
-        frameId,
-      });
+      const owner = await runLocatorStep(progress, "finding snapshot iframe owner", () =>
+        session.send<{ backendNodeId?: number }>("DOM.getFrameOwner", { frameId }),
+      );
       const ownerBackendId = owner.backendNodeId;
       if (typeof ownerBackendId === "number") {
         const ownerEl = findNodeByBackendId(root, ownerBackendId);
@@ -179,6 +184,7 @@ export async function domMapsForSession(
         }
       }
     } catch {
+      progress?.throwIfStopped();
       // OOPIF or race → keep startNode = root
     }
   }
@@ -191,6 +197,7 @@ export async function domMapsForSession(
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
 
   while (stack.length) {
+    progress?.throwIfStopped();
     const { node, xpath } = stack.pop()!;
 
     if (node.backendNodeId) {
@@ -222,6 +229,7 @@ export async function domMapsForSession(
     }
   }
 
+  progress?.throwIfStopped();
   return { tagNameMap, xpathMap, scrollableMap };
 }
 
@@ -233,9 +241,12 @@ export async function domMapsForSession(
 export async function buildSessionDomIndex(
   session: CDPSessionLike,
   pierce: boolean,
+  progress?: Progress,
 ): Promise<SessionDomIndex> {
-  await session.send("DOM.enable").catch(() => {});
-  const root = await getDomTreeWithFallback(session, pierce);
+  await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable").catch(() => {}));
+  // CDP uses one piercing flag for both shadow roots and iframe documents.
+  // Fetch both, then independently omit shadow roots while building the index.
+  const root = await getDomTreeWithFallback(session, true, progress);
 
   const absByBe = new Map<number, string>();
   const tagByBe = new Map<number, string>();
@@ -256,6 +267,7 @@ export async function buildSessionDomIndex(
   let dfsIndex = 0;
 
   while (stack.length) {
+    progress?.throwIfStopped();
     const { node, xp, docRootBe, phase } = stack.pop()!;
     if (phase === "exit") {
       if (node.backendNodeId) {
@@ -289,7 +301,7 @@ export async function buildSessionDomIndex(
       }
     }
 
-    for (const sr of node.shadowRoots ?? []) {
+    for (const sr of pierce ? (node.shadowRoots ?? []) : []) {
       stack.push({
         node: sr,
         xp: joinXPath(xp, "//"),
@@ -310,6 +322,7 @@ export async function buildSessionDomIndex(
     }
   }
 
+  progress?.throwIfStopped();
   return {
     rootBackend: rootBe,
     absByBe,

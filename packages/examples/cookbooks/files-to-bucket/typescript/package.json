@@ -1,0 +1,28 @@
+{
+  "name": "stagehand-cookbook-files-to-bucket",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1145.0",
+    "@aws-sdk/lib-storage": "3.1145.0",
+    "@aws-sdk/s3-presigned-post": "3.1145.0",
+    "@aws-sdk/s3-request-presigner": "3.1145.0",
+    "@browserbasehq/stagehand": "4.1.0",
+    "dotenv": "^17.4.2",
+    "files-sdk": "^2.6.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "tsx": "^4.23.1",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import { describe, expect, it, vi } from "vitest";
-import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.js";
+import { StagehandRpcRequestSchema } from "@browserbasehq/stagehand-protocol/schema-registry";
 import { RPCRouter } from "../rpcRouter.js";
 import { createStagehandRuntime, type UnderstudyRuntimePage } from "../runtime.js";
 import type { CDPSessionLike } from "../understudy/cdp.js";

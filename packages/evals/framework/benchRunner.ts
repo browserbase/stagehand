@@ -4,7 +4,11 @@ import type { EvalInput } from "../types/evals.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { RunEvalsOptions } from "./runner.js";
 import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
-import { getBenchHarness, type BenchHarnessContext } from "./benchHarness.js";
+import {
+  formatBenchHarnessFlags,
+  getBenchHarness,
+  type BenchHarnessContext,
+} from "./benchHarness.js";
 import { buildBenchMatrixRow } from "./benchPlanner.js";
 import { DEFAULT_BENCH_HARNESS } from "./benchTypes.js";
 import { loadTaskModuleFromPath } from "./taskLoader.js";
@@ -45,6 +49,12 @@ export async function executeBenchTask(
         verbose: options.verbose,
         signal: options.signal,
       });
+    }
+
+    if (!harness.start) {
+      throw new EvalsError(
+        `Harness "${harnessName}" is registered for dry-run planning only and cannot execute bench tasks. Use ${formatBenchHarnessFlags()} for executable bench runs.`,
+      );
     }
 
     const startedHarness = await harness.start({

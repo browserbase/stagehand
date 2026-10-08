@@ -19,9 +19,10 @@ export default defineBenchTask(
         };
       }
 
+      // The archive layout changes independently of the pagination link.
       const expectedLocators = [
-        "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a",
-        "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a/span",
+        "xpath=//a[@href='/archive?page=2' and normalize-space(.)='Load more']",
+        "xpath=//a[@href='/archive?page=2' and normalize-space(.)='Load more']/span",
       ];
 
       // v3 compares backendNodeIds (first observation vs. each expected

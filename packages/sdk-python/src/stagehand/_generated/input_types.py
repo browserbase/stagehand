@@ -496,13 +496,6 @@ class LocatorDescriptor(TypedDict):
     nth: NotRequired[int]
 
 
-class LocatorFillParams(TypedDict):
-    page_id: str
-    selector: str
-    nth: NotRequired[int]
-    value: str
-
-
 class LocatorFillResult(TypedDict):
     filled: Literal[True]
 
@@ -530,10 +523,30 @@ LocatorIsCheckedResult: TypeAlias = bool
 LocatorIsVisibleResult: TypeAlias = bool
 
 
+class LocatorOptions(TypedDict):
+    timeout: NotRequired[float]
+
+
+class LocatorFillParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
+    value: str
+
+
+class LocatorParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
+
+
 class LocatorScrollToParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
     percent: float | str
 
 
@@ -545,6 +558,7 @@ class LocatorSelectOptionParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
     values: str | list[str]
 
 
@@ -552,6 +566,7 @@ LocatorSelectOptionResult: TypeAlias = list[str]
 
 
 class LocatorSendClickEventOptions(TypedDict):
+    timeout: NotRequired[float]
     bubbles: NotRequired[bool]
     cancelable: NotRequired[bool]
     composed: NotRequired[bool]
@@ -573,6 +588,7 @@ class LocatorSetInputFilesParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
+    options: NotRequired[LocatorOptions]
     files: list[InputFilePayload]
 
 
@@ -584,6 +600,7 @@ LocatorTextContentResult: TypeAlias = str
 
 
 class LocatorTypeOptions(TypedDict):
+    timeout: NotRequired[float]
     delay: NotRequired[float]
 
 
@@ -591,8 +608,8 @@ class LocatorTypeParams(TypedDict):
     page_id: str
     selector: str
     nth: NotRequired[int]
-    text: str
     options: NotRequired[LocatorTypeOptions]
+    text: str
 
 
 class LocatorTypeResult(TypedDict):
@@ -603,6 +620,7 @@ MouseButton: TypeAlias = Literal["left", "right", "middle"]
 
 
 class LocatorClickOptions(TypedDict):
+    timeout: NotRequired[float]
     button: NotRequired[MouseButton]
     click_count: NotRequired[int]
 
@@ -781,10 +799,37 @@ class PageOffParams(TypedDict):
     subscription_id: str
 
 
-class PageOnParams(TypedDict):
+class PagePDFMargin(TypedDict):
+    top: NotRequired[float]
+    bottom: NotRequired[float]
+    left: NotRequired[float]
+    right: NotRequired[float]
+
+
+class PagePDFOptions(TypedDict):
+    landscape: NotRequired[bool]
+    display_header_footer: NotRequired[bool]
+    print_background: NotRequired[bool]
+    scale: NotRequired[float]
+    width: NotRequired[float]
+    height: NotRequired[float]
+    margin: NotRequired[PagePDFMargin]
+    page_ranges: NotRequired[str]
+    header_template: NotRequired[str]
+    footer_template: NotRequired[str]
+    prefer_css_page_size: NotRequired[bool]
+    tagged: NotRequired[bool]
+    outline: NotRequired[bool]
+    timeout: NotRequired[float]
+
+
+class PagePDFParams(TypedDict):
     page_id: str
-    subscription_id: str
-    event: PageEventName
+    options: NotRequired[PagePDFOptions]
+
+
+class PagePDFResult(TypedDict):
+    data: str
 
 
 class PageRef(TypedDict):
@@ -871,12 +916,22 @@ class PageSetViewportSizeParams(TypedDict):
 
 
 class PageSnapshotOptions(TypedDict):
+    timeout: NotRequired[float]
     include_iframes: NotRequired[bool]
 
 
 class PageSnapshotParams(TypedDict):
     page_id: str
     options: NotRequired[PageSnapshotOptions]
+
+
+PageSubscriptionEventName: TypeAlias = Literal["console", "toolsadded", "toolsremoved"]
+
+
+class PageOnParams(TypedDict):
+    page_id: str
+    subscription_id: str
+    event: PageSubscriptionEventName
 
 
 PageTitleResult: TypeAlias = str
@@ -982,6 +1037,7 @@ class RgbaColor(TypedDict):
 
 
 class LocatorHighlightOptions(TypedDict):
+    timeout: NotRequired[float]
     duration_ms: NotRequired[int]
     border_color: NotRequired[RgbaColor]
     content_color: NotRequired[RgbaColor]
@@ -1197,8 +1253,34 @@ class WebMCPToolDescriptor(TypedDict):
     backend_node_id: NotRequired[int]
 
 
+class PageToolsAddedNotification(TypedDict):
+    subscription_id: str
+    page_id: str
+    session_id: str
+    target_id: str
+    event: Literal["toolsadded"]
+    tools: list[WebMCPToolDescriptor]
+
+
 class PageWebMCPToolsResult(TypedDict):
     tools: list[WebMCPToolDescriptor]
+
+
+class WebMCPToolIdentity(TypedDict):
+    frame_id: str
+    name: str
+
+
+class PageToolsRemovedNotification(TypedDict):
+    subscription_id: str
+    page_id: str
+    session_id: str
+    target_id: str
+    event: Literal["toolsremoved"]
+    tools: list[WebMCPToolIdentity]
+
+
+PageEventNotification: TypeAlias = PageToolsAddedNotification | PageToolsRemovedNotification
 
 
 class WebMCPToolResponse(TypedDict):

@@ -1,13 +1,16 @@
-import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
-import { encodeWireValue } from "../protocol/json-rpc/wire-casing.js";
-import { StagehandMethods, StagehandRpcRequestSchema } from "../protocol/schema-registry.js";
+import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
+import { encodeWireValue } from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
+import {
+  StagehandMethods,
+  StagehandRpcRequestSchema,
+} from "@browserbasehq/stagehand-protocol/schema-registry";
 import type {
   Action,
   CallbackBatchParams,
   CallbackBatchResult,
   StagehandMetrics,
   StagehandRpcNotification,
-} from "../protocol/types.js";
+} from "@browserbasehq/stagehand-protocol/types";
 import { z } from "zod/v4";
 import type { ExperimentalBatchBrowserContext } from "../sdk-ts/src/batch.js";
 import { BrowserContext } from "../sdk-ts/src/browserContext.js";
@@ -71,6 +74,7 @@ class InProcessCommandClient implements StagehandCommandClient {
 
 export type CallbackStagehand = {
   page: Page;
+  evaluateWithShadowRoots(pageId: string, functionSource: string): Promise<unknown>;
   context: ExperimentalBatchBrowserContext;
   act(instruction: string | Action, options?: StagehandClientActOptions): Promise<unknown>;
   observe(instruction?: string, options?: StagehandClientObserveOptions): Promise<unknown>;
@@ -124,6 +128,12 @@ export function createCallbackBatchController(router: RPCRouter) {
       const stagehand: CallbackStagehand = {
         page,
         context: createCallbackContextFacade(context),
+        evaluateWithShadowRoots: async (pageId, functionSource) => {
+          if (controller.signal.aborted) throw controller.signal.reason;
+          const result = await router.runtime.evaluateWithShadowRoots(pageId, functionSource);
+          if (controller.signal.aborted) throw controller.signal.reason;
+          return result;
+        },
         act: async (instruction, operationOptions) => {
           const { page: operationPage, ...clientOptions } = StagehandClientActOptionsSchema.parse(
             operationOptions ?? {},

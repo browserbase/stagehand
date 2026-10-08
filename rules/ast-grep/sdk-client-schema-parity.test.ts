@@ -21,7 +21,7 @@ type Concept = {
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
 const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const docsSource = new URL("../../packages/docs/v4/", import.meta.url);
-// These legacy Chrome extension ID overrides are not user-actionable and are pending deprecation.
+// These deprecated Chrome extension ID fields are accepted but ignored by connect.
 const intentionallyUndocumentedBrowserFields = new Set([
   "LocalBrowserConnectOptions.extension_id",
   "BrowserbaseConnectOptions.extension_id",
@@ -45,6 +45,30 @@ const concepts: readonly Concept[] = [
     typescript: ClientSchemas.BrowserbaseConnectOptionsSchema,
     python: () => pythonClassFields("client_types.py", "BrowserbaseConnectOptions"),
     go: () => goStructFields("browser_factories.go", "BrowserbaseConnectOptions"),
+  },
+  {
+    name: "BrowserbaseSearchOptions",
+    typescript: ClientSchemas.BrowserbaseSearchOptionsSchema,
+    python: () => pythonMethodParameters("browser.py", "BrowserbaseBrowser", "search"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseSearchOptions"),
+  },
+  {
+    name: "BrowserbaseFetchOptions",
+    typescript: ClientSchemas.BrowserbaseFetchOptionsSchema,
+    python: () => pythonMethodParameters("browser.py", "BrowserbaseBrowser", "fetch"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseFetchOptions"),
+  },
+  {
+    name: "BrowserbaseSearchResult",
+    typescript: ClientSchemas.BrowserbaseSearchResultSchema,
+    python: () => pythonClassFields("client_models.py", "BrowserbaseSearchResult"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseSearchResult"),
+  },
+  {
+    name: "BrowserbaseFetchResult",
+    typescript: ClientSchemas.BrowserbaseFetchResultSchema,
+    python: () => pythonClassFields("client_models.py", "BrowserbaseFetchResult"),
+    go: () => goStructFields("browserbase_services.go", "BrowserbaseFetchResult"),
   },
   {
     name: "StagehandClientLoggingConfig",
@@ -103,6 +127,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
       "LocalBrowserLaunchOptions",
       "LocalBrowserConnectOptions",
       "BrowserbaseConnectOptions",
+      "BrowserbaseClientOptions",
       "StagehandClientLoggingConfig",
       "StagehandClientCreateConfig",
     ];

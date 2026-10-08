@@ -2,7 +2,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalInput } from "../types/evals.js";
 
 export interface ExternalHarnessTaskPlan {
-  dataset: "webvoyager" | "onlineMind2Web" | "webtailbench" | "odysseysbench";
+  dataset: "webvoyager" | "onlineMind2Web" | "webtailbench" | "odysseysbench" | "hardbenchmark";
   taskId?: string;
   startUrl: string;
   instruction: string;
@@ -48,13 +48,13 @@ export function buildExternalHarnessTaskPlan(input: EvalInput): ExternalHarnessT
     };
   }
 
-  if (input.name === "agent/webtailbench") {
+  if (input.name === "agent/webtailbench" || input.name === "agent/hardbenchmark") {
     const instruction = readString(params, "ques");
     if (!instruction) {
-      throw new EvalsError(`Missing WebTailBench params for external harness: expected ques.`);
+      throw new EvalsError(`Missing ${input.name} params for external harness: expected ques.`);
     }
     return {
-      dataset: "webtailbench",
+      dataset: input.name === "agent/hardbenchmark" ? "hardbenchmark" : "webtailbench",
       taskId: readString(params, "id"),
       startUrl: readString(params, "web") ?? "https://www.google.com",
       instruction,
@@ -77,7 +77,7 @@ export function buildExternalHarnessTaskPlan(input: EvalInput): ExternalHarnessT
   }
 
   throw new EvalsError(
-    `External harness "${input.name}" is not supported yet. Supported: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench.`,
+    `External harness "${input.name}" is not supported yet. Supported: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/hardbenchmark, agent/odysseysbench.`,
   );
 }
 
@@ -91,6 +91,7 @@ export function datasetPromptGuidance(dataset: string): string | undefined {
   switch (dataset) {
     case "onlineMind2Web":
       return "ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.";
+    case "hardbenchmark":
     case "webtailbench":
     case "odysseysbench":
       return "You will need to navigate to the appropriate website to complete the task.";

@@ -1,7 +1,9 @@
-import type { StagehandInitParams } from "../../../protocol/types.js";
+import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import {
   BrowserbaseConnectOptionsSchema,
+  BrowserbaseFetchOptionsSchema,
   BrowserbaseLaunchOptionsSchema,
+  BrowserbaseSearchOptionsSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
 } from "../clientSchemas.js";
@@ -20,8 +22,12 @@ import {
 import { CDPClient, CDPConnectionClosedError, type CDPClientOptions } from "../cdpClient.js";
 import {
   createBrowserbaseSessionClient,
-  type BrowserbaseSessionClient,
+  type BrowserbaseSessionClientFactory,
 } from "./browserbaseSession.js";
+import {
+  createBrowserbaseServicesClient,
+  type BrowserbaseServicesClient,
+} from "./browserbaseServices.js";
 import { launchLocalBrowser, type LocalBrowserLauncher } from "./localBrowser.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "../extensionAssets.js";
 import { abortable } from "../abort.js";
@@ -39,7 +45,8 @@ export type ClaimedStagehandBrowser = {
 
 type BrowserFactoryDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
-  createBrowserbaseSessionClient?: (apiKey: string, baseUrl: string) => BrowserbaseSessionClient;
+  createBrowserbaseSessionClient?: BrowserbaseSessionClientFactory;
+  createBrowserbaseServicesClient?: (apiKey: string, baseUrl: string) => BrowserbaseServicesClient;
   connectCdp?: (options: CDPClientOptions) => Promise<CDPClient>;
 };
 
@@ -56,6 +63,8 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
   const launchLocal = dependencies.launchLocalBrowser ?? launchLocalBrowser;
   const createBrowserbase =
     dependencies.createBrowserbaseSessionClient ?? createBrowserbaseSessionClient;
+  const createBrowserbaseServices =
+    dependencies.createBrowserbaseServicesClient ?? createBrowserbaseServicesClient;
   const connectCdp = dependencies.connectCdp ?? ((options) => CDPClient.connect(options));
 
   return {
@@ -122,10 +131,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             origin: "connected",
             source,
             connectCdp,
-            extension:
-              parsed.extensionId === undefined
-                ? { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }
-                : { extensionId: parsed.extensionId },
+            extension: { localExtensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
             signal,
             workerInitMetadata: {},
           }),
@@ -135,9 +141,12 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
     browserbase: {
       async launch(input) {
-        const { apiKey, baseUrl, ...sessionOptions } = BrowserbaseLaunchOptionsSchema.parse(input);
+        const { apiKey, baseUrl, clientOptions, ...sessionOptions } =
+          BrowserbaseLaunchOptionsSchema.parse(input);
         return await withStagehandInitDeadline(async (signal) => {
-          const sessionPromise = createBrowserbase(apiKey, baseUrl).createSession(sessionOptions);
+          const sessionPromise = createBrowserbase(apiKey, baseUrl, clientOptions).createSession(
+            sessionOptions,
+          );
           let session: Awaited<typeof sessionPromise>;
           try {
             session = await abortable(sessionPromise, signal);
@@ -175,7 +184,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
       async connect(input) {
         const options = BrowserbaseConnectOptionsSchema.parse(input);
-        const client = createBrowserbase(options.apiKey, options.baseUrl);
+        const client = createBrowserbase(options.apiKey, options.baseUrl, options.clientOptions);
         if (!client.connectSession) {
           throw new Error("Browserbase session connection is not supported by this client");
         }
@@ -191,10 +200,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             origin: "connected",
             source,
             connectCdp,
-            extension:
-              options.extensionId === undefined
-                ? { preloadedExtension: true }
-                : { extensionId: options.extensionId },
+            extension: { preloadedExtension: true },
             signal,
             workerInitMetadata: {
               apiKey: options.apiKey,
@@ -205,6 +211,16 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             },
           });
         });
+      },
+
+      async search(input) {
+        const { apiKey, baseUrl, ...params } = BrowserbaseSearchOptionsSchema.parse(input);
+        return await createBrowserbaseServices(apiKey, baseUrl).search(params);
+      },
+
+      async fetch(input) {
+        const { apiKey, baseUrl, ...params } = BrowserbaseFetchOptionsSchema.parse(input);
+        return await createBrowserbaseServices(apiKey, baseUrl).fetch(params);
       },
     },
   };
@@ -241,7 +257,10 @@ async function connectBrowser(options: {
   origin: StagehandBrowserOrigin;
   source: BrowserConnectionSource;
   connectCdp: (options: CDPClientOptions) => Promise<CDPClient>;
-  extension: { extensionDir: string } | { extensionId: string } | { preloadedExtension: true };
+  extension:
+    | { extensionDir: string }
+    | { localExtensionDir: string }
+    | { preloadedExtension: true };
   signal: AbortSignal;
   afterConnect?: (cdpClient: CDPClient, signal: AbortSignal) => Promise<void>;
   workerInitMetadata: StagehandWorkerInitMetadata;
@@ -300,7 +319,10 @@ async function connectBrowser(options: {
     });
   } catch (error) {
     cdpClient?.close();
-    if (ownsSource) {
+    // No browser handle escaped this failed launch. A newly created remote
+    // session remains ours to release, even if successful handles stay alive
+    // after transport loss. Connecting to somebody else's session stays unowned.
+    if (ownsSource || (options.provider === "browserbase" && options.origin === "launched")) {
       try {
         await closeSource(options.source);
       } catch (cleanupError) {

@@ -2,12 +2,13 @@ import { trace } from "@opentelemetry/api";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { StagehandLog } from "../../protocol/types.js";
+import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import { performUnderstudyMethod } from "../handlers/handlerUtils/actHandlerUtils.js";
 import { StagehandLogger } from "../logger.js";
 import type { StagehandTracing } from "../tracing.js";
 import type { Frame } from "../understudy/frame.js";
 import type { Page } from "../understudy/page.js";
+import { Progress } from "../understudy/progress.js";
 
 const PACKAGES_ROOT = path.resolve(import.meta.dirname, "../..");
 
@@ -41,7 +42,15 @@ describe("Stagehand legacy logging migration", () => {
     } as unknown as Frame;
 
     await expect(
-      performUnderstudyMethod({} as Page, frame, "unsupported", "button", [], logger),
+      performUnderstudyMethod(
+        {} as Page,
+        frame,
+        "unsupported",
+        "button",
+        [],
+        logger,
+        new Progress("act()", 0),
+      ),
     ).rejects.toThrow("Method unsupported not supported");
 
     expect(logs).toContainEqual(
