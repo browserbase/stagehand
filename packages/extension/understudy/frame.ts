@@ -223,6 +223,7 @@ export class Frame implements FrameManager {
         },
       });
       const objectId = response.result.objectId;
+      let completed = false;
       try {
         if (response.exceptionDetails || !objectId) {
           throw new Error(
@@ -250,9 +251,17 @@ export class Frame implements FrameManager {
         if (result.exceptionDetails) {
           throw new Error(result.exceptionDetails.text ?? "Selector wait failed");
         }
+        completed = true;
         return result.result.value as boolean;
       } finally {
-        if (objectId) await dispose(objectId);
+        if (objectId) {
+          // A successful wait has already removed its observers and timers.
+          if (completed) {
+            void progress.cleanup(() => this.session.send("Runtime.releaseObject", { objectId }));
+          } else {
+            await dispose(objectId);
+          }
+        }
       }
     }
   }

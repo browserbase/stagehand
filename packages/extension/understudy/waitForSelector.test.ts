@@ -97,6 +97,37 @@ describe("waitForSelector deadline", () => {
     expect(waits()).toHaveLength(1);
   });
 
+  it.each(["stall", "reject"])(
+    "returns success without waiting when reference release commands %s",
+    async (failure) => {
+      const release = deferred<unknown>();
+      send.mockImplementation((method) => {
+        if (method === "Runtime.releaseObject") {
+          return failure === "stall"
+            ? release.promise
+            : Promise.reject(new Error("session closed"));
+        }
+        return respond(method);
+      });
+      const settled = vi.fn();
+      const pending = page.waitForSelector("button", { timeout: 100 });
+      void pending.then(settled, settled);
+      try {
+        await vi.advanceTimersByTimeAsync(0);
+        expect(settled).toHaveBeenCalledExactlyOnceWith(true);
+        await expect(pending).resolves.toBe(true);
+        expect(cleanupCalls()).toHaveLength(0);
+        expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "wait-handle" });
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(settled).toHaveBeenCalledExactlyOnceWith(true);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        release.resolve({});
+        await vi.advanceTimersByTimeAsync(0);
+      }
+    },
+  );
+
   it("deducts resolution and locator-world readiness from the same budget", async () => {
     const resolution = deferred<void>();
     const readiness = deferred<void>();
@@ -240,7 +271,7 @@ describe("waitForSelector deadline", () => {
         expect(waits()[1][1]).toMatchObject({ contextId: 3 });
       }
       expect(cleanupCalls().map(([, params]) => (params as { objectId: string }).objectId)).toEqual(
-        retries ? ["wait-1", "wait-2"] : ["wait-1"],
+        outcome === "missing again" ? ["wait-1", "wait-2"] : ["wait-1"],
       );
       for (let index = 1; index <= installs; index++) {
         expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: `wait-${index}` });
@@ -416,8 +447,8 @@ describe("waitForSelector deadline", () => {
     await expect(surviving).resolves.toBe(true);
     expect(cleanupCalls().map(([, params]) => (params as { objectId: string }).objectId)).toEqual([
       "wait-1",
-      "wait-2",
     ]);
+    expect(send).toHaveBeenCalledWith("Runtime.releaseObject", { objectId: "wait-2" });
   });
 
   it("preserves a closed session error", async () => {
