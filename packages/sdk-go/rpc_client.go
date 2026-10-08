@@ -313,7 +313,7 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	}
 
 	if durationMilliseconds, found := jsonNumberAtPath(params, path...); found {
-		if (method == "page.pdf" || method == "page.snapshot") && durationMilliseconds == 0 {
+		if (method == "page.pdf" || method == "page.snapshot" || method == "page.wait_for_selector") && durationMilliseconds == 0 {
 			return 0, false
 		}
 		return rpcResponseTimeoutForDuration(durationMilliseconds), true
