@@ -4,9 +4,7 @@ export default defineBenchTask(
   { name: "iframe_form_filling" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/iframe-form-filling/");
 
       await stagehand.act("type 'nunya' into the 'first name' field");
       await stagehand.act("type 'business' into the 'last name' field");

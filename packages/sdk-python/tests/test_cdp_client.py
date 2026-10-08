@@ -487,12 +487,24 @@ async def test_connect_requires_exactly_one_extension_source() -> None:
         )
 
 
-async def test_connect_discovers_a_ready_preloaded_extension(
+@pytest.mark.parametrize("mode", ["browserbase", "local", "missing", "unsupported", "incompatible"])
+async def test_connect_discovers_or_loads_extension(
     monkeypatch: pytest.MonkeyPatch,
+    mode: str,
 ) -> None:
+    accessed = []
+
+    def directory() -> str:
+        accessed.append(True)
+        return "/bundle"
+
     def response_for(message: dict[str, object]) -> dict[str, object]:
         method = message["method"]
         if method == "Extensions.getExtensions":
+            if mode == "unsupported":
+                return {"error": {"code": -32601, "message": "Method not found"}}
+            if mode == "missing":
+                return {"result": {"extensions": []}}
             return {
                 "result": {
                     "extensions": [
@@ -501,6 +513,9 @@ async def test_connect_discovers_a_ready_preloaded_extension(
                     ]
                 }
             }
+        if method == "Extensions.loadUnpacked":
+            assert message["params"] == {"path": "/bundle"}
+            return {"result": {"id": "preloaded"}}
         if method == "Target.getTargets":
             return {
                 "result": {
@@ -517,7 +532,10 @@ async def test_connect_discovers_a_ready_preloaded_extension(
         if method == "Target.attachToTarget":
             return {"result": {"sessionId": "worker-session"}}
         if method == "Runtime.evaluate":
-            return {"result": {"result": {"value": _ready_marker()}}}
+            readiness = _ready_marker()
+            if mode == "incompatible":
+                readiness["marker"] = _marker(_INCOMPATIBLE_PROTOCOL_VERSION)
+            return {"result": {"result": {"value": readiness}}}
         return {"result": {}}
 
     socket = FakeWebSocket(response_for)
@@ -530,14 +548,24 @@ async def test_connect_discovers_a_ready_preloaded_extension(
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    if mode == "incompatible":
+        with pytest.raises(StagehandRuntimeIncompatibleError):
+            await CDPClient.connect(cdp_url="ws://browser", local_extension_dir=directory)
+        assert socket.closed
+        assert accessed == []
+        assert "Extensions.loadUnpacked" not in [message["method"] for message in socket.sent]
+        return
     client = await CDPClient.connect(
-        cdp_url="wss://browserbase",
-        preloaded_extension=True,
+        cdp_url="ws://browser",
+        preloaded_extension=mode == "browserbase",
+        local_extension_dir=directory if mode != "browserbase" else None,
     )
     try:
+        assert accessed == ([True] if mode in ("missing", "unsupported") else [])
         assert client.service_worker.extension_id == "preloaded"
         assert [message["method"] for message in socket.sent] == [
             "Extensions.getExtensions",
+            *(["Extensions.loadUnpacked"] if mode in ("missing", "unsupported") else []),
             "Target.getTargets",
             "Target.attachToTarget",
             "Runtime.enable",
@@ -552,7 +580,7 @@ async def _discover_extension_from_result(result: dict[str, object]) -> str:
     socket = FakeWebSocket(lambda _: {"result": result})
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     try:
-        return await client._discover_installed_stagehand_extension_id()
+        return await client._resolve_extension(load_if_not_found=False)
     finally:
         await client.close()
 
@@ -595,7 +623,7 @@ async def test_installed_extension_discovery_propagates_cdp_command_errors() -> 
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     try:
         with pytest.raises(RuntimeError, match=r"Extensions.getExtensions: Method not available"):
-            await client._discover_installed_stagehand_extension_id()
+            await client._resolve_extension(load_if_not_found=False)
     finally:
         await client.close()
 
@@ -814,3 +842,89 @@ async def test_runtime_wait_keeps_polling_an_incompatible_marker_when_fallback_i
 
     assert len(socket.sent) >= 2
     assert {message["method"] for message in socket.sent} == {"Runtime.evaluate"}
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"result": {"extensions": [_installed_extension(enabled=False)]}},
+        {"result": {"extensions": [_installed_extension("a"), _installed_extension("b")]}},
+        {"result": {"extensions": [{"id": "malformed"}]}},
+        {"error": {"code": -32000, "message": "Permission denied"}},
+    ],
+)
+async def test_local_discovery_errors_do_not_load(response: dict[str, object]) -> None:
+    socket = FakeWebSocket(lambda _: response)
+    client = CDPClient(socket, "ws://browser")
+
+    def directory() -> str:
+        pytest.fail("must not access bundled extension")
+
+    try:
+        with pytest.raises(RuntimeError):
+            await client._resolve_extension(load_if_not_found=True, extension_dir=directory)
+        assert [message["method"] for message in socket.sent] == ["Extensions.getExtensions"]
+    finally:
+        await client.close()
+
+
+@pytest.mark.parametrize("phase", ["discovery", "loading"])
+async def test_local_cancellation_closes_connection(
+    monkeypatch: pytest.MonkeyPatch,
+    phase: str,
+) -> None:
+    requested = asyncio.Event()
+
+    def response_for(message: dict[str, object]) -> dict[str, object] | None:
+        if phase == "loading" and message["method"] == "Extensions.getExtensions":
+            return {"result": {"extensions": []}}
+        requested.set()
+        return None
+
+    socket = FakeWebSocket(response_for)
+
+    async def connect(_: str) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+
+    def directory() -> str:
+        if phase == "discovery":
+            pytest.fail("must not access bundled extension after cancellation")
+        return "/bundle"
+
+    task = asyncio.create_task(
+        CDPClient.connect(cdp_url="ws://browser", local_extension_dir=directory)
+    )
+    await asyncio.wait_for(requested.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert socket.closed
+    assert [message["method"] for message in socket.sent] == [
+        "Extensions.getExtensions",
+        *(["Extensions.loadUnpacked"] if phase == "loading" else []),
+    ]
+
+
+async def test_local_loading_failure_closes_connection_without_retrying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        if message["method"] == "Extensions.getExtensions":
+            return {"result": {"extensions": []}}
+        return {"error": {"code": -32000, "message": "load failed"}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def connect(_: str) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    with pytest.raises(RuntimeError, match="load failed"):
+        await CDPClient.connect(cdp_url="ws://browser", local_extension_dir=lambda: "/bundle")
+    assert socket.closed
+    assert [message["method"] for message in socket.sent] == [
+        "Extensions.getExtensions",
+        "Extensions.loadUnpacked",
+    ]

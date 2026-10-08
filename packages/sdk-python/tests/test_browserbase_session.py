@@ -9,6 +9,7 @@ from importlib.metadata import version
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 from stagehand import browserbase_session
@@ -426,3 +427,66 @@ def test_build_extension_archive_ignores_file_mtime(
     second = build_extension_archive()
 
     assert first == second
+
+
+async def test_official_api_builds_client_from_client_options() -> None:
+    api = browserbase_session._OfficialBrowserbaseAPI(
+        "api-key",
+        "https://api.dev.browserbase.com",
+        {
+            "timeout": 5.0,
+            "max_retries": 0,
+            "default_headers": {"X-Caller": "app"},
+            "default_query": {"trace": "1"},
+        },
+    )
+
+    async with api._client() as client:
+        assert client.api_key == "api-key"
+        assert str(client.base_url).rstrip("/") == "https://api.dev.browserbase.com"
+        assert client.timeout == 5.0
+        assert client.max_retries == 0
+        assert client.default_headers["X-Caller"] == "app"
+        assert client.default_query == {"trace": "1"}
+
+
+async def test_official_api_closes_the_clients_it_creates() -> None:
+    api = browserbase_session._OfficialBrowserbaseAPI("api-key", "https://api.browserbase.com")
+
+    async with api._client() as client:
+        assert not client.is_closed()
+
+    assert client.is_closed()
+
+
+async def test_official_api_routes_through_and_never_closes_a_caller_http_client() -> None:
+    requests: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, request.url.path))
+        assert request.headers["X-BB-API-Key"] == "api-key"
+        if request.url.path == "/v1/extensions":
+            return httpx.Response(200, json={"id": "ext-owned"})
+        if request.url.path == "/v1/sessions":
+            return httpx.Response(200, json={"id": "session-id", "connectUrl": "wss://browser"})
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        return httpx.Response(200, json={"id": "session-id"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = browserbase_session._create_browserbase_session_client(
+            "api-key",
+            "https://api.browserbase.com",
+            {"http_client": http_client, "max_retries": 0},
+        )
+
+        session = await client.create_session(BrowserbaseSessionCreateParams())
+        await session.close()
+
+        assert not http_client.is_closed
+        assert requests == [
+            ("POST", "/v1/extensions"),
+            ("POST", "/v1/sessions"),
+            ("POST", "/v1/sessions/session-id"),
+            ("DELETE", "/v1/extensions/ext-owned"),
+        ]

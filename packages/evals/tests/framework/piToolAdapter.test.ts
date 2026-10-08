@@ -40,6 +40,7 @@ describe("pi tool adapter", () => {
   it("publishes the supported surfaces in default order", () => {
     expect(PI_TOOL_SURFACES).toEqual([
       "stagehand_facade",
+      "stagehand_facade_legacy",
       "playwright_mcp",
       "chrome_devtools_mcp",
       "stagehand_code",
@@ -70,6 +71,7 @@ describe("pi tool adapter", () => {
 
   it("runs handle snippets and awaits observation capture", async () => {
     let observed = false;
+    const snippetLogger = new EvalLogger(false);
     const config = buildPiMountConfig({
       mount: {
         via: "handles",
@@ -82,7 +84,7 @@ describe("pi tool adapter", () => {
         },
       },
       plan,
-      logger,
+      logger: snippetLogger,
       recordObservation: async () => {
         await Promise.resolve();
         observed = true;
@@ -92,13 +94,20 @@ describe("pi tool adapter", () => {
     expect(config.customTools?.[0].name).toBe(AGENT_RUN_TOOL_NAME);
     const result = await config.customTools![0].execute(
       "id",
-      { code: "return await page.title();" },
+      {
+        code: 'console.log("log diagnostic"); console.warn("warn diagnostic"); console.error("error diagnostic"); return await page.title();',
+      },
       undefined,
       undefined,
       {} as never,
     );
     expect(result.content).toEqual([{ type: "text", text: "Example" }]);
     expect(observed).toBe(true);
+    expect(snippetLogger.getLogs().map((line) => line.message)).toEqual([
+      "run console.log: log diagnostic",
+      "run console.warn: warn diagnostic",
+      "run console.error: error diagnostic",
+    ]);
   });
 
   it("does not start a handle snippet for an already-aborted signal", async () => {

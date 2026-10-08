@@ -270,7 +270,11 @@ describe("stagehand facade bridge", () => {
 
   it("bounds a runner tool call and ignores its late response without corrupting later calls", async () => {
     const bridge = await startBridge();
-    await expect(bridge.callTool("__delayed", {}, { timeoutMs: 10 })).rejects.toThrow("after 10ms");
+    await expect(bridge.callTool("__delayed", {}, { timeoutMs: 10 })).rejects.toMatchObject({
+      name: "StagehandFacadeTimeoutError",
+      timeoutMs: 10,
+      message: "Stagehand facade request timed out after 10ms",
+    });
     await expect(bridge.callTool("__delayed", {}, { timeoutMs: 200 })).resolves.toEqual({
       content: [{ type: "text", text: "late" }],
     });

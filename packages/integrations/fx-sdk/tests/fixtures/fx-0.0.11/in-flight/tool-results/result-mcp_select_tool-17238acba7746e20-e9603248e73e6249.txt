@@ -1,0 +1,1 @@
+Selected dynamic MCP tool `mcp_stagehand_screenshot`. Its executable schema will be available on the next model step; call `mcp_stagehand_screenshot` with arguments matching the selected schema.

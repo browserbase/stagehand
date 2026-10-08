@@ -9,9 +9,7 @@ export default defineBenchTask(
     // OOPIF (out of process iframe)
 
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/open-shadow-root-in-oopif/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/open-shadow-root-in-oopif/");
       await stagehand.act("click the button");
 
       // v3 used schemaless extract; v4 requires a schema.

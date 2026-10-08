@@ -63,6 +63,27 @@ def test_generated_models_validate_and_serialize_wire_values() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        models.LocatorOptions,
+        models.LocatorClickOptions,
+        models.LocatorHighlightOptions,
+        models.LocatorSendClickEventOptions,
+        models.LocatorTypeOptions,
+        models.ActOptions,
+    ],
+)
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+def test_generated_models_reject_nonfinite_timeouts(model: type[BaseModel], value: float) -> None:
+    with pytest.raises(ValidationError, match="finite number"):
+        model.model_validate({"timeout": value})
+
+    options = model.model_validate({"timeout": 1000})
+    with pytest.raises(ValidationError, match="finite number"):
+        setattr(options, "timeout", value)
+
+
 def test_generated_json_values_preserve_integer_and_float_types() -> None:
     value = {
         "count": 7,
@@ -100,12 +121,12 @@ def test_generated_models_retain_cross_field_validation() -> None:
 
 def test_generated_models_serialize_protocol_defaults() -> None:
     telemetry = models.TelemetryConfig.model_validate({
-        "traces": {"endpoint": "https://example.com/v1/traces"}
+        "traces": {"endpoint": "https://collector.example.com/v1/traces"}
     })
 
     assert telemetry.model_dump(mode="json", exclude_unset=True) == {
         "traces": {
-            "endpoint": "https://example.com/v1/traces",
+            "endpoint": "https://collector.example.com/v1/traces",
             "headers": {},
         }
     }
@@ -119,17 +140,14 @@ def test_generated_model_defaults_keep_their_declared_types_and_wire_values() ->
     )
 
     assert isinstance(extract.schema_, models.FieldSchema0)
-    assert isinstance(init.telemetry, models.TelemetryConfig)
+    assert init.telemetry is None
     assert "schema_" in extract.model_fields_set
-    assert "telemetry" in init.model_fields_set
+    assert "telemetry" not in init.model_fields_set
     assert (
         extract.model_dump(mode="json", by_alias=True, exclude_unset=True)["schema"]
         == (PROTOCOL["$defs"]["StagehandExtractParams"]["properties"]["schema"]["default"])
     )
-    assert (
-        init.model_dump(mode="json", by_alias=True, exclude_unset=True)["telemetry"]
-        == (PROTOCOL["$defs"]["StagehandInitParams"]["properties"]["telemetry"]["default"])
-    )
+    assert "telemetry" not in init.model_dump(mode="json", by_alias=True, exclude_unset=True)
 
 
 def test_generated_webmcp_models_apply_defaults_and_preserve_user_keys() -> None:

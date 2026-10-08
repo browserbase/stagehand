@@ -157,6 +157,163 @@ describe("functions API contracts", () => {
     );
   });
 
+  itPosix(
+    "generates package-lock.json without registry resolved URLs",
+    async () => {
+      const cwd = await createFunctionFixture("functions-publish-lockgen-");
+      const argsLog = join(cwd, "npm-args.log");
+      const fakeBin = await createFakePackageManagerBin(
+        "npm",
+        `#!/bin/sh\necho "$@" > "${argsLog}"\necho '{"lockfileVersion":3}' > package-lock.json\n`,
+      );
+
+      await withServer(
+        async (request, response) => {
+          if (
+            request.method === "POST" &&
+            request.path === "/v1/functions/builds"
+          ) {
+            jsonResponse(response, 200, { id: "build_lockgen" });
+            return;
+          }
+
+          jsonResponse(response, 200, {
+            id: "build_lockgen",
+            status: "COMPLETED",
+          });
+        },
+        async ({ baseUrl }) => {
+          const result = await runCli(
+            [
+              "functions",
+              "publish",
+              "index.ts",
+              "--api-key",
+              "test-key",
+              "--base-url",
+              baseUrl,
+            ],
+            {
+              cwd,
+              env: {
+                PATH: `${fakeBin}:${process.env.PATH}`,
+              },
+            },
+          );
+
+          expect(result.exitCode).toBe(0);
+          expect(await readFile(argsLog, "utf8")).toContain(
+            "--omit-lockfile-registry-resolved",
+          );
+        },
+      );
+    },
+  );
+
+  itPosix("prints npm output when lockfile generation fails", async () => {
+    const cwd = await createFunctionFixture("functions-publish-lockgen-fail-");
+    const fakeBin = await createFakePackageManagerBin(
+      "npm",
+      "#!/bin/sh\necho 'npm error code EBADDEVENGINES' >&2\nexit 1\n",
+    );
+
+    const result = await runCli(
+      [
+        "functions",
+        "publish",
+        "index.ts",
+        "--api-key",
+        "test-key",
+        "--base-url",
+        "http://127.0.0.1:9",
+      ],
+      {
+        cwd,
+        env: {
+          PATH: `${fakeBin}:${process.env.PATH}`,
+        },
+      },
+    );
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("Failed to generate package-lock.json");
+    expect(result.stderr).toContain("EBADDEVENGINES");
+  });
+
+  itPosix(
+    "resolves local file dependencies when it generates package-lock.json",
+    async () => {
+      const cwd = await createFunctionFixture("functions-publish-local-dep-");
+      await writeFile(join(cwd, "local-sdk.tgz"), "fake tarball");
+      await writeFile(
+        join(cwd, "package.json"),
+        JSON.stringify({
+          name: "functions-fixture",
+          private: true,
+          type: "module",
+          dependencies: { "local-sdk": "file:local-sdk.tgz" },
+        }),
+      );
+      // Log outside the project so the log never lands in the publish archive.
+      const argsLog = join(
+        await createTempDir("functions-local-dep-log-"),
+        "npm-args.log",
+      );
+      // Fake npm fails unless the local dependency is next to package.json, like real npm.
+      const fakeBin = await createFakePackageManagerBin(
+        "npm",
+        `#!/bin/sh
+echo "$@" > "${argsLog}"
+test -f local-sdk.tgz || { echo "npm error ENOENT local-sdk.tgz" >&2; exit 254; }
+echo '{"lockfileVersion":3}' > package-lock.json
+`,
+      );
+
+      await withServer(
+        async (request, response) => {
+          if (
+            request.method === "POST" &&
+            request.path === "/v1/functions/builds"
+          ) {
+            jsonResponse(response, 200, { id: "build_local_dep" });
+            return;
+          }
+
+          jsonResponse(response, 200, {
+            id: "build_local_dep",
+            status: "COMPLETED",
+          });
+        },
+        async ({ baseUrl }) => {
+          const result = await runCli(
+            [
+              "functions",
+              "publish",
+              "index.ts",
+              "--api-key",
+              "test-key",
+              "--base-url",
+              baseUrl,
+            ],
+            {
+              cwd,
+              env: {
+                PATH: `${fakeBin}:${process.env.PATH}`,
+              },
+            },
+          );
+
+          expect(result.stderr).not.toContain("ENOENT");
+          expect(result.exitCode).toBe(0);
+          // Proves lockfile generation ran, so the test fails if publish ever skips it.
+          expect(await readFile(argsLog, "utf8")).toContain(
+            "--package-lock-only",
+          );
+        },
+      );
+    },
+  );
+
   itPosix("exits nonzero when a build fails", async () => {
     const cwd = await createFunctionFixture("functions-publish-fail-");
 
@@ -341,7 +498,60 @@ describe("functions scaffolding and local dev", () => {
     expect(
       await readFile(join(cwd, "demo-function", ".env"), "utf8"),
     ).toContain("BROWSERBASE_API_KEY=");
+    expect(
+      await readFile(join(cwd, "demo-function", "pnpm-workspace.yaml"), "utf8"),
+    ).toContain("allowBuilds:\n  esbuild: true");
   });
+
+  itPosix(
+    "scaffolds a Stagehand project with zod matched to Stagehand",
+    async () => {
+      const cwd = await createTempDir("functions-init-stagehand-");
+      const argsLog = join(cwd, "pnpm-args.log");
+      // Fake pnpm logs each call and installs a Stagehand package.json that pins zod.
+      const fakeBin = await createFakePackageManagerBin(
+        "pnpm",
+        `#!/bin/sh
+echo "$@" >> "${argsLog}"
+case "$*" in
+  *@browserbasehq/stagehand*)
+    mkdir -p node_modules/@browserbasehq/stagehand
+    echo '{"dependencies":{"zod":"4.4.3"}}' > node_modules/@browserbasehq/stagehand/package.json
+    ;;
+esac
+exit 0
+`,
+      );
+
+      const result = await runCli(
+        ["functions", "init", "demo-function", "--package-manager", "pnpm"],
+        {
+          cwd,
+          env: {
+            PATH: `${fakeBin}:${process.env.PATH}`,
+          },
+        },
+      );
+
+      expect(result.exitCode).toBe(0);
+      const calls = (await readFile(argsLog, "utf8")).trim().split("\n");
+      expect(calls).toContain(
+        "add @browserbasehq/sdk-functions @browserbasehq/stagehand",
+      );
+      expect(calls).toContain("add zod@4.4.3");
+      expect(calls).toContain("add -D typescript @types/node");
+      expect(calls.some((call) => call.includes("playwright-core"))).toBe(
+        false,
+      );
+
+      const projectRoot = join(cwd, "demo-function");
+      const starter = await readFile(join(projectRoot, "index.ts"), "utf8");
+      expect(starter).toContain("browserbase.connect(");
+      // browser.close() releases the Function's session
+      expect(starter).not.toContain("await browser.close()");
+      expect(starter).toContain("Stagehand.create({ browser })");
+    },
+  );
 
   it("runs a local dev server and invokes a function", async () => {
     const cwd = await createTempDir("functions-dev-");
@@ -435,6 +645,8 @@ describe("functions scaffolding and local dev", () => {
           ok: true,
           params: { answer: 42 },
           sessionId: "sess_123",
+          // Production sends secrets, so handlers can read context.secrets.NAME without a check.
+          secrets: {},
         });
 
         await waitForRequests(requests, 2);
@@ -918,6 +1130,7 @@ while (true) {
       ok: true,
       params: event.params,
       sessionId: event.context.session.id,
+      secrets: event.context.secrets,
     }),
   });
   if (runtimeStatusLog) {

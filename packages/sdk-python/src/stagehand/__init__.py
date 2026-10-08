@@ -11,6 +11,7 @@ from ._generated.input_types import (
     ModelConfig,
     PageDragAndDropRoutePoint,
     PageEventName,
+    PagePDFMargin,
     PageScreenshotClip,
     RgbaColor,
     TelemetryConfig,
@@ -67,6 +68,7 @@ from .client_models import (
     ExtractResult,
 )
 from .client_types import (
+    BrowserbaseClientOptions,
     CacheOptions,
     LLMGenerateCallback,
     LLMGenerateInput,
@@ -101,6 +103,7 @@ __all__ = [
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",
+    "BrowserbaseClientOptions",
     "BrowserbaseFetchResult",
     "BrowserbaseProxyConfig",
     "BrowserbaseRegion",
@@ -144,6 +147,7 @@ __all__ = [
     "PageDragAndDropRoutePoint",
     "PageEventListener",
     "PageEventName",
+    "PagePDFMargin",
     "PageScreenshotClip",
     "ProtocolLocator",
     "Response",

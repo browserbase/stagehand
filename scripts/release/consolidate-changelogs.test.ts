@@ -6,6 +6,7 @@ import {
   cleanupGeneratedChangelogs,
   consolidateChangelog,
   formatPackageChangelog,
+  packageChangelogs,
   shouldPreservePackageChangelogs,
 } from "./consolidate-changelogs.ts";
 
@@ -44,6 +45,21 @@ describe("formatPackageChangelog", () => {
     expect(() => formatPackageChangelog("# Package\n\nNo releases yet.\n", "Python SDK")).toThrow(
       "The Python SDK changelog does not contain a version heading",
     );
+  });
+
+  it("labels the Eve package changelog for root release notes", () => {
+    const eveChangelog = packageChangelogs.find(({ label }) => label === "Eve Extension");
+    if (!eveChangelog) throw new Error("Missing Eve changelog configuration");
+    expect(eveChangelog).toEqual({
+      label: "Eve Extension",
+      path: path.resolve(import.meta.dirname, "../../packages/integrations/eve/CHANGELOG.md"),
+    });
+    expect(
+      formatPackageChangelog(
+        "# @browserbasehq/eve\n\n## 0.2.0\n\n### Minor Changes\n\n- Add Code Mode.\n",
+        eveChangelog.label,
+      ),
+    ).toContain("## Eve Extension 0.2.0");
   });
 });
 

@@ -104,6 +104,9 @@ describe("Stagehand.create", () => {
         api_url: "https://api.stagehand.dev.browserbase.com",
       },
     });
+    expect((cdp.requestsFor("stagehand.init")[0] as { params: object }).params).not.toHaveProperty(
+      "telemetry",
+    );
 
     await stagehand.close();
     expect(cdp.close).not.toHaveBeenCalled();

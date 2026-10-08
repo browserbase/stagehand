@@ -35,6 +35,7 @@ interface InvocationContext {
     id: string;
     connectUrl: string;
   };
+  secrets: Record<string, string>;
 }
 
 interface PendingConnection {
@@ -587,7 +588,8 @@ async function routeRequest(
     const accepted = bridge.triggerInvocation(
       functionName,
       params,
-      { session },
+      // Match production, which always sends secrets.
+      { session, secrets: {} },
       corsHeaders,
       response,
     );
