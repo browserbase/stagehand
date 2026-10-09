@@ -20,7 +20,10 @@ import { buildGatewayContext } from "../llm/gatewayClient.js";
 import * as observeService from "../services/observeService.js";
 
 export type StagehandControllerOptions = {
-  initialize?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
+  initialize?: (
+    params: StagehandInitParams,
+    logger: HandlerContext["logger"],
+  ) => Promise<StagehandInitResult>;
   close?: () => Promise<void>;
 };
 
@@ -51,7 +54,7 @@ export function createStagehandController(
     logger.setLevel(params.logLevel);
     logger.info("stagehand.init", {});
     return options.initialize
-      ? await options.initialize(params)
+      ? await options.initialize(params, logger)
       : await runtime.initialize(params, logger);
   }
 

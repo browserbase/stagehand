@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveResidentBrowserWebSocketUrl } from "../service-worker-lifecycle/resident-browser-proxy.js";
+import {
+  ResidentBrowserProxyError,
+  resolveResidentBrowserWebSocketUrl,
+} from "../service-worker-lifecycle/resident-browser-proxy.js";
 
-function response(body: unknown, init: { ok?: boolean; status?: number } = {}): Response {
+function response(
+  body: unknown,
+  init: { ok?: boolean; status?: number; json?: () => Promise<unknown> } = {},
+): Response {
   return {
     ok: init.ok ?? true,
     status: init.status ?? 200,
-    json: async () => body,
+    json: init.json ?? (async () => body),
   } as Response;
 }
 
@@ -111,15 +117,18 @@ describe("resident browser proxy resolver", () => {
     ).rejects.toThrow(message);
   });
 
-  it("rejects HTTP failures", async () => {
-    await expect(
-      resolveResidentBrowserWebSocketUrl("http://127.0.0.1:9333", {
-        fetch: async () => response({}, { ok: false, status: 503 }),
-      }),
-    ).rejects.toThrow("HTTP 503");
+  it("reports rejected fetches as unavailable", async () => {
+    const result = resolveResidentBrowserWebSocketUrl("http://127.0.0.1:9333", {
+      fetch: async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+
+    await expect(result).rejects.toMatchObject({ code: "RESIDENT_PROXY_UNAVAILABLE" });
+    await expect(result).rejects.toThrow(/RESIDENT_PROXY_UNAVAILABLE.*extensions/);
   });
 
-  it("aborts a request after the bounded timeout", async () => {
+  it("reports a bounded timeout as unavailable", async () => {
     const fetch = vi.fn(
       async (_input: URL | RequestInfo, init?: RequestInit): Promise<Response> =>
         await new Promise((_, reject) => {
@@ -131,7 +140,60 @@ describe("resident browser proxy resolver", () => {
 
     await expect(
       resolveResidentBrowserWebSocketUrl("http://127.0.0.1:9333", { fetch, timeoutMs: 1 }),
-    ).rejects.toThrow("timed out after 1ms");
+    ).rejects.toMatchObject({ code: "RESIDENT_PROXY_UNAVAILABLE" });
+  });
+
+  it("reports an origin rejection as forbidden", async () => {
+    const result = resolveResidentBrowserWebSocketUrl("http://127.0.0.1:9333", {
+      fetch: async () => response({ error: "forbidden" }, { ok: false, status: 403 }),
+    });
+
+    await expect(result).rejects.toMatchObject({
+      code: "RESIDENT_PROXY_FORBIDDEN",
+      status: 403,
+    });
+  });
+
+  it.each(["stagehand_not_enabled", "browser_unavailable"])(
+    "reports HTTP 503 with %s as not ready",
+    async (error) => {
+      const result = resolveResidentBrowserWebSocketUrl("http://127.0.0.1:9333", {
+        fetch: async () => response({ error }, { ok: false, status: 503 }),
+      });
+
+      await expect(result).rejects.toMatchObject({
+        code: "RESIDENT_PROXY_NOT_READY",
+        status: 503,
+      });
+      await expect(result).rejects.toThrow(error);
+    },
+  );
+
+  it("keeps an unknown HTTP failure as a plain error when its body is not JSON", async () => {
+    const error = await resolveResidentBrowserWebSocketUrl("http://127.0.0.1:9333", {
+      fetch: async () =>
+        response(undefined, {
+          ok: false,
+          status: 500,
+          json: async () => {
+            throw new SyntaxError("not JSON");
+          },
+        }),
+    }).catch((reason: unknown) => reason);
+
+    expect(error).toEqual(new Error("Browser proxy version request failed with HTTP 500"));
+    expect(error).not.toBeInstanceOf(ResidentBrowserProxyError);
+  });
+
+  it("reports a known readiness body on another HTTP status as not ready", async () => {
+    await expect(
+      resolveResidentBrowserWebSocketUrl("http://127.0.0.1:9333", {
+        fetch: async () => response({ error: "browser_unavailable" }, { ok: false, status: 502 }),
+      }),
+    ).rejects.toMatchObject({
+      code: "RESIDENT_PROXY_NOT_READY",
+      status: 502,
+    });
   });
 
   it.each([
