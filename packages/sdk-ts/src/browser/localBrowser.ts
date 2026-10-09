@@ -15,7 +15,7 @@ export const DEFAULT_CHROME_FLAGS = [
   "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider," +
     "CalculateNativeWinOcclusion,InterestFeedContentSuggestions," +
     "CertificateTransparencyComponentUpdater,AutofillServerCommunication," +
-    "PrivacySandboxSettings4,RenderDocument",
+    "PrivacySandboxSettings4,RenderDocument,SpareRendererForSitePerProcess",
   "--disable-component-extensions-with-background-pages",
   "--disable-background-networking",
   "--disable-component-update",
@@ -194,7 +194,7 @@ export function localBrowserChromeFlags(
   const viewport = options.viewport ?? { width: 1280, height: 800 };
   const windowSizeFlag = `--window-size=${viewport.width},${viewport.height}`;
 
-  return [
+  return mergeChromeFeatureFlags([
     ...(includeDefaults ? selectedChromeFlags(DEFAULT_CHROME_FLAGS, ignoredFlags) : []),
     ...(options.viewport !== undefined || (includeDefaults && !ignoredFlags.has(windowSizeFlag))
       ? [windowSizeFlag]
@@ -214,7 +214,29 @@ export function localBrowserChromeFlags(
     ...(options.ignoreHTTPSErrors === true ? ["--ignore-certificate-errors"] : []),
     ...(options.args ?? []),
     "about:blank",
-  ];
+  ]);
+}
+
+function mergeChromeFeatureFlags(flags: string[]): string[] {
+  const prefixes = ["--enable-features=", "--disable-features="];
+  const features = new Map<string, Map<string, string>>();
+  for (const flag of flags) {
+    const prefix = prefixes.find((prefix) => flag.startsWith(prefix));
+    if (!prefix) continue;
+    const values = features.get(prefix) ?? new Map<string, string>();
+    for (const value of flag.slice(prefix.length).split(",")) {
+      if (value) values.set(value.trim().split(/[<:.]/, 1)[0].trim().replace(/^\*/, ""), value);
+    }
+    features.set(prefix, values);
+  }
+  const emitted = new Set<string>();
+  return flags.flatMap((flag) => {
+    const prefix = prefixes.find((prefix) => flag.startsWith(prefix));
+    if (!prefix) return [flag];
+    if (emitted.has(prefix)) return [];
+    emitted.add(prefix);
+    return [prefix + [...features.get(prefix)!.values()].join(",")];
+  });
 }
 
 function selectedChromeFlags(

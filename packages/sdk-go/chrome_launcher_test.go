@@ -152,6 +152,114 @@ func TestBuildChromeArgsPutsCallerArgumentsLast(t *testing.T) {
 	}
 }
 
+func TestBuildChromeArgsMergesCallerFeatureLists(t *testing.T) {
+	got := buildChromeArgs(LocalBrowserLaunchOptions{
+		Args: []string{
+			"--disable-features=CustomFeature,Translate,,",
+			"--enable-features=CustomEnabled,WebMCPTesting",
+			"--disable-features=AnotherFeature,CustomFeature,CustomFeature:mode/on",
+			"--enable-features=CustomEnabled,AnotherEnabled",
+			"--custom-flag=value",
+		},
+	}, 9_222, "/tmp/profile")
+	for prefix, want := range map[string]string{
+		"--disable-features=": defaultChromeFlags[0] + ",CustomFeature:mode/on,AnotherFeature",
+		"--enable-features=":  testWebMCPChromeFlag + ",CustomEnabled,AnotherEnabled",
+	} {
+		var matches []string
+		for _, arg := range got {
+			if strings.HasPrefix(arg, prefix) {
+				matches = append(matches, arg)
+			}
+		}
+		if !slices.Equal(matches, []string{want}) {
+			t.Errorf("feature flags for %q = %#v, want %#v", prefix, matches, []string{want})
+		}
+	}
+	if !strings.HasPrefix(got[0], "--disable-features=") {
+		t.Fatalf("first argument = %q, want merged default feature flag", got[0])
+	}
+	if !slices.Equal(got[len(got)-2:], []string{"--custom-flag=value", "about:blank"}) {
+		t.Fatalf("argument suffix = %#v, want caller flag and blank page", got[len(got)-2:])
+	}
+}
+
+func TestBuildChromeArgsKeepsLastFeatureVariant(t *testing.T) {
+	for _, override := range []string{
+		"WebMCPTesting",
+		"WebMCPTesting:mode/on",
+		"WebMCPTesting<Trial.Group:mode/on",
+		"WebMCPTesting.Group:mode/on",
+		"*WebMCPTesting<Trial",
+		" \t*WebMCPTesting<Trial.Group:mode/on \t",
+		"WebMCPTesting :mode/on",
+		" \t*WebMCPTesting \t<Trial.Group:mode/on \t",
+	} {
+		t.Run(override, func(t *testing.T) {
+			got := buildChromeArgs(LocalBrowserLaunchOptions{
+				Args: []string{
+					"--enable-features=WebMCPTesting:mode/old,CustomEnabled",
+					"--enable-features=" + override,
+				},
+			}, 9_222, "/tmp/profile")
+			var matches []string
+			for _, arg := range got {
+				if strings.HasPrefix(arg, "--enable-features=") {
+					matches = append(matches, arg)
+				}
+			}
+			want := []string{"--enable-features=" + override + ",DevToolsWebMCPSupport,CustomEnabled"}
+			if !slices.Equal(matches, want) {
+				t.Errorf("enabled features = %#v, want %#v", matches, want)
+			}
+		})
+	}
+}
+
+func TestBuildChromeArgsReplacesExplicitlyIgnoredFeatureDefaults(t *testing.T) {
+	tests := []struct {
+		name   string
+		ignore *IgnoreDefaultArgs
+		args   []string
+	}{
+		{
+			name:   "disabled features",
+			ignore: &IgnoreDefaultArgs{Args: []string{defaultChromeFlags[0]}},
+			args:   []string{"--disable-features=CustomFeature"},
+		},
+		{
+			name:   "enabled features",
+			ignore: &IgnoreDefaultArgs{Args: []string{testWebMCPChromeFlag}},
+			args:   []string{"--enable-features=CustomEnabled"},
+		},
+		{
+			name:   "all defaults",
+			ignore: &IgnoreDefaultArgs{All: true},
+			args:   []string{"--disable-features=CustomFeature", "--enable-features=CustomEnabled"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := buildChromeArgs(LocalBrowserLaunchOptions{
+				IgnoreDefaultArgs: test.ignore,
+				Args:              test.args,
+			}, 9_222, "/tmp/profile")
+			for _, want := range test.args {
+				prefix := strings.SplitN(want, "=", 2)[0] + "="
+				var matches []string
+				for _, arg := range got {
+					if strings.HasPrefix(arg, prefix) {
+						matches = append(matches, arg)
+					}
+				}
+				if !slices.Equal(matches, []string{want}) {
+					t.Errorf("feature flags for %q = %#v, want %#v", prefix, matches, []string{want})
+				}
+			}
+		})
+	}
+}
+
 func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 	t.Run("all", func(t *testing.T) {
 		got := buildChromeArgs(
