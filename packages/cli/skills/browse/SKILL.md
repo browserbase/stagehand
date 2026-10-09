@@ -241,6 +241,9 @@ browse cloud extensions get <extension-id>
 browse cloud extensions delete <extension-id>
 browse cloud fetch https://example.com
 browse cloud search "browser automation"
+browse cloud search "browserbase docs" --provider parallel --mode fast
+browse cloud search "browser automation research" --provider parallel --mode advanced
+browse cloud search "browserbase docs" --provider exa
 ```
 
 For remote sessions with context persistence:
@@ -263,6 +266,8 @@ browse cloud contexts list                          # show saved names
 Use `--verified` when the task needs Browserbase Verified browser mode. To drive a Verified/proxied session directly, prefer `browse open <url> --remote --verified --proxies` over create-then-attach — it keeps the session identity so `browse status`/`browse doctor` can report it. Use `browse cloud sessions create` for session options the driver flags don't cover (region, keep-alive, contexts, full `--stdin` body).
 
 Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser interaction. It returns markdown-formatted page content by default; pass `--format raw` for the original response body or `--format json --schema <schema>` for structured extraction. Use `browse cloud search` when the user asks for web search results.
+
+Search accepts `--provider parallel|exa` and `--mode fast|advanced`. Provider and mode selection requires the Search API upgrade and is unavailable until that upgrade is deployed. Parallel supports both modes; omit `--mode` with Exa. Leave either flag unset to let the API choose the default provider or the provider choose its default tier. `fast` favors lower latency and cost; `advanced` favors deeper results.
 
 ## Browserbase Functions
 
