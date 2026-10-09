@@ -414,7 +414,13 @@ def _sanitize_strings(value: object) -> object:
     if isinstance(value, list):
         return [_sanitize_strings(item) for item in value]
     if isinstance(value, dict):
-        return {key: _sanitize_strings(item) for key, item in value.items()}
+        # Image blocks carry raw base64 bytes in "data"; never run the secret
+        # regexes over them (they can match inside base64 and corrupt the image).
+        is_image_block = "data" in value and "mime_type" in value
+        return {
+            key: item if (is_image_block and key == "data") else _sanitize_strings(item)
+            for key, item in value.items()
+        }
     return value
 
 

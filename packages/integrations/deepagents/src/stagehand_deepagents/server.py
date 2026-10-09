@@ -273,7 +273,8 @@ def _sanitize_error(message: str) -> str:
     message = re.sub(r"\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+", r"\1[redacted]", message)
     message = re.sub(r"\bAIza[0-9A-Za-z_-]{30,}", "AIza[redacted]", message)
     message = re.sub(
-        r"\b((?:gh[pousr]_|github_pat_|xox[baprs]-|sk-ant-|gsk_|csk-|xai-)[A-Za-z0-9]{4})[A-Za-z0-9_-]+",
+        r"\b((?:gh[pousr]_|github_pat_|xox[baprs]-|sk-ant-|gsk_|csk-|xai-)[A-Za-z0-9]{4})"
+        r"[A-Za-z0-9_-]+",
         r"\1[redacted]",
         message,
         flags=re.IGNORECASE,

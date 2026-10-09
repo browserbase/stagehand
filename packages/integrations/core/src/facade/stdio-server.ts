@@ -193,12 +193,33 @@ function errorResult(error: unknown) {
   return { ...textResult(message), isError: true };
 }
 
+// Field names whose VALUE is a credential regardless of its format, so the
+// format-based sanitizeErrorMessage regexes cannot catch them on their own.
+const SENSITIVE_KEY_PATTERN =
+  /^(?:api[-_]?key|authorization|token|secret|password|cookie|signingkey|x-bb-api-key|x-bb-session-id|connecturl)$/i;
+
+// Deep-walk a structured tool result and redact values held under a sensitive
+// field name before serialization. sanitizeErrorMessage still runs on the final
+// text to catch credentials that appear in string positions.
+function redactStructured(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactStructured);
+  if (value !== null && typeof value === "object") {
+    const redacted: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value)) {
+      redacted[key] = SENSITIVE_KEY_PATTERN.test(key) ? "[redacted]" : redactStructured(val);
+    }
+    return redacted;
+  }
+  return value;
+}
+
 function stringifyResult(value: unknown): string {
   if (typeof value === "string") return value;
+  const redacted = redactStructured(value);
   try {
-    return JSON.stringify(value, null, 2) ?? String(value);
+    return JSON.stringify(redacted, null, 2) ?? String(redacted);
   } catch {
-    return String(value);
+    return String(redacted);
   }
 }
 

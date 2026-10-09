@@ -37,6 +37,7 @@ from ._generated.models import (
     StagehandInitParams,
     StagehandInitResult,
     StagehandLog,
+    StagehandLogData,
     StagehandMetrics,
     StagehandObserveParams,
 )
@@ -520,7 +521,7 @@ class Stagehand:
             return
 
         try:
-            result = logging.on_log(notification)
+            result = logging.on_log(_sanitize_stagehand_log(notification))
             if inspect.isawaitable(result):
                 await result
         except Exception as error:
@@ -598,6 +599,26 @@ def _redact_secrets(text: str) -> str:
     for pattern, repl in _SECRET_PATTERNS:
         text = pattern.sub(repl, text)
     return text
+
+
+def _redact_json_value(value: object) -> object:
+    if isinstance(value, str):
+        return _redact_secrets(value)
+    if isinstance(value, list):
+        return [_redact_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_json_value(item) for key, item in value.items()}
+    return value
+
+
+def _sanitize_stagehand_log(notification: StagehandLog) -> StagehandLog:
+    sanitized_data = _redact_json_value(notification.data.model_dump(mode="json"))
+    return notification.model_copy(
+        update={
+            "message": _redact_secrets(notification.message),
+            "data": StagehandLogData.model_validate(sanitized_data),
+        }
+    )
 
 
 def _render_stagehand_log(notification: StagehandLog, format_: str) -> str:
