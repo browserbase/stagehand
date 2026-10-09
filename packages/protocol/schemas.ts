@@ -1375,7 +1375,7 @@ export const HTTPRequestErrorDataSchema = z
     id: "HTTPRequestErrorData",
     description:
       "JSON-RPC error data for HTTP transport failures; HTTP statuses use the normal result.",
-  });/** Identifies a connection registered with the connected SDK. */
+  }); /** Identifies a connection registered with the connected SDK. */
 export const HTTPConnectionReferenceSchema = z
   .strictObject({ configurationId: httpIdSchema })
   .meta({ id: "HTTPConnectionReference" });
