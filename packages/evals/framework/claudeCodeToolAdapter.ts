@@ -25,6 +25,7 @@ import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { executeCodeExposureSnippet } from "./codeExposure.js";
 import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
 
@@ -565,7 +566,7 @@ async function executeCodeExposureRunTool(input: {
 }): Promise<ClaudeToolResult> {
   try {
     const result = await withTimeout(
-      executeCodeExposureSnippet(input),
+      executeCodeExposureSnippet({ ...input, logCategory: "claude_code" }),
       readPositiveIntEnv("EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS", 60_000),
     );
     const text = stringifyToolResult(result);
@@ -589,54 +590,6 @@ async function executeCodeExposureRunTool(input: {
       content: [{ type: "text", text: message }],
     };
   }
-}
-
-async function executeCodeExposureSnippet(input: {
-  code: string;
-  handles: Record<string, unknown>;
-  runToolSpec: AgentRunToolSpec;
-  plan: ExternalHarnessTaskPlan;
-  logger: EvalLogger;
-}): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-    ...args: string[]
-  ) => (...values: unknown[]) => Promise<unknown>;
-  // Snippet scope = the exposure's handle names plus startUrl/task/console.
-  // Object.keys/Object.values over the same object are guaranteed to align,
-  // so names — not positions — bind the values.
-  const fn = new AsyncFunction(
-    ...Object.keys(input.handles),
-    "startUrl",
-    "task",
-    "console",
-    input.code,
-  );
-  return fn(
-    ...Object.values(input.handles),
-    input.plan.startUrl,
-    {
-      dataset: input.plan.dataset,
-      id: input.plan.taskId,
-      startUrl: input.plan.startUrl,
-      instruction: input.plan.instruction,
-    },
-    buildRunToolConsole(input.logger),
-  );
-}
-
-function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" | "error"> {
-  const write = (level: "log" | "warn" | "error", values: unknown[]) => {
-    logger.log({
-      category: "claude_code",
-      message: `run console.${level}: ${values.map(stringifyToolResult).join(" ")}`,
-      level: 1,
-    });
-  };
-  return {
-    log: (...values: unknown[]) => write("log", values),
-    warn: (...values: unknown[]) => write("warn", values),
-    error: (...values: unknown[]) => write("error", values),
-  };
 }
 
 function buildBrowseCliPromptInstructions(plan: ExternalHarnessTaskPlan): string {

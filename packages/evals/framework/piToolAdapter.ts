@@ -12,13 +12,13 @@ import {
   AGENT_RUN_TOOL_NAME,
   type BrowserSessionLoss,
   type AgentMount,
-  type AgentRunToolSpec,
   type StartupProfile,
   type ToolSurface,
 } from "../core/contracts/tool.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import { executeCodeExposureSnippet } from "./codeExposure.js";
 import type { BrowserSessionInfo } from "./browserSession.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { resolveStartupProfile, resolveToolSurface } from "./harnesses/toolSurfaceResolution.js";
@@ -107,6 +107,7 @@ export function buildPiMountConfig(input: {
           runToolSpec: mount.runTool,
           plan: input.plan,
           logger: input.logger,
+          logCategory: "pi",
         });
         try {
           const result = await withTimeout(
@@ -262,52 +263,6 @@ function boundedCaptureEvidence(
     } catch {
       return {};
     }
-  };
-}
-
-// Duplicated from claudeCodeToolAdapter.ts (private there); consolidate when a third harness needs it.
-async function executeCodeExposureSnippet(input: {
-  code: string;
-  handles: Record<string, unknown>;
-  runToolSpec: AgentRunToolSpec;
-  plan: ExternalHarnessTaskPlan;
-  logger: EvalLogger;
-}): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-    ...args: string[]
-  ) => (...values: unknown[]) => Promise<unknown>;
-  const fn = new AsyncFunction(
-    ...Object.keys(input.handles),
-    "startUrl",
-    "task",
-    "console",
-    input.code,
-  );
-  return fn(
-    ...Object.values(input.handles),
-    input.plan.startUrl,
-    {
-      dataset: input.plan.dataset,
-      id: input.plan.taskId,
-      startUrl: input.plan.startUrl,
-      instruction: input.plan.instruction,
-    },
-    buildRunToolConsole(input.logger),
-  );
-}
-
-function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" | "error"> {
-  const write = (level: "log" | "warn" | "error", values: unknown[]) => {
-    logger.log({
-      category: "pi",
-      message: `run console.${level}: ${values.map(stringifyToolResult).join(" ")}`,
-      level: 1,
-    });
-  };
-  return {
-    log: (...values: unknown[]) => write("log", values),
-    warn: (...values: unknown[]) => write("warn", values),
-    error: (...values: unknown[]) => write("error", values),
   };
 }
 
