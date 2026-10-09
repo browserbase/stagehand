@@ -141,6 +141,8 @@ describe("bench harness registry", () => {
     expect(harness.execute).toBeDefined();
     expect(harness.start).toBeUndefined();
     expect(harness.supportedToolSurfaces).toEqual([
+      "browse_cli",
+      "stagehand_code",
       "stagehand_facade",
       "stagehand_facade_legacy",
       "playwright_mcp",
