@@ -34,3 +34,14 @@ export class ShadowRootEvaluationUnavailableError extends Error {
     this.name = "ShadowRootEvaluationUnavailableError";
   }
 }
+
+export class BrowserSessionUnavailableError extends Error {
+  readonly code = "STAGEHAND_BROWSER_SESSION_UNAVAILABLE";
+
+  constructor(timeoutMs: number) {
+    super(
+      `STAGEHAND_BROWSER_SESSION_UNAVAILABLE: The Stagehand browser connection is being re-established; it did not become available within ${timeoutMs}ms`,
+    );
+    this.name = "BrowserSessionUnavailableError";
+  }
+}

@@ -57,6 +57,13 @@ export const DEFAULT_RUNTIME_REQUIREMENT: RuntimeRequirement = Object.freeze({
   protocolVersion: STAGEHAND_PROTOCOL_VERSION,
 });
 
+// The resident runtime publishes operational fields (state, connected, timings) next to the
+// descriptor; only the descriptor takes part in negotiation, matching the Go and Python SDKs.
+const RuntimeMarkerEnvelopeSchema = z.looseObject({
+  protocolVersion: z.unknown(),
+  serverInfo: z.unknown(),
+});
+
 export function negotiateRuntimeCompatibility(
   required: RuntimeRequirement,
   raw: unknown,
@@ -69,7 +76,17 @@ export function negotiateRuntimeCompatibility(
     };
 
   try {
-    const result = ReportedRuntimeDescriptorSchema.safeParse(raw);
+    const marker = RuntimeMarkerEnvelopeSchema.safeParse(raw);
+    if (!marker.success)
+      return {
+        kind: "unknown",
+        reason: "unreadable-marker",
+        detail: z.prettifyError(marker.error),
+      };
+    const result = ReportedRuntimeDescriptorSchema.safeParse({
+      protocolVersion: marker.data.protocolVersion,
+      serverInfo: marker.data.serverInfo,
+    });
     if (!result.success)
       return {
         kind: "unknown",
