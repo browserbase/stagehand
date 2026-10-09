@@ -67,6 +67,11 @@ import type {
   DefaultExtractDataSchema,
   DomainPolicySchema,
   EmptyParamsSchema,
+  HTTPHeaderSchema,
+  HTTPRequestParamsSchema,
+  HTTPRequestResultSchema,
+  HTTPCancelParamsSchema,
+  HTTPRequestErrorDataSchema,
   ExternalProxyConfigSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
@@ -492,3 +497,9 @@ export type BrowserbaseProxyGeolocation = z.infer<typeof BrowserbaseProxyGeoloca
 export type BrowserbaseViewport = z.infer<typeof BrowserbaseViewportSchema>;
 export type ExternalProxyConfig = z.infer<typeof ExternalProxyConfigSchema>;
 export type ProxyConfig = z.infer<typeof ProxyConfigSchema>;
+
+export type HTTPHeader = z.infer<typeof HTTPHeaderSchema>;
+export type HTTPRequestParams = z.infer<typeof HTTPRequestParamsSchema>;
+export type HTTPRequestResult = z.infer<typeof HTTPRequestResultSchema>;
+export type HTTPCancelParams = z.infer<typeof HTTPCancelParamsSchema>;
+export type HTTPRequestErrorData = z.infer<typeof HTTPRequestErrorDataSchema>;

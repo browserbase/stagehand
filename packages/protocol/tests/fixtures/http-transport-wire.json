@@ -1,0 +1,244 @@
+{
+  "requests": [
+    {
+      "name": "JSON model request",
+      "wire": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "http.request",
+        "params": {
+          "request_id": "http-1",
+          "configuration_id": "model-1",
+          "scope_id": "call-1",
+          "method": "POST",
+          "path": "/v1/responses?apiVersion=2026-01",
+          "headers": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Request_Label",
+              "value": "KeepThis_Value"
+            }
+          ],
+          "body_base64": "eyJtb2RlbCI6ImV4YW1wbGUifQ==",
+          "timeout_ms": 5000
+        }
+      }
+    },
+    {
+      "name": "omitted request body",
+      "wire": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "http.request",
+        "params": {
+          "request_id": "http-2",
+          "configuration_id": "model-1",
+          "scope_id": "call-1",
+          "method": "GET",
+          "path": "/v1/models",
+          "headers": []
+        }
+      }
+    },
+    {
+      "name": "empty request body",
+      "wire": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "http.request",
+        "params": {
+          "request_id": "http-3",
+          "configuration_id": "cache-1",
+          "scope_id": "call-1",
+          "method": "POST",
+          "path": "/v1/cache/get",
+          "headers": [],
+          "body_base64": ""
+        }
+      }
+    },
+    {
+      "name": "binary request",
+      "wire": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "http.request",
+        "params": {
+          "request_id": "http-4",
+          "configuration_id": "model-1",
+          "scope_id": "call-2",
+          "method": "POST",
+          "path": "/v1/messages",
+          "headers": [],
+          "body_base64": "AP+A"
+        }
+      }
+    }
+  ],
+  "results": [
+    {
+      "name": "UTF-8 response",
+      "wire": {
+        "status": 200,
+        "status_text": "OK",
+        "headers": [
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body_base64": "eyJhbnN3ZXIiOiLimIMifQ=="
+      }
+    },
+    {
+      "name": "retryable status and repeated headers",
+      "wire": {
+        "status": 429,
+        "status_text": "Too Many Requests",
+        "headers": [
+          {
+            "name": "retry-after-ms",
+            "value": "125"
+          },
+          {
+            "name": "Retry-After",
+            "value": "2"
+          },
+          {
+            "name": "X-Trace",
+            "value": "First_Value"
+          },
+          {
+            "name": "X-Trace",
+            "value": "Second_Value"
+          }
+        ],
+        "body_base64": "eyJlcnJvciI6InRyeSBhZ2FpbiJ9"
+      }
+    },
+    {
+      "name": "empty response",
+      "wire": {
+        "status": 204,
+        "headers": [],
+        "body_base64": ""
+      }
+    },
+    {
+      "name": "binary response",
+      "wire": {
+        "status": 200,
+        "headers": [],
+        "body_base64": "AP+A"
+      }
+    }
+  ],
+  "cancel": {
+    "jsonrpc": "2.0",
+    "method": "http.cancel",
+    "params": {
+      "request_id": "http-1"
+    }
+  },
+  "errors": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "network"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "timeout"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "aborted"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "invalid_request"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "configuration_unavailable"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "scope_closed"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "disconnected"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "error": {
+        "code": -32603,
+        "message": "HTTP request did not complete",
+        "data": {
+          "type": "http.request",
+          "kind": "limit_exceeded"
+        }
+      }
+    }
+  ]
+}

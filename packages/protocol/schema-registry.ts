@@ -31,6 +31,9 @@ import {
   ContextSetExtraHTTPHeadersParamsSchema,
   ContextVoidResultSchema,
   EmptyParamsSchema,
+  HTTPRequestParamsSchema,
+  HTTPRequestResultSchema,
+  HTTPCancelParamsSchema,
   ExtractResultSchema,
   LocatorClickParamsSchema,
   LocatorClickResultSchema,
@@ -167,6 +170,14 @@ export const StagehandMethods = {
     result: CallbackBatchResultSchema,
     paramsWire: { opaqueKeys: ["input"] },
     resultWire: { opaqueKeys: ["value"] },
+  },
+  // The connected SDK handles this worker-originated request.
+  httpRequest: {
+    name: "http.request",
+    params: HTTPRequestParamsSchema,
+    result: HTTPRequestResultSchema,
+    paramsWire: { opaqueKeys: ["headers"] },
+    resultWire: { opaqueKeys: ["headers"] },
   },
   llmGenerate: {
     name: "llm.generate",
@@ -542,6 +553,8 @@ export const StagehandRpcRequestSchema = z
   .meta({ id: "StagehandRpcRuntimeRequest" });
 
 export const StagehandNotifications = {
+  // The worker sends cancellation to the SDK handling the HTTP request.
+  httpCancel: { name: "http.cancel", params: HTTPCancelParamsSchema, paramsWire: undefined },
   log: { name: "stagehand.log", params: StagehandLogSchema, paramsWire: undefined },
   pageCDPEvent: {
     name: "page.cdp_event",

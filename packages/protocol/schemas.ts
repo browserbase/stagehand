@@ -1294,6 +1294,89 @@ export const ObserveResultSchema = z
 
 export const EmptyParamsSchema = z.strictObject({}).meta({ id: "EmptyParams" });
 
+/** Wire fields are bounded here; HTTP executors also check decoded body and total header bytes. */
+export const HTTP_TRANSPORT_LIMITS = {
+  bodyBytes: 64 * 1024 * 1024,
+  headerCount: 128,
+  headerBytes: 64 * 1024,
+  headerNameLength: 256,
+  headerValueLength: 8 * 1024,
+  pathLength: 8 * 1024,
+  idLength: 128,
+  timeoutMs: 2_147_483_647,
+} as const;
+
+const httpIdSchema = z.string().min(1).max(HTTP_TRANSPORT_LIMITS.idLength);
+
+export const HTTPHeaderSchema = z
+  .strictObject({
+    name: z.string().min(1).max(HTTP_TRANSPORT_LIMITS.headerNameLength),
+    value: z.string().max(HTTP_TRANSPORT_LIMITS.headerValueLength),
+  })
+  .meta({ id: "HTTPHeader" });
+
+const httpHeadersSchema = z.array(HTTPHeaderSchema).max(HTTP_TRANSPORT_LIMITS.headerCount);
+
+const httpBodySchema = z
+  .base64()
+  .max(Math.ceil(HTTP_TRANSPORT_LIMITS.bodyBytes / 3) * 4)
+  .meta({ format: "byte" });
+
+/** Sent by the worker to the connected SDK for one buffered HTTP attempt. */
+export const HTTPRequestParamsSchema = z
+  .strictObject({
+    requestId: httpIdSchema,
+    configurationId: httpIdSchema,
+    scopeId: httpIdSchema,
+    method: z.enum(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]),
+    path: z.string().min(1).max(HTTP_TRANSPORT_LIMITS.pathLength),
+    headers: httpHeadersSchema,
+    bodyBase64: httpBodySchema.optional(),
+    timeoutMs: z.int().positive().max(HTTP_TRANSPORT_LIMITS.timeoutMs).optional(),
+  })
+  .meta({
+    id: "HTTPRequestParams",
+    description: "Worker-to-client buffered HTTP request. Omitted timeout means no HTTP deadline.",
+  });
+
+export const HTTPRequestResultSchema = z
+  .strictObject({
+    status: z.int().min(200).max(599),
+    statusText: z.string().max(1024).optional(),
+    headers: httpHeadersSchema,
+    bodyBase64: httpBodySchema,
+  })
+  .meta({
+    id: "HTTPRequestResult",
+    description: "Buffered HTTP response, including non-2xx statuses. Body bytes are base64.",
+  });
+
+/** Sent by the worker to cancel an HTTP request on the same client connection. */
+export const HTTPCancelParamsSchema = z.strictObject({ requestId: httpIdSchema }).meta({
+  id: "HTTPCancelParams",
+  description: "Worker-to-client HTTP cancellation. Repeated or completed request IDs are no-ops.",
+});
+
+export const HTTPRequestErrorDataSchema = z
+  .strictObject({
+    type: z.literal("http.request"),
+    kind: z.enum([
+      "network",
+      "timeout",
+      "aborted",
+      "invalid_request",
+      "configuration_unavailable",
+      "scope_closed",
+      "disconnected",
+      "limit_exceeded",
+    ]),
+  })
+  .meta({
+    id: "HTTPRequestErrorData",
+    description:
+      "JSON-RPC error data for HTTP transport failures; HTTP statuses use the normal result.",
+  });
+
 export const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
   .meta({ id: "LoadState" });
