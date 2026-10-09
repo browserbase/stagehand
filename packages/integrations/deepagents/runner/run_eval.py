@@ -527,9 +527,8 @@ async def run(
         is_failed_tool = event.get("type") == "tool_result" and event.get("ok") is False
         if is_error or is_failed_tool:
             had_failure = True
-        if is_error or is_failed_tool or (event.get("type") == "final" and had_failure):
-            event = _sanitize_event(event)
-        emit({**event, "ts": time.time()})
+        # Sanitize every event, not only error/failed paths.
+        emit({**_sanitize_event(event), "ts": time.time()})
 
     stack = AsyncExitStack()
     try:

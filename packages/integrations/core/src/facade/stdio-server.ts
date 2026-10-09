@@ -182,7 +182,10 @@ async function createResources(): Promise<FacadeResources> {
 }
 
 function textResult(text: string) {
-  return { content: [{ type: "text" as const, text: transportSafeText(text) }] };
+  // Scrub credentials from all tool output, not only error paths.
+  return {
+    content: [{ type: "text" as const, text: transportSafeText(sanitizeErrorMessage(text)) }],
+  };
 }
 
 function errorResult(error: unknown) {
