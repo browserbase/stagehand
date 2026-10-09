@@ -6,7 +6,9 @@ import {
   BrowserbaseLaunchOptionsSchema,
   LocalBrowserConnectOptionsSchema,
   LocalBrowserLaunchOptionsSchema,
+  type BrowserbaseSessionCreateParams,
 } from "../../src/clientSchemas.js";
+import type { BrowserbaseExtension } from "@browserbasehq/stagehand-protocol/types";
 import type {
   BrowserbaseBrowser,
   BrowserbaseClientOptions,
@@ -60,7 +62,13 @@ describe("browser API contracts", () => {
     >();
     expectTypeOf<
       Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "clientOptions">
-    >().toEqualTypeOf<Browserbase.SessionCreateParams>();
+    >().toEqualTypeOf<BrowserbaseSessionCreateParams>();
+    // Browserbase owns the session option surface; Stagehand only adds the built-in
+    // `browserSettings.extensions` opt-in the installed SDK version does not type yet.
+    expectTypeOf<Browserbase.SessionCreateParams>().toExtend<BrowserbaseSessionCreateParams>();
+    expectTypeOf<
+      NonNullable<BrowserbaseSessionCreateParams["browserSettings"]>["extensions"]
+    >().toEqualTypeOf<BrowserbaseExtension[] | undefined>();
     expectTypeOf<BrowserbaseLaunchOptions["clientOptions"]>().toEqualTypeOf<
       BrowserbaseClientOptions | undefined
     >();

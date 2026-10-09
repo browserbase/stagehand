@@ -5,7 +5,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { browserbase, Stagehand, type StagehandBrowser } from "../../src/index.js";
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
-const shouldRun = process.env.BROWSERBASE_SMOKE === "1" || Boolean(browserbaseApiKey);
+// Runs once Browserbase Core accepts the built-in Stagehand extension; until then a Browserbase
+// session cannot load it, so the smoke is opt-in.
+const shouldRun = process.env.BROWSERBASE_RESIDENT_SMOKE === "1";
 const exampleTestSite = "https://stagehand-eval-sites.vercel.app/sites/example/";
 const webMCPTestSite = "https://stagehand-eval-sites.vercel.app/sites/webmcp-test/";
 

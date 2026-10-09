@@ -495,7 +495,8 @@ func TestBrowserbaseFactoriesSendClientOptionsOverHTTP(t *testing.T) {
 		t.Fatalf("launched Browser.Close() error = %v", err)
 	}
 	wantBody := map[string]any{
-		"extensionId": "caller-ext",
+		"browserSettings": map[string]any{"extensions": []any{"stagehand"}},
+		"extensionId":     "caller-ext",
 		"userMetadata": map[string]any{
 			"stagehand":              "true",
 			"stagehand_sdk_language": "go",

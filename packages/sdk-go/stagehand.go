@@ -88,6 +88,7 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
 		telemetry: optionalTelemetry(options.Telemetry), browserCDPURL: rpc.browserWebSocketDebuggerURL(),
+		residentBrowserConnection: claimed.residentBrowserConnection,
 	})
 	var initResult StagehandInitResult
 	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {
@@ -345,18 +346,19 @@ func (s *Stagehand) connectedProtocol() (protocolClient, error) {
 }
 
 type workerInitOptions struct {
-	apiKey             *string
-	apiURL             *string
-	browser            *BrowserSessionMetadata
-	cache              *Caching
-	domSettleTimeoutMs *int
-	model              *ModelConfig
-	generate           LLMGenerateFunc
-	logLevel           StagehandClientLogLevel
-	selfHeal           *bool
-	systemPrompt       *string
-	telemetry          *TelemetryConfig
-	browserCDPURL      string
+	apiKey                    *string
+	apiURL                    *string
+	browser                   *BrowserSessionMetadata
+	cache                     *Caching
+	domSettleTimeoutMs        *int
+	model                     *ModelConfig
+	generate                  LLMGenerateFunc
+	logLevel                  StagehandClientLogLevel
+	selfHeal                  *bool
+	systemPrompt              *string
+	telemetry                 *TelemetryConfig
+	browserCDPURL             string
+	residentBrowserConnection bool
 }
 
 func optionalTelemetry(telemetry TelemetryConfig) *TelemetryConfig {
@@ -368,11 +370,10 @@ func optionalTelemetry(telemetry TelemetryConfig) *TelemetryConfig {
 
 func workerInitParams(options workerInitOptions) StagehandInitParams {
 	params := StagehandInitParams{
-		APIKey:        options.apiKey,
-		APIURL:        options.apiURL,
-		Browser:       options.browser,
-		BrowserCDPURL: &options.browserCDPURL,
-		Cache:         options.cache,
+		APIKey:  options.apiKey,
+		APIURL:  options.apiURL,
+		Browser: options.browser,
+		Cache:   options.cache,
 		ClientInfo: ImplementationInfo{
 			Name:    stagehandSDKClientName,
 			Version: stagehandSDKVersion,
@@ -383,6 +384,9 @@ func workerInitParams(options workerInitOptions) StagehandInitParams {
 		SelfHeal:           options.selfHeal,
 		SystemPrompt:       options.systemPrompt,
 		Telemetry:          options.telemetry,
+	}
+	if !options.residentBrowserConnection {
+		params.BrowserCDPURL = &options.browserCDPURL
 	}
 	if options.generate != nil {
 		model := ClientModel()

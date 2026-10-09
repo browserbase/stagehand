@@ -904,6 +904,11 @@ export const BrowserbaseContextSchema = z
   })
   .meta({ id: "BrowserbaseContext" });
 
+/** Built-in Browserbase extensions a session can opt into. */
+export const BrowserbaseExtensionSchema = z
+  .enum(["onepassword", "browser-events", "stagehand"])
+  .meta({ id: "BrowserbaseExtension" });
+
 /** Browserbase browser settings for session creation. */
 export const BrowserbaseBrowserSettingsSchema = z
   .strictObject({
@@ -913,6 +918,7 @@ export const BrowserbaseBrowserSettingsSchema = z
     captchaInputSelector: z.string().optional(),
     context: BrowserbaseContextSchema.optional(),
     extensionId: z.string().optional(),
+    extensions: z.array(BrowserbaseExtensionSchema).optional(),
     fingerprint: BrowserbaseFingerprintSchema.optional(),
     logSession: z.boolean().optional(),
     os: z.enum(["windows", "mac", "linux", "mobile", "tablet"]).optional(),
