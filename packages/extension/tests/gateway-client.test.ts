@@ -6,6 +6,7 @@ import {
   fetchWithoutModel,
 } from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 
 vi.mock("ai", () => ({
@@ -25,10 +26,13 @@ afterEach(() => {
 });
 
 const initParams = {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: { name: "test", version: "1" },
+  logLevel: "info",
   model: { modelName: "openai/gpt-5" },
   apiKey: "bb-api-key",
   browser: { sessionId: "session-123", region: "eu-central-1" },
-} as StagehandInitParams;
+} satisfies StagehandInitParams;
 
 describe("buildGatewayContext", () => {
   it("builds the context from the Browserbase API key, session, and region", () => {
@@ -115,7 +119,7 @@ describe("llmService.generate gateway routing", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
 
-    await llmService.generate({ modelName: "openai/gpt-5" }, input, vi.fn(), {
+    await llmService.generate({ modelName: "openai/future-model-v1" }, input, vi.fn(), {
       apiUrl: "https://api.stagehand.browserbase.com/v1",
       apiKey: "bb-api-key",
       sessionId: "session-123",
@@ -125,7 +129,7 @@ describe("llmService.generate gateway routing", () => {
       expect.objectContaining({
         model: expect.objectContaining({
           provider: "openai.responses",
-          modelId: "openai/gpt-5",
+          modelId: "openai/future-model-v1",
         }),
       }),
     );
