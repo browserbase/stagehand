@@ -43,6 +43,7 @@ export const integrationTestGroups = {
     "locatorContentMethods",
     "locatorCount",
     "locatorNth",
+    "locatorXPathSelfSteps",
     "locatorXPathTextPredicates",
     "textSelectorInnermost",
   ],
