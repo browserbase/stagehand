@@ -18,13 +18,17 @@
     },
     "@browserbasehq/stagehand-extension#build": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
+      "env": ["VITE_STAGEHAND_BROWSER_PROXY_URL"],
+      "passThroughEnv": ["GITHUB_SHA"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        ".env",
+        ".env.*",
         "!dist/**",
-        "!artifacts/stagehand-extension.zip"
+        "!artifacts/**"
       ],
-      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+      "outputs": ["dist/**", "artifacts/**"]
     },
     "@browserbasehq/stagehand#build": {
       "dependsOn": ["@browserbasehq/stagehand-extension#build"],
