@@ -1,7 +1,7 @@
 // lib/v3/understudy/context.ts
 import type { Protocol } from "devtools-protocol";
 import type { StagehandLogger } from "../logger.js";
-import { CdpConnection } from "./cdp.js";
+import { CdpConnection, STAGEHAND_WEB_TARGET_FILTER } from "./cdp.js";
 import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
@@ -44,7 +44,12 @@ function isMissingTargetError(error: unknown): boolean {
  */
 function hasInjectableDOM(url: string | undefined): boolean {
   if (!url || url === "") return true;
-  if (url === "about:blank" || url === "about:srcdoc" || url.startsWith("about:blank#"))
+  if (
+    url === "about:blank" ||
+    url === "about:srcdoc" ||
+    url.startsWith("about:blank#") ||
+    url.startsWith("about:blank?")
+  )
     return true;
   if (url.startsWith("http://") || url.startsWith("https://")) return true;
   if (
@@ -57,12 +62,22 @@ function hasInjectableDOM(url: string | undefined): boolean {
   return false;
 }
 
-function isNonWebTarget(info: Protocol.Target.TargetInfo): boolean {
-  // Top-level pages should always be tracked — the initial URL may be a
-  // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
-  // web content, and the target identity stays the same.
-  if (info.type === "page") return false;
-  return info.type !== "iframe" || !hasInjectableDOM(info.url);
+export function isSupportedWebTarget(
+  info: Protocol.Target.TargetInfo,
+  options: { restrictToWebTargets?: boolean; blankPageUrl?: string } = {},
+): boolean {
+  if (info.type === "page") {
+    // Top-level pages should always be tracked — the initial URL may be a
+    // non-web scheme (e.g. chrome://newtab/) but the user can navigate to
+    // web content, and the target identity stays the same.
+    if (!options.restrictToWebTargets) return true;
+    return (
+      hasInjectableDOM(info.url) ||
+      (options.blankPageUrl !== undefined && info.url === options.blankPageUrl)
+    );
+  }
+  if (info.type === "iframe") return hasInjectableDOM(info.url);
+  return false;
 }
 
 function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
@@ -71,6 +86,13 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 }
 
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
+
+export type BrowserContextTargetOptions = {
+  /** Resident mode: ignore top-level pages without an injectable DOM (chrome://, chrome-extension://, devtools://, ...). */
+  restrictToWebTargets?: boolean;
+  /** Resident mode: skip Page/Runtime/Network enables until `prepareForInitialization()` runs. */
+  deferPageInstrumentation?: boolean;
+};
 
 /**
  * BrowserContext
@@ -92,7 +114,22 @@ export class BrowserContext {
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
     readonly blankPageUrl: string = "about:blank",
     readonly fallbackLocatorScriptSource: string | null = null,
-  ) {}
+    options: BrowserContextTargetOptions = {},
+  ) {
+    this.restrictToWebTargets = options.restrictToWebTargets ?? false;
+    this.deferPageInstrumentation = options.deferPageInstrumentation ?? false;
+  }
+
+  private readonly restrictToWebTargets: boolean;
+  private deferPageInstrumentation: boolean;
+  private pageInstrumentationTask?: Promise<void>;
+  private readonly pendingTargetAttachments = new Set<TargetId>();
+  /**
+   * Top-level page targets deliberately left unattached in `restrictToWebTargets`
+   * mode, eligible for re-attachment from `Target.targetInfoChanged` once they
+   * reach web content.
+   */
+  private readonly ignoredTargets = new Set<TargetId>();
 
   readonly _targetSessionListeners = new Set<SessionId>();
   readonly _domainPolicySessionListeners = new Map<
@@ -143,7 +180,7 @@ export class BrowserContext {
     this._targetSessionListeners.add(sessionId);
 
     session.on<Protocol.Target.AttachedToTargetEvent>("Target.attachedToTarget", (evt) => {
-      void this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
+      void this.onAttachedToTarget(evt.targetInfo, evt.sessionId, session);
     });
     session.on<Protocol.Target.DetachedFromTargetEvent>("Target.detachedFromTarget", (evt) => {
       this.onDetachedFromTarget(evt.sessionId, evt.targetId ?? null);
@@ -167,10 +204,24 @@ export class BrowserContext {
       chromeTabs: ChromeTabTargetController;
       logger: StagehandLogger;
       bootstrapLogger?: StagehandLogger;
+      onConnected?(): void;
+      onDisconnected?(): void;
+      ensureInitialPage?: boolean;
+      restrictToWebTargets?: boolean;
+      deferPageInstrumentation?: boolean;
     },
   ): Promise<BrowserContext> {
     const connectTask = async () => {
       const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory, opts.logger);
+      if (opts.onDisconnected) {
+        let disconnected = false;
+        conn.onTransportClosed(() => {
+          if (disconnected) return;
+          disconnected = true;
+          opts.onDisconnected?.();
+        });
+      }
+      opts.onConnected?.();
       const ctx = new BrowserContext(
         conn,
         opts.logger,
@@ -179,21 +230,30 @@ export class BrowserContext {
         opts?.localBrowserLaunchOptions ?? null,
         opts.blankPageUrl,
         opts.fallbackLocatorScriptSource,
+        {
+          restrictToWebTargets: opts.restrictToWebTargets ?? false,
+          deferPageInstrumentation: opts.deferPageInstrumentation ?? false,
+        },
       );
       const bootstrap = async () => {
         await ctx.bootstrap();
-        if (!ctx.hasTopLevelPage()) {
+        if ((opts.ensureInitialPage ?? true) && !ctx.hasTopLevelPage()) {
           await ctx.newPage();
         }
       };
-      if (opts.bootstrapLogger) {
-        await conn.runWithTelemetryContext(
-          Symbol("browser.bootstrap"),
-          opts.bootstrapLogger,
-          bootstrap,
-        );
-      } else {
-        await bootstrap();
+      try {
+        if (opts.bootstrapLogger) {
+          await conn.runWithTelemetryContext(
+            Symbol("browser.bootstrap"),
+            opts.bootstrapLogger,
+            bootstrap,
+          );
+        } else {
+          await bootstrap();
+        }
+      } catch (error) {
+        await conn.close().catch(() => {});
+        throw error;
       }
       return ctx;
     };
@@ -208,6 +268,49 @@ export class BrowserContext {
       }
     }
     return false;
+  }
+
+  /** Complete deferred page-domain setup when Stagehand initialization begins. */
+  public async prepareForInitialization(): Promise<void> {
+    // Once deferral has ended, still sweep for pages whose late instrumentation
+    // failed (see onAttachedToTarget) so a later call can retry them.
+    if (
+      !this.deferPageInstrumentation &&
+      this.pages().every((page) => page.isInstrumentationReady())
+    )
+      return;
+    if (this.pageInstrumentationTask) return await this.pageInstrumentationTask;
+
+    const task = (async () => {
+      while (true) {
+        const pending = this.pages().filter((page) => !page.isInstrumentationReady());
+        if (pending.length === 0) break;
+        await Promise.all(
+          pending.map((page) =>
+            page.prepareForInitialization().catch((error: unknown) => {
+              if (this.pages().includes(page)) throw error;
+            }),
+          ),
+        );
+      }
+      this.deferPageInstrumentation = false;
+    })();
+    this.pageInstrumentationTask = task;
+    try {
+      await task;
+    } finally {
+      if (this.pageInstrumentationTask === task) this.pageInstrumentationTask = undefined;
+    }
+  }
+
+  private isSupportedTarget(info: Protocol.Target.TargetInfo): boolean {
+    return (
+      isSupportedWebTarget(info, {
+        restrictToWebTargets: this.restrictToWebTargets,
+        blankPageUrl: this.blankPageUrl,
+      }) ||
+      (info.type === "page" && this.pendingCreatedTargetUrl.has(info.targetId))
+    );
   }
 
   async waitForInitialTopLevelTargets(targetIds: TargetId[]): Promise<void> {
@@ -575,6 +678,8 @@ export class BrowserContext {
     this.createdAtByTarget.clear();
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
+    this.pendingTargetAttachments.clear();
+    this.ignoredTargets.clear();
     this.pageCreationFailures.clear();
     this.pendingInitialTopLevelTargets.clear();
     this.pendingNewPageTargets.clear();
@@ -591,7 +696,7 @@ export class BrowserContext {
   async bootstrap(): Promise<void> {
     // Live attach via auto-attach (normal path)
     this.conn.on<Protocol.Target.AttachedToTargetEvent>("Target.attachedToTarget", async (evt) => {
-      await this.onAttachedToTarget(evt.targetInfo, evt.sessionId);
+      await this.onAttachedToTarget(evt.targetInfo, evt.sessionId, this.conn);
     });
 
     // Live detach (clean up session from owner page & frame graph)
@@ -611,7 +716,7 @@ export class BrowserContext {
       }
     });
     this.conn.on<Protocol.Target.TargetInfoChangedEvent>("Target.targetInfoChanged", (evt) => {
-      void this.closePopupIfBlockedByDomainPolicy(evt.targetInfo, "targetInfoChanged");
+      void this.onTargetInfoChanged(evt.targetInfo);
     });
 
     // Register the targets that bootstrap must account for before enabling
@@ -619,7 +724,9 @@ export class BrowserContext {
     // part of Target.setAutoAttach; those terminal events must remain visible to
     // the waiter below instead of being discarded before the target is pending.
     const targets = await this.conn.getTargets();
-    const topLevelTargetIds = targets.filter((t) => isTopLevelPage(t)).map((t) => t.targetId);
+    const topLevelTargetIds = targets
+      .filter((t) => isTopLevelPage(t) && this.isSupportedTarget(t))
+      .map((t) => t.targetId);
     for (const targetId of topLevelTargetIds) this.pendingInitialTopLevelTargets.add(targetId);
 
     // Only enable auto-attach after listeners and initial target state are ready
@@ -640,14 +747,43 @@ export class BrowserContext {
         continue;
       }
       if (currentTarget.attached) continue; // auto-attach already handled this target
+      if (!this.isSupportedTarget(currentTarget)) {
+        if (this.restrictToWebTargets && isTopLevelPage(currentTarget)) {
+          this.ignoredTargets.add(currentTarget.targetId);
+        }
+        continue;
+      }
       try {
-        await this.conn.attachToTarget(t.targetId);
+        await this.attachToTarget(t.targetId);
       } catch (error) {
         this.recordPageCreationFailure(t.targetId, error, "Failed to attach initial target");
       }
     }
 
     await this.waitForInitialTopLevelTargets(topLevelTargetIds);
+  }
+
+  private async onTargetInfoChanged(info: Protocol.Target.TargetInfo): Promise<void> {
+    if (await this.closePopupIfBlockedByDomainPolicy(info, "targetInfoChanged")) return;
+    if (!this.restrictToWebTargets) return;
+    if (!isTopLevelPage(info)) return;
+    // `info.attached` reports whether ANY DevTools client is attached (the SDK over
+    // public CDP, Browserbase tooling, DevTools), so it cannot tell us whether this
+    // connection owns a session. Only re-attach pages we deliberately let go.
+    if (!this.ignoredTargets.has(info.targetId)) return;
+    if (!this.isSupportedTarget(info) || this.pagesByTarget.has(info.targetId)) return;
+    await this.attachToTarget(info.targetId).catch(() => {});
+  }
+
+  private async attachToTarget(targetId: TargetId): Promise<void> {
+    if (this.pendingTargetAttachments.has(targetId) || this.pagesByTarget.has(targetId)) return;
+    this.pendingTargetAttachments.add(targetId);
+    try {
+      await this.conn.attachToTarget(targetId);
+      this.ignoredTargets.delete(targetId);
+    } finally {
+      this.pendingTargetAttachments.delete(targetId);
+    }
   }
 
   /**
@@ -658,22 +794,34 @@ export class BrowserContext {
    *   if the parent is known; otherwise stage until parent `frameAttached`.
    * - Resume the target only after listeners are wired.
    */
-  async onAttachedToTarget(info: Protocol.Target.TargetInfo, sessionId: SessionId): Promise<void> {
+  async onAttachedToTarget(
+    info: Protocol.Target.TargetInfo,
+    sessionId: SessionId,
+    parentSession: CDPSessionLike = this.conn,
+  ): Promise<void> {
     if (await this.closePopupIfBlockedByDomainPolicy(info, "attached")) {
       return;
     }
+    const deferInstrumentation = this.deferPageInstrumentation;
 
     // Skip non-web targets (workers, chrome extensions, background pages, etc.).
     // They still need to be resumed so we don't leave them paused by
     // waitForDebuggerOnStart. Trying to initialize these targets can throw or
     // corrupt their internal state (e.g. Chrome's PDF viewer).
-    if (isNonWebTarget(info)) {
+    if (!this.isSupportedTarget(info)) {
+      if (this.restrictToWebTargets && isTopLevelPage(info)) {
+        this.ignoredTargets.add(info.targetId);
+      }
       const session = this.conn.getSession(sessionId);
       if (session) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
+        if (this.restrictToWebTargets) {
+          await parentSession.send("Target.detachFromTarget", { sessionId }).catch(() => {});
+        }
       }
       return;
     }
+    this.ignoredTargets.delete(info.targetId);
 
     const session = this.conn.getSession(sessionId);
     if (!session) return;
@@ -752,12 +900,14 @@ export class BrowserContext {
     // - register init scripts.
     // Commands are sent in-order on the same session before resume.
     const corePreResumeOps = [
-      queuePreResume("Page.enable"),
-      queuePreResume("Runtime.enable"),
+      ...(deferInstrumentation
+        ? []
+        : [queuePreResume("Page.enable"), queuePreResume("Runtime.enable")]),
       queuePreResume("Target.setAutoAttach", {
         autoAttach: true,
         waitForDebuggerOnStart: true,
         flatten: true,
+        filter: STAGEHAND_WEB_TARGET_FILTER,
       }),
     ];
     const headerPreResumeOps: Array<{
@@ -879,7 +1029,9 @@ export class BrowserContext {
     try {
       // Best-effort lifecycle events; do not block top-level page registration
       // on this optional signal stream.
-      void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+      if (!deferInstrumentation) {
+        void session.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
+      }
 
       // Top-level handling
       if (isTopLevelPage(info)) {
@@ -896,6 +1048,7 @@ export class BrowserContext {
             this.logger,
             this.localBrowserLaunchOptions,
             this.env === "BROWSERBASE",
+            deferInstrumentation,
           );
         } catch (error) {
           createError = error;
@@ -927,6 +1080,21 @@ export class BrowserContext {
         const pendingSeedUrl = this.pendingCreatedTargetUrl.get(info.targetId);
         this.pendingCreatedTargetUrl.delete(info.targetId);
         page.seedCurrentUrl(pendingSeedUrl ?? info.url ?? "");
+        if (
+          deferInstrumentation &&
+          !this.deferPageInstrumentation &&
+          !page.isInstrumentationReady()
+        ) {
+          // Context-level preparation finished while this target was attaching; it
+          // missed the rescan, so enable its domains now.
+          await page.prepareForInitialization().catch((error: unknown) => {
+            this.logger.debug("Failed to instrument page attached during initialization", {
+              category: "ctx",
+              targetId: String(info.targetId),
+              error: error instanceof Error ? error.message : String(error),
+            });
+          });
+        }
         this.installFrameEventBridges(sessionId, page);
         // If we already installed scripts at the session level, only seed the
         // Page's registry to avoid double-installing DOMContentLoaded handlers.
@@ -1078,6 +1246,7 @@ export class BrowserContext {
    * Cleanup a top-level Page by target id, removing its root and staged children.
    */
   cleanupByTarget(targetId: TargetId): void {
+    this.ignoredTargets.delete(targetId);
     this.recordPageCreationFailure(
       targetId,
       new Error(`Target closed before page registration (${targetId})`),
