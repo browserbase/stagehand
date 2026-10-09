@@ -9,6 +9,35 @@ const taskSpec: TaskSpec = {
 };
 
 describe("pi trajectory adapter", () => {
+  it.each([
+    { structuredContent: { passed: false, score: 0 }, expected: { passed: false, score: 0 } },
+    { structuredContent: undefined, expected: "browser output" },
+  ])(
+    "retains native MCP output instead of routing metadata: $expected",
+    ({ structuredContent, expected }) => {
+      const trajectory = piAdapter.fromHarnessResult(
+        {
+          events: [
+            {
+              type: "tool_execution_end",
+              toolCallId: "1",
+              toolName: "mcp__stagehand__run",
+              result: {
+                content: [{ type: "text", text: "browser output" }],
+                details: { server: "stagehand", tool: "run" },
+                structuredContent: {
+                  content: [{ type: "text", text: "browser output" }],
+                  ...(structuredContent !== undefined && { structuredContent }),
+                },
+              },
+            },
+          ],
+        },
+        taskSpec,
+      );
+      expect(trajectory.steps[0].toolOutput).toEqual({ ok: true, result: expected });
+    },
+  );
   it("maps reasoning, tool args/results/errors/images, and final answer", () => {
     const image = Buffer.from("png");
     const trajectory = piAdapter.fromHarnessResult(

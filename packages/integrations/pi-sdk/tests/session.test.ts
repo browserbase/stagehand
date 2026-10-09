@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   extractPiTokenUsage,
-  buildPiMcpToolName,
   buildPiTranscript,
   definePiCodeRunTool,
-  isPiMcpToolName,
-  mcpCallResultToPiToolResult,
   normalizePiModel,
   resolvePiStatus,
   runPiSession,
@@ -156,6 +153,19 @@ describe("pi SDK session", () => {
     });
     expect(fake.createOptions).not.toHaveProperty("thinkingLevel");
     expect(fake.disposeCount).toBe(1);
+  });
+
+  it("forwards native MCP server specs instead of bridging them as custom tools", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    const mcpServers = { stagehand: { command: "node", args: ["server.mjs"] } };
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { mcpServers },
+    });
+    expect(fake.createOptions).toMatchObject({ mcpServers, customTools: [] });
   });
 
   it("keeps pi's stock system prompt and appends evaluation guidance by default", async () => {
@@ -396,23 +406,9 @@ describe("pi SDK session", () => {
     expect(result.status).toBe("completed");
   });
 
-  it("normalizes models, MCP names/results, code tools, and statuses", async () => {
+  it("normalizes models, code tools, and statuses", async () => {
     expect(normalizePiModel("pi/default")).toBe("openai/gpt-5.4-mini");
     expect(normalizePiModel("google/gemini-2.5-pro")).toBe("google/gemini-2.5-pro");
-    expect(buildPiMcpToolName("stage.hand", "take shot")).toBe("mcp__stage_hand__take_shot");
-    expect(isPiMcpToolName("mcp__stage_hand__run", "stage.hand")).toBe(true);
-    expect(isPiMcpToolName("other")).toBe(false);
-    const mapped = mcpCallResultToPiToolResult({
-      content: [
-        { type: "text", text: "hello" },
-        { type: "image", data: "YWJj", mimeType: "image/png" },
-      ],
-      structuredContent: { ok: false },
-      isError: true,
-    });
-    expect(mapped).toMatchObject({ isError: true, details: { ok: false } });
-    expect(mapped.content).toHaveLength(2);
-
     const execute = vi.fn(async (code: string) => `ran ${code}`);
     const tool = definePiCodeRunTool({
       name: "run",

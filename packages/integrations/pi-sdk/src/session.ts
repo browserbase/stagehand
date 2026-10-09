@@ -8,25 +8,31 @@ import type {
   AgentToolResult,
   AgentSession,
   CreateAgentSessionOptions,
-  ResourceLoader,
+  ExtensionAPI,
+  McpExposure,
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { connectPiMcpServers } from "./mcp.js";
 
 export type PiEvent = Record<string, unknown>;
 export type PiToolDefinition = ToolDefinition<any, any, any>;
+export type PiMcpExposure = McpExposure;
 export type PiMcpServerSpec = {
   command: string;
   args?: string[];
   env?: Record<string, string>;
   cwd?: string;
+  /** How the model reaches this server's tools. Eval mounts default to `direct`. */
+  exposure?: PiMcpExposure;
+  description?: string;
+  /** Per-request timeout in seconds. Pi's default is 60. */
+  timeout?: number;
 };
 export type PiAgentSessionLike = {
   subscribe(listener: (event: PiEvent) => void): () => void;
   prompt(text: string): Promise<void>;
   abort(): Promise<void>;
-  dispose(): void;
+  dispose(): void | Promise<void>;
   agent: {
     finishTurn?: AgentSession["agent"]["finishTurn"];
     state: { errorMessage?: string };
@@ -37,6 +43,8 @@ export type PiAgentSessionLike = {
  * to take the first plausible answer instead of planning around obstacles.
  */
 export const DEFAULT_PI_THINKING_LEVEL = "medium";
+/** Declared to the model like a built-in tool. Pi's default `codemode` exposure is not used. */
+export const DEFAULT_PI_MCP_EXPOSURE: PiMcpExposure = "direct";
 
 export type PiSdk = {
   createSession(options: {
@@ -45,7 +53,8 @@ export type PiSdk = {
     systemPrompt?: string;
     appendSystemPrompt?: string;
     thinkingLevel?: string;
-    customTools: PiToolDefinition[];
+    customTools?: PiToolDefinition[];
+    mcpServers?: Record<string, PiMcpServerSpec>;
   }): Promise<PiAgentSessionLike>;
 };
 export type PiSessionConfig = {
@@ -123,25 +132,45 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
         const settingsManager = pi.SettingsManager.inMemory({
           compaction: { enabled: false },
         });
-        const resourceLoader: ResourceLoader = {
-          getExtensions: () => ({
-            extensions: [],
-            errors: [],
-            runtime: pi.createExtensionRuntime(),
-          }),
-          getSkills: () => ({ skills: [], diagnostics: [] }),
-          getPrompts: () => ({ prompts: [], diagnostics: [] }),
-          getThemes: () => ({ themes: [], diagnostics: [] }),
-          getAgentsFiles: () => ({ agentsFiles: [] }),
-          // undefined keeps pi's stock system prompt; a custom prompt replaces it.
-          getSystemPrompt: () => sessionOptions.systemPrompt,
-          getSystemPromptSource: () => undefined,
-          getAppendSystemPrompt: () =>
+        const mcpServers = sessionOptions.mcpServers ?? {};
+        const hasMcpServers = Object.keys(mcpServers).length > 0;
+        const resourceLoader = new pi.DefaultResourceLoader({
+          cwd,
+          // Isolated from ~/.pi/agent extensions/skills. Auth still uses ModelRuntime.create().
+          agentDir: cwd,
+          settingsManager,
+          noExtensions: true,
+          noSkills: true,
+          noPromptTemplates: true,
+          noThemes: true,
+          noContextFiles: true,
+          systemPromptOverride: sessionOptions.systemPrompt
+            ? () => sessionOptions.systemPrompt
+            : undefined,
+          appendSystemPromptOverride: () =>
             sessionOptions.appendSystemPrompt ? [sessionOptions.appendSystemPrompt] : [],
-          getAppendSystemPromptSources: () => [],
-          extendResources: () => {},
-          reload: async () => {},
-        };
+          extensionFactories: hasMcpServers
+            ? [
+                pi.createMcpExtension({
+                  loadConfig: () => ({ servers: [], errors: [] }),
+                }),
+                (extensionPi: ExtensionAPI) => {
+                  for (const [name, spec] of Object.entries(mcpServers)) {
+                    extensionPi.registerMcpServer(name, {
+                      command: spec.command,
+                      ...(spec.args && { args: spec.args }),
+                      ...(spec.env && { env: spec.env }),
+                      ...(spec.cwd && { cwd: spec.cwd }),
+                      exposure: spec.exposure ?? DEFAULT_PI_MCP_EXPOSURE,
+                      description: spec.description ?? "Stagehand browser tools",
+                      ...(spec.timeout !== undefined && { timeout: spec.timeout }),
+                    });
+                  }
+                },
+              ]
+            : [],
+        });
+        await resourceLoader.reload();
         const { session } = await pi.createAgentSession({
           cwd,
           modelRuntime,
@@ -152,10 +181,40 @@ export async function loadPiSdk(options: { logger?: HarnessLogger } = {}): Promi
           resourceLoader,
           sessionManager: pi.SessionManager.inMemory(cwd),
           settingsManager,
-          customTools: sessionOptions.customTools,
-          tools: sessionOptions.customTools.map((tool) => tool.name),
+          customTools: sessionOptions.customTools ?? [],
+          // Same lockdown as claude_code's allowedTools: drop read/bash/edit/write.
+          // MCP and custom tools stay enabled; Pi's `codemode` tool is not loaded.
+          noTools: "builtin",
         });
-        return session as unknown as PiAgentSessionLike;
+        // All mounted tools share one browser, including native MCP tools.
+        session.agent.toolExecution = "sequential";
+        // MCP connects on session_start; SDK sessions do not bind extensions by default.
+        let closePromise: Promise<void> | undefined;
+        const dispose = (): Promise<void> => {
+          closePromise ??= (async () => {
+            try {
+              // Pi's dispose only detaches listeners; MCP closes on session_shutdown.
+              await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+            } finally {
+              session.dispose();
+            }
+          })();
+          return closePromise;
+        };
+        try {
+          await session.bindExtensions({});
+        } catch (error) {
+          await dispose();
+          throw error;
+        }
+        return {
+          agent: session.agent,
+          subscribe: (listener) =>
+            session.subscribe(listener as Parameters<typeof session.subscribe>[0]),
+          prompt: (text) => session.prompt(text),
+          abort: () => session.abort(),
+          dispose,
+        } as PiAgentSessionLike;
       } catch (error) {
         if (error instanceof HarnessAdapterError) throw error;
         throw new HarnessAdapterError(
@@ -187,23 +246,14 @@ export async function runPiSession(input: {
   let stopReason: string | undefined;
   let piSession: PiAgentSessionLike | undefined;
   let unsubscribe: (() => void) | undefined;
-  let disposed = false;
   let turns = 0;
   let notifications = Promise.resolve();
   const maxTurns = positiveInteger(input.session.maxTurns, 50);
-  let mcp: Awaited<ReturnType<typeof connectPiMcpServers>> | undefined;
   const forwardAbort = (): void => {
     if (piSession) void piSession.abort();
   };
 
   try {
-    if (Object.keys(input.session.mcpServers ?? {}).length > 0) {
-      mcp = await connectPiMcpServers(input.session.mcpServers!, {
-        logger: input.logger,
-        signal: input.signal,
-      });
-    }
-    const customTools = [...(input.session.customTools ?? []), ...(mcp?.tools ?? [])];
     piSession = await sdk.createSession({
       model: input.model,
       ...(input.session.cwd && { cwd: input.session.cwd }),
@@ -214,7 +264,8 @@ export async function runPiSession(input: {
       ...(input.session.thinkingLevel !== undefined && {
         thinkingLevel: input.session.thinkingLevel,
       }),
-      customTools,
+      customTools: input.session.customTools ?? [],
+      ...(input.session.mcpServers && { mcpServers: input.session.mcpServers }),
     });
     const finishTurn = piSession.agent.finishTurn;
     piSession.agent.finishTurn = async (turn, signal) => {
@@ -275,11 +326,7 @@ export async function runPiSession(input: {
   } finally {
     input.signal?.removeEventListener("abort", forwardAbort);
     unsubscribe?.();
-    if (piSession && !disposed) {
-      disposed = true;
-      piSession.dispose();
-    }
-    await mcp?.close();
+    await piSession?.dispose();
   }
 
   const lastAssistant = findLastAssistantMessage(events);
@@ -398,7 +445,15 @@ export function compactPiEvent(
   imageBudget: { remainingBytes: number } = { remainingBytes: MAX_PI_SESSION_IMAGE_BYTES },
 ): PiEvent {
   if (event.type === "tool_execution_end") {
-    return { ...event, result: decodeImageBlocks(event.result, imageBudget) };
+    const result = decodeImageBlocks(event.result, imageBudget);
+    // Native MCP also includes the original wire result in structuredContent.
+    return {
+      ...event,
+      result:
+        isRecord(result) && result.structuredContent !== undefined
+          ? { ...result, structuredContent: withoutImageData(result.structuredContent) }
+          : result,
+    };
   }
   if (
     event.type === "message_end" &&

@@ -145,11 +145,17 @@ function normalizeResult(value: unknown): {
     }
   }
   const joined = text.join("\n");
+  // Native MCP puts the wire CallToolResult here; details only names the route.
+  const mcpResult = isRecord(value.structuredContent) ? value.structuredContent : undefined;
   const hasStructuredDetails =
     value.details !== undefined &&
     (!isRecord(value.details) || Object.keys(value.details).length > 0);
   return {
-    result: hasStructuredDetails ? value.details : joined || value,
+    result: mcpResult
+      ? (mcpResult.structuredContent ?? (joined || mcpResult))
+      : hasStructuredDetails
+        ? value.details
+        : joined || value,
     text: joined,
     images,
   };

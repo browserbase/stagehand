@@ -22,7 +22,6 @@
   "dependencies": {
     "@browserbasehq/stagehand-integrations": "workspace:*",
     "@earendil-works/pi-coding-agent": "catalog:",
-    "@modelcontextprotocol/sdk": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {

@@ -1220,22 +1220,16 @@ importers:
 
   packages/integrations/pi:
     dependencies:
-      '@browserbasehq/stagehand':
-        specifier: workspace:*
-        version: link:../../sdk-ts
       '@browserbasehq/stagehand-integrations':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
         version: 1.0.2(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.4.3)
+    devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
-      typebox:
-        specifier: 'catalog:'
-        version: 1.3.7
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -1251,9 +1245,6 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: 'catalog:'
         version: 1.0.2(@aws-sdk/credential-provider-node@3.972.83)(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(supports-color@8.1.1)(ws@8.21.0(bufferutil@4.1.0))(zod@4.4.3)
-      '@modelcontextprotocol/sdk':
-        specifier: 'catalog:'
-        version: 1.29.0(supports-color@8.1.1)(zod@4.4.3)
       typebox:
         specifier: 'catalog:'
         version: 1.3.7
