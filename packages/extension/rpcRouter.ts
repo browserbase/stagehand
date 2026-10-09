@@ -10,6 +10,13 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import type { RPCMethod } from "@browserbasehq/stagehand-protocol/json-rpc/schemas";
 import { wireSchema } from "@browserbasehq/stagehand-protocol/json-rpc/wire-casing";
 import { StagehandMethods } from "@browserbasehq/stagehand-protocol/schema-registry";
+import {
+  StagehandInitParamsSchema,
+  StagehandActParamsSchema,
+  StagehandObserveParamsSchema,
+  StagehandExtractParamsSchema,
+  CallbackBatchParamsSchema,
+} from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   StagehandInitParams,
   StagehandInitResult,
@@ -76,7 +83,7 @@ export class RPCRouter {
     // request union does not currently narrow params from the method name.
     const initParams: StagehandInitParams | undefined =
       request.method === StagehandMethods.stagehandInit.name
-        ? (request.params as StagehandInitParams)
+        ? parseParams(StagehandMethods.stagehandInit, request.params, StagehandInitParamsSchema)
         : undefined;
     if (initParams) {
       await this.runtime.tracing.configure(initParams.telemetry, initParams.clientInfo);
@@ -145,7 +152,8 @@ export class RPCRouter {
     switch (request.method) {
       case "stagehand.init":
         return this.stagehandController.init(
-          parsedInitParams ?? parseParams(StagehandMethods.stagehandInit, request.params),
+          parsedInitParams ??
+            parseParams(StagehandMethods.stagehandInit, request.params, StagehandInitParamsSchema),
           context,
         );
       case "stagehand.close":
@@ -155,17 +163,25 @@ export class RPCRouter {
         );
       case "stagehand.act":
         return this.stagehandController.act(
-          parseParams(StagehandMethods.stagehandAct, request.params),
+          parseParams(StagehandMethods.stagehandAct, request.params, StagehandActParamsSchema),
           context,
         );
       case "stagehand.observe":
         return this.stagehandController.observe(
-          parseParams(StagehandMethods.stagehandObserve, request.params),
+          parseParams(
+            StagehandMethods.stagehandObserve,
+            request.params,
+            StagehandObserveParamsSchema,
+          ),
           context,
         );
       case "stagehand.extract":
         return this.stagehandController.extract(
-          parseParams(StagehandMethods.stagehandExtract, request.params),
+          parseParams(
+            StagehandMethods.stagehandExtract,
+            request.params,
+            StagehandExtractParamsSchema,
+          ),
           context,
         );
       case "stagehand.metrics":
@@ -175,7 +191,11 @@ export class RPCRouter {
         );
       case "stagehand.callback_batch":
         return this.callbackBatchController.run(
-          parseParams(StagehandMethods.stagehandCallbackBatch, request.params),
+          parseParams(
+            StagehandMethods.stagehandCallbackBatch,
+            request.params,
+            CallbackBatchParamsSchema,
+          ),
           context,
         );
       case "context.pages":
@@ -527,11 +547,18 @@ export class RPCRouter {
   }
 }
 
+// Handlers can retain their current input shape while new wire forms are introduced.
+function parseParams<Schema extends z.ZodType>(
+  method: RPCMethod,
+  params: unknown,
+  handlerSchema: Schema,
+): z.output<Schema>;
 function parseParams<Method extends RPCMethod>(
   method: Method,
   params: unknown,
-): z.output<Method["params"]> {
-  return wireSchema(method.params, method.paramsWire).parse(params) as z.output<Method["params"]>;
+): z.output<Method["params"]>;
+function parseParams(method: RPCMethod, params: unknown, handlerSchema = method.params): unknown {
+  return wireSchema(handlerSchema, method.paramsWire).parse(params);
 }
 
 function setRPCErrorOnSpan(span: Span, error: unknown): void {

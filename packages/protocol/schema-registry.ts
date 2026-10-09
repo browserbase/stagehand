@@ -8,7 +8,7 @@ import {
 import { wireSchema } from "./json-rpc/wire-casing.ts";
 import {
   ActResultSchema,
-  CallbackBatchParamsSchema,
+  CallbackBatchWireParamsSchema,
   CallbackBatchResultSchema,
   ContextActivePageResultSchema,
   ContextAddCookiesParamsSchema,
@@ -111,14 +111,14 @@ import {
   ResponseIdParamsSchema,
   ResponseSecurityDetailsResultSchema,
   ResponseServerAddrResultSchema,
-  StagehandActParamsSchema,
+  StagehandActWireParamsSchema,
   StagehandCloseResultSchema,
-  StagehandExtractParamsSchema,
-  StagehandInitParamsSchema,
+  StagehandExtractWireParamsSchema,
+  StagehandInitWireParamsSchema,
   StagehandInitResultSchema,
   StagehandLogSchema,
   StagehandMetricsSchema,
-  StagehandObserveParamsSchema,
+  StagehandObserveWireParamsSchema,
   SnapshotResultSchema,
   WebMCPInvocationDescriptorSchema,
   WebMCPToolResponseSchema,
@@ -132,7 +132,7 @@ export const StagehandSendToHostBindingSchema = z
 export const StagehandMethods = {
   stagehandInit: {
     name: "stagehand.init",
-    params: StagehandInitParamsSchema,
+    params: StagehandInitWireParamsSchema,
     result: StagehandInitResultSchema,
   },
   stagehandClose: {
@@ -142,19 +142,19 @@ export const StagehandMethods = {
   },
   stagehandAct: {
     name: "stagehand.act",
-    params: StagehandActParamsSchema,
+    params: StagehandActWireParamsSchema,
     result: ActResultSchema,
     resultWire: { transformKeys: ["data"] },
   },
   stagehandObserve: {
     name: "stagehand.observe",
-    params: StagehandObserveParamsSchema,
+    params: StagehandObserveWireParamsSchema,
     result: ObserveResultSchema,
     resultWire: { transformKeys: ["data"] },
   },
   stagehandExtract: {
     name: "stagehand.extract",
-    params: StagehandExtractParamsSchema,
+    params: StagehandExtractWireParamsSchema,
     result: ExtractResultSchema,
     paramsWire: { opaqueKeys: ["schema"] },
     resultWire: { opaqueKeys: ["data"] },
@@ -166,7 +166,7 @@ export const StagehandMethods = {
   },
   stagehandCallbackBatch: {
     name: "stagehand.callback_batch",
-    params: CallbackBatchParamsSchema,
+    params: CallbackBatchWireParamsSchema,
     result: CallbackBatchResultSchema,
     paramsWire: { opaqueKeys: ["input"] },
     resultWire: { opaqueKeys: ["value"] },

@@ -438,6 +438,67 @@ describe("Stagehand RPC router", () => {
     expect(initializeStagehand).not.toHaveBeenCalled();
   });
 
+  it("rejects connection initialization before invoking the current initializer", async () => {
+    const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+    const router = new RPCRouter(createStagehandRuntime(), { initializeStagehand });
+
+    await expect(
+      router.handle(
+        request({
+          id: 17,
+          method: "stagehand.init",
+          params: {
+            protocol_version: STAGEHAND_PROTOCOL_VERSION,
+            client_info: { name: "test-sdk", version: "1.0.0" },
+            connections: {},
+            model: {
+              source: "http",
+              route: "provider",
+              model_name: "openai/gpt-5",
+              configuration_id: "model-1",
+            },
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ name: "ZodError" });
+    expect(initializeStagehand).not.toHaveBeenCalled();
+    await router.runtime.tracing.shutdown();
+  });
+
+  it.each([
+    { method: "stagehand.act", params: { page_id: "page-1", instruction: "click Continue" } },
+    { method: "stagehand.observe", params: { page_id: "page-1" } },
+    { method: "stagehand.extract", params: { page_id: "page-1", instruction: "read the title" } },
+    {
+      method: "stagehand.callback_batch",
+      params: { callback_source: "async () => 1", options: {} },
+    },
+  ])(
+    "rejects scoped $method requests before invoking current handlers",
+    async ({ method, params }) => {
+      const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
+      const router = createRouter(tracing);
+      const handlers = [
+        vi.spyOn(router.stagehandController, "act"),
+        vi.spyOn(router.stagehandController, "observe"),
+        vi.spyOn(router.stagehandController, "extract"),
+        vi.spyOn(router.callbackBatchController, "run"),
+      ];
+
+      await expect(
+        router.handle(
+          request({
+            id: 17,
+            method,
+            params: { ...params, scope_id: "call-1" },
+          }),
+        ),
+      ).rejects.toMatchObject({ name: "ZodError" });
+      for (const handler of handlers) expect(handler).not.toHaveBeenCalled();
+      await tracing.shutdown();
+    },
+  );
+
   it("applies the default schema to extract requests that omit it", async () => {
     const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
     const router = createRouter(tracing);

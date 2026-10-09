@@ -1375,7 +1375,39 @@ export const HTTPRequestErrorDataSchema = z
     id: "HTTPRequestErrorData",
     description:
       "JSON-RPC error data for HTTP transport failures; HTTP statuses use the normal result.",
-  });
+  });/** Identifies a connection registered with the connected SDK. */
+export const HTTPConnectionReferenceSchema = z
+  .strictObject({ configurationId: httpIdSchema })
+  .meta({ id: "HTTPConnectionReference" });
+
+export const HTTPModelReferenceSchema = z
+  .discriminatedUnion("route", [
+    HTTPConnectionReferenceSchema.extend({
+      source: z.literal("http"),
+      route: z.literal("provider"),
+      modelName: ModelNameSchema,
+    }),
+    HTTPConnectionReferenceSchema.extend({
+      source: z.literal("http"),
+      route: z.literal("gateway"),
+      modelName: ModelNameSchema.optional(),
+    }),
+  ])
+  .meta({ id: "HTTPModelReference" });
+
+export const HTTPServiceConnectionsSchema = z
+  .strictObject({
+    gateway: HTTPConnectionReferenceSchema.optional(),
+    cache: HTTPConnectionReferenceSchema.optional(),
+  })
+  .meta({ id: "HTTPServiceConnections" });
+
+export const BatchModelReferenceSchema = z
+  .strictObject({
+    name: z.string().min(1).max(HTTP_TRANSPORT_LIMITS.idLength),
+    model: HTTPModelReferenceSchema,
+  })
+  .meta({ id: "BatchModelReference" });
 
 export const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
@@ -1766,6 +1798,63 @@ export const StagehandExtractParamsSchema = z
     options: ExtractOptionsSchema.optional(),
   })
   .meta({ id: "StagehandExtractParams" });
+
+/** Worker-facing forms retain the existing SDK inputs during the transport migration. */
+export const StagehandInitWireParamsSchema = z
+  .union([
+    StagehandInitParamsSchema,
+    StagehandInitParamsSchema.omit({ apiKey: true, apiUrl: true, model: true }).extend({
+      connections: HTTPServiceConnectionsSchema,
+      model: z.union([HTTPModelReferenceSchema, ClientModelReferenceSchema]).optional(),
+    }),
+  ])
+  .meta({ id: "StagehandInitWireParams" });
+
+export const StagehandActWireParamsSchema = z
+  .union([
+    StagehandActParamsSchema,
+    StagehandActParamsSchema.extend({
+      scopeId: httpIdSchema,
+      options: ActOptionsSchema.extend({ model: HTTPModelReferenceSchema.optional() }).optional(),
+    }),
+  ])
+  .meta({ id: "StagehandActWireParams" });
+
+export const StagehandObserveWireParamsSchema = z
+  .union([
+    StagehandObserveParamsSchema,
+    StagehandObserveParamsSchema.extend({
+      scopeId: httpIdSchema,
+      options: ObserveOptionsSchema.extend({
+        model: HTTPModelReferenceSchema.optional(),
+      }).optional(),
+    }),
+  ])
+  .meta({ id: "StagehandObserveWireParams" });
+
+export const StagehandExtractWireParamsSchema = z
+  .union([
+    StagehandExtractParamsSchema,
+    StagehandExtractParamsSchema.extend({
+      scopeId: httpIdSchema,
+      options: ExtractOptionsSchema.extend({
+        model: HTTPModelReferenceSchema.optional(),
+      }).optional(),
+    }),
+  ])
+  .meta({ id: "StagehandExtractWireParams" });
+
+export const CallbackBatchWireParamsSchema = z
+  .union([
+    CallbackBatchParamsSchema,
+    CallbackBatchParamsSchema.extend({
+      scopeId: httpIdSchema,
+      options: CallbackBatchOptionsSchema.extend({
+        models: z.array(BatchModelReferenceSchema).optional(),
+      }),
+    }),
+  ])
+  .meta({ id: "CallbackBatchWireParams" });
 
 export const ContextNewPageParamsSchema = z
   .strictObject({

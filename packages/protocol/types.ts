@@ -68,6 +68,15 @@ import type {
   DomainPolicySchema,
   EmptyParamsSchema,
   HTTPHeaderSchema,
+  HTTPConnectionReferenceSchema,
+  HTTPModelReferenceSchema,
+  HTTPServiceConnectionsSchema,
+  BatchModelReferenceSchema,
+  StagehandInitWireParamsSchema,
+  StagehandActWireParamsSchema,
+  StagehandObserveWireParamsSchema,
+  StagehandExtractWireParamsSchema,
+  CallbackBatchWireParamsSchema,
   HTTPRequestParamsSchema,
   HTTPRequestResultSchema,
   HTTPCancelParamsSchema,
@@ -503,3 +512,13 @@ export type HTTPRequestParams = z.infer<typeof HTTPRequestParamsSchema>;
 export type HTTPRequestResult = z.infer<typeof HTTPRequestResultSchema>;
 export type HTTPCancelParams = z.infer<typeof HTTPCancelParamsSchema>;
 export type HTTPRequestErrorData = z.infer<typeof HTTPRequestErrorDataSchema>;
+
+export type HTTPConnectionReference = z.infer<typeof HTTPConnectionReferenceSchema>;
+export type HTTPModelReference = z.infer<typeof HTTPModelReferenceSchema>;
+export type HTTPServiceConnections = z.infer<typeof HTTPServiceConnectionsSchema>;
+export type BatchModelReference = z.infer<typeof BatchModelReferenceSchema>;
+export type StagehandInitWireParams = z.infer<typeof StagehandInitWireParamsSchema>;
+export type StagehandActWireParams = z.infer<typeof StagehandActWireParamsSchema>;
+export type StagehandObserveWireParams = z.infer<typeof StagehandObserveWireParamsSchema>;
+export type StagehandExtractWireParams = z.infer<typeof StagehandExtractWireParamsSchema>;
+export type CallbackBatchWireParams = z.infer<typeof CallbackBatchWireParamsSchema>;
