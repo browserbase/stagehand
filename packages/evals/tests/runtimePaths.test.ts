@@ -15,7 +15,7 @@ describe("resolveRuntimeTasksRoot", () => {
     const caller = "/repo/packages/evals/dist/cli/cli.js";
 
     expect(resolveRuntimeTasksRoot(caller, packageRoot)).toBe(
-      path.join(packageRoot, "dist", "esm", "tasks"),
+      path.posix.join(packageRoot, "dist", "esm", "tasks"),
     );
   });
 });
