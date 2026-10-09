@@ -65,7 +65,7 @@ func TestHTTPWireUnionsRoundTrip(t *testing.T) {
 		{"legacy extract", `{"page_id":"page-1","instruction":"read title","schema":{"type":"object"}}`, new(StagehandExtractWireParams)},
 		{"HTTP extract", `{"page_id":"page-1","instruction":"read title","schema":{"type":"object"},"scope_id":"call-1"}`, new(StagehandExtractWireParams)},
 		{"legacy batch", `{"callback_source":"async () => 1","options":{}}`, new(CallbackBatchWireParams)},
-		{"HTTP batch", `{"callback_source":"async () => 1","scope_id":"batch-1","options":{"models":[{"name":"Fast_Model","model":{"source":"http","route":"gateway","configuration_id":"g"}}]}}`, new(CallbackBatchWireParams)},
+		{"HTTP batch", `{"callback_source":"async () => 1","scope_id":"batch-1","options":{"model_overrides":{"act":{"source":"http","route":"gateway","configuration_id":"g"},"observe":{"source":"http","route":"provider","configuration_id":"m","model_name":"openai/gpt-5"},"extract":{"source":"http","route":"gateway","configuration_id":"g"}}}}`, new(CallbackBatchWireParams)},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestHTTPWireUnionsRejectMixedForms(t *testing.T) {
 		{`{"scope_id":"s","options":{"model":{"model_name":"openai/gpt-5","api_key":"test-key"}}}`, new(StagehandActWireParams)},
 		{`null`, new(StagehandObserveWireParams)},
 		{`[]`, new(StagehandExtractWireParams)},
-		{`{"scope_id":"s","options":{"models":{"fast":{}}}}`, new(CallbackBatchWireParams)},
+		{`{"scope_id":"s","options":{"model_overrides":[]}}`, new(CallbackBatchWireParams)},
 	}
 	for _, test := range tests {
 		if err := json.Unmarshal([]byte(test.wire), test.value); err == nil {
@@ -150,5 +150,26 @@ func assertHTTPWireRoundTrip(t *testing.T, wire []byte, value any) {
 	}
 	if !reflect.DeepEqual(actual, expected) {
 		t.Fatalf("%T round trip = %s, want %s", value, encoded, wire)
+	}
+}
+
+func TestHTTPModelRegistrationWireFixtures(t *testing.T) {
+	data, err := os.ReadFile("../protocol/tests/fixtures/http-model-registration-wire.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixtures []struct {
+		Name   string
+		Params json.RawMessage
+		Result json.RawMessage
+	}
+	if err := json.Unmarshal(data, &fixtures); err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures {
+		t.Run(fixture.Name, func(t *testing.T) {
+			assertHTTPWireRoundTrip(t, fixture.Params, new(HTTPRegisterModelParams))
+			assertHTTPWireRoundTrip(t, fixture.Result, new(HTTPModelReference))
+		})
 	}
 }

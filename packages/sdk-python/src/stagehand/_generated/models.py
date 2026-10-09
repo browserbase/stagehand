@@ -153,13 +153,14 @@ class AnthropicModelName(RootModel[StrictStr]):
     ]
 
 
-class BatchModelReference(WireModel):
+class BatchModelOverrides(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
-    name: Annotated[StrictStr, Field(max_length=128, min_length=1)]
-    model: HTTPModelReference
+    act: Optional[HTTPModelReference] = None
+    observe: Optional[HTTPModelReference] = None
+    extract: Optional[HTTPModelReference] = None
 
 
 class Browser(StrEnum):
@@ -811,6 +812,15 @@ class HTTPInitModelReference(
     RootModel[Union[HTTPModelReference, ClientModelReference]]
 ):
     root: Union[HTTPModelReference, ClientModelReference]
+
+
+class HTTPRegisterModelParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    scope_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+    model: ModelConfig
 
 
 class HTTPRequestErrorData(WireModel):
@@ -1779,7 +1789,7 @@ class Options3(WireModel):
     )
     page_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     timeout: Annotated[StrictInt, Field(gt=0, le=2147473647)] = 30000
-    models: Optional[list[BatchModelReference]] = None
+    model_overrides: Optional[BatchModelOverrides] = None
 
 
 class Os(StrEnum):

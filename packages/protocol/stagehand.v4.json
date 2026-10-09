@@ -110,6 +110,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "http.register_model": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/HTTPRegisterModelParams"
+            },
+            "result": {
+              "$ref": "#/$defs/HTTPModelReference"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "llm.generate": {
           "type": "object",
           "properties": {
@@ -1030,6 +1043,7 @@
         "stagehand.metrics",
         "stagehand.callback_batch",
         "http.request",
+        "http.register_model",
         "llm.generate",
         "context.pages",
         "context.new_page",
@@ -2629,11 +2643,8 @@
               "exclusiveMinimum": 0,
               "maximum": 2147473647
             },
-            "models": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/BatchModelReference"
-              }
+            "model_overrides": {
+              "$ref": "#/$defs/BatchModelOverrides"
             }
           },
           "additionalProperties": false
@@ -2647,19 +2658,19 @@
       "required": ["callback_source", "options", "scope_id"],
       "additionalProperties": false
     },
-    "BatchModelReference": {
+    "BatchModelOverrides": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128
+        "act": {
+          "$ref": "#/$defs/HTTPModelReference"
         },
-        "model": {
+        "observe": {
+          "$ref": "#/$defs/HTTPModelReference"
+        },
+        "extract": {
           "$ref": "#/$defs/HTTPModelReference"
         }
       },
-      "required": ["name", "model"],
       "additionalProperties": false
     },
     "CallbackBatchResult": {
@@ -2799,6 +2810,21 @@
       "required": ["status", "headers", "body_base64"],
       "additionalProperties": false,
       "description": "Buffered HTTP response, including non-2xx statuses. Body bytes are base64."
+    },
+    "HTTPRegisterModelParams": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "model": {
+          "$ref": "#/$defs/ModelConfig"
+        }
+      },
+      "required": ["scope_id", "model"],
+      "additionalProperties": false
     },
     "LLMGenerateParams": {
       "anyOf": [
@@ -6310,6 +6336,33 @@
             },
             "params": {
               "$ref": "#/$defs/HTTPRequestParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "http.register_model"
+            },
+            "params": {
+              "$ref": "#/$defs/HTTPRegisterModelParams"
             },
             "traceparent": {
               "type": "string"

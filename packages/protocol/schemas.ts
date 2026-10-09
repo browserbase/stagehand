@@ -1409,12 +1409,21 @@ export const HTTPServiceConnectionsSchema = z
   })
   .meta({ id: "HTTPServiceConnections" });
 
-export const BatchModelReferenceSchema = z
+export const BatchModelOverridesSchema = z
   .strictObject({
-    name: z.string().min(1).max(HTTP_TRANSPORT_LIMITS.idLength),
-    model: HTTPModelReferenceSchema,
+    act: HTTPModelReferenceSchema.optional(),
+    observe: HTTPModelReferenceSchema.optional(),
+    extract: HTTPModelReferenceSchema.optional(),
   })
-  .meta({ id: "BatchModelReference" });
+  .meta({ id: "BatchModelOverrides" });
+
+/** Registers a callback model with the connected SDK for the active batch scope. */
+export const HTTPRegisterModelParamsSchema = z
+  .strictObject({
+    scopeId: httpIdSchema,
+    model: ModelConfigSchema,
+  })
+  .meta({ id: "HTTPRegisterModelParams" });
 
 export const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
@@ -1836,7 +1845,7 @@ export const StagehandExtractHTTPParamsSchema = StagehandExtractParamsSchema.ext
 export const CallbackBatchHTTPParamsSchema = CallbackBatchParamsSchema.extend({
   scopeId: httpIdSchema,
   options: CallbackBatchOptionsSchema.extend({
-    models: z.array(BatchModelReferenceSchema).optional(),
+    modelOverrides: BatchModelOverridesSchema.optional(),
   }),
 }).meta({ id: "CallbackBatchHTTPParams" });
 

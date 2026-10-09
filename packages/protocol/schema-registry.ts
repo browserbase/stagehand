@@ -32,6 +32,8 @@ import {
   ContextVoidResultSchema,
   EmptyParamsSchema,
   HTTPRequestParamsSchema,
+  HTTPRegisterModelParamsSchema,
+  HTTPModelReferenceSchema,
   HTTPRequestResultSchema,
   HTTPCancelParamsSchema,
   ExtractResultSchema,
@@ -178,6 +180,13 @@ export const StagehandMethods = {
     result: HTTPRequestResultSchema,
     paramsWire: { opaqueKeys: ["headers"] },
     resultWire: { opaqueKeys: ["headers"] },
+  },
+  // The connected SDK registers callback models for the active batch scope.
+  httpRegisterModel: {
+    name: "http.register_model",
+    params: HTTPRegisterModelParamsSchema,
+    result: HTTPModelReferenceSchema,
+    paramsWire: { opaqueKeys: ["headers"] },
   },
   llmGenerate: {
     name: "llm.generate",

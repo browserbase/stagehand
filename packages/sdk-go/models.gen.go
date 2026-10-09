@@ -68,12 +68,15 @@ type Action struct {
 
 type AnthropicModelName string
 
-type BatchModelReference struct {
-	// Model corresponds to the JSON schema field "model".
-	Model HTTPModelReference `json:"model"`
+type BatchModelOverrides struct {
+	// Act corresponds to the JSON schema field "act".
+	Act *HTTPModelReference `json:"act,omitempty,omitzero"`
 
-	// Name corresponds to the JSON schema field "name".
-	Name string `json:"name"`
+	// Extract corresponds to the JSON schema field "extract".
+	Extract *HTTPModelReference `json:"extract,omitempty,omitzero"`
+
+	// Observe corresponds to the JSON schema field "observe".
+	Observe *HTTPModelReference `json:"observe,omitempty,omitzero"`
 }
 
 type BrowserSessionMetadata struct {
@@ -317,8 +320,8 @@ type CallbackBatchHTTPParams struct {
 }
 
 type CallbackBatchHTTPParamsOptions struct {
-	// Models corresponds to the JSON schema field "models".
-	Models []BatchModelReference `json:"models,omitempty,omitzero"`
+	// ModelOverrides corresponds to the JSON schema field "model_overrides".
+	ModelOverrides *BatchModelOverrides `json:"model_overrides,omitempty,omitzero"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID *string `json:"page_id,omitempty,omitzero"`
@@ -638,6 +641,14 @@ type HTTPProviderModelReference struct {
 
 	// Source corresponds to the JSON schema field "source".
 	Source string `json:"source"`
+}
+
+type HTTPRegisterModelParams struct {
+	// Model corresponds to the JSON schema field "model".
+	Model ModelConfig `json:"model"`
+
+	// ScopeID corresponds to the JSON schema field "scope_id".
+	ScopeID string `json:"scope_id"`
 }
 
 // JSON-RPC error data for HTTP transport failures; HTTP statuses use the normal
@@ -2617,8 +2628,8 @@ type generatedModelCatalog struct {
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
 	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
 
-	// BatchModelReference corresponds to the JSON schema field "BatchModelReference".
-	BatchModelReference *BatchModelReference `json:"BatchModelReference,omitempty,omitzero"`
+	// BatchModelOverrides corresponds to the JSON schema field "BatchModelOverrides".
+	BatchModelOverrides *BatchModelOverrides `json:"BatchModelOverrides,omitempty,omitzero"`
 
 	// BrowserSessionMetadata corresponds to the JSON schema field
 	// "BrowserSessionMetadata".
@@ -2824,6 +2835,10 @@ type generatedModelCatalog struct {
 	// HTTPProviderModelReference corresponds to the JSON schema field
 	// "HTTPProviderModelReference".
 	HTTPProviderModelReference *HTTPProviderModelReference `json:"HTTPProviderModelReference,omitempty,omitzero"`
+
+	// HTTPRegisterModelParams corresponds to the JSON schema field
+	// "HTTPRegisterModelParams".
+	HTTPRegisterModelParams *HTTPRegisterModelParams `json:"HTTPRegisterModelParams,omitempty,omitzero"`
 
 	// HTTPRequestErrorData corresponds to the JSON schema field
 	// "HTTPRequestErrorData".

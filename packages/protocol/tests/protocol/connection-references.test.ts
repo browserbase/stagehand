@@ -4,7 +4,7 @@ import { encodeWireValue, wireSchema } from "../../json-rpc/wire-casing.js";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../../schema-registry.js";
 import {
   ActOptionsSchema,
-  BatchModelReferenceSchema,
+  BatchModelOverridesSchema,
   CallbackBatchParamsSchema,
   ExtractOptionsSchema,
   HTTPConnectionReferenceSchema,
@@ -197,16 +197,17 @@ describe("client HTTP connection references", () => {
     expect(StagehandInitParamsSchema.safeParse({ ...init, connections: {} }).success).toBe(false);
   });
 
-  it("preserves named batch models and nested input across wire casing", () => {
+  it("preserves batch method defaults and nested input across wire casing", () => {
     const params = {
-      callbackSource: "async (batch) => batch.models.Fast_Model.configurationId",
+      callbackSource: 'async (batch) => batch.act("click Continue")',
       scopeId: "batch-1",
       input: { modelName: "caller data" },
       options: {
-        models: [
-          { name: "Fast_Model", model: reference },
-          { name: "slow-model", model: { source: "http", route: "gateway", configurationId: "g" } },
-        ],
+        modelOverrides: {
+          act: reference,
+          observe: { source: "http", route: "gateway", configurationId: "g" },
+          extract: reference,
+        },
       },
     };
     const method = StagehandMethods.stagehandCallbackBatch;
@@ -215,13 +216,11 @@ describe("client HTTP connection references", () => {
       scope_id: "batch-1",
       input: params.input,
       options: {
-        models: [
-          {
-            name: "Fast_Model",
-            model: { configuration_id: "model-1", model_name: "openai/gpt-5" },
-          },
-          { name: "slow-model", model: { configuration_id: "g" } },
-        ],
+        model_overrides: {
+          act: { configuration_id: "model-1", model_name: "openai/gpt-5" },
+          observe: { configuration_id: "g" },
+          extract: { configuration_id: "model-1", model_name: "openai/gpt-5" },
+        },
       },
     });
     expect(wireSchema(method.params, method.paramsWire).parse(wire)).toMatchObject(params);
@@ -233,14 +232,22 @@ describe("client HTTP connection references", () => {
     expect(schema.parse(params)).toStrictEqual(CallbackBatchParamsSchema.parse(params));
     expect(schema.parse({ ...params, scopeId: "batch-1" })).toHaveProperty("scopeId", "batch-1");
     for (const input of [
-      { ...params, options: { models: [{ name: "fast", model: reference }] } },
-      { ...params, scopeId: "batch-1", options: { models: [{ name: "fast", model }] } },
-      { ...params, scopeId: "batch-1", options: { models: { fast: reference } } },
+      { ...params, options: { modelOverrides: { act: reference } } },
+      { ...params, scopeId: "batch-1", options: { modelOverrides: { act: model } } },
+      { ...params, scopeId: "batch-1", options: { modelOverrides: { fast: reference } } },
+      { ...params, scopeId: "batch-1", options: { models: [{ name: "fast", model: reference }] } },
+      { ...params, scopeId: "batch-1", options: { modelOverrides: [] } },
     ]) {
       expect(schema.safeParse(input).success).toBe(false);
     }
-    expect(BatchModelReferenceSchema.safeParse({ name: "", model: reference }).success).toBe(false);
   });
+
+  it.each([{}, { act: reference }, { observe: reference }, { extract: reference }])(
+    "accepts optional batch method defaults %#",
+    (overrides) => {
+      expect(BatchModelOverridesSchema.parse(overrides)).toStrictEqual(overrides);
+    },
+  );
 
   it("retains named public input definitions when exporting the wire schemas", () => {
     const document = z.toJSONSchema(StagehandInitWireParamsSchema, { io: "input" });

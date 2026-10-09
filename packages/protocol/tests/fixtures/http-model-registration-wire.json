@@ -1,0 +1,37 @@
+[
+  {
+    "name": "provider model with headers",
+    "params": {
+      "scope_id": "batch-1",
+      "model": {
+        "model_name": "openai/gpt-5",
+        "api_key": "test-key",
+        "headers": {
+          "X-Custom_Header": "value",
+          "anthropic-beta": "flag-one,flag-two"
+        }
+      }
+    },
+    "result": {
+      "source": "http",
+      "route": "provider",
+      "configuration_id": "batch-model-1",
+      "model_name": "openai/gpt-5"
+    }
+  },
+  {
+    "name": "Gateway model",
+    "params": {
+      "scope_id": "batch-1",
+      "model": {
+        "model_name": "openai/gpt-5"
+      }
+    },
+    "result": {
+      "source": "http",
+      "route": "gateway",
+      "configuration_id": "batch-model-2",
+      "model_name": "openai/gpt-5"
+    }
+  }
+]

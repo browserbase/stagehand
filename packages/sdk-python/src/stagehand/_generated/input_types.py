@@ -727,9 +727,10 @@ class HTTPProviderModelReference(TypedDict):
 HTTPModelReference: TypeAlias = HTTPProviderModelReference | HTTPGatewayModelReference
 
 
-class BatchModelReference(TypedDict):
-    name: str
-    model: HTTPModelReference
+class BatchModelOverrides(TypedDict):
+    act: NotRequired[HTTPModelReference]
+    observe: NotRequired[HTTPModelReference]
+    extract: NotRequired[HTTPModelReference]
 
 
 HTTPInitModelReference: TypeAlias = HTTPModelReference | ClientModelReference
@@ -750,6 +751,11 @@ class ExtractOptions(TypedDict):
     cache: NotRequired[Caching]
 
 
+class HTTPRegisterModelParams(TypedDict):
+    scope_id: str
+    model: ModelConfig
+
+
 class Options2(TypedDict):
     model: NotRequired[HTTPModelReference]
     timeout: NotRequired[float]
@@ -762,7 +768,7 @@ class Options2(TypedDict):
 class Options3(TypedDict):
     page_id: NotRequired[str]
     timeout: NotRequired[int]
-    models: NotRequired[list[BatchModelReference]]
+    model_overrides: NotRequired[BatchModelOverrides]
 
 
 class CallbackBatchHTTPParams(TypedDict):

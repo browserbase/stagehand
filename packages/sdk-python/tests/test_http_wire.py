@@ -10,6 +10,11 @@ from stagehand._generated import models
 FIXTURES = json.loads(
     (Path(__file__).parents[2] / "protocol/tests/fixtures/http-transport-wire.json").read_text()
 )
+REGISTRATION_FIXTURES = json.loads(
+    (
+        Path(__file__).parents[2] / "protocol/tests/fixtures/http-model-registration-wire.json"
+    ).read_text()
+)
 REFERENCE = {
     "source": "http",
     "route": "provider",
@@ -24,6 +29,8 @@ REFERENCE = {
         *[(models.HTTPRequestParams, f["wire"]["params"]) for f in FIXTURES["requests"]],
         *[(models.HTTPRequestResult, f["wire"]) for f in FIXTURES["results"]],
         (models.HTTPCancelParams, FIXTURES["cancel"]["params"]),
+        *[(models.HTTPRegisterModelParams, f["params"]) for f in REGISTRATION_FIXTURES],
+        *[(models.HTTPModelReference, f["result"]) for f in REGISTRATION_FIXTURES],
         *[(models.HTTPRequestErrorData, f["error"]["data"]) for f in FIXTURES["errors"]],
     ],
 )
@@ -84,7 +91,11 @@ def test_http_transport_fixtures_round_trip(model: type[BaseModel], wire: dict[s
                 "scope_id": "batch-1",
                 "options": {
                     "timeout": 30000,
-                    "models": [{"name": "Fast_Model", "model": REFERENCE}],
+                    "model_overrides": {
+                        "act": REFERENCE,
+                        "observe": REFERENCE,
+                        "extract": REFERENCE,
+                    },
                 },
             },
         ),
@@ -146,3 +157,37 @@ def test_request_body_requires_standard_padded_base64(body: str) -> None:
 def test_connection_forms_reject_mixed_inputs(model: type[BaseModel], wire: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         model.model_validate(wire)
+
+
+@pytest.mark.parametrize(
+    "overrides", [{}, {"act": REFERENCE}, {"observe": REFERENCE}, {"extract": REFERENCE}]
+)
+def test_batch_method_defaults_are_optional(overrides: dict[str, Any]) -> None:
+    assert (
+        models.BatchModelOverrides.model_validate(overrides).model_dump(
+            mode="json", by_alias=True, exclude_unset=True
+        )
+        == overrides
+    )
+
+
+@pytest.mark.parametrize(
+    "overrides", [{"fast": REFERENCE}, {"act": {"model_name": "openai/gpt-5"}}, []]
+)
+def test_batch_method_defaults_reject_invalid_shapes(overrides: object) -> None:
+    with pytest.raises(ValidationError):
+        models.BatchModelOverrides.model_validate(overrides)
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"scope_id": "", "model": {"model_name": "openai/gpt-5"}},
+        {"scope_id": "batch-1", "model": {}},
+        {"scope_id": "batch-1", "model": REFERENCE},
+        {"scope_id": "batch-1", "model": {"model_name": "openai/gpt-5", "headers": {"X-Test": 1}}},
+    ],
+)
+def test_model_registration_rejects_invalid_shapes(params: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        models.HTTPRegisterModelParams.model_validate(params)
