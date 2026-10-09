@@ -10,7 +10,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/StagehandInitParams"
+              "$ref": "#/$defs/StagehandInitWireParams"
             },
             "result": {
               "$ref": "#/$defs/StagehandInitResult"
@@ -36,7 +36,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/StagehandActParams"
+              "$ref": "#/$defs/StagehandActWireParams"
             },
             "result": {
               "$ref": "#/$defs/ActResult"
@@ -49,7 +49,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/StagehandObserveParams"
+              "$ref": "#/$defs/StagehandObserveWireParams"
             },
             "result": {
               "$ref": "#/$defs/ObserveResult"
@@ -62,7 +62,7 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/StagehandExtractParams"
+              "$ref": "#/$defs/StagehandExtractWireParams"
             },
             "result": {
               "$ref": "#/$defs/ExtractResult"
@@ -88,10 +88,23 @@
           "type": "object",
           "properties": {
             "params": {
-              "$ref": "#/$defs/CallbackBatchParams"
+              "$ref": "#/$defs/CallbackBatchWireParams"
             },
             "result": {
               "$ref": "#/$defs/CallbackBatchResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "http.request": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/HTTPRequestParams"
+            },
+            "result": {
+              "$ref": "#/$defs/HTTPRequestResult"
             }
           },
           "required": ["params", "result"],
@@ -1016,6 +1029,7 @@
         "stagehand.extract",
         "stagehand.metrics",
         "stagehand.callback_batch",
+        "http.request",
         "llm.generate",
         "context.pages",
         "context.new_page",
@@ -1092,6 +1106,16 @@
     "notifications": {
       "type": "object",
       "properties": {
+        "http.cancel": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/HTTPCancelParams"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
+        },
         "stagehand.log": {
           "type": "object",
           "properties": {
@@ -1123,7 +1147,7 @@
           "additionalProperties": false
         }
       },
-      "required": ["stagehand.log", "page.cdp_event", "page.event"],
+      "required": ["http.cancel", "stagehand.log", "page.cdp_event", "page.event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -1134,9 +1158,16 @@
         },
         "page_event_name": {
           "$ref": "#/$defs/PageEventName"
+        },
+        "http_request_error_data": {
+          "$ref": "#/$defs/HTTPRequestErrorData"
         }
       },
-      "required": ["browserbase_session_create_params", "page_event_name"],
+      "required": [
+        "browserbase_session_create_params",
+        "page_event_name",
+        "http_request_error_data"
+      ],
       "additionalProperties": false
     },
     "jsonrpc": {
@@ -1163,6 +1194,16 @@
   "additionalProperties": false,
   "title": "Stagehand V4 Protocol",
   "$defs": {
+    "StagehandInitWireParams": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StagehandInitParams"
+        },
+        {
+          "$ref": "#/$defs/StagehandInitHTTPParams"
+        }
+      ]
+    },
     "StagehandInitParams": {
       "type": "object",
       "properties": {
@@ -1387,6 +1428,146 @@
         }
       ]
     },
+    "StagehandInitHTTPParams": {
+      "type": "object",
+      "properties": {
+        "protocol_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+        },
+        "client_info": {
+          "$ref": "#/$defs/ImplementationInfo"
+        },
+        "browser_cdp_url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "browser": {
+          "$ref": "#/$defs/BrowserSessionMetadata"
+        },
+        "telemetry": {
+          "$ref": "#/$defs/TelemetryConfig"
+        },
+        "log_level": {
+          "default": "info",
+          "type": "string",
+          "enum": ["off", "error", "warn", "info", "debug"]
+        },
+        "system_prompt": {
+          "type": "string"
+        },
+        "self_heal": {
+          "type": "boolean"
+        },
+        "dom_settle_timeout_ms": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cache": {
+          "description": "Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache.",
+          "$ref": "#/$defs/Caching"
+        },
+        "connections": {
+          "$ref": "#/$defs/HTTPServiceConnections"
+        },
+        "model": {
+          "$ref": "#/$defs/HTTPInitModelReference"
+        }
+      },
+      "required": ["protocol_version", "client_info", "connections"],
+      "additionalProperties": false
+    },
+    "HTTPServiceConnections": {
+      "type": "object",
+      "properties": {
+        "gateway": {
+          "$ref": "#/$defs/HTTPConnectionReference"
+        },
+        "cache": {
+          "$ref": "#/$defs/HTTPConnectionReference"
+        }
+      },
+      "additionalProperties": false
+    },
+    "HTTPConnectionReference": {
+      "type": "object",
+      "properties": {
+        "configuration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["configuration_id"],
+      "additionalProperties": false
+    },
+    "HTTPInitModelReference": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HTTPModelReference"
+        },
+        {
+          "$ref": "#/$defs/ClientModelReference"
+        }
+      ]
+    },
+    "HTTPModelReference": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/HTTPProviderModelReference"
+        },
+        {
+          "$ref": "#/$defs/HTTPGatewayModelReference"
+        }
+      ]
+    },
+    "HTTPProviderModelReference": {
+      "type": "object",
+      "properties": {
+        "configuration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source": {
+          "type": "string",
+          "const": "http"
+        },
+        "route": {
+          "type": "string",
+          "const": "provider"
+        },
+        "model_name": {
+          "$ref": "#/$defs/ModelName"
+        }
+      },
+      "required": ["configuration_id", "source", "route", "model_name"],
+      "additionalProperties": false
+    },
+    "HTTPGatewayModelReference": {
+      "type": "object",
+      "properties": {
+        "configuration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source": {
+          "type": "string",
+          "const": "http"
+        },
+        "route": {
+          "type": "string",
+          "const": "gateway"
+        },
+        "model_name": {
+          "$ref": "#/$defs/ModelName"
+        }
+      },
+      "required": ["configuration_id", "source", "route"],
+      "additionalProperties": false
+    },
     "StagehandInitResult": {
       "type": "object",
       "properties": {
@@ -1435,6 +1616,16 @@
       },
       "required": ["closed"],
       "additionalProperties": false
+    },
+    "StagehandActWireParams": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StagehandActParams"
+        },
+        {
+          "$ref": "#/$defs/StagehandActHTTPParams"
+        }
+      ]
     },
     "StagehandActParams": {
       "type": "object",
@@ -1605,6 +1796,84 @@
       "required": ["selector"],
       "additionalProperties": false
     },
+    "StagehandActHTTPParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instruction": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/$defs/Action"
+            }
+          ]
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "$ref": "#/$defs/HTTPModelReference"
+            },
+            "variables": {
+              "description": "Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.",
+              "example": {
+                "username": "john_doe",
+                "password": {
+                  "value": "secret123",
+                  "description": "The login password"
+                }
+              },
+              "$ref": "#/$defs/Variables"
+            },
+            "timeout": {
+              "description": "Timeout in ms for the action",
+              "example": 30000,
+              "type": "number"
+            },
+            "locator": {
+              "description": "Serializable element locator for the action target",
+              "$ref": "#/$defs/Locator"
+            },
+            "ignore_locators": {
+              "description": "Locators for elements and subtrees that should be excluded from action planning",
+              "example": [
+                {
+                  "selector": "nav"
+                },
+                {
+                  "selector": ".cookie-banner"
+                },
+                {
+                  "selector": "#sidebar-ads"
+                }
+              ],
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Locator"
+              }
+            },
+            "cache": {
+              "description": "Override the instance-level cache setting for this request",
+              "$ref": "#/$defs/Caching"
+            }
+          },
+          "additionalProperties": false
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["page_id", "instruction", "scope_id"],
+      "additionalProperties": false
+    },
     "ActResult": {
       "type": "object",
       "properties": {
@@ -1767,6 +2036,16 @@
       "additionalProperties": false,
       "description": "Aggregate LLM usage for one Stagehand operation"
     },
+    "StagehandObserveWireParams": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StagehandObserveParams"
+        },
+        {
+          "$ref": "#/$defs/StagehandObserveHTTPParams"
+        }
+      ]
+    },
     "StagehandObserveParams": {
       "type": "object",
       "properties": {
@@ -1836,6 +2115,76 @@
       },
       "additionalProperties": false
     },
+    "StagehandObserveHTTPParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "$ref": "#/$defs/HTTPModelReference"
+            },
+            "variables": {
+              "description": "Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.",
+              "example": {
+                "username": {
+                  "value": "john@example.com",
+                  "description": "The login email"
+                },
+                "rememberMe": true
+              },
+              "$ref": "#/$defs/Variables"
+            },
+            "timeout": {
+              "description": "Timeout in ms for the observation",
+              "example": 30000,
+              "type": "number"
+            },
+            "locator": {
+              "description": "Locator that scopes observation to a specific element",
+              "$ref": "#/$defs/Locator"
+            },
+            "ignore_locators": {
+              "description": "Locators for elements and subtrees that should be excluded from observation",
+              "example": [
+                {
+                  "selector": "nav"
+                },
+                {
+                  "selector": ".cookie-banner"
+                },
+                {
+                  "selector": "#sidebar-ads"
+                }
+              ],
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Locator"
+              }
+            },
+            "cache": {
+              "description": "Override the instance-level cache setting for this request",
+              "$ref": "#/$defs/Caching"
+            }
+          },
+          "additionalProperties": false
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["page_id", "scope_id"],
+      "additionalProperties": false
+    },
     "ObserveResult": {
       "type": "object",
       "properties": {
@@ -1851,6 +2200,16 @@
       },
       "required": ["data", "metadata"],
       "additionalProperties": false
+    },
+    "StagehandExtractWireParams": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StagehandExtractParams"
+        },
+        {
+          "$ref": "#/$defs/StagehandExtractHTTPParams"
+        }
+      ]
     },
     "StagehandExtractParams": {
       "type": "object",
@@ -1959,6 +2318,85 @@
           "$ref": "#/$defs/Caching"
         }
       },
+      "additionalProperties": false
+    },
+    "StagehandExtractHTTPParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instruction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema": {
+          "default": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "extraction": {
+                "type": "string"
+              }
+            },
+            "required": ["extraction"],
+            "additionalProperties": false
+          },
+          "$ref": "#/$defs/__schema0"
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "model": {
+              "$ref": "#/$defs/HTTPModelReference"
+            },
+            "timeout": {
+              "description": "Timeout in ms for the extraction",
+              "example": 30000,
+              "type": "number"
+            },
+            "locator": {
+              "description": "Locator that scopes extraction to a specific element",
+              "$ref": "#/$defs/Locator"
+            },
+            "ignore_locators": {
+              "description": "Locators for elements and subtrees that should be excluded from extraction",
+              "example": [
+                {
+                  "selector": "nav"
+                },
+                {
+                  "selector": ".cookie-banner"
+                },
+                {
+                  "selector": "#sidebar-ads"
+                }
+              ],
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Locator"
+              }
+            },
+            "screenshot": {
+              "description": "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
+              "example": false,
+              "type": "boolean"
+            },
+            "cache": {
+              "description": "Override the instance-level cache setting for this request",
+              "$ref": "#/$defs/Caching"
+            }
+          },
+          "additionalProperties": false
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["page_id", "instruction", "scope_id"],
       "additionalProperties": false
     },
     "ExtractResult": {
@@ -2094,6 +2532,16 @@
       ],
       "additionalProperties": false
     },
+    "CallbackBatchWireParams": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CallbackBatchParams"
+        },
+        {
+          "$ref": "#/$defs/CallbackBatchHTTPParams"
+        }
+      ]
+    },
     "CallbackBatchParams": {
       "type": "object",
       "properties": {
@@ -2158,6 +2606,62 @@
       },
       "additionalProperties": false
     },
+    "CallbackBatchHTTPParams": {
+      "type": "object",
+      "properties": {
+        "callback_source": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "$ref": "#/$defs/__schema2"
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "page_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "timeout": {
+              "default": 30000,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 2147473647
+            },
+            "models": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/BatchModelReference"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["callback_source", "options", "scope_id"],
+      "additionalProperties": false
+    },
+    "BatchModelReference": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "model": {
+          "$ref": "#/$defs/HTTPModelReference"
+        }
+      },
+      "required": ["name", "model"],
+      "additionalProperties": false
+    },
     "CallbackBatchResult": {
       "type": "object",
       "properties": {
@@ -2197,6 +2701,104 @@
           }
         }
       ]
+    },
+    "HTTPRequestParams": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "configuration_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192
+        },
+        "headers": {
+          "maxItems": 128,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HTTPHeader"
+          }
+        },
+        "body_base64": {
+          "type": "string",
+          "maxLength": 89478488,
+          "format": "byte",
+          "contentEncoding": "base64",
+          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 2147483647
+        }
+      },
+      "required": ["request_id", "configuration_id", "scope_id", "method", "path", "headers"],
+      "additionalProperties": false,
+      "description": "Worker-to-client buffered HTTP request. Omitted timeout means no HTTP deadline."
+    },
+    "HTTPHeader": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 8192
+        }
+      },
+      "required": ["name", "value"],
+      "additionalProperties": false
+    },
+    "HTTPRequestResult": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 599
+        },
+        "status_text": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "headers": {
+          "maxItems": 128,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HTTPHeader"
+          }
+        },
+        "body_base64": {
+          "type": "string",
+          "maxLength": 89478488,
+          "format": "byte",
+          "contentEncoding": "base64",
+          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+        }
+      },
+      "required": ["status", "headers", "body_base64"],
+      "additionalProperties": false,
+      "description": "Buffered HTTP response, including non-2xx statuses. Body bytes are base64."
     },
     "LLMGenerateParams": {
       "anyOf": [
@@ -4991,6 +5593,19 @@
       "required": ["message"],
       "additionalProperties": false
     },
+    "HTTPCancelParams": {
+      "type": "object",
+      "properties": {
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": ["request_id"],
+      "additionalProperties": false,
+      "description": "Worker-to-client HTTP cancellation. Repeated or completed request IDs are no-ops."
+    },
     "StagehandLog": {
       "type": "object",
       "properties": {
@@ -5463,6 +6078,31 @@
       "type": "string",
       "enum": ["console"]
     },
+    "HTTPRequestErrorData": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "http.request"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "network",
+            "timeout",
+            "aborted",
+            "invalid_request",
+            "configuration_unavailable",
+            "scope_closed",
+            "disconnected",
+            "limit_exceeded"
+          ]
+        }
+      },
+      "required": ["type", "kind"],
+      "additionalProperties": false,
+      "description": "JSON-RPC error data for HTTP transport failures; HTTP statuses use the normal result."
+    },
     "StagehandRpcRequest": {
       "anyOf": [
         {
@@ -5480,7 +6120,7 @@
               "const": "stagehand.init"
             },
             "params": {
-              "$ref": "#/$defs/StagehandInitParams"
+              "$ref": "#/$defs/StagehandInitWireParams"
             },
             "traceparent": {
               "type": "string"
@@ -5534,7 +6174,7 @@
               "const": "stagehand.act"
             },
             "params": {
-              "$ref": "#/$defs/StagehandActParams"
+              "$ref": "#/$defs/StagehandActWireParams"
             },
             "traceparent": {
               "type": "string"
@@ -5561,7 +6201,7 @@
               "const": "stagehand.observe"
             },
             "params": {
-              "$ref": "#/$defs/StagehandObserveParams"
+              "$ref": "#/$defs/StagehandObserveWireParams"
             },
             "traceparent": {
               "type": "string"
@@ -5588,7 +6228,7 @@
               "const": "stagehand.extract"
             },
             "params": {
-              "$ref": "#/$defs/StagehandExtractParams"
+              "$ref": "#/$defs/StagehandExtractWireParams"
             },
             "traceparent": {
               "type": "string"
@@ -5642,7 +6282,34 @@
               "const": "stagehand.callback_batch"
             },
             "params": {
-              "$ref": "#/$defs/CallbackBatchParams"
+              "$ref": "#/$defs/CallbackBatchWireParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "http.request"
+            },
+            "params": {
+              "$ref": "#/$defs/HTTPRequestParams"
             },
             "traceparent": {
               "type": "string"
@@ -7553,6 +8220,24 @@
     },
     "StagehandRpcNotification": {
       "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "http.cancel"
+            },
+            "params": {
+              "$ref": "#/$defs/HTTPCancelParams"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
+        },
         {
           "type": "object",
           "properties": {

@@ -68,6 +68,14 @@ type Action struct {
 
 type AnthropicModelName string
 
+type BatchModelReference struct {
+	// Model corresponds to the JSON schema field "model".
+	Model HTTPModelReference `json:"model"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+}
+
 type BrowserSessionMetadata struct {
 	// Region corresponds to the JSON schema field "region".
 	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
@@ -292,6 +300,31 @@ type CacheTokenSavings struct {
 
 	// TotalTokens corresponds to the JSON schema field "total_tokens".
 	TotalTokens int `json:"total_tokens,omitempty,omitzero"`
+}
+
+type CallbackBatchHTTPParams struct {
+	// CallbackSource corresponds to the JSON schema field "callback_source".
+	CallbackSource string `json:"callback_source"`
+
+	// Input corresponds to the JSON schema field "input".
+	Input json.RawMessage `json:"input,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options CallbackBatchHTTPParamsOptions `json:"options"`
+
+	// ScopeID corresponds to the JSON schema field "scope_id".
+	ScopeID string `json:"scope_id"`
+}
+
+type CallbackBatchHTTPParamsOptions struct {
+	// Models corresponds to the JSON schema field "models".
+	Models []BatchModelReference `json:"models,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID *string `json:"page_id,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout int `json:"timeout,omitempty,omitzero"`
 }
 
 type CallbackBatchOptions struct {
@@ -558,6 +591,135 @@ type ExtractResult struct {
 type GoogleModelName string
 
 type GroqModelName string
+
+// Worker-to-client HTTP cancellation. Repeated or completed request IDs are
+// no-ops.
+type HTTPCancelParams struct {
+	// RequestID corresponds to the JSON schema field "request_id".
+	RequestID string `json:"request_id"`
+}
+
+type HTTPConnectionReference struct {
+	// ConfigurationID corresponds to the JSON schema field "configuration_id".
+	ConfigurationID string `json:"configuration_id"`
+}
+
+type HTTPGatewayModelReference struct {
+	// ConfigurationID corresponds to the JSON schema field "configuration_id".
+	ConfigurationID string `json:"configuration_id"`
+
+	// ModelName corresponds to the JSON schema field "model_name".
+	ModelName *ModelName `json:"model_name,omitempty,omitzero"`
+
+	// Route corresponds to the JSON schema field "route".
+	Route string `json:"route"`
+
+	// Source corresponds to the JSON schema field "source".
+	Source string `json:"source"`
+}
+
+type HTTPHeader struct {
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+
+	// Value corresponds to the JSON schema field "value".
+	Value string `json:"value"`
+}
+
+type HTTPProviderModelReference struct {
+	// ConfigurationID corresponds to the JSON schema field "configuration_id".
+	ConfigurationID string `json:"configuration_id"`
+
+	// ModelName corresponds to the JSON schema field "model_name".
+	ModelName ModelName `json:"model_name"`
+
+	// Route corresponds to the JSON schema field "route".
+	Route string `json:"route"`
+
+	// Source corresponds to the JSON schema field "source".
+	Source string `json:"source"`
+}
+
+// JSON-RPC error data for HTTP transport failures; HTTP statuses use the normal
+// result.
+type HTTPRequestErrorData struct {
+	// Kind corresponds to the JSON schema field "kind".
+	Kind HTTPRequestErrorDataKind `json:"kind"`
+
+	// Type corresponds to the JSON schema field "type".
+	Type string `json:"type"`
+}
+
+type HTTPRequestErrorDataKind string
+
+const HTTPRequestErrorDataKindAborted HTTPRequestErrorDataKind = "aborted"
+const HTTPRequestErrorDataKindConfigurationUnavailable HTTPRequestErrorDataKind = "configuration_unavailable"
+const HTTPRequestErrorDataKindDisconnected HTTPRequestErrorDataKind = "disconnected"
+const HTTPRequestErrorDataKindInvalidRequest HTTPRequestErrorDataKind = "invalid_request"
+const HTTPRequestErrorDataKindLimitExceeded HTTPRequestErrorDataKind = "limit_exceeded"
+const HTTPRequestErrorDataKindNetwork HTTPRequestErrorDataKind = "network"
+const HTTPRequestErrorDataKindScopeClosed HTTPRequestErrorDataKind = "scope_closed"
+const HTTPRequestErrorDataKindTimeout HTTPRequestErrorDataKind = "timeout"
+
+// Worker-to-client buffered HTTP request. Omitted timeout means no HTTP deadline.
+type HTTPRequestParams struct {
+	// BodyBase64 corresponds to the JSON schema field "body_base64".
+	BodyBase64 *string `json:"body_base64,omitempty,omitzero"`
+
+	// ConfigurationID corresponds to the JSON schema field "configuration_id".
+	ConfigurationID string `json:"configuration_id"`
+
+	// Headers corresponds to the JSON schema field "headers".
+	Headers []HTTPHeader `json:"headers"`
+
+	// Method corresponds to the JSON schema field "method".
+	Method HTTPRequestParamsMethod `json:"method"`
+
+	// Path corresponds to the JSON schema field "path".
+	Path string `json:"path"`
+
+	// RequestID corresponds to the JSON schema field "request_id".
+	RequestID string `json:"request_id"`
+
+	// ScopeID corresponds to the JSON schema field "scope_id".
+	ScopeID string `json:"scope_id"`
+
+	// TimeoutMs corresponds to the JSON schema field "timeout_ms".
+	TimeoutMs *int `json:"timeout_ms,omitempty,omitzero"`
+}
+
+type HTTPRequestParamsMethod string
+
+const HTTPRequestParamsMethodDELETE HTTPRequestParamsMethod = "DELETE"
+const HTTPRequestParamsMethodGET HTTPRequestParamsMethod = "GET"
+const HTTPRequestParamsMethodHEAD HTTPRequestParamsMethod = "HEAD"
+const HTTPRequestParamsMethodOPTIONS HTTPRequestParamsMethod = "OPTIONS"
+const HTTPRequestParamsMethodPATCH HTTPRequestParamsMethod = "PATCH"
+const HTTPRequestParamsMethodPOST HTTPRequestParamsMethod = "POST"
+const HTTPRequestParamsMethodPUT HTTPRequestParamsMethod = "PUT"
+
+// Buffered HTTP response, including non-2xx statuses. Body bytes are base64.
+type HTTPRequestResult struct {
+	// BodyBase64 corresponds to the JSON schema field "body_base64".
+	BodyBase64 string `json:"body_base64"`
+
+	// Headers corresponds to the JSON schema field "headers".
+	Headers []HTTPHeader `json:"headers"`
+
+	// Status corresponds to the JSON schema field "status".
+	Status int `json:"status"`
+
+	// StatusText corresponds to the JSON schema field "status_text".
+	StatusText *string `json:"status_text,omitempty,omitzero"`
+}
+
+type HTTPServiceConnections struct {
+	// Cache corresponds to the JSON schema field "cache".
+	Cache *HTTPConnectionReference `json:"cache,omitempty,omitzero"`
+
+	// Gateway corresponds to the JSON schema field "gateway".
+	Gateway *HTTPConnectionReference `json:"gateway,omitempty,omitzero"`
+}
 
 type ImplementationInfo struct {
 	// Name corresponds to the JSON schema field "name".
@@ -1944,6 +2106,41 @@ type SnapshotResultURLMap map[string]string
 
 type SnapshotResultXPathMap map[string]string
 
+type StagehandActHTTPParams struct {
+	// Instruction corresponds to the JSON schema field "instruction".
+	Instruction ActInstructionValue `json:"instruction"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *StagehandActHTTPParamsOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// ScopeID corresponds to the JSON schema field "scope_id".
+	ScopeID string `json:"scope_id"`
+}
+
+type StagehandActHTTPParamsOptions struct {
+	// Cache corresponds to the JSON schema field "cache".
+	Cache *Caching `json:"cache,omitempty,omitzero"`
+
+	// Locators for elements and subtrees that should be excluded from action planning
+	IgnoreLocators []Locator `json:"ignore_locators,omitempty,omitzero"`
+
+	// Serializable element locator for the action target
+	Locator *Locator `json:"locator,omitempty,omitzero"`
+
+	// Model corresponds to the JSON schema field "model".
+	Model *HTTPModelReference `json:"model,omitempty,omitzero"`
+
+	// Timeout in ms for the action
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// Variables to substitute in the action instruction. Accepts flat primitives or {
+	// value, description? } objects.
+	Variables Variables `json:"variables,omitempty,omitzero"`
+}
+
 type StagehandActParams struct {
 	// Instruction corresponds to the JSON schema field "instruction".
 	Instruction ActInstructionValue `json:"instruction"`
@@ -1960,6 +2157,44 @@ type StagehandCloseResult struct {
 	Closed bool `json:"closed"`
 }
 
+type StagehandExtractHTTPParams struct {
+	// Instruction corresponds to the JSON schema field "instruction".
+	Instruction string `json:"instruction"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *StagehandExtractHTTPParamsOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// Schema corresponds to the JSON schema field "schema".
+	Schema json.RawMessage `json:"schema,omitempty,omitzero"`
+
+	// ScopeID corresponds to the JSON schema field "scope_id".
+	ScopeID string `json:"scope_id"`
+}
+
+type StagehandExtractHTTPParamsOptions struct {
+	// Cache corresponds to the JSON schema field "cache".
+	Cache *Caching `json:"cache,omitempty,omitzero"`
+
+	// Locators for elements and subtrees that should be excluded from extraction
+	IgnoreLocators []Locator `json:"ignore_locators,omitempty,omitzero"`
+
+	// Locator that scopes extraction to a specific element
+	Locator *Locator `json:"locator,omitempty,omitzero"`
+
+	// Model corresponds to the JSON schema field "model".
+	Model *HTTPModelReference `json:"model,omitempty,omitzero"`
+
+	// When true, include a screenshot of the current viewport in the extraction LLM
+	// call. Defaults to false.
+	Screenshot *bool `json:"screenshot,omitempty,omitzero"`
+
+	// Timeout in ms for the extraction
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+}
+
 type StagehandExtractParams struct {
 	// Instruction corresponds to the JSON schema field "instruction".
 	Instruction string `json:"instruction"`
@@ -1973,6 +2208,53 @@ type StagehandExtractParams struct {
 	// Schema corresponds to the JSON schema field "schema".
 	Schema json.RawMessage `json:"schema,omitempty,omitzero"`
 }
+
+type StagehandInitHTTPParams struct {
+	// Browser corresponds to the JSON schema field "browser".
+	Browser *BrowserSessionMetadata `json:"browser,omitempty,omitzero"`
+
+	// BrowserCDPURL corresponds to the JSON schema field "browser_cdp_url".
+	BrowserCDPURL *string `json:"browser_cdp_url,omitempty,omitzero"`
+
+	// Cache corresponds to the JSON schema field "cache".
+	Cache *Caching `json:"cache,omitempty,omitzero"`
+
+	// ClientInfo corresponds to the JSON schema field "client_info".
+	ClientInfo ImplementationInfo `json:"client_info"`
+
+	// Connections corresponds to the JSON schema field "connections".
+	Connections HTTPServiceConnections `json:"connections"`
+
+	// DOMSettleTimeoutMs corresponds to the JSON schema field
+	// "dom_settle_timeout_ms".
+	DOMSettleTimeoutMs *int `json:"dom_settle_timeout_ms,omitempty,omitzero"`
+
+	// LogLevel corresponds to the JSON schema field "log_level".
+	LogLevel StagehandInitHTTPParamsLogLevel `json:"log_level,omitempty,omitzero"`
+
+	// Model corresponds to the JSON schema field "model".
+	Model *HTTPInitModelReference `json:"model,omitempty,omitzero"`
+
+	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
+	ProtocolVersion string `json:"protocol_version"`
+
+	// SelfHeal corresponds to the JSON schema field "self_heal".
+	SelfHeal *bool `json:"self_heal,omitempty,omitzero"`
+
+	// SystemPrompt corresponds to the JSON schema field "system_prompt".
+	SystemPrompt *string `json:"system_prompt,omitempty,omitzero"`
+
+	// Telemetry corresponds to the JSON schema field "telemetry".
+	Telemetry *TelemetryConfig `json:"telemetry,omitempty,omitzero"`
+}
+
+type StagehandInitHTTPParamsLogLevel string
+
+const StagehandInitHTTPParamsLogLevelDebug StagehandInitHTTPParamsLogLevel = "debug"
+const StagehandInitHTTPParamsLogLevelError StagehandInitHTTPParamsLogLevel = "error"
+const StagehandInitHTTPParamsLogLevelInfo StagehandInitHTTPParamsLogLevel = "info"
+const StagehandInitHTTPParamsLogLevelOff StagehandInitHTTPParamsLogLevel = "off"
+const StagehandInitHTTPParamsLogLevelWarn StagehandInitHTTPParamsLogLevel = "warn"
 
 type StagehandInitParams struct {
 	// APIKey corresponds to the JSON schema field "api_key".
@@ -2130,6 +2412,42 @@ type StagehandMetrics struct {
 	// TotalReasoningTokens corresponds to the JSON schema field
 	// "total_reasoning_tokens".
 	TotalReasoningTokens float64 `json:"total_reasoning_tokens"`
+}
+
+type StagehandObserveHTTPParams struct {
+	// Instruction corresponds to the JSON schema field "instruction".
+	Instruction *string `json:"instruction,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *StagehandObserveHTTPParamsOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// ScopeID corresponds to the JSON schema field "scope_id".
+	ScopeID string `json:"scope_id"`
+}
+
+type StagehandObserveHTTPParamsOptions struct {
+	// Cache corresponds to the JSON schema field "cache".
+	Cache *Caching `json:"cache,omitempty,omitzero"`
+
+	// Locators for elements and subtrees that should be excluded from observation
+	IgnoreLocators []Locator `json:"ignore_locators,omitempty,omitzero"`
+
+	// Locator that scopes observation to a specific element
+	Locator *Locator `json:"locator,omitempty,omitzero"`
+
+	// Model corresponds to the JSON schema field "model".
+	Model *HTTPModelReference `json:"model,omitempty,omitzero"`
+
+	// Timeout in ms for the observation
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// Variables whose names are exposed to the model so observe() returns
+	// %variableName% placeholders in suggested action arguments instead of literal
+	// values. Accepts flat primitives or { value, description? } objects.
+	Variables Variables `json:"variables,omitempty,omitzero"`
 }
 
 type StagehandObserveParams struct {
@@ -2299,6 +2617,9 @@ type generatedModelCatalog struct {
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
 	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
 
+	// BatchModelReference corresponds to the JSON schema field "BatchModelReference".
+	BatchModelReference *BatchModelReference `json:"BatchModelReference,omitempty,omitzero"`
+
 	// BrowserSessionMetadata corresponds to the JSON schema field
 	// "BrowserSessionMetadata".
 	BrowserSessionMetadata *BrowserSessionMetadata `json:"BrowserSessionMetadata,omitempty,omitzero"`
@@ -2348,6 +2669,10 @@ type generatedModelCatalog struct {
 	// Caching corresponds to the JSON schema field "Caching".
 	Caching *Caching `json:"Caching,omitempty,omitzero"`
 
+	// CallbackBatchHTTPParams corresponds to the JSON schema field
+	// "CallbackBatchHTTPParams".
+	CallbackBatchHTTPParams *CallbackBatchHTTPParams `json:"CallbackBatchHTTPParams,omitempty,omitzero"`
+
 	// CallbackBatchOptions corresponds to the JSON schema field
 	// "CallbackBatchOptions".
 	CallbackBatchOptions *CallbackBatchOptions `json:"CallbackBatchOptions,omitempty,omitzero"`
@@ -2357,6 +2682,10 @@ type generatedModelCatalog struct {
 
 	// CallbackBatchResult corresponds to the JSON schema field "CallbackBatchResult".
 	CallbackBatchResult *CallbackBatchResult `json:"CallbackBatchResult,omitempty,omitzero"`
+
+	// CallbackBatchWireParams corresponds to the JSON schema field
+	// "CallbackBatchWireParams".
+	CallbackBatchWireParams *CallbackBatchWireParams `json:"CallbackBatchWireParams,omitempty,omitzero"`
 
 	// CerebrasModelName corresponds to the JSON schema field "CerebrasModelName".
 	CerebrasModelName *CerebrasModelName `json:"CerebrasModelName,omitempty,omitzero"`
@@ -2470,6 +2799,45 @@ type generatedModelCatalog struct {
 
 	// GroqModelName corresponds to the JSON schema field "GroqModelName".
 	GroqModelName *GroqModelName `json:"GroqModelName,omitempty,omitzero"`
+
+	// HTTPCancelParams corresponds to the JSON schema field "HTTPCancelParams".
+	HTTPCancelParams *HTTPCancelParams `json:"HTTPCancelParams,omitempty,omitzero"`
+
+	// HTTPConnectionReference corresponds to the JSON schema field
+	// "HTTPConnectionReference".
+	HTTPConnectionReference *HTTPConnectionReference `json:"HTTPConnectionReference,omitempty,omitzero"`
+
+	// HTTPGatewayModelReference corresponds to the JSON schema field
+	// "HTTPGatewayModelReference".
+	HTTPGatewayModelReference *HTTPGatewayModelReference `json:"HTTPGatewayModelReference,omitempty,omitzero"`
+
+	// HTTPHeader corresponds to the JSON schema field "HTTPHeader".
+	HTTPHeader *HTTPHeader `json:"HTTPHeader,omitempty,omitzero"`
+
+	// HTTPInitModelReference corresponds to the JSON schema field
+	// "HTTPInitModelReference".
+	HTTPInitModelReference *HTTPInitModelReference `json:"HTTPInitModelReference,omitempty,omitzero"`
+
+	// HTTPModelReference corresponds to the JSON schema field "HTTPModelReference".
+	HTTPModelReference *HTTPModelReference `json:"HTTPModelReference,omitempty,omitzero"`
+
+	// HTTPProviderModelReference corresponds to the JSON schema field
+	// "HTTPProviderModelReference".
+	HTTPProviderModelReference *HTTPProviderModelReference `json:"HTTPProviderModelReference,omitempty,omitzero"`
+
+	// HTTPRequestErrorData corresponds to the JSON schema field
+	// "HTTPRequestErrorData".
+	HTTPRequestErrorData *HTTPRequestErrorData `json:"HTTPRequestErrorData,omitempty,omitzero"`
+
+	// HTTPRequestParams corresponds to the JSON schema field "HTTPRequestParams".
+	HTTPRequestParams *HTTPRequestParams `json:"HTTPRequestParams,omitempty,omitzero"`
+
+	// HTTPRequestResult corresponds to the JSON schema field "HTTPRequestResult".
+	HTTPRequestResult *HTTPRequestResult `json:"HTTPRequestResult,omitempty,omitzero"`
+
+	// HTTPServiceConnections corresponds to the JSON schema field
+	// "HTTPServiceConnections".
+	HTTPServiceConnections *HTTPServiceConnections `json:"HTTPServiceConnections,omitempty,omitzero"`
 
 	// ImplementationInfo corresponds to the JSON schema field "ImplementationInfo".
 	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty,omitzero"`
@@ -2958,22 +3326,46 @@ type generatedModelCatalog struct {
 	// SnapshotResult corresponds to the JSON schema field "SnapshotResult".
 	SnapshotResult *SnapshotResult `json:"SnapshotResult,omitempty,omitzero"`
 
+	// StagehandActHTTPParams corresponds to the JSON schema field
+	// "StagehandActHTTPParams".
+	StagehandActHTTPParams *StagehandActHTTPParams `json:"StagehandActHTTPParams,omitempty,omitzero"`
+
 	// StagehandActParams corresponds to the JSON schema field "StagehandActParams".
 	StagehandActParams *StagehandActParams `json:"StagehandActParams,omitempty,omitzero"`
+
+	// StagehandActWireParams corresponds to the JSON schema field
+	// "StagehandActWireParams".
+	StagehandActWireParams *StagehandActWireParams `json:"StagehandActWireParams,omitempty,omitzero"`
 
 	// StagehandCloseResult corresponds to the JSON schema field
 	// "StagehandCloseResult".
 	StagehandCloseResult *StagehandCloseResult `json:"StagehandCloseResult,omitempty,omitzero"`
 
+	// StagehandExtractHTTPParams corresponds to the JSON schema field
+	// "StagehandExtractHTTPParams".
+	StagehandExtractHTTPParams *StagehandExtractHTTPParams `json:"StagehandExtractHTTPParams,omitempty,omitzero"`
+
 	// StagehandExtractParams corresponds to the JSON schema field
 	// "StagehandExtractParams".
 	StagehandExtractParams *StagehandExtractParams `json:"StagehandExtractParams,omitempty,omitzero"`
+
+	// StagehandExtractWireParams corresponds to the JSON schema field
+	// "StagehandExtractWireParams".
+	StagehandExtractWireParams *StagehandExtractWireParams `json:"StagehandExtractWireParams,omitempty,omitzero"`
+
+	// StagehandInitHTTPParams corresponds to the JSON schema field
+	// "StagehandInitHTTPParams".
+	StagehandInitHTTPParams *StagehandInitHTTPParams `json:"StagehandInitHTTPParams,omitempty,omitzero"`
 
 	// StagehandInitParams corresponds to the JSON schema field "StagehandInitParams".
 	StagehandInitParams *StagehandInitParams `json:"StagehandInitParams,omitempty,omitzero"`
 
 	// StagehandInitResult corresponds to the JSON schema field "StagehandInitResult".
 	StagehandInitResult *StagehandInitResult `json:"StagehandInitResult,omitempty,omitzero"`
+
+	// StagehandInitWireParams corresponds to the JSON schema field
+	// "StagehandInitWireParams".
+	StagehandInitWireParams *StagehandInitWireParams `json:"StagehandInitWireParams,omitempty,omitzero"`
 
 	// StagehandLog corresponds to the JSON schema field "StagehandLog".
 	StagehandLog *StagehandLog `json:"StagehandLog,omitempty,omitzero"`
@@ -2987,9 +3379,17 @@ type generatedModelCatalog struct {
 	// StagehandMetrics corresponds to the JSON schema field "StagehandMetrics".
 	StagehandMetrics *StagehandMetrics `json:"StagehandMetrics,omitempty,omitzero"`
 
+	// StagehandObserveHTTPParams corresponds to the JSON schema field
+	// "StagehandObserveHTTPParams".
+	StagehandObserveHTTPParams *StagehandObserveHTTPParams `json:"StagehandObserveHTTPParams,omitempty,omitzero"`
+
 	// StagehandObserveParams corresponds to the JSON schema field
 	// "StagehandObserveParams".
 	StagehandObserveParams *StagehandObserveParams `json:"StagehandObserveParams,omitempty,omitzero"`
+
+	// StagehandObserveWireParams corresponds to the JSON schema field
+	// "StagehandObserveWireParams".
+	StagehandObserveWireParams *StagehandObserveWireParams `json:"StagehandObserveWireParams,omitempty,omitzero"`
 
 	// StagehandResultMetadata corresponds to the JSON schema field
 	// "StagehandResultMetadata".

@@ -29,6 +29,14 @@ const (
 )
 
 var customDefinitions = map[string]string{
+	"HTTPModelReference":         "HTTPModelReference",
+	"HTTPInitModelReference":     "HTTPInitModelReference",
+	"StagehandInitWireParams":    "StagehandInitWireParams",
+	"StagehandActWireParams":     "StagehandActWireParams",
+	"StagehandObserveWireParams": "StagehandObserveWireParams",
+	"StagehandExtractWireParams": "StagehandExtractWireParams",
+	"CallbackBatchWireParams":    "CallbackBatchWireParams",
+
 	"PageEventNotification":        "PageEventNotification",
 	"Caching":                      "Caching",
 	"CookieFilter":                 "CookieFilter",
@@ -64,6 +72,7 @@ var customDefinitions = map[string]string{
 }
 
 var customProperties = map[string]string{
+	"$defs/StagehandActHTTPParams/properties/instruction":           "ActInstructionValue",
 	"$defs/BrowserbaseSessionCreateParams/properties/proxies":       "BrowserbaseProxies",
 	"$defs/BrowserbaseSessionCreateParams/properties/user_metadata": "map[string]json.RawMessage",
 	"$defs/ContextCookiesParams/properties/urls":                    "StringList",

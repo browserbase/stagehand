@@ -153,6 +153,15 @@ class AnthropicModelName(RootModel[StrictStr]):
     ]
 
 
+class BatchModelReference(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+    model: HTTPModelReference
+
+
 class Browser(StrEnum):
     chrome = "chrome"
     edge = "edge"
@@ -317,6 +326,17 @@ class Caching(RootModel[Union[StrictBool, Caching1]]):
     root: Union[StrictBool, Caching1]
 
 
+class CallbackBatchHTTPParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    callback_source: Annotated[StrictStr, Field(min_length=1)]
+    input: Optional[FieldSchema2] = None
+    options: Options3
+    scope_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+
+
 class CallbackBatchOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -342,6 +362,12 @@ class CallbackBatchResult(WireModel):
         validate_by_name=True,
     )
     value: Optional[FieldSchema3] = None
+
+
+class CallbackBatchWireParams(
+    RootModel[Union[CallbackBatchParams, CallbackBatchHTTPParams]]
+):
+    root: Union[CallbackBatchParams, CallbackBatchHTTPParams]
 
 
 class Caret(StrEnum):
@@ -726,6 +752,131 @@ class GroqModelName(RootModel[StrictStr]):
     ]
 
 
+class HTTPCancelParams(WireModel):
+    """Worker-to-client HTTP cancellation. Repeated or completed request IDs are no-ops."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    request_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+
+
+class HTTPConnectionReference(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    configuration_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+
+
+class HTTPGatewayModelReference(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    configuration_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+    source: Literal["http"]
+    route: Literal["gateway"]
+    model_name: Optional[ModelName] = None
+
+
+class HTTPHeader(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(max_length=256, min_length=1)]
+    value: Annotated[StrictStr, Field(max_length=8192)]
+
+
+class HTTPProviderModelReference(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    configuration_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+    source: Literal["http"]
+    route: Literal["provider"]
+    model_name: ModelName
+
+
+class HTTPModelReference(
+    RootModel[Union[HTTPProviderModelReference, HTTPGatewayModelReference]]
+):
+    root: Union[HTTPProviderModelReference, HTTPGatewayModelReference]
+
+
+class HTTPInitModelReference(
+    RootModel[Union[HTTPModelReference, ClientModelReference]]
+):
+    root: Union[HTTPModelReference, ClientModelReference]
+
+
+class HTTPRequestErrorData(WireModel):
+    """JSON-RPC error data for HTTP transport failures; HTTP statuses use the normal result."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    type: Literal["http.request"]
+    kind: Kind
+
+
+class HTTPRequestParams(WireModel):
+    """Worker-to-client buffered HTTP request. Omitted timeout means no HTTP deadline."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    request_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+    configuration_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+    scope_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+    method: Method
+    path: Annotated[StrictStr, Field(max_length=8192, min_length=1)]
+    headers: Annotated[list[HTTPHeader], Field(max_length=128)]
+    body_base64: Annotated[
+        Optional[StrictStr],
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            max_length=89478488,
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ] = None
+    timeout_ms: Annotated[Optional[StrictInt], Field(gt=0, le=2147483647)] = None
+
+
+class HTTPRequestResult(WireModel):
+    """Buffered HTTP response, including non-2xx statuses. Body bytes are base64."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    status: Annotated[StrictInt, Field(ge=200, le=599)]
+    status_text: Annotated[Optional[StrictStr], Field(max_length=1024)] = None
+    headers: Annotated[list[HTTPHeader], Field(max_length=128)]
+    body_base64: Annotated[
+        StrictStr,
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            max_length=89478488,
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ]
+
+
+class HTTPServiceConnections(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    gateway: Optional[HTTPConnectionReference] = None
+    cache: Optional[HTTPConnectionReference] = None
+
+
 class HttpVersion(StrEnum):
     field_1 = "1"
     field_2 = "2"
@@ -780,6 +931,17 @@ class JSONRPCRequestId(RootModel[StrictInt]):
 
 class JSONRPCErrorResponseId(RootModel[Optional[JSONRPCRequestId]]):
     root: Optional[JSONRPCRequestId]
+
+
+class Kind(StrEnum):
+    network = "network"
+    timeout = "timeout"
+    aborted = "aborted"
+    invalid_request = "invalid_request"
+    configuration_unavailable = "configuration_unavailable"
+    scope_closed = "scope_closed"
+    disconnected = "disconnected"
+    limit_exceeded = "limit_exceeded"
 
 
 class LLMAnnotations(WireModel):
@@ -1329,6 +1491,16 @@ class LogLevel(StrEnum):
     debug = "debug"
 
 
+class Method(StrEnum):
+    get = "GET"
+    head = "HEAD"
+    post = "POST"
+    put = "PUT"
+    patch = "PATCH"
+    delete = "DELETE"
+    options = "OPTIONS"
+
+
 class Mode(StrEnum):
     auto = "auto"
     required = "required"
@@ -1483,6 +1655,131 @@ class OperatingSystem(StrEnum):
     linux = "linux"
     macos = "macos"
     windows = "windows"
+
+
+class Options(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    model: Optional[HTTPModelReference] = None
+    variables: Annotated[
+        Optional[Variables],
+        Field(
+            examples=[{"username": "john_doe", "password": {"value": "secret123", "description": "The login password"}}]
+        ),
+    ] = None
+    """
+    Variables to substitute in the action instruction. Accepts flat primitives or { value, description? } objects.
+
+    Example: {'username': 'john_doe', 'password': {'value': 'secret123', 'description': 'The login password'}}
+    """
+    timeout: Annotated[Optional[StrictFloat], Field(examples=[30000])] = None
+    """
+    Timeout in ms for the action
+
+    Example: 30000
+    """
+    locator: Optional[Locator] = None
+    """Serializable element locator for the action target"""
+    ignore_locators: Annotated[
+        Optional[list[Locator]],
+        Field(
+            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+        ),
+    ] = None
+    """
+    Locators for elements and subtrees that should be excluded from action planning
+
+    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
+    """
+    cache: Optional[Caching] = None
+    """Override the instance-level cache setting for this request"""
+
+
+class Options1(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    model: Optional[HTTPModelReference] = None
+    variables: Annotated[
+        Optional[Variables],
+        Field(
+            examples=[{"username": {"value": "john@example.com", "description": "The login email"}, "rememberMe": True}]
+        ),
+    ] = None
+    """
+    Variables whose names are exposed to the model so observe() returns %variableName% placeholders in suggested action arguments instead of literal values. Accepts flat primitives or { value, description? } objects.
+
+    Example: {'username': {'value': 'john@example.com', 'description': 'The login email'}, 'rememberMe': True}
+    """
+    timeout: Annotated[Optional[StrictFloat], Field(examples=[30000])] = None
+    """
+    Timeout in ms for the observation
+
+    Example: 30000
+    """
+    locator: Optional[Locator] = None
+    """Locator that scopes observation to a specific element"""
+    ignore_locators: Annotated[
+        Optional[list[Locator]],
+        Field(
+            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+        ),
+    ] = None
+    """
+    Locators for elements and subtrees that should be excluded from observation
+
+    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
+    """
+    cache: Optional[Caching] = None
+    """Override the instance-level cache setting for this request"""
+
+
+class Options2(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    model: Optional[HTTPModelReference] = None
+    timeout: Annotated[Optional[StrictFloat], Field(examples=[30000])] = None
+    """
+    Timeout in ms for the extraction
+
+    Example: 30000
+    """
+    locator: Optional[Locator] = None
+    """Locator that scopes extraction to a specific element"""
+    ignore_locators: Annotated[
+        Optional[list[Locator]],
+        Field(
+            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+        ),
+    ] = None
+    """
+    Locators for elements and subtrees that should be excluded from extraction
+
+    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
+    """
+    screenshot: Annotated[Optional[StrictBool], Field(examples=[False])] = None
+    """
+    When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.
+
+    Example: False
+    """
+    cache: Optional[Caching] = None
+    """Override the instance-level cache setting for this request"""
+
+
+class Options3(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    timeout: Annotated[StrictInt, Field(gt=0, le=2147473647)] = 30000
+    models: Optional[list[BatchModelReference]] = None
 
 
 class Os(StrEnum):
@@ -2181,6 +2478,17 @@ class SnapshotResult(WireModel):
     url_map: dict[StrictStr, StrictStr]
 
 
+class StagehandActHTTPParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    instruction: Union[Instruction, Action]
+    options: Optional[Options] = None
+    scope_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+
+
 class StagehandActParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2191,12 +2499,40 @@ class StagehandActParams(WireModel):
     options: Optional[ActOptions] = None
 
 
+class StagehandActWireParams(
+    RootModel[Union[StagehandActParams, StagehandActHTTPParams]]
+):
+    root: Union[StagehandActParams, StagehandActHTTPParams]
+
+
 class StagehandCloseResult(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
     closed: Literal[True]
+
+
+class StagehandExtractHTTPParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    instruction: Annotated[StrictStr, Field(min_length=1)]
+    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = Field(
+        default_factory=lambda: FieldSchema0.model_validate(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {"extraction": {"type": "string"}},
+                "required": ["extraction"],
+                "additionalProperties": False,
+            }
+        )
+    )
+    options: Optional[Options2] = None
+    scope_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
 
 
 class StagehandExtractParams(WireModel):
@@ -2218,6 +2554,39 @@ class StagehandExtractParams(WireModel):
         )
     )
     options: Optional[ExtractOptions] = None
+
+
+class StagehandExtractWireParams(
+    RootModel[Union[StagehandExtractParams, StagehandExtractHTTPParams]]
+):
+    root: Union[StagehandExtractParams, StagehandExtractHTTPParams]
+
+
+class StagehandInitHTTPParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    protocol_version: Annotated[
+        StrictStr,
+        Field(
+            pattern="^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+        ),
+    ]
+    client_info: ImplementationInfo
+    browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    browser: Optional[BrowserSessionMetadata] = None
+    telemetry: Optional[TelemetryConfig] = None
+    log_level: LogLevel = LogLevel.info
+    system_prompt: Optional[StrictStr] = None
+    self_heal: Optional[StrictBool] = None
+    dom_settle_timeout_ms: Annotated[
+        Optional[StrictInt], Field(gt=0, le=9007199254740991)
+    ] = None
+    cache: Optional[Caching] = None
+    """Server-side caching of act/observe/extract results for this instance: a boolean toggle, or an object with an optional hit-count threshold. Requires a Browserbase apiKey and browser sessionId. Can be overridden per request via options.cache."""
+    connections: HTTPServiceConnections
+    model: Optional[HTTPInitModelReference] = None
 
 
 class StagehandInitParams(WireModel):
@@ -2258,6 +2627,12 @@ class StagehandInitResult(WireModel):
     )
     initialized: Literal[True]
     pages: list[PageRef]
+
+
+class StagehandInitWireParams(
+    RootModel[Union[StagehandInitParams, StagehandInitHTTPParams]]
+):
+    root: Union[StagehandInitParams, StagehandInitHTTPParams]
 
 
 class StagehandLog(WireModel):
@@ -2308,6 +2683,17 @@ class StagehandMetrics(WireModel):
     total_inference_time_ms: StrictFloat
 
 
+class StagehandObserveHTTPParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    instruction: Optional[StrictStr] = None
+    options: Optional[Options1] = None
+    scope_id: Annotated[StrictStr, Field(max_length=128, min_length=1)]
+
+
 class StagehandObserveParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2316,6 +2702,12 @@ class StagehandObserveParams(WireModel):
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Optional[StrictStr] = None
     options: Optional[ObserveOptions] = None
+
+
+class StagehandObserveWireParams(
+    RootModel[Union[StagehandObserveParams, StagehandObserveHTTPParams]]
+):
+    root: Union[StagehandObserveParams, StagehandObserveHTTPParams]
 
 
 class StagehandResultMetadata(WireModel):

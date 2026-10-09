@@ -1,7 +1,11 @@
 import { writeFile } from "node:fs/promises";
 import { z } from "zod/v4";
 import { StagehandMethods, StagehandNotifications } from "../schema-registry.ts";
-import { BrowserbaseSessionCreateParamsSchema, PageEventNameSchema } from "../schemas.ts";
+import {
+  BrowserbaseSessionCreateParamsSchema,
+  PageEventNameSchema,
+  HTTPRequestErrorDataSchema,
+} from "../schemas.ts";
 import {
   JSONRPCErrorResponseSchema,
   JSONRPCNotificationSchema,
@@ -50,6 +54,7 @@ const StagehandProtocolDocumentSchema = z
       .strictObject({
         browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema,
         pageEventName: PageEventNameSchema,
+        httpRequestErrorData: HTTPRequestErrorDataSchema,
       })
       .optional(),
     jsonrpc: z.strictObject({

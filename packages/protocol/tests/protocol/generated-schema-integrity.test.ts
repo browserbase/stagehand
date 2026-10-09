@@ -100,10 +100,15 @@ describe("generated Stagehand schema integrity", () => {
       protocol,
       asRecord(asRecord(method.properties).params).$ref as string,
     );
-    const telemetrySchema = asRecord(asRecord(asRecord(params).properties).telemetry);
-
-    expect(asRecord(params).required).not.toContain("telemetry");
-    expect(telemetrySchema).toStrictEqual({ $ref: "#/$defs/TelemetryConfig" });
+    const variants = asRecord(params).anyOf as unknown[];
+    expect(variants).toHaveLength(2);
+    for (const variant of variants) {
+      const shape = resolveSchema(protocol, variant);
+      expect(shape.required).not.toContain("telemetry");
+      expect(asRecord(shape.properties).telemetry).toStrictEqual({
+        $ref: "#/$defs/TelemetryConfig",
+      });
+    }
     expect(
       StagehandInitParamsSchema.parse({
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,

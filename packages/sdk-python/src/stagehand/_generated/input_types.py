@@ -293,6 +293,47 @@ GoogleModelName: TypeAlias = str
 GroqModelName: TypeAlias = str
 
 
+class HTTPCancelParams(TypedDict):
+    request_id: str
+
+
+class HTTPConnectionReference(TypedDict):
+    configuration_id: str
+
+
+class HTTPHeader(TypedDict):
+    name: str
+    value: str
+
+
+class HTTPRequestErrorData(TypedDict):
+    type: Literal["http.request"]
+    kind: Literal["network", "timeout", "aborted", "invalid_request", "configuration_unavailable", "scope_closed", "disconnected", "limit_exceeded"]
+
+
+class HTTPRequestParams(TypedDict):
+    request_id: str
+    configuration_id: str
+    scope_id: str
+    method: Literal["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    path: str
+    headers: list[HTTPHeader]
+    body_base64: NotRequired[str]
+    timeout_ms: NotRequired[int]
+
+
+class HTTPRequestResult(TypedDict):
+    status: int
+    status_text: NotRequired[str]
+    headers: list[HTTPHeader]
+    body_base64: str
+
+
+class HTTPServiceConnections(TypedDict):
+    gateway: NotRequired[HTTPConnectionReference]
+    cache: NotRequired[HTTPConnectionReference]
+
+
 class ImplementationInfo(TypedDict):
     name: str
     version: str
@@ -669,6 +710,31 @@ OpenAIModelName: TypeAlias = str
 ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName | GroqModelName | CerebrasModelName
 
 
+class HTTPGatewayModelReference(TypedDict):
+    configuration_id: str
+    source: Literal["http"]
+    route: Literal["gateway"]
+    model_name: NotRequired[ModelName]
+
+
+class HTTPProviderModelReference(TypedDict):
+    configuration_id: str
+    source: Literal["http"]
+    route: Literal["provider"]
+    model_name: ModelName
+
+
+HTTPModelReference: TypeAlias = HTTPProviderModelReference | HTTPGatewayModelReference
+
+
+class BatchModelReference(TypedDict):
+    name: str
+    model: HTTPModelReference
+
+
+HTTPInitModelReference: TypeAlias = HTTPModelReference | ClientModelReference
+
+
 class ModelConfig(TypedDict):
     api_key: NotRequired[str]
     headers: NotRequired[dict[str, str]]
@@ -682,6 +748,31 @@ class ExtractOptions(TypedDict):
     ignore_locators: NotRequired[list[Locator]]
     screenshot: NotRequired[bool]
     cache: NotRequired[Caching]
+
+
+class Options2(TypedDict):
+    model: NotRequired[HTTPModelReference]
+    timeout: NotRequired[float]
+    locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
+    screenshot: NotRequired[bool]
+    cache: NotRequired[Caching]
+
+
+class Options3(TypedDict):
+    page_id: NotRequired[str]
+    timeout: NotRequired[int]
+    models: NotRequired[list[BatchModelReference]]
+
+
+class CallbackBatchHTTPParams(TypedDict):
+    callback_source: str
+    input: NotRequired[FieldSchema2]
+    options: Options3
+    scope_id: str
+
+
+CallbackBatchWireParams: TypeAlias = CallbackBatchParams | CallbackBatchHTTPParams
 
 
 class PageAddInitScriptParams(TypedDict):
@@ -1060,11 +1151,22 @@ class StagehandCloseResult(TypedDict):
     closed: Literal[True]
 
 
+class StagehandExtractHTTPParams(TypedDict):
+    page_id: str
+    instruction: str
+    schema: NotRequired[FieldSchema0]
+    options: NotRequired[Options2]
+    scope_id: str
+
+
 class StagehandExtractParams(TypedDict):
     page_id: str
     instruction: str
     schema: NotRequired[FieldSchema0]
     options: NotRequired[ExtractOptions]
+
+
+StagehandExtractWireParams: TypeAlias = StagehandExtractParams | StagehandExtractHTTPParams
 
 
 class StagehandInitResult(TypedDict):
@@ -1145,6 +1247,21 @@ class TelemetryConfig(TypedDict):
     traces: TelemetryTraces
 
 
+class StagehandInitHTTPParams(TypedDict):
+    protocol_version: str
+    client_info: ImplementationInfo
+    browser_cdp_url: NotRequired[str]
+    browser: NotRequired[BrowserSessionMetadata]
+    telemetry: NotRequired[TelemetryConfig]
+    log_level: NotRequired[Literal["off", "error", "warn", "info", "debug"]]
+    system_prompt: NotRequired[str]
+    self_heal: NotRequired[bool]
+    dom_settle_timeout_ms: NotRequired[int]
+    cache: NotRequired[Caching]
+    connections: HTTPServiceConnections
+    model: NotRequired[HTTPInitModelReference]
+
+
 class StagehandInitParams(TypedDict):
     protocol_version: str
     client_info: ImplementationInfo
@@ -1159,6 +1276,9 @@ class StagehandInitParams(TypedDict):
     self_heal: NotRequired[bool]
     dom_settle_timeout_ms: NotRequired[int]
     cache: NotRequired[Caching]
+
+
+StagehandInitWireParams: TypeAlias = StagehandInitParams | StagehandInitHTTPParams
 
 
 VariablePrimitive: TypeAlias = str | float | bool
@@ -1193,16 +1313,45 @@ class ObserveOptions(TypedDict):
     cache: NotRequired[Caching]
 
 
+class Options(TypedDict):
+    model: NotRequired[HTTPModelReference]
+    variables: NotRequired[Variables]
+    timeout: NotRequired[float]
+    locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
+    cache: NotRequired[Caching]
+
+
+class StagehandActHTTPParams(TypedDict):
+    page_id: str
+    instruction: str | Action
+    options: NotRequired[Options]
+    scope_id: str
+
+
 class StagehandActParams(TypedDict):
     page_id: str
     instruction: str | Action
     options: NotRequired[ActOptions]
 
 
+StagehandActWireParams: TypeAlias = StagehandActParams | StagehandActHTTPParams
+
+
+class StagehandObserveHTTPParams(TypedDict):
+    page_id: str
+    instruction: NotRequired[str]
+    options: NotRequired[Options]
+    scope_id: str
+
+
 class StagehandObserveParams(TypedDict):
     page_id: str
     instruction: NotRequired[str]
     options: NotRequired[ObserveOptions]
+
+
+StagehandObserveWireParams: TypeAlias = StagehandObserveParams | StagehandObserveHTTPParams
 
 
 class WebMCPAnnotation(TypedDict):
