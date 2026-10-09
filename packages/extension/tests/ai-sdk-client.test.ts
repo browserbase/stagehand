@@ -60,6 +60,20 @@ describe("AI SDK language models", () => {
     });
   });
 
+  it.each([
+    ["openai/future-model-v1", "openai.responses"],
+    ["anthropic/future-model-v1", "anthropic.messages"],
+    ["google/future-model-v1", "google.generative-ai"],
+    ["groq/vendor/future-model-v1", "groq.chat"],
+    ["cerebras/future-model-v1", "cerebras.chat"],
+  ] as const)("passes the unknown ID in %s to its provider", (modelName, provider) => {
+    const model = createAiSdkLanguageModel({ modelName, apiKey: "provider-secret" });
+    expect(model).toMatchObject({
+      provider,
+      modelId: modelName.slice(modelName.indexOf("/") + 1),
+    });
+  });
+
   it("uses Chat Completions for OpenAI requests with stop sequences", () => {
     const model = createAiSdkLanguageModel(
       {
@@ -89,7 +103,7 @@ describe("AI SDK language models", () => {
 
     await llmService.generate(
       {
-        modelName: "openai/gpt-5.4-mini",
+        modelName: "openai/future-model-v1",
         apiKey: "provider-secret",
       },
       {
@@ -102,10 +116,23 @@ describe("AI SDK language models", () => {
       expect.objectContaining({
         model: expect.objectContaining({
           provider: "openai.responses",
-          modelId: "gpt-5.4-mini",
+          modelId: "future-model-v1",
         }),
       }),
     );
+  });
+
+  it("preserves provider errors for unknown models", async () => {
+    const error = new Error("The model is unavailable to this account");
+    vi.mocked(generateText).mockRejectedValue(error);
+
+    await expect(
+      llmService.generate(
+        { modelName: "openai/future-model-v1", apiKey: "provider-secret" },
+        { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] },
+        vi.fn(),
+      ),
+    ).rejects.toBe(error);
   });
 
   it("routes OpenAI stop sequences through Chat Completions", async () => {

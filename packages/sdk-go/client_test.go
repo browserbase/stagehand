@@ -110,6 +110,41 @@ func TestStagehandDoesNotExposeContext(t *testing.T) {
 	}
 }
 
+func TestCreateForwardsUnknownModelIDs(t *testing.T) {
+	t.Parallel()
+
+	for _, provider := range []string{"openai", "anthropic", "google", "groq", "cerebras"} {
+		t.Run(provider, func(t *testing.T) {
+			t.Parallel()
+			modelName := ModelName(provider + "/vendor/future-model-v1")
+			rpc := &recordingProtocolClient{responses: map[string]any{
+				"stagehand.init":  StagehandInitResult{Initialized: true},
+				"stagehand.close": StagehandCloseResult{Closed: true},
+			}}
+			client, err := newStagehandWithClient(CreateOptions{
+				Model: &ModelConfig{ModelName: modelName},
+			}, rpc)
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := client.Close(context.Background()); err != nil {
+					t.Errorf("Close() error = %v", err)
+				}
+			})
+
+			params, ok := rpc.calls[0].params.(StagehandInitParams)
+			if !ok || params.Model == nil {
+				t.Fatalf("stagehand.init params = %#v", rpc.calls[0].params)
+			}
+			model, ok := params.Model.AsServerModel()
+			if !ok || model.ModelName != modelName {
+				t.Fatalf("model = %#v, want %q", model, modelName)
+			}
+		})
+	}
+}
+
 func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	t.Parallel()
 	apiURL := "https://api.stagehand.dev.browserbase.com"
