@@ -9,7 +9,7 @@ import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
 import type { ClientOptions } from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "@browserbasehq/stagehand-protocol/schemas";
-import type { StagehandLog } from "@browserbasehq/stagehand-protocol/types";
+import type { BrowserbaseExtension, StagehandLog } from "@browserbasehq/stagehand-protocol/types";
 import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
@@ -89,13 +89,26 @@ const BrowserbaseClientOptionsSchema: z.ZodType<
     .optional(),
 });
 
-type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
+/**
+ * Browserbase session creation params plus the built-in `browserSettings.extensions` opt-in,
+ * which the installed Browserbase SDK does not type yet.
+ */
+export interface BrowserbaseSessionCreateParams extends Omit<
+  Browserbase.SessionCreateParams,
+  "browserSettings"
+> {
+  browserSettings?: Browserbase.SessionCreateParams.BrowserSettings & {
+    extensions?: BrowserbaseExtension[];
+  };
+}
+
+type BrowserbaseLaunchOptionsInput = BrowserbaseSessionCreateParams & {
   apiKey: string;
   baseUrl?: string;
   clientOptions?: BrowserbaseClientOptions;
 };
 
-type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
+type BrowserbaseLaunchOptionsOutput = BrowserbaseSessionCreateParams & {
   apiKey: string;
   baseUrl: string;
   clientOptions?: BrowserbaseClientOptions;

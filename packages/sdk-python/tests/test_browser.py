@@ -272,6 +272,7 @@ async def test_claim_release_reclaim_and_errors(fake_cdp: type[FakeCDPClient]) -
 
     first = _claim_browser(handle)
     assert first.cdp_client is fake_cdp.instances[-1]
+    assert first.resident_browser_connection is False
     with pytest.raises(
         RuntimeError,
         match="This browser is already attached to a Stagehand instance",
@@ -733,6 +734,7 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     assert arguments["extension_dir"] is None
     assert arguments["extension_id"] is None
     claimed = _claim_browser(handle)
+    assert claimed.resident_browser_connection is True
     assert claimed.worker_init_metadata.api_key == "api-key"
     assert claimed.worker_init_metadata.browser is not None
     assert claimed.worker_init_metadata.browser.model_dump(exclude_none=True) == {
@@ -773,6 +775,7 @@ async def test_browserbase_connect_releases_session_and_ignores_extension_id(
     )
     assert fake_cdp.connect_arguments[-1]["preloaded_extension"] is True
     claimed = _claim_browser(preloaded)
+    assert claimed.resident_browser_connection is True
     assert claimed.worker_init_metadata.browser is not None
     assert claimed.worker_init_metadata.browser.region == BrowserbaseRegion.eu_central_1
     _release_browser(preloaded)
@@ -787,6 +790,10 @@ async def test_browserbase_connect_releases_session_and_ignores_extension_id(
     assert arguments["preloaded_extension"] is True
     assert arguments["extension_id"] is None
     assert arguments["local_extension_dir"] is None
+    caller_claimed = _claim_browser(caller_extension)
+    # A caller extension ID keeps the legacy attach path (browserCdpUrl in init).
+    assert caller_claimed.resident_browser_connection is (extension_id is None)
+    _release_browser(caller_extension)
     await caller_extension.close()
 
     assert client.connect_calls == ["session", "session"]
