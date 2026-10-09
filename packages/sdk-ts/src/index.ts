@@ -62,6 +62,7 @@ export {
   type ExperimentalBatchExtractOptions,
   type ExperimentalBatchOptions,
 } from "./batch.js";
+export * as experimentalNavigationGraph from "./navigationGraph.js";
 export { browserbase, localBrowser } from "./browser/factories.js";
 export type {
   BrowserbaseBrowser,
