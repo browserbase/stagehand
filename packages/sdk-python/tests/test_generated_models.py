@@ -181,3 +181,20 @@ def test_generated_webmcp_models_apply_defaults_and_preserve_user_keys() -> None
         "status": "Completed",
         "output": {"resultValue": "unchanged"},
     }
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic", "google", "groq", "cerebras"])
+def test_unknown_model_ids_round_trip(provider: str) -> None:
+    model_name = f"{provider}/vendor/future-model-v1"
+    model = models.ModelConfig.model_validate({"model_name": model_name})
+    assert model.model_dump(mode="json", by_alias=True, exclude_unset=True) == {
+        "model_name": model_name
+    }
+
+
+@pytest.mark.parametrize(
+    "model_name", ["unknown/model", "openai/", "openai/model id", "openai/model\n", "model"]
+)
+def test_invalid_model_names_are_rejected(model_name: str) -> None:
+    with pytest.raises(ValidationError):
+        models.ModelConfig.model_validate({"model_name": model_name})
