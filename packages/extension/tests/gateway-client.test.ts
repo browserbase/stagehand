@@ -6,6 +6,7 @@ import {
   fetchWithoutModel,
 } from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
+import { boundFetch } from "../llm/boundFetch.js";
 import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 
@@ -15,6 +16,12 @@ vi.mock("ai", () => ({
   Output: {
     object: vi.fn((options: unknown) => options),
   },
+}));
+
+// Credentialed requests go through the load-time fetch reference, not the
+// ambient global, so the test drives that reference directly.
+vi.mock("../llm/boundFetch.js", () => ({
+  boundFetch: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -96,13 +103,13 @@ describe("createGatewayLanguageModel", () => {
 describe("fetchWithoutModel", () => {
   it("passes non-JSON string bodies through unchanged", async () => {
     const response = {} as Response;
-    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+    vi.mocked(boundFetch).mockResolvedValue(response);
     const init = { method: "POST", body: "not-json" };
 
     await expect(fetchWithoutModel("https://gateway.example/request", init)).resolves.toBe(
       response,
     );
-    expect(fetch).toHaveBeenCalledWith("https://gateway.example/request", init);
+    expect(boundFetch).toHaveBeenCalledWith("https://gateway.example/request", init);
   });
 });
 
