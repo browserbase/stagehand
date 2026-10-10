@@ -534,6 +534,10 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.stagehandAct.name:
     case StagehandMethods.stagehandExtract.name:
     case StagehandMethods.stagehandObserve.name:
+      operationTimeoutMs = numericProperty(recordProperty(params, "options"), "timeout");
+      // The extension treats a non-positive timeout as "no timeout".
+      if (operationTimeoutMs !== undefined && operationTimeoutMs <= 0) return undefined;
+      break;
     case StagehandMethods.stagehandCallbackBatch.name:
     case StagehandMethods.pageGoto.name:
     case StagehandMethods.pageReload.name:
