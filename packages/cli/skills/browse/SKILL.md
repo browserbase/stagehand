@@ -1,6 +1,6 @@
 ---
 name: browse
-description: Use the browse CLI for Browserbase browser automation, Browserbase cloud APIs, Browserbase Functions, templates, web fetch/search, diagnostics, and Browse.sh skill discovery/installation. Use when the user asks to navigate pages, inspect browser state, run local or remote browser sessions, manage Browserbase resources, call Browserbase Functions, browse or scaffold Browserbase templates, fetch or search web content, diagnose browse setup, find or install a skill for a website task, discover site-specific Browse.sh skills, or install/refresh this browse skill.
+description: Use the browse CLI for Browserbase browser automation, Browserbase cloud APIs, project secrets, Browserbase Functions, templates, web fetch/search, diagnostics, and Browse.sh skill discovery/installation. Use when the user asks to navigate pages, inspect browser state, run local or remote browser sessions, manage Browserbase resources or secrets, call Browserbase Functions, browse or scaffold Browserbase templates, fetch or search web content, diagnose browse setup, find or install a skill for a website task, discover site-specific Browse.sh skills, or install/refresh this browse skill.
 compatibility: "Requires the browse CLI (`npm install -g browse`). Remote Browserbase sessions and cloud API commands require `BROWSERBASE_API_KEY`. Local mode uses Chrome/Chromium on the machine."
 license: MIT
 allowed-tools: Bash
@@ -26,6 +26,7 @@ It can:
 - inspect pages through accessibility snapshots, screenshots, DOM/text reads, and network capture
 - interact with pages by refs, selectors, XPath, keyboard, mouse, files, and viewport controls
 - manage Browserbase projects, sessions, contexts, extensions, fetch, and search APIs
+- manage project secrets and attach them to deployed Functions
 - develop, publish, and invoke Browserbase Functions
 - browse and scaffold Browserbase templates
 - diagnose local or remote browser setup issues
@@ -264,6 +265,27 @@ Use `--verified` when the task needs Browserbase Verified browser mode. To drive
 
 Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser interaction. It returns markdown-formatted page content by default; pass `--format raw` for the original response body or `--format json --schema <schema>` for structured extraction. Use `browse cloud search` when the user asks for web search results.
 
+### Project Secrets
+
+Project secrets require `browse` 0.11.0 or later and secrets access enabled for the project associated with `BROWSERBASE_API_KEY`. During the gated rollout, ask Browserbase to enable access for your project if needed.
+
+Create a secret from an existing environment variable, then use its returned `id` for subsequent commands:
+
+```bash
+browse cloud secrets create SERVICE_TOKEN --env MY_SERVICE_TOKEN
+browse cloud secrets list --limit 10
+browse cloud secrets get <secret-id>
+browse cloud secrets update <secret-id> --env MY_SERVICE_TOKEN
+```
+
+`SERVICE_TOKEN` is the stored key; `MY_SERVICE_TOKEN` is the name of the environment variable containing the value. `--env` takes a variable name, not the value itself. Create and update encrypt the value locally before sending it to Browserbase.
+
+For interactive entry, omit `--env` to use the hidden terminal prompt. For automation, use `--env` or pipe an existing secret manager's output with `--stdin`; stdin preserves all whitespace, including trailing newlines. Keep literal secret values out of commands, chat, source files, and logs.
+
+Create/get/update return metadata including `id` and `secretKey`; list returns metadata in `data`. These commands do not return plaintext secret values. Save the returned ID, or recover the key-to-ID mapping with `list`. Get, update, delete, attach, and detach require the secret **ID**, not its key/name.
+
+List commands return one page at a time. If `nextCursor` is non-null, pass it as `--cursor <next-cursor>` with the same filters to retrieve the next page. `--limit` controls the page size; the CLI does not automatically paginate. Both project and function secret lists support `--start-at` and `--end-at` RFC 3339 creation-time filters.
+
 ## Browserbase Functions
 
 Use `browse functions` to create, develop, publish, and invoke Browserbase Functions:
@@ -278,6 +300,27 @@ browse functions invoke --check-status <invocation-id>
 ```
 
 Functions commands use `BROWSERBASE_API_KEY`. Generated projects import `defineFn` from `@browserbasehq/sdk-functions`.
+
+### Function Secrets
+
+Create the [project secret](#project-secrets), publish the function, then attach the secret using their IDs:
+
+```bash
+browse functions secrets attach <function-id> <secret-id>
+browse functions secrets list <function-id>
+browse functions invoke <function-id> --params '{"url":"https://example.com"}'
+```
+
+Inside the deployed `defineFn` handler, read the attached value as `context.secrets.SERVICE_TOKEN`, using the stored key. Do not log or return the value. Attaching by key/name is not supported; use the ID returned by create or list.
+
+To remove access from one function, detach the secret. To remove the project secret itself, delete it; this affects every function using it:
+
+```bash
+browse functions secrets detach <function-id> <secret-id>
+browse cloud secrets delete <secret-id>
+```
+
+In `browse` 0.11.0, `functions dev` does not populate `context.secrets` from cloud attachments or local environment variables. Validate attached secrets with a deployed function invocation; matching a local function name to a deployed function does not connect its secrets.
 
 ## Templates
 
