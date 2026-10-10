@@ -4,6 +4,7 @@ import asyncio
 import builtins
 import inspect
 import json
+import re
 import sys
 from collections.abc import Callable, Mapping
 from typing import TypeVar, cast, overload
@@ -36,6 +37,7 @@ from ._generated.models import (
     StagehandInitParams,
     StagehandInitResult,
     StagehandLog,
+    StagehandLogData,
     StagehandMetrics,
     StagehandObserveParams,
 )
@@ -519,7 +521,7 @@ class Stagehand:
             return
 
         try:
-            result = logging.on_log(notification)
+            result = logging.on_log(_sanitize_stagehand_log(notification))
             if inspect.isawaitable(result):
                 await result
         except Exception as error:
@@ -577,6 +579,48 @@ def _is_log_level_enabled(level: str, threshold: str) -> bool:
     return _LOG_LEVEL_PRIORITY[level] >= _LOG_LEVEL_PRIORITY[threshold]
 
 
+_SECRET_PATTERNS = [
+    (
+        re.compile(r"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s\"']+", re.IGNORECASE),
+        r"\1[redacted]",
+    ),
+    (
+        re.compile(
+            r"\b((?:sk-|bb_(?:live|test)_|gsk_|csk-|xai-|sk-ant-)[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+"
+        ),
+        r"\1[redacted]",
+    ),
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{30,}"), "AIza[redacted]"),
+    (re.compile(r"\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}", re.IGNORECASE), r"\1[redacted]"),
+]
+
+
+def _redact_secrets(text: str) -> str:
+    for pattern, repl in _SECRET_PATTERNS:
+        text = pattern.sub(repl, text)
+    return text
+
+
+def _redact_json_value(value: object) -> object:
+    if isinstance(value, str):
+        return _redact_secrets(value)
+    if isinstance(value, list):
+        return [_redact_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_json_value(item) for key, item in value.items()}
+    return value
+
+
+def _sanitize_stagehand_log(notification: StagehandLog) -> StagehandLog:
+    sanitized_data = _redact_json_value(notification.data.model_dump(mode="json"))
+    return notification.model_copy(
+        update={
+            "message": _redact_secrets(notification.message),
+            "data": StagehandLogData.model_validate(sanitized_data),
+        }
+    )
+
+
 def _render_stagehand_log(notification: StagehandLog, format_: str) -> str:
     data = notification.data.model_dump(mode="json")
     record = {
@@ -585,7 +629,9 @@ def _render_stagehand_log(notification: StagehandLog, format_: str) -> str:
         "data": data,
     }
     if format_ == "json":
-        return json.dumps(record, separators=(",", ":"))
+        return _redact_secrets(json.dumps(record, separators=(",", ":")))
 
     suffix = "" if not data else f" {json.dumps(data, separators=(',', ':'))}"
-    return f"[stagehand] {notification.level.value.upper()} {notification.message}{suffix}"
+    return _redact_secrets(
+        f"[stagehand] {notification.level.value.upper()} {notification.message}{suffix}"
+    )
