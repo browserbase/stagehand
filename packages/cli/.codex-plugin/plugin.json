@@ -1,0 +1,38 @@
+{
+  "name": "browse",
+  "description": "Unified Browserbase CLI for browser automation and cloud APIs",
+  "author": {
+    "name": "Browserbase",
+    "url": "https://browserbase.com"
+  },
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli",
+  "repository": "https://github.com/browserbase/stagehand",
+  "license": "MIT",
+  "keywords": [
+    "browser-automation",
+    "browserbase",
+    "stagehand",
+    "scraping",
+    "web",
+    "agents",
+    "cli"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Browse",
+    "shortDescription": "Browser automation for agents",
+    "longDescription": "Drive a local or Browserbase-hosted browser, inspect and interact with pages, manage Browserbase cloud resources and Functions, scaffold templates, and discover Browse.sh skills.",
+    "developerName": "Browserbase",
+    "category": "Automation",
+    "capabilities": [],
+    "websiteURL": "https://browserbase.com",
+    "privacyPolicyURL": "https://www.browserbase.com/privacy",
+    "termsOfServiceURL": "https://www.browserbase.com/terms",
+    "defaultPrompt": [
+      "Use browse to open a page and take a snapshot"
+    ],
+    "screenshots": [],
+    "composerIcon": "./assets/browse.svg",
+    "logo": "./assets/browse.svg"
+  }
+}
