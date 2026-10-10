@@ -193,12 +193,12 @@ export async function domMapsForSession(
   const xpathMap: Record<string, string> = {};
   const scrollableMap: Record<string, boolean> = {};
 
-  type StackEntry = { node: Protocol.DOM.Node; xpath: string };
+  type StackEntry = { node: Protocol.DOM.Node; xpath: string; inUserAgentShadow?: boolean };
   const stack: StackEntry[] = [{ node: startNode, xpath: "" }];
 
   while (stack.length) {
     progress?.throwIfStopped();
-    const { node, xpath } = stack.pop()!;
+    const { node, xpath, inUserAgentShadow } = stack.pop()!;
 
     if (node.backendNodeId) {
       const encId = encode(frameId, node.backendNodeId);
@@ -216,15 +216,19 @@ export async function domMapsForSession(
         const step = segs[i]!;
         stack.push({
           node: child,
-          xpath: joinXPath(xpath, step),
+          xpath: inUserAgentShadow ? xpath : joinXPath(xpath, step),
+          inUserAgentShadow,
         });
       }
     }
 
+    // Page scripts cannot enter user-agent shadow roots, so address their nodes through the host.
     for (const sr of node.shadowRoots ?? []) {
+      const isUserAgent = inUserAgentShadow || sr.shadowRootType === "user-agent";
       stack.push({
         node: sr,
-        xpath: joinXPath(xpath, "//"),
+        xpath: isUserAgent ? xpath : joinXPath(xpath, "//"),
+        inUserAgentShadow: isUserAgent,
       });
     }
   }
@@ -261,6 +265,7 @@ export async function buildSessionDomIndex(
     xp: string;
     docRootBe: number;
     phase: "enter" | "exit";
+    inUserAgentShadow?: boolean;
   };
   const rootBe = root.backendNodeId!;
   const stack: Entry[] = [{ node: root, xp: "/", docRootBe: rootBe, phase: "enter" }];
@@ -268,7 +273,7 @@ export async function buildSessionDomIndex(
 
   while (stack.length) {
     progress?.throwIfStopped();
-    const { node, xp, docRootBe, phase } = stack.pop()!;
+    const { node, xp, docRootBe, phase, inUserAgentShadow } = stack.pop()!;
     if (phase === "exit") {
       if (node.backendNodeId) {
         exitByBe.set(node.backendNodeId, dfsIndex++);
@@ -294,19 +299,22 @@ export async function buildSessionDomIndex(
         const step = segs[i]!;
         stack.push({
           node: child,
-          xp: joinXPath(xp, step),
+          xp: inUserAgentShadow ? xp : joinXPath(xp, step),
           docRootBe,
           phase: "enter",
+          inUserAgentShadow,
         });
       }
     }
 
     for (const sr of pierce ? (node.shadowRoots ?? []) : []) {
+      const isUserAgent = inUserAgentShadow || sr.shadowRootType === "user-agent";
       stack.push({
         node: sr,
-        xp: joinXPath(xp, "//"),
+        xp: isUserAgent ? xp : joinXPath(xp, "//"),
         docRootBe,
         phase: "enter",
+        inUserAgentShadow: isUserAgent,
       });
     }
 
