@@ -20,6 +20,7 @@ else, never restated.
 | `fx/`          | fx configuration templates and skill — fx consumes the facade via its user-global MCP config.                                                                                |
 | `mastra/`      | Mastra example over MCP/stdio via Mastra's `MCPClient`.                                                                                                                      |
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                 |
+| `pydantic-ai/` | Python Pydantic AI example over MCP/stdio (uv project), plus the eval runner used by `--harness pydantic_ai`.                                                                |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                  |
 
 Each example is a self-contained project: install, export `BROWSERBASE_API_KEY`, and run —

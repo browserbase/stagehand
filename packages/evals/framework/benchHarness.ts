@@ -23,6 +23,11 @@ import { runEveAgent } from "./eveRunner.js";
 import { EVE_TOOL_SURFACES, prepareEveToolAdapter } from "./eveToolAdapter.js";
 import { runDeepagentsAgent } from "./deepagentsRunner.js";
 import { DEEPAGENTS_TOOL_SURFACES, prepareDeepagentsToolAdapter } from "./deepagentsToolAdapter.js";
+import { runPydanticAiAgent } from "./pydanticAiRunner.js";
+import {
+  PYDANTIC_AI_TOOL_SURFACES,
+  preparePydanticAiToolAdapter,
+} from "./pydanticAiToolAdapter.js";
 import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
@@ -383,6 +388,14 @@ export const cursorHarness = defineExternalHarness({
   runAgent: runCursorAgent,
 });
 
+export const pydanticAiHarness = defineExternalHarness({
+  harness: "pydantic_ai",
+  supportedToolSurfaces: PYDANTIC_AI_TOOL_SURFACES,
+  defaultModels: ["openai/gpt-5.4-mini" as AvailableModel],
+  prepareToolAdapter: preparePydanticAiToolAdapter,
+  runAgent: runPydanticAiAgent,
+});
+
 export const claudeCuaHarness = defineExternalHarness({
   harness: "claude_cua",
   supportedToolSurfaces: CLAUDE_CUA_TOOL_SURFACES,
@@ -409,6 +422,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["deepagents", deepagentsHarness],
   ["fx", fxHarness],
   ["cursor", cursorHarness],
+  ["pydantic_ai", pydanticAiHarness],
   ["claude_cua", claudeCuaHarness],
   ["gemini_cua", geminiCuaHarness],
 ]);

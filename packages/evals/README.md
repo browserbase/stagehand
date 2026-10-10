@@ -76,7 +76,7 @@ Set `EVALS_WELCOME_WIZARD=1` to auto-run the flow on the first REPL launch; `EVA
 | `-c, --concurrency <n>`                                           | Max parallel sessions                                       |
 | `-m, --model <id>`                                                | Override the model matrix                                   |
 | `--api`                                                           | Run via the Stagehand API instead of the SDK                |
-| `--harness <stagehand\|claude_code\|codex\|mastra\|pi>`           | Which agent harness drives the bench task                   |
+| `--harness <stagehand\|claude_code\|codex\|mastra\|pi\|eve\|deepagents\|fx\|cursor\|pydantic_ai>` | Which agent harness drives the bench task |
 | `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets                         |
 | `--preview`                                                       | Print the resolved plan and exit — no browser, no LLM calls |
 

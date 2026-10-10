@@ -61,6 +61,7 @@
                   "v4/integrations/agent-frameworks/eve",
                   "v4/integrations/agent-frameworks/deep-agents",
                   "v4/integrations/agent-frameworks/crewai",
+                  "v4/integrations/agent-frameworks/pydantic-ai",
                   "v4/integrations/agent-frameworks/mastra",
                   "v4/integrations/agent-frameworks/vercel-ai-sdk"
                 ]

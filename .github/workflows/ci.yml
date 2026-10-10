@@ -38,6 +38,7 @@ jobs:
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       deepagents-runner: ${{ steps.filter.outputs.deepagents-runner }}
+      pydantic-ai-runner: ${{ steps.filter.outputs.pydantic-ai-runner }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -78,6 +79,9 @@ jobs:
               - '.github/**'
             deepagents-runner:
               - 'packages/integrations/deepagents/runner/**'
+              - '.github/**'
+            pydantic-ai-runner:
+              - 'packages/integrations/pydantic-ai/**'
               - '.github/**'
             sdk-go:
               - 'packages/sdk-go/**'
@@ -289,6 +293,7 @@ jobs:
             packages/integrations/deepagents-sdk/dist/**
             packages/integrations/fx-sdk/dist/**
             packages/integrations/cursor-sdk/dist/**
+            packages/integrations/pydantic-ai-sdk/dist/**
             packages/evals/dist/**
           retention-days: 1
 
@@ -394,6 +399,35 @@ jobs:
           working-directory: packages/integrations/deepagents/runner
           enable-cache: true
           cache-dependency-glob: packages/integrations/deepagents/runner/uv.lock
+
+      - run: uv lock --check
+      - run: uv sync --locked --dev
+      - run: uv run --locked pytest
+
+  pydantic-ai-runner-checks:
+    name: Pydantic AI runner checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.pydantic-ai-runner == 'true'
+    defaults:
+      run:
+        working-directory: packages/integrations/pydantic-ai
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: packages/integrations/pydantic-ai/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/integrations/pydantic-ai
+          enable-cache: true
+          cache-dependency-glob: packages/integrations/pydantic-ai/uv.lock
 
       - run: uv lock --check
       - run: uv sync --locked --dev
