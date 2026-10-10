@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-gemini-cua-sdk",
-  "version": "4.0.2",
+  "version": "4.0.3",
   "private": true,
   "description": "Google Gemini Computer Use harness adapter for Stagehand integrations",
   "files": [
