@@ -27,6 +27,8 @@ import { runFxAgent } from "./fxRunner.js";
 import { FX_TOOL_SURFACES, prepareFxToolAdapter } from "./fxToolAdapter.js";
 import { runCursorAgent } from "./cursorRunner.js";
 import { CURSOR_TOOL_SURFACES, prepareCursorToolAdapter } from "./cursorToolAdapter.js";
+import { runGrokBuildAgent } from "./grokBuildRunner.js";
+import { GROK_BUILD_TOOL_SURFACES, prepareGrokBuildToolAdapter } from "./grokBuildToolAdapter.js";
 import {
   buildExternalHarnessTaskPlan,
   type ExternalHarnessTaskPlan,
@@ -383,6 +385,14 @@ export const cursorHarness = defineExternalHarness({
   runAgent: runCursorAgent,
 });
 
+export const grokBuildHarness = defineExternalHarness({
+  harness: "grok_build",
+  supportedToolSurfaces: GROK_BUILD_TOOL_SURFACES,
+  defaultModels: ["grok-build/auto" as AvailableModel],
+  prepareToolAdapter: prepareGrokBuildToolAdapter,
+  runAgent: runGrokBuildAgent,
+});
+
 export const claudeCuaHarness = defineExternalHarness({
   harness: "claude_cua",
   supportedToolSurfaces: CLAUDE_CUA_TOOL_SURFACES,
@@ -409,6 +419,7 @@ const harnessRegistry = new Map<Harness, BenchHarness>([
   ["deepagents", deepagentsHarness],
   ["fx", fxHarness],
   ["cursor", cursorHarness],
+  ["grok_build", grokBuildHarness],
   ["claude_cua", claudeCuaHarness],
   ["gemini_cua", geminiCuaHarness],
 ]);

@@ -254,6 +254,15 @@ describe("resolveBilledCost", () => {
         priceMap,
       }).billing_channel,
     ).toBe("fx_gateway");
+    expect(
+      resolveBilledCost({
+        harness: "grok_build",
+        model: "grok-build/grok-4.6",
+        usage,
+        reportedCostUsd: 0.02,
+        priceMap,
+      }).billing_channel,
+    ).toBe("xai");
     // A reported figure wins even for a priced model on a direct-API harness.
     expect(
       resolveBilledCost({
