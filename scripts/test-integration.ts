@@ -37,7 +37,12 @@ export const integrationTestGroups = {
     "contextDomainPolicy",
     "contextExtraHttpHeaders",
   ],
-  "local/frames-shadow": ["coordinateClick", "iframeLocatorReadiness", "nestedDiv"],
+  "local/frames-shadow": [
+    "coordinateClick",
+    "iframeLocatorReadiness",
+    "nestedDiv",
+    "userAgentShadowXPaths",
+  ],
   "local/input": ["clipboard", "keyboard"],
   "local/locators-read": [
     "locatorContentMethods",
