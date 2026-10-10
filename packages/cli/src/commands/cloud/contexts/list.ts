@@ -1,3 +1,11 @@
+import {
+  collectionVersionFlag,
+  collectionLimitFlags,
+  usesCollectionContract,
+  outputCollection,
+  validateCollectionFlags,
+  requireCollectionVersion,
+} from "../../../lib/collections.js";
 import { outputJson } from "../../../lib/cloud/api.js";
 import {
   type ContextAliasEntry,
@@ -22,11 +30,24 @@ export default class ContextsList extends BrowseCommand {
 
   static override flags = {
     ...outputFormatFlags,
+    ...collectionVersionFlag,
+    ...collectionLimitFlags,
   };
 
   async run(): Promise<void> {
     const { flags } = await this.parse(ContextsList);
+    if (usesCollectionContract(flags)) validateCollectionFlags(flags);
+    else requireCollectionVersion(flags, ["limit", "all"]);
     const contexts = await listContextAliases();
+
+    if (usesCollectionContract(flags)) {
+      await outputCollection({
+        flags,
+        source: { kind: "array", complete: true, load: async () => contexts },
+        table: (items) => outputContextsTable(items, { wide: flags.wide }),
+      });
+      return;
+    }
 
     if (resolveOutputFormat(flags) === "json") {
       // Wrap in a named key to match `templates list` / `skills list` so the
