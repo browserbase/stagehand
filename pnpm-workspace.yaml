@@ -26,6 +26,8 @@ catalog:
   "@opentelemetry/resources": 2.9.0
   "@opentelemetry/sdk-trace-web": 2.9.0
   "@opentelemetry/semantic-conventions": 1.43.0
+  "@opencode/sdk": 2.0.19
+  "@opencode/plugin": 2.0.19
   "@types/node": ^24
   typescript: ^5
   oxfmt: 0.57.0
@@ -82,15 +84,19 @@ allowBuilds:
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
   "@google/genai": false
+  "@parcel/watcher": false
   "@scarf/scarf": false
   braintrust: false
   bufferutil: false
   esbuild: true
   ffmpeg-static: true
   keytar: false
+  msgpackr-extract: false
   protobufjs: false
   puppeteer: false
   sharp: true
+  tree-sitter-bash: false
+  tree-sitter-powershell: false
 minimumReleaseAgeExclude:
   - "@mintlify/cli@4.0.1391"
   - "@mintlify/common@1.0.1080"
@@ -108,3 +114,22 @@ minimumReleaseAgeExclude:
   - "@cursor/sdk-win32-x64@1.0.36"
   - "@cursor/sdk@1.0.36"
   - eve@0.71.2
+  - "@earendil-works/pi-agent-core@0.84.2"
+  - "@earendil-works/pi-ai@0.84.2"
+  - "@earendil-works/pi-client@0.84.2"
+  - "@earendil-works/pi-coding-agent@0.84.2"
+  - "@earendil-works/pi-protocol@0.84.2"
+  - "@earendil-works/pi-telemetry@0.84.2"
+  - "@earendil-works/pi-tui@0.84.2"
+  - "@opencode/ai@2.0.19"
+  - "@opencode/client@2.0.19"
+  - "@opencode/codemode@2.0.19"
+  - "@opencode/core@2.0.19"
+  - "@opencode/plugin-browser@2.0.19"
+  - "@opencode/plugin@2.0.19"
+  - "@opencode/protocol@2.0.19"
+  - "@opencode/schema@2.0.19"
+  - "@opencode/sdk@2.0.19"
+  - "@opencode/server@2.0.19"
+  - "@opencode/simulation@2.0.19"
+  - "@opencode/util@2.0.19"

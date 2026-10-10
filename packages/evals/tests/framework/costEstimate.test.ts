@@ -247,6 +247,15 @@ describe("resolveBilledCost", () => {
     ).toBe("pi_catalog");
     expect(
       resolveBilledCost({
+        harness: "opencode",
+        model: "opencode/auto",
+        usage,
+        reportedCostUsd: 0.02,
+        priceMap,
+      }).billing_channel,
+    ).toBe("opencode");
+    expect(
+      resolveBilledCost({
         harness: "fx",
         model: "zai/glm-5.3",
         usage,

@@ -37,7 +37,7 @@ describe("normalizeUsage", () => {
     expect(usage.input_total + usage.output + usage.reasoning).toBe(1250);
   });
 
-  it.each(["eve", "mastra", "pi", "codex", "cursor", "cursor_sdk"])(
+  it.each(["eve", "mastra", "pi", "codex", "cursor", "cursor_sdk", "opencode"])(
     "treats zero-filled %s telemetry with no presence flag as unknown",
     (harness) => {
       const raw = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };

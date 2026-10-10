@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
+  "mcp": {
+    "servers": {
+      "stagehand": {
+        "type": "local",
+        "codemode": false,
+        "command": ["node", "../core/dist/facade/stdio-server.mjs"]
+      }
+    }
+  },
+  "permissions": [
+    { "action": "*", "resource": "*", "effect": "deny" },
+    { "action": "stagehand_run", "resource": "*", "effect": "allow" },
+    { "action": "stagehand_snapshot", "resource": "*", "effect": "allow" },
+    { "action": "stagehand_screenshot", "resource": "*", "effect": "allow" }
+  ]
+}

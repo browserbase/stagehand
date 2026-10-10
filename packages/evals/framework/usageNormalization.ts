@@ -67,6 +67,8 @@ export interface NormalizeUsageInput {
  * | cursor      | SDK input excludes cache; historical CLI records explicitly report no usage            |
  * | cursor_sdk  | SDK `totalTokens` sums input, output, cacheRead and cacheWrite; input excludes cache    |
  * | claude_cua  | raw Messages API `usage.input_tokens` + separate `cache_read/creation_input_tokens`      |
+ * | gemini_cua  | provider usage with cached input as a subset of inputTokens                                |
+ * | opencode    | session `tokens.input` is uncached; `cache.read`/`cache.write` are separate buckets      |
  */
 const HARNESS_CONVENTIONS: Readonly<Record<string, UsageConvention>> = {
   claude_code: "anthropic_cache_separate",
@@ -80,6 +82,7 @@ const HARNESS_CONVENTIONS: Readonly<Record<string, UsageConvention>> = {
   cursor_sdk: "uncached_only",
   claude_cua: "anthropic_cache_separate",
   gemini_cua: "openai_cached_subset",
+  opencode: "anthropic_cache_separate",
 };
 
 /** Unknown harnesses get the most common SDK shape; the metric is still labelled. */

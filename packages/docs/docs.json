@@ -71,6 +71,7 @@
                   "v4/integrations/cli-agents/overview",
                   "v4/integrations/cli-agents/claude-code",
                   "v4/integrations/cli-agents/codex",
+                  "v4/integrations/cli-agents/opencode",
                   "v4/integrations/cli-agents/cursor",
                   "v4/integrations/cli-agents/fx",
                   "v4/integrations/cli-agents/pi"
@@ -608,6 +609,10 @@
     {
       "source": "/v4/integrations/codex",
       "destination": "/v4/integrations/cli-agents/codex"
+    },
+    {
+      "source": "/v4/integrations/opencode",
+      "destination": "/v4/integrations/cli-agents/opencode"
     },
     {
       "source": "/v4/integrations/fx",
