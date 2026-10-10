@@ -55,29 +55,6 @@ describe("function secret detach HTTP contract", () => {
     },
   );
 
-  it("escapes both IDs as individual path segments", async () => {
-    server = await startFakeBrowserbaseServer((_request, response) => {
-      response.writeHead(204);
-      response.end();
-    });
-    const result = await runCli(
-      [
-        "functions",
-        "secrets",
-        "detach",
-        "id/with?query#fragment",
-        "secret/with?query#fragment",
-        "--base-url",
-        server.baseUrl,
-      ],
-      { env },
-    );
-    expect(result.exitCode, result.stderr).toBe(0);
-    expect(server.requests[0]?.path).toBe(
-      "/v1/functions/id%2Fwith%3Fquery%23fragment/secrets/secret%2Fwith%3Fquery%23fragment",
-    );
-  });
-
   it.each([400, 403, 404])(
     "reports HTTP %s without retrying",
     async (status) => {

@@ -26,12 +26,16 @@ export default class ContextsDelete extends BrowseCommand {
   async run(): Promise<void> {
     const { args, flags } = await this.parse(ContextsDelete);
     const id = await resolveContextRefOrFail(args.id);
-    await requestBrowserbase(toApiOptions(flags), `/v1/contexts/${id}`, {
-      method: "DELETE",
-      headers: {
-        Accept: "*/*",
+    await requestBrowserbase(
+      toApiOptions(flags),
+      `/v1/contexts/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        headers: {
+          Accept: "*/*",
+        },
       },
-    });
+    );
     // Keep the local name map consistent: drop any aliases pointing at the
     // now-deleted context (whether the user passed a name or a raw id). The
     // remote delete already succeeded, so a local cleanup failure must not turn

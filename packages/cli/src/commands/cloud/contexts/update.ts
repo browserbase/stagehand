@@ -26,9 +26,13 @@ export default class ContextsUpdate extends BrowseCommand {
     const { args, flags } = await this.parse(ContextsUpdate);
     const id = await resolveContextRefOrFail(args.id);
     outputJson(
-      await requestBrowserbaseJson(toApiOptions(flags), `/v1/contexts/${id}`, {
-        method: "PUT",
-      }),
+      await requestBrowserbaseJson(
+        toApiOptions(flags),
+        `/v1/contexts/${encodeURIComponent(id)}`,
+        {
+          method: "PUT",
+        },
+      ),
     );
   }
 }

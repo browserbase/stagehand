@@ -1,4 +1,4 @@
-import { Args } from "@oclif/core";
+import { functionIdArg } from "../../../lib/cloud/args.js";
 import { BrowseCommand } from "../../../base.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { listFunctionSecrets } from "../../../lib/secrets/api.js";
@@ -19,10 +19,7 @@ export default class FunctionSecretsList extends BrowseCommand {
     "browse functions secrets list <functionId> --limit 10",
   ];
   static override args = {
-    functionId: Args.string({
-      description: "Function ID (e.g. 7b6e1c42-8d93-4a15-b2f0-9c6d3e8a5041).",
-      required: true,
-    }),
+    functionId: functionIdArg,
   };
   static override flags = { ...apiCommonFlags, ...listSecretsFlags };
   async run(): Promise<void> {

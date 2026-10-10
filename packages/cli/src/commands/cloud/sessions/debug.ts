@@ -1,5 +1,4 @@
-import { Args } from "@oclif/core";
-
+import { sessionIdArg } from "../../../lib/cloud/args.js";
 import {
   createBrowserbaseClient,
   outputJson,
@@ -14,7 +13,7 @@ export default class SessionsDebug extends BrowseCommand {
   static override examples = ["browse cloud sessions debug <session-id>"];
 
   static override args = {
-    id: Args.string({ required: true, description: "Session ID." }),
+    id: sessionIdArg,
   };
 
   static override flags = { ...apiCommonFlags };

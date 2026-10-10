@@ -2,6 +2,7 @@ import { distance } from "fastest-levenshtein";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
+import { isUuid } from "./ids.js";
 import { resolveConfigDir } from "../identity.js";
 
 /**
@@ -22,10 +23,6 @@ const MAX_NAME_LENGTH = 64;
 // dots, dashes, and underscores. Keeps names shell- and filename-friendly and
 // unambiguous against opaque context ids.
 const NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
-// Browserbase context ids are UUIDs. A name must not be UUID-shaped, otherwise a
-// saved alias could shadow a real id and break raw-id passthrough in resolution.
-const CONTEXT_ID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface ContextAlias {
   id: string;
@@ -40,7 +37,7 @@ interface ContextsStoreFile {
 }
 
 export function looksLikeContextId(value: string): boolean {
-  return CONTEXT_ID_PATTERN.test(value);
+  return isUuid(value);
 }
 
 export function isValidContextName(name: string): boolean {
