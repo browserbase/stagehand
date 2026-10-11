@@ -6,7 +6,8 @@ import {
   fetchWithoutModel,
 } from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
-import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/protocol-version";
+import { boundFetch } from "../llm/boundFetch.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import type { StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 
 vi.mock("ai", () => ({
@@ -15,6 +16,12 @@ vi.mock("ai", () => ({
   Output: {
     object: vi.fn((options: unknown) => options),
   },
+}));
+
+// Credentialed requests go through the load-time fetch reference, not the
+// ambient global, so the test drives that reference directly.
+vi.mock("../llm/boundFetch.js", () => ({
+  boundFetch: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -27,8 +34,8 @@ afterEach(() => {
 
 const initParams = {
   protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-  clientInfo: { name: "test", version: "1.0.0" },
-  logLevel: "off",
+  clientInfo: { name: "test", version: "1" },
+  logLevel: "info",
   model: { modelName: "openai/gpt-5" },
   apiKey: "bb-api-key",
   browser: { sessionId: "session-123", region: "eu-central-1" },
@@ -96,13 +103,13 @@ describe("createGatewayLanguageModel", () => {
 describe("fetchWithoutModel", () => {
   it("passes non-JSON string bodies through unchanged", async () => {
     const response = {} as Response;
-    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+    vi.mocked(boundFetch).mockResolvedValue(response);
     const init = { method: "POST", body: "not-json" };
 
     await expect(fetchWithoutModel("https://gateway.example/request", init)).resolves.toBe(
       response,
     );
-    expect(fetch).toHaveBeenCalledWith("https://gateway.example/request", init);
+    expect(boundFetch).toHaveBeenCalledWith("https://gateway.example/request", init);
   });
 });
 
@@ -119,7 +126,7 @@ describe("llmService.generate gateway routing", () => {
       usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
     } as never);
 
-    await llmService.generate({ modelName: "openai/gpt-5" }, input, vi.fn(), {
+    await llmService.generate({ modelName: "openai/future-model-v1" }, input, vi.fn(), {
       apiUrl: "https://api.stagehand.browserbase.com/v1",
       apiKey: "bb-api-key",
       sessionId: "session-123",
@@ -129,7 +136,7 @@ describe("llmService.generate gateway routing", () => {
       expect.objectContaining({
         model: expect.objectContaining({
           provider: "openai.responses",
-          modelId: "openai/gpt-5",
+          modelId: "openai/future-model-v1",
         }),
       }),
     );

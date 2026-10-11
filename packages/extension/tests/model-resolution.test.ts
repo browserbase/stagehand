@@ -53,6 +53,9 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
 describe("model configuration", () => {
   describe("provider model names", () => {
     it.each([
+      "openai/future-model-v1",
+      "anthropic/future-model-v1",
+      "google/future-model-v1",
       "openai/gpt-6-astra",
       "anthropic/claude-sonnet-5-5",
       "google/gemini-3.8-flash",

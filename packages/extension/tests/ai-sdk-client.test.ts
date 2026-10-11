@@ -1,6 +1,7 @@
 import { Output, generateText } from "ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
+import { boundFetch } from "../llm/boundFetch.js";
 import { createProviderLanguageModel } from "../llm/providerRegistry.js";
 import * as llmService from "../services/llmService.js";
 
@@ -10,6 +11,10 @@ vi.mock("ai", () => ({
   Output: {
     object: vi.fn((options: unknown) => options),
   },
+}));
+
+vi.mock("../llm/boundFetch.js", () => ({
+  boundFetch: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -71,25 +76,32 @@ describe("AI SDK language models", () => {
   });
 
   it("keeps Anthropic's browser header after provider construction", async () => {
-    const fetch = vi.fn(
-      async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => {
-        throw new Error("request intercepted");
-      },
-    );
+    vi.mocked(boundFetch).mockRejectedValue(new Error("request intercepted"));
     const model = createProviderLanguageModel("anthropic", "claude-sonnet-5-5", {
       apiKey: "provider-secret",
       headers: { "x-tenant-id": "tenant-123" },
-      fetch,
     });
 
     await expect(
       model.doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "Hi" }] }] }),
     ).rejects.toThrow("request intercepted");
 
-    const init = fetch.mock.calls[0]?.[1] as RequestInit;
+    const init = vi.mocked(boundFetch).mock.calls[0]?.[1] as RequestInit;
     const headers = new Headers(init.headers);
     expect(headers.get("anthropic-dangerous-direct-browser-access")).toBe("true");
     expect(headers.get("x-tenant-id")).toBe("tenant-123");
+  });
+
+  it("uses the load-time fetch reference for direct provider requests", async () => {
+    vi.mocked(boundFetch).mockRejectedValue(new Error("request intercepted"));
+    const model = createProviderLanguageModel("openai", "private-model", {
+      apiKey: "provider-secret",
+    });
+
+    await expect(
+      model.doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "Hi" }] }] }),
+    ).rejects.toThrow("request intercepted");
+    expect(boundFetch).toHaveBeenCalledOnce();
   });
 
   it("returns an upstream unknown-model error without replacing it", async () => {

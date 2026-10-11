@@ -3,6 +3,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import type { ModelProvider } from "@browserbasehq/stagehand-protocol/types";
+import { boundFetch } from "./boundFetch.js";
 
 type ProviderConnection = {
   apiKey?: string;
@@ -21,14 +22,9 @@ const providerFactories: Record<ModelProvider, ProviderFactory> = {
     const provider = createOpenAI(connection);
     return options?.stopSequences?.length ? provider.chat(modelId) : provider.responses(modelId);
   },
-  // Extension requests originate in the browser; Anthropic requires this CORS opt-in.
+  // Browser-origin Anthropic requests require this CORS opt-in header.
   anthropic: (modelId, connection) =>
     createAnthropic({
-      // The server runs inside the browser extension, so this request is
-      // browser-origin. Anthropic rejects CORS requests without this explicit
-      // opt-in header ("CORS requests must set
-      // 'anthropic-dangerous-direct-browser-access' header"); OpenAI and
-      // Google allow browser-origin calls without one.
       ...connection,
       headers: {
         ...connection.headers,
@@ -44,5 +40,5 @@ export function createProviderLanguageModel(
   connection: ProviderConnection = {},
   options?: { stopSequences?: readonly string[] },
 ): LanguageModelV4 {
-  return providerFactories[provider](modelId, connection, options);
+  return providerFactories[provider](modelId, { ...connection, fetch: boundFetch }, options);
 }
