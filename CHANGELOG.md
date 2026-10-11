@@ -3,6 +3,43 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Python SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Extension Runtime 1.1.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Go SDK 4.2.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Protocol 2.1.1
+
+### Patch Changes
+
+- [#3157](https://github.com/browserbase/stagehand/pull/3157) [`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab) Thanks [@github-actions](https://github.com/apps/github-actions)! - Accept new model IDs for supported providers without a Stagehand release. Reject empty or whitespace-containing IDs and let providers report model availability.
+
+## Eve Extension 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`bfeda48`](https://github.com/browserbase/stagehand/commit/bfeda482351a8613e3f8fe485b181bb8588b77ab)]:
+  - @browserbasehq/stagehand@4.2.1
+
 ## TypeScript SDK 4.2.0
 
 ### Minor Changes
