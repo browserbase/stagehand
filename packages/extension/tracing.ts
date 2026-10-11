@@ -123,6 +123,12 @@ export function createStagehandTracing(
         if (!telemetry) return;
 
         const registerGlobals = options.registerGlobals !== false && !globalsRegistered;
+        const isPlaceholderEndpoint = telemetry.traces.endpoint === "https://example.com/v1/traces";
+        const spanProcessors = [...dependencies.spanProcessors];
+        if (!isPlaceholderEndpoint) {
+          spanProcessors.push(createOtlpSpanProcessor(telemetry.traces));
+        }
+
         runtime = createStagehandTracingRuntime(
           {
             ...options,
@@ -131,10 +137,7 @@ export function createStagehandTracing(
             registerGlobals,
           },
           {
-            spanProcessors: [
-              ...dependencies.spanProcessors,
-              createOtlpSpanProcessor(telemetry.traces),
-            ],
+            spanProcessors,
           },
         );
         activeTelemetry = telemetry;
