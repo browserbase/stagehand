@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand-integrations-example-pi-facade",
-  "version": "4.0.4",
+  "version": "4.0.5",
   "private": true,
   "keywords": [
     "pi-package"
