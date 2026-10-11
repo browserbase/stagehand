@@ -74,6 +74,25 @@ describe("Stagehand.create", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
+  it("forwards an unknown model ID during initialization", async () => {
+    const cdp = new FakeCDPClient();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+    const stagehand = await Stagehand.create({
+      browser,
+      model: { modelName: "openai/future-model-v1", apiKey: "provider-secret" },
+    });
+
+    expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
+      params: { model: { model_name: "openai/future-model-v1", api_key: "provider-secret" } },
+    });
+
+    await stagehand.close();
+    await browser.close();
+  });
+
   it("attaches to a ready browser without taking transport ownership", async () => {
     const cdp = new FakeCDPClient();
     const { localBrowser } = createBrowserFactoriesForTest({
