@@ -33,6 +33,9 @@
     },
     "topicSeparator": " ",
     "topics": {
+      "clipboard": {
+        "description": "Read, write, and interact with the browser session clipboard."
+      },
       "cloud": {
         "description": "Manage Browserbase cloud resources and APIs."
       },
