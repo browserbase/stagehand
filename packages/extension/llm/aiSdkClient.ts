@@ -3,6 +3,7 @@ import { createCerebras } from "@ai-sdk/cerebras";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
+import { createXai } from "@ai-sdk/xai";
 import { generateText, jsonSchema, Output } from "ai";
 import { boundFetch } from "./boundFetch.js";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
@@ -18,6 +19,7 @@ import {
   LLMGenerateResultSchema,
   ModelProviderSchema,
   OpenAIModelIdSchema,
+  XaiModelIdSchema,
 } from "@browserbasehq/stagehand-protocol/schemas";
 import type {
   LLMGenerateParams,
@@ -170,6 +172,11 @@ export function createAiSdkLanguageModel(
       return createGroq(connection)(GroqModelIdSchema.parse(modelId));
     case "cerebras":
       return createCerebras(connection)(CerebrasModelIdSchema.parse(modelId));
+    case "xai":
+      if (params?.stopSequences?.length) {
+        throw new TypeError("xAI does not support stopSequences");
+      }
+      return createXai(connection).responses(XaiModelIdSchema.parse(modelId));
   }
 }
 

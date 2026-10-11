@@ -12,6 +12,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createCerebras } from "@ai-sdk/cerebras";
+import { createXai } from "@ai-sdk/xai";
 import { wrapLanguageModel } from "ai";
 import { boundFetch } from "./boundFetch.js";
 
@@ -26,6 +27,7 @@ const AISDKProviderFactories: Record<ModelProvider, AISDKProviderFactory> = {
   google: createGoogleGenerativeAI as AISDKProviderFactory,
   groq: createGroq as AISDKProviderFactory,
   cerebras: createCerebras as AISDKProviderFactory,
+  xai: createXai as AISDKProviderFactory,
 };
 
 type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;
@@ -67,7 +69,7 @@ export function getAISDKLanguageModel(
   // Load-time fetch ref (see boundFetch), not the ambient global.
   const provider = creator({ ...(aiSdkClientOptions ?? {}), fetch: boundFetch });
   const model =
-    subProvider === "openai"
+    subProvider === "openai" || subProvider === "xai"
       ? (provider as ReturnType<typeof createOpenAI>).responses(subModelName)
       : provider(subModelName);
 

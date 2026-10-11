@@ -11,9 +11,10 @@ export const AnthropicModelIdSchema = ModelIdSchema.meta({ id: "AnthropicModelId
 export const GoogleModelIdSchema = ModelIdSchema.meta({ id: "GoogleModelId" });
 export const GroqModelIdSchema = ModelIdSchema.meta({ id: "GroqModelId" });
 export const CerebrasModelIdSchema = ModelIdSchema.meta({ id: "CerebrasModelId" });
+export const XaiModelIdSchema = ModelIdSchema.meta({ id: "XaiModelId" });
 
 export const ModelProviderSchema = z
-  .enum(["openai", "anthropic", "google", "groq", "cerebras"])
+  .enum(["openai", "anthropic", "google", "groq", "cerebras", "xai"])
   .meta({ id: "ModelProvider" });
 
 export const OpenAIModelNameSchema = z
@@ -31,6 +32,9 @@ export const GroqModelNameSchema = z
 export const CerebrasModelNameSchema = z
   .templateLiteral(["cerebras/", CerebrasModelIdSchema])
   .meta({ id: "CerebrasModelName" });
+export const XaiModelNameSchema = z
+  .templateLiteral(["xai/", XaiModelIdSchema])
+  .meta({ id: "XaiModelName" });
 
 export const ModelNameSchema = z
   .union([
@@ -39,6 +43,7 @@ export const ModelNameSchema = z
     GoogleModelNameSchema,
     GroqModelNameSchema,
     CerebrasModelNameSchema,
+    XaiModelNameSchema,
   ])
   .meta({
     id: "ModelName",

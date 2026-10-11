@@ -2283,6 +2283,8 @@ type WebMCPToolsOptions struct {
 	Timeout float64 `json:"timeout,omitempty,omitzero"`
 }
 
+type XaiModelName string
+
 type generatedModelCatalog struct {
 	// ActOptions corresponds to the JSON schema field "ActOptions".
 	ActOptions *ActOptions `json:"ActOptions,omitempty,omitzero"`
@@ -3046,6 +3048,9 @@ type generatedModelCatalog struct {
 
 	// WebMCPToolsOptions corresponds to the JSON schema field "WebMCPToolsOptions".
 	WebMCPToolsOptions *WebMCPToolsOptions `json:"WebMCPToolsOptions,omitempty,omitzero"`
+
+	// XaiModelName corresponds to the JSON schema field "XaiModelName".
+	XaiModelName *XaiModelName `json:"XaiModelName,omitempty,omitzero"`
 
 	// Schema0 corresponds to the JSON schema field "__schema0".
 	Schema0 json.RawMessage `json:"__schema0,omitempty,omitzero"`

@@ -173,6 +173,21 @@ describe("llmService.generate gateway routing", () => {
     expect(generateText).not.toHaveBeenCalled();
   });
 
+  it("requires an xAI API key when the gateway does not support xAI", async () => {
+    await expect(
+      llmService.generate(
+        { modelName: "xai/grok-4" },
+        { messages: [{ role: "user", content: { type: "text", text: "Hello" } }] },
+        vi.fn(),
+        {
+          apiUrl: "https://api.stagehand.browserbase.com/v1",
+          apiKey: "bb-api-key",
+          sessionId: "session-123",
+        },
+      ),
+    ).rejects.toThrow("xAI inference requires an xAI API key");
+  });
+
   it("rejects missing model configurations when no gateway context is available", async () => {
     await expect(llmService.generate(undefined, input, vi.fn())).rejects.toThrow(
       /requires a provider API key or a Browserbase session/,

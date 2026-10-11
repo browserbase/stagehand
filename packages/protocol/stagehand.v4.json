@@ -1307,6 +1307,10 @@
       "type": "string",
       "pattern": "^cerebras\\/\\S+$"
     },
+    "XaiModelName": {
+      "type": "string",
+      "pattern": "^xai\\/\\S+$"
+    },
     "ModelName": {
       "anyOf": [
         {
@@ -1323,6 +1327,9 @@
         },
         {
           "$ref": "#/$defs/CerebrasModelName"
+        },
+        {
+          "$ref": "#/$defs/XaiModelName"
         }
       ],
       "description": "A model name with a supported provider prefix"

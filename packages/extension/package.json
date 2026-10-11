@@ -15,6 +15,7 @@
     "@ai-sdk/google": "catalog:",
     "@ai-sdk/groq": "catalog:",
     "@ai-sdk/openai": "catalog:",
+    "@ai-sdk/xai": "catalog:",
     "@ai-sdk/provider": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
