@@ -40,6 +40,26 @@
 
 # Stagehand Go SDK
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/browserbase/stagehand/packages/sdk-go/v4.svg)](https://pkg.go.dev/github.com/browserbase/stagehand/packages/sdk-go/v4)
+
+## Install
+
+Requires Go 1.26 or later. Use the latest patch of a supported Go release for
+security fixes. Run in your application module:
+
+```sh
+go get github.com/browserbase/stagehand/packages/sdk-go/v4@latest
+```
+
+Local browser sessions need Chrome or Chromium. The extension is bundled in the
+module; consumers do not need Node.js or the monorepo build tools. Browserbase
+sessions need `BROWSERBASE_API_KEY`. The example below uses `OPENAI_API_KEY` for
+its model.
+
+[API reference](https://pkg.go.dev/github.com/browserbase/stagehand/packages/sdk-go/v4) ·
+[Go guide](https://docs.stagehand.dev/v4/sdk/go) ·
+[Issues](https://github.com/browserbase/stagehand/issues)
+
 ## What is Stagehand?
 
 Stagehand is the SDK for browser agents. Playwright was built for testing, Stagehand is built for agents. Use familiar APIs, self-healing actions, and network-level security across TypeScript, Python, and Go.
@@ -64,7 +84,7 @@ import (
 	"log"
 	"os"
 
-	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
 type pullRequest struct {
@@ -105,6 +125,9 @@ func run(ctx context.Context) (err error) {
 	pages, err := browserContext.Pages(ctx)
 	if err != nil {
 		return err
+	}
+	if len(pages) == 0 {
+		return errors.New("Stagehand initialized without an active page")
 	}
 	page := pages[0]
 	if _, err := page.Goto(ctx, "https://github.com/browserbase", nil); err != nil {
@@ -221,7 +244,7 @@ Fields omitted with `json:",omitempty"` are optional in the generated schema. Ad
 
 ## More Examples
 
-Run the flat examples directly from the repository:
+Run the standalone examples directly from the repository:
 
 ```sh
 go -C packages/sdk-go run examples/act.go

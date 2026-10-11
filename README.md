@@ -281,7 +281,7 @@ pip install stagehand
 <summary><b>Go</b></summary>
 
 ```bash
-go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
+go get github.com/browserbase/stagehand/packages/sdk-go/v4@latest
 ```
 
 </details>
