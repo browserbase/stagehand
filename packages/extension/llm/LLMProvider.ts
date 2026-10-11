@@ -11,6 +11,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { wrapLanguageModel } from "ai";
+import { boundFetch } from "./boundFetch.js";
 
 // Compile-only bridge: current AI SDK providers return mixed v2/v3/v4 model
 // types, while copied V3 code assumed a single provider model type.
@@ -59,7 +60,8 @@ export function getAISDKLanguageModel(
       `${subProvider} is not currently supported for aiSDK. Please use one of the supported model providers: ${Object.keys(AISDKProviderFactories).join(", ")}`,
     );
   }
-  const provider = creator(aiSdkClientOptions ?? {});
+  // Load-time fetch ref (see boundFetch), not the ambient global.
+  const provider = creator({ ...(aiSdkClientOptions ?? {}), fetch: boundFetch });
   const model =
     subProvider === "openai"
       ? (provider as ReturnType<typeof createOpenAI>).responses(subModelName)
