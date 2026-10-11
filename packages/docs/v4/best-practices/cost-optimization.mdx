@@ -31,7 +31,7 @@ const termsSchema = z.object({ summary: z.string() });
 // One hard extraction gets the expensive model, everything else stays cheap
 await stagehand.extract("summarize the contract terms", termsSchema, {
   model: {
-    modelName: "anthropic/claude-sonnet-5",
+    modelName: "anthropic/claude-sonnet-5-5",
     apiKey: process.env.ANTHROPIC_API_KEY,
   },
 });
@@ -60,7 +60,7 @@ await stagehand.extract(
     instruction="summarize the contract terms",
     schema=Terms,
     model=ModelConfig(
-        model_name="anthropic/claude-sonnet-5",
+        model_name="anthropic/claude-sonnet-5-5",
         api_key=os.environ["ANTHROPIC_API_KEY"],
     ),
 )
@@ -98,7 +98,7 @@ if err != nil {
 // One hard extraction gets the expensive model, everything else stays cheap
 anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
 strongModel := stagehand.ModelConfig{
-	ModelName: "anthropic/claude-sonnet-5",
+	ModelName: "anthropic/claude-sonnet-5-5",
 	APIKey:    &anthropicKey,
 }
 
@@ -271,7 +271,7 @@ Automatically fall back to cheaper models for simple tasks. Escalate on `observe
 async function smartAct(stagehand: Stagehand, prompt: string) {
   const models = [
     { modelName: "google/gemini-3.8-flash", apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY },
-    { modelName: "openai/gpt-5.4", apiKey: process.env.OPENAI_API_KEY },
+    { modelName: "openai/gpt-6.1-sol", apiKey: process.env.OPENAI_API_KEY },
   ] as const;
 
   for (const model of models) {
@@ -302,7 +302,7 @@ async def smart_act(stagehand: Stagehand, prompt: str):
             "model_name": "google/gemini-3.8-flash",
             "api_key": os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
         },
-        {"model_name": "openai/gpt-5.4", "api_key": os.environ["OPENAI_API_KEY"]},
+        {"model_name": "openai/gpt-6.1-sol", "api_key": os.environ["OPENAI_API_KEY"]},
     ]
 
     for model in models:
@@ -338,7 +338,7 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 			APIKey:    &googleKey,
 		},
 		stagehand.ModelConfig{
-			ModelName: "openai/gpt-5.4",
+			ModelName: "openai/gpt-6.1-sol",
 			APIKey:    &openaiKey,
 		},
 	}

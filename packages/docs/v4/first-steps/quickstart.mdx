@@ -57,7 +57,7 @@ async function main() {
     const stagehand = await Stagehand.create({
       browser,
       model: {
-        modelName: "openai/gpt-5.6-sol",
+        modelName: "openai/gpt-6.1-sol",
         apiKey: process.env.OPENAI_API_KEY,
       },
     });
@@ -110,7 +110,7 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(
             browser=browser,
-            model="openai/gpt-5.6-sol",
+            model="openai/gpt-6.1-sol",
             model_api_key=os.environ["OPENAI_API_KEY"],
         )
         print("Stagehand session started")
@@ -166,7 +166,7 @@ func main() {
 func run(ctx context.Context) (err error) {
 	modelAPIKey := os.Getenv("OPENAI_API_KEY")
 	model := stagehand.ModelConfig{
-		ModelName: "openai/gpt-5.6-sol",
+		ModelName: "openai/gpt-6.1-sol",
 		APIKey:    &modelAPIKey,
 	}
 

@@ -33,7 +33,7 @@ pnpm exec turbo run build \
 export ANTHROPIC_API_KEY="your-anthropic-api-key"
 ```
 
-Set `CLAUDE_STAGEHAND_MODEL` to select another model; the example defaults to `claude-sonnet-5`.
+Set `CLAUDE_STAGEHAND_MODEL` to select another model; the example defaults to `claude-sonnet-5-5`.
   </Step>
   <Step title="Choose the browser">
 The example defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise it uses local Chrome:
@@ -55,7 +55,7 @@ pnpm --dir packages/integrations/claude-code start -- \
 
 | Variable | Purpose |
 | --- | --- |
-| `CLAUDE_STAGEHAND_MODEL` | Claude Code agent model; defaults to `claude-sonnet-5`. |
+| `CLAUDE_STAGEHAND_MODEL` | Claude Code agent model; defaults to `claude-sonnet-5-5`. |
 | `ANTHROPIC_API_KEY` | Credential for the example agent. The Claude Agent SDK does not forward it to the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
