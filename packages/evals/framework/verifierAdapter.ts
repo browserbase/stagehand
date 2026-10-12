@@ -24,6 +24,7 @@ import {
 } from "./verifierTrace.js";
 import type { HarnessTrajectory } from "./harnesses/trajectoryAdapter.js";
 import { RubricCache } from "./rubricCache.js";
+import { reportRowPhase } from "./rowContext.js";
 import type { TaskResult } from "./types.js";
 import { applyVerdictGates, resolveRequireGrounding, type VerdictGates } from "./verifierGates.js";
 
@@ -307,6 +308,7 @@ export async function gradeExternalTrajectory({
   logger,
   isFacadeTool,
 }: GradeExternalTrajectoryOptions): Promise<TaskResult> {
+  reportRowPhase("verify");
   let capturedTrajectory: HarnessTrajectory | undefined;
   let rawEvaluation: EvaluationResult | undefined;
   let savedDirectory: string | undefined;

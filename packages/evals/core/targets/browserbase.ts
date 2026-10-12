@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { registerActiveRunCleanup } from "../../framework/activeRunCleanup.js";
+import { reportRowPhase } from "../../framework/rowContext.js";
 import { loadBrowserbaseSdk, resolveStagehandExtensionArchivePath } from "../runtime/coreDeps.js";
 import { evalBrowserbaseSessionOptions } from "./browserbaseSessionOptions.js";
 
@@ -223,6 +224,10 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
     await cleanup();
     throw new Error("Browserbase session creation returned an unexpected shape.");
   }
+
+  reportRowPhase("session", {
+    sessionUrl: `https://www.browserbase.com/sessions/${created.id}`,
+  });
 
   let debugUrl: string | undefined;
   try {

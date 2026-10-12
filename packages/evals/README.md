@@ -69,28 +69,43 @@ Set `EVALS_WELCOME_WIZARD=1` to auto-run the flow on the first REPL launch; `EVA
 
 ## Common options
 
-| Flag                                                              | Purpose                                                     |
-| ----------------------------------------------------------------- | ----------------------------------------------------------- |
-| `-e, --env <local\|browserbase>`                                  | Where the browser runs                                      |
-| `-t, --trials <n>`                                                | Trials per task                                             |
-| `-c, --concurrency <n>`                                           | Max parallel sessions                                       |
-| `-m, --model <id>`                                                | Override the model matrix                                   |
-| `--api`                                                           | Run via the Stagehand API instead of the SDK                |
-| `--harness <stagehand\|claude_code\|codex\|mastra\|pi>`           | Which agent harness drives the bench task                   |
-| `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets                         |
-| `--preview`                                                       | Print the resolved plan and exit — no browser, no LLM calls |
-
-Team defaults live in the tracked `evals.config.json` (schema v2: `defaults`, `benchmarks`, `harnesses`, `providers`, `verifier`, `campaign`). `evals config set …` writes your personal overrides to the gitignored `evals.config.local.json` beside it; add `--shared` to change the team file. Flags always win. Most `defaults` then come from the local file, the tracked file and the `EVAL_*` env vars in that order; `EVAL_SUCCESS_MODE` and `STAGEHAND_BROWSER_TARGET` are the exceptions and beat the config, as does the env twin of every other section. `.env` loads from the cwd first (it wins), then `packages/evals/.env` (where `evals setup` saves keys), and shell exports always win — `evals doctor` reports which file supplied each provider key.
+| Flag                                                              | Purpose                                                                                 |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `-e, --env <local\|browserbase>`                                  | Where the browser runs                                                                  |
+| `-t, --trials <n>`                                                | Trials per task                                                                         |
+| `-c, --concurrency <n>`                                           | Max parallel sessions                                                                   |
+| `-m, --model <id>`                                                | Override the model matrix                                                               |
+| `--api`                                                           | Run via the Stagehand API instead of the SDK                                            |
+| `--harness <name>`                                                | Which agent harness drives the bench task (`evals run --help` lists them)               |
+| `--tool <surface>`                                                | Tool surface the harness mounts; `stagehand_facade` is the Playwright-batch MCP surface |
+| `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets                                                     |
+| `--preview`                                                       | Print the resolved plan and exit — no browser, no LLM calls                             |
+| `-v, --verbose` / `--follow <id>`                                 | Stream every case's log lines (or one case's) above the live board                      |
+| `--json`                                                          | Print the end-of-run summary as JSON on stdout; the board and logs go to stderr         |
 
 Concurrency is capped per model provider under the global `-c` value (default 3 per provider); tune with `EVAL_PROVIDER_CONCURRENCY=openai=6,anthropic=4` or `evals config providers set openai concurrency 6`. The cap applies within one `evals run`: separately launched runs don't share it. When the agent's own provider call hits a 429 or connect timeout, that provider's width is halved for 60 s and the row is retried once; a Browserbase session-create 429 is retried once after 20 s. Retried rows carry `provider_throttled` in Braintrust. A rate-limited judge never re-runs the agent.
+
+Team defaults live in the tracked `evals.config.json` (schema v2: `defaults`, `benchmarks`, `harnesses`, `providers`, `verifier`, `campaign`). `evals config set …` writes your personal overrides to the gitignored `evals.config.local.json` beside it; add `--shared` to change the team file. Flags always win. Most `defaults` then come from the local file, the tracked file and the `EVAL_*` env vars in that order; `EVAL_SUCCESS_MODE` and `STAGEHAND_BROWSER_TARGET` are the exceptions and beat the config, as does the env twin of every other section. `.env` loads from the cwd first (it wins), then `packages/evals/.env` (where `evals setup` saves keys), and shell exports always win — `evals doctor` reports which file supplied each provider key.
 
 `--preview` is useful for sanity-checking the plan before paying for a run:
 
 ![evals run --preview output](./assets/readme/preview.png)
 
-A live run paints an in-place progress table, then prints a final summary with a per-model breakdown:
+A live run draws one row per case in flight: case id and site, the task, the phase it's in (`session` → `agent` → `verify`) and how long it has been running. Elapsed time turns yellow once a row outlasts three quarters of the finished ones. Rows waiting for a provider slot are counted in the queue line rather than shown; the `↓` marks a provider whose width was halved after a 429. The last few finishes show their outcome, and failures their session URL:
 
-![Live bench run](./assets/readme/run.gif)
+![Live bench run](./assets/readme/run-live.png)
+
+Every case that logs anything gets its own file under `.trajectories/<run>/logs/` (with the provider in the name), whether or not you're watching. `-v` streams those lines above the board, attributed by case id; `--follow <id>` streams one case. While a run is going, `v` cycles the stream off → all → one (the oldest running case) → off, `?` shows the keys, and `esc` stops the run:
+
+![Live bench run with -v](./assets/readme/run-verbose.png)
+
+The end-of-run summary has one line per cell (harness × tool × model) with the pass rate, the failure kinds that aren't the agent's fault or aren't what they look like (`max_turns`, `sdk_error`, `gated`: the judge passed it, a deterministic check such as "never used the browser" failed it, and `ungraded`), and `retried`: rows retried after a provider 429, which may still have passed. Infra failures are listed with their reason and session URL; rubric fails by case id. `--json` emits the same as an object:
+
+![Run summary](./assets/readme/run-summary.png)
+
+When the judge grades nothing (a retired model, a bad key), every row fails closed, so the pass rate says nothing about the agent. The run says so and exits 1:
+
+![Dead-judge banner](./assets/readme/run-dead-judge.png)
 
 `evals doctor --harness a,b [--probe]` probes each harness (binary, key, key validity, extras like heap or `CODEX_HOME`), the judge and Browserbase, and prints the fix command for each failure that has one:
 

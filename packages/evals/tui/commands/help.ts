@@ -1,4 +1,6 @@
 import { bold, dim, cyan, gray, padRight, dustyCyanHeader } from "../format.js";
+// Dependency-free; the harness and tool registries stay lazily imported.
+import { listBenchSuites } from "../../framework/benchSuites.js";
 
 const HELP_COL_WIDTH = 34;
 
@@ -37,8 +39,9 @@ export function printHelp(): void {
 }
 
 export async function printRunHelp(): Promise<void> {
-  const { listBenchHarnesses, listBenchHarnessesForTaskKind } =
+  const { getBenchHarness, listBenchHarnesses, listBenchHarnessesForTaskKind } =
     await import("../../framework/benchHarness.js");
+  const { listCoreRunnableTools } = await import("../../core/tools/registry.js");
   const suiteHarness = listBenchHarnessesForTaskKind("suite")[0];
   print([
     "",
@@ -74,7 +77,7 @@ export async function printRunHelp(): Promise<void> {
     "",
     row(
       `${cyan("--tool")} ${dim("<surface>")}`,
-      `Core tool surface ${gray("(understudy_code, playwright_code, ...)")}`,
+      `Core tool surface ${gray(`(${listCoreRunnableTools().join(", ")})`)}`,
     ),
     row(`${cyan("--startup")} ${dim("<profile>")}`, "Core startup profile"),
     "",
@@ -84,6 +87,16 @@ export async function printRunHelp(): Promise<void> {
       `${cyan("--harness")} ${dim("<name>")}`,
       `Bench harness ${gray(`(${listBenchHarnesses().join(" | ")})`)}`,
     ),
+    row(
+      `${cyan("--tool")} ${dim("<surface>")}`,
+      `Tool surface the harness mounts ${gray("(default marked *)")}`,
+    ),
+    ...buildHarnessToolRows(listBenchHarnesses(), getBenchHarness),
+    row(
+      "",
+      `${gray("stagehand_facade")} ${dim("— Playwright-batch MCP surface (agent mount only)")}`,
+    ),
+    row(`${cyan("b:<suite>")}`, `Suites: ${gray(listBenchSuites().join(", "))}`),
     row(
       `${cyan("--success")} ${dim("<mode>")}`,
       `Rubric success mode ${gray("(outcome | process | both)")}`,
@@ -102,6 +115,23 @@ export async function printRunHelp(): Promise<void> {
       `Print a human-readable plan ${gray("(combinations + tasks)")} and exit`,
     ),
     "",
+    `  ${bold("Output:")}`,
+    "",
+    row(`${cyan("-v, --verbose")}`, `Stream every case's log lines above the board`),
+    row(
+      `${cyan("--follow")} ${dim("<id>")}`,
+      `Stream one case's log lines ${gray("(case id prefix)")}`,
+    ),
+    row(
+      cyan("--json"),
+      `Print the summary as JSON on stdout ${gray("(board + logs go to stderr)")}`,
+    ),
+    row(dim("keys"), `${cyan("esc")} stop · ${cyan("v")} logs off → all → one · ${cyan("?")} help`),
+    row(
+      dim("logs"),
+      `One file per case that logs, under ${gray(".trajectories/<run>/logs/")}, streamed or not`,
+    ),
+    "",
     `  ${bold("Examples:")}`,
     "",
     `    ${dim("$")} evals run act -t 3 -c 5`,
@@ -116,6 +146,22 @@ export async function printRunHelp(): Promise<void> {
       : []),
     "",
   ]);
+}
+
+/**
+ * One dim row per harness that mounts a tool, listing its surfaces with the
+ * default (first registered) starred: `claude_code: browse_cli* | … | stagehand_facade`.
+ */
+function buildHarnessToolRows(
+  harnesses: string[],
+  getHarness: (harness: string) => { supportedToolSurfaces: readonly string[] },
+): string[] {
+  return harnesses.flatMap((harness) => {
+    const surfaces = getHarness(harness).supportedToolSurfaces;
+    if (surfaces.length === 0) return [];
+    const list = surfaces.map((surface, index) => (index === 0 ? `${surface}*` : surface));
+    return [row("", `${gray(`${harness}:`)} ${dim(list.join(" | "))}`)];
+  });
 }
 
 export function printListHelp(): void {
