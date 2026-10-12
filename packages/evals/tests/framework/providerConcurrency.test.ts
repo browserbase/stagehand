@@ -10,6 +10,7 @@ import {
   classifyThrottle,
   describeProviderWidths,
   formatConcurrencyQueueLine,
+  interleaveByProvider,
   parseProviderConcurrencyEnv,
   providerFromModel,
   runGatedRow,
@@ -120,6 +121,33 @@ describe("parseProviderConcurrencyEnv", () => {
     );
     expect(() => parseProviderConcurrencyEnv("openai")).toThrow(/Invalid/);
     expect(() => parseProviderConcurrencyEnv("openai=0")).toThrow(/Invalid/);
+  });
+});
+
+describe("interleaveByProvider", () => {
+  const model = <T extends { model?: string }>(row: T) => row.model;
+
+  it("round-robins providers so each one reaches the front of the queue", () => {
+    const rows = [
+      { id: 1, model: "openai/a" },
+      { id: 2, model: "openai/a" },
+      { id: 3, model: "openai/b" },
+      { id: 4, model: "anthropic/c" },
+      { id: 5, model: "anthropic/c" },
+      { id: 6, model: "google/d" },
+    ];
+    expect(interleaveByProvider(rows, model).map((row) => row.id)).toEqual([1, 4, 6, 2, 5, 3]);
+  });
+
+  it("keeps a single-provider plan untouched and groups provider-less rows", () => {
+    const single = [{ model: "openai/a" }, { model: "openai/b" }];
+    expect(interleaveByProvider(single, model)).toBe(single);
+    const mixed = [{ model: "none" }, { model: "none" }, { model: "openai/a" }];
+    expect(interleaveByProvider(mixed, model)).toEqual([
+      { model: "none" },
+      { model: "openai/a" },
+      { model: "none" },
+    ]);
   });
 });
 
