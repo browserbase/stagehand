@@ -116,8 +116,9 @@ describe("CLI entrypoint", { timeout: CLI_TEST_TIMEOUT_MS }, () => {
     expect(code).toBe(0);
     expect(stdout).toContain("evals doctor");
     expect(stdout).toContain("--json");
-    // Hidden --probe flag must not appear
-    expect(stdout).not.toContain("--probe");
+    // --probe is a public flag since the harness probe matrix landed.
+    expect(stdout).toContain("--probe");
+    expect(stdout).toContain("--harness");
   });
 
   it("doctor --json emits a parseable report", async () => {
