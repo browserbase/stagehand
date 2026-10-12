@@ -18,7 +18,8 @@
  * Throttling: when the agent's own provider call fails with a 429 / connect
  * timeout, that provider's width is halved for `THROTTLE_WINDOW_MS` (further
  * signals inside the window only extend it) and the row gets one retry with
- * a fresh session. A Browserbase session-create 429 gets the same single
+ * a fresh session after `PROVIDER_RETRY_DELAY_MS`, so the retry doesn't hit
+ * the provider again milliseconds after the 429. A Browserbase session-create 429 gets the same single
  * retry after `BROWSERBASE_RETRY_DELAY_MS`, without touching any width:
  * Browserbase limits concurrent sessions, which the global cap already
  * bounds. Retried rows are tagged (`metrics.provider_throttled`,
@@ -32,6 +33,7 @@ export const PROVIDER_CONCURRENCY_ENV = "EVAL_PROVIDER_CONCURRENCY";
 export const DEFAULT_PROVIDER_WIDTH = 3;
 export const THROTTLE_WINDOW_MS = 60_000;
 export const BROWSERBASE_RETRY_DELAY_MS = 20_000;
+export const PROVIDER_RETRY_DELAY_MS = 10_000;
 
 export type ThrottleSource = "provider" | "browserbase";
 
@@ -520,6 +522,8 @@ export interface RunGatedRowOptions {
   maxRetries?: number;
   /** Delay before retrying a Browserbase session-create 429. */
   browserbaseRetryDelayMs?: number;
+  /** Delay before retrying a provider 429 / connect timeout. */
+  providerRetryDelayMs?: number;
   /** Injectable for tests. Resolves early when the signal aborts. */
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
@@ -594,10 +598,16 @@ export async function runGatedRow(options: RunGatedRowOptions): Promise<TaskResu
       };
 
       if (!willRetry) return decorate(result, throttleInfo);
-      if (source === "browserbase") {
-        await sleep(options.browserbaseRetryDelayMs ?? BROWSERBASE_RETRY_DELAY_MS, signal);
-        if (signal?.aborted) return decorate(result, { ...throttleInfo, retried: false });
-      }
+      // Back off before the retry. A provider row has just released its slot,
+      // so without a wait it re-acquires at once and calls the provider again
+      // milliseconds after the 429.
+      await sleep(
+        source === "browserbase"
+          ? (options.browserbaseRetryDelayMs ?? BROWSERBASE_RETRY_DELAY_MS)
+          : (options.providerRetryDelayMs ?? PROVIDER_RETRY_DELAY_MS),
+        signal,
+      );
+      if (signal?.aborted) return decorate(result, { ...throttleInfo, retried: false });
     }
   } finally {
     scheduler.markFinished();
