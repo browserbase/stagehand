@@ -116,6 +116,33 @@ export function providerFromModel(modelName: string | undefined): string | undef
   return slash > 0 ? modelName.slice(0, slash).toLowerCase() : undefined;
 }
 
+/**
+ * Round-robin rows across providers, keeping each provider's own order.
+ *
+ * Braintrust admits rows in data order up to the global cap, and the provider
+ * gate runs inside the task. Planned model by model, every global slot goes to
+ * the first provider's rows, which then queue on that provider's semaphore
+ * while the next provider's rows can't start: `-c 10` over openai and
+ * anthropic ran ~3-wide instead of ~6. Interleaving puts every provider's rows
+ * at the front of the queue. Rows without a provider form their own group.
+ */
+export function interleaveByProvider<T>(rows: T[], modelOf: (row: T) => string | undefined): T[] {
+  const groups = new Map<string | undefined, T[]>();
+  for (const row of rows) {
+    const provider = providerFromModel(modelOf(row));
+    const group = groups.get(provider);
+    if (group) group.push(row);
+    else groups.set(provider, [row]);
+  }
+  if (groups.size < 2) return rows;
+  const queues = [...groups.values()];
+  const interleaved: T[] = [];
+  for (let index = 0; interleaved.length < rows.length; index++) {
+    for (const queue of queues) if (index < queue.length) interleaved.push(queue[index]);
+  }
+  return interleaved;
+}
+
 export interface SemaphoreSnapshot {
   /** Slots currently held. */
   active: number;

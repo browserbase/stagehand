@@ -16,6 +16,7 @@ vi.mock("playwright", () => ({ chromium: {} }));
 
 type TaskFn = (input: unknown, hooks?: { trialIndex?: number }) => Promise<TaskResult>;
 let capturedTask: TaskFn | undefined;
+let capturedData: Array<{ input: { modelName: string } }> | undefined;
 let releaseEval: (() => void) | undefined;
 
 vi.mock("../../framework/braintrust.js", () => ({
@@ -23,8 +24,12 @@ vi.mock("../../framework/braintrust.js", () => ({
   resolveBraintrustProjectName: () => "stagehand-dev",
   loadBraintrust: async () => ({
     // Hold Eval open until the test has called the task function itself.
-    Eval: async (_name: string, options: { task: TaskFn }) => {
+    Eval: async (
+      _name: string,
+      options: { task: TaskFn; data: () => Array<{ input: { modelName: string } }> },
+    ) => {
       capturedTask = options.task;
+      capturedData = options.data();
       await new Promise<void>((resolve) => (releaseEval = resolve));
       return { results: [] as unknown[], summary: { experimentName: "t", scores: {} } };
     },
@@ -253,6 +258,24 @@ describe("runner progress events carry row identity", () => {
     } finally {
       if (saved === undefined) delete process.env.EVAL_PROVIDER_CONCURRENCY;
       else process.env.EVAL_PROVIDER_CONCURRENCY = saved;
+    }
+  });
+
+  it("hands Braintrust the rows interleaved across providers", async () => {
+    const saved = process.env.EVAL_CODEX_MODELS;
+    process.env.EVAL_CODEX_MODELS = "openai/gpt-5.4-mini,anthropic/claude-sonnet-5";
+    try {
+      const { run } = await startRun([]);
+      releaseEval?.();
+      await run;
+      const providers = (capturedData ?? []).map((row) => row.input.modelName.split("/")[0]);
+      expect(new Set(providers)).toEqual(new Set(["openai", "anthropic"]));
+      // Model by model would put every openai row first; interleaved, the
+      // providers alternate from the start.
+      expect(providers.slice(0, 2).sort()).toEqual(["anthropic", "openai"]);
+    } finally {
+      if (saved === undefined) delete process.env.EVAL_CODEX_MODELS;
+      else process.env.EVAL_CODEX_MODELS = saved;
     }
   });
 });

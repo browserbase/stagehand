@@ -56,6 +56,7 @@ import path from "node:path";
 import { classifyRowOutcome, type RowOutcome } from "./runSummary.js";
 import {
   ProviderConcurrency,
+  interleaveByProvider,
   runGatedRow,
   type ConcurrencyQueueSnapshot,
   type ThrottleRecord,
@@ -503,7 +504,12 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       : undefined;
     if (effectiveCoreToolSurface) rejectAgentMountOnlyCoreTool(effectiveCoreToolSurface);
 
-    const testcases = generateTestcases(options.tasks, options);
+    // Interleaved so every provider's rows reach Braintrust's global slots
+    // early instead of queueing behind the first provider's semaphore.
+    const testcases = interleaveByProvider(
+      generateTestcases(options.tasks, options),
+      (testcase) => testcase.input.modelName,
+    );
     // Braintrust runs every testcase once per trial; counts are per execution.
     const plannedExecutions = testcases.length * trials;
     options.onProgress?.({
