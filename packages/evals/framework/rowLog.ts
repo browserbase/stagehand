@@ -76,11 +76,15 @@ export class RowLogNames {
  * Appends a row's lines to its file. The file is only created on the first
  * line, so rows that log nothing leave nothing behind. Logging is best
  * effort: a filesystem error disables this row's file and never fails the row.
+ * Once closed, later lines are dropped: async work a finished row left behind
+ * (timers, child output) still carries its context and must not reopen the
+ * file.
  */
 export class RowLogWriter {
   private stream?: fs.WriteStream;
   private wrote = false;
   private disabled = false;
+  private closed = false;
 
   constructor(readonly filePath: string) {}
 
@@ -89,7 +93,7 @@ export class RowLogWriter {
   }
 
   write(entry: RowLogEntry, at: Date = new Date()): void {
-    if (this.disabled) return;
+    if (this.disabled || this.closed) return;
     try {
       if (!this.stream) {
         fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
@@ -111,6 +115,7 @@ export class RowLogWriter {
   }
 
   close(): Promise<void> {
+    this.closed = true;
     const stream = this.stream;
     if (!stream) return Promise.resolve();
     this.stream = undefined;
