@@ -57,7 +57,7 @@ sessions need `BROWSERBASE_API_KEY`. The example below uses `OPENAI_API_KEY` for
 its model.
 
 [API reference](https://pkg.go.dev/github.com/browserbase/stagehand/packages/sdk-go/v4) ·
-[Go guide](https://docs.stagehand.dev/v4/sdk/go) ·
+[Go guide](https://docs.stagehand.dev/) ·
 [Issues](https://github.com/browserbase/stagehand/issues)
 
 ## What is Stagehand?
