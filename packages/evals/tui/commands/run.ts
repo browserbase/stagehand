@@ -7,9 +7,10 @@
  * values don't leak across REPL commands.
  */
 
-import { bold, dim, cyan, separator } from "../format.js";
+import { bold, dim, cyan, yellow, separator } from "../format.js";
 import { ProgressRenderer } from "../progress.js";
 import { printModelSummary, printResultsTable } from "../results.js";
+import { resolveVerifierModel } from "../../framework/verifierModel.js";
 import { renderPreview } from "../preview.js";
 import { discoverTasks, resolveTarget } from "../../framework/discovery.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
@@ -134,17 +135,92 @@ function buildRunContextLine(
   return parts.join("  ");
 }
 
+/**
+ * `10 global · anthropic 3 · openai 3` — the per-provider widths that will
+ * actually gate the run, so a 10-wide config against one provider reads as
+ * what it is. Falls back to the bare number when no row has a provider.
+ */
 function describeConcurrency(
   options: ResolvedRunOptions,
   matrix: Array<Record<string, unknown>>,
 ): string {
   const global = options.concurrency;
   if (!Number.isInteger(global) || global < 1) return String(global);
+  const scheduler = ProviderConcurrency.fromEnv(global, {
+    configWidths: options.providerConcurrency,
+  });
   const widths = describeProviderWidths(
-    ProviderConcurrency.fromEnv(global),
+    scheduler,
     matrix.map((row) => (typeof row.provider === "string" ? row.provider : undefined)),
   );
   return widths ? `${global} global · ${widths}` : String(global);
+}
+
+/**
+ * Mirrors stagehand's `shouldPersistTrajectory(undefined)` (the rule the
+ * runner applies), but over an explicit env so the header can include the
+ * run's env overrides: VERIFIER_PERSIST_TRAJECTORIES wins, then "on unless CI".
+ */
+export function trajectoryPersistence(env: NodeJS.ProcessEnv): { on: boolean; why?: string } {
+  const flag = env.VERIFIER_PERSIST_TRAJECTORIES?.toLowerCase();
+  if (flag === "1" || flag === "true") return { on: true, why: "VERIFIER_PERSIST_TRAJECTORIES" };
+  if (flag === "0" || flag === "false")
+    return { on: false, why: "VERIFIER_PERSIST_TRAJECTORIES=0" };
+  return env.CI ? { on: false, why: "CI is set" } : { on: true };
+}
+
+/**
+ * `Judge: google/gemini-3.5-flash  Success: outcome  Trajectories: on (.trajectories)`
+ * — the verifier settings a bench run will grade with. Resolved over the
+ * run's env overrides, so `verifier.model` from config shows up here exactly
+ * as the runner will see it.
+ */
+function buildVerifierContextLine(options: ResolvedRunOptions): string {
+  const env = { ...process.env, ...options.envOverrides };
+  const judge = resolveVerifierModel(env);
+  const fromConfig =
+    judge.source === "env" && options.envOverrides.EVAL_VERIFIER_MODEL !== undefined;
+  const judgeLabel =
+    judge.source === "env"
+      ? `${judge.modelName} ${dim(fromConfig ? "(config)" : "(EVAL_VERIFIER_MODEL)")}`
+      : judge.modelName;
+  const persistence = trajectoryPersistence(env);
+  const trajectories = persistence.on
+    ? `on ${dim(`(${env.EVAL_TRAJECTORY_ROOT || ".trajectories"})`)}`
+    : yellow(`off ${dim(`(${persistence.why})`)}`);
+  return [
+    `${bold("Judge:")} ${judgeLabel}`,
+    `${bold("Success:")} ${options.successMode}`,
+    `${bold("Trajectories:")} ${trajectories}`,
+  ].join("  ");
+}
+
+/** `Running:` / `Plan:` / context / judge lines printed before the progress block. */
+export function renderRunHeader(
+  options: ResolvedRunOptions,
+  tasks: DiscoveredTask[],
+  matrix: Array<Record<string, unknown>>,
+  print: (line: string) => void = (line) => console.log(line),
+): void {
+  const isBenchRun = tasks.some((task) => task.tier === "bench");
+  print(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
+  print(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
+  print(`  ${buildRunContextLine(options, tasks, matrix)}`);
+  if (isBenchRun) print(`  ${buildVerifierContextLine(options)}`);
+  print(separator());
+  print("");
+}
+
+/** Canonical names of the Browserbase credentials that are absent (aliases BB_* count). */
+export function missingBrowserbaseKeys(env: NodeJS.ProcessEnv): string[] {
+  const missing: string[] = [];
+  if (!(env.BROWSERBASE_API_KEY?.trim() || env.BB_API_KEY?.trim())) {
+    missing.push("BROWSERBASE_API_KEY");
+  }
+  if (!(env.BROWSERBASE_PROJECT_ID?.trim() || env.BB_PROJECT_ID?.trim())) {
+    missing.push("BROWSERBASE_PROJECT_ID");
+  }
+  return missing;
 }
 
 export async function runCommand(
@@ -216,6 +292,17 @@ export async function runCommand(
     return;
   }
 
+  // Preflight Browserbase credentials once here instead of failing per task
+  // inside session creation, N times at concurrency N.
+  if (options.environment === "BROWSERBASE") {
+    const missing = missingBrowserbaseKeys(process.env);
+    if (missing.length > 0) {
+      throw new Error(
+        `${missing.join(" and ")} missing for --env browserbase — export them or add them to packages/evals/.env`,
+      );
+    }
+  }
+
   if (!canExecuteBenchHarness(options.harness) && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
       `Harness "${options.harness}" is dry-run only for now. Use ${formatBenchHarnessFlags()} for executable bench runs.`,
@@ -223,11 +310,7 @@ export async function runCommand(
   }
   const matrix = await buildDryRunMatrix(options, tasks, registry);
 
-  console.log(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
-  console.log(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
-  console.log(`  ${buildRunContextLine(options, tasks, matrix)}`);
-  console.log(separator());
-  console.log("");
+  renderRunHeader(options, tasks, matrix);
 
   const progress = new ProgressRenderer({
     animated: !options.verbose,
@@ -252,6 +335,7 @@ export async function runCommand(
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
           coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
+          providerConcurrency: options.providerConcurrency,
           verbose: options.verbose,
           signal,
           onProgress: (event: RunProgressEvent) => {

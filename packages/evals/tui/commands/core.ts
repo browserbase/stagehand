@@ -19,12 +19,22 @@
  */
 
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
-import { readConfig, writeConfig, resolveConfigPath, type CoreConfigSection } from "./config.js";
+import {
+  readConfig,
+  rejectSharedScope,
+  writeConfig,
+  resolveConfigPath,
+  type CoreConfigSection,
+} from "./config.js";
 
 type CoreKey = keyof CoreConfigSection;
 const VALID_KEYS: CoreKey[] = ["tool", "startup"];
 
 export async function handleCore(args: string[], entryDir: string): Promise<void> {
+  if (args.includes("--shared")) {
+    rejectSharedScope("core");
+    return;
+  }
   const sub = args[0];
 
   if (!sub) {

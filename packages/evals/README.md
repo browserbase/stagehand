@@ -80,9 +80,9 @@ Set `EVALS_WELCOME_WIZARD=1` to auto-run the flow on the first REPL launch; `EVA
 | `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets                         |
 | `--preview`                                                       | Print the resolved plan and exit — no browser, no LLM calls |
 
-Defaults live in `evals.config.json` and can be edited via `evals config set …`.
+Team defaults live in the tracked `evals.config.json` (schema v2: `defaults`, `benchmarks`, `harnesses`, `providers`, `verifier`, `campaign`). `evals config set …` writes your personal overrides to the gitignored `evals.config.local.json` beside it; add `--shared` to change the team file. Flags always win. Most `defaults` then come from the local file, the tracked file and the `EVAL_*` env vars in that order; `EVAL_SUCCESS_MODE` and `STAGEHAND_BROWSER_TARGET` are the exceptions and beat the config, as does the env twin of every other section. `.env` loads from the cwd first (it wins), then `packages/evals/.env` (where `evals setup` saves keys), and shell exports always win.
 
-Concurrency is capped per model provider under the global `-c` value (default 3 per provider); tune with `EVAL_PROVIDER_CONCURRENCY=openai=6,anthropic=4`. The cap applies within one `evals run`: separately launched runs don't share it. When the agent's own provider call hits a 429 or connect timeout, that provider's width is halved for 60 s and the row is retried once; a Browserbase session-create 429 is retried once after 20 s. Retried rows carry `provider_throttled` in Braintrust. A rate-limited judge never re-runs the agent.
+Concurrency is capped per model provider under the global `-c` value (default 3 per provider); tune with `EVAL_PROVIDER_CONCURRENCY=openai=6,anthropic=4` or `evals config providers set openai concurrency 6`. The cap applies within one `evals run`: separately launched runs don't share it. When the agent's own provider call hits a 429 or connect timeout, that provider's width is halved for 60 s and the row is retried once; a Browserbase session-create 429 is retried once after 20 s. Retried rows carry `provider_throttled` in Braintrust. A rate-limited judge never re-runs the agent.
 
 `--preview` is useful for sanity-checking the plan before paying for a run:
 
