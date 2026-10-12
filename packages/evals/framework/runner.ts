@@ -461,11 +461,19 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       : undefined;
     if (effectiveCoreToolSurface) rejectAgentMountOnlyCoreTool(effectiveCoreToolSurface);
 
-    // Interleaved so every provider's rows reach Braintrust's global slots
-    // early instead of queueing behind the first provider's semaphore.
+    // Provider semaphores gate what runs under Braintrust's cap.
+    scheduler = ProviderConcurrency.fromEnv(concurrency, {
+      configWidths: options.providerConcurrency,
+      onChange: (queue) => options.onProgress?.({ type: "queue", queue }),
+    });
+    const activeScheduler = scheduler;
+    // Interleaved in proportion to provider widths so every provider's rows
+    // reach Braintrust's global slots early instead of queueing behind the
+    // first provider's semaphore.
     const testcases = interleaveByProvider(
       generateTestcases(options.tasks, options),
       (testcase) => testcase.input.modelName,
+      (provider) => (provider ? activeScheduler.configuredWidth(provider) : 1),
     );
     // Braintrust runs every testcase once per trial; counts are per execution.
     const plannedExecutions = testcases.length * trials;
@@ -473,13 +481,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       type: "planned",
       total: plannedExecutions,
     });
-    // Provider semaphores gate what runs under Braintrust's cap.
-    scheduler = ProviderConcurrency.fromEnv(concurrency, {
-      configWidths: options.providerConcurrency,
-      onChange: (queue) => options.onProgress?.({ type: "queue", queue }),
-    });
     scheduler.setTotal(plannedExecutions);
-    const activeScheduler = scheduler;
     if (testcases.length === 0) {
       console.log("No testcases to run.");
       return {

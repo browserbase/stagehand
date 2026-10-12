@@ -130,9 +130,9 @@ describe("runner progress events", () => {
       await run;
       const providers = (capturedData ?? []).map((row) => row.input.modelName.split("/")[0]);
       expect(new Set(providers)).toEqual(new Set(["openai", "anthropic"]));
-      // Model by model would put every openai row first; interleaved, the
-      // providers alternate from the start.
-      expect(providers.slice(0, 2).sort()).toEqual(["anthropic", "openai"]);
+      // Model by model would put every openai row first; interleaved, each
+      // round takes one provider width (default 3) from every provider.
+      expect(providers.indexOf("anthropic")).toBeLessThanOrEqual(3);
     } finally {
       if (saved === undefined) delete process.env.EVAL_CODEX_MODELS;
       else process.env.EVAL_CODEX_MODELS = saved;
