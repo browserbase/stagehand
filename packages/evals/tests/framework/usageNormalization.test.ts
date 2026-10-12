@@ -220,6 +220,29 @@ describe("normalizeUsage", () => {
     });
   });
 
+  it("keeps OpenCode reasoning separate from visible output", () => {
+    const usage = normalizeUsage({
+      harness: "opencode",
+      raw: {
+        inputTokens: 10,
+        cachedInputTokens: 30,
+        cacheCreationInputTokens: 8,
+        outputTokens: 5,
+        reasoningOutputTokens: 12,
+        totalTokens: 65,
+      },
+    });
+    expect(usage).toMatchObject({
+      input_total: 48,
+      input_uncached: 10,
+      input_cached: 30,
+      input_cache_write: 8,
+      output: 5,
+      reasoning: 12,
+      reasoning_in_output: false,
+    });
+  });
+
   it("treats pi input as the uncached remainder (input_tokens=40 with 127k cached observed)", () => {
     const usage = normalizeUsage({
       harness: "pi",

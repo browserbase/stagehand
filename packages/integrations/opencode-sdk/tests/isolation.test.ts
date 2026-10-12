@@ -12,6 +12,10 @@ describe("isolatedOpenCodeEnv", () => {
         PATH: "/usr/bin",
         HOME: "/operator",
         XDG_CONFIG_HOME: "/operator/.config",
+        XDG_DATA_HOME: "/operator/data",
+        XDG_CACHE_HOME: "/operator/cache",
+        XDG_STATE_HOME: "/operator/state",
+        OPENCODE_DB: "/operator/opencode.db",
         OPENCODE_CONFIG: "/operator/opencode.json",
         OPENCODE_CONFIG_DIR: "/operator/.opencode",
         OPENCODE_CONFIG_CONTENT: '{"model":"host"}',
@@ -21,6 +25,10 @@ describe("isolatedOpenCodeEnv", () => {
       });
       expect(env.HOME).toBe(join(root, "home"));
       expect(env.XDG_CONFIG_HOME).toBe(join(root, "home", ".config"));
+      expect(env.XDG_DATA_HOME).toBe(join(root, "home", ".local", "share"));
+      expect(env.XDG_CACHE_HOME).toBe(join(root, "home", ".cache"));
+      expect(env.XDG_STATE_HOME).toBe(join(root, "home", ".local", "state"));
+      expect(env.OPENCODE_DB).toBeUndefined();
       expect(env.OPENCODE_CONFIG_DIR).toBe(root);
       expect(env.OPENCODE_CONFIG).toBeUndefined();
       expect(env.OPENCODE_CONFIG_CONTENT).toBeUndefined();

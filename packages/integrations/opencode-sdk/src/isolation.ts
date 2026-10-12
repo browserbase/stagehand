@@ -9,6 +9,7 @@ const OPENCODE_DIRECTORY_ENV = new Set([
   "OPENCODE_CACHE_DIR",
   "OPENCODE_LOG_DIR",
   "OPENCODE_STATE_DIR",
+  "OPENCODE_DB",
 ]);
 
 /** Private HOME/XDG and config dir so the host does not inherit ambient OpenCode settings. */
@@ -28,6 +29,8 @@ export async function isolatedOpenCodeEnv(
     HOME: home,
     XDG_CONFIG_HOME: join(home, ".config"),
     XDG_DATA_HOME: join(home, ".local", "share"),
+    XDG_CACHE_HOME: join(home, ".cache"),
+    XDG_STATE_HOME: join(home, ".local", "state"),
     OPENCODE_CONFIG_DIR: configRoot,
   };
 }

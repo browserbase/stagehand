@@ -17,7 +17,9 @@ lines.on("line", (line) => {
     ? { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "review-fixture", version: "1" } }
     : request.method === "tools/list"
       ? { tools: ["run", "snapshot", "screenshot"].map(name => ({ name, description: name, inputSchema: { type: "object", properties: {} } })) }
-      : {};
+      : request.method === "tools/call"
+        ? { content: [{ type: "text", text: "snapshot result" }] }
+        : {};
   const respond = () => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }) + "\\n");
   if (request.method === "initialize") setTimeout(respond, 150);
   else respond();
@@ -28,6 +30,7 @@ describe("OpenCode MCP registration", () => {
   it("sends delayed MCP tools in the worker's first provider request", async () => {
     const root = await mkdtemp(join(tmpdir(), "stagehand-opencode-catalog-test-"));
     const requests: string[][] = [];
+    const observedCalls: Array<{ name: string; id: unknown }> = [];
     const server = createServer(async (request, response) => {
       let raw = "";
       for await (const chunk of request) raw += String(chunk);
@@ -39,12 +42,33 @@ describe("OpenCode MCP registration", () => {
         object: "chat.completion.chunk",
         created: 1,
         model: "mock",
-        choices: [{ index: 0, delta: { role: "assistant", content: "done" }, finish_reason: null }],
+        choices: [
+          {
+            index: 0,
+            delta:
+              requests.length === 1
+                ? {
+                    role: "assistant",
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: "call_snapshot",
+                        type: "function",
+                        function: { name: "stagehand_snapshot", arguments: "{}" },
+                      },
+                    ],
+                  }
+                : { role: "assistant", content: "done" },
+            finish_reason: null,
+          },
+        ],
       };
       response.end(
         `data: ${JSON.stringify(chunk)}\n\ndata: ${JSON.stringify({
           ...chunk,
-          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+          choices: [
+            { index: 0, delta: {}, finish_reason: requests.length === 1 ? "tool_calls" : "stop" },
+          ],
           usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
         })}\n\ndata: [DONE]\n\n`,
       );
@@ -75,6 +99,9 @@ describe("OpenCode MCP registration", () => {
         model: "mock/test",
         signal: AbortSignal.timeout(20_000),
         logger: { log() {}, warn() {}, error() {} },
+        onToolResult(name, part) {
+          observedCalls.push({ name, id: part.id });
+        },
         session: {
           directory: join(root, "workspace"),
           configRoot: join(root, "config"),
@@ -106,7 +133,13 @@ describe("OpenCode MCP registration", () => {
         },
       });
       expect(result.status).toBe("completed");
+      expect(result.finalMessage).toBe("done");
+      expect(requests).toHaveLength(2);
       expect(requests[0]?.slice().sort()).toEqual(names.map((name) => `stagehand_${name}`).sort());
+      expect(observedCalls).toEqual([{ name: "stagehand_snapshot", id: "call_snapshot" }]);
+      expect(result.messages.flatMap((message) => message.content)).toContainEqual(
+        expect.objectContaining({ type: "tool", name: "stagehand_snapshot", id: "call_snapshot" }),
+      );
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await rm(root, { recursive: true, force: true });

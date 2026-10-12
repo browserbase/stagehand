@@ -3,7 +3,7 @@ title: "OpenCode"
 description: "Give an OpenCode v2 session persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The OpenCode integration uses `@opencode/sdk` and mounts the Stagehand facade as one MCP/stdio server. One OpenCode session and one facade process own the browser across `run`, `snapshot`, and `screenshot` calls.
+The OpenCode integration gives an OpenCode 2 agent a persistent Stagehand browser it can drive with `run`, `snapshot`, and `screenshot`. The example uses the [embedded OpenCode SDK](https://opencode.ai/v2/docs/build/sdk/) and connects to the Stagehand facade over MCP/stdio. One facade process owns the browser, so page state and snapshot IDs survive across tool calls.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
@@ -12,9 +12,11 @@ Stagehand ships this experimental integration from the repository rather than pu
 ## Prerequisites
 
 - Node.js 24 or newer
-- pnpm 11.10.0
-- An OpenCode provider login or supported provider API key
+- pnpm 11.11.0
+- A supported provider API key for the SDK example
 - A current Google Chrome installation for local browser mode
+
+The SDK example does not require the OpenCode CLI. Install [OpenCode 2](https://opencode.ai/v2/docs/) separately if you want to use the interactive CLI below.
 
 ## Quickstart
 
@@ -28,7 +30,7 @@ pnpm exec turbo run build \
   --filter @browserbasehq/stagehand-integrations-opencode-sdk
 ```
   </Step>
-  <Step title="Authenticate OpenCode">
+  <Step title="Configure the OpenCode agent">
 The SDK example uses provider credentials from the environment:
 
 ```bash
@@ -36,6 +38,8 @@ export ANTHROPIC_API_KEY="your-anthropic-api-key"
 ```
 
 Set `OPENCODE_MODEL` to a `provider/model` value only when you want to override OpenCode's default.
+
+The example uses a private HOME and config directory, so it does not reuse credentials saved by an OpenCode CLI login. Export the provider API key in the shell that runs the example.
   </Step>
   <Step title="Choose the browser">
 The example defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise it uses local Chrome:
@@ -65,13 +69,13 @@ pnpm --dir packages/integrations/opencode start -- \
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
 | `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`. |
 
-## SDK and session lifecycle
+## Keep the browser session alive
 
-The example creates an isolated temporary workspace and config directory so the host does not pick up ambient OpenCode settings. It creates one session, sends one prompt, waits for completion, reads the full message timeline, deletes the session, and closes the host. The Stagehand facade MCP server stays alive for the full prompt, preserving page state and snapshot IDs. MCP image blocks remain in OpenCode's tool loop, so `screenshot` stays multimodal.
+The example creates an isolated temporary workspace and config directory, then creates one SDK host and one session for the task. The Stagehand facade stays alive for the full model loop. Preserve that lifetime if you adapt the integration; a new facade process per tool call starts a new browser. MCP image results remain in OpenCode's tool loop, so `screenshot` stays multimodal.
 
-The embedded host's config supplies one direct `stagehand` MCP server and denies permission to all other tools. The MCP server launches through a wrapper that forwards only the Stagehand and Browserbase variables selected for the browser process.
+OpenCode 2's `sessions.prompt()` admits the prompt before the model finishes. The adapter calls `sessions.wait()`, checks the session outcome, and reads every page of the message timeline before returning the final assistant text. It removes the session and closes the host after the run, then deletes the temporary workspace.
 
-The facade child receives only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables, plus basic process variables needed to start it. Provider credentials remain in the OpenCode host.
+The embedded host opens no HTTP listener. Its config supplies one direct `stagehand` MCP server and denies all other tools. A wrapper forwards only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables plus the process values required to launch Node. Provider credentials remain in the OpenCode host.
 
 ## Connect a running OpenCode CLI
 
@@ -80,13 +84,17 @@ The package ships a project-scoped v2 `opencode.json` that mounts the Stagehand 
 ```bash
 cd packages/integrations/opencode
 opencode mcp list
-opencode
+opencode --standalone
 ```
 
-OpenCode passes the CLI's shell environment to local MCP servers, so the facade process also receives provider credentials that you export in that shell. This differs from the SDK example's explicit environment allowlist. If JavaScript passed to `run` uses `act`, `extract`, or `observe`, export `STAGEHAND_MODEL_NAME` and the separate `STAGEHAND_MODEL_API_KEY`; OpenCode's provider credential is not reused as the Stagehand credential. The exports above are otherwise the only configuration. For a headless one-shot run:
+`--standalone` starts a private server with the current shell's exports. OpenCode 2 otherwise uses a shared background service that may have started before you exported the browser credentials. See [OpenCode's background service guide](https://opencode.ai/v2/docs/cli/#background-service).
+
+The config uses `mcp.servers` and sets `codemode: false` so the three facade tools appear directly in the model's tool list. Its ordered `permissions` rules deny every action, then allow `stagehand_run`, `stagehand_snapshot`, and `stagehand_screenshot`. See the [MCP configuration](https://opencode.ai/v2/docs/mcp-servers) and [permission rules](https://opencode.ai/v2/docs/permissions).
+
+OpenCode passes the server's environment to local MCP processes, including exported provider credentials. The CLI config does not use the SDK example's environment wrapper. If JavaScript passed to `run` uses `act`, `extract`, or `observe`, export `STAGEHAND_MODEL_NAME` and the separate `STAGEHAND_MODEL_API_KEY`; OpenCode's provider credential is not reused as the Stagehand credential. For a headless one-shot run:
 
 ```bash
-opencode run "your instruction"
+opencode run --standalone "your instruction"
 ```
 
 <Warning>

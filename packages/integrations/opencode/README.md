@@ -57,14 +57,18 @@ provider credential is not reused as the Stagehand credential. Start the CLI fro
 ```bash
 cd packages/integrations/opencode
 opencode mcp list
-opencode
+opencode --standalone
 ```
 
 For a headless one-shot run:
 
 ```bash
-opencode run "your instruction"
+opencode run --standalone "your instruction"
 ```
+
+OpenCode 2 normally connects to a shared background service. `--standalone` starts a private
+server with the current shell's exports, including browser credentials. The isolated SDK example
+uses environment credentials and does not reuse a saved CLI login.
 
 ## Security model
 

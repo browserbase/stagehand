@@ -138,14 +138,21 @@ export function normalizeOpenCodeUsage(tokens: unknown): OpenCodeTokenUsage {
   const inputTokens = finite(value?.input);
   const outputTokens = finite(value?.output);
   const reasoningOutputTokens = finite(value?.reasoning);
+  const cachedInputTokens = finite(cache?.read);
+  const cacheCreationInputTokens = finite(cache?.write);
   return {
     reported: value !== undefined,
     inputTokens,
     outputTokens,
     reasoningOutputTokens,
-    cachedInputTokens: finite(cache?.read),
-    cacheCreationInputTokens: finite(cache?.write),
-    totalTokens: inputTokens + outputTokens + reasoningOutputTokens,
+    cachedInputTokens,
+    cacheCreationInputTokens,
+    totalTokens:
+      inputTokens +
+      outputTokens +
+      reasoningOutputTokens +
+      cachedInputTokens +
+      cacheCreationInputTokens,
   };
 }
 
@@ -162,6 +169,7 @@ export async function runOpenCodeSession(input: {
 }): Promise<OpenCodeSessionResult> {
   let runtime: OpenCodeRuntime | undefined;
   try {
+    input.signal?.throwIfAborted();
     runtime = await (input.startRuntime ?? startOpenCodeRuntime)({
       session: withOpenCodeSystemPrompt(input.session, input.systemPrompt),
       onToolResult: input.onToolResult,
@@ -238,12 +246,12 @@ export async function startOpenCodeRuntime(options: {
   });
   return {
     run: ({ prompt, model, signal, maxToolSteps }) => {
+      if (signal?.aborted) return Promise.reject(signal.reason);
       const onAbort = () => child.send({ kind: "abort" });
       return new Promise<OpenCodeSessionResult>((resolve, reject) => {
         resolveRun = resolve;
         rejectRun = reject;
-        if (signal?.aborted) onAbort();
-        else signal?.addEventListener("abort", onAbort, { once: true });
+        signal?.addEventListener("abort", onAbort, { once: true });
         child.send({
           kind: "run",
           prompt,

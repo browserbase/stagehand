@@ -74,7 +74,7 @@ describe("OpenCode v2 SDK session", () => {
     expect(runtime.run).toBeDefined();
     expect(
       normalizeOpenCodeUsage({ input: 10, output: 4, reasoning: 2, cache: { read: 3, write: 1 } }),
-    ).toMatchObject({ totalTokens: 16, cachedInputTokens: 3, reported: true });
+    ).toMatchObject({ totalTokens: 20, cachedInputTokens: 3, reported: true });
     expect(normalizeOpenCodeUsage(undefined).reported).toBe(false);
   });
 
@@ -132,5 +132,19 @@ describe("OpenCode v2 SDK session", () => {
     expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("OpenCode prompt failed.");
     expect(runtime.close).toHaveBeenCalledOnce();
+  });
+
+  it("does not start a runtime for an already cancelled run", async () => {
+    const startRuntime = vi.fn(async () => fakeRuntime());
+    const result = await runOpenCodeSession({
+      prompt: "browse",
+      model: "opencode/auto",
+      logger,
+      session,
+      signal: AbortSignal.abort(new Error("cancelled before startup")),
+      startRuntime,
+    });
+    expect(startRuntime).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "sdk_error", stopReason: "cancelled before startup" });
   });
 });
