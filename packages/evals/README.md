@@ -82,6 +82,8 @@ Set `EVALS_WELCOME_WIZARD=1` to auto-run the flow on the first REPL launch; `EVA
 
 Defaults live in `evals.config.json` and can be edited via `evals config set …`.
 
+Concurrency is capped per model provider under the global `-c` value (default 3 per provider); tune with `EVAL_PROVIDER_CONCURRENCY=openai=6,anthropic=4`. The cap applies within one `evals run`: separately launched runs don't share it. When the agent's own provider call hits a 429 or connect timeout, that provider's width is halved for 60 s and the row is retried once; a Browserbase session-create 429 is retried once after 20 s. Retried rows carry `provider_throttled` in Braintrust. A rate-limited judge never re-runs the agent.
+
 `--preview` is useful for sanity-checking the plan before paying for a run:
 
 ![evals run --preview output](./assets/readme/preview.png)
