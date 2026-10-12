@@ -117,16 +117,22 @@ export function providerFromModel(modelName: string | undefined): string | undef
 }
 
 /**
- * Round-robin rows across providers, keeping each provider's own order.
+ * Interleave rows across providers, keeping each provider's own order.
  *
  * Braintrust admits rows in data order up to the global cap, and the provider
  * gate runs inside the task. Planned model by model, every global slot goes to
  * the first provider's rows, which then queue on that provider's semaphore
  * while the next provider's rows can't start: `-c 10` over openai and
- * anthropic ran ~3-wide instead of ~6. Interleaving puts every provider's rows
- * at the front of the queue. Rows without a provider form their own group.
+ * anthropic ran ~3-wide instead of ~6. Each round takes up to `widthOf(p)`
+ * rows from every provider, so the first slots split in proportion to the
+ * provider widths and a narrow provider's queue doesn't strand slots a wider
+ * one could use. Rows without a provider form their own group.
  */
-export function interleaveByProvider<T>(rows: T[], modelOf: (row: T) => string | undefined): T[] {
+export function interleaveByProvider<T>(
+  rows: T[],
+  modelOf: (row: T) => string | undefined,
+  widthOf: (provider: string | undefined) => number = () => 1,
+): T[] {
   const groups = new Map<string | undefined, T[]>();
   for (const row of rows) {
     const provider = providerFromModel(modelOf(row));
@@ -135,10 +141,17 @@ export function interleaveByProvider<T>(rows: T[], modelOf: (row: T) => string |
     else groups.set(provider, [row]);
   }
   if (groups.size < 2) return rows;
-  const queues = [...groups.values()];
+  const queues = [...groups].map(([provider, queue]) => ({
+    queue,
+    take: Math.max(1, Math.floor(widthOf(provider))),
+    next: 0,
+  }));
   const interleaved: T[] = [];
-  for (let index = 0; interleaved.length < rows.length; index++) {
-    for (const queue of queues) if (index < queue.length) interleaved.push(queue[index]);
+  while (interleaved.length < rows.length) {
+    for (const group of queues) {
+      const end = Math.min(group.next + group.take, group.queue.length);
+      for (; group.next < end; group.next++) interleaved.push(group.queue[group.next]);
+    }
   }
   return interleaved;
 }

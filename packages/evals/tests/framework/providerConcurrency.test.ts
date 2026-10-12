@@ -139,6 +139,19 @@ describe("interleaveByProvider", () => {
     expect(interleaveByProvider(rows, model).map((row) => row.id)).toEqual([1, 4, 6, 2, 5, 3]);
   });
 
+  it("splits the first slots in proportion to provider widths", () => {
+    const rows = [
+      ...Array.from({ length: 10 }, (_, id) => ({ id, model: "openai/a" })),
+      ...Array.from({ length: 4 }, (_, id) => ({ id: 100 + id, model: "anthropic/c" })),
+    ];
+    const widths: Record<string, number> = { openai: 8, anthropic: 1 };
+    const order = interleaveByProvider(rows, model, (provider) => widths[provider ?? ""] ?? 1);
+    // -c 10 admits the first ten: 8 openai + 1 anthropic run, one openai waits.
+    expect(order.slice(0, 10).filter((row) => row.model === "anthropic/c")).toHaveLength(1);
+    expect(order).toHaveLength(rows.length);
+    expect(new Set(order.map((row) => row.id)).size).toBe(rows.length);
+  });
+
   it("keeps a single-provider plan untouched and groups provider-less rows", () => {
     const single = [{ model: "openai/a" }, { model: "openai/b" }];
     expect(interleaveByProvider(single, model)).toBe(single);
