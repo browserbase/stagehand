@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_single_link" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/geniusee/");
 
       const { data: extraction } = await stagehand.extract(
         "extract the link to the 'contact us' page",
@@ -14,8 +14,7 @@ export default defineBenchTask(
         }),
       );
       const extractedLink = extraction.link;
-      const expectedLink =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/#contact";
+      const expectedLink = "https://stagehand-eval-sites.vercel.app/sites/geniusee/#contact";
 
       if (extractedLink === expectedLink) {
         return {

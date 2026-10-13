@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
@@ -104,7 +105,18 @@ class LocalBrowserConnectOptions(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     cdp_url: Annotated[str, Field(min_length=1)]
-    extension_id: Annotated[str | None, Field(min_length=1)] = None
+    extension_id: str | None = None
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+
+
+class BrowserbaseClientOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True, arbitrary_types_allowed=True)
+
+    timeout: Annotated[float | None, Field(ge=0)] = None
+    max_retries: Annotated[int | None, Field(ge=0)] = None
+    default_headers: dict[str, str] | None = None
+    default_query: dict[str, str] | None = None
+    http_client: httpx.AsyncClient | None = None
 
 
 class BrowserbaseConnectOptions(WireModel):
@@ -112,8 +124,10 @@ class BrowserbaseConnectOptions(WireModel):
 
     api_key: Annotated[str, Field(min_length=1)]
     base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
+    client_options: BrowserbaseClientOptions | None = None
     session_id: Annotated[str, Field(min_length=1)]
-    extension_id: Annotated[str | None, Field(min_length=1)] = None
+    extension_id: str | None = None
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
 
 
 class _BrowserbaseSearchOptions(WireModel):

@@ -162,16 +162,20 @@ export function truncateText(s: string, width: number): string {
   return `${plain.slice(0, width - 1).trimEnd()}…`;
 }
 
-export function getTerminalWidth(fallback = 100): number {
-  const columns = process.stdout.columns;
+/** Width of `stream` (default stdout), so a board drawn on stderr sizes to stderr. */
+export function getTerminalWidth(
+  fallback = 100,
+  stream: { columns?: number } = process.stdout,
+): number {
+  const columns = stream.columns;
   if (typeof columns !== "number" || !Number.isFinite(columns) || columns <= 0) {
     return fallback;
   }
   return Math.max(60, columns);
 }
 
-export function separator(): string {
-  return gray("─".repeat(Math.max(20, getTerminalWidth() - 2)));
+export function separator(width = getTerminalWidth()): string {
+  return gray("─".repeat(Math.max(20, width - 2)));
 }
 
 export function writeRaw(s: string): void {
