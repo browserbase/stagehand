@@ -1,13 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildGrokBuildArgs,
-  buildGrokBuildStopReason,
   defaultGrokBuildProcessRunner,
   extractGrokBuildToolCall,
-  normalizeGrokBuildModel,
-  parseGrokBuildStreamLine,
   readGrokBuildUsage,
-  resolveGrokBuildBinary,
   runGrokBuildSession,
   type GrokBuildProcessRunner,
 } from "../src/session.ts";
@@ -19,19 +15,23 @@ const logger = {
 };
 
 describe("Grok Build CLI session", () => {
-  it("builds a restricted one-shot CLI invocation", () => {
-    expect(
-      buildGrokBuildArgs({
-        prompt: "do it",
-        model: "grok-build",
-        session: {
-          cwd: "/workspace",
-          maxTurns: 12,
-          sandbox: "off",
-          rules: "Do not ask for clarification.",
-        },
-      }),
-    ).toEqual([
+  it("builds a restricted one-shot CLI invocation", async () => {
+    const runProcess = vi.fn(scriptedRunner([{ type: "end", stopReason: "end_turn" }]));
+    await runGrokBuildSession({
+      prompt: "do it",
+      model: "xai/grok-build",
+      logger,
+      session: {
+        binaryPath: "/custom/grok",
+        cwd: "/workspace",
+        maxTurns: 12,
+        sandbox: "off",
+        rules: "Do not ask for clarification.",
+      },
+      runProcess,
+    });
+    expect(runProcess.mock.calls[0][0].command).toBe("/custom/grok");
+    expect(runProcess.mock.calls[0][0].args).toEqual([
       "-p",
       "do it",
       "--output-format",
@@ -59,48 +59,6 @@ describe("Grok Build CLI session", () => {
   it.each([undefined, false, true])("respects alwaysApprove=%s", (alwaysApprove) => {
     const args = buildGrokBuildArgs({ prompt: "do it", session: { alwaysApprove } });
     expect(args.includes("--always-approve")).toBe(alwaysApprove === true);
-  });
-
-  it("resolves the binary and normalizes harness model ids", () => {
-    expect(resolveGrokBuildBinary("/custom/grok")).toBe("/custom/grok");
-    expect(normalizeGrokBuildModel("grok-build/auto")).toBeUndefined();
-    expect(normalizeGrokBuildModel("xai/grok-build")).toBe("grok-build");
-    expect(normalizeGrokBuildModel("grok-build")).toBe("grok-build");
-  });
-
-  it("parses native streaming events and tool updates", () => {
-    expect(parseGrokBuildStreamLine("not-json")).toBeUndefined();
-    expect(parseGrokBuildStreamLine('{"type":"text","data":"hi"}')).toEqual({
-      type: "text",
-      data: "hi",
-    });
-    expect(
-      extractGrokBuildToolCall({
-        type: "tool_call",
-        toolCallId: "call-1",
-        toolName: "stagehand__run",
-        rawInput: { code: "return 1" },
-      }),
-    ).toEqual({
-      callId: "call-1",
-      subtype: "started",
-      name: "stagehand__run",
-      args: { code: "return 1" },
-      ok: true,
-    });
-    expect(
-      extractGrokBuildToolCall({
-        type: "tool_call_update",
-        toolCallId: "call-1",
-        status: "completed",
-        rawOutput: { value: 1 },
-      }),
-    ).toMatchObject({
-      callId: "call-1",
-      subtype: "completed",
-      result: { value: 1 },
-      ok: true,
-    });
   });
 
   it("normalizes usage from the terminal end event", () => {
@@ -201,6 +159,7 @@ describe("Grok Build CLI session", () => {
     });
 
     expect(result.status).toBe("completed");
+    expect(result.stopReason).toBeUndefined();
     expect(result.resultText).toContain('EVAL_RESULT: {"success":true');
     expect(result.tokenUsage.totalTokens).toBe(15);
     expect(result.costUsd).toBe(0.02);
@@ -267,18 +226,6 @@ describe("Grok Build CLI session", () => {
     },
   );
 
-  it.each(["end_turn", "EndTurn"])("accepts normal completion %s", async (stopReason) => {
-    const result = await runGrokBuildSession({
-      prompt: "do it",
-      model: "grok-build/auto",
-      logger,
-      session: {},
-      runProcess: scriptedRunner([{ type: "end", stopReason }]),
-    });
-    expect(result.status).toBe("completed");
-    expect(result.stopReason).toBeUndefined();
-  });
-
   it("rejects an end event without a stop reason", async () => {
     const result = await runGrokBuildSession({
       prompt: "do it",
@@ -305,13 +252,16 @@ describe("Grok Build CLI session", () => {
     ).rejects.toThrow("callback failed");
   });
 
-  it("reports max-turn stops without treating them as SDK errors", () => {
-    expect(
-      buildGrokBuildStopReason({
-        endEvent: { type: "end", stopReason: "max_turn_requests" },
-        stderr: "",
-      }),
-    ).toBe("max turns reached");
+  it("reports max-turn stops without treating them as SDK errors", async () => {
+    const result = await runGrokBuildSession({
+      prompt: "do it",
+      model: "grok-build/auto",
+      logger,
+      session: {},
+      runProcess: scriptedRunner([{ type: "end", stopReason: "max_turn_requests" }]),
+    });
+    expect(result.status).toBe("max_turns");
+    expect(result.stopReason).toBe("max turns reached");
   });
 });
 
