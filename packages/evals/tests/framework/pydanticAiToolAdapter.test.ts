@@ -47,4 +47,10 @@ describe("Pydantic AI tool adapter helpers", () => {
       /server "broken".*command/,
     );
   });
+  it("rejects arrays where MCP objects or environment maps are required", () => {
+    expect(() => normalizePydanticAiMcpServers({ broken: [] })).toThrow(/must be an object/);
+    expect(() => normalizePydanticAiMcpServers({ broken: { command: "node", env: [] } })).toThrow(
+      /env must be a string map/,
+    );
+  });
 });

@@ -22,7 +22,9 @@ def config() -> RunnerConfig:
     )
 
 
-@pytest.mark.parametrize("inactivity,wall,kind", [(0.02, 0, "inactivity_timeout"), (0, 0.02, "wall_timeout")])
+@pytest.mark.parametrize(
+    "inactivity,wall,kind", [(0.02, 0, "inactivity_timeout"), (0, 0.02, "wall_timeout")]
+)
 async def test_watchdog_stops_a_run_that_never_returns(
     monkeypatch: pytest.MonkeyPatch, inactivity: float, wall: float, kind: str
 ) -> None:

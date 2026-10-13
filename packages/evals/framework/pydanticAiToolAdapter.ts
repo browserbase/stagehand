@@ -1,3 +1,9 @@
+import {
+  boundedCaptureEvidence,
+  normalizeStdioMcpServers,
+  readCapturePositiveIntEnv,
+  withCaptureTimeout,
+} from "./mcpToolAdapterUtils.js";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -48,31 +54,7 @@ export const PYDANTIC_AI_TOOL_SURFACES: ToolSurface[] = [
 export function normalizePydanticAiMcpServers(
   mcpServers: Record<string, unknown>,
 ): Record<string, PydanticAiMcpServerConfig> {
-  const normalized: Record<string, PydanticAiMcpServerConfig> = {};
-  for (const [name, raw] of Object.entries(mcpServers)) {
-    if (!isRecord(raw)) throw invalidServer(name, "must be an object");
-    if (typeof raw.command !== "string" || !raw.command) {
-      throw invalidServer(name, "command must be a non-empty string");
-    }
-    const args = raw.args ?? [];
-    if (!Array.isArray(args) || !args.every((arg) => typeof arg === "string")) {
-      throw invalidServer(name, "args must be an array of strings");
-    }
-    if (raw.env !== undefined && !isStringMap(raw.env)) {
-      throw invalidServer(name, "env must be a string map");
-    }
-    if (raw.cwd !== undefined && typeof raw.cwd !== "string") {
-      throw invalidServer(name, "cwd must be a string");
-    }
-    const env = isStringMap(raw.env) ? raw.env : undefined;
-    normalized[name] = {
-      command: raw.command,
-      args: [...args],
-      ...(env && { env: { ...env } }),
-      ...(typeof raw.cwd === "string" && { cwd: raw.cwd }),
-    };
-  }
-  return normalized;
+  return normalizeStdioMcpServers(mcpServers, "Pydantic AI");
 }
 
 export async function preparePydanticAiToolAdapter(
@@ -174,55 +156,4 @@ export async function preparePydanticAiToolAdapter(
     if (cwd) await fsp.rm(cwd, { recursive: true, force: true });
     throw error;
   }
-}
-
-function boundedCaptureEvidence(
-  capture: () => Promise<ProbeEvidence>,
-): () => Promise<ProbeEvidence> {
-  return async () => {
-    try {
-      return await withCaptureTimeout(
-        capture(),
-        readCapturePositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000),
-      );
-    } catch {
-      return {};
-    }
-  };
-}
-
-function readCapturePositiveIntEnv(key: string, fallback: number): number {
-  const parsed = Number.parseInt(process.env[key] ?? "", 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`pydantic_ai adapter operation timed out after ${timeoutMs}ms`)),
-      timeoutMs,
-    );
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
-function invalidServer(name: string, message: string): EvalsError {
-  return new EvalsError(`Invalid Pydantic AI MCP server "${name}": ${message}.`);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isStringMap(value: unknown): value is Record<string, string> {
-  return isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
 }

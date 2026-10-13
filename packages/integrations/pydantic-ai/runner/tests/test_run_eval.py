@@ -54,7 +54,15 @@ def test_parse_config_accepts_stdio_servers() -> None:
 
 def test_parse_config_requires_system_prompt() -> None:
     with pytest.raises(ValueError, match="system_prompt"):
-        parse_config({"prompt": "task", "model": "m", "mcp_servers": {}, "recursion_limit": 1, "max_tool_steps": 1})
+        parse_config(
+            {
+                "prompt": "task",
+                "model": "m",
+                "mcp_servers": {},
+                "recursion_limit": 1,
+                "max_tool_steps": 1,
+            }
+        )
 
 
 def snapshot(url: str) -> str:
@@ -63,7 +71,9 @@ def snapshot(url: str) -> str:
 
 
 def fake_builder() -> Callable[..., Agent[None, EvalResult]]:
-    def build(_config: RunnerConfig, _toolsets: list[object], **_kwargs: object) -> Agent[None, EvalResult]:
+    def build(
+        _config: RunnerConfig, _toolsets: list[object], **_kwargs: object
+    ) -> Agent[None, EvalResult]:
         return Agent(
             TestModel(),
             name="stagehand_pydantic_ai_eval_agent",
@@ -92,10 +102,18 @@ async def test_streams_tool_sequence_and_structured_result() -> None:
 
 def test_flatten_and_images() -> None:
     assert flatten_text("hello") == "hello"
-    assert flatten_text([{"type": "text", "text": "a"}, {"type": "image", "data": "YWJj", "mime_type": "image/png"}]) == "a"
-    assert extract_images(
-        [{"type": "image", "data": "YWJj", "mime_type": "image/png"}]
-    ) == [{"data": "YWJj", "mime_type": "image/png"}]
+    assert (
+        flatten_text(
+            [
+                {"type": "text", "text": "a"},
+                {"type": "image", "data": "YWJj", "mime_type": "image/png"},
+            ]
+        )
+        == "a"
+    )
+    assert extract_images([{"type": "image", "data": "YWJj", "mime_type": "image/png"}]) == [
+        {"data": "YWJj", "mime_type": "image/png"}
+    ]
 
 
 def test_sanitize_error_redacts_keys() -> None:

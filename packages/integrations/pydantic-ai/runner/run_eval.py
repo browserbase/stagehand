@@ -22,7 +22,7 @@ from pydantic_ai import (
 )
 from pydantic_ai.exceptions import RunCancelled, UsageLimitExceeded
 from pydantic_ai.mcp import MCPToolset, StdioTransport
-from pydantic_ai.messages import TextPart, ThinkingPart
+from pydantic_ai.messages import RetryPromptPart, TextPart, ThinkingPart
 from pydantic_ai.models.openai import OpenAIResponsesModel, OpenAIResponsesModelSettings
 from pydantic_ai.usage import UsageLimits
 
@@ -248,7 +248,8 @@ def aggregate_usage(usage: object | None) -> dict[str, int | bool]:
     details = getattr(usage, "details", None)
     reasoning = 0
     if isinstance(details, Mapping):
-        cache_read += _integer(details.get("cache_read_tokens") or details.get("cache_read"))
+        if not cache_read:
+            cache_read = _integer(details.get("cache_read_tokens") or details.get("cache_read"))
         reasoning += _integer(
             details.get("reasoning_tokens") or details.get("reasoning_output_tokens")
         )
@@ -429,6 +430,7 @@ async def run(
                         stack.enter_async_context(toolset),
                         MCP_SETUP_TIMEOUT_S,
                     )
+                    listed = await _with_optional_timeout(toolset.list_tools(), MCP_SETUP_TIMEOUT_S)
                 except _WatchdogExpired:
                     emit_event(
                         {
@@ -443,12 +445,11 @@ async def run(
                     emit_event({"type": "final", "text": last_text})
                     emit_event({"type": "usage", **aggregate_usage(None)})
                     return 1
-                toolsets.append(toolset)
-                listed = await toolset.list_tools()
+                toolsets.append(toolset.prefixed(name))
                 for tool in listed:
                     tool_name = getattr(tool, "name", None)
                     if isinstance(tool_name, str):
-                        tool_servers[tool_name] = name
+                        tool_servers[f"{name}_{tool_name}"] = name
 
         agent = (build_agent or _default_build_agent)(config, toolsets)
 
@@ -458,7 +459,8 @@ async def run(
             ctx: RunContext[None],
             event_stream: AsyncIterable[AgentStreamEvent],
         ) -> None:
-            nonlocal last_text, tool_result_count, stop_kind
+            nonlocal last_text, tool_result_count, stop_kind, usage_obj
+            usage_obj = ctx.usage
             iterator = event_stream.__aiter__()
             while True:
                 try:
@@ -509,9 +511,13 @@ async def run(
             output = getattr(result, "output", None)
             if isinstance(output, EvalResult):
                 last_text = output.model_dump_json()
-        except _WatchdogExpired:
+        except _WatchdogExpired as error:
+            cancelled = RunCancelled.from_cancellation(error)
+            if cancelled is not None:
+                usage_obj = cancelled.usage
             stop_kind = stop_kind or outer_kind
-        except RunCancelled:
+        except RunCancelled as error:
+            usage_obj = error.usage
             if stop_kind is None:
                 stop_kind = (
                     "tool_step_budget"
@@ -519,9 +525,7 @@ async def run(
                     else "exception"
                 )
         except UsageLimitExceeded as error:
-            stop_kind = (
-                "tool_step_budget" if "tool" in str(error).lower() else "recursion_limit"
-            )
+            stop_kind = "tool_step_budget" if "tool" in str(error).lower() else "recursion_limit"
             emit_event(
                 {
                     "type": "error",
@@ -537,8 +541,7 @@ async def run(
                     "type": "error",
                     "kind": "wall_timeout",
                     "message": (
-                        "pydantic_ai runner exceeded its wall-clock budget "
-                        f"({WALL_TIMEOUT_S:g}s)"
+                        f"pydantic_ai runner exceeded its wall-clock budget ({WALL_TIMEOUT_S:g}s)"
                     ),
                 }
             )
@@ -558,10 +561,7 @@ async def run(
                 {
                     "type": "error",
                     "kind": "tool_step_budget",
-                    "message": (
-                        "tool step budget exhausted "
-                        f"({config.max_tool_steps} steps)"
-                    ),
+                    "message": (f"tool step budget exhausted ({config.max_tool_steps} steps)"),
                 }
             )
         elif stop_kind == "exception":
@@ -594,7 +594,9 @@ def _map_event(event: object, tool_servers: Mapping[str, str]) -> list[Event]:
             {
                 "type": "tool_call",
                 "id": str(event.part.tool_call_id),
-                "name": name,
+                "name": name.removeprefix(f"{tool_servers[name]}_")
+                if name in tool_servers
+                else name,
                 "server": tool_servers.get(name),
                 "args": _tool_args(event.part),
             }
@@ -602,17 +604,22 @@ def _map_event(event: object, tool_servers: Mapping[str, str]) -> list[Event]:
     if isinstance(event, FunctionToolResultEvent):
         content = getattr(event.part, "content", None)
         name = str(getattr(event.part, "tool_name", "") or getattr(event, "tool_name", "") or "")
-        ok = getattr(event.part, "is_error", False) is not True
+        ok = (
+            not isinstance(event.part, RetryPromptPart)
+            and getattr(event.part, "outcome", "success") == "success"
+        )
         return [
             {
                 "type": "tool_result",
                 "id": str(event.tool_call_id),
-                "name": name,
+                "name": name.removeprefix(f"{tool_servers[name]}_")
+                if name in tool_servers
+                else name,
                 "server": tool_servers.get(name),
                 "ok": ok,
                 "text": flatten_text(content),
-                "images": extract_images(content),
-                "structured": None,
+                "images": extract_images(event.content) or extract_images(content),
+                "structured": content if isinstance(content, dict) else None,
             }
         ]
     if isinstance(event, PartEndEvent) and isinstance(event.part, ThinkingPart):
