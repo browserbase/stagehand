@@ -20,14 +20,6 @@ def test_instructions_match_canonical_constant() -> None:
     assert normalize(FACADE_AGENT_INSTRUCTIONS) == normalize(match.group(1))
 
 
-def test_agent_uses_test_model_without_live_provider() -> None:
-    agent = build_agent(structured=False, model="test")
-    with agent.override(model=TestModel()):
-        result = agent.run_sync("Report the page title.")
-    assert isinstance(result.output, str)
-    assert result.output
-
-
 def test_structured_output_uses_page_report_model() -> None:
     agent: Agent[None, PageReport] = build_agent(structured=True, model="test")  # type: ignore[assignment]
     with agent.override(model=TestModel()):

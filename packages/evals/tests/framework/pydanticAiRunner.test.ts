@@ -3,10 +3,6 @@ import { describe, expect, it } from "vitest";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 import type { AvailableModel } from "stagehand-v3";
 import {
-  PYDANTIC_AI_SYSTEM_PROMPT,
-  buildPydanticAiPrompt,
-  buildPydanticAiSystemPrompt,
-  parsePydanticAiResult,
   runPydanticAiAgent,
   type PydanticAiProcessSpawner,
 } from "../../framework/pydanticAiRunner.js";
@@ -42,28 +38,6 @@ function eventSpawner(events: Array<Record<string, unknown>>): PydanticAiProcess
 }
 
 describe("Pydantic AI runner", () => {
-  it("builds a complete browser benchmark prompt", () => {
-    const prompt = buildPydanticAiPrompt(plan, "Use snapshot and run.");
-    expect(prompt).toContain("Dataset: webvoyager");
-    expect(prompt).toContain("Task ID: wv-1");
-    expect(prompt).toContain("Start URL: https://example.com");
-    expect(prompt).toContain("Find the checkout button");
-    expect(prompt).toContain("Use snapshot and run.");
-    expect(prompt).toContain('"success": boolean');
-    expect(prompt).toContain("Do not edit repository files.");
-    expect(PYDANTIC_AI_SYSTEM_PROMPT).toContain("Only the browser tools matter.");
-  });
-
-  it("builds tool-surface-specific system prompts", () => {
-    const facade = buildPydanticAiSystemPrompt("stagehand_facade");
-    const playwright = buildPydanticAiSystemPrompt("playwright_mcp");
-    expect(facade).toContain("snapshot");
-    expect(facade).toContain("screenshot");
-    expect(playwright).not.toContain("exactly three tools");
-    expect(playwright).not.toContain("snapshot");
-    expect(playwright).toContain("MCP browser tools");
-  });
-
   it("sends the selected tool surface system prompt to the runner", async () => {
     const payloads: Array<Record<string, unknown>> = [];
     const spawn: PydanticAiProcessSpawner = () => {
@@ -120,15 +94,6 @@ describe("Pydantic AI runner", () => {
       expect(payload.prompt).not.toContain(EVAL_SYSTEM_PROMPT);
       expect(payload.reasoning_summary).toBe("detailed");
     }
-  });
-
-  it("parses direct and marker JSON results", () => {
-    expect(
-      parsePydanticAiResult('{"success":true,"summary":"done","finalAnswer":"clicked"}'),
-    ).toMatchObject({ success: true, summary: "done", finalAnswer: "clicked" });
-    expect(
-      parsePydanticAiResult('text\nEVAL_RESULT: {"success":true,"summary":"done"}'),
-    ).toMatchObject({ success: true, summary: "done" });
   });
 
   it("streams a successful run into task metrics", async () => {

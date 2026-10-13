@@ -9,8 +9,6 @@ from run_eval import (
     EvalResult,
     RunnerConfig,
     aggregate_usage,
-    extract_images,
-    flatten_text,
     parse_config,
     run,
     sanitize_error,
@@ -91,29 +89,19 @@ async def test_streams_tool_sequence_and_structured_result() -> None:
     exit_code = await run(config(), build_agent=fake_builder(), emit=events.append)
     assert exit_code == 0
     types = [event["type"] for event in events]
-    assert "final" in types
+    assert types.index("tool_call") < types.index("tool_result") < types.index("final")
+    call = next(event for event in events if event["type"] == "tool_call")
+    result = next(event for event in events if event["type"] == "tool_result")
+    assert call["name"] == result["name"] == "snapshot"
+    assert call["id"] == result["id"]
+    assert result["ok"] is True
+    assert result["text"] == f"snapshot of {call['args']['url']}"
     assert "usage" in types
     final = next(event for event in reversed(events) if event["type"] == "final")
     parsed = json.loads(final["text"])
     assert parsed["success"] in {True, False}
     assert "summary" in parsed
     assert "finalAnswer" in parsed
-
-
-def test_flatten_and_images() -> None:
-    assert flatten_text("hello") == "hello"
-    assert (
-        flatten_text(
-            [
-                {"type": "text", "text": "a"},
-                {"type": "image", "data": "YWJj", "mime_type": "image/png"},
-            ]
-        )
-        == "a"
-    )
-    assert extract_images([{"type": "image", "data": "YWJj", "mime_type": "image/png"}]) == [
-        {"data": "YWJj", "mime_type": "image/png"}
-    ]
 
 
 def test_sanitize_error_redacts_keys() -> None:

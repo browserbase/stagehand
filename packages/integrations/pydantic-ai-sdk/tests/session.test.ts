@@ -2,7 +2,6 @@ import { PassThrough } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import {
   extractPydanticAiTokenUsage,
-  buildPydanticAiRunnerArgs,
   buildPydanticAiTranscript,
   normalizePydanticAiModel,
   runPydanticAiSession,
@@ -88,7 +87,14 @@ describe("Pydantic AI session", () => {
 
     expect(fake.getSpec()).toMatchObject({
       command: "uv",
-      args: buildPydanticAiRunnerArgs("/tmp/runner"),
+      args: [
+        "run",
+        "--project",
+        "/tmp/runner",
+        "--locked",
+        "python",
+        "/tmp/runner/runner/run_eval.py",
+      ],
     });
     expect(JSON.parse(fake.getStdin())).toMatchObject({
       prompt: "task",
@@ -284,25 +290,6 @@ describe("Pydantic AI session", () => {
     expect(normalizePydanticAiModel("bare-model")).toBe("bare-model");
   });
 
-  it("ignores non-JSON stdout lines", async () => {
-    const fake = fakeSpawner({
-      lines: [
-        "debug output",
-        JSON.stringify({ type: "final", text: "ok" }),
-        JSON.stringify({ type: "usage" }),
-      ],
-    });
-    const result = await runPydanticAiSession({
-      prompt: "task",
-      model: "model",
-      logger,
-      spawn: fake.spawn,
-      session: {},
-    });
-    expect(result.events).toHaveLength(2);
-    expect(result.finalMessage).toBe("ok");
-  });
-
   it("redacts stderr, non-JSON stdout, and assistant event logs", async () => {
     logger.log.mockClear();
     const secret = "sk-abcdef1234567890";
@@ -327,6 +314,8 @@ describe("Pydantic AI session", () => {
     expect(logged).not.toContain(secret);
     expect(buildPydanticAiTranscript(result.events)).not.toContain(secret);
     expect(result.status).toBe("completed");
+    expect(result.events).toHaveLength(3);
+    expect(result.finalMessage).toBe("ok");
   });
 
   it("sanitizes a full non-JSON line before clipping it", async () => {
@@ -368,7 +357,6 @@ describe("Pydantic AI session", () => {
     });
 
     expect(result.iterationError).toBe("startup failed with Bearer [redacted]");
-    expect(typeof result.iterationError).toBe("string");
     expect(JSON.stringify(result)).not.toContain(secret);
   });
 
