@@ -57,7 +57,6 @@ describe("OpenCode v2 SDK session", () => {
   });
 
   it("uses v2 assistant content and cumulative usage", () => {
-    const runtime = fakeRuntime();
     const messages = [
       {
         type: "assistant" as const,
@@ -71,7 +70,6 @@ describe("OpenCode v2 SDK session", () => {
     ];
     expect(extractOpenCodeAssistantText(messages[0])).toBe("Hello world");
     expect(buildOpenCodeTranscript(messages)).toContain("[tool stagehand_run]");
-    expect(runtime.run).toBeDefined();
     expect(
       normalizeOpenCodeUsage({ input: 10, output: 4, reasoning: 2, cache: { read: 3, write: 1 } }),
     ).toMatchObject({ totalTokens: 20, cachedInputTokens: 3, reported: true });
@@ -121,7 +119,9 @@ describe("OpenCode v2 SDK session", () => {
 
   it("sanitizes failures and closes the worker", async () => {
     const runtime = fakeRuntime();
-    vi.mocked(runtime.run).mockRejectedValue(new Error("OpenCode prompt failed."));
+    vi.mocked(runtime.run).mockRejectedValue(
+      new Error("OpenCode prompt failed with sk-abcdef1234567890."),
+    );
     const result = await runOpenCodeSession({
       prompt: "browse",
       model: "opencode/auto",
@@ -130,7 +130,8 @@ describe("OpenCode v2 SDK session", () => {
       startRuntime: async () => runtime,
     });
     expect(result.status).toBe("sdk_error");
-    expect(result.stopReason).toBe("OpenCode prompt failed.");
+    expect(result.stopReason).toBe("OpenCode prompt failed with sk-abcdef[redacted].");
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain("1234567890");
     expect(runtime.close).toHaveBeenCalledOnce();
   });
 

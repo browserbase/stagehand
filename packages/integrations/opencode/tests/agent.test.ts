@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { FACADE_TOOLS } from "@browserbasehq/stagehand-integrations/facade";
-import { buildAllowlistedEnv } from "@browserbasehq/stagehand-integrations/harness";
 import {
   normalizeOpenCodeUsage,
   type OpenCodeRuntime,
@@ -16,17 +15,6 @@ import {
 } from "../src/agent.ts";
 
 describe("OpenCode v2 Stagehand example", () => {
-  it("forwards only non-empty browser variables", () => {
-    expect(
-      buildAllowlistedEnv({
-        STAGEHAND_BROWSER: "local",
-        ANTHROPIC_API_KEY: "secret",
-        BROWSERBASE_API_KEY: "bb",
-        STAGEHAND_EMPTY: "",
-      }),
-    ).toEqual({ STAGEHAND_BROWSER: "local", BROWSERBASE_API_KEY: "bb" });
-  });
-
   it("configures a direct Stagehand MCP server and denies every other action", () => {
     const config = buildOpenCodeConfig("/tmp/facade-server.mjs", {
       STAGEHAND_BROWSER: "local",

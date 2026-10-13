@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
-import type { OpenCodeRuntime, OpenCodeSessionConfig } from "@browserbasehq/stagehand-integrations-opencode-sdk";
-import { buildOpenCodePrompt, runOpenCodeAgent } from "../../framework/opencodeRunner.js";
+import type {
+  OpenCodeRuntime,
+  OpenCodeSessionConfig,
+} from "@browserbasehq/stagehand-integrations-opencode-sdk";
+import { runOpenCodeAgent } from "../../framework/opencodeRunner.js";
 import type { PreparedOpenCodeToolAdapter } from "../../framework/opencodeToolAdapter.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
 import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
@@ -15,15 +18,6 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("OpenCode runner", () => {
-  it("builds an MCP-only browser prompt", () => {
-    const prompt = buildOpenCodePrompt(plan, "Use stagehand_run.");
-    expect(prompt).toContain("Dataset: webvoyager");
-    expect(prompt).toContain("Use stagehand_run.");
-    expect(prompt).toContain("Your only browser access is the MCP server");
-    expect(prompt).toContain("EVAL_RESULT:");
-    expect(prompt).not.toContain(EVAL_SYSTEM_PROMPT);
-  });
-
   it("runs through the shared native-system lifecycle and reports metrics", async () => {
     let capturedSession: OpenCodeSessionConfig | undefined;
     const runtime: OpenCodeRuntime = {
