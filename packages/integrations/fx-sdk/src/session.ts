@@ -470,6 +470,7 @@ export async function runFxSession(input: {
     FX_SKIP_ONBOARDING: "1",
     FX_AUTO_UPGRADE: "0",
     FX_NO_OPEN_BROWSER: "1",
+    FX_SOUND: "off",
     NO_COLOR: "1",
   };
   const controller = new AbortController();
