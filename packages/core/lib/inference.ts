@@ -422,37 +422,45 @@ export async function act({
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
 }) {
-  const actSchema = z.object({
-    action: z
-      .object({
-        elementId: z
-          .string()
-          .regex(/^\d+-\d+$/)
-          .describe(
-            "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
-          ),
-        description: z
-          .string()
-          .describe("a description of the accessible element and its purpose"),
-        method: z
-          .enum(
-            // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
-            Object.values(SupportedUnderstudyAction) as unknown as readonly [
-              string,
-              ...string[],
-            ],
-          )
-          .describe(
-            "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
-          ),
-        arguments: z.array(
-          z
-            .string()
-            .describe(
-              "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
-            ),
+  const actionSchema = z.object({
+    elementId: z
+      .string()
+      .regex(/^\d+-\d+$/)
+      .describe(
+        "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
+      ),
+    description: z
+      .string()
+      .describe("a description of the accessible element and its purpose"),
+    method: z
+      .enum(
+        // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
+        Object.values(SupportedUnderstudyAction) as unknown as readonly [
+          string,
+          ...string[],
+        ],
+      )
+      .describe(
+        "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
+      ),
+    arguments: z.array(
+      z
+        .string()
+        .describe(
+          "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
         ),
-      })
+    ),
+  });
+
+  const actSchema = z.object({
+    // OpenAI strict mode requires additionalProperties: false on every object.
+    // The AI SDK's Zod 4 converter omits it inside anyOf, so set it in the JSON
+    // schema only; parsing still strips unknown keys. .meta() is Zod 4 only;
+    // the Zod 3 converter already emits it.
+    action: (typeof actionSchema.meta === "function"
+      ? actionSchema.meta({ additionalProperties: false })
+      : actionSchema
+    )
       .nullable()
       .describe(
         "The element to act on. Return null if no element on the page matches the instruction — do NOT fabricate or guess an element, and never emit empty strings or placeholder values.",
