@@ -240,9 +240,15 @@ browse cloud extensions delete <extension-id>
 # Fetch & Search APIs
 browse cloud fetch <url>                          # markdown by default
 browse cloud search <query>
+# Requires the Search API upgrade to be deployed:
+browse cloud search "browserbase docs" --provider parallel --mode fast
+browse cloud search "browser automation research" --provider parallel --mode advanced
+browse cloud search "browserbase docs" --provider exa
 ```
 
 `browse cloud fetch` returns markdown-formatted page content by default. Use `--format raw` for the original response body, or `--format json --schema <schema>` for structured extraction.
+
+`browse cloud search` accepts `--provider parallel|exa` and `--mode fast|advanced`. Parallel supports both modes; Exa does not accept a mode. Omitted flags are left out of the request so the API chooses its default provider and the provider chooses its default tier. Use `fast` for lower latency and cost, or `advanced` for deeper results.
 
 ## Functions
 
