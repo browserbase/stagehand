@@ -115,6 +115,12 @@ export class ClaudeCodeTrajectoryAdapter implements TrajectoryAdapter<ClaudeCode
             trailingTextParts.push(block.text);
             continue;
           }
+          // Extended thinking is reasoning but never the answer, so it does
+          // not join trailingTextParts. redacted_thinking carries no text.
+          if (blockType === "thinking" && typeof block.thinking === "string") {
+            pendingReasoning = appendText(pendingReasoning, block.thinking);
+            continue;
+          }
           if (blockType === "tool_use") {
             const id = typeof block.id === "string" ? block.id : "";
             const name = typeof block.name === "string" ? block.name : "tool";

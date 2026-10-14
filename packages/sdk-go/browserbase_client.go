@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -52,18 +54,39 @@ func (err *BrowserbaseAPIError) Error() string {
 }
 
 type browserbaseHTTPClientOptions struct {
-	baseURL    string
-	httpClient *http.Client
-	maxRetries *int
-	sleep      func(context.Context, time.Duration) error
+	baseURL        string
+	httpClient     *http.Client
+	timeout        time.Duration
+	maxRetries     *int
+	defaultHeaders map[string]string
+	defaultQuery   map[string]string
+	sleep          func(context.Context, time.Duration) error
 }
 
 type browserbaseHTTPClient struct {
-	baseURL    string
-	apiKey     string
-	httpClient *http.Client
-	maxRetries int
-	sleep      func(context.Context, time.Duration) error
+	baseURL        string
+	apiKey         string
+	httpClient     *http.Client
+	timeout        time.Duration
+	maxRetries     int
+	defaultHeaders map[string]string
+	defaultQuery   map[string]string
+	sleep          func(context.Context, time.Duration) error
+}
+
+func browserbaseHTTPClientOptionsFor(
+	baseURL string,
+	clientOptions *BrowserbaseClientOptions,
+) browserbaseHTTPClientOptions {
+	options := browserbaseHTTPClientOptions{baseURL: baseURL}
+	if clientOptions != nil {
+		options.httpClient = clientOptions.HTTPClient
+		options.timeout = clientOptions.Timeout
+		options.maxRetries = clientOptions.MaxRetries
+		options.defaultHeaders = clientOptions.DefaultHeaders
+		options.defaultQuery = clientOptions.DefaultQuery
+	}
+	return options
 }
 
 type browserbaseAPI interface {
@@ -100,9 +123,17 @@ func newBrowserbaseHTTPClient(
 		return nil, fmt.Errorf("invalid Browserbase base URL %q", baseURL)
 	}
 
+	if options.timeout < 0 {
+		return nil, errors.New("stagehand Browserbase client timeout cannot be negative")
+	}
+	timeout := options.timeout
+	if timeout == 0 {
+		timeout = defaultBrowserbaseHTTPTimeout
+	}
 	httpClient := options.httpClient
 	if httpClient == nil {
-		httpClient = &http.Client{Timeout: defaultBrowserbaseHTTPTimeout}
+		// sendAttempt enforces the timeout with a per-attempt context deadline.
+		httpClient = &http.Client{}
 	}
 	maxRetries := defaultBrowserbaseMaxRetries
 	if options.maxRetries != nil {
@@ -111,18 +142,61 @@ func newBrowserbaseHTTPClient(
 	if maxRetries < 0 {
 		return nil, errors.New("stagehand Browserbase max retries cannot be negative")
 	}
+	for name, value := range options.defaultHeaders {
+		if !validBrowserbaseHeaderName(name) {
+			return nil, fmt.Errorf("invalid Browserbase default header name %q", name)
+		}
+		if !validBrowserbaseHeaderValue(value) {
+			return nil, fmt.Errorf("invalid Browserbase default header %q value", name)
+		}
+	}
 	sleep := options.sleep
 	if sleep == nil {
 		sleep = sleepWithContext
 	}
 
 	return &browserbaseHTTPClient{
-		baseURL:    strings.TrimRight(parsedBaseURL.String(), "/"),
-		apiKey:     apiKey,
-		httpClient: httpClient,
-		maxRetries: maxRetries,
-		sleep:      sleep,
+		baseURL:        strings.TrimRight(parsedBaseURL.String(), "/"),
+		apiKey:         apiKey,
+		httpClient:     httpClient,
+		timeout:        timeout,
+		maxRetries:     maxRetries,
+		defaultHeaders: maps.Clone(options.defaultHeaders),
+		defaultQuery:   maps.Clone(options.defaultQuery),
+		sleep:          sleep,
 	}, nil
+}
+
+// validBrowserbaseHeaderName reports whether name is a non-empty RFC 9110 token,
+// the same rule net/http applies when it sends a request.
+func validBrowserbaseHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for index := 0; index < len(name); index++ {
+		character := name[index]
+		switch {
+		case character >= 'a' && character <= 'z',
+			character >= 'A' && character <= 'Z',
+			character >= '0' && character <= '9',
+			strings.IndexByte("!#$%&'*+-.^_`|~", character) >= 0:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// validBrowserbaseHeaderValue reports whether value has no control characters
+// other than horizontal tab, the same rule net/http applies when it sends a request.
+func validBrowserbaseHeaderValue(value string) bool {
+	for index := 0; index < len(value); index++ {
+		character := value[index]
+		if (character < ' ' && character != '\t') || character == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 func (client *browserbaseHTTPClient) uploadExtension(
@@ -217,45 +291,27 @@ func sendBrowserbaseRequest[Response browserbaseEndpointResponse](
 	if err != nil {
 		return zero, fmt.Errorf("validate Browserbase %s request: %w", encoded.path, err)
 	}
+	requestURL, err := client.requestURL(encoded.path)
+	if err != nil {
+		return zero, fmt.Errorf("create Browserbase request: %w", err)
+	}
 	for attempt := 0; ; attempt++ {
-		httpRequest, err := http.NewRequestWithContext(
-			ctx,
-			encoded.method,
-			client.baseURL+encoded.path,
-			bytes.NewReader(encoded.body),
-		)
-		if err != nil {
-			return zero, fmt.Errorf("create Browserbase request: %w", err)
-		}
-		httpRequest.Header.Set("X-BB-API-Key", client.apiKey)
-		httpRequest.Header.Set("User-Agent", stagehandSDKClientName+"/"+stagehandSDKVersion)
-		if encoded.contentType != "" {
-			httpRequest.Header.Set("Content-Type", encoded.contentType)
-		}
-		if encoded.accept != "" {
-			httpRequest.Header.Set("Accept", encoded.accept)
-		} else {
-			httpRequest.Header.Set("Accept", "application/json")
-		}
-
-		httpResponse, requestErr := client.httpClient.Do(httpRequest)
-		if requestErr != nil {
+		httpResponse, responseBody, err := client.sendAttempt(ctx, encoded, requestURL)
+		var transportErr *browserbaseTransportError
+		if errors.As(err, &transportErr) {
 			if ctx.Err() != nil {
 				return zero, ctx.Err()
 			}
 			if !encoded.replaySafe || attempt >= client.maxRetries {
-				return zero, fmt.Errorf("send Browserbase request: %w", requestErr)
+				return zero, fmt.Errorf("send Browserbase request: %w", transportErr.err)
 			}
 			if err := client.sleep(ctx, browserbaseDefaultRetryDelay(attempt)); err != nil {
 				return zero, err
 			}
 			continue
 		}
-
-		responseBody, readErr := readBrowserbaseResponse(httpResponse.Body)
-		closeErr := httpResponse.Body.Close()
-		if readErr != nil || closeErr != nil {
-			return zero, errors.Join(readErr, closeErr)
+		if err != nil {
+			return zero, err
 		}
 		if encoded.replaySafe &&
 			browserbaseShouldRetry(httpResponse) &&
@@ -310,6 +366,92 @@ func sendBrowserbaseRequest[Response browserbaseEndpointResponse](
 		}
 		return response, nil
 	}
+}
+
+// requestURL joins the endpoint path to the base URL and adds the caller's
+// default query parameters. Endpoint parameters win on conflict.
+func (client *browserbaseHTTPClient) requestURL(path string) (string, error) {
+	if len(client.defaultQuery) == 0 {
+		return client.baseURL + path, nil
+	}
+	parsed, err := url.Parse(client.baseURL + path)
+	if err != nil {
+		return "", err
+	}
+	query := parsed.Query()
+	for key, value := range client.defaultQuery {
+		if !query.Has(key) {
+			query.Set(key, value)
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
+}
+
+// browserbaseTransportError is a failed send that replay-safe requests may retry.
+type browserbaseTransportError struct {
+	err error
+}
+
+func (err *browserbaseTransportError) Error() string { return err.err.Error() }
+
+func (err *browserbaseTransportError) Unwrap() error { return err.err }
+
+// sendAttempt sends one request attempt bounded by the client timeout and reads
+// its body before the attempt deadline is released. The caller's HTTP client is
+// never modified.
+func (client *browserbaseHTTPClient) sendAttempt(
+	ctx context.Context,
+	encoded browserbaseEncodedRequest,
+	requestURL string,
+) (*http.Response, []byte, error) {
+	attemptCtx, cancel := context.WithTimeout(ctx, client.timeout)
+	defer cancel()
+
+	httpRequest, err := http.NewRequestWithContext(
+		attemptCtx,
+		encoded.method,
+		requestURL,
+		bytes.NewReader(encoded.body),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create Browserbase request: %w", err)
+	}
+	httpRequest.Header.Set("X-BB-API-Key", client.apiKey)
+	httpRequest.Header.Set("User-Agent", stagehandSDKClientName+"/"+stagehandSDKVersion)
+	if encoded.contentType != "" {
+		httpRequest.Header.Set("Content-Type", encoded.contentType)
+	}
+	if encoded.accept != "" {
+		httpRequest.Header.Set("Accept", encoded.accept)
+	} else {
+		httpRequest.Header.Set("Accept", "application/json")
+	}
+	// Caller defaults override Stagehand's headers, matching the TypeScript and Python SDKs.
+	for key, value := range client.defaultHeaders {
+		httpRequest.Header.Set(key, value)
+	}
+
+	httpResponse, err := client.httpClient.Do(httpRequest)
+	if err != nil {
+		return nil, nil, &browserbaseTransportError{err: err}
+	}
+	responseBody, readErr := readBrowserbaseResponse(httpResponse.Body)
+	closeErr := httpResponse.Body.Close()
+	if readErr != nil || closeErr != nil {
+		err := errors.Join(readErr, closeErr)
+		// A body cut off by a timeout (this attempt's deadline or the caller's
+		// http.Client.Timeout) is retryable like any other timed-out attempt;
+		// oversized or malformed bodies are not.
+		var netErr net.Error
+		timedOut := errors.Is(attemptCtx.Err(), context.DeadlineExceeded) ||
+			(errors.As(readErr, &netErr) && netErr.Timeout())
+		if timedOut && ctx.Err() == nil {
+			return nil, nil, &browserbaseTransportError{err: err}
+		}
+		return nil, nil, err
+	}
+	return httpResponse, responseBody, nil
 }
 
 func readBrowserbaseResponse(body io.Reader) ([]byte, error) {

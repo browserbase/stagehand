@@ -4,10 +4,12 @@ import path from "node:path";
 import type { ExperimentalBatchCallback, Page, Stagehand } from "@browserbasehq/stagehand";
 import { sanitizeErrorMessage } from "../harness/redact.js";
 import {
+  browserSessionLostError,
   NAVIGATED_SNAPSHOT_ERROR,
   NO_HYDRATED_SNAPSHOT_ERROR,
   RefActionSchema,
   staleSnapshotIdError,
+  type FacadeSessionLoss,
   type RefAction,
 } from "./contract.js";
 import { createPlaywrightCompatRuntime, type PlaywrightCompatTelemetry } from "./runtime.js";
@@ -35,11 +37,42 @@ export type StagehandFacadeRunReport = {
   closeRequested: boolean;
 };
 
+export class StagehandFacadeCleanupError extends Error {
+  override readonly name = "StagehandFacadeCleanupError";
+
+  constructor() {
+    super("Failed to close the Stagehand browser session.");
+  }
+}
+
+export class StagehandFacadeInputError extends Error {
+  override readonly name = "StagehandFacadeInputError";
+
+  constructor(message: string) {
+    super(sanitizeErrorMessage(message));
+  }
+}
+
+export class StagehandFacadeExecutionError extends Error {
+  readonly facadeExecutionError = true;
+
+  constructor(error: { name: string; message: string }) {
+    super(sanitizeErrorMessage(error.message));
+    const name = sanitizeErrorMessage(error.name);
+    this.name = /^[A-Za-z][A-Za-z0-9]*Error$/u.test(name) ? name : "Error";
+    this.stack = undefined;
+  }
+}
+
 export type StagehandFacadeToolsOptions = {
+  /** Replaces default cleanup when the host owns session release and replacement. */
+  onCloseRequested?: () => Promise<void>;
   /** Owned directory for screenshot artifacts; paths must stay within it. Defaults to process.cwd(). */
   artifactRoot?: string;
   /** Observes every completed `run` batch (including ones whose code threw). */
   onRunReport?: (report: StagehandFacadeRunReport) => void;
+  /** Fires once, the first time a call proves the browser session is gone. */
+  onSessionLost?: (loss: FacadeSessionLoss) => void;
   /**
    * Keep a hidden about:blank tab open for the whole session (default true).
    * Chrome exits when its last tab closes, so a renderer crash on the agent's
@@ -52,7 +85,21 @@ export type StagehandFacadeToolsOptions = {
   keeperPage?: boolean;
 };
 
+/** Every facade tool returns this once the browser session is gone. */
+export class StagehandFacadeSessionLostError extends Error {
+  override readonly name = "StagehandFacadeSessionLostError";
+  constructor(readonly loss: FacadeSessionLoss) {
+    super(browserSessionLostError(loss.cause));
+  }
+}
+
 const RUN_BATCH_TIMEOUT_MS = 60_000;
+/**
+ * snapshot/screenshot RPCs have no executor-side deadline. Calls are serialized,
+ * so one that never answers must release the queue at a bounded deadline.
+ * Repeated capture deadlines latch terminal loss; no underlying RPC is retried.
+ */
+const PAGE_CAPTURE_DEADLINE_MS = 120_000;
 
 export type StagehandFacadeScreenshot = {
   data: string;
@@ -130,7 +177,13 @@ type RunInput = { hiddenPageIds?: string[] };
 export class StagehandFacadeTools {
   private readonly snapshotsByPage = new Map<string, SnapshotState>();
   private queue: Promise<void> = Promise.resolve();
+  private loss: FacadeSessionLoss | undefined;
   private keeper: Promise<string | undefined> | undefined;
+  // Consecutive capture-deadline timeouts; reset by any successful tool call.
+  // Three consecutive failures end this facade; this does not prove transport loss.
+  private consecutiveDeadlines = 0;
+  private static readonly MAX_CONSECUTIVE_DEADLINES = 3;
+
   private closed = false;
   private closePromise: Promise<void> | undefined;
   constructor(
@@ -138,23 +191,32 @@ export class StagehandFacadeTools {
     private readonly options: StagehandFacadeToolsOptions = {},
   ) {}
 
+  /** Set once a call has proven the browser session is gone; never cleared. */
+  get sessionLoss(): FacadeSessionLoss | undefined {
+    return this.loss;
+  }
+
   /** Closes both the client and its owned browser, including keep-alive sessions. */
   close(): Promise<void> {
     this.closed = true;
     return (this.closePromise ??= (async () => {
-      const failures: unknown[] = [];
+      if (this.options.onCloseRequested) {
+        try {
+          await this.options.onCloseRequested();
+        } catch {
+          throw new StagehandFacadeCleanupError();
+        }
+        return;
+      }
+      let failed = false;
       for (const close of [() => this.stagehand.close(), () => this.stagehand.browser.close()]) {
         try {
           await close();
-        } catch (error) {
-          failures.push(error);
+        } catch {
+          failed = true;
         }
       }
-      if (failures.length) {
-        throw new Error("Failed to close the Stagehand facade browser.", {
-          cause: new AggregateError(failures, "Facade browser cleanup failures"),
-        });
-      }
+      if (failed) throw new StagehandFacadeCleanupError();
     })());
   }
 
@@ -178,11 +240,24 @@ export class StagehandFacadeTools {
 
   private async snapshotNow(options: { includeIframes?: boolean }): Promise<string> {
     const page = await this.activePage();
-    const snapshot = await page.snapshot({ includeIframes: options.includeIframes ?? true });
-    this.snapshotsByPage.set(page.pageId, {
-      url: await page.url(),
-      xpathById: { ...snapshot.xpathMap },
-    });
+    // Failed captures invalidate the preceding snapshot too. A late response
+    // must never replace the IDs installed by a subsequent successful capture.
+    this.snapshotsByPage.delete(page.pageId);
+    const { snapshot, url } = await withDeadline(
+      (async () => {
+        // `page.snapshot` defaults to a 20s timeout. Disable it so the capture
+        // deadline below owns the wait; otherwise a slow snapshot fails as an
+        // ordinary tool error and never counts toward terminal session loss.
+        const snapshot = await page.snapshot({
+          includeIframes: options.includeIframes ?? true,
+          timeout: 0,
+        });
+        return { snapshot, url: await page.url() };
+      })(),
+      PAGE_CAPTURE_DEADLINE_MS,
+      "page.snapshot",
+    );
+    this.snapshotsByPage.set(page.pageId, { url, xpathById: { ...snapshot.xpathMap } });
     return snapshot.formattedTree;
   }
 
@@ -196,11 +271,15 @@ export class StagehandFacadeTools {
     // CDP only accepts quality for jpeg, and only as an integer.
     const quality =
       type === "jpeg" && options.quality !== undefined ? Math.round(options.quality) : undefined;
-    const bytes = await page.screenshot({
-      type,
-      ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
-      ...(quality === undefined ? {} : { quality }),
-    });
+    const bytes = await withDeadline(
+      page.screenshot({
+        type,
+        ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
+        ...(quality === undefined ? {} : { quality }),
+      }),
+      PAGE_CAPTURE_DEADLINE_MS,
+      "page.screenshot",
+    );
     return {
       data: Buffer.from(bytes).toString("base64"),
       mimeType: type === "jpeg" ? "image/jpeg" : "image/png",
@@ -211,22 +290,24 @@ export class StagehandFacadeTools {
     const parsed = RefActionSchema.array().min(1).parse(actions);
     const page = await this.activePage();
     const snapshot = this.snapshotsByPage.get(page.pageId);
-    if (!snapshot) throw new Error(NO_HYDRATED_SNAPSHOT_ERROR);
+    if (!snapshot) throw new StagehandFacadeInputError(NO_HYDRATED_SNAPSHOT_ERROR);
 
     if ((await page.url()) !== snapshot.url) {
       this.snapshotsByPage.delete(page.pageId);
-      throw new Error(NAVIGATED_SNAPSHOT_ERROR);
+      throw new StagehandFacadeInputError(NAVIGATED_SNAPSHOT_ERROR);
     }
 
     const hydrated = parsed.map((action) => {
       const xpath = trimTrailingTextNode(resolveSnapshotXPath(snapshot.xpathById, action.id));
-      if (!xpath) throw new Error(staleSnapshotIdError(action.id));
+      if (!xpath) throw new StagehandFacadeInputError(staleSnapshotIdError(action.id));
       return { ...action, selector: `xpath=${xpath}` };
     });
+    // The callback can already have dispatched earlier actions when one fails.
+    // Never replay an action batch after a partial failure.
     const result = await this.stagehand.experimentalBatch(
       actionRunner,
       { actions: hydrated },
-      { page, timeout: 60_000 },
+      { page, timeout: RUN_BATCH_TIMEOUT_MS },
     );
     return { completed: result?.completed ?? hydrated.length, url: await page.url() };
   }
@@ -242,6 +323,8 @@ export class StagehandFacadeTools {
     const keeperPageId = await this.keeper;
     const input: RunInput = keeperPageId ? { hiddenPageIds: [keeperPageId] } : {};
     const envelope = await this.runBatchWithActivePageFallback(callback, input, page);
+    let runError: unknown;
+    let runFailed = false;
     try {
       this.options.onRunReport?.({
         telemetry: envelope.telemetry,
@@ -253,20 +336,26 @@ export class StagehandFacadeTools {
       if (envelope.executionError) {
         // Thrown by the agent's own code inside the browser, so its message can
         // never be evidence about this process's connection to the browser.
-        const error = new Error(envelope.executionError.message) as Error & {
-          facadeExecutionError: true;
-        };
-        error.name = envelope.executionError.name;
-        if (envelope.executionError.stack) error.stack = envelope.executionError.stack;
-        error.facadeExecutionError = true;
-        throw error;
+        throw new StagehandFacadeExecutionError(envelope.executionError);
       }
-      return envelope.value;
-    } finally {
-      // The batch must finish before closing its own transport. This also
-      // honors close requests when agent code or artifact persistence failed.
-      if (envelope.closeRequested) await this.close();
+    } catch (error) {
+      runError = error;
+      runFailed = true;
     }
+    // Wait until the batch finishes before closing its transport, even when
+    // agent code, telemetry, or artifact persistence failed.
+    if (envelope.closeRequested) {
+      try {
+        await this.close();
+      } catch (closeError) {
+        if (runFailed) {
+          throw new AggregateError([runError, closeError], "Run failed and cleanup also failed.");
+        }
+        throw closeError;
+      }
+    }
+    if (runFailed) throw runError;
+    return envelope.value;
   }
 
   /**
@@ -311,7 +400,9 @@ export class StagehandFacadeTools {
         relative.startsWith(`..${path.sep}`) ||
         path.isAbsolute(relative)
       ) {
-        throw new Error("Screenshot artifact path must stay within artifactRoot.");
+        throw new StagehandFacadeInputError(
+          "Screenshot artifact path must stay within artifactRoot.",
+        );
       }
       // Reject symlink traversal before creating nested directories or opening
       // the output. O_NOFOLLOW also refuses an existing symlink at the file.
@@ -323,7 +414,9 @@ export class StagehandFacadeTools {
           if (error.code !== "EEXIST") throw error;
         });
         if (!(await fsp.lstat(directory)).isDirectory()) {
-          throw new Error("Screenshot artifact directory must not be a symlink.");
+          throw new StagehandFacadeInputError(
+            "Screenshot artifact directory must not be a symlink.",
+          );
         }
       }
       const file = await fsp.open(
@@ -382,19 +475,77 @@ export class StagehandFacadeTools {
     return keeper.pageId;
   }
 
-  private enqueue<Result>(_tool: string, operation: () => Promise<Result>): Promise<Result> {
-    const execute = async (): Promise<Result> => {
-      if (this.closed) throw new Error("Stagehand facade browser is closed.");
-      await this.ensureKeeperPage();
-      return operation();
+  private enqueue<Result>(tool: string, operation: () => Promise<Result>): Promise<Result> {
+    const guarded = async (): Promise<Result> => {
+      if (this.loss) throw new StagehandFacadeSessionLostError(this.loss);
+      if (this.closed) throw new StagehandFacadeInputError("Stagehand facade browser is closed.");
+      try {
+        await this.ensureKeeperPage();
+        const value = await operation();
+        this.consecutiveDeadlines = 0; // a real response proves the session is alive
+        return value;
+      } catch (error) {
+        // Permit two consecutive capture timeouts. The deadline does not cancel
+        // the underlying RPC, and recovery never replays that capture or an action.
+        if (error instanceof FacadeDeadlineError) {
+          this.consecutiveDeadlines += 1;
+          if (this.consecutiveDeadlines < StagehandFacadeTools.MAX_CONSECUTIVE_DEADLINES) {
+            throw error;
+          }
+          const cause = `executor unresponsive: ${this.consecutiveDeadlines} consecutive capture timeouts (last: ${error.message})`;
+          this.loss = { cause, tool, at: new Date().toISOString() };
+          this.notifySessionLost(this.loss);
+          throw new StagehandFacadeSessionLostError(this.loss);
+        }
+        const cause = sessionLossCause(error);
+        if (cause === undefined) throw error;
+        this.loss = { cause, tool, at: new Date().toISOString() };
+        this.notifySessionLost(this.loss);
+        throw new StagehandFacadeSessionLostError(this.loss);
+      }
     };
-    const result = this.queue.then(execute, execute);
+    const result = this.queue.then(guarded, guarded);
     this.queue = result.then(
       () => undefined,
       () => undefined,
     );
     return result;
   }
+
+  private notifySessionLost(loss: FacadeSessionLoss): void {
+    // Diagnostic observers cannot replace the terminal error or reopen the queue.
+    try {
+      void Promise.resolve(this.options.onSessionLost?.(loss)).catch(() => undefined);
+    } catch {
+      // Preserve the first browser failure when an observer throws synchronously.
+    }
+  }
+}
+
+class FacadeDeadlineError extends Error {
+  override readonly name = "FacadeDeadlineError";
+  constructor(operation: string, timeoutMs: number) {
+    super(`${operation} received no response within ${timeoutMs}ms`);
+  }
+}
+
+function withDeadline<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new FacadeDeadlineError(operation, timeoutMs)),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
 /**

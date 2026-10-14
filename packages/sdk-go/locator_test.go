@@ -2,8 +2,12 @@ package stagehand
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -103,7 +107,7 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 		ref: PageRef{PageID: "page-1"},
 	}).Locator("#upload")
 
-	if err := locator.SetInputFiles(context.Background(), FilePath(filePath)); err != nil {
+	if err := locator.SetInputFiles(context.Background(), []FileInput{FilePath(filePath)}); err != nil {
 		t.Fatalf("SetInputFiles(path) error = %v", err)
 	}
 	lastModified := int64(42)
@@ -111,12 +115,11 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	payload.LastModified = &lastModified
 	if err := locator.SetInputFiles(
 		context.Background(),
-		payload,
-		FileData("message.txt", "", []byte("hello")),
+		[]FileInput{payload, FileData("message.txt", "", []byte("hello"))},
 	); err != nil {
 		t.Fatalf("SetInputFiles(payloads) error = %v", err)
 	}
-	if err := locator.SetInputFiles(context.Background()); err != nil {
+	if err := locator.SetInputFiles(context.Background(), nil); err != nil {
 		t.Fatalf("SetInputFiles() error = %v", err)
 	}
 	historicalPath := filepath.Join(t.TempDir(), "historical.txt")
@@ -127,7 +130,7 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	if err := os.Chtimes(historicalPath, preEpoch, preEpoch); err != nil {
 		t.Fatal(err)
 	}
-	if err := locator.SetInputFiles(context.Background(), FilePath(historicalPath)); err != nil {
+	if err := locator.SetInputFiles(context.Background(), []FileInput{FilePath(historicalPath)}); err != nil {
 		t.Fatalf("SetInputFiles(historical path) error = %v", err)
 	}
 
@@ -178,15 +181,157 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := locator.SetInputFiles(context.Background(), FilePath(oversizedPath)); err == nil ||
+	if err := locator.SetInputFiles(context.Background(), []FileInput{FilePath(oversizedPath)}); err == nil ||
 		err.Error() != "set input files: file is larger than the 50 MiB upload limit" {
 		t.Fatalf("SetInputFiles(oversized path) error = %v", err)
 	}
 	negativeLastModified := int64(-1)
 	invalidPayload := FileData("historical.txt", "text/plain", []byte("old"))
 	invalidPayload.LastModified = &negativeLastModified
-	if err := locator.SetInputFiles(context.Background(), invalidPayload); err == nil ||
+	if err := locator.SetInputFiles(context.Background(), []FileInput{invalidPayload}); err == nil ||
 		err.Error() != "set input files: last modified must be non-negative" {
 		t.Fatalf("SetInputFiles(negative last modified) error = %v", err)
 	}
+}
+
+func TestPageLocatorTimeoutOptions(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	cases := []struct {
+		method  string
+		call    func(*PageLocator, *LocatorOptions) error
+		fields  map[string]any
+		options map[string]any
+	}{
+		{"click", func(l *PageLocator, o *LocatorOptions) error {
+			button, count := MouseButtonRight, 2
+			return l.Click(ctx, &LocatorClickOptions{Timeout: o.Timeout, Button: &button, ClickCount: &count})
+		}, nil, map[string]any{"button": "right", "click_count": float64(2)}},
+		{"hover", func(l *PageLocator, o *LocatorOptions) error { return l.Hover(ctx, o) }, nil, nil},
+		{"fill", func(l *PageLocator, o *LocatorOptions) error { return l.Fill(ctx, "hello", o) }, map[string]any{"value": "hello"}, nil},
+		{"count", func(l *PageLocator, o *LocatorOptions) error { _, err := l.Count(ctx, o); return err }, nil, nil},
+		{"is_checked", func(l *PageLocator, o *LocatorOptions) error { _, err := l.IsChecked(ctx, o); return err }, nil, nil},
+		{"input_value", func(l *PageLocator, o *LocatorOptions) error { _, err := l.InputValue(ctx, o); return err }, nil, nil},
+		{"is_visible", func(l *PageLocator, o *LocatorOptions) error { _, err := l.IsVisible(ctx, o); return err }, nil, nil},
+		{"inner_text", func(l *PageLocator, o *LocatorOptions) error { _, err := l.InnerText(ctx, o); return err }, nil, nil},
+		{"inner_html", func(l *PageLocator, o *LocatorOptions) error { _, err := l.InnerHTML(ctx, o); return err }, nil, nil},
+		{"text_content", func(l *PageLocator, o *LocatorOptions) error { _, err := l.TextContent(ctx, o); return err }, nil, nil},
+		{"scroll_to", func(l *PageLocator, o *LocatorOptions) error { return l.ScrollTo(ctx, NumericScrollPercent(50), o) }, map[string]any{"percent": float64(50)}, nil},
+		{"centroid", func(l *PageLocator, o *LocatorOptions) error { _, err := l.Centroid(ctx, o); return err }, nil, nil},
+		{"highlight", func(l *PageLocator, o *LocatorOptions) error {
+			duration := 0
+			return l.Highlight(ctx, &LocatorHighlightOptions{Timeout: o.Timeout, DurationMs: &duration})
+		}, nil, map[string]any{"duration_ms": float64(0)}},
+		{"send_click_event", func(l *PageLocator, o *LocatorOptions) error {
+			bubbles := false
+			return l.SendClickEvent(ctx, &LocatorSendClickEventOptions{Timeout: o.Timeout, Bubbles: &bubbles})
+		}, nil, map[string]any{"bubbles": false}},
+		{"type", func(l *PageLocator, o *LocatorOptions) error {
+			delay := 25.0
+			return l.Type(ctx, "hello", &LocatorTypeOptions{Timeout: o.Timeout, Delay: &delay})
+		}, map[string]any{"text": "hello"}, map[string]any{"delay": float64(25)}},
+		{"select_option", func(l *PageLocator, o *LocatorOptions) error {
+			_, err := l.SelectOption(ctx, StringList{"a", "b"}, o)
+			return err
+		}, map[string]any{"values": []any{"a", "b"}}, nil},
+		{"set_input_files", func(l *PageLocator, o *LocatorOptions) error {
+			return l.SetInputFiles(ctx, []FileInput{FileData("hello.txt", "", []byte("hi"))}, o)
+		}, map[string]any{"files": []any{map[string]any{"name": "hello.txt", "data": "aGk="}}}, nil},
+	}
+	covered := map[string]bool{}
+	for _, test := range cases {
+		covered["locator."+test.method] = true
+		for _, timeout := range []*float64{nil, new(0.0), new(0.5), new(5000.0)} {
+			name := "omitted"
+			if timeout != nil {
+				name = fmt.Sprint(*timeout)
+			}
+			t.Run(test.method+"/"+name, func(t *testing.T) {
+				rpc := &recordingProtocolClient{}
+				locator := (&PageLocator{rpc: rpc, descriptor: LocatorDescriptor{PageID: "page-1", Selector: "button"}}).First()
+				if err := test.call(locator, &LocatorOptions{Timeout: timeout}); err != nil {
+					t.Fatal(err)
+				}
+				if len(rpc.calls) != 1 || rpc.calls[0].method != "locator."+test.method {
+					t.Fatalf("calls = %#v", rpc.calls)
+				}
+				encoded, err := marshalValidatedJSON(rpc.calls[0].params)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var actual map[string]any
+				if err := json.Unmarshal(encoded, &actual); err != nil {
+					t.Fatal(err)
+				}
+				options := map[string]any{}
+				for key, value := range test.options {
+					options[key] = value
+				}
+				if timeout != nil {
+					options["timeout"] = *timeout
+				}
+				expected := map[string]any{"page_id": "page-1", "selector": "button", "nth": float64(0), "options": options}
+				for key, value := range test.fields {
+					expected[key] = value
+				}
+				if !reflect.DeepEqual(actual, expected) {
+					t.Fatalf("params = %#v, want %#v", actual, expected)
+				}
+				if locator.Descriptor().Nth == nil || *locator.Descriptor().Nth != 0 {
+					t.Fatal("locator descriptor changed")
+				}
+			})
+		}
+	}
+	data, err := os.ReadFile("../protocol/stagehand.v4.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var protocol struct {
+		Properties struct {
+			Methods struct{ Properties map[string]json.RawMessage }
+		}
+	}
+	if err := json.Unmarshal(data, &protocol); err != nil {
+		t.Fatal(err)
+	}
+	for method := range protocol.Properties.Methods.Properties {
+		if strings.HasPrefix(method, "locator.") && !covered[method] {
+			t.Errorf("missing timeout case for %s", method)
+		}
+	}
+}
+
+func TestPageLocatorOptionalOptions(t *testing.T) {
+	t.Parallel()
+	rpc := &recordingProtocolClient{}
+	locator := &PageLocator{rpc: rpc, descriptor: LocatorDescriptor{PageID: "page-1", Selector: "button"}}
+	ctx := context.Background()
+	for _, options := range [][]*LocatorOptions{nil, {nil}} {
+		if _, err := locator.Count(ctx, options...); err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := marshalValidatedJSON(rpc.calls[len(rpc.calls)-1].params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertRPCJSON(t, encoded, `{"page_id":"page-1","selector":"button"}`)
+	}
+	if _, err := locator.Count(ctx, &LocatorOptions{}, &LocatorOptions{}); err == nil {
+		t.Fatal("accepted multiple options values")
+	}
+	if err := locator.SetInputFiles(ctx, nil, &LocatorOptions{}, &LocatorOptions{}); err == nil {
+		t.Fatal("accepted multiple upload options values")
+	}
+	if len(rpc.calls) != 2 {
+		t.Fatal("invalid options sent a request")
+	}
+	if err := locator.SetInputFiles(ctx, nil, &LocatorOptions{Timeout: new(0.0)}); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := marshalValidatedJSON(rpc.calls[2].params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRPCJSON(t, encoded, `{"page_id":"page-1","selector":"button","files":[],"options":{"timeout":0}}`)
 }

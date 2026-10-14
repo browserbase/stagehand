@@ -5,7 +5,7 @@ export default defineBenchTask(
   { name: "extract_jstor_news" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jstor/", {
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/jstor/", {
         waitUntil: "load",
       });
       await stagehand.act("close the cookie");

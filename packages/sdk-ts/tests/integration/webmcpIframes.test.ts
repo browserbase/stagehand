@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Stagehand, WebMCPTool } from "../../src/index.js";
 import { closeStagehand, createStagehand, firstPage } from "./_support.js";
 
-const WEBMCP_IFRAME_URL = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-iframe/";
+const WEBMCP_IFRAME_URL = "https://stagehand-eval-sites.vercel.app/sites/webmcp-iframe/";
 const IFRAME_TOOL_NAME = "set_test_panel";
 const IFRAME_TOOL_INPUT = {
   title: "Stagehand OOPIF test",
