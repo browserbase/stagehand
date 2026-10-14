@@ -72,6 +72,8 @@ from ._generated.models import (
     PageWaitForSelectorParams,
     PageWaitForSelectorResult,
     PageWaitForTimeoutParams,
+    PageWaitForURLOptions,
+    PageWaitForURLParams,
     PageWebMCPToolsParams,
     PageWebMCPToolsResult,
     Scale,
@@ -531,6 +533,23 @@ class Page:
         if timeout is not None:
             params.timeout = timeout
         await self._rpc_client.send("page.wait_for_load_state", params, PageVoidResult)
+
+    async def wait_for_url(
+        self,
+        url: str,
+        *,
+        wait_until: Literal["load", "domcontentloaded"] | None = None,
+        timeout: int | None = None,
+    ) -> None:
+        params = PageWaitForURLParams(page_id=self.page_id, url=url)
+        options = PageWaitForURLOptions.model_validate({
+            name: value
+            for name, value in (("wait_until", wait_until), ("timeout", timeout))
+            if value is not None
+        })
+        if options.model_fields_set:
+            params.options = options
+        await self._rpc_client.send("page.wait_for_url", params, PageVoidResult)
 
     async def wait_for_timeout(self, ms: int) -> None:
         await self._rpc_client.send(

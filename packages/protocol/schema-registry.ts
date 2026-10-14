@@ -93,6 +93,7 @@ import {
   PageUrlResultSchema,
   PageVoidResultSchema,
   PageWaitForLoadStateParamsSchema,
+  PageWaitForURLParamsSchema,
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
@@ -372,6 +373,11 @@ export const StagehandMethods = {
   pageWaitForTimeout: {
     name: "page.wait_for_timeout",
     params: PageWaitForTimeoutParamsSchema,
+    result: PageVoidResultSchema,
+  },
+  pageWaitForURL: {
+    name: "page.wait_for_url",
+    params: PageWaitForURLParamsSchema,
     result: PageVoidResultSchema,
   },
   pageWaitForSelector: {

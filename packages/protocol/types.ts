@@ -193,6 +193,7 @@ import type {
   PageUrlResultSchema,
   PageVoidResultSchema,
   PageWaitForLoadStateParamsSchema,
+  PageWaitForURLParamsSchema,
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
@@ -396,6 +397,7 @@ export type PagePDFParams = z.infer<typeof PagePDFParamsSchema>;
 export type PageSnapshotParams = z.infer<typeof PageSnapshotParamsSchema>;
 export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParamsSchema>;
 export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
+export type PageWaitForURLParams = z.infer<typeof PageWaitForURLParamsSchema>;
 export type PageWaitForTimeoutParams = z.infer<typeof PageWaitForTimeoutParamsSchema>;
 export type PageWaitForSelectorParams = z.infer<typeof PageWaitForSelectorParamsSchema>;
 export type PageWebMCPToolsParams = z.infer<typeof PageWebMCPToolsParamsSchema>;

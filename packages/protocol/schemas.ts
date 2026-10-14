@@ -1833,6 +1833,17 @@ export const PageWaitForTimeoutParamsSchema = PageIdParamsSchema.extend({
   ms: z.number().int().nonnegative(),
 }).meta({ id: "PageWaitForTimeoutParams" });
 
+export const PageWaitForURLParamsSchema = PageIdParamsSchema.extend({
+  url: z.string().min(1),
+  options: z
+    .strictObject({
+      waitUntil: z.enum(["load", "domcontentloaded"]).optional(),
+      timeout: z.number().int().nonnegative().optional(),
+    })
+    .meta({ id: "PageWaitForURLOptions" })
+    .optional(),
+}).meta({ id: "PageWaitForURLParams" });
+
 export const PageWaitForSelectorParamsSchema = PageIdParamsSchema.extend({
   selector: z.string().min(1),
   options: z

@@ -982,6 +982,17 @@ class PageWaitForTimeoutParams(TypedDict):
     ms: int
 
 
+class PageWaitForURLOptions(TypedDict):
+    wait_until: NotRequired[Literal["load", "domcontentloaded"]]
+    timeout: NotRequired[int]
+
+
+class PageWaitForURLParams(TypedDict):
+    page_id: str
+    url: str
+    options: NotRequired[PageWaitForURLOptions]
+
+
 class PageWebMCPCancelInvocationParams(TypedDict):
     page_id: str
     invocation_id: str

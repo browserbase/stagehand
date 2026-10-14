@@ -59,6 +59,7 @@ import type {
   PageTypeParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
+  PageWaitForURLParams,
   SnapshotResult,
   WebMCPInvocationDescriptor,
   WebMCPInvokeOptions,
@@ -235,6 +236,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     timeout?: number;
   }> = [];
   readonly waitForTimeoutCalls: Array<PageWaitForTimeoutParams["ms"]> = [];
+  readonly waitForURLCalls: Array<Omit<PageWaitForURLParams, "pageId">> = [];
   readonly waitForSelectorCalls: Array<{
     selector: string;
     options?: PageWaitForSelectorParams["options"];
@@ -372,6 +374,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
 
   async waitForLoadState(state: LoadState, timeout?: number): Promise<void> {
     this.waitForLoadStateCalls.push({ state, timeout });
+  }
+
+  async waitForURL(url: string, options?: PageWaitForURLParams["options"]): Promise<void> {
+    this.waitForURLCalls.push({ url, options });
   }
 
   async waitForTimeout(ms: PageWaitForTimeoutParams["ms"]): Promise<void> {
@@ -2056,6 +2062,21 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 29, result: { matched: false } });
 
     expect(page.waitForLoadStateCalls).toStrictEqual([{ state: "networkidle", timeout: 0 }]);
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 30,
+        method: "page.wait_for_url",
+        params: {
+          page_id: "page-a",
+          url: "**/done",
+          options: { wait_until: "domcontentloaded", timeout: 0 },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 30, result: { ok: true } });
+    expect(page.waitForURLCalls).toStrictEqual([
+      { url: "**/done", options: { waitUntil: "domcontentloaded", timeout: 0 } },
+    ]);
     expect(page.waitForTimeoutCalls).toStrictEqual([250]);
     expect(page.waitForSelectorCalls).toStrictEqual([
       {
