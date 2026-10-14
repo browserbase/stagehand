@@ -191,6 +191,34 @@ describe("Page.waitForFunction", () => {
     expect(installations()[0][1]).toMatchObject({ contextId: 8 });
   });
 
+  it("uses the replacement root when frame readiness finishes after a root swap", async () => {
+    const ready = deferred<number>();
+    const readiness = vi
+      .spyOn(executionContexts, "waitForMainWorld")
+      .mockReturnValueOnce(ready.promise)
+      .mockResolvedValueOnce(8);
+    const pending = page.waitForFunction("window.ready", { timeout: 100 });
+    await vi.advanceTimersByTimeAsync(30);
+    page.onFrameNavigated(
+      {
+        ...page.getFullFrameTree().frame,
+        id: "replacement-root",
+        loaderId: "replacement-loader",
+        url: "https://example.test/replacement",
+      },
+      page.mainFrame().session,
+    );
+    // The former context can still respond; it must not receive the predicate.
+    ready.resolve(7);
+    await expect(pending).resolves.toBe(true);
+    expect(readiness.mock.calls.map(([, frameId]) => frameId)).toEqual([
+      "root",
+      "replacement-root",
+    ]);
+    expect(installations()).toHaveLength(1);
+    expect(installations()[0][1]).toMatchObject({ contextId: 8 });
+  });
+
   it("expires during main-world readiness without installing a browser wait", async () => {
     vi.spyOn(executionContexts, "waitForMainWorld").mockImplementation(
       async (_session, _frameId, _timeout, progress) => {
