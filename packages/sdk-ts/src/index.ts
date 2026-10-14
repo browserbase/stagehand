@@ -29,6 +29,7 @@ export {
   type ToolsRemovedListener,
   type PageKeyPressOptions,
   type PageReloadOptions,
+  type PageSetContentOptions,
   type PDFOptions,
   type PageSetViewportSizeOptions,
   type PageTypeOptions,

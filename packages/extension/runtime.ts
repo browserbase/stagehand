@@ -87,6 +87,7 @@ import type {
   PageScreenshotParams,
   PageScreenshotResult,
   PageSetExtraHTTPHeadersParams,
+  PageSetContentParams,
   PageSetViewportSizeParams,
   PageSnapshotParams,
   PageSnapshotOptions,
@@ -140,6 +141,7 @@ export type UnderstudyRuntimePage = {
   targetId(): string;
   url(): string;
   goto(url: string, options?: PageNavigationOptions): Promise<unknown>;
+  setContent(html: string, options?: PageSetContentParams["options"]): Promise<void>;
   reload(options?: PageReloadParams["options"]): Promise<unknown>;
   goBack(options?: PageNavigationOptions): Promise<unknown>;
   goForward(options?: PageNavigationOptions): Promise<unknown>;
@@ -559,6 +561,12 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     const response = await page.goto(params.url, params.options);
     return this.pageNavigationResult(params.pageId, page, response);
+  }
+
+  async pageSetContent(params: PageSetContentParams): Promise<PageVoidResult> {
+    const page = this.resolvePage(params.pageId);
+    await page.setContent(params.html, params.options);
+    return { ok: true };
   }
 
   async pageReload(params: PageReloadParams): Promise<PageNavigationResult> {

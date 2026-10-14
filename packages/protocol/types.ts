@@ -185,6 +185,8 @@ import type {
   PageScreenshotResultSchema,
   PageScrollParamsSchema,
   PageSetExtraHTTPHeadersParamsSchema,
+  PageSetContentOptionsSchema,
+  PageSetContentParamsSchema,
   PageSetViewportSizeParamsSchema,
   PageSnapshotParamsSchema,
   PageSnapshotOptionsSchema,
@@ -388,6 +390,8 @@ export type PageKeyPressParams = z.infer<typeof PageKeyPressParamsSchema>;
 export type PageEvaluateParams = z.infer<typeof PageEvaluateParamsSchema>;
 export type PageAddInitScriptParams = z.infer<typeof PageAddInitScriptParamsSchema>;
 export type PageSetExtraHTTPHeadersParams = z.infer<typeof PageSetExtraHTTPHeadersParamsSchema>;
+export type PageSetContentOptions = z.infer<typeof PageSetContentOptionsSchema>;
+export type PageSetContentParams = z.infer<typeof PageSetContentParamsSchema>;
 export type PageScreenshotOptions = z.infer<typeof PageScreenshotOptionsSchema>;
 export type PageScreenshotParams = z.infer<typeof PageScreenshotParamsSchema>;
 export type PagePDFMargin = z.infer<typeof PagePDFMarginSchema>;

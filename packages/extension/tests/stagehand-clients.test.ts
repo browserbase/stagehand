@@ -55,6 +55,7 @@ import type {
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
+  PageSetContentOptions,
   PageSetViewportSizeParams,
   PageTypeParams,
   PageWaitForSelectorParams,
@@ -195,6 +196,7 @@ class FakeBrowserSession implements StagehandBrowserSession {
 }
 
 class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
+  readonly setContentCalls: Array<{ html: string; options?: PageSetContentOptions }> = [];
   readonly gotoCalls: Array<{
     url: string;
     options?: {
@@ -303,6 +305,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   ): Promise<void> {
     this.gotoCalls.push({ url, options });
     this.currentUrl = url;
+  }
+
+  async setContent(html: string, options?: PageSetContentOptions): Promise<void> {
+    this.setContentCalls.push({ html, options });
   }
 
   async reload(options?: PageReloadParams["options"]): Promise<void> {
@@ -1689,6 +1695,28 @@ describe("Stagehand worker clients", () => {
       },
     });
     expect(context.clipboard.readTextCalls).toStrictEqual([]);
+  });
+
+  it("routes page.set_content with lifecycle options and unbounded timeout", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+    const html = "<h1>Updated</h1>";
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 9,
+        method: "page.set_content",
+        params: {
+          page_id: "page-a",
+          html,
+          options: { wait_until: "domcontentloaded", timeout: 0 },
+        },
+      }),
+    ).resolves.toStrictEqual({ jsonrpc: "2.0", id: 9, result: { ok: true } });
+    expect(page.setContentCalls).toStrictEqual([
+      { html, options: { waitUntil: "domcontentloaded", timeout: 0 } },
+    ]);
   });
 
   it("routes page.goto to the resolved understudy page", async () => {

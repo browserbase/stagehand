@@ -52,7 +52,12 @@ export const integrationTestGroups = {
     "locatorInputMethods",
     "locatorSelectOption",
   ],
-  "local/page-navigation": ["pageAddInitScript", "pageExtraHttpHeaders", "pageGotoResponse"],
+  "local/page-navigation": [
+    "pageAddInitScript",
+    "pageExtraHttpHeaders",
+    "pageGotoResponse",
+    "pageSetContent",
+  ],
   "local/page-interactions": [
     "clickCount",
     "pageDragAndDrop",

@@ -899,6 +899,17 @@ class PageScrollParams(TypedDict):
     delta_y: float
 
 
+class PageSetContentOptions(TypedDict):
+    wait_until: NotRequired[LoadState]
+    timeout: NotRequired[float]
+
+
+class PageSetContentParams(TypedDict):
+    page_id: str
+    html: str
+    options: NotRequired[PageSetContentOptions]
+
+
 class PageSetExtraHTTPHeadersParams(TypedDict):
     page_id: str
     headers: dict[str, str]
