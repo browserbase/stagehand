@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import type { ModelConfig, StagehandInitParams } from "@browserbasehq/stagehand-protocol/types";
 import { apiUrlForRegion } from "../clients/stagehandApi.js";
+import { boundFetch } from "./boundFetch.js";
 
 export interface GatewayContext {
   apiUrl: string;
@@ -20,22 +21,23 @@ export function buildGatewayContext(initParams: StagehandInitParams): GatewayCon
   };
 }
 
+// Uses the load-time fetch ref (see boundFetch), not the ambient global.
 export const fetchWithoutModel: typeof globalThis.fetch = async (input, init) => {
-  if (typeof init?.body !== "string") return await globalThis.fetch(input, init);
+  if (typeof init?.body !== "string") return await boundFetch(input, init);
 
   let body: unknown;
   try {
     body = JSON.parse(init.body);
   } catch {
-    return await globalThis.fetch(input, init);
+    return await boundFetch(input, init);
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return await globalThis.fetch(input, init);
+    return await boundFetch(input, init);
   }
 
   const routedBody = { ...(body as Record<string, unknown>) };
   delete routedBody.model;
-  return await globalThis.fetch(input, {
+  return await boundFetch(input, {
     ...init,
     body: JSON.stringify(routedBody),
   });
@@ -56,7 +58,8 @@ export function createGatewayLanguageModel(
       "x-bb-api-key": gateway.apiKey,
       "x-bb-session-id": gateway.sessionId,
     },
-    ...(config ? {} : { fetch: fetchWithoutModel }),
+    // Load-time fetch ref (see boundFetch); fetchWithoutModel also strips `model`.
+    fetch: config ? boundFetch : fetchWithoutModel,
   });
   return provider.responses(config?.modelName ?? "auto");
 }

@@ -1384,6 +1384,61 @@ func TestLocatorRPCResponseDeadline(t *testing.T) {
 	}
 }
 
+func TestSelectorRPCResponseDeadline(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name    string
+		timeout *int
+		wait    time.Duration
+	}{
+		{"default", nil, 40 * time.Second},
+		{"override", new(5000), 15 * time.Second},
+		{"unlimited", new(0), time.Hour},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				transport := newQueueRPCTransport()
+				client := newTestRPCClient(t, transport)
+				done := make(chan error, 1)
+				go func() {
+					var result PageWaitForSelectorResult
+					done <- client.call(context.Background(), "page.wait_for_selector", PageWaitForSelectorParams{
+						PageID: "page-1", Selector: "button", Options: &PageWaitForSelectorOptions{Timeout: test.timeout},
+					}, &result)
+				}()
+				_ = receiveSentRPC(t, transport)
+				time.Sleep(test.wait - time.Millisecond)
+				select {
+				case err := <-done:
+					t.Fatalf("returned before deadline: %v", err)
+				default:
+				}
+				time.Sleep(time.Millisecond)
+				synctest.Wait()
+				if test.timeout != nil && *test.timeout == 0 {
+					select {
+					case err := <-done:
+						t.Fatalf("unlimited call returned before response: %v", err)
+					default:
+					}
+					transport.receiveJSON(`{"jsonrpc":"2.0","id":1,"result":{"matched":true}}`)
+					if err := receiveCallError(t, done); err != nil {
+						t.Fatal(err)
+					}
+				} else if err := receiveCallError(t, done); !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "RPC response timed out") {
+					t.Fatalf("deadline error = %v", err)
+				}
+				client.mu.Lock()
+				pending := len(client.pending)
+				client.mu.Unlock()
+				if pending != 0 {
+					t.Fatalf("pending requests = %d", pending)
+				}
+			})
+		})
+	}
+}
+
 func TestLocatorRPCCallerContextStopsWait(t *testing.T) {
 	t.Parallel()
 	for _, timeout := range []*float64{nil, new(0.0), new(5000.0)} {

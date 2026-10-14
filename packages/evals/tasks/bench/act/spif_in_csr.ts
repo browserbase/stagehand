@@ -8,9 +8,7 @@ export default defineBenchTask(
     // click inside a SPIF (same process iframe) that is inside an
     // CSR (closed mode shadow) root
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-closed-shadow-dom/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/spif-in-closed-shadow-dom/");
       await stagehand.act("click the button");
 
       // v3 used schemaless extract; v4 requires a schema.

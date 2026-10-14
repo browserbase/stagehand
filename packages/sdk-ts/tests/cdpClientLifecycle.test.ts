@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { STAGEHAND_PROTOCOL_VERSION } from "@browserbasehq/stagehand-protocol/schemas";
 import {
-  discoverInstalledStagehandExtensionId,
+  resolveExtension,
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
   StagehandRuntimeIncompatibleError,
@@ -148,7 +148,7 @@ describe("loadUnpackedExtension", () => {
 
     await expect(
       loadUnpackedExtension(cdp, "/tmp/stagehand-extension", lifecycleSignal),
-    ).rejects.toThrow("Launch with --load-extension");
+    ).rejects.toThrow("supports Extensions.getExtensions");
   });
 
   it("rejects loadUnpacked responses without an extension id", async () => {
@@ -229,7 +229,7 @@ describe("waitForServiceWorker", () => {
   });
 });
 
-describe("discoverInstalledStagehandExtensionId", () => {
+describe("resolveExtension without loading", () => {
   it("returns the enabled Stagehand extension id from Chrome's inventory", async () => {
     const cdp = new FakeCdp().on("Extensions.getExtensions", () => ({
       extensions: [
@@ -239,7 +239,7 @@ describe("discoverInstalledStagehandExtensionId", () => {
     }));
 
     await expect(
-      discoverInstalledStagehandExtensionId(cdp, { signal: lifecycleSignal }),
+      resolveExtension(cdp, { loadIfNotFound: false, signal: lifecycleSignal }),
     ).resolves.toBe("stagehandext");
 
     expect(cdp.calls).toStrictEqual([
@@ -258,7 +258,7 @@ describe("discoverInstalledStagehandExtensionId", () => {
     }));
 
     await expect(
-      discoverInstalledStagehandExtensionId(cdp, { signal: lifecycleSignal }),
+      resolveExtension(cdp, { loadIfNotFound: false, signal: lifecycleSignal }),
     ).rejects.toThrow("Stagehand extension is not installed in the connected browser");
     expect(cdp.calls).toHaveLength(1);
   });
