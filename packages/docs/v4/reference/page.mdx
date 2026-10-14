@@ -531,8 +531,8 @@ await page.waitForURL("**/checkout/success", { timeout: 10_000 });
 </ParamField>
 
 <ParamField path="options" type="PageWaitForURLOptions" optional>
-  <ParamField path="options.waitUntil" type='"load" | "domcontentloaded"' optional>
-    Lifecycle state to reach after matching the URL. Defaults to `"load"`.
+  <ParamField path="options.waitUntil" type="string" optional>
+    Lifecycle state to reach after matching the URL: `"load"` (default) or `"domcontentloaded"`.
   </ParamField>
   <ParamField path="options.timeout" type="number" optional>
     Total wait budget in milliseconds. Defaults to 30,000; `0` disables the deadline. Closing the page still rejects the wait.

@@ -1,11 +1,9 @@
 import type { Protocol } from "devtools-protocol";
+import type { PageWaitForURLParams } from "@browserbasehq/stagehand-protocol/types";
 import type { Page } from "./page.js";
 import type { Progress } from "./progress.js";
 
-export type WaitForURLOptions = {
-  waitUntil?: "load" | "domcontentloaded";
-  timeout?: number;
-};
+export type WaitForURLOptions = NonNullable<PageWaitForURLParams["options"]>;
 
 /** Full-URL glob: `*` stays within a path segment; `**` also matches slashes. */
 export function urlMatcher(pattern: string): (url: string) => boolean {

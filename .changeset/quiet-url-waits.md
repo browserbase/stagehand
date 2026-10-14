@@ -1,5 +1,7 @@
 ---
 "@browserbasehq/stagehand": minor
+"@browserbasehq/stagehand-python": minor
+"@browserbasehq/stagehand-go": minor
 "@browserbasehq/stagehand-protocol": minor
 "@browserbasehq/stagehand-extension": minor
 ---
