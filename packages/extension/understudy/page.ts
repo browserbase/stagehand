@@ -42,6 +42,7 @@ import type {
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
+import { waitForURL, type WaitForURLOptions } from "./waitForURL.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
@@ -1739,6 +1740,24 @@ export class Page {
     await this.waitForMainLoadState(state, timeout ?? 15000);
   }
 
+  async waitForURL(url: string, options: WaitForURLOptions = {}): Promise<void> {
+    return runWithProgress(
+      { name: "waitForURL", timeout: options.timeout ?? 30_000 },
+      async (progress) => {
+        const onClosed = () => progress.abort(new Error("Page closed while waiting for URL"));
+        if (this.disposed) onClosed();
+        this.pageEventDisposers.add(onClosed);
+        this.conn.onTransportClosed(onClosed);
+        try {
+          await waitForURL(this, url, options, progress);
+        } finally {
+          this.pageEventDisposers.delete(onClosed);
+          this.conn.offTransportClosed(onClosed);
+        }
+      },
+    );
+  }
+
   /**
    * Wait for a specified amount of time.
    *
@@ -2683,18 +2702,26 @@ export class Page {
    * - Event path listens at the session level and compares incoming `frameId`
    *   to `mainFrameId()` **at event time** to follow root swaps.
    */
-  async waitForMainLoadState(state: LoadState, timeout = 15000): Promise<void> {
+  async waitForMainLoadState(
+    state: LoadState,
+    timeout = 15000,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted();
     await this.mainSession
       .send("Page.setLifecycleEventsEnabled", { enabled: true })
       .catch(() => {});
+    signal?.throwIfAborted();
 
     // Fast path: check the *current* main frame's readyState.
     if (
       (state === "domcontentloaded" || state === "load") &&
       (await this.isMainLoadStateReady(state))
     ) {
+      signal?.throwIfAborted();
       return;
     }
+    signal?.throwIfAborted();
 
     const wanted = LIFECYCLE_NAME[state];
     return new Promise<void>((resolve, reject) => {
@@ -2707,6 +2734,7 @@ export class Page {
         this.mainSession.off("Page.lifecycleEvent", onLifecycle);
         this.mainSession.off("Page.domContentEventFired", onDomContent);
         this.mainSession.off("Page.loadEventFired", onLoad);
+        signal?.removeEventListener("abort", onAbort);
       };
       const clearPollTimer = () => {
         if (pollTimer) {
@@ -2741,10 +2769,20 @@ export class Page {
         if (state === "load") finish();
       };
 
+      const onAbort = () => {
+        if (done) return;
+        done = true;
+        if (timer) clearTimeout(timer);
+        clearPollTimer();
+        off();
+        reject(signal?.reason);
+      };
+
       this.mainSession.on("Page.lifecycleEvent", onLifecycle);
       // Backups for sites that don't emit lifecycle consistently
       this.mainSession.on("Page.domContentEventFired", onDomContent);
       this.mainSession.on("Page.loadEventFired", onLoad);
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       // Fallback polling closes lifecycle-event races in remote environments
       // where readyState has advanced but the corresponding event was missed.
@@ -2772,13 +2810,14 @@ export class Page {
       };
       void pollReadyState();
 
-      timer = setTimeout(() => {
-        if (done) return;
-        done = true;
-        clearPollTimer();
-        off();
-        reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
-      }, timeout);
+      if (timeout !== 0)
+        timer = setTimeout(() => {
+          if (done) return;
+          done = true;
+          clearPollTimer();
+          off();
+          reject(new Error(`waitForMainLoadState(${state}) timed out after ${timeout}ms`));
+        }, timeout);
     });
   }
 }
