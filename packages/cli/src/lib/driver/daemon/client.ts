@@ -270,6 +270,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
       detached: true,
       env: process.env,
       stdio: "ignore",
+      windowsHide: true,
     },
   );
   child.unref();
