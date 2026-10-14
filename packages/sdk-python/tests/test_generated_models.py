@@ -63,6 +63,27 @@ def test_generated_models_validate_and_serialize_wire_values() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "model",
+    [
+        models.LocatorOptions,
+        models.LocatorClickOptions,
+        models.LocatorHighlightOptions,
+        models.LocatorSendClickEventOptions,
+        models.LocatorTypeOptions,
+        models.ActOptions,
+    ],
+)
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+def test_generated_models_reject_nonfinite_timeouts(model: type[BaseModel], value: float) -> None:
+    with pytest.raises(ValidationError, match="finite number"):
+        model.model_validate({"timeout": value})
+
+    options = model.model_validate({"timeout": 1000})
+    with pytest.raises(ValidationError, match="finite number"):
+        setattr(options, "timeout", value)
+
+
 def test_generated_json_values_preserve_integer_and_float_types() -> None:
     value = {
         "count": 7,
@@ -160,3 +181,20 @@ def test_generated_webmcp_models_apply_defaults_and_preserve_user_keys() -> None
         "status": "Completed",
         "output": {"resultValue": "unchanged"},
     }
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic", "google", "groq", "cerebras"])
+def test_unknown_model_ids_round_trip(provider: str) -> None:
+    model_name = f"{provider}/vendor/future-model-v1"
+    model = models.ModelConfig.model_validate({"model_name": model_name})
+    assert model.model_dump(mode="json", by_alias=True, exclude_unset=True) == {
+        "model_name": model_name
+    }
+
+
+@pytest.mark.parametrize(
+    "model_name", ["unknown/model", "openai/", "openai/model id", "openai/model\n", "model"]
+)
+def test_invalid_model_names_are_rejected(model_name: str) -> None:
+    with pytest.raises(ValidationError):
+        models.ModelConfig.model_validate({"model_name": model_name})

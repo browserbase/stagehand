@@ -21,7 +21,7 @@ type Concept = {
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
 const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const docsSource = new URL("../../packages/docs/v4/", import.meta.url);
-// These legacy Chrome extension ID overrides are not user-actionable and are pending deprecation.
+// These deprecated Chrome extension ID fields are accepted but ignored by connect.
 const intentionallyUndocumentedBrowserFields = new Set([
   "LocalBrowserConnectOptions.extension_id",
   "BrowserbaseConnectOptions.extension_id",
@@ -127,6 +127,7 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
       "LocalBrowserLaunchOptions",
       "LocalBrowserConnectOptions",
       "BrowserbaseConnectOptions",
+      "BrowserbaseClientOptions",
       "StagehandClientLoggingConfig",
       "StagehandClientCreateConfig",
     ];

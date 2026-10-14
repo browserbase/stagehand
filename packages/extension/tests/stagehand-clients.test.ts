@@ -24,7 +24,7 @@ import type {
   UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
-import { DuplicatePageEventSubscriptionError } from "../errors.ts";
+import { DuplicatePageEventSubscriptionError, TimeoutError } from "../errors.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
   ContextSetExtraHTTPHeadersParams,
@@ -50,6 +50,8 @@ import type {
   PageEvaluateParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PagePDFOptions,
+  PagePDFResult,
   PageReloadParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
@@ -238,6 +240,7 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     options?: PageWaitForSelectorParams["options"];
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
+  readonly pdfCalls: Array<PagePDFOptions | undefined> = [];
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
   readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
   readonly invokeWebMCPToolCalls: Array<{
@@ -386,6 +389,11 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   async screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array> {
     this.screenshotCalls.push(options);
     return this.screenshotBytes;
+  }
+
+  async pdf(options?: PagePDFOptions): Promise<PagePDFResult> {
+    this.pdfCalls.push(options);
+    return { data: "JVBERi0xLjc=" };
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -2085,12 +2093,36 @@ describe("Stagehand worker clients", () => {
       handle({
         jsonrpc: "2.0",
         id: 31,
+        method: "page.pdf",
+        params: {
+          page_id: "page-a",
+          options: {
+            landscape: true,
+            print_background: true,
+            width: 8.5,
+            height: 11,
+            margin: { top: 0.25, bottom: 0 },
+            tagged: true,
+            outline: false,
+          },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 31,
+      result: { data: "JVBERi0xLjc=" },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 32,
         method: "page.snapshot",
         params: { page_id: "page-a", options: { include_iframes: true } },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
-      id: 31,
+      id: 32,
       result: {
         formatted_tree: "root",
         xpath_map: { frameOne: "/html/body" },
@@ -2105,7 +2137,44 @@ describe("Stagehand worker clients", () => {
         maskColor: "#000000",
       },
     ]);
+    expect(page.pdfCalls).toStrictEqual([
+      {
+        landscape: true,
+        printBackground: true,
+        width: 8.5,
+        height: 11,
+        margin: { top: 0.25, bottom: 0 },
+        tagged: true,
+        outline: false,
+      },
+    ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+  });
+
+  it("preserves the recovery message and original PDF deadline over RPC", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const cause = new TimeoutError("pdf", 30_000);
+    vi.spyOn(page, "pdf").mockRejectedValue(
+      new Error(`A previous capture is still recovering: ${cause.message}`, { cause }),
+    );
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 33,
+        method: "page.pdf",
+        params: { page_id: "page-a" },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 33,
+      error: {
+        code: -32603,
+        message: "A previous capture is still recovering: pdf timed out after 30000ms",
+        data: { name: "Error" },
+      },
+    });
   });
 
   it("routes WebMCP discovery and invocation operations through the owning page", async () => {

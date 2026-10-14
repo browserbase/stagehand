@@ -420,3 +420,33 @@ describe("dispatch", () => {
     expect(printExperimentsHelp).toHaveBeenCalled();
   });
 });
+
+describe("real tree: onboarding commands", () => {
+  it("registers `setup` and `welcome` as root leaves with handlers", () => {
+    const tree = buildCommandTree();
+    for (const name of ["setup", "welcome"]) {
+      const node = findChild(tree, name);
+      expect(node?.name).toBe(name);
+      expect(typeof node?.handler).toBe("function");
+      expect(node?.children ?? []).toHaveLength(0);
+    }
+  });
+});
+
+describe("real tree: config path", () => {
+  it("forwards `local` so `config path local` prints the local file path", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const tree = buildCommandTree();
+    await dispatch(
+      tree,
+      tokenizeArgv(["config", "path", "local"]),
+      makeCtx({ entryDir: "/tmp/e" }),
+    );
+    await dispatch(tree, tokenizeArgv(["config", "path"]), makeCtx({ entryDir: "/tmp/e" }));
+    expect(log.mock.calls.map(([line]) => String(line))).toEqual([
+      "/tmp/e/evals.config.local.json",
+      "/tmp/e/evals.config.json",
+    ]);
+    log.mockRestore();
+  });
+});

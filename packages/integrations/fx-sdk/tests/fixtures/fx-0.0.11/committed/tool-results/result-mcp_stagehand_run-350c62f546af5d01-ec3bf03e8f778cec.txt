@@ -1,0 +1,1 @@
+{"server": "stagehand", "tool": "mcp_stagehand_run", "result": {"content": [{"type": "text", "text": "18.06 | Spring 2010 | Undergraduate\nLinear Algebra\nText: Strang, Gilbert. Introduction to Linear Algebra."}]}}

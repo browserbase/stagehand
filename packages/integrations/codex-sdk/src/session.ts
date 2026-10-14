@@ -1,6 +1,8 @@
 import type { Dirent } from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import type { ModelReasoningEffort } from "@openai/codex-sdk";
+import { saveCodexDiagnostic } from "./diagnostics.js";
 import {
   HarnessAdapterError,
   harnessEventLogLevel,
@@ -9,6 +11,7 @@ import {
 } from "@browserbasehq/stagehand-integrations/harness";
 
 export type CodexEvent = Record<string, unknown>;
+export type { ModelReasoningEffort } from "@openai/codex-sdk";
 
 export type CodexThread = {
   runStreamed: (
@@ -27,6 +30,7 @@ export type CodexThreadConfig = {
   approvalPolicy?: "never" | "on-request" | "on-failure" | "untrusted";
   networkAccessEnabled?: boolean;
   webSearchMode?: string;
+  modelReasoningEffort?: ModelReasoningEffort;
   skipGitRepoCheck?: boolean;
 };
 
@@ -55,6 +59,7 @@ export type CodexSessionResult = {
   usageSource: CodexUsageSource;
   threadId?: string;
   iterationError?: unknown;
+  diagnosticPath?: string;
 };
 
 export const CODEX_SDK_PACKAGE = "@openai/codex-sdk";
@@ -142,7 +147,8 @@ export async function runCodexSession(input: {
   thread: CodexThreadConfig;
   outputSchema?: Record<string, unknown>;
   maxToolSteps?: number;
-  onToolStep?: () => void | Promise<void>;
+  onToolStep?: (item: Record<string, unknown>) => void | Promise<void>;
+  allowedMcpServers?: string[];
   /**
    * CODEX_HOME the binary runs with. `codex exec` only reports usage on
    * `turn.completed`, which never arrives when the turn is aborted (step
@@ -150,12 +156,14 @@ export async function runCodexSession(input: {
    * thread's rollout file under this directory.
    */
   codexHome?: string;
+  diagnosticDirectory?: string;
 }): Promise<CodexSessionResult> {
   const sdk = input.sdk ?? (await loadCodexSdk());
   const events: CodexEvent[] = [];
   let finalMessage = "";
   let stopReason: string | undefined;
   let iterationError: unknown;
+  let diagnosticPath: string | undefined;
   let tokenUsage = emptyTokenUsage();
   let usageSource: CodexUsageSource = "none";
   let threadId: string | undefined;
@@ -179,6 +187,9 @@ export async function runCodexSession(input: {
       approvalPolicy: validateCodexApprovalPolicy(input.thread.approvalPolicy),
       networkAccessEnabled: input.thread.networkAccessEnabled ?? true,
       webSearchMode: input.thread.webSearchMode ?? "disabled",
+      ...(input.thread.modelReasoningEffort !== undefined && {
+        modelReasoningEffort: input.thread.modelReasoningEffort,
+      }),
       skipGitRepoCheck: input.thread.skipGitRepoCheck ?? true,
     });
     const streamed = await thread.runStreamed(input.prompt, {
@@ -202,6 +213,15 @@ export async function runCodexSession(input: {
 
       const item = isRecord(event.item) ? event.item : undefined;
       if (
+        item?.type === "mcp_tool_call" &&
+        input.allowedMcpServers &&
+        !input.allowedMcpServers.includes(String(item.server))
+      ) {
+        const policyError = new Error(`Unexpected MCP server: ${String(item.server)}`);
+        budgetController.abort(policyError);
+        throw policyError;
+      }
+      if (
         event.type === "item.completed" &&
         item?.type === "agent_message" &&
         typeof item.text === "string"
@@ -218,11 +238,27 @@ export async function runCodexSession(input: {
           budgetExhausted = true;
           budgetController.abort(new Error(stopReason));
         }
-        if (item.type === "mcp_tool_call") await input.onToolStep?.();
+        if (item.type === "mcp_tool_call") await input.onToolStep?.(item);
       }
     }
   } catch (error) {
     iterationError = error;
+    if (input.diagnosticDirectory) {
+      try {
+        diagnosticPath = await saveCodexDiagnostic(input.diagnosticDirectory, error, events.length);
+        input.logger.warn({
+          category: "codex",
+          level: 0,
+          message: `Codex diagnostic saved: ${diagnosticPath}`,
+        });
+      } catch (diagnosticError) {
+        input.logger.warn({
+          category: "codex",
+          level: 0,
+          message: `Could not save Codex diagnostic: ${sanitizeErrorMessage(stringifyError(diagnosticError))}`,
+        });
+      }
+    }
     input.logger.warn({
       category: "codex",
       message: `Codex stopped before a normal result: ${sanitizeErrorMessage(stringifyError(error))}`,
@@ -261,6 +297,7 @@ export async function runCodexSession(input: {
     usageSource,
     ...(threadId && { threadId }),
     ...(iterationError !== undefined && { iterationError }),
+    ...(diagnosticPath && { diagnosticPath }),
   };
 }
 
@@ -463,7 +500,12 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function safeJson(value: unknown): string | undefined {
   try {
-    return JSON.stringify(value);
+    return JSON.stringify(value, (key, item: unknown) => {
+      if (key === "data" && typeof item === "string" && item.length > 256)
+        return `[binary omitted: ${item.length} characters; see trajectory artifact]`;
+      if (typeof item === "string") return clip(sanitizeErrorMessage(item), 32_000);
+      return item;
+    });
   } catch {
     return undefined;
   }
