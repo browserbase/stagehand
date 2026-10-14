@@ -1449,6 +1449,17 @@ export class Page {
     return this.latestNavigationCommandId === id;
   }
 
+  /** Return the main document's current HTML, including its doctype. */
+  async content(): Promise<string> {
+    return this.mainFrameWrapper.evaluateInLocatorWorld<string>(
+      () => `(() => {
+        const doctype = document.doctype;
+        return (doctype ? new XMLSerializer().serializeToString(doctype) : "") +
+          (document.documentElement?.outerHTML ?? "");
+      })()`,
+    );
+  }
+
   /**
    * Return the current page title.
    * Prefers reading from the active document via Runtime.evaluate to reflect dynamic changes.
