@@ -43,6 +43,8 @@ export interface StagehandBrowser {
   readonly context: BrowserContext;
   readonly closed: boolean;
   close(): Promise<void>;
+  /** Disconnect this handle without terminating the browser or releasing its session. */
+  disconnect(): Promise<void>;
 }
 
 export interface LocalBrowser {
@@ -62,6 +64,7 @@ type BrowserHandleInternals = {
   attachment: unknown;
   context?: BrowserContext;
   close: () => Promise<void> | void;
+  disconnect: () => Promise<void> | void;
   invalidate: () => Promise<void> | void;
   terminalPromise?: Promise<void>;
 };
@@ -99,6 +102,12 @@ class StagehandBrowserHandle implements StagehandBrowser {
     internals.terminalPromise ??= Promise.resolve().then(internals.close);
     return internals.terminalPromise;
   }
+
+  disconnect(): Promise<void> {
+    const internals = requireBrowserHandleInternals(this);
+    internals.terminalPromise ??= Promise.resolve().then(internals.disconnect);
+    return internals.terminalPromise;
+  }
 }
 
 /** @internal */
@@ -107,6 +116,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
   origin: StagehandBrowserOrigin;
   attachment: Attachment;
   close: () => Promise<void> | void;
+  disconnect: () => Promise<void> | void;
   invalidate?: () => Promise<void> | void;
   sessionId?: string;
 }): StagehandBrowser {
@@ -117,6 +127,7 @@ export function createStagehandBrowserHandle<Attachment>(options: {
       claimed: false,
       attachment: options.attachment,
       close: options.close,
+      disconnect: options.disconnect,
       invalidate: options.invalidate ?? options.close,
     },
     options.sessionId,

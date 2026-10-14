@@ -23,6 +23,63 @@ function deferred<T>() {
 }
 
 describe("Stagehand browser factories", () => {
+  it.each([
+    { origin: "launched", keepAlive: false },
+    { origin: "launched", keepAlive: true },
+    { origin: "connected", keepAlive: true },
+  ] as const)(
+    "disconnects a $origin Browserbase handle with keepAlive=$keepAlive without releasing its session",
+    async ({ origin, keepAlive }) => {
+      const closeSession = vi.fn();
+      const closeCdp = vi.fn();
+      const session = {
+        sessionId: "session_123",
+        cdpUrl: "wss://connect.browserbase.com/session_123",
+        close: closeSession,
+      };
+      const { browserbase } = createBrowserFactoriesForTest({
+        createBrowserbaseSessionClient: () => ({
+          createSession: async () => session,
+          connectSession: async () => session,
+        }),
+        connectCdp: async () => fakeCdpClient(closeCdp),
+      });
+      const browser =
+        origin === "launched"
+          ? await browserbase.launch({ apiKey: "bb_key", keepAlive })
+          : await browserbase.connect({ apiKey: "bb_key", sessionId: session.sessionId });
+      await Promise.all([browser.disconnect(), browser.disconnect()]);
+      await browser.close();
+      expect(browser.closed).toBe(true);
+      expect(closeCdp).toHaveBeenCalledOnce();
+      expect(closeSession).not.toHaveBeenCalled();
+      expect(() => claimStagehandBrowser(browser)).toThrow(
+        "Cannot attach Stagehand to a closed browser",
+      );
+    },
+  );
+
+  it.each(["launched", "connected"] as const)(
+    "disconnects a %s local handle without terminating the browser",
+    async (origin) => {
+      const closeCdp = vi.fn();
+      const closeSource = vi.fn();
+      const sendCommand = vi.fn(async () => ({}));
+      const { localBrowser } = createBrowserFactoriesForTest({
+        launchLocalBrowser: async () => ({ cdpUrl: "ws://browser.example", close: closeSource }),
+        connectCdp: async () => fakeCdpClient(closeCdp, sendCommand),
+      });
+      const browser =
+        origin === "launched"
+          ? await localBrowser.launch()
+          : await localBrowser.connect({ cdpUrl: "ws://browser.example" });
+      await browser.disconnect();
+      expect(closeCdp).toHaveBeenCalledOnce();
+      expect(closeSource).not.toHaveBeenCalled();
+      expect(sendCommand).not.toHaveBeenCalled();
+    },
+  );
+
   it("launches a local browser and prepares the packaged extension", async () => {
     const closeSource = vi.fn();
     const launchLocalBrowser = vi.fn(async () => ({

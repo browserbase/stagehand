@@ -13,6 +13,7 @@ function createBrowser() {
     origin: "launched",
     attachment: {},
     close: vi.fn(),
+    disconnect: vi.fn(),
   });
 }
 

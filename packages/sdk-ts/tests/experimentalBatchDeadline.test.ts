@@ -42,6 +42,7 @@ function createStagehand(client: RPCClient): Stagehand {
     origin: "connected",
     attachment: {},
     close: () => {},
+    disconnect: () => {},
   });
   claimStagehandBrowserHandle(browser);
   attachStagehandBrowserContext(browser, new BrowserContext(client, () => browser.close()));

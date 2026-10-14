@@ -315,6 +315,7 @@ async function connectBrowser(options: {
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
       close,
+      disconnect: () => connectedClient.close(),
       invalidate,
     });
   } catch (error) {

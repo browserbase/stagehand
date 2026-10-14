@@ -29,6 +29,7 @@ describe("browser API contracts", () => {
     expectTypeOf<StagehandBrowserOrigin>().toEqualTypeOf<"launched" | "connected">();
     expectTypeOf<StagehandBrowser["context"]>().toEqualTypeOf<BrowserContext>();
     expectTypeOf<StagehandBrowser["close"]>().returns.toEqualTypeOf<Promise<void>>();
+    expectTypeOf<StagehandBrowser["disconnect"]>().returns.toEqualTypeOf<Promise<void>>();
     expectTypeOf<{
       provider: "local";
       origin: "launched";

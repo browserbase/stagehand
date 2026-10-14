@@ -917,9 +917,9 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 const sessionId = browser.sessionId!;
 
-// The browser session continues running after close()
+// Disconnect while keeping the session available for another process.
 await stagehand.close();
-await browser.close();
+await browser.disconnect();
 
 // Later, reconnect to the same Browserbase session
 const browser2 = await browserbase.connect({
@@ -928,6 +928,12 @@ const browser2 = await browserbase.connect({
 });
 const stagehand2 = await Stagehand.create({ browser: browser2 });
 ```
+
+In TypeScript, `browser.disconnect()` closes the client transport and leaves the
+browser session unreleased. Enable `keepAlive: true` when launching a Browserbase
+session to keep it running after disconnection, within its configured timeout.
+`browser.close()` releases the session, even with `keepAlive: true`. Both
+operations finish the handle; reconnect with a new one.
 </Tab>
 
 <Tab title="Python">
