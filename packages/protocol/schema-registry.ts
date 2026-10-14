@@ -8,6 +8,9 @@ import {
 import { wireSchema } from "./json-rpc/wire-casing.ts";
 import {
   ActResultSchema,
+  BrowserbaseCancelParamsSchema,
+  BrowserbaseRequestParamsSchema,
+  BrowserbaseRequestResultSchema,
   CallbackBatchParamsSchema,
   CallbackBatchResultSchema,
   ContextActivePageResultSchema,
@@ -167,6 +170,11 @@ export const StagehandMethods = {
     result: CallbackBatchResultSchema,
     paramsWire: { opaqueKeys: ["input"] },
     resultWire: { opaqueKeys: ["value"] },
+  },
+  browserbaseRequest: {
+    name: "browserbase.request",
+    params: BrowserbaseRequestParamsSchema,
+    result: BrowserbaseRequestResultSchema,
   },
   llmGenerate: {
     name: "llm.generate",
@@ -542,6 +550,11 @@ export const StagehandRpcRequestSchema = z
   .meta({ id: "StagehandRpcRuntimeRequest" });
 
 export const StagehandNotifications = {
+  browserbaseCancel: {
+    name: "browserbase.cancel",
+    params: BrowserbaseCancelParamsSchema,
+    paramsWire: undefined,
+  },
   log: { name: "stagehand.log", params: StagehandLogSchema, paramsWire: undefined },
   pageCDPEvent: {
     name: "page.cdp_event",

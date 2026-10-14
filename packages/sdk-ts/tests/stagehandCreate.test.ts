@@ -329,6 +329,9 @@ describe("Stagehand.create", () => {
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
 
+    expect(() => StagehandCreateOptionsSchema.parse({ browser, browserbase: "client" })).toThrow(
+      /Unrecognized key/,
+    );
     expect(() => StagehandCreateOptionsSchema.parse({ browser, unexpected: true })).toThrow(
       "Unrecognized key",
     );
