@@ -512,6 +512,16 @@ func (p *Page) Title(ctx context.Context) (string, error) {
 	return string(result), nil
 }
 
+// Content returns the page's HTML, including its doctype.
+func (p *Page) Content(ctx context.Context) (string, error) {
+	params := PageIDParams{PageID: p.PageID()}
+	var result PageContentResult
+	if err := p.rpc.call(ctx, "page.content", params, &result); err != nil {
+		return "", err
+	}
+	return string(result), nil
+}
+
 // Close closes the page.
 func (p *Page) Close(ctx context.Context) error {
 	p.mu.RLock()

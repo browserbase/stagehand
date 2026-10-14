@@ -152,6 +152,7 @@ import type {
   PageCDPEventSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
+  PageContentResultSchema,
   PageDragAndDropParamsSchema,
   PageDragAndDropRoutePointSchema,
   PageEvaluateParamsSchema,
@@ -433,6 +434,7 @@ export type ContextActivePageResult = z.infer<typeof ContextActivePageResultSche
 export type ContextGetDomainPolicyResult = z.infer<typeof ContextGetDomainPolicyResultSchema>;
 export type PageUrlResult = z.infer<typeof PageUrlResultSchema>;
 export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
+export type PageContentResult = z.infer<typeof PageContentResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
 export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;

@@ -721,6 +721,9 @@ class PageCloseResult(TypedDict):
     closed: Literal[True]
 
 
+PageContentResult: TypeAlias = str
+
+
 class PageDragAndDropRoutePoint(TypedDict):
     x: float
     y: float

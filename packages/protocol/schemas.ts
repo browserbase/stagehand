@@ -1984,6 +1984,8 @@ export const PageUrlResultSchema = z.string().meta({ id: "PageUrlResult" });
 
 export const PageTitleResultSchema = z.string().meta({ id: "PageTitleResult" });
 
+export const PageContentResultSchema = z.string().meta({ id: "PageContentResult" });
+
 export const PageCloseResultSchema = z
   .strictObject({
     closed: z.literal(true),

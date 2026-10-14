@@ -170,6 +170,11 @@ export function createPageController(runtime: StagehandRuntime) {
     return runtime.pageTitle(params);
   }
 
+  async function content(params: PageIdParams, { logger }: HandlerContext) {
+    logger.debug("page.content", {});
+    return runtime.pageContent(params);
+  }
+
   async function close(params: PageIdParams, { logger }: HandlerContext) {
     logger.debug("page.close", {});
     return runtime.pageClose(params);
@@ -212,6 +217,7 @@ export function createPageController(runtime: StagehandRuntime) {
     webMCPCancelInvocation,
     url,
     title,
+    content,
     close,
     on,
     off,
