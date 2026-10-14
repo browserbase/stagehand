@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
+import { Keyboard } from "./keyboard.js";
 import { type Progress, runLocatorStep, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
@@ -180,6 +181,7 @@ function webMCPToolResponse(event: Protocol.WebMCP.ToolRespondedEvent): WebMCPTo
 }
 
 export class Page {
+  private readonly keyboard: Keyboard;
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
   readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
 
@@ -242,6 +244,7 @@ export class Page {
     browserIsRemote = false,
   ) {
     this.pageId = _targetId;
+    this.keyboard = new Keyboard(mainSession);
     this.browserIsRemote = browserIsRemote;
 
     // own the main session
@@ -257,6 +260,7 @@ export class Page {
       this.pageId,
       this.browserIsRemote,
       this.logger,
+      () => this.keyboard.modifiers,
     );
 
     this.networkManager = new NetworkManager();
@@ -429,6 +433,7 @@ export class Page {
         this.pageId,
         this.browserIsRemote,
         this.logger,
+        () => this.keyboard.modifiers,
       );
     }
 
@@ -560,7 +565,14 @@ export class Page {
     if (hit) return hit;
 
     const sess = this.getSessionForFrame(frameId);
-    const f = new Frame(sess, frameId, this.pageId, this.browserIsRemote, this.logger);
+    const f = new Frame(
+      sess,
+      frameId,
+      this.pageId,
+      this.browserIsRemote,
+      this.logger,
+      () => this.keyboard.modifiers,
+    );
     this.frameCache.set(frameId, f);
     return f;
   }
@@ -1919,6 +1931,7 @@ export class Page {
     const dispatches: Array<Promise<unknown>> = [];
     dispatches.push(
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        modifiers: this.keyboard.modifiers,
         type: "mouseMoved",
         x,
         y,
@@ -1929,6 +1942,7 @@ export class Page {
     for (let i = 1; i <= clickCount; i++) {
       dispatches.push(
         this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          modifiers: this.keyboard.modifiers,
           type: "mousePressed",
           x,
           y,
@@ -1938,6 +1952,7 @@ export class Page {
       );
       dispatches.push(
         this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          modifiers: this.keyboard.modifiers,
           type: "mouseReleased",
           x,
           y,
@@ -1957,6 +1972,7 @@ export class Page {
   async hover(x: number, y: number): Promise<void> {
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+      modifiers: this.keyboard.modifiers,
       type: "mouseMoved",
       x,
       y,
@@ -1973,6 +1989,7 @@ export class Page {
     await runLocatorStep(progress, "updating cursor", () => this.updateCursor(x, y, progress));
     await runLocatorStep(progress, "scrolling page", () =>
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        modifiers: this.keyboard.modifiers,
         type: "mouseMoved",
         x,
         y,
@@ -1983,6 +2000,7 @@ export class Page {
     // Synthesize a simple mouse move + press + release sequence
     await runLocatorStep(progress, "scrolling page", () =>
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        modifiers: this.keyboard.modifiers,
         type: "mouseWheel",
         x,
         y,
@@ -2036,6 +2054,7 @@ export class Page {
     );
     await runLocatorStep(progress, "dragging mouse", () =>
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        modifiers: this.keyboard.modifiers,
         type: "mouseMoved",
         x: fromX,
         y: fromY,
@@ -2048,6 +2067,7 @@ export class Page {
     let y = fromY;
     const release = () =>
       this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        modifiers: this.keyboard.modifiers,
         type: "mouseReleased",
         x,
         y,
@@ -2062,6 +2082,7 @@ export class Page {
       await runLocatorStep(progress, "pressing mouse", () => {
         pressed = true;
         return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          modifiers: this.keyboard.modifiers,
           type: "mousePressed",
           x: fromX,
           y: fromY,
@@ -2099,6 +2120,7 @@ export class Page {
           x = point.x;
           y = point.y;
           return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+            modifiers: this.keyboard.modifiers,
             type: "mouseMoved",
             x,
             y,
@@ -2250,70 +2272,19 @@ export class Page {
     }
   }
 
-  /**
-   * Press a single key or key combination (keyDown then keyUp).
-   * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
-   * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
-   */
-  async keyPress(key: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
-    const delay = Math.max(0, options?.delay ?? 0);
-    const sleep = (ms: number) =>
-      progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
-
-    // Split key combination by + but handle the special case of "+" key itself
-    function split(keyString: string): string[] {
-      // Special case: if the entire string is just "+", return it as-is
-      if (keyString === "+") {
-        return ["+"];
-      }
-
-      const keys: string[] = [];
-      let building = "";
-      for (const char of keyString) {
-        if (char === "+" && building) {
-          keys.push(building);
-          building = "";
-        } else {
-          building += char;
-        }
-      }
-      if (building) {
-        keys.push(building);
-      }
-      return keys;
-    }
-
-    const tokens = split(key);
-    const mainKey = tokens[tokens.length - 1];
-    const modifierKeys = tokens.slice(0, -1);
-
-    const heldKeys = new Set<string>();
-    try {
-      for (const key of [...modifierKeys, mainKey]) {
-        await runLocatorStep(progress, "pressing key", () => {
-          heldKeys.add(key);
-          return this.keyDown(key);
-        });
-      }
-      if (delay) await sleep(delay);
-      for (const key of [mainKey, ...modifierKeys.toReversed()]) {
-        await runLocatorStep(progress, "releasing key", () => {
-          // Cleanup must not repeat a release whose response is still pending.
-          heldKeys.delete(key);
-          return this.keyUp(key);
-        });
-      }
-    } catch (error) {
-      // Release keys already dispatched without allowing more key presses.
-      if (progress) {
-        await progress.cleanup(() =>
-          Promise.allSettled([...heldKeys].reverse().map((key) => this.keyUp(key))),
-        );
-      }
-      this._pressedModifiers.clear();
-      throw error;
-    }
+  /** Press a chord without releasing keys already held by the caller. */
+  keyPress(key: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
+    return this.keyboard.press(key, options, progress);
   }
+
+  keyDown(key: string): Promise<void> {
+    return this.keyboard.down(key);
+  }
+
+  keyUp(key: string): Promise<void> {
+    return this.keyboard.up(key);
+  }
+
   async captureSnapshot(
     options?: SnapshotOptions,
     parentProgress?: Progress,
@@ -2337,316 +2308,6 @@ export class Page {
         return { formattedTree: combinedTree, xpathMap: combinedXpathMap, urlMap: combinedUrlMap };
       },
     );
-  }
-
-  // Track pressed modifier keys
-  _pressedModifiers = new Set<string>();
-
-  /** Press a key down without releasing it */
-  async keyDown(key: string): Promise<void> {
-    const normalizedKey = this.normalizeModifierKey(key);
-
-    const modifierKeys = ["Alt", "Control", "Meta", "Shift"];
-    if (modifierKeys.includes(normalizedKey)) {
-      this._pressedModifiers.add(normalizedKey);
-    }
-
-    let modifiers = 0;
-    if (this._pressedModifiers.has("Alt")) modifiers |= 1;
-    if (this._pressedModifiers.has("Control")) modifiers |= 2;
-    if (this._pressedModifiers.has("Meta")) modifiers |= 4;
-    if (this._pressedModifiers.has("Shift")) modifiers |= 8;
-
-    const named = this.getNamedKeys();
-
-    if (normalizedKey.length === 1) {
-      const hasNonShiftModifier =
-        this._pressedModifiers.has("Alt") ||
-        this._pressedModifiers.has("Control") ||
-        this._pressedModifiers.has("Meta");
-      if (hasNonShiftModifier) {
-        // For accelerators (e.g., Cmd/Ctrl/Alt + key), do not send text. Use rawKeyDown with key/code/VK.
-        const desc = this.describePrintableKey(normalizedKey);
-        const macCommands = this.isMacOS() ? this.macCommandsFor(desc.code ?? "") : [];
-        const req: Protocol.Input.DispatchKeyEventRequest = {
-          type: "rawKeyDown",
-          modifiers,
-          key: desc.key,
-          ...(desc.code ? { code: desc.code } : {}),
-          ...(typeof desc.vk === "number" ? { windowsVirtualKeyCode: desc.vk } : {}),
-          ...(macCommands.length ? { commands: macCommands } : {}),
-        } as Protocol.Input.DispatchKeyEventRequest;
-        await this.mainSession.send("Input.dispatchKeyEvent", req);
-      } else {
-        // Typing path (no non-Shift modifiers): send text to generate input
-        await this.mainSession.send("Input.dispatchKeyEvent", {
-          type: "keyDown",
-          text: normalizedKey,
-          unmodifiedText: normalizedKey,
-          modifiers,
-        } as Protocol.Input.DispatchKeyEventRequest);
-      }
-      return;
-    }
-
-    const entry = named[normalizedKey] ?? null;
-    if (entry) {
-      const macCommands = this.isMacOS() ? this.macCommandsFor(entry.code) : [];
-      const includeText = !!entry.text && modifiers === 0;
-      const keyDown: Protocol.Input.DispatchKeyEventRequest = {
-        type: includeText ? "keyDown" : "rawKeyDown",
-        key: entry.key,
-        code: entry.code,
-        windowsVirtualKeyCode: entry.vk,
-        modifiers,
-        ...(includeText
-          ? {
-              text: entry.text,
-              unmodifiedText: entry.unmodifiedText ?? entry.text,
-            }
-          : {}),
-        ...(macCommands.length ? { commands: macCommands } : {}),
-      } as Protocol.Input.DispatchKeyEventRequest;
-      await this.mainSession.send("Input.dispatchKeyEvent", keyDown);
-      return;
-    }
-
-    // Fallback: send with key property only
-    await this.mainSession.send("Input.dispatchKeyEvent", {
-      type: "keyDown",
-      key: normalizedKey,
-      modifiers,
-    } as Protocol.Input.DispatchKeyEventRequest);
-  }
-
-  /** Release a pressed key */
-  async keyUp(key: string): Promise<void> {
-    const normalizedKey = this.normalizeModifierKey(key);
-
-    let modifiers = 0;
-    if (this._pressedModifiers.has("Alt")) modifiers |= 1;
-    if (this._pressedModifiers.has("Control")) modifiers |= 2;
-    if (this._pressedModifiers.has("Meta")) modifiers |= 4;
-    if (this._pressedModifiers.has("Shift")) modifiers |= 8;
-
-    const modifierKeys = ["Alt", "Control", "Meta", "Shift"];
-    if (modifierKeys.includes(normalizedKey)) {
-      this._pressedModifiers.delete(normalizedKey);
-    }
-
-    const named = this.getNamedKeys();
-
-    if (normalizedKey.length === 1) {
-      const desc = this.describePrintableKey(normalizedKey);
-      await this.mainSession.send("Input.dispatchKeyEvent", {
-        type: "keyUp",
-        key: desc.key,
-        code: desc.code,
-        windowsVirtualKeyCode: typeof desc.vk === "number" ? desc.vk : undefined,
-        modifiers,
-      } as Protocol.Input.DispatchKeyEventRequest);
-      return;
-    }
-
-    const entry = named[normalizedKey] ?? null;
-    if (entry) {
-      await this.mainSession.send("Input.dispatchKeyEvent", {
-        type: "keyUp",
-        key: entry.key,
-        code: entry.code,
-        windowsVirtualKeyCode: entry.vk,
-        modifiers,
-      } as Protocol.Input.DispatchKeyEventRequest);
-      return;
-    }
-
-    // Fallback: send with key property only
-    await this.mainSession.send("Input.dispatchKeyEvent", {
-      type: "keyUp",
-      key: normalizedKey,
-      modifiers,
-    } as Protocol.Input.DispatchKeyEventRequest);
-  }
-
-  /** Normalize key names to match CDP expectations */
-  normalizeModifierKey(key: string): string {
-    const lower = key.toLowerCase();
-    switch (lower) {
-      // Modifier keys
-      case "cmd":
-      case "command":
-      case "controlormeta":
-        // On Mac, Cmd is Meta; elsewhere map to Control for common shortcuts
-        return this.isMacOS() ? "Meta" : "Control";
-      case "win":
-      case "windows":
-        return "Meta";
-      case "ctrl":
-      case "control":
-        return "Control";
-      case "option":
-      case "alt":
-        return "Alt";
-      case "shift":
-        return "Shift";
-      case "meta":
-        return "Meta";
-      // Action keys
-      case "enter":
-      case "return":
-        return "Enter";
-      case "esc":
-      case "escape":
-        return "Escape";
-      case "backspace":
-        return "Backspace";
-      case "tab":
-        return "Tab";
-      case "space":
-      case "spacebar":
-        return " ";
-      case "delete":
-      case "del":
-        return "Delete";
-      // Arrow keys
-      case "left":
-      case "arrowleft":
-        return "ArrowLeft";
-      case "right":
-      case "arrowright":
-        return "ArrowRight";
-      case "up":
-      case "arrowup":
-        return "ArrowUp";
-      case "down":
-      case "arrowdown":
-        return "ArrowDown";
-      // Navigation keys
-      case "home":
-        return "Home";
-      case "end":
-        return "End";
-      case "pageup":
-      case "pgup":
-        return "PageUp";
-      case "pagedown":
-      case "pgdn":
-        return "PageDown";
-      default:
-        return key;
-    }
-  }
-
-  /**
-   * Get the map of named keys with their properties
-   */
-  getNamedKeys(): Record<
-    string,
-    {
-      key: string;
-      code: string;
-      vk: number;
-      text?: string;
-      unmodifiedText?: string;
-    }
-  > {
-    return {
-      Enter: {
-        key: "Enter",
-        code: "Enter",
-        vk: 13,
-        text: "\r",
-        unmodifiedText: "\r",
-      },
-      Tab: { key: "Tab", code: "Tab", vk: 9 },
-      Backspace: { key: "Backspace", code: "Backspace", vk: 8 },
-      Escape: { key: "Escape", code: "Escape", vk: 27 },
-      Delete: { key: "Delete", code: "Delete", vk: 46 },
-      ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", vk: 37 },
-      ArrowUp: { key: "ArrowUp", code: "ArrowUp", vk: 38 },
-      ArrowRight: { key: "ArrowRight", code: "ArrowRight", vk: 39 },
-      ArrowDown: { key: "ArrowDown", code: "ArrowDown", vk: 40 },
-      Home: { key: "Home", code: "Home", vk: 36 },
-      End: { key: "End", code: "End", vk: 35 },
-      PageUp: { key: "PageUp", code: "PageUp", vk: 33 },
-      PageDown: { key: "PageDown", code: "PageDown", vk: 34 },
-      // Modifier keys
-      Alt: { key: "Alt", code: "AltLeft", vk: 18 },
-      Control: { key: "Control", code: "ControlLeft", vk: 17 },
-      Meta: { key: "Meta", code: "MetaLeft", vk: 91 },
-      Shift: { key: "Shift", code: "ShiftLeft", vk: 16 },
-    };
-  }
-
-  /**
-   * Minimal description for printable keys (letters/digits/space) to provide code and VK.
-   * Used when non-Shift modifiers are pressed to avoid sending text while keeping accelerator info.
-   */
-  describePrintableKey(ch: string): {
-    key: string;
-    code?: string;
-    vk?: number;
-  } {
-    const shiftDown = this._pressedModifiers.has("Shift");
-    const isLetter = /^[a-zA-Z]$/.test(ch);
-    const isDigit = /^[0-9]$/.test(ch);
-
-    if (isLetter) {
-      const upper = ch.toUpperCase();
-      return {
-        key: shiftDown ? upper : upper.toLowerCase(),
-        code: `Key${upper}`,
-        vk: upper.charCodeAt(0), // 'A'..'Z' => 65..90
-      };
-    }
-
-    if (isDigit) {
-      return {
-        key: ch,
-        code: `Digit${ch}`,
-        vk: ch.charCodeAt(0), // '0'..'9' => 48..57
-      };
-    }
-
-    if (ch === " ") {
-      return { key: " ", code: "Space", vk: 32 };
-    }
-
-    // Fallback: just return the character as-is; VK best-effort from ASCII
-    return {
-      key: shiftDown ? ch.toUpperCase() : ch,
-      vk: ch.toUpperCase().charCodeAt(0),
-    };
-  }
-
-  isMacOS(): boolean {
-    return /mac|iphone|ipad|ipod/iu.test(globalThis.navigator?.platform ?? "");
-  }
-
-  /**
-   * Return Chromium mac editing commands (without trailing ':') for a given code like 'KeyA'
-   * Only used on macOS to trigger system editing shortcuts (e.g., selectAll, copy, paste...).
-   */
-  macCommandsFor(code: string): string[] {
-    if (!this.isMacOS()) return [];
-    const parts: string[] = [];
-    if (this._pressedModifiers.has("Shift")) parts.push("Shift");
-    if (this._pressedModifiers.has("Control")) parts.push("Control");
-    if (this._pressedModifiers.has("Alt")) parts.push("Alt");
-    if (this._pressedModifiers.has("Meta")) parts.push("Meta");
-    parts.push(code);
-    const shortcut = parts.join("+");
-    const table: Record<string, string | string[]> = {
-      "Meta+KeyA": "selectAll:",
-      "Meta+KeyC": "copy:",
-      "Meta+KeyX": "cut:",
-      "Meta+KeyV": "paste:",
-      "Meta+KeyZ": "undo:",
-    };
-    const value = table[shortcut];
-    if (!value) return [];
-    const list = Array.isArray(value) ? value : [value];
-    return list.filter((c) => !c.startsWith("insert")).map((c) => c.substring(0, c.length - 1));
   }
 
   // ---- Page-level lifecycle waiter that follows main frame id swaps ----
