@@ -367,6 +367,7 @@ export class Locator {
 
       await runLocatorStep(progress, "dispatching mouse events", () =>
         session.send<never>("Input.dispatchMouseEvent", {
+          modifiers: this.frame.inputModifiers(),
           type: "mouseMoved",
           x: cx,
           y: cy,
@@ -421,6 +422,7 @@ export class Locator {
       dispatches.push(
         runLocatorStep(progress, "dispatching mouse events", () =>
           session.send<never>("Input.dispatchMouseEvent", {
+            modifiers: this.frame.inputModifiers(),
             type: "mouseMoved",
             x: cx,
             y: cy,
@@ -433,6 +435,7 @@ export class Locator {
         dispatches.push(
           runLocatorStep(progress, "dispatching mouse events", () =>
             session.send<never>("Input.dispatchMouseEvent", {
+              modifiers: this.frame.inputModifiers(),
               type: "mousePressed",
               x: cx,
               y: cy,
@@ -444,6 +447,7 @@ export class Locator {
         dispatches.push(
           runLocatorStep(progress, "dispatching mouse events", () =>
             session.send<never>("Input.dispatchMouseEvent", {
+              modifiers: this.frame.inputModifiers(),
               type: "mouseReleased",
               x: cx,
               y: cy,
