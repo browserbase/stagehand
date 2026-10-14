@@ -4,7 +4,7 @@ export default defineBenchTask(
   { name: "scroll_50" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/aigrant/");
       await stagehand.act("Scroll 50% down the page");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));

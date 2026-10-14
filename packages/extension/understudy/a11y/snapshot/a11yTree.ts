@@ -1,11 +1,16 @@
 import type { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "../../cdp.js";
+import { type Progress, runLocatorStep } from "../../progress.js";
 import type {
   A11yNode,
   A11yOptions,
   AccessibilityTreeResult,
 } from "../../../types/private/snapshot.js";
-import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
+import {
+  releaseSnapshotObject,
+  resolveObjectIdForCss,
+  resolveObjectIdForXPath,
+} from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
 /**
@@ -16,27 +21,36 @@ export async function a11yForFrame(
   session: CDPSessionLike,
   frameId: string | undefined,
   opts: A11yOptions,
+  progress?: Progress,
 ): Promise<AccessibilityTreeResult> {
-  await session.send("Accessibility.enable").catch(() => {});
-  await session.send("Runtime.enable").catch(() => {});
-  await session.send("DOM.enable").catch(() => {});
+  await runLocatorStep(progress, "enabling Accessibility", () =>
+    session.send("Accessibility.enable").catch(() => {}),
+  );
+  await runLocatorStep(progress, "enabling Runtime", () =>
+    session.send("Runtime.enable").catch(() => {}),
+  );
+  await runLocatorStep(progress, "enabling DOM", () => session.send("DOM.enable").catch(() => {}));
 
   let nodes: Protocol.Accessibility.AXNode[] = [];
   try {
     const params = frameId ? ({ frameId } as Record<string, unknown>) : {};
-    ({ nodes } = await session.send<{
-      nodes: Protocol.Accessibility.AXNode[];
-    }>("Accessibility.getFullAXTree", params));
+    ({ nodes } = await runLocatorStep(progress, "reading snapshot accessibility tree", () =>
+      session.send<Protocol.Accessibility.GetFullAXTreeResponse>(
+        "Accessibility.getFullAXTree",
+        params,
+      ),
+    ));
   } catch (e) {
+    progress?.throwIfStopped();
     const msg = String((e as Error)?.message ?? e ?? "");
     const isFrameScopeError =
       msg.includes("Frame with the given") ||
       msg.includes("does not belong to the target") ||
       msg.includes("is not found");
     if (!isFrameScopeError || !frameId) throw e;
-    ({ nodes } = await session.send<{
-      nodes: Protocol.Accessibility.AXNode[];
-    }>("Accessibility.getFullAXTree"));
+    ({ nodes } = await runLocatorStep(progress, "reading snapshot accessibility tree", () =>
+      session.send<Protocol.Accessibility.GetFullAXTreeResponse>("Accessibility.getFullAXTree"),
+    ));
   }
 
   let scopeApplied = false;
@@ -45,16 +59,17 @@ export async function a11yForFrame(
     if (!locator) return nodes;
     const sel = locator.selector.trim();
     if (!sel) return nodes;
+    let objectId: string | null = null;
     try {
       const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
       const nth = locator.nth ?? 0;
-      const objectId = looksLikeXPath
-        ? await resolveObjectIdForXPath(session, sel, frameId, nth)
-        : await resolveObjectIdForCss(session, sel, frameId, nth);
+      objectId = looksLikeXPath
+        ? await resolveObjectIdForXPath(session, sel, frameId, nth, progress)
+        : await resolveObjectIdForCss(session, sel, frameId, nth, progress);
       if (!objectId) return nodes;
-      const desc = await session.send<{ node?: { backendNodeId?: number } }>("DOM.describeNode", {
-        objectId,
-      });
+      const desc = await runLocatorStep(progress, "reading snapshot focus", () =>
+        session.send<Protocol.DOM.DescribeNodeResponse>("DOM.describeNode", { objectId }),
+      );
       const be = desc.node?.backendNodeId;
       if (typeof be !== "number") return nodes;
       const target = nodes.find((n) => n.backendDOMNodeId === be);
@@ -75,10 +90,14 @@ export async function a11yForFrame(
         .filter((n) => keep.has(n.nodeId))
         .map((n) => (n.nodeId === target.nodeId ? { ...n, parentId: undefined } : n));
     } catch {
+      progress?.throwIfStopped();
       return nodes;
+    } finally {
+      await releaseSnapshotObject(session, objectId ?? undefined, progress);
     }
   })();
 
+  progress?.throwIfStopped();
   const filteredNodes = nodesForOutline.filter((node) => {
     const be = node.backendDOMNodeId;
     return typeof be !== "number" || !opts.isIgnoredBackendNode?.(be);
@@ -97,6 +116,7 @@ export async function a11yForFrame(
   const decorated = decorateRoles(filteredNodes, opts);
   const { tree } = await buildHierarchicalTree(decorated, opts);
 
+  progress?.throwIfStopped();
   const simplified = tree.map((n) => formatTreeLine(n)).join("\n");
   return { outline: simplified.trimEnd(), urlMap, scopeApplied };
 }

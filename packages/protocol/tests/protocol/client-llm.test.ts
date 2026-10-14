@@ -50,12 +50,6 @@ describe("client-side LLM protocol", () => {
       model: {
         source: "client",
       },
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
     });
   });
 

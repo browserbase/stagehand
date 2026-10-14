@@ -28,7 +28,7 @@ async def main() -> None:
             page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
-            await page.goto("https://example.com")
+            await page.goto("https://stagehand-eval-sites.vercel.app/sites/example/")
 
             result = await stagehand.extract(
                 "Extract the page heading and description",

@@ -37,25 +37,33 @@ export const integrationTestGroups = {
     "contextDomainPolicy",
     "contextExtraHttpHeaders",
   ],
-  "local/frames-shadow": ["coordinateClick", "nestedDiv"],
+  "local/frames-shadow": ["coordinateClick", "iframeLocatorReadiness", "nestedDiv"],
   "local/input": ["clipboard", "keyboard"],
   "local/locators-read": [
     "locatorContentMethods",
     "locatorCount",
     "locatorNth",
+    "locatorXPathTextPredicates",
     "textSelectorInnermost",
   ],
-  "local/locators-write": ["locatorFill", "locatorInputMethods", "locatorSelectOption"],
+  "local/locators-write": [
+    "fileUpload",
+    "locatorFill",
+    "locatorInputMethods",
+    "locatorSelectOption",
+  ],
   "local/page-navigation": ["pageAddInitScript", "pageExtraHttpHeaders", "pageGotoResponse"],
   "local/page-interactions": [
     "clickCount",
     "pageDragAndDrop",
     "pageHover",
+    "pagePdf",
     "pageScreenshot",
     "pageScroll",
   ],
-  "local/snapshots-ai": ["observeElementIdFormat", "unicodeWellFormed"],
+  "local/snapshots-ai": ["observeElementIdFormat", "serviceTimeouts", "unicodeWellFormed"],
   "local/waits-timeouts": ["waitForSelector", "waitForTimeout"],
+  "local/webmcp": ["webmcpDiscovery", "webmcpIframes"],
 } as const;
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

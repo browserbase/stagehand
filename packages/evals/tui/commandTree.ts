@@ -58,6 +58,13 @@ export type CommandContext = {
   pushContext?: (segment: string) => void;
   popContext?: () => void;
   setContextPath?: (path: readonly string[]) => void;
+  /**
+   * Hand exclusive stdin ownership to a full-screen-ish handler (the welcome
+   * flows drive raw-byte listeners + clack prompts). Returns the restore fn.
+   * REPL: detaches readline's keypress listeners + pauses the interface.
+   * argv: releases the Esc-exits-CLI handler.
+   */
+  suspendInput?: () => () => void;
 };
 
 export type Resolution =
@@ -384,6 +391,13 @@ export function buildCommandTree(): CommandNode {
         process.env,
         configFile.core,
         configFile.tracing,
+        {
+          benchmarks: configFile.benchmarks,
+          harnesses: configFile.harnesses,
+          providers: configFile.providers,
+          verifier: configFile.verifier,
+          campaign: configFile.campaign,
+        },
       );
 
       if (ctx.abortRef === null) {
@@ -529,11 +543,11 @@ export function buildCommandTree(): CommandNode {
 
   const configPath: CommandNode = {
     name: "path",
-    summary: "Print the evals.config.json file path",
+    summary: "Print the tracked (or local) config file path",
     printHelp: printConfigHelpThunk,
-    handler: async (_args, ctx) => {
+    handler: async (args, ctx) => {
       const { handleConfig } = await import("./commands/config.js");
-      await handleConfig(["path"], ctx.entryDir);
+      await handleConfig(["path", ...args], ctx.entryDir);
     },
   };
   const configSet: CommandNode = {
@@ -639,6 +653,26 @@ export function buildCommandTree(): CommandNode {
     },
   };
 
+  const setupNode: CommandNode = {
+    name: "setup",
+    summary: "Guided setup for agent benchmarks (provider key, browser)",
+    printHelp: async () => (await import("./commands/setup.js")).printSetupHelp(),
+    handler: async (args, ctx) => {
+      const { handleSetup } = await import("./commands/setup.js");
+      await handleSetup(args, ctx);
+    },
+  };
+
+  const welcomeNode: CommandNode = {
+    name: "welcome",
+    summary: "Guided onboarding on a real benchmark task",
+    printHelp: async () => (await import("./welcome/index.js")).printWelcomeHelp(),
+    handler: async (args, ctx) => {
+      const { handleWelcome } = await import("./welcome/index.js");
+      await handleWelcome(args, ctx);
+    },
+  };
+
   const verifyNode: CommandNode = {
     name: "verify",
     summary: "Re-score a saved trajectory",
@@ -653,7 +687,17 @@ export function buildCommandTree(): CommandNode {
     name: "evals",
     summary: "Stagehand evals CLI",
     printHelp: async () => (await help()).printHelp(),
-    children: [runNode, listNode, configNode, experimentsNode, newNode, verifyNode, doctorNode],
+    children: [
+      runNode,
+      listNode,
+      configNode,
+      experimentsNode,
+      newNode,
+      verifyNode,
+      doctorNode,
+      setupNode,
+      welcomeNode,
+    ],
   };
 
   return root;

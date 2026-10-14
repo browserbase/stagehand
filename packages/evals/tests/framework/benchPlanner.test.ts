@@ -212,12 +212,12 @@ describe("benchPlanner", () => {
     expect(testcases[0].input.isCUA).toBeUndefined();
     expect(testcases[0].tags).toContain("harness/claude_code");
     expect(testcases[0].metadata.harness).toBe("claude_code");
-    expect(testcases[0].metadata.toolSurface).toBe("browse_cli");
+    expect(testcases[0].metadata.toolSurface).toBe("stagehand_facade");
     expect(testcases[0].metadata.startupProfile).toBe("tool_launch_local");
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
-  it("keeps codex as a harness-level matrix with browse_cli metadata", async () => {
+  it("keeps codex as a harness-level matrix with facade metadata", async () => {
     const testcases = await withEnvOverrides(
       {
         EVAL_MAX_K: "1",
@@ -237,9 +237,9 @@ describe("benchPlanner", () => {
     expect(testcases[0].input.isCUA).toBeUndefined();
     expect(testcases[0].tags).toContain("harness/codex");
     expect(testcases[0].metadata.harness).toBe("codex");
-    expect(testcases[0].metadata.toolSurface).toBe("browse_cli");
+    expect(testcases[0].metadata.toolSurface).toBe("stagehand_facade");
     expect(testcases[0].metadata.startupProfile).toBe("tool_launch_local");
-    expect(testcases[0].metadata.toolCommand).toBe("browse");
+    expect(testcases[0].metadata.toolCommand).toBeUndefined();
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
@@ -332,4 +332,24 @@ describe("benchPlanner", () => {
     expect(testcases[0].metadata.task_category).not.toBe(testcases[0].metadata.category);
     expect(testcases[0].metadata.task_category).not.toBe("agent");
   });
+});
+
+it.each([
+  ["1", "stagehand_facade", "explicit_snapshot_actions"],
+  ["", "stagehand_facade", "default"],
+  ["1", "playwright_mcp", undefined],
+] as const)("records the prompt variant for %s on %s", async (enabled, toolSurface, expected) => {
+  await withEnvOverrides(
+    { EXPLICIT_SNAPSHOT_ACTIONS: enabled, EVAL_HARDBENCHMARK_LIMIT: "1", EVAL_MAX_K: "1" },
+    async () => {
+      const result = generateSuiteTestcases(
+        [makeSuiteTask("agent/hardbenchmark")],
+        { harness: "codex", datasetFilter: "hardbenchmark", coreToolSurface: toolSurface },
+        [{ modelName: "openai/gpt-4.1-mini", mode: "hybrid", cua: false }],
+      );
+      expect(result.testcases.length).toBeGreaterThan(0);
+      for (const testcase of result.testcases)
+        expect(testcase.metadata.promptVariant).toBe(expected);
+    },
+  );
 });

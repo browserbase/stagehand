@@ -85,6 +85,7 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
 
       const call = normalizeItem(itemType, item, pendingReasoning);
       if (call) {
+        if (typeof item.id === "string") call.id = item.id;
         toolCalls.push(call);
         pendingReasoning = "";
       }
@@ -96,7 +97,17 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
     // the bridge some other way), ordinals would shift and attach evidence
     // to the wrong steps — misattribution is worse than a gap, so attach
     // nothing and let the verifier take its evidence_insufficient path.
-    const observations = result.stepObservations ?? [];
+    const keyed = new Map(
+      (result.stepObservations ?? [])
+        .filter((observation) => observation.toolCallId)
+        .map((observation) => [observation.toolCallId, observation.evidence]),
+    );
+    for (const call of toolCalls) {
+      if (call.id && keyed.has(call.id)) call.probeEvidence = keyed.get(call.id);
+    }
+    const observations = (result.stepObservations ?? []).filter(
+      (observation) => !observation.toolCallId,
+    );
     if (observations.length > 0) {
       const observedCalls = toolCalls.filter((call) =>
         result.observedToolName

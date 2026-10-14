@@ -1,4 +1,4 @@
-import { Args, Flags } from "@oclif/core";
+import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
 import {
@@ -13,7 +13,6 @@ export default class MouseHover extends BrowseCommand {
 
   static override examples = [
     "browse mouse hover 240 320",
-    "browse mouse hover 240 320 --return-xpath",
     "browse mouse hover 240 320 --session research",
   ];
 
@@ -24,10 +23,6 @@ export default class MouseHover extends BrowseCommand {
 
   static override flags = {
     ...driverCommandFlags,
-    "return-xpath": Flags.boolean({
-      description:
-        "Include the XPath under the coordinate when the driver can return it.",
-    }),
   };
 
   async run(): Promise<void> {
@@ -35,7 +30,6 @@ export default class MouseHover extends BrowseCommand {
     await runDriverCommandFromFlags(
       "mouse.hover",
       {
-        returnXPath: flags["return-xpath"],
         x: parseNumber(args.x, "x"),
         y: parseNumber(args.y, "y"),
       },

@@ -1,4 +1,5 @@
 import { Locator } from "./locator.js";
+import type { Progress } from "./progress.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
 import { FrameLocator, frameLocatorFromFrame } from "./frameLocator.js";
@@ -54,8 +55,9 @@ export async function deepLocatorThroughIframes(
   page: Page,
   root: Frame,
   xpathOrSelector: string,
+  progress?: Progress,
 ): Promise<Locator> {
-  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector);
+  const target = await resolveDeepXPathTarget(page, root, xpathOrSelector, progress);
   return new Locator(target.frame, target.selector);
 }
 
@@ -67,7 +69,9 @@ export async function resolveLocatorTarget(
   page: Page,
   root: Frame,
   selectorRaw: string,
+  progress?: Progress,
 ): Promise<ResolvedLocatorTarget> {
+  progress?.throwIfStopped();
   const sel = selectorRaw.trim();
   const parts = sel
     .split(">>")
@@ -80,14 +84,14 @@ export async function resolveLocatorTarget(
     for (let i = 1; i < parts.length - 1; i++) {
       fl = fl.frameLocator(parts[i]!);
     }
-    const targetFrame = await fl.resolveFrame();
+    const targetFrame = await fl.resolveFrame(progress);
     return { frame: targetFrame, selector: parts[parts.length - 1]! };
   }
 
   // No hops — delegate to XPath-aware deep resolver when needed
   const isXPath = sel.startsWith("xpath=") || sel.startsWith("/");
   if (isXPath) {
-    return resolveDeepXPathTarget(page, root, sel);
+    return resolveDeepXPathTarget(page, root, sel, progress);
   }
   return { frame: root, selector: sel };
 }
@@ -96,8 +100,9 @@ export async function resolveLocatorWithHops(
   page: Page,
   root: Frame,
   selectorRaw: string,
+  progress?: Progress,
 ): Promise<Locator> {
-  const target = await resolveLocatorTarget(page, root, selectorRaw);
+  const target = await resolveLocatorTarget(page, root, selectorRaw, progress);
   return new Locator(target.frame, target.selector);
 }
 
@@ -118,74 +123,80 @@ export class DeepLocatorDelegate {
     readonly nthIndex: number = -1,
   ) {}
 
-  async real(): Promise<Locator> {
-    const base = await resolveLocatorWithHops(this.page, this.root, this.selector);
+  async real(progress?: Progress): Promise<Locator> {
+    const base = await resolveLocatorWithHops(this.page, this.root, this.selector, progress);
     return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
   }
 
   // Locator API delegates
-  async click(options?: { button?: MouseButton; clickCount?: number }) {
-    return (await this.real()).click(options);
+  async click(options?: { button?: MouseButton; clickCount?: number }, progress?: Progress) {
+    return (await this.real(progress)).click(options, progress);
   }
-  async count() {
-    return (await this.real()).count();
+  async count(progress?: Progress) {
+    return (await this.real(progress)).count(progress);
   }
-  async hover() {
-    return (await this.real()).hover();
+  async hover(progress?: Progress) {
+    return (await this.real(progress)).hover(progress);
   }
-  async fill(value: string) {
-    return (await this.real()).fill(value);
+  async fill(value: string, progress?: Progress) {
+    return (await this.real(progress)).fill(value, progress);
   }
-  async type(text: string, options?: { delay?: number }) {
-    return (await this.real()).type(text, options);
+  async type(text: string, options?: { delay?: number }, progress?: Progress) {
+    return (await this.real(progress)).type(text, options, progress);
   }
-  async selectOption(values: string | string[]) {
-    return (await this.real()).selectOption(values);
+  async selectOption(values: string | string[], progress?: Progress) {
+    return (await this.real(progress)).selectOption(values, progress);
   }
-  async scrollTo(percent: number | string) {
-    return (await this.real()).scrollTo(percent);
+  async scrollTo(percent: number | string, progress?: Progress) {
+    return (await this.real(progress)).scrollTo(percent, progress);
   }
-  async isVisible() {
-    return (await this.real()).isVisible();
+  async isVisible(progress?: Progress) {
+    return (await this.real(progress)).isVisible(progress);
   }
-  async isChecked() {
-    return (await this.real()).isChecked();
+  async isChecked(progress?: Progress) {
+    return (await this.real(progress)).isChecked(progress);
   }
-  async inputValue() {
-    return (await this.real()).inputValue();
+  async inputValue(progress?: Progress) {
+    return (await this.real(progress)).inputValue(progress);
   }
-  async textContent() {
-    return (await this.real()).textContent();
+  async textContent(progress?: Progress) {
+    return (await this.real(progress)).textContent(progress);
   }
-  async innerHtml() {
-    return (await this.real()).innerHtml();
+  async innerHtml(progress?: Progress) {
+    return (await this.real(progress)).innerHtml(progress);
   }
-  async innerText() {
-    return (await this.real()).innerText();
+  async innerText(progress?: Progress) {
+    return (await this.real(progress)).innerText(progress);
   }
-  async centroid() {
-    return (await this.real()).centroid();
+  async centroid(progress?: Progress) {
+    return (await this.real(progress)).centroid(progress);
   }
-  async backendNodeId() {
-    return (await this.real()).backendNodeId();
+  async backendNodeId(progress?: Progress) {
+    return (await this.real(progress)).backendNodeId(progress);
   }
-  async highlight(options?: {
-    durationMs?: number;
-    borderColor?: { r: number; g: number; b: number; a?: number };
-    contentColor?: { r: number; g: number; b: number; a?: number };
-  }) {
-    return (await this.real()).highlight(options);
+  async highlight(
+    options?: {
+      durationMs?: number;
+      borderColor?: { r: number; g: number; b: number; a?: number };
+      contentColor?: { r: number; g: number; b: number; a?: number };
+    },
+    progress?: Progress,
+  ) {
+    return (await this.real(progress)).highlight(options, progress);
   }
-  async sendClickEvent(options?: {
-    bubbles?: boolean;
-    cancelable?: boolean;
-    composed?: boolean;
-    detail?: number;
-  }) {
-    return (await this.real()).sendClickEvent(options);
+  async sendClickEvent(
+    options?: {
+      bubbles?: boolean;
+      cancelable?: boolean;
+      composed?: boolean;
+      detail?: number;
+    },
+    progress?: Progress,
+  ) {
+    return (await this.real(progress)).sendClickEvent(options, progress);
   }
-  async setInputFiles(files: SetInputFilesArgument) {
-    return (await this.real()).setInputFiles(files);
+  async setInputFiles(files: SetInputFilesArgument, progress?: Progress) {
+    return (await this.real(progress)).setInputFiles(files, progress);
   }
   first() {
     return this.nth(0);
@@ -212,34 +223,51 @@ export function deepLocatorFromPage(
   return new DeepLocatorDelegate(page, root, selector);
 }
 
-async function resolveDeepXPathTarget(
-  page: Page,
-  root: Frame,
-  xpathOrSelector: string,
-): Promise<ResolvedLocatorTarget> {
+/**
+ * Plan deep-XPath frame hops without resolving frames.
+ * An iframe/frame step becomes a hop only when further selector steps follow it,
+ * so a trailing iframe remains a parent-frame element target.
+ */
+export function planDeepXPathTarget(xpathOrSelector: string): {
+  frameHopSelectors: string[];
+  finalSelector: string;
+} {
   let path = xpathOrSelector.trim();
   if (path.startsWith("xpath=")) path = path.slice("xpath=".length).trim();
   if (!path.startsWith("/")) path = "/" + path;
 
   const steps = parseXPath(path);
-  let fl: FrameLocator | undefined;
+  const frameHopSelectors: string[] = [];
   let buf: Step[] = [];
 
-  const flushIntoFrameLocator = () => {
-    if (!buf.length) return;
-    const selectorForIframe = "xpath=" + buildXPathFromSteps(buf);
-    fl = fl
-      ? fl.frameLocator(selectorForIframe)
-      : frameLocatorFromFrame(page, root, selectorForIframe);
-    buf = [];
-  };
-
-  for (const st of steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const st = steps[i]!;
     buf.push(st);
-    if (IFRAME_STEP_RE.test(st.name)) flushIntoFrameLocator();
+    const hasStepsAfter = i < steps.length - 1;
+    if (IFRAME_STEP_RE.test(st.name) && hasStepsAfter) {
+      frameHopSelectors.push("xpath=" + buildXPathFromSteps(buf));
+      buf = [];
+    }
   }
 
-  const finalSelector = "xpath=" + buildXPathFromSteps(buf);
-  const targetFrame = fl ? await fl.resolveFrame() : root;
-  return { frame: targetFrame, selector: finalSelector };
+  return {
+    frameHopSelectors,
+    finalSelector: "xpath=" + buildXPathFromSteps(buf),
+  };
+}
+
+async function resolveDeepXPathTarget(
+  page: Page,
+  root: Frame,
+  xpathOrSelector: string,
+  progress?: Progress,
+): Promise<ResolvedLocatorTarget> {
+  progress?.throwIfStopped();
+  const plan = planDeepXPathTarget(xpathOrSelector);
+  let fl: FrameLocator | undefined;
+  for (const hop of plan.frameHopSelectors) {
+    fl = fl ? fl.frameLocator(hop) : frameLocatorFromFrame(page, root, hop);
+  }
+  const targetFrame = fl ? await fl.resolveFrame(progress) : root;
+  return { frame: targetFrame, selector: plan.finalSelector };
 }

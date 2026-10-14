@@ -10,7 +10,7 @@ describe("validateChangeset", () => {
 "@browserbasehq/stagehand-python": patch
 "@browserbasehq/stagehand-go": patch
 "@browserbasehq/stagehand-extension": patch
-"browse": patch
+"@browserbasehq/eve": minor
 ---
 
 Release the SDKs.
@@ -32,6 +32,18 @@ Do not release this package.
         "forbidden.md",
       ),
     ).toThrow("forbidden.md selects non-versioned packages: @browserbasehq/stagehand-docs");
+  });
+
+  it("accepts Browse alone and rejects a combined CLI/SDK release", () => {
+    expect(() =>
+      validateChangeset('---\n"browse": minor\n---\nCLI release', "cli.md"),
+    ).not.toThrow();
+    expect(() =>
+      validateChangeset(
+        '---\n"browse": minor\n"@browserbasehq/stagehand": patch\n---\nCombined',
+        "mixed.md",
+      ),
+    ).toThrow("must separate Browse and SDK releases");
   });
 
   it("rejects malformed frontmatter", () => {

@@ -22,6 +22,7 @@ from ._generated.models import (
     LocatorInputValueResult,
     LocatorIsCheckedResult,
     LocatorIsVisibleResult,
+    LocatorParams,
     LocatorScrollToParams,
     LocatorScrollToResult,
     LocatorSelectOptionParams,
@@ -76,11 +77,16 @@ class Locator:
         *,
         button: MouseButton | Literal["left", "right", "middle"] | None = None,
         click_count: int | None = None,
+        timeout: float | None = None,
     ) -> None:
-        values = self._descriptor.model_dump(exclude_unset=True)
+        values = self._params(timeout)
         options = LocatorClickOptions.model_validate({
             name: value
-            for name, value in (("button", button), ("click_count", click_count))
+            for name, value in (
+                ("button", button),
+                ("click_count", click_count),
+                ("timeout", timeout),
+            )
             if value is not None
         })
         if options.model_fields_set:
@@ -91,86 +97,86 @@ class Locator:
             LocatorClickResult,
         )
 
-    async def hover(self) -> None:
+    async def hover(self, *, timeout: float | None = None) -> None:
         await self._rpc_client.send(
             "locator.hover",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorHoverResult,
         )
 
-    async def fill(self, value: str) -> None:
+    async def fill(self, value: str, *, timeout: float | None = None) -> None:
         await self._rpc_client.send(
             "locator.fill",
             LocatorFillParams.model_validate({
-                **self._descriptor.model_dump(exclude_unset=True),
+                **self._params(timeout),
                 "value": value,
             }),
             LocatorFillResult,
         )
 
-    async def count(self) -> int:
+    async def count(self, *, timeout: float | None = None) -> int:
         return await self._rpc_client.send(
             "locator.count",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorCountResult,
         )
 
-    async def is_checked(self) -> bool:
+    async def is_checked(self, *, timeout: float | None = None) -> bool:
         return await self._rpc_client.send(
             "locator.is_checked",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorIsCheckedResult,
         )
 
-    async def input_value(self) -> str:
+    async def input_value(self, *, timeout: float | None = None) -> str:
         return await self._rpc_client.send(
             "locator.input_value",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorInputValueResult,
         )
 
-    async def is_visible(self) -> bool:
+    async def is_visible(self, *, timeout: float | None = None) -> bool:
         return await self._rpc_client.send(
             "locator.is_visible",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorIsVisibleResult,
         )
 
-    async def inner_text(self) -> str:
+    async def inner_text(self, *, timeout: float | None = None) -> str:
         return await self._rpc_client.send(
             "locator.inner_text",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorInnerTextResult,
         )
 
-    async def inner_html(self) -> str:
+    async def inner_html(self, *, timeout: float | None = None) -> str:
         return await self._rpc_client.send(
             "locator.inner_html",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorInnerHtmlResult,
         )
 
-    async def text_content(self) -> str:
+    async def text_content(self, *, timeout: float | None = None) -> str:
         return await self._rpc_client.send(
             "locator.text_content",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorTextContentResult,
         )
 
-    async def scroll_to(self, percent: float | str) -> None:
+    async def scroll_to(self, percent: float | str, *, timeout: float | None = None) -> None:
         await self._rpc_client.send(
             "locator.scroll_to",
             LocatorScrollToParams.model_validate({
-                **self._descriptor.model_dump(exclude_unset=True),
+                **self._params(timeout),
                 "percent": percent,
             }),
             LocatorScrollToResult,
         )
 
-    async def centroid(self) -> LocatorCentroidResult:
+    async def centroid(self, *, timeout: float | None = None) -> LocatorCentroidResult:
         return await self._rpc_client.send(
             "locator.centroid",
-            self._descriptor,
+            LocatorParams.model_validate(self._params(timeout)),
             LocatorCentroidResult,
         )
 
@@ -180,14 +186,16 @@ class Locator:
         duration_ms: int | None = None,
         border_color: RgbaColor | None = None,
         content_color: RgbaColor | None = None,
+        timeout: float | None = None,
     ) -> None:
-        values = self._descriptor.model_dump(exclude_unset=True)
+        values = self._params(timeout)
         options = LocatorHighlightOptions.model_validate({
             name: value
             for name, value in (
                 ("duration_ms", duration_ms),
                 ("border_color", border_color),
                 ("content_color", content_color),
+                ("timeout", timeout),
             )
             if value is not None
         })
@@ -206,8 +214,9 @@ class Locator:
         cancelable: bool | None = None,
         composed: bool | None = None,
         detail: float | None = None,
+        timeout: float | None = None,
     ) -> None:
-        values = self._descriptor.model_dump(exclude_unset=True)
+        values = self._params(timeout)
         options = LocatorSendClickEventOptions.model_validate({
             name: value
             for name, value in (
@@ -215,6 +224,7 @@ class Locator:
                 ("cancelable", cancelable),
                 ("composed", composed),
                 ("detail", detail),
+                ("timeout", timeout),
             )
             if value is not None
         })
@@ -226,21 +236,30 @@ class Locator:
             LocatorSendClickEventResult,
         )
 
-    async def type(self, text: str, *, delay: float | None = None) -> None:
-        values = {**self._descriptor.model_dump(exclude_unset=True), "text": text}
-        if delay is not None:
-            values["options"] = LocatorTypeOptions(delay=delay)
+    async def type(
+        self, text: str, *, delay: float | None = None, timeout: float | None = None
+    ) -> None:
+        values = {**self._params(timeout), "text": text}
+        options = LocatorTypeOptions.model_validate({
+            name: value
+            for name, value in (("delay", delay), ("timeout", timeout))
+            if value is not None
+        })
+        if options.model_fields_set:
+            values["options"] = options
         await self._rpc_client.send(
             "locator.type",
             LocatorTypeParams.model_validate(values),
             LocatorTypeResult,
         )
 
-    async def select_option(self, values: str | Sequence[str]) -> list[str]:
+    async def select_option(
+        self, values: str | Sequence[str], *, timeout: float | None = None
+    ) -> list[str]:
         return await self._rpc_client.send(
             "locator.select_option",
             LocatorSelectOptionParams.model_validate({
-                **self._descriptor.model_dump(exclude_unset=True),
+                **self._params(timeout),
                 "values": list(values) if not isinstance(values, str) else values,
             }),
             LocatorSelectOptionResult,
@@ -249,15 +268,25 @@ class Locator:
     async def set_input_files(
         self,
         files: FileInput | Sequence[FileInput],
+        *,
+        timeout: float | None = None,
     ) -> None:
         await self._rpc_client.send(
             "locator.set_input_files",
             LocatorSetInputFilesParams.model_validate({
-                **self._descriptor.model_dump(exclude_unset=True),
+                **self._params(timeout),
                 "files": normalize_file_input(files),
             }),
             LocatorSetInputFilesResult,
         )
+
+    def _params(self, timeout: float | None) -> dict[str, object]:
+        values: dict[str, object] = {"page_id": self.page_id, "selector": self.selector}
+        if self.nth_index is not None:
+            values["nth"] = self.nth_index
+        if timeout is not None:
+            values["options"] = {"timeout": timeout}
+        return values
 
     def first(self) -> Self:
         return self.nth(0)

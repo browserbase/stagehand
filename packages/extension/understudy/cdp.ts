@@ -19,6 +19,15 @@ export interface CDPSessionLike {
   readonly id: string | null;
 }
 
+/** Closure errors emitted by this transport, not transient execution-context loss. */
+export function isCdpClosedError(error: unknown): error is Error {
+  return (
+    error instanceof Error &&
+    (error.message.startsWith("CDP connection closed:") ||
+      error.message.startsWith("No Page found for target closed before CDP "))
+  );
+}
+
 export type CdpWebSocketCloseEvent = {
   code: number;
   reason: string;
