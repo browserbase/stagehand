@@ -127,7 +127,7 @@ export function describeKey(input: string, modifiers: number): KeyDescription {
     const printable = modifiers & 8 && key === plain ? shifted : key;
     return { key: printable, code, windowsVirtualKeyCode: vk, text: printable };
   }
-  return { key, ...(/^.$/u.test(key) ? { text: key } : {}) };
+  return { key, ...(/^.$/su.test(key) ? { text: key } : {}) };
 }
 
 export function macCommands(code: string | undefined, modifiers: number): { commands?: string[] } {
