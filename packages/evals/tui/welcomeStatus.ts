@@ -13,14 +13,11 @@
  * is a deliberate policy change, not a code edit.
  */
 
-import fs from "node:fs";
-import path from "node:path";
-import dotenv from "dotenv";
 import { cyan, dim, yellow } from "./format.js";
-import { getPackageRootDir } from "../runtimePaths.js";
+import { getEvalsEnvReport } from "../evalsEnv.js";
 
 export type KeyState = "set" | "missing";
-export type KeySource = "process-env" | "package-dotenv" | "none";
+export type KeySource = "process-env" | "package-dotenv" | "cwd-dotenv" | "none";
 
 export type ProviderKeyEntry = {
   state: KeyState;
@@ -53,37 +50,11 @@ export type EnvSnapshot = {
   langsmith: LangSmithKeyEntry;
 };
 
-// ---------------------------------------------------------------------------
-// Package-dotenv loader (one-shot, cached for the process lifetime).
-// Mirrors the pattern in lib/braintrust-report.ts:365-373 — read
-// packages/evals/.env so users running `pnpm evals` from the repo root
-// (cwd ≠ packages/evals) still see their package-local keys.
-// ---------------------------------------------------------------------------
-
-let cachedPackageEnv: Record<string, string> | null = null;
-let packageEnvLoaded = false;
-
-function loadPackageEnv(): Record<string, string> {
-  // Test escape hatch: set EVALS_DISABLE_PACKAGE_ENV=1 to skip reading the
-  // package-local .env file. Lives in process.env (not a module-scoped
-  // variable) so it works regardless of how the welcomeStatus module is
-  // resolved by the test runner.
-  if (process.env.EVALS_DISABLE_PACKAGE_ENV === "1") return {};
-  if (packageEnvLoaded) return cachedPackageEnv ?? {};
-  packageEnvLoaded = true;
-  try {
-    const envPath = path.join(getPackageRootDir(), ".env");
-    const raw = fs.readFileSync(envPath, "utf-8");
-    cachedPackageEnv = dotenv.parse(raw);
-  } catch {
-    cachedPackageEnv = null;
-  }
-  return cachedPackageEnv ?? {};
-}
-
 /**
- * Resolve a single env var, checking process.env first then the package .env.
- * Returns the value + which source it came from.
+ * Resolve a single env var from process.env, which `loadEvalsEnv()` has
+ * already filled from the .env files at the CLI entry — so this sees exactly
+ * what the runner sees. The source says which file supplied the key, or
+ * `process-env` for a shell export / CI secret.
  *
  * Exported so callers that need the actual value (e.g. the doctor's
  * `--probe` flag) can use the same resolution as `snapshotEnv()`. The
@@ -93,11 +64,12 @@ function loadPackageEnv(): Record<string, string> {
 export function resolveKey(name: string): { value: string; source: KeySource } {
   const fromProcess = process.env[name];
   if (fromProcess && fromProcess.length > 0) {
-    return { value: fromProcess, source: "process-env" };
-  }
-  const fromPackage = loadPackageEnv()[name];
-  if (fromPackage && fromPackage.length > 0) {
-    return { value: fromPackage, source: "package-dotenv" };
+    // When loadEvalsEnv() ran (the CLI entry), it knows which file put the
+    // key there; anything else was a shell export / CI secret.
+    const fileKind = getEvalsEnvReport()?.sources.get(name);
+    const source: KeySource =
+      fileKind === "package" ? "package-dotenv" : fileKind === "cwd" ? "cwd-dotenv" : "process-env";
+    return { value: fromProcess, source };
   }
   return { value: "", source: "none" };
 }
@@ -172,8 +144,8 @@ function browserbaseEntry(): BrowserbaseKeyEntry {
 }
 
 /**
- * Read process.env + packages/evals/.env into a single snapshot.
- * Pure modulo the cached dotenv read; safe to call repeatedly.
+ * Snapshot of which keys are set, from process.env (see resolveKey).
+ * Pure; safe to call repeatedly.
  */
 export function snapshotEnv(): EnvSnapshot {
   return {
@@ -201,12 +173,4 @@ export function hasZeroProviderKeys(s: EnvSnapshot): boolean {
 export function renderInlineWarning(s: EnvSnapshot): string | null {
   if (!hasZeroProviderKeys(s)) return null;
   return `  ${yellow("⚠ No provider API key found.")} ${dim("Run")} ${cyan("evals doctor")} ${dim("for setup help.")}`;
-}
-
-/**
- * Internal helper exported for tests so the cached dotenv can be reset.
- */
-export function __resetPackageEnvCacheForTests(): void {
-  cachedPackageEnv = null;
-  packageEnvLoaded = false;
 }

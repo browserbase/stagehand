@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -47,6 +48,7 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 	extensionDir := browser.extensionDir
 	assertLiveStagehand(t, ctx, client)
 	assertNavigationResponse(t, ctx, client, fixture.URL, fixtureBody)
+	assertLocatorTimeouts(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with local browser error = %v", err)
 	}
@@ -57,6 +59,114 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 		t.Fatalf("Browser.Close() with local browser error = %v", err)
 	}
 	assertExtensionDirectoryRemoved(t, extensionDir)
+}
+
+func assertLocatorTimeouts(t *testing.T, ctx context.Context, client *Stagehand) {
+	t.Helper()
+	browserContext, err := client.Browser().Context()
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page == nil {
+		t.Fatal("browser has no active page")
+	}
+	for _, test := range []struct {
+		name    string
+		timeout float64
+	}{
+		{"locator deadline", 250}, {"unlimited locator", 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gate := make(chan struct{})
+			childRequested := make(chan struct{}, 1)
+			release := sync.OnceFunc(func() { close(gate) })
+			fixture := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				if r.URL.Path == "/child" {
+					select {
+					case childRequested <- struct{}{}:
+					default:
+					}
+					select {
+					case <-gate:
+					case <-r.Context().Done():
+						return
+					}
+					_, _ = w.Write([]byte(`<button id="b" onclick="this.textContent=Number(this.textContent)+1">0</button>`))
+				} else {
+					_, _ = w.Write([]byte(`<!doctype html><iframe src="/child"></iframe>`))
+				}
+			}))
+			defer fixture.Close()
+			defer release()
+			callContext, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			if _, err := page.Goto(callContext, fixture.URL, &PageNavigationOptions{WaitUntil: new(LoadStateDOMContentLoaded)}); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-childRequested:
+			case <-callContext.Done():
+				t.Fatal("browser did not request the delayed iframe")
+			}
+			button := page.Locator("iframe >> #b")
+			done := make(chan error, 1)
+			go func() { done <- button.Click(callContext, &LocatorClickOptions{Timeout: &test.timeout}) }()
+			if test.timeout != 0 {
+				var err error
+				select {
+				case err = <-done:
+				case <-callContext.Done():
+					t.Fatal("click did not return its browser timeout")
+				}
+				var rpcError *RPCError
+				if !errors.As(err, &rpcError) {
+					t.Fatalf("expected browser timeout, got %v", err)
+				}
+				var data struct{ Name string }
+				if err := json.Unmarshal(rpcError.Data, &data); err != nil {
+					t.Fatal(err)
+				}
+				if data.Name != "TimeoutError" || !strings.Contains(rpcError.Message, "locator.click") {
+					t.Fatalf("unexpected error: %+v", rpcError)
+				}
+				release()
+				text, err := button.InnerText(callContext, &LocatorOptions{Timeout: new(5000.0)})
+				if err != nil || text != "0" {
+					t.Fatalf("timed-out click fired when the iframe loaded: text=%q, err=%v", text, err)
+				}
+				time.Sleep(350 * time.Millisecond)
+				text, err = button.InnerText(callContext)
+				if err != nil || text != "0" {
+					t.Fatalf("timed-out click fired after its error: text=%q, err=%v", text, err)
+				}
+			} else {
+				// Stay blocked beyond the previous 1,200 ms frame readiness limit.
+				select {
+				case err := <-done:
+					t.Fatalf("unlimited click stopped before iframe loaded: %v", err)
+				case <-time.After(1600 * time.Millisecond):
+				}
+				release()
+				select {
+				case err := <-done:
+					if err != nil {
+						t.Fatal(err)
+					}
+				case <-callContext.Done():
+					t.Fatal("unlimited click did not finish after iframe loaded")
+				}
+				text, err := button.InnerText(callContext)
+				if err != nil || text != "1" {
+					t.Fatalf("unlimited click did not execute exactly once: text=%q, err=%v", text, err)
+				}
+			}
+		})
+	}
 }
 
 func assertNavigationResponse(

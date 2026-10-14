@@ -145,12 +145,7 @@ class Animations(StrEnum):
 
 
 class AnthropicModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^anthropic\\/(claude-3-haiku-20240307|claude-haiku-4-5-20251001|claude-haiku-4-5|claude-opus-4-0|claude-opus-4-20250514|claude-opus-4-1-20250805|claude-opus-4-1|claude-opus-4-5|claude-opus-4-5-20251101|claude-sonnet-4-0|claude-sonnet-4-20250514|claude-sonnet-4-5-20250929|claude-sonnet-4-5|claude-sonnet-4-6|claude-opus-4-6|claude-opus-4-7|claude-opus-4-8|claude-fable-5|claude-sonnet-5)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^anthropic\\/\\S+$")]
 
 
 class Browser(StrEnum):
@@ -350,12 +345,7 @@ class Caret(StrEnum):
 
 
 class CerebrasModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^cerebras\\/(llama3\\.1-8b|gpt-oss-120b|qwen-3-235b-a22b-instruct-2507|qwen-3-235b-a22b-thinking-2507|zai-glm-4\\.6|zai-glm-4\\.7)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^cerebras\\/\\S+$")]
 
 
 class ClearCookieOptions(WireModel):
@@ -709,21 +699,11 @@ class FieldSchema9(
 
 
 class GoogleModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^google\\/(gemini-2\\.0-flash|gemini-2\\.0-flash-001|gemini-2\\.0-flash-lite|gemini-2\\.0-flash-lite-001|gemini-2\\.5-pro|gemini-2\\.5-flash|gemini-2\\.5-flash-image|gemini-2\\.5-flash-lite|gemini-2\\.5-flash-preview-tts|gemini-2\\.5-pro-preview-tts|gemini-2\\.5-flash-native-audio-latest|gemini-2\\.5-flash-native-audio-preview-09-2025|gemini-2\\.5-flash-native-audio-preview-12-2025|gemini-2\\.5-computer-use-preview-10-2025|gemini-3-pro-preview|gemini-3-pro-image-preview|gemini-3-flash-preview|gemini-3\\.1-pro-preview|gemini-3\\.1-pro-preview-customtools|gemini-3\\.1-flash-image-preview|gemini-3\\.1-flash-lite-preview|gemini-3\\.1-flash-tts-preview|gemini-3\\.5-flash|gemini-3\\.6-flash|gemini-pro-latest|gemini-flash-latest|gemini-flash-lite-latest|deep-research-pro-preview-12-2025|deep-research-max-preview-04-2026|deep-research-preview-04-2026|nano-banana-pro-preview|aqa|gemini-robotics-er-1\\.5-preview|gemma-3-1b-it|gemma-3-4b-it|gemma-3n-e4b-it|gemma-3n-e2b-it|gemma-3-12b-it|gemma-3-27b-it)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^google\\/\\S+$")]
 
 
 class GroqModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^groq\\/(gemma2-9b-it|llama-3\\.1-8b-instant|llama-3\\.3-70b-versatile|meta-llama\\/llama-guard-4-12b|openai\\/gpt-oss-120b|openai\\/gpt-oss-20b|deepseek-r1-distill-llama-70b|meta-llama\\/llama-4-maverick-17b-128e-instruct|meta-llama\\/llama-4-scout-17b-16e-instruct|meta-llama\\/llama-prompt-guard-2-22m|meta-llama\\/llama-prompt-guard-2-86m|moonshotai\\/kimi-k2-instruct-0905|qwen\\/qwen3-32b|llama-guard-3-8b|llama3-70b-8192|llama3-8b-8192|mixtral-8x7b-32768|qwen-qwq-32b|qwen-2\\.5-32b|deepseek-r1-distill-qwen-32b)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^groq\\/\\S+$")]
 
 
 class HttpVersion(StrEnum):
@@ -1061,6 +1041,8 @@ class LocatorClickOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
 
@@ -1106,6 +1088,7 @@ class LocatorFillParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     value: StrictStr
 
 
@@ -1122,6 +1105,8 @@ class LocatorHighlightOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     duration_ms: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     border_color: Optional[RgbaColor] = None
     content_color: Optional[RgbaColor] = None
@@ -1174,6 +1159,26 @@ class LocatorIsVisibleResult(RootModel[StrictBool]):
     root: StrictBool
 
 
+class LocatorOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
+
+
+class LocatorParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    selector: Annotated[StrictStr, Field(min_length=1)]
+    nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
+
+
 class LocatorScrollToParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1182,6 +1187,7 @@ class LocatorScrollToParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     percent: Union[StrictFloat, StrictStr]
 
 
@@ -1201,6 +1207,7 @@ class LocatorSelectOptionParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     values: Union[StrictStr, list[StrictStr]]
 
 
@@ -1213,6 +1220,8 @@ class LocatorSendClickEventOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     bubbles: Optional[StrictBool] = None
     cancelable: Optional[StrictBool] = None
     composed: Optional[StrictBool] = None
@@ -1246,6 +1255,7 @@ class LocatorSetInputFilesParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    options: Optional[LocatorOptions] = None
     files: list[InputFilePayload]
 
 
@@ -1266,6 +1276,8 @@ class LocatorTypeOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole locator call. Zero disables the timeout."""
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
 
 
@@ -1277,8 +1289,8 @@ class LocatorTypeParams(WireModel):
     page_id: StrictStr
     selector: Annotated[StrictStr, Field(min_length=1)]
     nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
-    text: StrictStr
     options: Optional[LocatorTypeOptions] = None
+    text: StrictStr
 
 
 class LocatorTypeResult(WireModel):
@@ -1430,19 +1442,14 @@ class ObserveResult(WireModel):
 
 
 class OpenAIModelName(RootModel[StrictStr]):
-    root: Annotated[
-        StrictStr,
-        Field(
-            pattern="^openai\\/(gpt-4\\.1|gpt-4\\.1-2025-04-14|gpt-4\\.1-mini|gpt-4\\.1-mini-2025-04-14|gpt-4\\.1-nano|gpt-4\\.1-nano-2025-04-14|gpt-4o|gpt-4o-2024-05-13|gpt-4o-2024-08-06|gpt-4o-2024-11-20|gpt-4o-audio-preview|gpt-4o-audio-preview-2024-12-17|gpt-4o-search-preview|gpt-4o-search-preview-2025-03-11|gpt-4o-mini-search-preview|gpt-4o-mini-search-preview-2025-03-11|gpt-4o-mini|gpt-4o-mini-2024-07-18|gpt-3\\.5-turbo-0125|gpt-3\\.5-turbo|gpt-3\\.5-turbo-1106|gpt-5-chat-latest|o1|o1-2024-12-17|o3|o3-2025-04-16|o3-mini|o3-mini-2025-01-31|o4-mini|o4-mini-2025-04-16|gpt-5|gpt-5-2025-08-07|gpt-5-codex|gpt-5-mini|gpt-5-mini-2025-08-07|gpt-5-nano|gpt-5-nano-2025-08-07|gpt-5-pro|gpt-5-pro-2025-10-06|gpt-5\\.1|gpt-5\\.1-chat-latest|gpt-5\\.1-codex-mini|gpt-5\\.1-codex|gpt-5\\.1-codex-max|gpt-5\\.2|gpt-5\\.2-chat-latest|gpt-5\\.2-pro|gpt-5\\.2-codex|gpt-5\\.3-chat-latest|gpt-5\\.3-codex|gpt-5\\.4|gpt-5\\.4-2026-03-05|gpt-5\\.4-mini|gpt-5\\.4-mini-2026-03-17|gpt-5\\.4-nano|gpt-5\\.4-nano-2026-03-17|gpt-5\\.4-pro|gpt-5\\.4-pro-2026-03-05|gpt-5\\.5|gpt-5\\.5-2026-04-23|gpt-5\\.6|gpt-5\\.6-luna|gpt-5\\.6-sol|gpt-5\\.6-terra)$"
-        ),
-    ]
+    root: Annotated[StrictStr, Field(pattern="^openai\\/\\S+$")]
 
 
 class ModelName(
     RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]]
 ):
     root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]
-    """An explicitly supported model name with its provider prefix"""
+    """A model name with a supported provider prefix"""
 
 
 class OperatingSystem(StrEnum):
@@ -1677,6 +1684,61 @@ class PageOnParams(WireModel):
     event: PageSubscriptionEventName
 
 
+class PagePDFMargin(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    top: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    bottom: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    left: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    right: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+
+
+class PagePDFOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    landscape: Optional[StrictBool] = None
+    display_header_footer: Optional[StrictBool] = None
+    print_background: Optional[StrictBool] = None
+    scale: Annotated[Optional[StrictFloat], Field(ge=0.1, le=2.0)] = None
+    width: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    height: Annotated[Optional[StrictFloat], Field(gt=0.0)] = None
+    margin: Optional[PagePDFMargin] = None
+    page_ranges: Optional[StrictStr] = None
+    header_template: Optional[StrictStr] = None
+    footer_template: Optional[StrictStr] = None
+    prefer_css_page_size: Optional[StrictBool] = None
+    tagged: Optional[StrictBool] = None
+    outline: Optional[StrictBool] = None
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0, le=2147473647.0)] = None
+
+
+class PagePDFParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[PagePDFOptions] = None
+
+
+class PagePDFResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    data: Annotated[
+        StrictStr,
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ]
+
+
 class PageRef(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1812,6 +1874,8 @@ class PageSnapshotOptions(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    """Milliseconds for the whole snapshot call. Defaults to 20000. Zero disables the timeout."""
     include_iframes: Optional[StrictBool] = None
 
 
@@ -2151,13 +2215,7 @@ class StagehandInitParams(WireModel):
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = Field(
-        default_factory=lambda: TelemetryConfig.model_validate(
-            {
-                "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-            }
-        )
-    )
+    telemetry: Optional[TelemetryConfig] = None
     log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None

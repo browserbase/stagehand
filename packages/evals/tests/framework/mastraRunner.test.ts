@@ -8,6 +8,7 @@ import {
   runMastraAgent,
 } from "../../framework/mastraRunner.js";
 import { EvalLogger } from "../../logger.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -92,6 +93,7 @@ describe("Mastra runner", () => {
       toolAdapter: {
         toolSurface: "stagehand_facade",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/tmp/mastra-test",
         promptInstructions: "Use Stagehand.",
         mcpServers: { stagehand: { command: "node", args: ["server.mjs"] } },
@@ -105,7 +107,11 @@ describe("Mastra runner", () => {
     expect(result.finalAnswer).toBe("ok");
     expect(agentConfig).toMatchObject({ model: "openai/gpt-5.4-mini" });
     expect(agentConfig?.instructions).not.toBe("Use Stagehand.");
-    expect(streamOptions).toMatchObject({ maxSteps: 50 });
+    expect((agentConfig?.instructions as string).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+    expect(streamOptions).toMatchObject({
+      maxSteps: 50,
+      providerOptions: { openai: { reasoningSummary: "detailed" } },
+    });
     expect(mcpServers?.stagehand).toMatchObject({ command: "node", onToolError: "return" });
     expect(metrics.harness_input_tokens.value).toBe(100);
     expect(metrics.harness_cached_input_tokens.value).toBe(10);
@@ -165,6 +171,8 @@ function fakeSdk(
       options.agentConfig?.(config);
       return {
         stream: async (_prompt: string, streamOptions?: Record<string, unknown>) => {
+          expect(_prompt).not.toContain(EVAL_SYSTEM_PROMPT);
+          expect(_prompt).toContain(plan.instruction);
           options.streamOptions?.(streamOptions);
           if (options.streamError) throw options.streamError;
           return {
@@ -185,3 +193,30 @@ function fakeSdk(
     createTool: (toolOptions: Parameters<MastraSdk["createTool"]>[0]) => toolOptions,
   };
 }
+
+it.each([false, true])(
+  "preserves token usage presence through mastra grading (reported=%s)",
+  async (reported) => {
+    const finalAnswer = 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}';
+    const result = await runMastraAgent({
+      plan,
+      model: "openai/gpt-5.4-mini" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk: fakeSdk([
+        { type: "text-delta", payload: { text: finalAnswer } },
+        {
+          type: "finish",
+          payload: {
+            stepResult: { reason: "stop" },
+            output: { ...(reported && { usage: { inputTokens: 0, outputTokens: 0 } }) },
+          },
+        },
+      ]),
+    });
+    expect(result.usageConvention).toBe(reported ? "openai_cached_subset" : "unreported");
+    if (!reported) {
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.cost_usd).toBeUndefined();
+    }
+  },
+);

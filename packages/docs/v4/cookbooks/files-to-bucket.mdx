@@ -1,0 +1,97 @@
+---
+title: "Save extracted files to a bucket"
+description: "Extract book data with Stagehand, download a cover, and upload both with Files SDK."
+---
+
+## When to use this
+
+Use this when extracted page data and downloaded files must enter a storage pipeline. Stagehand supplies typed data from the page; the server process downloads and uploads bytes. Prefer a download API when the site provides one. S3 is optional, so the first run can produce local artifacts.
+
+| Browser | Languages | Output |
+| --- | --- | --- |
+| Browserbase | TypeScript | JSON and JPEG files; optional S3 objects |
+
+## Goal and output
+
+Read the first page of [Books to Scrape](https://books.toscrape.com/) in a Browserbase cloud browser. Stagehand extracts book data, and the job downloads the first cover as bytes. It always writes `out/catalog.json` and `out/cover.jpg`; when `S3_BUCKET` is set, Files SDK uploads both objects to that bucket. Bucket credentials stay in the server process, outside the browser.
+
+## Agent prompt
+
+<Prompt description="Connect Stagehand extraction to Files SDK storage." icon="robot" actions={["copy"]}>
+Adapt `packages/examples/cookbooks/files-to-bucket/typescript` to my target page. Read the README, environment template, and source first. Reuse Stagehand, Files SDK, and the existing OpenAI setup.
+
+Change the target, schema, image DOM selector, and download allowlist together. Extract validated records and get the image URL from the DOM. Download in Node, preserving HTTPS host checks, redirect rejection, the 15-second timeout, 5 MiB limit, and JPEG verification. Replace format checks explicitly if another file type is required.
+
+Write local JSON and image artifacts first. Upload both only when `S3_BUCKET` is configured for the task. Keep credentials in the server process and out of logs. Use a distinct prefix when earlier objects must be preserved. Report local output and uploads separately. Keep the session link, browser lifetime, and cleanup.
+
+When combining with pagination, store its validated output instead of creating another extraction loop.
+
+Run the typecheck and download tests. With configured keys, verify nonempty local artifacts; check real uploads only with bucket credentials. Report artifact paths, upload results, commands, and anything untested. Keep configuration simple.
+</Prompt>
+
+## Prerequisites and inputs
+
+Use Node.js 22.18+ and pnpm. Add `BROWSERBASE_API_KEY` and `OPENAI_API_KEY` to `.env`. For upload, set `S3_BUCKET` and credentials supported by the AWS credential chain. `AWS_REGION` defaults to `us-east-1`, `S3_PREFIX` defaults to `stagehand-cookbooks/files-to-bucket`, and `S3_ENDPOINT` can target an S3-compatible service. Without `S3_BUCKET`, the job stops after local output.
+
+## Check out and run
+
+The source is [`packages/examples/cookbooks/files-to-bucket`](https://github.com/browserbase/stagehand/tree/main/packages/examples/cookbooks/files-to-bucket). Clone it with the [overview command](/v4/cookbooks/overview#run-a-cookbook):
+
+```bash
+cd packages/examples/cookbooks/files-to-bucket/typescript
+cp .env.example .env
+pnpm install --frozen-lockfile
+pnpm start
+```
+
+## How the job works
+
+<Steps>
+  <Step title="Extract the catalog">
+    Launch Browserbase and create Stagehand. Open the catalog page and `extract()` titles and prices into a nonempty schema.
+  </Step>
+  <Step title="Download the cover">
+    Read the first cover URL directly from the product-grid image DOM, then download it with host, time, byte, and JPEG checks.
+  </Step>
+  <Step title="Write and upload artifacts">
+    Write JSON and cover bytes under `out/`. When `S3_BUCKET` exists, create a Files SDK `s3()` adapter and upload the same bytes.
+  </Step>
+  <Step title="Close browser resources">
+    Close Stagehand and the browser in `finally` blocks. Storage credentials are read only by the server-side adapter.
+  </Step>
+</Steps>
+
+The extraction runs in the browser. Files SDK receives the validated JSON in the server process:
+
+```typescript
+const catalog = await stagehand.extract(
+  "Extract each book's title and price.",
+  catalogSchema,
+  { page },
+);
+
+const files = new Files({ adapter: s3({ bucket, region }) });
+await files.upload("catalog.json", JSON.stringify(catalog.data), {
+  contentType: "application/json",
+});
+```
+
+The runnable folder also reads the cover URL from the DOM, downloads the image, and writes both files locally before optional upload. The S3 adapter's upload shape follows [Files SDK](https://files-sdk.dev/).
+
+## Expected result and failure checks
+
+`out/catalog.json` contains at least one book, and `out/cover.jpg` has nonzero bytes. Without `S3_BUCKET`, the CLI reports that upload was skipped. With it, the two objects appear under `S3_PREFIX`. An invalid page result, failed download, or upload error exits nonzero and still closes the browser.
+
+## Download limits
+
+The download runs in the Node process. The example accepts only HTTPS images on `books.toscrape.com`, rejects redirects, checks JPEG bytes, and stops after 15 seconds or 5 MiB. When adapting the target, change the download allowlist explicitly. Do not fetch arbitrary model-generated URLs from a server with private network access.
+
+Browser lifetime is five minutes. S3 credentials stay in the SDK process. Uploads overwrite the configured object keys; use a distinct `S3_PREFIX` when you need separate snapshots. Local artifacts remain available if an upload fails. Run `pnpm test` to check the download failure paths without credentials.
+
+## Adapt to your site
+
+Change the target URL, schema, download host allowlist, and file-format checks together. Use a distinct `S3_PREFIX` for each snapshot when you need history. Keep byte and time limits, redirect rejection, and server-side credentials. A valid extension or content-type header alone does not prove a file format.
+
+## Related
+
+[Paginated catalogs](/v4/cookbooks/paginated-catalog), [extraction](/v4/basics/extract), and [Files SDK](https://files-sdk.dev/).

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   discoverIntegrationTests,
@@ -97,6 +98,18 @@ describe("integration test discovery", () => {
 
     expect(second).toEqual(first);
     expect(first.map((entry) => entry.path)).toEqual(first.map((entry) => entry.path).sort());
+  });
+
+  it("assigns every repository integration test to one declared group", () => {
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const entries = discoverIntegrationTests(
+      root,
+      path.join(root, "packages/sdk-ts/tests/integration"),
+    );
+
+    expect(entries.length).toBeGreaterThan(0);
+    const groupedPaths = groupIntegrationTests(entries).flatMap((group) => group.paths);
+    expect(groupedPaths.sort()).toEqual(entries.map((entry) => entry.path).sort());
   });
 
   it("assigns every file to one stable semantic group", () => {
