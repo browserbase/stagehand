@@ -162,6 +162,19 @@ describe("model configuration", () => {
           expect(service).toHaveBeenCalledWith(
             expect.objectContaining({
               model: undefined,
+              cache: expect.objectContaining({
+                sessionId: "session-123",
+                defaultCaching: true,
+                client: expect.objectContaining({
+                  transport:
+                    source === "client"
+                      ? { source: "client", request: runtime.adapters.clientBrowserbaseRequest }
+                      : {
+                          apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
+                          apiKey: "bb-api-key",
+                        },
+                }),
+              }),
               gateway:
                 source === "client"
                   ? {

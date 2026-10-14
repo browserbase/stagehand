@@ -52,7 +52,7 @@ describe("Browserbase service endpoints", () => {
     });
 
     expect(buildGatewayContext(init)).toMatchObject({ apiUrl: expected });
-    expect(buildCacheContext(init)?.client.apiUrl).toBe(expected);
+    expect(buildCacheContext(init)?.client.transport).toMatchObject({ apiUrl: expected });
   });
 });
 
@@ -89,7 +89,7 @@ describe("Browserbase HTTP transport baseline", () => {
     });
     const { port } = server.address() as AddressInfo;
     gateway = { ...fixtures.connection, apiUrl: `http://127.0.0.1:${port}/services/v1` };
-    cache = new CacheClient(gateway.apiUrl, gateway.apiKey);
+    cache = new CacheClient({ apiUrl: gateway.apiUrl, apiKey: gateway.apiKey });
   });
 
   afterAll(async () => {
@@ -239,11 +239,11 @@ describe("Browserbase HTTP transport baseline", () => {
 
   it("aborts a pending cache request after five seconds without retrying", async () => {
     respond = () => undefined;
-    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const startedAt = performance.now();
 
     await expect(cache.get(getRequest)).rejects.toMatchObject({ name: "TimeoutError" });
 
-    expect(timeout).toHaveBeenCalledWith(5000);
+    expect(performance.now() - startedAt).toBeGreaterThanOrEqual(4900);
     expect(requests).toHaveLength(1);
   });
 });

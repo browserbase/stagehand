@@ -87,7 +87,10 @@ export function createStagehandController(
         systemPrompt: state.initParams.systemPrompt,
         selfHeal: state.initParams.selfHeal,
         domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
-        cache: cacheService.buildCacheContext(state.initParams),
+        cache: cacheService.buildCacheContext(
+          state.initParams,
+          runtime.adapters.clientBrowserbaseRequest,
+        ),
         gateway,
       });
       runtime.metrics.record("act", result.metadata.usage);
@@ -119,7 +122,10 @@ export function createStagehandController(
         clientLLMGenerate: runtime.adapters.clientLLMGenerate,
         logger,
         systemPrompt: state.initParams.systemPrompt,
-        cache: cacheService.buildCacheContext(state.initParams),
+        cache: cacheService.buildCacheContext(
+          state.initParams,
+          runtime.adapters.clientBrowserbaseRequest,
+        ),
         gateway,
       });
       runtime.metrics.record("observe", result.metadata.usage);
@@ -151,7 +157,10 @@ export function createStagehandController(
         clientLLMGenerate: runtime.adapters.clientLLMGenerate,
         logger,
         systemPrompt: state.initParams.systemPrompt,
-        cache: cacheService.buildCacheContext(state.initParams),
+        cache: cacheService.buildCacheContext(
+          state.initParams,
+          runtime.adapters.clientBrowserbaseRequest,
+        ),
         gateway,
       });
       runtime.metrics.record("extract", result.metadata.usage);
