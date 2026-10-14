@@ -1,10 +1,14 @@
-import type { ChatMessage } from "./llm/LLMClient.js";
 import type {
   LLMImageContent,
   LLMMessage,
   Variables,
   VariableValue,
 } from "@browserbasehq/stagehand-protocol/types";
+
+interface TextPrompt {
+  role: "system" | "user";
+  content: string;
+}
 
 interface VariablePromptEntry {
   name: string;
@@ -44,7 +48,7 @@ export function buildExtractSystemPrompt(
   isUsingPrintExtractedDataTool: boolean = false,
   userProvidedInstructions?: string,
   includeScreenshot: boolean = false,
-): ChatMessage {
+): TextPrompt {
   const baseContent = `You are extracting content on behalf of a user.
   If a user asks you to extract a 'list' of information, or 'all' information, 
   YOU MUST EXTRACT ALL OF THE INFORMATION THAT THE USER REQUESTS.
@@ -124,14 +128,14 @@ Strictly abide by the following criteria:
    - The instruction has not been satisfied yet
    - There are still chunks left to process (chunksTotal > chunksSeen)`;
 
-export function buildMetadataSystemPrompt(): ChatMessage {
+export function buildMetadataSystemPrompt(): TextPrompt {
   return {
     role: "system",
     content: metadataSystemPrompt,
   };
 }
 
-export function buildMetadataPrompt(instruction: string, extractionResponse: object): ChatMessage {
+export function buildMetadataPrompt(instruction: string, extractionResponse: object): TextPrompt {
   return {
     role: "user",
     content: `Instruction: ${instruction}
@@ -144,7 +148,7 @@ export function buildObserveSystemPrompt(
   userProvidedInstructions?: string,
   supportedActions?: string[],
   variables?: Variables,
-): ChatMessage {
+): TextPrompt {
   const actionsString = supportedActions?.length
     ? `\n\nSupported actions: ${supportedActions.join(", ")}`
     : "";
@@ -180,7 +184,7 @@ Each element in the accessibility tree has an ID in square brackets, like [0-183
   };
 }
 
-export function buildObserveUserMessage(instruction: string, domElements: string): ChatMessage {
+export function buildObserveUserMessage(instruction: string, domElements: string): TextPrompt {
   return {
     role: "user",
     content: `instruction: ${instruction}
@@ -188,7 +192,7 @@ Accessibility Tree: \n${domElements}\n`,
   };
 }
 
-export function buildActSystemPrompt(userProvidedInstructions?: string): ChatMessage {
+export function buildActSystemPrompt(userProvidedInstructions?: string): TextPrompt {
   const actSystemPrompt = `
 You are helping the user automate the browser by finding elements based on what action the user wants to take on the page
 
@@ -285,7 +289,7 @@ export function buildStepTwoPrompt(
   return instruction;
 }
 
-export function buildOperatorSystemPrompt(goal: string): ChatMessage {
+export function buildOperatorSystemPrompt(goal: string): TextPrompt {
   return {
     role: "system",
     content: `You are a general-purpose agent whose job is to accomplish the user's goal across multiple model calls by running actions on the page.
@@ -324,7 +328,7 @@ export function buildCuaDefaultSystemPrompt(): string {
   return `You are a helpful assistant that can use a web browser.\nDo not ask follow up questions, the user will trust your judgement. Today's date is ${new Date().toISOString().split("T")[0]}.`;
 }
 
-export function buildGoogleCUASystemPrompt(): ChatMessage {
+export function buildGoogleCUASystemPrompt(): TextPrompt {
   return {
     role: "system",
     content: `You are a general-purpose browser agent whose job is to accomplish the user's goal.
