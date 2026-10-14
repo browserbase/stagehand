@@ -259,23 +259,45 @@ describe("Page.waitForURL", () => {
     expect(page.conn.transportCloseHandlers.size).toBe(0);
   });
 
-  it("stops during a stalled readiness check without installing late listeners", async () => {
-    let release!: (ready: boolean) => void;
-    ready.mockImplementation(
-      () =>
-        new Promise<boolean>((resolve) => {
-          release = resolve;
-        }),
+  it.each([
+    ["setup", "timeout"],
+    ["setup", "close"],
+    ["readiness", "timeout"],
+    ["readiness", "close"],
+  ])("cleans up during stalled %s on %s, before CDP responds", async (phase, stop) => {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    if (phase === "setup") {
+      vi.spyOn(session, "send").mockImplementation(async () => {
+        await held;
+        return {};
+      });
+    } else {
+      ready.mockImplementation(async () => {
+        await held;
+        return false;
+      });
+    }
+    const pending = page.waitForURL("**/start", { timeout: stop === "timeout" ? 50 : 0 });
+    const rejected = expect(pending).rejects.toThrow(
+      stop === "timeout" ? "timed out" : "Page closed",
     );
-    const pending = page.waitForURL("**/start", { timeout: 0 });
-    const rejected = expect(pending).rejects.toThrow("Page closed");
     await vi.advanceTimersByTimeAsync(0);
-    page.dispose();
+    expect(page.conn.transportCloseHandlers.size).toBe(1);
+    if (stop === "timeout") await vi.advanceTimersByTimeAsync(50);
+    else page.dispose();
     await rejected;
-    const listenersAfterClose = session.listeners();
-    release(false);
+    // Both owner hooks are removed by the same finally block, even while CDP is held.
+    expect(page.conn.transportCloseHandlers.size).toBe(0);
+    const listenersAfterStop = session.listeners();
+    if (stop === "timeout") expect(listenersAfterStop).toBe(baselineListeners);
+    expect(vi.getTimerCount()).toBe(0);
+    release();
     await vi.advanceTimersByTimeAsync(0);
-    expect(session.listeners()).toBe(listenersAfterClose);
+    expect(session.listeners()).toBe(listenersAfterStop);
+    expect(page.conn.transportCloseHandlers.size).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
   });
 });

@@ -34,7 +34,9 @@ export async function waitForURL(
     const frameId = page.mainFrameId();
     const loaderId = page.registry.frames.get(frameId)?.lastSeen?.loaderId;
     progress.throwIfStopped();
-    await page.waitForMainLoadState(options.waitUntil ?? "load", 0, progress.signal);
+    await progress.run("waiting for load state", () =>
+      page.waitForMainLoadState(options.waitUntil ?? "load", 0, progress.signal),
+    );
     // Readiness must belong to the same document, even after a same-URL reload.
     if (
       matches(page.url()) &&
