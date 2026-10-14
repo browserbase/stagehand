@@ -78,9 +78,11 @@ describe("config tracing set/reset", () => {
 
     await handleTracing(["reset"], entryDir);
     expect(readConfig(entryDir).tracing).toBeUndefined();
-    expect(fs.readFileSync(path.join(entryDir, "evals.config.json"), "utf-8")).not.toContain(
-      "tracing",
-    );
+    // The tracked file keeps its team default; the local file records the removal.
+    expect(fs.readFileSync(path.join(entryDir, "evals.config.json"), "utf-8")).toContain("tracing");
+    expect(
+      JSON.parse(fs.readFileSync(path.join(entryDir, "evals.config.local.json"), "utf-8")),
+    ).toEqual({ tracing: null });
   });
 
   it("does not touch other config sections", async () => {
