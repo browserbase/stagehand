@@ -90,6 +90,14 @@ describe("rejectsForcedToolUse", () => {
     expect(rejectsForcedToolUse("anthropic/claude-fable-5")).toBe(true);
   });
 
+  it.each(["claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"])(
+    "is true for %s with or without a provider prefix",
+    (modelId) => {
+      expect(rejectsForcedToolUse(modelId)).toBe(true);
+      expect(rejectsForcedToolUse(`anthropic/${modelId}`)).toBe(true);
+    },
+  );
+
   it("is false for models that accept forced tool use", () => {
     expect(rejectsForcedToolUse("claude-opus-4-8")).toBe(false);
     expect(rejectsForcedToolUse("claude-haiku-4-5-20251001")).toBe(false);

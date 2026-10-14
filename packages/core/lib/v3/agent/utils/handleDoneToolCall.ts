@@ -150,7 +150,7 @@ Call the "done" tool with:
   const modelProvider = typeof model === "string" ? undefined : model.provider;
   const fallbacks = anthropicFallbacksOptions(modelId);
 
-  // Models whose always-on thinking rejects forced tool use go straight to
+  // Models that reject forced tool use go straight to
   // "auto" — the prompt already instructs calling "done", and the
   // no-tool-call case below handles a plain-text answer.
   const result = await generateText({
