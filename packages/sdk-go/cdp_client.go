@@ -59,6 +59,7 @@ type cdpClientOptions struct {
 	cdpURL                   string
 	headers                  http.Header
 	extensionDir             string
+	localExtensionDir        func() (string, error)
 	extensionID              string
 	preloadedExtension       bool
 	serviceWorkerURLIncludes string
@@ -241,6 +242,9 @@ func validateCDPClientOptions(options cdpClientOptions) error {
 	if options.activationDelay < 0 {
 		return errors.New("stagehand CDP activation delay cannot be negative")
 	}
+	if options.localExtensionDir != nil && (options.preloadedExtension || options.extensionDir != "" || options.extensionID != "") {
+		return errors.New("local extension discovery cannot use another extension source")
+	}
 	if options.preloadedExtension && (options.extensionDir != "" || options.extensionID != "") {
 		return errors.New("preloaded Stagehand extension cannot use extensionDir or extensionID")
 	}
@@ -309,17 +313,15 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 	)
 
 	extensionID := options.extensionID
-	if options.extensionDir != "" {
+	if options.localExtensionDir != nil {
+		extensionID, err = c.resolveExtension(ctx, true, options.localExtensionDir)
+	} else if options.extensionDir != "" {
 		extensionID, err = c.loadUnpackedExtension(ctx, options.extensionDir)
-		if err != nil {
-			return err
-		}
+	} else if options.preloadedExtension {
+		extensionID, err = c.resolveExtension(ctx, false, nil)
 	}
-	if options.preloadedExtension {
-		extensionID, err = c.discoverInstalledStagehandExtensionID(ctx)
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
 	if extensionID == "" {
 		return errors.New("Stagehand extension ID was not resolved")
@@ -808,7 +810,7 @@ func (c *cdpClient) loadUnpackedExtension(
 				strings.Contains(strings.ToLower(commandError.Message), "wasn't found")) {
 			return "", fmt.Errorf(
 				"this Chrome build does not support Extensions.loadUnpacked; "+
-					"launch with --load-extension and connect using extensionID instead: %w",
+					"preload the Stagehand extension and connect using a Chrome build that supports Extensions.getExtensions: %w",
 				err,
 			)
 		}
@@ -820,7 +822,49 @@ func (c *cdpClient) loadUnpackedExtension(
 	return loaded.ID, nil
 }
 
-func (c *cdpClient) discoverInstalledStagehandExtensionID(
+func (c *cdpClient) resolveExtension(
+	ctx context.Context,
+	loadIfNotFound bool,
+	extensionDir func() (string, error),
+) (string, error) {
+	id, err := c.getInstalledStagehandExtensionID(ctx)
+	if err != nil {
+		var commandError *cdpCommandError
+		unsupported := errors.As(err, &commandError) &&
+			commandError.Method == "Extensions.getExtensions" &&
+			(commandError.Code == -32601 ||
+				strings.Contains(strings.ToLower(commandError.Message), "method not found") ||
+				strings.Contains(strings.ToLower(commandError.Message), "wasn't found"))
+		if !loadIfNotFound || !unsupported {
+			return "", err
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if id != "" {
+		return id, nil
+	}
+	if loadIfNotFound {
+		if extensionDir == nil {
+			return "", errors.New("extension directory is required to load the Stagehand extension")
+		}
+		directory, err := extensionDir()
+		if err != nil {
+			return "", err
+		}
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		return c.loadUnpackedExtension(ctx, directory)
+	}
+	return "", errors.New(
+		"Stagehand extension is not installed in the connected browser. " +
+			"The extension must be included when the Browserbase session is created.",
+	)
+}
+
+func (c *cdpClient) getInstalledStagehandExtensionID(
 	ctx context.Context,
 ) (string, error) {
 	var response struct {
@@ -869,10 +913,7 @@ func (c *cdpClient) discoverInstalledStagehandExtensionID(
 				"Stagehand extension is installed in the connected browser but is disabled.",
 			)
 		}
-		return "", errors.New(
-			"Stagehand extension is not installed in the connected browser. " +
-				"The extension must be included when the Browserbase session is created.",
-		)
+		return "", nil
 	default:
 		slices.Sort(enabledIDs)
 		return "", fmt.Errorf(

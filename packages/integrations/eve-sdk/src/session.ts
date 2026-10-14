@@ -42,12 +42,16 @@ export type EveSessionResult = {
 
 export type EveMessageResponseLike = AsyncIterable<EveEvent> & { readonly sessionId: string };
 export type EveClientSessionLike = {
-  send(input: { message: string; signal?: AbortSignal }): Promise<EveMessageResponseLike>;
   cancel(options?: { turnId?: string }): Promise<unknown>;
 };
 export type EveClientLike = {
   health(): Promise<unknown>;
-  session(): EveClientSessionLike;
+  sessions: {
+    create(input: { message: string; signal?: AbortSignal }): Promise<{
+      session: EveClientSessionLike;
+      response: EveMessageResponseLike;
+    }>;
+  };
 };
 
 export const EVE_PACKAGE = "eve";
@@ -71,10 +75,7 @@ export function resolveEveAppNodeModulesDir(): string {
 
 export async function loadEveClient(host: string): Promise<EveClientLike> {
   try {
-    const specifier = `${EVE_PACKAGE}/client`;
-    const mod = (await import(specifier)) as {
-      Client?: new (options: { host: string }) => EveClientLike;
-    };
+    const mod = await import("eve/client");
     if (typeof mod.Client !== "function") throw new Error("Client export missing");
     return new mod.Client({ host });
   } catch (error) {
@@ -241,9 +242,13 @@ export async function runEveSession(input: {
     }
     const client = input.client ?? (await loadEveClient(serverUrl));
     await client.health();
-    session = client.session();
+    const created = await client.sessions.create({
+      message: input.prompt,
+      signal: controller.signal,
+    });
+    session = created.session;
     if (input.signal?.aborted) void cancelSession();
-    const response = await session.send({ message: input.prompt, signal: controller.signal });
+    const response = created.response;
     sessionId = response.sessionId;
     let toolStepCount = 0;
 

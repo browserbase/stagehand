@@ -57,6 +57,7 @@
                 "group": "Agent Frameworks",
                 "pages": [
                   "v4/integrations/agent-frameworks/overview",
+                  "v4/integrations/agent-frameworks/claude-cua-toolset-quickstart",
                   "v4/integrations/agent-frameworks/eve",
                   "v4/integrations/agent-frameworks/deep-agents",
                   "v4/integrations/agent-frameworks/crewai",

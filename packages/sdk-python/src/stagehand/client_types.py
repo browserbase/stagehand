@@ -3,6 +3,8 @@
 from collections.abc import Awaitable, Callable
 from typing import Literal, NotRequired, TypedDict
 
+import httpx
+
 from ._generated.input_types import (
     ModelConfig,
     TelemetryConfig,
@@ -64,13 +66,27 @@ class LocalBrowserLaunchOptions(TypedDict, total=False):
 class LocalBrowserConnectOptions(TypedDict):
     cdp_url: str
     extension_id: NotRequired[str]
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
+
+
+class BrowserbaseClientOptions(TypedDict, total=False):
+    """HTTP settings for the Browserbase client Stagehand creates for session management."""
+
+    timeout: float
+    max_retries: int
+    default_headers: dict[str, str]
+    default_query: dict[str, str]
+    http_client: httpx.AsyncClient
+    """Caller-owned; Stagehand never closes it. Keep it open until `browser.close()` returns."""
 
 
 class BrowserbaseConnectOptions(TypedDict):
     api_key: str
     base_url: NotRequired[str]
+    client_options: NotRequired[BrowserbaseClientOptions]
     session_id: str
     extension_id: NotRequired[str]
+    """Deprecated and ignored. Omit this field; Stagehand discovers the extension automatically."""
 
 
 class ClientLLM(TypedDict):
@@ -96,6 +112,7 @@ class StagehandClientCreateConfig(TypedDict, total=False):
 
 
 __all__ = [
+    "BrowserbaseClientOptions",
     "BrowserbaseConnectOptions",
     "Cache",
     "CacheOptions",

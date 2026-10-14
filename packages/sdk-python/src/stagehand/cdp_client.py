@@ -4,7 +4,7 @@ import asyncio
 import json
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
@@ -253,6 +253,7 @@ class CDPClient:
         *,
         cdp_url: str,
         extension_dir: str | None = None,
+        local_extension_dir: Callable[[], str] | None = None,
         extension_id: str | None = None,
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
@@ -263,9 +264,18 @@ class CDPClient:
         lifecycle. Direct internal callers must provide cancellation themselves.
         CDP command acknowledgements inherit that same caller-owned cancellation.
         """
-        if sum((bool(extension_dir), bool(extension_id), preloaded_extension)) != 1:
+        if (
+            sum((
+                bool(extension_dir),
+                local_extension_dir is not None,
+                bool(extension_id),
+                preloaded_extension,
+            ))
+            != 1
+        ):
             raise ValueError(
-                "Exactly one of extension_dir, extension_id, or preloaded_extension is required"
+                "Exactly one of extension_dir, local_extension_dir, extension_id, "
+                "or preloaded_extension is required"
             )
 
         web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url)
@@ -274,10 +284,14 @@ class CDPClient:
 
         try:
             resolved_extension_id = extension_id
-            if extension_dir is not None:
+            if local_extension_dir is not None:
+                resolved_extension_id = await client._resolve_extension(
+                    load_if_not_found=True, extension_dir=local_extension_dir
+                )
+            elif extension_dir is not None:
                 resolved_extension_id = await client._load_unpacked_extension(extension_dir)
-            if preloaded_extension:
-                resolved_extension_id = await client._discover_installed_stagehand_extension_id()
+            elif preloaded_extension:
+                resolved_extension_id = await client._resolve_extension(load_if_not_found=False)
             if resolved_extension_id is None:
                 raise RuntimeError("Stagehand extension ID was not resolved")
 
@@ -491,12 +505,41 @@ class CDPClient:
             if error.code == -32601 or "method not found" in str(error).lower():
                 raise RuntimeError(
                     "This Chrome build does not support Extensions.loadUnpacked. "
-                    "Launch with --load-extension and connect using extension_id instead."
+                    "Preload the Stagehand extension and connect using a Chrome build "
+                    "that supports Extensions.getExtensions."
                 ) from error
             raise
         return _required_string(loaded, "id", "Extensions.loadUnpacked")
 
-    async def _discover_installed_stagehand_extension_id(self) -> str:
+    async def _resolve_extension(
+        self,
+        *,
+        load_if_not_found: bool,
+        extension_dir: Callable[[], str] | None = None,
+    ) -> str:
+        extension_id: str | None = None
+        try:
+            extension_id = await self._get_installed_stagehand_extension_id()
+        except _CDPCommandError as error:
+            unsupported = error.method == "Extensions.getExtensions" and (
+                error.code == -32601
+                or "method not found" in str(error).lower()
+                or "wasn't found" in str(error).lower()
+            )
+            if not load_if_not_found or not unsupported:
+                raise
+        if extension_id is not None:
+            return extension_id
+        if load_if_not_found:
+            if extension_dir is None:
+                raise ValueError("extension_dir is required to load the Stagehand extension")
+            return await self._load_unpacked_extension(extension_dir())
+        raise RuntimeError(
+            "Stagehand extension is not installed in the connected browser. "
+            "The extension must be included when the Browserbase session is created."
+        )
+
+    async def _get_installed_stagehand_extension_id(self) -> str | None:
         response = await self.send_command("Extensions.getExtensions")
         installed = [
             extension
@@ -514,10 +557,7 @@ class CDPClient:
             raise RuntimeError(
                 "Stagehand extension is installed in the connected browser but is disabled."
             )
-        raise RuntimeError(
-            "Stagehand extension is not installed in the connected browser. "
-            "The extension must be included when the Browserbase session is created."
-        )
+        return None
 
     async def _wait_for_service_worker(
         self,

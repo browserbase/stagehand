@@ -698,6 +698,18 @@ def test_capture_response_deadline_honors_explicit_timeout(
     assert rpc_client._rpc_response_timeout_seconds(method, params) == expected
 
 
+@pytest.mark.parametrize("timeout,expected", [(250, 10.25), (45_000, 55), (0, None)])
+def test_selector_response_deadline_honors_explicit_timeout(
+    timeout: int, expected: float | None
+) -> None:
+    params = models.PageWaitForSelectorParams(
+        page_id="page-1",
+        selector="button",
+        options=models.PageWaitForSelectorOptions(timeout=timeout),
+    )
+    assert rpc_client._rpc_response_timeout_seconds("page.wait_for_selector", params) == expected
+
+
 def test_response_deadline_preserves_v3_unbounded_operations() -> None:
     params = models.EmptyParams()
     methods = {
@@ -863,6 +875,47 @@ async def test_locator_response_wait_uses_default_override_and_zero(
         assert client._pending == {}
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("timeout", [None, 20, 0])
+async def test_selector_response_wait_uses_default_override_and_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    timeout: int | None,
+) -> None:
+    # Keep real event-loop deadlines short; the policy tests above check production values.
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10)
+    monkeypatch.setitem(rpc_client._DEFAULT_OPERATION_TIMEOUT_MS, "page.wait_for_selector", 20)
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    params = models.PageWaitForSelectorParams.model_validate({
+        "page_id": "page-1",
+        "selector": "button",
+        **({"options": {"timeout": timeout}} if timeout is not None else {}),
+    })
+    call = asyncio.create_task(
+        client.send("page.wait_for_selector", params, models.PageWaitForSelectorResult)
+    )
+    try:
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        if timeout == 0:
+            await asyncio.sleep(0.06)
+            assert not call.done()
+            await transport.incoming.put({
+                "jsonrpc": "2.0",
+                "id": request["id"],
+                "result": {"matched": True},
+            })
+            assert (await asyncio.wait_for(call, timeout=1)).matched is True
+        else:
+            with pytest.raises(
+                TimeoutError, match=r"RPC response timed out after 0\.03s: page\.wait_for_selector"
+            ):
+                await asyncio.wait_for(call, timeout=1)
+        assert client._pending == {}
+    finally:
+        await client.close()
+        await asyncio.gather(call, return_exceptions=True)
 
 
 @pytest.mark.asyncio

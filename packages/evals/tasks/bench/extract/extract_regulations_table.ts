@@ -5,9 +5,7 @@ export default defineBenchTask(
   { name: "extract_regulations_table" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-numbering-plan/",
-      );
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/ncc-numbering-plan/");
 
       // The locator engine prefix is required for XPath selectors.
       const locator = page.locator(

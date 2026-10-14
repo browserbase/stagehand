@@ -432,3 +432,21 @@ describe("real tree: onboarding commands", () => {
     }
   });
 });
+
+describe("real tree: config path", () => {
+  it("forwards `local` so `config path local` prints the local file path", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const tree = buildCommandTree();
+    await dispatch(
+      tree,
+      tokenizeArgv(["config", "path", "local"]),
+      makeCtx({ entryDir: "/tmp/e" }),
+    );
+    await dispatch(tree, tokenizeArgv(["config", "path"]), makeCtx({ entryDir: "/tmp/e" }));
+    expect(log.mock.calls.map(([line]) => String(line))).toEqual([
+      "/tmp/e/evals.config.local.json",
+      "/tmp/e/evals.config.json",
+    ]);
+    log.mockRestore();
+  });
+});
