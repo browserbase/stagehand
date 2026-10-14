@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "eval": "tsx cli.ts",
-    "report:core": "tsx scripts/render-braintrust-core-report.ts"
+    "report:core": "tsx scripts/render-braintrust-core-report.ts",
+    "task:record": "tsx tasks/cli.ts"
   },
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",

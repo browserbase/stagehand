@@ -1,4 +1,5 @@
 import type {
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
   BrowserbaseFetchOptions,
   BrowserbaseFetchResult,
@@ -11,6 +12,7 @@ import type {
 import type { BrowserContext } from "../browserContext.js";
 
 export type {
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
   BrowserbaseFetchOptions,
   BrowserbaseFetchResult,

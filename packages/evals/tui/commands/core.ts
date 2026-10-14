@@ -19,12 +19,22 @@
  */
 
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
-import { readConfig, writeConfig, resolveConfigPath, type CoreConfigSection } from "./config.js";
+import {
+  readConfig,
+  rejectSharedScope,
+  writeConfig,
+  resolveConfigPath,
+  type CoreConfigSection,
+} from "./config.js";
 
 type CoreKey = keyof CoreConfigSection;
 const VALID_KEYS: CoreKey[] = ["tool", "startup"];
 
 export async function handleCore(args: string[], entryDir: string): Promise<void> {
+  if (args.includes("--shared")) {
+    rejectSharedScope("core");
+    return;
+  }
   const sub = args[0];
 
   if (!sub) {
@@ -137,7 +147,7 @@ async function setCoreKey(entryDir: string, key: CoreKey, value: string): Promis
     const toolSurface = core.tool as (typeof validTools)[number] | undefined;
     if (!toolSurface) {
       console.error(red("  Cannot set startup without a tool. Set core.tool first."));
-      console.log(dim(`  Example: evals core config set tool understudy_code`));
+      console.log(dim(`  Example: evals config core set tool understudy_code`));
       process.exitCode = 1;
       return;
     }

@@ -11,6 +11,6 @@ export default defineCoreTask({ name: "get_url" }, async ({ page, assert, metric
   assert.includes(url, "dropdown");
   assert.matches(
     url,
-    /^(data:text\/html|http:\/\/127\.0\.0\.1:|http:\/\/localhost:|https:\/\/browserbase\.github\.io\/stagehand-eval-sites\/)/,
+    /^(data:text\/html|http:\/\/127\.0\.0\.1:|http:\/\/localhost:|https:\/\/stagehand-eval-sites\.vercel\.app\/|https:\/\/browserbase\.github\.io\/stagehand-eval-sites\/)/,
   );
 });

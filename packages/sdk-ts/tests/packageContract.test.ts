@@ -92,6 +92,9 @@ describe("published TypeScript SDK", () => {
         path.join(consumerDirectory, "verify.ts"),
         `
           import type {
+            BrowserbaseClientOptions,
+            BrowserbaseConnectOptions,
+            LocalBrowserConnectOptions,
             Caching,
             LoadState,
             LocatorCentroidResult,
@@ -123,9 +126,27 @@ describe("published TypeScript SDK", () => {
             Variables,
           } from "@browserbasehq/stagehand";
 
+          const browserbaseClientOptions: BrowserbaseClientOptions = {
+            timeout: 5_000,
+            maxRetries: 1,
+            defaultHeaders: { "X-Caller": "app" },
+          };
+          declare const extensionId: string | undefined;
+          const localConnect: LocalBrowserConnectOptions = {
+            cdpUrl: "ws://127.0.0.1:9222",
+            extensionId,
+          };
+          const browserbaseConnect: BrowserbaseConnectOptions = {
+            apiKey: "bb_key",
+            sessionId: "session_123",
+            clientOptions: browserbaseClientOptions,
+            extensionId,
+          };
+          const localWithoutId: LocalBrowserConnectOptions = { ...localConnect, extensionId: undefined };
+          const browserbaseWithoutId: BrowserbaseConnectOptions = { ...browserbaseConnect, extensionId: undefined };
           const loadState: LoadState = "domcontentloaded";
           const mouseButton: MouseButton = "left";
-          const modelName: ModelName = "openai/gpt-5";
+          const modelName: ModelName = "openai/future-model-v1";
           const model: ModelConfig = { modelName };
           const caching: Caching = { threshold: 2 };
           const variables: Variables = {
@@ -157,6 +178,7 @@ describe("published TypeScript SDK", () => {
           declare const usage: StagehandResultUsage;
 
           void [
+            browserbaseConnect,
             clip,
             navigation,
             pageClick,
@@ -191,6 +213,8 @@ describe("published TypeScript SDK", () => {
           "exec",
           "tsc",
           "--noEmit",
+          "--strictNullChecks",
+          "--exactOptionalPropertyTypes",
           "--module",
           "nodenext",
           "--moduleResolution",
