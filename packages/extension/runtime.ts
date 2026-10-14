@@ -1,3 +1,4 @@
+import type { ClientBrowserbaseRequest } from "./clients/browserbaseClient.js";
 import { DEFAULT_LOCATOR_TIMEOUT_MS } from "@browserbasehq/stagehand-protocol/schemas";
 import { runWithProgress, type Progress } from "./understudy/progress.js";
 import { ShadowRootEvaluationUnavailableError } from "./errors.js";
@@ -287,6 +288,7 @@ export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
+  clientBrowserbaseRequest?: ClientBrowserbaseRequest;
   emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
   emitPageEvent?: (notification: PageEventNotification) => void;
 };
@@ -298,6 +300,9 @@ const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () =>
 };
 const discardLog: StagehandLogEmitter = () => {};
 const discardPageCDPEvent = (): void => {};
+const unavailableClientBrowserbase = async (): Promise<never> => {
+  throw new Error("The connected SDK did not register a Browserbase transport");
+};
 const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
@@ -311,6 +316,7 @@ export function createStagehandRuntime(
       browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
+      clientBrowserbaseRequest: adapters.clientBrowserbaseRequest ?? unavailableClientBrowserbase,
       emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
       emitPageEvent: adapters.emitPageEvent ?? discardPageCDPEvent,
     },
