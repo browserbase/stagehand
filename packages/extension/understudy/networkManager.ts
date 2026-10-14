@@ -165,8 +165,13 @@ export class NetworkManager {
     entry.detach();
     this.sessions.delete(sid);
 
-    for (const key of this.requests.keys()) {
-      if (key.startsWith(`${sid}:`)) this.requests.delete(key);
+    // These requests can never finish now that their session is gone. Report
+    // them as failed so idle waiters stop counting them; otherwise a waiter
+    // that saw them start keeps waiting until its full timeout.
+    for (const [key, info] of this.requests.entries()) {
+      if (!key.startsWith(`${sid}:`)) continue;
+      this.requests.delete(key);
+      this.emitFailure(info);
     }
 
     for (const [frameId, key] of this.documentRequestsByFrame.entries()) {
