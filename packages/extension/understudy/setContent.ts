@@ -28,15 +28,15 @@ export async function setContent(
       async (progress) => {
         const session = page.mainSession;
         const frameId = page.mainFrameId();
-        await progress.run("enabling lifecycle events", () => {
-          if (!page.conn.connected) throw new Error("setContent connection is closed");
-          return session.send("Page.setLifecycleEventsEnabled", { enabled: true });
-        });
-
         let started = false;
+        let interruption: Error | undefined;
         const lifecycle = Promise.withResolvers<void>();
         // Closure can race the deadline before the next Progress callback starts.
         void lifecycle.promise.catch(() => {});
+        const interrupt = (error: Error) => {
+          interruption ??= error;
+          lifecycle.reject(interruption);
+        };
         const wanted = LIFECYCLE_EVENT[options?.waitUntil ?? "load"];
         const onLifecycle = (event: Protocol.Page.LifecycleEventEvent) => {
           if (event.frameId !== frameId) return;
@@ -46,37 +46,45 @@ export async function setContent(
         };
         const onFrameNavigated = (event: Protocol.Page.FrameNavigatedEvent) => {
           if (event.frame.id === frameId) {
-            lifecycle.reject(new Error("setContent was interrupted by navigation"));
+            interrupt(new Error("setContent was interrupted by navigation"));
           }
         };
         const onFrameDetached = (event: Protocol.Page.FrameDetachedEvent) => {
-          if (event.frameId === frameId)
-            lifecycle.reject(new Error("setContent frame was detached"));
+          if (event.frameId === frameId) interrupt(new Error("setContent frame was detached"));
         };
         const onTargetDetached = (event: Protocol.Target.DetachedFromTargetEvent) => {
-          if (event.sessionId === session.id)
-            lifecycle.reject(new Error("setContent page was closed"));
+          if (event.sessionId === session.id) interrupt(new Error("setContent page was closed"));
         };
         const onTargetDestroyed = (event: Protocol.Target.TargetDestroyedEvent) => {
           if (event.targetId === page.targetId())
-            lifecycle.reject(new Error("setContent page was closed"));
+            interrupt(new Error("setContent page was closed"));
         };
         const onTransportClosed = (reason: string) => {
-          lifecycle.reject(new Error(`setContent connection closed: ${reason}`));
+          interrupt(new Error(`setContent connection closed: ${reason}`));
         };
 
-        session.on("Page.lifecycleEvent", onLifecycle);
         session.on("Page.frameNavigated", onFrameNavigated);
         session.on("Page.frameDetached", onFrameDetached);
         page.conn.on("Target.detachedFromTarget", onTargetDetached);
         page.conn.on("Target.targetDestroyed", onTargetDestroyed);
         page.conn.onTransportClosed(onTransportClosed);
         try {
+          await progress.run("enabling lifecycle events", () => {
+            if (interruption) throw interruption;
+            if (!page.conn.connected) throw new Error("setContent connection is closed");
+            return Promise.race([
+              lifecycle.promise,
+              session.send("Page.setLifecycleEventsEnabled", { enabled: true }),
+            ]);
+          });
+          // Enabling events can replay the previous document's lifecycle.
+          session.on("Page.lifecycleEvent", onLifecycle);
           // Attach the wait before sending: an inline document can finish loading
           // before Page.setDocumentContent responds.
           await progress.run("waiting for document content", async () => {
             mutation = Promise.resolve().then(() => {
               progress.throwIfStopped();
+              if (interruption) throw interruption;
               if (!page.conn.connected) throw new Error("setContent connection is closed");
               return session.send("Page.setDocumentContent", { frameId, html });
             });

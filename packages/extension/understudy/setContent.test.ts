@@ -151,6 +151,54 @@ describe("Page.setContent", () => {
     await page.setContent("after timeout");
   });
 
+  it.each(["navigation", "frame", "target", "destroyed", "transport"])(
+    "observes %s during preflight and never mutates after a late acknowledgement",
+    async (reason) => {
+      const setup = Promise.withResolvers<unknown>();
+      send.mockReturnValueOnce(setup.promise);
+      const pending = page.setContent("old document", { timeout: 0 });
+      const rejected = expect(pending).rejects.toThrow(/interrupted|detached|closed/);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(send).toHaveBeenCalledExactlyOnceWith("Page.setLifecycleEventsEnabled", {
+        enabled: true,
+      });
+      if (reason === "navigation") events.emit("Page.frameNavigated", { frame: { id: "root" } });
+      if (reason === "frame")
+        events.emit("Page.frameDetached", { frameId: "root", reason: "remove" });
+      if (reason === "target" || reason === "destroyed") {
+        await connection.onMessage(
+          JSON.stringify({
+            method: reason === "target" ? "Target.detachedFromTarget" : "Target.targetDestroyed",
+            params: { sessionId: "session", targetId: "page" },
+          }),
+        );
+      }
+      if (reason === "transport") connection.emitTransportClosed("disconnected");
+      await rejected;
+      expectClean();
+      setup.resolve({});
+      await vi.advanceTimersByTimeAsync(0);
+      expect(send).toHaveBeenCalledTimes(1);
+      expectClean();
+      if (reason === "navigation") await page.setContent("new document");
+    },
+  );
+
+  it("does not mutate if navigation arrives after preflight resolves but before dispatch", async () => {
+    const subscribe = page.mainSession.on.bind(page.mainSession);
+    vi.spyOn(page.mainSession, "on").mockImplementation((event, handler) => {
+      subscribe(event, handler);
+      if (event === "Page.lifecycleEvent") {
+        queueMicrotask(() => events.emit("Page.frameNavigated", { frame: { id: "root" } }));
+      }
+    });
+    await expect(page.setContent("old document", { timeout: 0 })).rejects.toThrow(
+      "interrupted by navigation",
+    );
+    expect(send).toHaveBeenCalledTimes(1);
+    expectClean();
+  });
+
   it.each([undefined, 10, 0])("honors timeout %s and clears listeners", async (timeout) => {
     send.mockResolvedValue({});
     const pending = page.setContent("", { timeout });
@@ -228,13 +276,15 @@ describe("Page.setContent", () => {
   });
 
   it("observes closure when the deadline expires before the mutation callback starts", async () => {
-    const subscribe = connection.onTransportClosed.bind(connection);
-    vi.spyOn(connection, "onTransportClosed").mockImplementation((handler) => {
-      subscribe(handler);
-      queueMicrotask(() => {
-        vi.spyOn(performance, "now").mockReturnValue(11);
-        connection.emitTransportClosed("closed at deadline");
-      });
+    const subscribe = page.mainSession.on.bind(page.mainSession);
+    vi.spyOn(page.mainSession, "on").mockImplementation((event, handler) => {
+      subscribe(event, handler);
+      if (event === "Page.lifecycleEvent") {
+        queueMicrotask(() => {
+          vi.spyOn(performance, "now").mockReturnValue(11);
+          connection.emitTransportClosed("closed at deadline");
+        });
+      }
     });
     await expect(page.setContent("", { timeout: 10 })).rejects.toThrow("setContent timed out");
     await vi.advanceTimersByTimeAsync(0);
