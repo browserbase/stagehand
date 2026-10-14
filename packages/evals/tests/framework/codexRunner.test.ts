@@ -1,13 +1,22 @@
-import { describe, expect, it } from "vitest";
+import fsp from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import {
   buildCodexPrompt,
   parseCodexResult,
   runCodexAgent,
   type CodexSdk,
+  buildEvalCodexConfig,
+  validateCodexReasoningEffort,
 } from "../../framework/codexRunner.js";
+import { EvalsError } from "../../errors.js";
 import { EvalLogger } from "../../logger.js";
 import type { ExternalHarnessTaskPlan } from "../../framework/externalHarnessPlan.js";
+import { EVAL_SYSTEM_PROMPT } from "../../framework/evalSystemPrompt.js";
+
+afterEach(() => vi.unstubAllEnvs());
 
 const plan: ExternalHarnessTaskPlan = {
   dataset: "webvoyager",
@@ -17,6 +26,76 @@ const plan: ExternalHarnessTaskPlan = {
 };
 
 describe("codex runner helpers", () => {
+  it("requests reasoning summaries unless disabled, letting the tool adapter's config win", () => {
+    expect(buildEvalCodexConfig({ mcp_servers: {} }, {})).toEqual({
+      model_reasoning_summary: "detailed",
+      mcp_servers: {},
+      developer_instructions: EVAL_SYSTEM_PROMPT,
+    });
+    expect(buildEvalCodexConfig(undefined, { EVAL_REASONING_SUMMARY: "auto" })).toEqual({
+      model_reasoning_summary: "auto",
+      developer_instructions: EVAL_SYSTEM_PROMPT,
+    });
+    expect(buildEvalCodexConfig({}, { EVAL_REASONING_SUMMARY: "off" })).toEqual({
+      developer_instructions: EVAL_SYSTEM_PROMPT,
+    });
+    expect(
+      buildEvalCodexConfig({ model_reasoning_summary: "concise" }, {}).model_reasoning_summary,
+    ).toBe("concise");
+  });
+
+  it("preserves adapter developer instructions alongside the shared eval system prompt", () => {
+    const config = buildEvalCodexConfig({ developer_instructions: "Use only mounted tools." }, {});
+    expect(config.developer_instructions).toBe(`Use only mounted tools.\n\n${EVAL_SYSTEM_PROMPT}`);
+    expect(config).not.toHaveProperty("base_instructions");
+    expect(buildEvalCodexConfig(config, {}).developer_instructions).toBe(
+      config.developer_instructions,
+    );
+    expect(() => buildEvalCodexConfig({ developer_instructions: {} }, {})).toThrow(
+      "developer_instructions must be a string",
+    );
+  });
+
+  it("uses typed configuration errors without echoing invalid environment values", () => {
+    const invalid = "secret https://private.test";
+    expect(() => validateCodexReasoningEffort(invalid)).toThrow(EvalsError);
+    expect(() => validateCodexReasoningEffort(invalid)).not.toThrow(invalid);
+    expect(() => buildEvalCodexConfig({ developer_instructions: {} }, {})).toThrow(EvalsError);
+    expect(validateCodexReasoningEffort(" XHIGH ")).toBe("xhigh");
+  });
+
+  it.each(["high", "max", "ultra", "persistent"])(
+    "passes %s reasoning effort through a caller-owned SDK",
+    async (effort) => {
+      vi.stubEnv("EVAL_CODEX_REASONING_EFFORT", effort);
+      expect(
+        buildEvalCodexConfig(undefined, { EVAL_CODEX_REASONING_EFFORT: effort }),
+      ).toMatchObject({
+        model_reasoning_effort: effort,
+      });
+      const startThread = vi.fn(() => ({
+        runStreamed: async () => ({
+          events: (async function* () {
+            yield {
+              type: "item.completed",
+              item: { type: "agent_message", text: '{"success":true}' },
+            };
+            yield { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
+          })(),
+        }),
+      }));
+      await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk: { startThread },
+      });
+      expect(startThread).toHaveBeenCalledWith(
+        expect.objectContaining({ modelReasoningEffort: effort }),
+      );
+    },
+  );
+
   it("builds a browser task prompt with structured result instructions", () => {
     const prompt = buildCodexPrompt(plan, "Use browse only. Discover usage with browse -h.");
 
@@ -28,6 +107,55 @@ describe("codex runner helpers", () => {
     expect(prompt).toContain("browse -h");
     expect(prompt).toContain('"success": boolean');
   });
+
+  it.each([true, false])(
+    "uses the shared policy fallback for a caller-owned Codex SDK (tool adapter: %s)",
+    async (withAdapter) => {
+      let capturedPrompt: unknown;
+      const sdk: CodexSdk = {
+        startThread: () => ({
+          runStreamed: async (input) => {
+            capturedPrompt = input;
+            return {
+              events: (async function* () {
+                yield {
+                  type: "item.completed",
+                  item: { id: "msg-1", type: "agent_message", text: '{"success":true}' },
+                };
+                yield { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
+              })(),
+            };
+          },
+        }),
+      };
+
+      await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk,
+        ...(withAdapter && {
+          toolAdapter: {
+            toolSurface: "browse_cli" as const,
+            startupProfile: "tool_launch_local" as const,
+            browserSession: { provider: "local" as const },
+            cwd: "/tmp/stagehand-evals-test",
+            env: { PATH: "/tmp" },
+            promptInstructions: "Use browse only.",
+            metadata: { toolCommand: "browse", browseCliEntrypoint: "/tmp/browse" },
+            cleanup: async () => {},
+          },
+        }),
+      });
+
+      expect(String(capturedPrompt).split(EVAL_SYSTEM_PROMPT)).toHaveLength(2);
+      expect(capturedPrompt).toContain(plan.instruction);
+      expect(capturedPrompt).toContain(plan.startUrl);
+      if (withAdapter) expect(capturedPrompt).toContain("Use browse only.");
+      else expect(capturedPrompt).toContain("Use the available browser/web tools");
+      expect(String(capturedPrompt).match(/At the end, return compact JSON/g)).toHaveLength(1);
+    },
+  );
 
   it("parses direct JSON results", () => {
     expect(parseCodexResult('{"success":true,"summary":"done","finalAnswer":"clicked"}')).toEqual({
@@ -90,6 +218,7 @@ describe("codex runner helpers", () => {
       toolAdapter: {
         toolSurface: "browse_cli",
         startupProfile: "tool_launch_local",
+        browserSession: { provider: "local" },
         cwd: "/tmp/stagehand-evals-test",
         env: { PATH: "/tmp" },
         promptInstructions: "Use browse.",
@@ -166,6 +295,66 @@ describe("codex runner helpers", () => {
     expect(metrics.harness_total_tokens.value).toBe(10_500);
   });
 
+  it.each([false, true])(
+    "records a mounted browser loss when Codex completes with success=%s",
+    async (success) => {
+      let loss: { cause: string; tool: string } | undefined;
+      const sdk: CodexSdk = {
+        startThread: () => ({
+          runStreamed: async () => ({
+            events: (async function* () {
+              loss = { cause: "CDP connection closed (close code 1006)", tool: "snapshot" };
+              yield {
+                type: "item.completed",
+                item: {
+                  id: "msg-1",
+                  type: "agent_message",
+                  text: JSON.stringify({
+                    success,
+                    summary: "The browser disconnected.",
+                    finalAnswer: "Partial findings before the disconnect.",
+                  }),
+                },
+              };
+              yield {
+                type: "turn.completed",
+                usage: { input_tokens: 10, output_tokens: 5 },
+              };
+            })(),
+          }),
+        }),
+      };
+
+      const result = await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk,
+        toolAdapter: {
+          toolSurface: "stagehand_facade",
+          startupProfile: "tool_create_browserbase",
+          browserSession: { provider: "browserbase" },
+          cwd: "/tmp/stagehand-evals-test",
+          env: {},
+          promptInstructions: "Use the mounted facade.",
+          browserSessionLoss: () => loss,
+          cleanup: async () => {},
+        },
+      });
+
+      expect(result).toMatchObject({
+        _success: false,
+        error: "Browser session lost (CDP connection closed (close code 1006))",
+        finalAnswer: "Partial findings before the disconnect.",
+        harnessStatus: "sdk_error",
+        harnessStopReason: "browser_session_lost",
+        codexStatus: "sdk_error",
+        codexStopReason: "browser_session_lost",
+        terminationReason: "browser_session_lost",
+      });
+    },
+  );
+
   it("returns a failed task result instead of throwing on SDK errors", async () => {
     const sdk: CodexSdk = {
       startThread: () => ({
@@ -208,5 +397,118 @@ describe("codex runner helpers", () => {
     expect(result.harnessStopReason).toContain("apiKey=[redacted]");
     expect(result.codexStopReason).toContain("apiKey=[redacted]");
     expect(result.error).toContain("apiKey=[redacted]");
+  });
+
+  it("recovers usage from the isolated CODEX_HOME rollout when the step budget aborts the turn", async () => {
+    const codexHome = await fsp.mkdtemp(path.join(os.tmpdir(), "codex-home-"));
+    const sessionsDir = path.join(codexHome, "sessions", "2026", "08", "31");
+    await fsp.mkdir(sessionsDir, { recursive: true });
+    await fsp.writeFile(
+      path.join(sessionsDir, "rollout-2026-08-31T10-00-00-thread-7e1047f4.jsonl"),
+      JSON.stringify({
+        type: "event_msg",
+        payload: {
+          type: "token_count",
+          info: {
+            total_token_usage: {
+              input_tokens: 2_000_000,
+              cached_input_tokens: 1_900_000,
+              output_tokens: 40_000,
+              reasoning_output_tokens: 10_000,
+              total_tokens: 2_040_000,
+            },
+          },
+        },
+      }) + "\n",
+    );
+    const previous = process.env.EVAL_CODEX_MAX_STEPS;
+    process.env.EVAL_CODEX_MAX_STEPS = "1";
+    try {
+      const sdk: CodexSdk = {
+        startThread: () => ({
+          runStreamed: async () => ({
+            events: (async function* () {
+              yield { type: "thread.started", thread_id: "thread-7e1047f4" };
+              yield { type: "item.completed", item: { type: "command_execution", command: "ls" } };
+            })(),
+          }),
+        }),
+      };
+      const result = await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk,
+        toolAdapter: {
+          toolSurface: "browse_cli",
+          startupProfile: "tool_launch_local",
+          browserSession: { provider: "local" },
+          cwd: "/tmp/stagehand-evals-test",
+          env: { PATH: "/tmp", CODEX_HOME: codexHome },
+          promptInstructions: "Use browse.",
+          metadata: { toolCommand: "browse", browseCliEntrypoint: "/tmp/browse" },
+          cleanup: async () => {},
+        },
+      });
+      const metrics = result.metrics as Record<string, { value: number }>;
+
+      expect(result.harnessStatus).toBe("max_turns");
+      expect(metrics.codex_usage_recovered.value).toBe(1);
+      expect(metrics.codex_input_tokens.value).toBe(2_000_000);
+      expect(metrics.usage_input_total.value).toBe(2_000_000);
+      expect(metrics.usage_input_cached.value).toBe(1_900_000);
+      expect(metrics.usage_output.value).toBe(40_000);
+      expect(metrics.cost_usd.value).toBeGreaterThan(0);
+      expect(result.cost_source).toBe("computed");
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_CODEX_MAX_STEPS;
+      else process.env.EVAL_CODEX_MAX_STEPS = previous;
+    }
+  });
+
+  it("marks usage unreported (never zero) when the aborted turn left no rollout to recover", async () => {
+    const codexHome = await fsp.mkdtemp(path.join(os.tmpdir(), "codex-home-"));
+    const previous = process.env.EVAL_CODEX_MAX_STEPS;
+    process.env.EVAL_CODEX_MAX_STEPS = "1";
+    try {
+      const sdk: CodexSdk = {
+        startThread: () => ({
+          runStreamed: async () => ({
+            events: (async function* () {
+              yield { type: "thread.started", thread_id: "thread-gone" };
+              yield { type: "item.completed", item: { type: "command_execution", command: "ls" } };
+            })(),
+          }),
+        }),
+      };
+      const result = await runCodexAgent({
+        plan,
+        model: "openai/gpt-5.4-mini" as AvailableModel,
+        logger: new EvalLogger(false),
+        sdk,
+        toolAdapter: {
+          toolSurface: "browse_cli",
+          startupProfile: "tool_launch_local",
+          browserSession: { provider: "local" },
+          cwd: "/tmp/stagehand-evals-test",
+          env: { PATH: "/tmp", CODEX_HOME: codexHome },
+          promptInstructions: "Use browse.",
+          metadata: { toolCommand: "browse", browseCliEntrypoint: "/tmp/browse" },
+          cleanup: async () => {},
+        },
+      });
+      const metrics = result.metrics as Record<string, { value: number }>;
+
+      expect(result.harnessStatus).toBe("max_turns");
+      expect(result.cost_source).toBe("unavailable");
+      expect(result.billing_channel).toBe("openai_api");
+      expect(result.cost_usd).toBeUndefined();
+      expect(metrics.cost_usd).toBeUndefined();
+      expect(metrics.usage_input_total).toBeUndefined();
+      expect(metrics.codex_usage_recovered.value).toBe(0);
+    } finally {
+      if (previous === undefined) delete process.env.EVAL_CODEX_MAX_STEPS;
+      else process.env.EVAL_CODEX_MAX_STEPS = previous;
+    }
   });
 });

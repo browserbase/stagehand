@@ -91,26 +91,6 @@ export async function readDevToolsActivePort(
   }
 }
 
-function isPortReachable(port: number, timeoutMs = 500): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ host: "127.0.0.1", port });
-    const timer = setTimeout(() => {
-      socket.destroy();
-      resolve(false);
-    }, timeoutMs);
-
-    socket.on("connect", () => {
-      clearTimeout(timer);
-      socket.destroy();
-      resolve(true);
-    });
-    socket.on("error", () => {
-      clearTimeout(timer);
-      resolve(false);
-    });
-  });
-}
-
 async function probeJsonVersion(port: number): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 2000);
@@ -129,6 +109,54 @@ async function probeJsonVersion(port: number): Promise<string | null> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Multiple candidates (several profile dirs, or a profile dir and a fallback
+ * port) can reference the same port within one discovery call. Memoize the
+ * live /json/version probe per port so that port is only actually hit once.
+ */
+function createJsonVersionProbe(): (port: number) => Promise<string | null> {
+  const cache = new Map<number, Promise<string | null>>();
+  return (port) => {
+    let pending = cache.get(port);
+    if (!pending) {
+      pending = probeJsonVersion(port);
+      cache.set(port, pending);
+    }
+    return pending;
+  };
+}
+
+function wsPathname(wsUrl: string): string | null {
+  try {
+    return new URL(wsUrl).pathname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A DevToolsActivePort file only reflects the browser instance that wrote it.
+ * If a different process later binds the same port (a very likely collision,
+ * since 9222 is the near-universal default debugging port), the cached
+ * port+wsPath pair points at a target that no longer exists. Confirm the
+ * port's live /json/version still reports this exact target before trusting
+ * it. Compare pathnames only (not the full URL) since Chrome can report the
+ * host as "127.0.0.1" or "localhost" depending on version/platform.
+ */
+async function isDevToolsActivePortFresh(
+  info: DevToolsActivePortInfo,
+  probe: (port: number) => Promise<string | null> = probeJsonVersion,
+): Promise<boolean> {
+  const liveWsUrl = await probe(info.port);
+  if (!liveWsUrl) return false;
+  const expectedPathname = wsPathname(
+    buildDevToolsWsUrl(info.port, info.wsPath),
+  );
+  return (
+    expectedPathname !== null && wsPathname(liveWsUrl) === expectedPathname
+  );
 }
 
 async function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
@@ -177,11 +205,12 @@ async function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
 async function resolveDevToolsActivePortUrl(
   port: number,
   userDataDirs: string[],
+  probe: (port: number) => Promise<string | null>,
 ): Promise<string | null> {
   for (const dir of userDataDirs) {
     const info = await readDevToolsActivePort(dir);
     if (!info || info.port !== port) continue;
-    if (!(await isPortReachable(info.port))) continue;
+    if (!(await isDevToolsActivePortFresh(info, probe))) continue;
     return buildDevToolsWsUrl(info.port, info.wsPath);
   }
 
@@ -193,9 +222,14 @@ export async function resolveWsTargetFromPort(
   options: ResolveWsTargetFromPortOptions = {},
 ): Promise<string> {
   const userDataDirs = options.userDataDirs ?? getChromeUserDataDirs();
-  const devToolsUrl = await resolveDevToolsActivePortUrl(port, userDataDirs);
+  const probe = createJsonVersionProbe();
+  const devToolsUrl = await resolveDevToolsActivePortUrl(
+    port,
+    userDataDirs,
+    probe,
+  );
   if (devToolsUrl) return devToolsUrl;
-  const jsonVersionUrl = await probeJsonVersion(port);
+  const jsonVersionUrl = await probe(port);
   if (jsonVersionUrl) return jsonVersionUrl;
   const fallback = buildDevToolsWsUrl(port, "/devtools/browser");
   if (await verifyCdpWebSocket(fallback)) return fallback;
@@ -209,10 +243,11 @@ export async function discoverLocalCdp(
 ): Promise<LocalCdpDiscovery | null> {
   const candidates: CdpCandidate[] = [];
   const userDataDirs = options.userDataDirs ?? getChromeUserDataDirs();
+  const probe = createJsonVersionProbe();
 
   for (const dir of userDataDirs) {
     const info = await readDevToolsActivePort(dir);
-    if (!info || !(await isPortReachable(info.port))) continue;
+    if (!info || !(await isDevToolsActivePortFresh(info, probe))) continue;
     candidates.push({
       source: `DevToolsActivePort:${dir}`,
       wsUrl: buildDevToolsWsUrl(info.port, info.wsPath),
@@ -220,7 +255,7 @@ export async function discoverLocalCdp(
   }
 
   for (const port of options.fallbackPorts ?? DEFAULT_FALLBACK_PORTS) {
-    const wsUrl = await probeJsonVersion(port);
+    const wsUrl = await probe(port);
     if (!wsUrl) continue;
     if (!candidates.some((candidate) => candidate.wsUrl === wsUrl)) {
       candidates.push({ source: `port:${port}`, wsUrl });

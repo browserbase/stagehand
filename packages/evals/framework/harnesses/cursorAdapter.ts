@@ -37,10 +37,22 @@ export class CursorTrajectoryAdapter implements TrajectoryAdapter<CursorRunResul
     const openCalls = new Map<string, NormalizedToolCall>();
     const trailingTextParts: string[] = [];
     let pendingReasoning = "";
+    let pendingThinking = "";
     let resultMessageText: string | undefined;
 
     for (const event of result.events) {
       const type = String(event.type ?? "");
+      // stream-json carries the model's thinking text only on the deltas; the
+      // "completed" envelope is a boundary marker with no text of its own.
+      if (type === "thinking") {
+        if (event.subtype === "delta" && typeof event.text === "string") {
+          pendingThinking += event.text;
+        } else if (event.subtype === "completed" && pendingThinking.trim()) {
+          pendingReasoning = appendText(pendingReasoning, pendingThinking.trim());
+          pendingThinking = "";
+        }
+        continue;
+      }
       if (type === "assistant") {
         for (const text of extractAssistantText(event)) {
           pendingReasoning = appendText(pendingReasoning, text);
@@ -58,9 +70,22 @@ export class CursorTrajectoryAdapter implements TrajectoryAdapter<CursorRunResul
       const view = extractCursorToolCall(event);
       if (!view) continue;
       if (view.subtype === "started") {
-        const call = normalizeToolCall(view, pendingReasoning);
-        toolCalls.push(call);
-        if (view.callId) openCalls.set(view.callId, call);
+        if (pendingThinking.trim()) {
+          pendingReasoning = appendText(pendingReasoning, pendingThinking.trim());
+          pendingThinking = "";
+        }
+        const open = view.callId ? openCalls.get(view.callId) : undefined;
+        if (open) {
+          // SDK partial-tool-call events update the same running call. They
+          // must not become extra browser steps or consume observation slots.
+          if (view.name !== "mcp.tool" && view.name !== "function") open.name = view.name;
+          open.args = mergePartialArgs(open.args, view.args);
+          open.reasoning = appendText(open.reasoning ?? "", pendingReasoning) || undefined;
+        } else {
+          const call = normalizeToolCall(view, pendingReasoning);
+          toolCalls.push(call);
+          if (view.callId) openCalls.set(view.callId, call);
+        }
         pendingReasoning = "";
         trailingTextParts.length = 0;
         continue;
@@ -107,6 +132,30 @@ export class CursorTrajectoryAdapter implements TrajectoryAdapter<CursorRunResul
 export const cursorAdapter = new CursorTrajectoryAdapter();
 
 type CursorToolView = NonNullable<ReturnType<typeof extractCursorToolCall>>;
+
+function mergePartialArgs(
+  previous: Record<string, unknown>,
+  current: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged = { ...previous };
+  for (const [key, value] of Object.entries(current)) {
+    const existing = previous[key];
+    if (
+      isRecord(existing) &&
+      !Array.isArray(existing) &&
+      isRecord(value) &&
+      !Array.isArray(value)
+    ) {
+      merged[key] = mergePartialArgs(existing, value);
+    } else if (
+      value !== undefined &&
+      !(typeof existing === "string" && typeof value === "string" && existing.startsWith(value))
+    ) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
 
 function normalizeToolCall(view: CursorToolView, reasoning: string): NormalizedToolCall {
   const content = normalizeToolResult(view.result);

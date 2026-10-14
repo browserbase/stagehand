@@ -1,0 +1,184 @@
+{
+  "conversation_seq": 0,
+  "checkpoint": {
+    "version": 2,
+    "turn_id": 1,
+    "user": {
+      "text": "You are running a browser benchmark task. (prompt elided in fixture)",
+      "images": []
+    },
+    "assistant_source": "",
+    "execution": {
+      "schema_version": 10,
+      "tool_steps": [
+        {
+          "assistant": "Starting by selecting the Stagehand browser tools.",
+          "provider_replay": null,
+          "tool_calls": [
+            {
+              "id": "toolu_018m7e5KpB58eDHNEfWPY9q5",
+              "name": "mcp_select_tool",
+              "arguments_json": "{\"name\": \"mcp_stagehand_run\"}",
+              "provider_result": null
+            },
+            {
+              "id": "toolu_01M4YTr9WcC8VfVA6F2XXn2U",
+              "name": "mcp_select_tool",
+              "arguments_json": "{\"name\": \"mcp_stagehand_snapshot\"}",
+              "provider_result": null
+            },
+            {
+              "id": "toolu_014QBjj4XChArfALpaa6ZUZv",
+              "name": "mcp_select_tool",
+              "arguments_json": "{\"name\": \"mcp_stagehand_screenshot\"}",
+              "provider_result": null
+            }
+          ],
+          "tool_results": [
+            {
+              "tool_call_id": "toolu_018m7e5KpB58eDHNEfWPY9q5",
+              "tool_name": "mcp_select_tool",
+              "status": "success",
+              "output": "",
+              "output_handle": "result-mcp_select_tool-f7cf0c39c3a65620-8f91d0f331104cf4.txt",
+              "preview": "Selected dynamic MCP tool `mcp_stagehand_run`. Its executable schema will be available on the next model step; call `mcp_stagehand_run` with arguments matching the selected schema.",
+              "output_bytes": 180,
+              "stored_output_bytes": 180,
+              "truncated": false,
+              "provider_native": false,
+              "review_feedback": false,
+              "created_at_ms": 1790729363441,
+              "permission_feedback": [],
+              "committed_file_presentation": null,
+              "command_output_replay": null,
+              "command_process_presentation": null,
+              "terminal_action_presentation": null
+            },
+            {
+              "tool_call_id": "toolu_01M4YTr9WcC8VfVA6F2XXn2U",
+              "tool_name": "mcp_select_tool",
+              "status": "success",
+              "output": "",
+              "output_handle": "result-mcp_select_tool-debb0590e813ef53-9e2854ec82da8b99.txt",
+              "preview": "Selected dynamic MCP tool `mcp_stagehand_snapshot`. Its executable schema will be available on the next model step; call `mcp_stagehand_snapshot` with arguments matching the selected schema.",
+              "output_bytes": 190,
+              "stored_output_bytes": 190,
+              "truncated": false,
+              "provider_native": false,
+              "review_feedback": false,
+              "created_at_ms": 1790729363441,
+              "permission_feedback": [],
+              "committed_file_presentation": null,
+              "command_output_replay": null,
+              "command_process_presentation": null,
+              "terminal_action_presentation": null
+            },
+            {
+              "tool_call_id": "toolu_014QBjj4XChArfALpaa6ZUZv",
+              "tool_name": "mcp_select_tool",
+              "status": "success",
+              "output": "",
+              "output_handle": "result-mcp_select_tool-17238acba7746e20-e9603248e73e6249.txt",
+              "preview": "Selected dynamic MCP tool `mcp_stagehand_screenshot`. Its executable schema will be available on the next model step; call `mcp_stagehand_screenshot` with arguments matching the selected schema.",
+              "output_bytes": 194,
+              "stored_output_bytes": 194,
+              "truncated": false,
+              "provider_native": false,
+              "review_feedback": false,
+              "created_at_ms": 1790729363441,
+              "permission_feedback": [],
+              "committed_file_presentation": null,
+              "command_output_replay": null,
+              "command_process_presentation": null,
+              "terminal_action_presentation": null
+            }
+          ]
+        },
+        {
+          "assistant": null,
+          "provider_replay": null,
+          "tool_calls": [
+            {
+              "id": "toolu_01LRPbSSHLTmkbKz5GRPJHXE",
+              "name": "mcp_stagehand_run",
+              "arguments_json": "{\"code\": \"await page.goto('https://www.hostelworld.com/hostels/europe/portugal/lisbon/', { waitUntil: 'domcontentloaded' }); await page.waitForTimeout(4000); return {url: page.url(), title: await page.title(), d: new Date().toString()};\"}",
+              "provider_result": null
+            }
+          ],
+          "tool_results": [
+            {
+              "tool_call_id": "toolu_01LRPbSSHLTmkbKz5GRPJHXE",
+              "tool_name": "mcp_stagehand_run",
+              "status": "success",
+              "output": "",
+              "output_handle": "result-mcp_stagehand_run-0995e33ec75d5836-fd88f7cb0be58932.txt",
+              "preview": "{\"server\":\"stagehand\",\"tool\":\"mcp_stagehand_run\",\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\n  \\\"url\\\": \\\"https://www.hostelworld.com/hostels/europe/portugal/lisbon/\\\",\\n  \\\"title\\\": \\\"Best Hostels in Lisbon from US$9.19 | 2026\\\",\\n  \\\"d\\\": \\\"Tue Sep 29 2026 19:49:05 GMT-0500 (Central Daylight Time)\\\"\\n}\"}]}}",
+              "output_bytes": 181,
+              "stored_output_bytes": 181,
+              "truncated": false,
+              "provider_native": false,
+              "review_feedback": false,
+              "created_at_ms": 1790729363441,
+              "permission_feedback": [],
+              "committed_file_presentation": null,
+              "command_output_replay": null,
+              "command_process_presentation": null,
+              "terminal_action_presentation": null
+            }
+          ]
+        },
+        {
+          "assistant": null,
+          "provider_replay": null,
+          "tool_calls": [
+            {
+              "id": "toolu_015NT5TPZDmHUyBRMoW2BDSE",
+              "name": "mcp_stagehand_screenshot",
+              "arguments_json": "{\"type\": \"jpeg\", \"quality\": 40}",
+              "provider_result": null
+            }
+          ],
+          "tool_results": [
+            {
+              "tool_call_id": "toolu_015NT5TPZDmHUyBRMoW2BDSE",
+              "tool_name": "mcp_stagehand_screenshot",
+              "status": "success",
+              "output": "",
+              "output_handle": "result-mcp_stagehand_screenshot-1b8426d7e5a62ee8-c9fd625590f504d6.txt",
+              "preview": "{\"server\":\"stagehand\",\"tool\":\"mcp_stagehand_screenshot\",\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Screenshot captured.\"},{\"type\":\"image\",\"mimeType\":\"image/jpeg\",\"delivery\":\"image content\"}]}}",
+              "output_bytes": 193,
+              "stored_output_bytes": 193,
+              "truncated": false,
+              "provider_native": false,
+              "review_feedback": false,
+              "created_at_ms": 1790729363441,
+              "permission_feedback": [],
+              "committed_file_presentation": null,
+              "command_output_replay": null,
+              "command_process_presentation": null,
+              "terminal_action_presentation": null,
+              "tool_image_handle": "image-result-mcp_stagehand_screenshot-1b8426d7e5a62ee8-1464806fb0fb7200.txt"
+            }
+          ]
+        }
+      ],
+      "files": [],
+      "steering": [],
+      "turn_summary": null
+    },
+    "cause": "network_interrupted",
+    "action": "retrying_request",
+    "tool_state": "uncertain",
+    "authority": {
+      "provider": "gateway",
+      "model": "anthropic/claude-sonnet-5-5",
+      "credential_source": "ai_gateway_api_key",
+      "credential_identity": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "requested_fast_mode": false,
+    "fast_mode": false,
+    "max_provider_attempts": 10,
+    "consumed_provider_attempts": 1,
+    "outstanding_reservation": false
+  }
+}

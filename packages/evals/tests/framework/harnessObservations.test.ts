@@ -17,6 +17,55 @@ import {
 
 const TASK_SPEC: TaskSpec = { id: "t", instruction: "do the thing" };
 
+describe("Codex keyed observations", () => {
+  it("retains early evidence despite unrelated calls and a missing final capture", () => {
+    const trajectory = codexAdapter.fromHarnessResult(
+      {
+        events: [
+          {
+            type: "item.completed",
+            item: {
+              id: "other",
+              type: "mcp_tool_call",
+              server: "other",
+              tool: "run",
+              status: "completed",
+            },
+          },
+          {
+            type: "item.completed",
+            item: {
+              id: "first",
+              type: "mcp_tool_call",
+              server: "stagehand",
+              tool: "run",
+              status: "completed",
+            },
+          },
+          {
+            type: "item.completed",
+            item: {
+              id: "last",
+              type: "mcp_tool_call",
+              server: "stagehand",
+              tool: "run",
+              status: "completed",
+            },
+          },
+        ],
+        stepObservations: [
+          { runIndex: 0, toolCallId: "first", evidence: { url: "https://example.com/first" } },
+        ],
+        observedToolName: (name) => name.startsWith("stagehand."),
+      },
+      TASK_SPEC,
+    );
+    expect(trajectory.steps[0].probeEvidence?.url).toBeUndefined();
+    expect(trajectory.steps[1].probeEvidence?.url).toBe("https://example.com/first");
+    expect(trajectory.steps[2].probeEvidence?.url).toBeUndefined();
+  });
+});
+
 describe("observation recorder", () => {
   afterEach(() => {
     delete process.env.EVAL_HARNESS_OBSERVATIONS;

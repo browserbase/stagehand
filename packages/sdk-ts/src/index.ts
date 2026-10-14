@@ -12,6 +12,7 @@ export {
 } from "./browserClipboard.js";
 export {
   Locator,
+  type LocatorOptions,
   type LocatorClickOptions,
   type LocatorHighlightOptions,
   type LocatorSendClickEventOptions,
@@ -28,6 +29,7 @@ export {
   type ToolsRemovedListener,
   type PageKeyPressOptions,
   type PageReloadOptions,
+  type PDFOptions,
   type PageSetViewportSizeOptions,
   type PageTypeOptions,
   type PageWaitForSelectorOptions,
@@ -40,6 +42,8 @@ export {
   type ResponseServerAddr,
 } from "./response.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
+export { CDPConnectionClosedError } from "./cdpClient.js";
+export { RPCResponseTimeoutError } from "./rpcErrors.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
 export { StagehandRuntimeIncompatibleError } from "./cdpClient.js";
@@ -49,17 +53,20 @@ export type {
   RuntimeIncompatibilityReason,
   RuntimeRequirement,
 } from "./runtimeCompatibility.js";
-export type {
-  ExperimentalBatchCallback,
-  ExperimentalBatchBrowserContext,
-  ExperimentalBatchContext,
-  ExperimentalBatchExtractOptions,
-  ExperimentalBatchOptions,
+export {
+  CALLBACK_BATCH_CLIENT_GRACE_MS,
+  StagehandBatchTimeoutError,
+  type ExperimentalBatchCallback,
+  type ExperimentalBatchBrowserContext,
+  type ExperimentalBatchContext,
+  type ExperimentalBatchExtractOptions,
+  type ExperimentalBatchOptions,
 } from "./batch.js";
 export { browserbase, localBrowser } from "./browser/factories.js";
 export { openAICompatible, type OpenAICompatibleOptions } from "./openAICompatible.js";
 export type {
   BrowserbaseBrowser,
+  BrowserbaseClientOptions,
   BrowserbaseConnectOptions,
   BrowserbaseFetchOptions,
   BrowserbaseFetchResult,
@@ -91,6 +98,8 @@ export type {
   PageDragAndDropRoutePoint,
   PageEventName,
   PageNavigationOptions,
+  PagePDFMargin,
+  PagePDFOptions,
   PageScreenshotClip,
   PageSnapshotOptions,
   RgbaColor,

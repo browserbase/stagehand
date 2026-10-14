@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from ._generated.models import BrowserbaseRegion, BrowserbaseSessionCreateParams
 from ._sdk_identity import STAGEHAND_SESSION_METADATA
 from .extension_assets import build_extension_archive
+
+if TYPE_CHECKING:
+    from browserbase import AsyncBrowserbase
 
 DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com"
 
@@ -81,21 +85,41 @@ class _BrowserbaseAPI(Protocol):
 
 
 class _OfficialBrowserbaseAPI:
-    def __init__(self, api_key: str, base_url: str) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        client_options: Mapping[str, Any] | None = None,
+    ) -> None:
         self._api_key = api_key
         self._base_url = base_url
+        self._client_options = dict(client_options or {})
 
-    async def upload_extension(self, archive: bytes) -> str:
+    @asynccontextmanager
+    async def _client(self) -> AsyncIterator[AsyncBrowserbase]:
         from browserbase import AsyncBrowserbase
 
-        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
+        client = AsyncBrowserbase(
+            **self._client_options,
+            api_key=self._api_key,
+            base_url=self._base_url,
+        )
+        if self._client_options.get("http_client") is not None:
+            # Closing AsyncBrowserbase closes its HTTP client, which the caller owns.
+            yield client
+            return
+        async with client:
+            yield client
+
+    async def upload_extension(self, archive: bytes) -> str:
+        async with self._client() as client:
             extension = await client.extensions.create(file=("stagehand-extension.zip", archive))
         return extension.id
 
     async def delete_extension(self, extension_id: str) -> None:
-        from browserbase import AsyncBrowserbase, omit
+        from browserbase import omit
 
-        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
+        async with self._client() as client:
             await client.extensions.delete(extension_id, extra_headers={"Content-Type": omit})
 
     async def create_session(
@@ -105,14 +129,12 @@ class _OfficialBrowserbaseAPI:
         user_metadata: Mapping[str, Any],
         extension_id: str | None,
     ) -> tuple[str, str]:
-        from browserbase import AsyncBrowserbase
-
         kwargs = _session_create_kwargs(
             options,
             user_metadata=user_metadata,
             extension_id=extension_id,
         )
-        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
+        async with self._client() as client:
             session = await client.sessions.create(**kwargs)
         return session.id, session.connect_url
 
@@ -120,9 +142,7 @@ class _OfficialBrowserbaseAPI:
         self,
         session_id: str,
     ) -> tuple[str, str | None, BrowserbaseRegion | None]:
-        from browserbase import AsyncBrowserbase
-
-        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
+        async with self._client() as client:
             session = await client.sessions.retrieve(session_id)
         return (
             session.id,
@@ -131,9 +151,7 @@ class _OfficialBrowserbaseAPI:
         )
 
     async def release_session(self, session_id: str) -> None:
-        from browserbase import AsyncBrowserbase
-
-        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
+        async with self._client() as client:
             await client.sessions.update(session_id, status="REQUEST_RELEASE")
 
 
@@ -298,5 +316,9 @@ class _BrowserbaseSessionClient:
         await self._delete_extension_best_effort(extension_id)
 
 
-def _create_browserbase_session_client(api_key: str, base_url: str) -> _BrowserbaseSessionClient:
-    return _BrowserbaseSessionClient(_OfficialBrowserbaseAPI(api_key, base_url))
+def _create_browserbase_session_client(
+    api_key: str,
+    base_url: str,
+    client_options: Mapping[str, Any] | None = None,
+) -> _BrowserbaseSessionClient:
+    return _BrowserbaseSessionClient(_OfficialBrowserbaseAPI(api_key, base_url, client_options))

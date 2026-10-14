@@ -17,6 +17,7 @@ import {
   facadeSurfaceFromArgs,
   facadeToolsFor,
   SESSION_INFO_TOOL_NAME,
+  SESSION_LOST_TELEMETRY_PREFIX,
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
@@ -25,6 +26,8 @@ import {
   screenshotBase64BudgetFromArgs,
 } from "./screenshot-transport.js";
 import { StagehandFacadeTools } from "./tools.js";
+import { createFacadeLogger } from "./logging.js";
+import { transportSafeText } from "./output.js";
 
 type FacadeResources = {
   browser: StagehandBrowser;
@@ -33,6 +36,7 @@ type FacadeResources = {
 };
 
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
+const toolLogger = createFacadeLogger();
 const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
 const facadeTools = facadeToolsFor(facadeSurfaceFromArgs(process.argv.slice(2)));
 let resourcesPromise: Promise<FacadeResources> | undefined;
@@ -57,70 +61,77 @@ server.registerTool(
 server.server.removeRequestHandler("tools/list");
 server.server.setRequestHandler(ListToolsRequestSchema, () => ({ tools: [...facadeTools] }));
 server.server.removeRequestHandler("tools/call");
-server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  try {
-    const args = request.params.arguments ?? {};
-    switch (request.params.name) {
-      case "run": {
-        const input = CodeModeRunInputSchema.parse(args);
-        const tools = (await ensureResources()).tools;
-        const result =
-          input.code === undefined
-            ? await tools.runActions(input.actions!)
-            : await tools.run(input.code);
-        return textResult(stringifyResult(result));
+server.server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
+  toolLogger.call(
+    String(extra.requestId),
+    request.params.name,
+    request.params.arguments ?? {},
+    async () => {
+      try {
+        const args = request.params.arguments ?? {};
+        switch (request.params.name) {
+          case "run": {
+            const input = CodeModeRunInputSchema.parse(args);
+            const tools = (await ensureResources()).tools;
+            const result =
+              input.code === undefined
+                ? await tools.runActions(input.actions!)
+                : await tools.run(input.code);
+            return textResult(stringifyResult(result));
+          }
+          case "snapshot": {
+            const input = SnapshotInputSchema.parse(args);
+            const result = await (await ensureResources()).tools.snapshot(input);
+            return textResult(result);
+          }
+          case "screenshot": {
+            const input = ScreenshotInputSchema.parse(args);
+            const tools = (await ensureResources()).tools;
+            const screenshot =
+              screenshotBase64Budget === undefined
+                ? { image: await tools.screenshot(input), adjusted: false }
+                : await captureScreenshotWithinBase64Budget(
+                    (options) => tools.screenshot(options),
+                    input,
+                    screenshotBase64Budget,
+                  );
+            return {
+              content: [
+                {
+                  type: "text" as const,
+                  text: screenshot.adjusted
+                    ? "Screenshot captured with transport-safe compression."
+                    : "Screenshot captured.",
+                },
+                {
+                  type: "image" as const,
+                  data: screenshot.image.data,
+                  mimeType: screenshot.image.mimeType,
+                },
+              ],
+            };
+          }
+          case SESSION_INFO_TOOL_NAME: {
+            // Runner-side only (absent from tools/list): launches the browser if
+            // needed and reports where it lives so the harness can log the
+            // Browserbase session URL before the agent's first call.
+            const browser = (await ensureResources()).browser;
+            return textResult(
+              JSON.stringify({
+                provider: browser.provider,
+                ...(browser.sessionId && { sessionId: browser.sessionId }),
+              }),
+            );
+          }
+          default:
+            throw new Error(`Unknown tool: ${request.params.name}`);
+        }
+      } catch (error) {
+        return errorResult(error);
       }
-      case "snapshot": {
-        const input = SnapshotInputSchema.parse(args);
-        const result = await (await ensureResources()).tools.snapshot(input);
-        return textResult(result);
-      }
-      case "screenshot": {
-        const input = ScreenshotInputSchema.parse(args);
-        const tools = (await ensureResources()).tools;
-        const screenshot =
-          screenshotBase64Budget === undefined
-            ? { image: await tools.screenshot(input), adjusted: false }
-            : await captureScreenshotWithinBase64Budget(
-                (options) => tools.screenshot(options),
-                input,
-                screenshotBase64Budget,
-              );
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: screenshot.adjusted
-                ? "Screenshot captured with transport-safe compression."
-                : "Screenshot captured.",
-            },
-            {
-              type: "image" as const,
-              data: screenshot.image.data,
-              mimeType: screenshot.image.mimeType,
-            },
-          ],
-        };
-      }
-      case SESSION_INFO_TOOL_NAME: {
-        // Runner-side only (absent from tools/list): launches the browser if
-        // needed and reports where it lives so the harness can log the
-        // Browserbase session URL before the agent's first call.
-        const browser = (await ensureResources()).browser;
-        return textResult(
-          JSON.stringify({
-            provider: browser.provider,
-            ...(browser.sessionId && { sessionId: browser.sessionId }),
-          }),
-        );
-      }
-      default:
-        throw new Error(`Unknown tool: ${request.params.name}`);
-    }
-  } catch (error) {
-    return errorResult(error);
-  }
-});
+    },
+  ),
+);
 
 async function ensureResources(): Promise<FacadeResources> {
   resourcesPromise ??= createResources().catch((error) => {
@@ -132,6 +143,7 @@ async function ensureResources(): Promise<FacadeResources> {
 
 async function createResources(): Promise<FacadeResources> {
   const config = stagehandFacadeConfigFromEnv();
+  const launchedAt = Date.now();
   const browser =
     config.browser.type === "browserbase"
       ? await browserbase.launch(config.browser.launchOptions)
@@ -141,7 +153,27 @@ async function createResources(): Promise<FacadeResources> {
     const tools = new StagehandFacadeTools(stagehand, {
       onRunReport: (report) =>
         process.stderr.write(`stagehand_playwright_compat ${JSON.stringify(report)}\n`),
+      // The browser is not recreated on purpose: a fresh session would silently
+      // change the evidence trail mid-task. Tools keep answering with the
+      // terminal error and the host decides what to do with the run.
+      // Age includes launch and initialization time. Compare it with configured
+      // timeout and remote session status when diagnosing a disconnect.
+      onSessionLost: (loss) =>
+        process.stderr.write(
+          `${SESSION_LOST_TELEMETRY_PREFIX}${JSON.stringify({
+            ...loss,
+            cause: sanitizeErrorMessage(loss.cause),
+            provider: browser.provider,
+            ...(browser.sessionId && { sessionId: browser.sessionId }),
+            sessionAgeMs: Date.now() - launchedAt,
+            ...(config.browser.type === "browserbase" &&
+              typeof config.browser.launchOptions.timeout === "number" && {
+                sessionTimeoutMs: config.browser.launchOptions.timeout * 1000,
+              }),
+          })}\n`,
+        ),
     });
+    toolLogger.emit("browser.ready", { provider: browser.provider, sessionId: browser.sessionId });
     return { browser, stagehand, tools };
   } catch (error) {
     await browser.close().catch(() => undefined);
@@ -150,12 +182,12 @@ async function createResources(): Promise<FacadeResources> {
 }
 
 function textResult(text: string) {
-  return { content: [{ type: "text" as const, text }] };
+  return { content: [{ type: "text" as const, text: transportSafeText(text) }] };
 }
 
 function errorResult(error: unknown) {
   const message = sanitizeErrorMessage(error instanceof Error ? error.message : String(error));
-  return { content: [{ type: "text" as const, text: message }], isError: true };
+  return { ...textResult(message), isError: true };
 }
 
 function stringifyResult(value: unknown): string {
@@ -186,6 +218,7 @@ async function shutdown(code: number): Promise<void> {
     server,
   ]);
   if (!clean) process.stderr.write("Failed to close Stagehand facade cleanly.\n");
+  toolLogger.close();
   process.exit(code === 0 && !clean ? 1 : code);
 }
 
