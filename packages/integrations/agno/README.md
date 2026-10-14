@@ -58,4 +58,3 @@ agent run when adapting this example; a new server per call loses browser state.
 
 `run(code)` executes model-authored JavaScript inside the browser extension's
 service worker. Use Browserbase to isolate untrusted tasks.
-
