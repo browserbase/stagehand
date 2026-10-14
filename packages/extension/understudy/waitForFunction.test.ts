@@ -1,3 +1,4 @@
+import { runInThisContext } from "node:vm";
 import { trace } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TimeoutError } from "../errors.js";
@@ -83,7 +84,7 @@ describe("Page.waitForFunction", () => {
     send.mockImplementation(async (method, params) => {
       if (method === "Runtime.evaluate") {
         expect(params?.contextId).toBe(7);
-        handle = new Function(`return ${params?.expression}`)();
+        handle = runInThisContext(params?.expression ?? "");
         return { result: { objectId: "wait-handle" } };
       }
       if (params?.awaitPromise) return { result: { value: await handle.promise } };
@@ -136,6 +137,7 @@ describe("Page.waitForFunction", () => {
     "Cannot find context with specified id",
     "Execution context was destroyed",
     "Cannot find object with given id",
+    "-32000 Inspected target navigated or closed",
   ])("reinstalls in the new main world after %s", async (message) => {
     const contexts = vi
       .spyOn(executionContexts, "waitForMainWorld")
