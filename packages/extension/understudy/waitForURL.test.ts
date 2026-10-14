@@ -107,6 +107,22 @@ describe("Page.waitForURL", () => {
     expect(session.listeners()).toBe(baselineListeners);
   });
 
+  it("includes the fragment of a newly navigated document", async () => {
+    const pending = page.waitForURL("**/done#section");
+    await vi.advanceTimersByTimeAsync(0);
+    session.emit("Page.frameNavigated", {
+      frame: {
+        id: "main",
+        loaderId: "document",
+        url: "https://example.test/done",
+        urlFragment: "#section",
+      },
+    });
+    await pending;
+    expect(page.url()).toBe("https://example.test/done#section");
+    await page.waitForURL("**/done#section");
+  });
+
   it("follows a new root frame and waits for its lifecycle state", async () => {
     ready.mockResolvedValue(false);
     const settled = vi.fn();
@@ -241,5 +257,25 @@ describe("Page.waitForURL", () => {
     vi.spyOn(page.conn, "connected", "get").mockReturnValue(false);
     await expect(page.waitForURL("**/missing", { timeout: 0 })).rejects.toThrow("Page closed");
     expect(page.conn.transportCloseHandlers.size).toBe(0);
+  });
+
+  it("stops during a stalled readiness check without installing late listeners", async () => {
+    let release!: (ready: boolean) => void;
+    ready.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const pending = page.waitForURL("**/start", { timeout: 0 });
+    const rejected = expect(pending).rejects.toThrow("Page closed");
+    await vi.advanceTimersByTimeAsync(0);
+    page.dispose();
+    await rejected;
+    const listenersAfterClose = session.listeners();
+    release(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(session.listeners()).toBe(listenersAfterClose);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
