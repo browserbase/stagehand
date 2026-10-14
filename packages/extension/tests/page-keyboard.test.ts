@@ -96,14 +96,18 @@ describe("page keyboard state", () => {
   });
 
   it.each([
+    ["A", "KeyA", 65],
     [".", "Period", 190],
     ["(", "Digit9", 57],
     ["+", "Equal", 187],
     ["é", undefined, undefined],
-  ])("uses safe key identity for %s", async (key, code, vk) => {
+  ])("uses safe literal key identity for %s without implicit modifiers", async (key, code, vk) => {
     const { keyboard, events } = setup();
     await keyboard.press(String(key));
-    expect(events[0]).toMatchObject({ type: "keyDown", key, text: key });
+    expect(events).toMatchObject([
+      { type: "keyDown", key, text: key, modifiers: 0 },
+      { type: "keyUp", key, modifiers: 0 },
+    ]);
     expect(events[0].code).toBe(code);
     expect(events[0].windowsVirtualKeyCode).toBe(vk);
   });
