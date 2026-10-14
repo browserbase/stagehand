@@ -127,6 +127,50 @@ async def _connected_handle(
     )
 
 
+@pytest.mark.parametrize("provider", ["local", "browserbase"])
+@pytest.mark.parametrize("origin", ["launched", "connected"])
+@pytest.mark.parametrize("keep_alive", [False, True])
+async def test_disconnect_preserves_browser_and_finishes_handle(
+    fake_cdp: type[FakeCDPClient],
+    provider: Literal["local", "browserbase"],
+    origin: Literal["launched", "connected"],
+    keep_alive: bool,
+) -> None:
+    source = FakeSource(keep_alive=keep_alive)
+    handle = await _connect_browser(
+        provider=provider,
+        origin=origin,
+        source=source,
+        worker_init_metadata=_metadata(),
+    )
+    pending = handle.disconnect()
+    assert handle.closed
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        _claim_browser(handle)
+    await asyncio.gather(pending, handle.disconnect(), handle.close())
+    cdp = fake_cdp.instances[-1]
+    assert cdp.close_calls == 1
+    assert cdp.commands == []
+    assert source.close_calls == 0
+
+
+async def test_disconnect_preserves_failure_and_shields_cleanup_from_cancellation(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    failure = OSError("disconnect failed")
+    fake_cdp.close_error = failure
+    pending = asyncio.ensure_future(handle.disconnect())
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    for operation in (handle.disconnect, handle.close):
+        with pytest.raises(OSError) as error:
+            await operation()
+        assert error.value is failure
+    assert fake_cdp.instances[-1].close_calls == 1
+
+
 async def test_handle_close_is_memoized_and_marks_closed_when_requested(
     fake_cdp: type[FakeCDPClient],
 ) -> None:
@@ -323,6 +367,7 @@ def test_handle_construction_is_nominal() -> None:
             "launched",
             object(),  # ty: ignore[invalid-argument-type]
             close,
+            disconnect=close,
         )
 
 

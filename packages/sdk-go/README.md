@@ -227,3 +227,13 @@ Run the flat examples directly from the repository:
 go -C packages/sdk-go run examples/act.go
 go -C packages/sdk-go run examples/extract.go
 ```
+
+## Disconnect and reconnect
+
+`browser.Close(ctx)` terminates a local browser or releases a Browserbase session,
+even with `KeepAlive: &keepAlive` set to true. To retain a Browserbase session,
+enable keep-alive at launch, save `browser.SessionID()`, call `client.Close(ctx)`,
+then `browser.Disconnect(ctx)`. Reconnect with `ConnectBrowserbase(ctx,
+BrowserbaseConnectOptions{APIKey: apiKey, SessionID: sessionID})` while the session
+is still running within its configured timeout. Disconnect finishes the handle;
+create a new handle to reconnect or explicitly release the session.

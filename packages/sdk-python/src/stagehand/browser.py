@@ -123,6 +123,7 @@ class StagehandBrowser:
         "_attachment",
         "_claimed",
         "_close_callback",
+        "_disconnect_callback",
         "_invalidate_callback",
         "_terminal_task",
         "_context",
@@ -138,6 +139,7 @@ class StagehandBrowser:
         attachment: _ClaimedBrowser,
         close: Callable[[], Awaitable[None]],
         *,
+        disconnect: Callable[[], Awaitable[None]],
         invalidate: Callable[[], Awaitable[None]] | None = None,
         session_id: str | None = None,
         _token: object | None = None,
@@ -148,6 +150,7 @@ class StagehandBrowser:
         self._origin = origin
         self._attachment = attachment
         self._close_callback = close
+        self._disconnect_callback = disconnect
         self._invalidate_callback = invalidate or close
         self._claimed = False
         self._terminal_task: asyncio.Task[None] | None = None
@@ -185,6 +188,15 @@ class StagehandBrowser:
             self._terminal_task = asyncio.create_task(
                 _run_browser_terminal_callback(self._close_callback),
                 name="stagehand-browser-close",
+            )
+        return asyncio.shield(self._terminal_task)
+
+    def disconnect(self) -> Awaitable[None]:
+        """Detach the client without terminating the browser or releasing its session."""
+        if self._terminal_task is None:
+            self._terminal_task = asyncio.create_task(
+                _run_browser_terminal_callback(self._disconnect_callback),
+                name="stagehand-browser-disconnect",
             )
         return asyncio.shield(self._terminal_task)
 
@@ -386,6 +398,7 @@ async def _connect_browser(
             worker_init_metadata=worker_init_metadata,
         ),
         close,
+        disconnect=connected_client.close,
         invalidate=invalidate,
         session_id=(
             worker_init_metadata.browser.session_id if worker_init_metadata.browser else None

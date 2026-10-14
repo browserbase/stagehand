@@ -103,6 +103,7 @@ def _browser_handle(
                 ),
             ),
             transport.close,
+            disconnect=transport.close,
             _token=_BROWSER_TOKEN,
         ),
         transport,
@@ -536,6 +537,7 @@ async def test_ambiguous_initialization_uses_browser_invalidation_not_public_clo
             worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
         ),
         close,
+        disconnect=transport.close,
         invalidate=invalidate,
         _token=_BROWSER_TOKEN,
     )

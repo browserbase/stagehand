@@ -901,9 +901,14 @@ Set the ignore-default-args option to `true` to remove all default arguments. Us
 
 ### Keep alive
 
-The keep-alive option controls whether the browser remains running after `close()` is called.
+`browser.disconnect()` in TypeScript and Python, or `browser.Disconnect(ctx)` in
+Go, closes the client transport without terminating the browser or releasing its
+Browserbase session. Enable keep-alive when launching a Browserbase session so
+it remains available after disconnection, within its configured timeout.
 
-By default, Stagehand terminates the browser it launched and cleans up all resources when it shuts down. Turning keep-alive on keeps the browser running independently so you can reconnect to it later.
+Browser close terminates the browser or releases the session, even with keep-alive
+enabled. Both operations finish the handle; reconnect with a new one. Close the
+Stagehand client before disconnecting its browser.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -929,11 +934,6 @@ const browser2 = await browserbase.connect({
 const stagehand2 = await Stagehand.create({ browser: browser2 });
 ```
 
-In TypeScript, `browser.disconnect()` closes the client transport and leaves the
-browser session unreleased. Enable `keepAlive: true` when launching a Browserbase
-session to keep it running after disconnection, within its configured timeout.
-`browser.close()` releases the session, even with `keepAlive: true`. Both
-operations finish the handle; reconnect with a new one.
 </Tab>
 
 <Tab title="Python">
@@ -950,9 +950,9 @@ stagehand = await Stagehand.create(browser=browser)
 session_id = browser.session_id
 assert session_id is not None
 
-# The browser session continues running after close()
+# Disconnect while keeping the session available for another process.
 await stagehand.close()
-await browser.close()
+await browser.disconnect()
 
 # Later, reconnect to the same Browserbase session
 browser2 = await browserbase.connect(
@@ -981,11 +981,11 @@ if err != nil {
 }
 sessionID := browser.SessionID()
 
-// The browser session continues running after Close()
+// Disconnect while keeping the session available for another process.
 if err := client.Close(ctx); err != nil {
 	return err
 }
-if err := browser.Close(ctx); err != nil {
+if err := browser.Disconnect(ctx); err != nil {
 	return err
 }
 
@@ -1011,11 +1011,10 @@ defer func() { err = errors.Join(err, client2.Close(ctx)) }()
 
 #### Behavior by environment
 
-| Behavior | keep-alive on | keep-alive off (default) |
+| Operation | Browserbase | Local, launched or attached |
 | --- | --- | --- |
-| **Browserbase** | Session stays active after `close()` | Session is terminated via API |
-| **Local** | Chrome process continues running | Chrome process is killed and temp profile is removed |
-| **Attached over CDP** | Always left running | Always left running (Stagehand never owns the browser) |
+| Browser close | Releases the session, including keep-alive sessions | Terminates the browser |
+| Browser disconnect | Detaches; keep-alive sessions remain available within their timeout | Detaches without terminating Chrome |
 
 #### Local environment
 
@@ -1035,7 +1034,7 @@ await page.goto("https://example.com");
 
 // Browser window stays open after the script exits
 await stagehand.close();
-await browser.close();
+await browser.disconnect();
 ```
 </Tab>
 
@@ -1052,7 +1051,7 @@ await page.goto("https://example.com")
 
 # Browser window stays open after the script exits
 await stagehand.close()
-await browser.close()
+await browser.disconnect()
 ```
 </Tab>
 
@@ -1088,7 +1087,7 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 }
 
 // Browser window stays open after the program exits
-return errors.Join(client.Close(ctx), browser.Close(ctx))
+return errors.Join(client.Close(ctx), browser.Disconnect(ctx))
 ```
 </Tab>
 </Tabs>

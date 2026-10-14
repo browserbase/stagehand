@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -17,6 +18,69 @@ func newBrowserTestCDP(t *testing.T) *cdpClient {
 		t.Fatalf("newCDPClient() error = %v", err)
 	}
 	return client
+}
+
+func TestBrowserDisconnectPreservesSource(t *testing.T) {
+	for _, provider := range []BrowserProvider{BrowserProviderLocal, BrowserProviderBrowserbase} {
+		for _, origin := range []BrowserOrigin{BrowserOriginLaunched, BrowserOriginConnected} {
+			for _, ownsSource := range []bool{false, true} {
+				t.Run(string(provider)+"/"+string(origin)+"/"+fmt.Sprint(ownsSource), func(t *testing.T) {
+					cdp := newBrowserTestCDP(t)
+					cleanupErr := errors.New("cleanup failed")
+					sourceCalls, cleanupCalls := 0, 0
+					browser := &Browser{
+						provider: provider, origin: origin, ownsSource: ownsSource, cdp: cdp,
+						terminateSource: func(context.Context) error { sourceCalls++; return nil },
+						closeSource:     func(context.Context) error { sourceCalls++; return nil },
+						cleanup:         func() error { cleanupCalls++; return cleanupErr },
+					}
+					first := browser.Disconnect(nil)
+					if !errors.Is(first, cleanupErr) || !browser.Closed() || !cdp.closedState() {
+						t.Fatalf("Disconnect() = %v, browser closed = %v, CDP closed = %v", first, browser.Closed(), cdp.closedState())
+					}
+					if browser.Disconnect(context.Background()) != first || browser.Close(context.Background()) != first {
+						t.Fatal("terminal result was not memoized")
+					}
+					if sourceCalls != 0 || cleanupCalls != 1 {
+						t.Fatalf("source calls = %d, cleanup calls = %d; want 0, 1", sourceCalls, cleanupCalls)
+					}
+					if _, err := claimBrowser(browser); err == nil {
+						t.Fatal("claim succeeded after disconnect")
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestBrowserDisconnectConcurrent(t *testing.T) {
+	started, finish := make(chan struct{}), make(chan struct{})
+	cleanupCalls := 0
+	browser := &Browser{cleanup: func() error {
+		cleanupCalls++
+		close(started)
+		<-finish
+		return nil
+	}}
+	first := make(chan error, 1)
+	go func() { first <- browser.Disconnect(context.Background()) }()
+	<-started
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := browser.Disconnect(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled waiter error = %v", err)
+	}
+	close(finish)
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	if err := browser.Close(nil); err != nil || cleanupCalls != 1 {
+		t.Fatalf("Close() = %v, cleanup calls = %d", err, cleanupCalls)
+	}
+	var absent *Browser
+	if err := absent.Disconnect(nil); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBrowserClaimAndCloseSemantics(t *testing.T) {

@@ -104,6 +104,24 @@ func (browser *Browser) Close(ctx context.Context) error {
 	return browser.runTerminalOperation(ctx, browser.terminateResources)
 }
 
+// Disconnect detaches the client without terminating the browser or releasing its session.
+// A nil context is treated as context.Background.
+func (browser *Browser) Disconnect(ctx context.Context) error {
+	return browser.runTerminalOperation(ctx, browser.disconnectResources)
+}
+
+func (browser *Browser) disconnectResources(context.Context) error {
+	var cdpErr error
+	if browser.cdp != nil {
+		cdpErr = browser.cdp.Close()
+	}
+	var cleanupErr error
+	if browser.cleanup != nil {
+		cleanupErr = browser.cleanup()
+	}
+	return errors.Join(cdpErr, cleanupErr)
+}
+
 func (browser *Browser) invalidate(ctx context.Context) error {
 	return browser.runTerminalOperation(ctx, browser.invalidateResources)
 }
