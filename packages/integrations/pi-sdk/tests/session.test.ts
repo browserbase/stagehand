@@ -42,8 +42,14 @@ function scriptedSdk(
             });
           }
           for (const event of events) {
+            const decision =
+              event.type === "turn_end"
+                ? await session.agent.finishTurn?.(
+                    {} as Parameters<NonNullable<PiAgentSessionLike["agent"]["finishTurn"]>>[0],
+                  )
+                : undefined;
             for (const listener of listeners) listener(event);
-            if (event.type === "turn_end" && (await session.agent.shouldStopAfterTurn?.())) break;
+            if (decision && decision.action === "end") break;
           }
         },
         async abort() {
@@ -148,7 +154,36 @@ describe("pi SDK session", () => {
       systemPrompt: "system",
       customTools: [customTool],
     });
+    expect(fake.createOptions).not.toHaveProperty("thinkingLevel");
     expect(fake.disposeCount).toBe(1);
+  });
+
+  it("keeps pi's stock system prompt and appends evaluation guidance by default", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { appendSystemPrompt: "You are being evaluated." },
+    });
+    expect(fake.createOptions).toMatchObject({
+      appendSystemPrompt: "You are being evaluated.",
+    });
+    expect(fake.createOptions).not.toHaveProperty("systemPrompt");
+    expect(fake.createOptions).not.toHaveProperty("thinkingLevel");
+  });
+
+  it("honors an explicit thinking level", async () => {
+    const fake = scriptedSdk([assistant("done", {}, "stop"), { type: "turn_end" }]);
+    await runPiSession({
+      prompt: "task",
+      model: "openai/gpt-5.4-mini",
+      sdk: fake.sdk,
+      logger,
+      session: { thinkingLevel: "off" },
+    });
+    expect(fake.createOptions).toMatchObject({ thinkingLevel: "off" });
   });
 
   it("stops at the turn budget", async () => {

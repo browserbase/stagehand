@@ -6,7 +6,7 @@ export default defineBenchTask(
   { name: "extract_memorial_healthcare" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/");
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/mycmh/");
 
       const { data: result } = await stagehand.extract(
         "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",

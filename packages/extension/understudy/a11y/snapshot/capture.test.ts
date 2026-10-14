@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FrameContext, FrameDomMaps, SessionDomIndex } from "../../../types/private/index.js";
 import type { StagehandLogger } from "../../../logger.js";
-import type { Page } from "../../page.js";
+import { Page } from "../../page.js";
+import { Progress } from "../../progress.js";
+import { executionContexts } from "../../executionContextRegistry.js";
 import { FrameSelectorResolver } from "../../selectorResolver.js";
 import { a11yForFrame } from "./a11yTree.js";
 import {
@@ -319,6 +321,7 @@ describe("snapshot Unicode repair", () => {
       expect.objectContaining({
         focusLocator: { selector: "#target", nth: 2 },
       }),
+      undefined,
     );
   });
 
@@ -356,7 +359,7 @@ describe("snapshot Unicode repair", () => {
         new Map(),
       );
 
-      expect(resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: ".card" }, 1);
+      expect(resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: ".card" }, 1, undefined);
       expect(resolveAll).not.toHaveBeenCalled();
       expect(ignoredNodes.get("root")).toEqual(new Set([20]));
       expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-second" });
@@ -364,5 +367,189 @@ describe("snapshot Unicode repair", () => {
       resolveAtIndex.mockRestore();
       resolveAll.mockRestore();
     }
+  });
+});
+
+describe("snapshot progress ownership", () => {
+  let page: Page;
+  let progress: Progress;
+  const root = { nodeId: 1, backendNodeId: 1, nodeName: "#document", children: [] };
+  const send = vi.fn(async (_method: string, _params?: unknown): Promise<unknown> => ({ root }));
+  const session = { id: "session", send };
+  const warn = vi.fn();
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+    progress = new Progress("extract", 20);
+    send.mockResolvedValue({ root });
+    vi.mocked(ownerSession).mockReturnValue(session as never);
+    vi.mocked(parentSession).mockReturnValue(session as never);
+    vi.mocked(a11yForFrame).mockResolvedValue({ outline: "root", urlMap: {}, scopeApplied: false });
+    vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
+      targetFrameId: "root",
+      tailSelector: ".card",
+      absPrefix: "",
+    });
+    page = Object.assign(Object.create(Page.prototype) as Page, {
+      logger: { warn },
+      mainFrameId: () => "root",
+      listAllFrameIds: () => ["root", "child"],
+      asProtocolFrameTree: () => ({
+        frame: { id: "root" },
+        childFrames: [{ frame: { id: "child" } }],
+      }),
+      getOrdinal: (id: string) => (id === "root" ? 0 : 1),
+    });
+  });
+  afterEach(() => {
+    progress.dispose();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it.each(["public snapshot", "default snapshot", "nested snapshot", "nested capture"] as const)(
+    "%s stops at its deadline without continuing after a late response",
+    async (method) => {
+      let respond!: (value: unknown) => void;
+      send.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            respond = resolve;
+          }),
+      );
+      await vi.advanceTimersByTimeAsync(10);
+      const result =
+        method === "default snapshot"
+          ? page.snapshot()
+          : method === "public snapshot"
+            ? page.snapshot({ timeout: 10 })
+            : method === "nested snapshot"
+              ? page.snapshot({ timeout: 1 }, progress)
+              : page.captureSnapshot({}, progress);
+      const timedOut = expect(result).rejects.toThrow(
+        method === "default snapshot"
+          ? /snapshot timed out after 20000ms/
+          : method === "public snapshot"
+            ? /snapshot timed out after 10ms/
+            : /extract timed out after 20ms/,
+      );
+      await vi.advanceTimersByTimeAsync(method === "default snapshot" ? 20_000 : 10);
+      await timedOut;
+      if (method.startsWith("nested")) await expect(result).rejects.toBe(progress.signal.reason);
+      respond({ root });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(a11yForFrame).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { name: "explicit zero", capture: () => page.snapshot({ includeIframes: false, timeout: 0 }) },
+    { name: "internal capture", capture: () => page.captureSnapshot({ includeIframes: false }) },
+    { name: "unlimited parent", capture: () => page.snapshot({ includeIframes: false }, progress) },
+  ])("keeps $name unlimited beyond the public default", async ({ capture }) => {
+    progress.dispose();
+    progress = new Progress("extract", 0);
+    send.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25_000));
+      return {};
+    });
+    const result = capture();
+    await vi.advanceTimersByTimeAsync(25_000);
+    await expect(result).resolves.toBeDefined();
+    const received = vi.mocked(a11yForFrame).mock.calls[0]![3]!;
+    expect(received.remainingMs()).toBe(Infinity);
+  });
+
+  it("stops before reading another frame even if the deadline timer has not fired", async () => {
+    const readCommands = () =>
+      send.mock.calls
+        .map(([method]) => method)
+        .filter((method) => method !== "Runtime.releaseObject");
+    let readsAtExpiry: string[] = [];
+    vi.mocked(a11yForFrame).mockImplementationOnce(async () => {
+      readsAtExpiry = readCommands();
+      vi.spyOn(performance, "now").mockReturnValue(20);
+      return { outline: "root", urlMap: {}, scopeApplied: false };
+    });
+    await expect(page.snapshot({}, progress)).rejects.toThrow(/extract timed out/);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(a11yForFrame).toHaveBeenCalledTimes(1);
+    expect(readCommands()).toEqual(readsAtExpiry);
+  });
+
+  it("does not turn focus expiry into a full-page fallback", async () => {
+    vi.mocked(resolveCssFocusFrameAndTail).mockImplementationOnce(async () => {
+      vi.spyOn(performance, "now").mockReturnValue(20);
+      throw new Error("focus unavailable");
+    });
+    await expect(
+      page.captureSnapshot({ focusLocator: { selector: ".card" } }, progress),
+    ).rejects.toThrow(/extract timed out/);
+    expect(warn).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it.each(
+    [
+      { name: "css scope", options: { focusLocator: { selector: "iframe >> .card" } } },
+      { name: "xpath scope", options: { focusLocator: { selector: "xpath=/iframe/div" } } },
+      { name: "ignore", options: { ignoreLocators: [{ selector: ".card" }] } },
+      { name: "indexed ignore", options: { ignoreLocators: [{ selector: ".card", nth: 0 }] } },
+    ].flatMap((test) => [0, 10].map((timeout) => ({ ...test, timeout }))),
+  )(
+    "$name falls back only while the caller is active (timeout: $timeout)",
+    async ({ options, timeout }) => {
+      progress.dispose();
+      progress = new Progress("extract", timeout);
+      const actual = await vi.importActual<typeof focusSelectors>("./focusSelectors.js");
+      vi.mocked(resolveCssFocusFrameAndTail).mockImplementation(actual.resolveCssFocusFrameAndTail);
+      Object.assign(page, { getSessionForFrame: () => session });
+      executionContexts.register(session as never, "root", 1);
+      send.mockImplementation(async (method) =>
+        method === "Runtime.evaluate" ? { result: { value: "https:" } } : { root },
+      );
+
+      const result = page.captureSnapshot({ ...options, includeIframes: false }, progress);
+      const checked = timeout
+        ? expect(result).rejects.toThrow(/extract timed out after 10ms/)
+        : expect(result).resolves.toMatchObject({ combinedTree: "root" });
+      await vi.advanceTimersByTimeAsync(1100);
+      await checked;
+      expect(send).toHaveBeenCalledWith("Runtime.enable");
+      if (timeout) {
+        await expect(result).rejects.toBe(progress.signal.reason);
+        expect(a11yForFrame).not.toHaveBeenCalled();
+        expect(warn).not.toHaveBeenCalled();
+      } else {
+        expect(a11yForFrame).toHaveBeenCalledTimes(1);
+        if (options.focusLocator) expect(warn).toHaveBeenCalledOnce();
+      }
+    },
+  );
+
+  it("releases ignored-node references without continuing after expiry", async () => {
+    vi.spyOn(FrameSelectorResolver.prototype, "resolveAll").mockResolvedValue([
+      { nodeId: null, objectId: "first" },
+      { nodeId: null, objectId: "second" },
+    ]);
+    send.mockImplementation(async (method) => {
+      if (method === "DOM.describeNode") {
+        vi.spyOn(performance, "now").mockReturnValue(20);
+        throw new Error("node detached");
+      }
+      return { root };
+    });
+    await expect(
+      page.captureSnapshot({ ignoreLocators: [{ selector: ".card" }] }, progress),
+    ).rejects.toThrow(/extract timed out/);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(send.mock.calls.filter(([method]) => method === "Runtime.releaseObject")).toEqual([
+      ["Runtime.releaseObject", { objectId: "first" }],
+      ["Runtime.releaseObject", { objectId: "second" }],
+    ]);
+    expect(send.mock.calls.filter(([method]) => method === "DOM.describeNode")).toHaveLength(1);
+    expect(a11yForFrame).not.toHaveBeenCalled();
   });
 });

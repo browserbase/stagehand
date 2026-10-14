@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
@@ -21,24 +21,50 @@ dist/
 `;
 
 const starterFunctionTemplate = `import { defineFn } from "@browserbasehq/sdk-functions";
-import { chromium } from "playwright-core";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
 
-defineFn("my-function", async (context) => {
-  const browser = await chromium.connectOverCDP(context.session.connectUrl);
-  const page = browser.contexts()[0]!.pages()[0]!;
+defineFn(
+  "my-function",
+  async (context) => {
+    const browser = await browserbase.connect({
+      // The local dev server has no secrets, so fall back to .env.
+      apiKey:
+        context.secrets.BROWSERBASE_API_KEY ?? process.env.BROWSERBASE_API_KEY!,
+      sessionId: context.session.id,
+    });
+    // In this example, Stagehand uses the Model Gateway where Browserbase charges for the tokens
+    const stagehand = await Stagehand.create({ browser });
+    const page = (await browser.context.activePage())!;
 
-  await page.goto("https://news.ycombinator.com");
-  await page.waitForSelector(".athing", { timeout: 30_000 });
+    await page.goto("https://news.ycombinator.com");
+    const { data } = await stagehand.extract(
+      "Extract the top 3 stories with their rank, title, and link URL.",
+      z.object({
+        stories: z
+          .array(z.object({ rank: z.number(), title: z.string(), url: z.string() }))
+          .max(3),
+      }),
+    );
 
-  const titles = await page.$$eval(".athing .titleline > a", (elements) =>
-    elements.slice(0, 3).map((element) => element.textContent),
-  );
+    await stagehand.close();
+    return {
+      message: "Successfully fetched top Hacker News stories",
+      timestamp: new Date().toISOString(),
+      results: data.stories,
+    };
+  },
+  {
+    // Upload the Stagehand extension once, then paste its ID here:
+    //   browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip
+    sessionConfig: { extensionId: "your-extension-id" },
+  },
+);
+`;
 
-  return {
-    message: "Fetched top Hacker News titles",
-    titles,
-  };
-});
+// pnpm 11 and later fail installs when esbuild's build script is not approved.
+const pnpmWorkspaceTemplate = `allowBuilds:
+  esbuild: true
 `;
 
 const tsconfigTemplate = `{
@@ -95,6 +121,12 @@ export async function initFunctionsProject({
   await writeFile(join(projectRoot, ".gitignore"), gitignoreTemplate);
   await writeFile(join(projectRoot, "index.ts"), starterFunctionTemplate);
   await writeFile(join(projectRoot, "tsconfig.json"), tsconfigTemplate);
+  if (packageManager === "pnpm") {
+    await writeFile(
+      join(projectRoot, "pnpm-workspace.yaml"),
+      pnpmWorkspaceTemplate,
+    );
+  }
 
   const install = packageManager === "pnpm" ? ["add"] : ["install"];
   const installDev =
@@ -102,7 +134,14 @@ export async function initFunctionsProject({
 
   runPackageManager(
     packageManager,
-    [...install, "@browserbasehq/sdk-functions", "playwright-core"],
+    [...install, "@browserbasehq/sdk-functions", "@browserbasehq/stagehand"],
+    projectRoot,
+  );
+  // Match Stagehand's version of zod in order to pass type checks.
+  const zodVersion = readStagehandZodVersion(projectRoot);
+  runPackageManager(
+    packageManager,
+    [...install, zodVersion ? `zod@${zodVersion}` : "zod"],
     projectRoot,
   );
   runPackageManager(
@@ -127,8 +166,11 @@ export async function initFunctionsProject({
         nextSteps: [
           `cd ${projectName}`,
           "Edit .env with your Browserbase API key",
-          packageManager === "pnpm" ? "pnpm dev" : "npm run dev",
-          packageManager === "pnpm" ? "pnpm run deploy" : "npm run deploy",
+          "browse cloud extensions upload node_modules/@browserbasehq/stagehand/dist/assets/stagehand-extension.zip",
+          "Paste the uploaded extension ID into index.ts",
+          "browse functions dev index.ts",
+          "browse functions publish index.ts",
+          "Create a BROWSERBASE_API_KEY secret with browse cloud secrets create, then attach it with browse functions secrets attach",
         ],
       },
       null,
@@ -141,6 +183,26 @@ function ensureCommand(command: string): void {
   const result = spawnSync(command, ["--version"], { stdio: "ignore" });
   if (result.error || result.status !== 0) {
     fail(`${command} is required but was not found on PATH.`);
+  }
+}
+
+function readStagehandZodVersion(projectRoot: string): string | undefined {
+  try {
+    const stagehandPackageJson = JSON.parse(
+      readFileSync(
+        join(
+          projectRoot,
+          "node_modules",
+          "@browserbasehq",
+          "stagehand",
+          "package.json",
+        ),
+        "utf8",
+      ),
+    ) as { dependencies?: Record<string, string> };
+    return stagehandPackageJson.dependencies?.zod;
+  } catch {
+    return undefined;
   }
 }
 

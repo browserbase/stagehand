@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp.js";
 import { CdpConnection } from "./cdp.js";
 import { evaluateWithShadowRoots } from "./shadowRootEvaluation.js";
 import { Frame } from "./frame.js";
+import { type Progress, runLocatorStep, runWithProgress } from "./progress.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
@@ -27,6 +28,8 @@ import type {
   PageToolsRemovedNotification,
   WebMCPToolIdentity,
   PageSnapshotOptions,
+  PagePDFOptions,
+  PagePDFResult,
   SnapshotResult,
   WebMCPAnnotation,
   WebMCPInvocationDescriptor,
@@ -55,7 +58,6 @@ import {
   runScreenshotCleanups,
   setTransparentBackground,
   withScreenshotLock,
-  waitForScreenshot,
   type ScreenshotCleanup,
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
@@ -298,7 +300,7 @@ export class Page {
   cursorEnabled = false;
   async ensureCursorScript(): Promise<void> {
     await this.mainFrameWrapper
-      .evaluateInLocatorWorld("globalThis.__stagehandLocatorScripts.installCursorOverlay()")
+      .evaluateInLocatorWorld(() => "globalThis.__stagehandLocatorScripts.installCursorOverlay()")
       .catch(() => {});
   }
 
@@ -308,14 +310,16 @@ export class Page {
     this.cursorEnabled = true;
   }
 
-  async updateCursor(x: number, y: number): Promise<void> {
+  async updateCursor(x: number, y: number, progress?: Progress): Promise<void> {
     if (!this.cursorEnabled) return;
     try {
       await this.mainFrameWrapper.evaluateInLocatorWorld(
-        `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        () =>
+          `globalThis.__stagehandLocatorScripts.moveCursorOverlay(${Math.round(x)}, ${Math.round(y)})`,
+        progress,
       );
     } catch {
-      //
+      progress?.throwIfStopped();
     }
   }
 
@@ -1504,7 +1508,10 @@ export class Page {
    * timeout error is thrown.
    * @param options.type Image format (`"png"` by default).
    */
-  async screenshot(options?: UnderstudyScreenshotOptions): Promise<Uint8Array> {
+  async screenshot(
+    options?: UnderstudyScreenshotOptions,
+    parentProgress?: Progress,
+  ): Promise<Uint8Array> {
     const opts = options ?? {};
     const type = opts.type ?? "png";
 
@@ -1530,61 +1537,108 @@ export class Page {
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
-    const exec = async (signal: AbortSignal): Promise<Uint8Array> => {
+    let failure: { error: unknown } | undefined;
+    const exec = async (progress: Progress): Promise<Uint8Array> => {
       try {
-        const captureScale = await waitForScreenshot(
-          computeScreenshotScale(this, scaleMode),
-          signal,
-        );
+        const captureScale = await computeScreenshotScale(this, scaleMode, progress);
         if (opts.omitBackground) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await setTransparentBackground(this.mainSession));
+          await setTransparentBackground(this.mainSession, progress, cleanupTasks);
         }
 
         if (animationsMode === "disabled") {
-          signal.throwIfAborted();
-          cleanupTasks.push(await disableAnimations(frames));
+          await disableAnimations(frames, progress, cleanupTasks);
         }
 
         if (caretMode === "hide") {
-          signal.throwIfAborted();
-          cleanupTasks.push(await hideCaret(frames));
+          await hideCaret(frames, progress, cleanupTasks);
         }
 
         if (opts.style && opts.style.trim()) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await applyStyleToFrames(frames, opts.style, "custom"));
+          await applyStyleToFrames(frames, opts.style, "custom", progress, cleanupTasks);
         }
 
         if (maskLocators.length > 0) {
-          signal.throwIfAborted();
-          cleanupTasks.push(await applyMaskOverlays(maskLocators, opts.maskColor ?? "#FF00FF"));
+          await applyMaskOverlays(
+            maskLocators,
+            opts.maskColor ?? "#FF00FF",
+            progress,
+            cleanupTasks,
+          );
         }
 
         // Setup and cleanup mutate this page only. Hold the browser-wide lock solely
-        // while activating and capturing, so a stalled page cannot block other tabs.
-        return await waitForScreenshot(
-          withScreenshotLock(
-            this.conn,
-            () =>
-              this.mainFrameWrapper.screenshot({
+        // while activating and capturing, so stalled preparation cannot block other tabs.
+        return await withScreenshotLock(
+          this.conn,
+          () =>
+            this.mainFrameWrapper.screenshot(
+              {
                 fullPage: opts.fullPage,
                 clip,
                 type,
                 quality: type === "jpeg" ? opts.quality : undefined,
                 scale: captureScale,
-                signal,
-              }),
-            undefined,
-          ),
-          signal,
+              },
+              progress,
+            ),
+          progress,
         );
+      } catch (error) {
+        progress.throwIfStopped();
+        failure = { error };
+        throw error;
       } finally {
         await runScreenshotCleanups(cleanupTasks);
       }
     };
 
-    return await withScreenshotLock(this, exec, opts.timeout);
+    try {
+      return await runWithProgress(
+        parentProgress ?? { name: "screenshot", timeout: opts.timeout ?? 0 },
+        (progress) => withScreenshotLock(this, () => exec(progress), progress),
+      );
+    } catch (error) {
+      // Cleanup may outlast the deadline; preserve a capture error already received.
+      throw failure ? failure.error : error;
+    }
+  }
+
+  /** Keep the PDF base64-encoded for transport; SDKs decode it to bytes. */
+  async pdf(options?: PagePDFOptions, parentProgress?: Progress): Promise<PagePDFResult> {
+    const {
+      timeout = 30_000,
+      width,
+      height,
+      margin,
+      tagged = false,
+      outline = false,
+      ...printOptions
+    } = options ?? {};
+    return await runWithProgress(parentProgress ?? { name: "pdf", timeout }, (progress) =>
+      withScreenshotLock(
+        this,
+        async () => {
+          // Keep the print promise in the queue even if progress stops the caller's wait.
+          const { data } = await this.mainSession.send<Protocol.Page.PrintToPDFResponse>(
+            "Page.printToPDF",
+            {
+              ...printOptions,
+              paperWidth: width,
+              paperHeight: height,
+              marginTop: margin?.top ?? 0,
+              marginBottom: margin?.bottom ?? 0,
+              marginLeft: margin?.left ?? 0,
+              marginRight: margin?.right ?? 0,
+              generateTaggedPDF: tagged,
+              generateDocumentOutline: outline,
+              transferMode: "ReturnAsBase64",
+            },
+          );
+          return { data };
+        },
+        progress,
+      ),
+    );
   }
 
   /**
@@ -1702,7 +1756,7 @@ export class Page {
    * @param selector CSS selector to wait for (supports '>>' for iframe hops)
    * @param options
    * @param options.state Element state to wait for: 'attached' | 'detached' | 'visible' | 'hidden' (default: 'visible')
-   * @param options.timeout Maximum time to wait in milliseconds (default: 30000)
+   * @param options.timeout Maximum time to wait in milliseconds (default: 30000; zero is unlimited)
    * @param options.pierceShadow Whether to search inside shadow DOM (default: true)
    * @returns True when the condition is met
    * @throws Error if timeout is reached before the condition is met
@@ -1714,27 +1768,29 @@ export class Page {
       timeout?: number;
       pierceShadow?: boolean;
     },
+    parentProgress?: Progress,
   ): Promise<boolean> {
-    const timeout = options?.timeout ?? 30000;
-    const state = options?.state ?? "visible";
-    const pierceShadow = options?.pierceShadow ?? true;
-    const startTime = Date.now();
-    const root = this.mainFrameWrapper;
-    const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
-      this,
-      root,
-      selector,
+    return runWithProgress(
+      parentProgress ?? { name: "waitForSelector", timeout: options?.timeout ?? 30_000 },
+      async (progress) => {
+        const { frame: targetFrame, selector: finalSelector } = await resolveLocatorTarget(
+          this,
+          this.mainFrameWrapper,
+          selector,
+          progress,
+        );
+        return targetFrame.waitInLocatorWorld(() => {
+          const remaining = progress.remainingMs();
+          progress.throwIfStopped();
+          return buildLocatorInvocation("createSelectorWait", [
+            JSON.stringify(finalSelector),
+            JSON.stringify(options?.state ?? "visible"),
+            String(remaining === Infinity ? 0 : Math.ceil(remaining)),
+            String(options?.pierceShadow ?? true),
+          ]);
+        }, progress);
+      },
     );
-    const elapsed = Date.now() - startTime;
-    const remainingTimeout = Math.max(0, timeout - elapsed);
-
-    const expression = buildLocatorInvocation("waitForSelector", [
-      JSON.stringify(finalSelector),
-      JSON.stringify(state),
-      String(remainingTimeout),
-      String(pierceShadow),
-    ]);
-    return targetFrame.evaluateInLocatorWorld(expression);
   }
 
   /** Internal batch evaluation; page.evaluate continues to use the main world unchanged. */
@@ -1893,24 +1949,34 @@ export class Page {
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
   }
-  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
-    await this.updateCursor(x, y);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x,
-      y,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    progress?: Progress,
+  ): Promise<void> {
+    await runLocatorStep(progress, "updating cursor", () => this.updateCursor(x, y, progress));
+    await runLocatorStep(progress, "scrolling page", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x,
+        y,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
 
     // Synthesize a simple mouse move + press + release sequence
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseWheel",
-      x,
-      y,
-      button: "none",
-      deltaX,
-      deltaY,
-    } as Protocol.Input.DispatchMouseEventRequest);
+    await runLocatorStep(progress, "scrolling page", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x,
+        y,
+        button: "none",
+        deltaX,
+        deltaY,
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
   }
 
   /**
@@ -1928,12 +1994,14 @@ export class Page {
       delay?: number;
       route?: Array<{ x: number; y: number }>;
     },
+    progress?: Progress,
   ): Promise<void> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
 
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) =>
+      progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
     const buttonMask = (b: typeof button): number => {
       switch (b) {
@@ -1949,65 +2017,100 @@ export class Page {
     };
 
     // Move to start
-    await this.updateCursor(fromX, fromY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseMoved",
-      x: fromX,
-      y: fromY,
-      button: "none",
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    // Press
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mousePressed",
-      x: fromX,
-      y: fromY,
-      button,
-      buttons: buttonMask(button),
-      clickCount: 1,
-    } as Protocol.Input.DispatchMouseEventRequest);
-
-    const samePoint = (point: { x: number; y: number }, x: number, y: number) =>
-      point.x === x && point.y === y;
-    const route = options?.route ?? [];
-    let routeStart = 0;
-    let routeEnd = route.length;
-    while (routeStart < routeEnd && samePoint(route[routeStart], fromX, fromY)) routeStart++;
-    while (routeEnd > routeStart && samePoint(route[routeEnd - 1], toX, toY)) routeEnd--;
-
-    const movementPoints =
-      route.length > 0
-        ? [...route.slice(routeStart, routeEnd), { x: toX, y: toY }]
-        : Array.from({ length: steps }, (_, index) => {
-            const t = (index + 1) / steps;
-            return {
-              x: fromX + (toX - fromX) * t,
-              y: fromY + (toY - fromY) * t,
-            };
-          });
-
-    for (const { x, y } of movementPoints) {
-      await this.updateCursor(x, y);
-      await this.mainSession.send<never>("Input.dispatchMouseEvent", {
+    await runLocatorStep(progress, "updating cursor", () =>
+      this.updateCursor(fromX, fromY, progress),
+    );
+    await runLocatorStep(progress, "dragging mouse", () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
+        x: fromX,
+        y: fromY,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest),
+    );
+
+    let pressed = false;
+    let x = fromX;
+    let y = fromY;
+    const release = () =>
+      this.mainSession.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
         x,
         y,
         button,
         buttons: buttonMask(button),
+        clickCount: 1,
       } as Protocol.Input.DispatchMouseEventRequest);
-      if (delay) await sleep(delay);
-    }
+    // Release even when a drag expires after the button was pressed.
+    try {
+      progress?.throwIfStopped();
+      // Press
+      await runLocatorStep(progress, "pressing mouse", () => {
+        pressed = true;
+        return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: fromX,
+          y: fromY,
+          button,
+          buttons: buttonMask(button),
+          clickCount: 1,
+        } as Protocol.Input.DispatchMouseEventRequest);
+      });
 
-    // Release at end
-    await this.updateCursor(toX, toY);
-    await this.mainSession.send<never>("Input.dispatchMouseEvent", {
-      type: "mouseReleased",
-      x: toX,
-      y: toY,
-      button,
-      buttons: buttonMask(button),
-      clickCount: 1,
-    } as Protocol.Input.DispatchMouseEventRequest);
+      const samePoint = (point: { x: number; y: number }, x: number, y: number) =>
+        point.x === x && point.y === y;
+      const route = options?.route ?? [];
+      let routeStart = 0;
+      let routeEnd = route.length;
+      while (routeStart < routeEnd && samePoint(route[routeStart], fromX, fromY)) routeStart++;
+      while (routeEnd > routeStart && samePoint(route[routeEnd - 1], toX, toY)) routeEnd--;
+
+      const movementPoints =
+        route.length > 0
+          ? [...route.slice(routeStart, routeEnd), { x: toX, y: toY }]
+          : Array.from({ length: steps }, (_, index) => {
+              const t = (index + 1) / steps;
+              return {
+                x: fromX + (toX - fromX) * t,
+                y: fromY + (toY - fromY) * t,
+              };
+            });
+
+      for (const point of movementPoints) {
+        progress?.throwIfStopped();
+        await runLocatorStep(progress, "updating cursor", () =>
+          this.updateCursor(point.x, point.y, progress),
+        );
+        await runLocatorStep(progress, "dragging mouse", () => {
+          x = point.x;
+          y = point.y;
+          return this.mainSession.send<never>("Input.dispatchMouseEvent", {
+            type: "mouseMoved",
+            x,
+            y,
+            button,
+            buttons: buttonMask(button),
+          } as Protocol.Input.DispatchMouseEventRequest);
+        });
+        if (delay) await sleep(delay);
+      }
+
+      // Release at end
+      await runLocatorStep(progress, "updating cursor", () =>
+        this.updateCursor(toX, toY, progress),
+      );
+      await runLocatorStep(progress, "releasing mouse", () => {
+        // Cleanup must not repeat a release whose response is still pending.
+        pressed = false;
+        return release();
+      });
+    } finally {
+      if (pressed) {
+        if (progress) await progress.cleanup(release);
+        else await release().catch(() => {});
+      }
+    }
+    progress?.throwIfStopped();
   }
 
   /**
@@ -2138,9 +2241,10 @@ export class Page {
    * For printable characters, uses the text path on keyDown; for named keys, sets key/code/VK.
    * Supports key combinations with modifiers like "Cmd+A", "Ctrl+C", "Shift+Tab", etc.
    */
-  async keyPress(key: string, options?: { delay?: number }): Promise<void> {
+  async keyPress(key: string, options?: { delay?: number }, progress?: Progress): Promise<void> {
     const delay = Math.max(0, options?.delay ?? 0);
-    const sleep = (ms: number) => new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
+    const sleep = (ms: number) =>
+      progress ? progress.delay(ms) : new Promise<void>((r) => (ms > 0 ? setTimeout(r, ms) : r()));
 
     // Split key combination by + but handle the special case of "+" key itself
     function split(keyString: string): string[] {
@@ -2169,39 +2273,56 @@ export class Page {
     const mainKey = tokens[tokens.length - 1];
     const modifierKeys = tokens.slice(0, -1);
 
+    const heldKeys = new Set<string>();
     try {
-      for (const modKey of modifierKeys) {
-        await this.keyDown(modKey);
+      for (const key of [...modifierKeys, mainKey]) {
+        await runLocatorStep(progress, "pressing key", () => {
+          heldKeys.add(key);
+          return this.keyDown(key);
+        });
       }
-
-      await this.keyDown(mainKey);
       if (delay) await sleep(delay);
-      await this.keyUp(mainKey);
-
-      for (let i = modifierKeys.length - 1; i >= 0; i--) {
-        await this.keyUp(modifierKeys[i]);
+      for (const key of [mainKey, ...modifierKeys.toReversed()]) {
+        await runLocatorStep(progress, "releasing key", () => {
+          // Cleanup must not repeat a release whose response is still pending.
+          heldKeys.delete(key);
+          return this.keyUp(key);
+        });
       }
     } catch (error) {
-      // Clear stuck modifiers on error to prevent affecting subsequent keyPress calls
+      // Release keys already dispatched without allowing more key presses.
+      if (progress) {
+        await progress.cleanup(() =>
+          Promise.allSettled([...heldKeys].reverse().map((key) => this.keyUp(key))),
+        );
+      }
       this._pressedModifiers.clear();
       throw error;
     }
   }
-  async captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot> {
-    return await captureHybridSnapshot(this, options, this.logger);
+  async captureSnapshot(
+    options?: SnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<HybridSnapshot> {
+    return await runWithProgress(parentProgress ?? { name: "snapshot", timeout: 0 }, (progress) =>
+      captureHybridSnapshot(this, options, progress, this.logger),
+    );
   }
 
-  async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
-    const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot({
-      pierceShadow: true,
-      includeIframes: options?.includeIframes,
-    });
-
-    return {
-      formattedTree: combinedTree,
-      xpathMap: combinedXpathMap,
-      urlMap: combinedUrlMap,
-    };
+  async snapshot(
+    options?: PageSnapshotOptions,
+    parentProgress?: Progress,
+  ): Promise<SnapshotResult> {
+    return await runWithProgress(
+      parentProgress ?? { name: "snapshot", timeout: options?.timeout ?? 20_000 },
+      async (progress) => {
+        const { combinedTree, combinedXpathMap, combinedUrlMap } = await this.captureSnapshot(
+          { pierceShadow: true, includeIframes: options?.includeIframes },
+          progress,
+        );
+        return { formattedTree: combinedTree, xpathMap: combinedXpathMap, urlMap: combinedUrlMap };
+      },
+    );
   }
 
   // Track pressed modifier keys

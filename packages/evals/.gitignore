@@ -2,3 +2,4 @@
 .trajectories/
 .rubric-cache/
 packages/
+evals.config.local.json

@@ -2,8 +2,8 @@
   <ul style="list-style: none; margin: 0; padding: 0;">
     <a href="https://stagehand.dev">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="media/dark_logo.png" />
-        <img alt="Stagehand" src="media/light_logo.png" width="200" style="margin-right: 30px;" />
+        <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/browserbase/stagehand/main/media/dark_logo.png" />
+        <img alt="Stagehand" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/light_logo.png" width="200" style="margin-right: 30px;" />
       </picture>
     </a>
   </ul>
@@ -25,24 +25,24 @@
 <p align="center">
   <a href="https://github.com/browserbase/stagehand/tree/main?tab=MIT-1-ov-file#MIT-1-ov-file">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/dark_license.svg" />
-      <img alt="MIT License" src="media/light_license.svg" />
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/browserbase/stagehand/main/media/dark_license.svg" />
+      <img alt="MIT License" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/light_license.svg" />
     </picture>
   </a>
   <a href="https://discord.gg/stagehand">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="media/dark_discord.svg" />
-      <img alt="Discord Community" src="media/light_discord.svg" />
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/browserbase/stagehand/main/media/dark_discord.svg" />
+      <img alt="Discord Community" src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/light_discord.svg" />
     </picture>
   </a>
   <a href="https://deepwiki.com/browserbase/stagehand">
-    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" />
+    <img alt="Ask DeepWiki" src="./media/deepwiki.svg" width="156" height="32" />
   </a>
 </p>
 
 <p align="center">
   <a href="https://stagehand.dev">
-    <img src="media/stagehand-website-banner.png" alt="Stagehand homepage showing browser automation in TypeScript, Python, and Go and a speed comparison with Playwright" width="100%" />
+    <img src="https://raw.githubusercontent.com/browserbase/stagehand/main/media/stagehand-website-banner.png" alt="Stagehand homepage showing browser automation in TypeScript, Python, and Go and a speed comparison with Playwright" width="100%" />
   </a>
 </p>
 
@@ -510,6 +510,7 @@ We'd like to thank the following people for their major contributions to Stageha
 - [Shrey Pandya](https://github.com/shrey150)
 - [Shriya Lolabattu](https://github.com/shriyatheunicorn)
 - [Alyssa Maruyama](https://github.com/akeimach)
+- [Amel Bajramovic](https://github.com/bosniankicks)
 
 ## License
 

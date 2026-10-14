@@ -103,6 +103,19 @@ export async function isCliVersionPublished(
   return true;
 }
 
+export async function assertCliAlphaVersion(repositoryRoot: string): Promise<void> {
+  const { version } = JSON.parse(
+    await readFile(path.join(repositoryRoot, "packages/cli/package.json"), "utf8"),
+  );
+  const commit = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  }).trim();
+  if (!/^\d+\.\d+\.\d+-alpha-[a-f0-9]{40}$/.test(version) || !version.endsWith(`-${commit}`)) {
+    throw new Error("Prepare a Browse alpha for the current commit before publishing");
+  }
+}
+
 // Changesets 2.x publish does not honor config.ignore. Give each package exactly
 // one publisher, while retaining Changesets' registry checks, tags and OIDC path.
 // These flags exist only during publishing; they never enter a release commit.
@@ -152,7 +165,11 @@ async function main(): Promise<void> {
     process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
   } else if (command === "publish") {
     if (flags.some((flag) => flag !== "--alpha")) throw new Error("Unknown publish flag");
-    if ((await scopedChangesets(repositoryRoot, scope)).length > 0) {
+    const cliAlpha = scope === "cli" && flags.includes("--alpha");
+    // Path-based CLI alphas retain the notes for the next stable release.
+    // Validate the temporary version before bypassing the pending-notes guard.
+    if (cliAlpha) await assertCliAlphaVersion(repositoryRoot);
+    else if ((await scopedChangesets(repositoryRoot, scope)).length > 0) {
       throw new Error(`Version pending ${scope} changesets before publishing`);
     }
     if (scope === "cli") await assertPublishedCliDependencies(repositoryRoot);

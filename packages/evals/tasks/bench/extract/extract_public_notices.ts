@@ -6,7 +6,7 @@ export default defineBenchTask(
   { name: "extract_public_notices" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/sars/", {
+      await page.goto("https://stagehand-eval-sites.vercel.app/sites/sars/", {
         waitUntil: "load",
       });
 
