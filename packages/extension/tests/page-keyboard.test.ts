@@ -101,7 +101,12 @@ describe("page keyboard state", () => {
     ["(", "Digit9", 57],
     ["+", "Equal", 187],
     ["é", undefined, undefined],
-  ])("uses safe literal key identity for %s without implicit modifiers", async (key, code, vk) => {
+    ["\n", undefined, undefined],
+    ["\r", undefined, undefined],
+    ["\u2028", undefined, undefined],
+    ["\u2029", undefined, undefined],
+    ["😀", undefined, undefined],
+  ])("uses safe literal key identity for %j without implicit modifiers", async (key, code, vk) => {
     const { keyboard, events } = setup();
     await keyboard.press(String(key));
     expect(events).toMatchObject([
@@ -110,6 +115,16 @@ describe("page keyboard state", () => {
     ]);
     expect(events[0].code).toBe(code);
     expect(events[0].windowsVirtualKeyCode).toBe(vk);
+  });
+
+  it("keeps named non-text keys out of the text input path", async () => {
+    const { keyboard, events } = setup();
+    await keyboard.press("ArrowLeft");
+    expect(events).toMatchObject([
+      { type: "rawKeyDown", key: "ArrowLeft", code: "ArrowLeft", modifiers: 0 },
+      { type: "keyUp", key: "ArrowLeft", code: "ArrowLeft", modifiers: 0 },
+    ]);
+    expect(events[0].text).toBeUndefined();
   });
 
   it("suppresses text under Control, Alt, and Meta and releases modifiers in event order", async () => {
