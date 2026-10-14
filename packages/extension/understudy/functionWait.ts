@@ -107,6 +107,7 @@ export async function waitForFunction(
             !message.includes("Cannot find context with specified id") &&
             !message.includes("Execution context was destroyed") &&
             !message.includes("Cannot find object with given id") &&
+            !message.includes("Inspected target navigated or closed") &&
             !message.startsWith("main world not ready for frame ")
           )
             throw error;
